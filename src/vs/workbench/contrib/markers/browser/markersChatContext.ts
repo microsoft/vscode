@@ -17,8 +17,8 @@ import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quic
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
-import { IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker, picksWithPromiseFn } from '../../chat/browser/attachments/chatContextPickService.js';
+import { IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IChatWidget } from '../../chat/browser/chat.js';
 
 class MarkerChatContextPick implements IChatContextPickerItem {

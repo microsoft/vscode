@@ -5,6 +5,7 @@
 
 import { isWindows } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
+import { isString } from '../../../../../base/common/types.js';
 import { SimpleCompletionModel, type LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { TerminalCompletionItemKind, type TerminalCompletionItem } from './terminalCompletionItem.js';
 
@@ -74,8 +75,8 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	// HACK: Currently this just matches leading line content, it should eventually check the
 	//       completion type is a branch
 	if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind === TerminalCompletionItemKind.Argument && /^\s*git\b/.test(leadingLineContent)) {
-		const aLabel = typeof a.completion.label === 'string' ? a.completion.label : a.completion.label.label;
-		const bLabel = typeof b.completion.label === 'string' ? b.completion.label : b.completion.label.label;
+		const aLabel = isString(a.completion.label) ? a.completion.label : a.completion.label.label;
+		const bLabel = isString(b.completion.label) ? b.completion.label : b.completion.label.label;
 		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
 		const bIsMainOrMaster = bLabel === 'main' || bLabel === 'master';
 
@@ -89,11 +90,11 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 
 	// Sort by more detailed completions
 	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method) {
-		if (typeof a.completion.label !== 'string' && a.completion.label.description && typeof b.completion.label !== 'string' && b.completion.label.description) {
+		if (!isString(a.completion.label) && a.completion.label.description && !isString(b.completion.label) && b.completion.label.description) {
 			score = 0;
-		} else if (typeof a.completion.label !== 'string' && a.completion.label.description) {
+		} else if (!isString(a.completion.label) && a.completion.label.description) {
 			score = -2;
-		} else if (typeof b.completion.label !== 'string' && b.completion.label.description) {
+		} else if (!isString(b.completion.label) && b.completion.label.description) {
 			score = 2;
 		}
 		score += (b.completion.detail ? 1 : 0) + (b.completion.documentation ? 2 : 0) - (a.completion.detail ? 1 : 0) - (a.completion.documentation ? 2 : 0);
@@ -130,10 +131,16 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
 			return 1; // Methods and aliases should come first
 		}
-		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
+		if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return -1; // Arguments should come before other kinds
+		}
+		if (b.completion.kind === TerminalCompletionItemKind.Argument && a.completion.kind !== TerminalCompletionItemKind.Argument) {
+			return 1; // Arguments should come before other kinds
+		}
+		if (isResourceKind(a.completion.kind) && !isResourceKind(b.completion.kind)) {
 			return 1; // Resources should come last
 		}
-		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder)) {
+		if (isResourceKind(b.completion.kind) && !isResourceKind(a.completion.kind)) {
 			return -1; // Resources should come last
 		}
 	}
@@ -142,6 +149,12 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	// all at the top
 	return a.labelLow.localeCompare(b.labelLow, undefined, { ignorePunctuation: true });
 };
+
+const isResourceKind = (kind: TerminalCompletionItemKind | undefined) =>
+	kind === TerminalCompletionItemKind.File ||
+	kind === TerminalCompletionItemKind.Folder ||
+	kind === TerminalCompletionItemKind.SymbolicLinkFile ||
+	kind === TerminalCompletionItemKind.SymbolicLinkFolder;
 
 // TODO: This should be based on the process OS, not the local OS
 // File score boosts for specific file extensions on Windows. This only applies when the file is the

@@ -12,7 +12,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindMatch } from '../../../../../../editor/common/model.js';
-import { MATCHES_LIMIT } from '../../../../../../editor/contrib/find/browser/findModel.js';
+import { MATCHES_LIMIT, CONTEXT_FIND_WIDGET_VISIBLE } from '../../../../../../editor/contrib/find/browser/findModel.js';
 import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../../editor/contrib/find/browser/findWidget.js';
 import { FindWidgetSearchHistory } from '../../../../../../editor/contrib/find/browser/findWidgetSearchHistory.js';
@@ -96,6 +96,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 
 class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	protected _findWidgetFocused: IContextKey<boolean>;
+	protected _findWidgetVisible: IContextKey<boolean>;
 	private _isFocused: boolean = false;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
@@ -120,6 +121,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
+		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));
 
@@ -293,6 +295,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		const searchStringUpdate = this._state.searchString !== initialInput;
 		super.show(initialInput, options);
 		this._state.change({ searchString: initialInput ?? this._state.searchString, isRevealed: true }, false);
+		this._findWidgetVisible.set(true);
 
 		if (typeof options?.matchIndex === 'number') {
 			if (!this._findModel.findMatches.length) {
@@ -349,6 +352,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 	override hide() {
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
+		this._findWidgetVisible.set(false);
 		this._findModel.clear();
 		this._notebookEditor.findStop();
 		this._progressBar.stop();

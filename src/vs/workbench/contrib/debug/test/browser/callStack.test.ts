@@ -376,6 +376,33 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(sessions[5].getId(), thirdSession.getId());
 	});
 
+	test('replacing an inactive root session removes its child sessions', async () => {
+		const oldRoot = createTestSession(model);
+		model.addSession(oldRoot);
+		const oldChild = createTestSession(model, 'oldChild', { parentSession: oldRoot });
+		model.addSession(oldChild);
+		await oldChild.terminate();
+		await oldRoot.terminate();
+
+		const replacement = disposables.add(createTestSession(model));
+		model.addSession(replacement);
+
+		assert.deepStrictEqual(model.getSessions(true).map(session => session.getId()), [replacement.getId()]);
+	});
+
+	test('adding a concurrent root session preserves inactive children of an active root session', async () => {
+		const activeRoot = disposables.add(createTestSession(model));
+		model.addSession(activeRoot);
+		const inactiveChild = disposables.add(createTestSession(model, 'inactiveChild', { parentSession: activeRoot }));
+		model.addSession(inactiveChild);
+		await inactiveChild.terminate();
+
+		const concurrentRoot = disposables.add(createTestSession(model));
+		model.addSession(concurrentRoot);
+
+		assert.deepStrictEqual(model.getSessions(true).map(session => session.getId()), [activeRoot.getId(), inactiveChild.getId(), concurrentRoot.getId()]);
+	});
+
 	test('decorations', () => {
 		const session = createTestSession(model);
 		disposables.add(session);
@@ -415,19 +442,19 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 		let context = getContext(firstStackFrame);
-		assert.strictEqual(context.sessionId, firstStackFrame.thread.session.getId());
-		assert.strictEqual(context.threadId, firstStackFrame.thread.getId());
-		assert.strictEqual(context.frameId, firstStackFrame.getId());
+		assert.strictEqual(context?.sessionId, firstStackFrame.thread.session.getId());
+		assert.strictEqual(context?.threadId, firstStackFrame.thread.getId());
+		assert.strictEqual(context?.frameId, firstStackFrame.getId());
 
 		context = getContext(secondStackFrame.thread);
-		assert.strictEqual(context.sessionId, secondStackFrame.thread.session.getId());
-		assert.strictEqual(context.threadId, secondStackFrame.thread.getId());
-		assert.strictEqual(context.frameId, undefined);
+		assert.strictEqual(context?.sessionId, secondStackFrame.thread.session.getId());
+		assert.strictEqual(context?.threadId, secondStackFrame.thread.getId());
+		assert.strictEqual(context?.frameId, undefined);
 
 		context = getContext(session);
-		assert.strictEqual(context.sessionId, session.getId());
-		assert.strictEqual(context.threadId, undefined);
-		assert.strictEqual(context.frameId, undefined);
+		assert.strictEqual(context?.sessionId, session.getId());
+		assert.strictEqual(context?.threadId, undefined);
+		assert.strictEqual(context?.frameId, undefined);
 
 		let contributedContext = getContextForContributedActions(firstStackFrame);
 		assert.strictEqual(contributedContext, firstStackFrame.source.raw.path);

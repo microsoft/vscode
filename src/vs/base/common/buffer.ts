@@ -127,7 +127,7 @@ export class VSBuffer {
 			return this.buffer.toString();
 		} else {
 			if (!textDecoder) {
-				textDecoder = new TextDecoder();
+				textDecoder = new TextDecoder(undefined, { ignoreBOM: true });
 			}
 			return textDecoder.decode(this.buffer);
 		}
@@ -213,7 +213,7 @@ export function binaryIndexOf(haystack: Uint8Array, needle: Uint8Array, offset =
 	}
 
 	if (needleLen === 1) {
-		return haystack.indexOf(needle[0]);
+		return haystack.indexOf(needle[0], offset);
 	}
 
 	if (needleLen > haystackLen - offset) {

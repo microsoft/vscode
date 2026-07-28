@@ -617,14 +617,14 @@ class View extends Disposable {
 		if (item.modifiedLineNumber !== undefined) {
 			let html: string | TrustedHTML = this._getLineHtml(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, item.modifiedLineNumber, this._languageService.languageIdCodec);
 			if (AccessibleDiffViewer._ttPolicy) {
-				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = modifiedModel.getLineContent(item.modifiedLineNumber);
 		} else {
 			let html: string | TrustedHTML = this._getLineHtml(originalModel, originalOptions, originalModelOpts.tabSize, item.originalLineNumber, this._languageService.languageIdCodec);
 			if (AccessibleDiffViewer._ttPolicy) {
-				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = originalModel.getLineContent(item.originalLineNumber);

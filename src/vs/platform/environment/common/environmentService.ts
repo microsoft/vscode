@@ -117,6 +117,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
+	@memoize
 	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
@@ -144,6 +145,21 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'extensions').fsPath;
+	}
+
+	@memoize
+	get appSharedDataHome(): URI {
+		const cliSharedDataDir = this.args['shared-data-dir'];
+		if (cliSharedDataDir) {
+			return URI.file(resolve(cliSharedDataDir));
+		}
+
+		const vscodePortable = env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return URI.file(join(vscodePortable, 'shared-data'));
+		}
+
+		return joinPath(this.userHome, this.productService.sharedDataFolderName);
 	}
 
 	@memoize
@@ -200,6 +216,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return false;
 	}
 
+	get skipBuiltinExtensions(): readonly string[] {
+		const value = env['VSCODE_SKIP_BUILTIN_EXTENSIONS'];
+		if (!value) {
+			return [];
+		}
+		return value.split(',').map(id => id.trim()).filter(id => id);
+	}
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostDebugPort(this.args, this.isBuilt); }
 	get debugRenderer(): boolean { return !!this.args.debugRenderer; }
@@ -252,10 +276,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
+	}
+
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
+	}
+
+	get exportDefaultKeybindings(): string | undefined {
+		return this.args['export-default-keybindings'];
 	}
 
 	get continueOn(): string | undefined {

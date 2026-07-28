@@ -9,13 +9,14 @@ import * as css from '../../cssValue.js';
 import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { IMatch } from '../../../common/filters.js';
-import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 import { equals } from '../../../common/objects.js';
 import { Range } from '../../../common/range.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import type { IManagedHoverTooltipMarkdownString } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { URI } from '../../../common/uri.js';
+import { ThemeIcon } from '../../../common/themables.js';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -40,7 +41,7 @@ export interface IIconLabelValueOptions {
 	disabledCommand?: boolean;
 	readonly separator?: string;
 	readonly domId?: string;
-	iconPath?: URI;
+	iconPath?: URI | ThemeIcon;
 	supportIcons?: boolean;
 }
 
@@ -162,6 +163,7 @@ export class IconLabel extends Disposable {
 			}
 		}
 
+		// eslint-disable-next-line no-restricted-syntax
 		const existingIconNode = this.domNode.element.querySelector('.monaco-icon-label-iconpath');
 		if (options?.iconPath) {
 			let iconNode;
@@ -171,7 +173,13 @@ export class IconLabel extends Disposable {
 			} else {
 				iconNode = existingIconNode;
 			}
-			iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
+			if (ThemeIcon.isThemeIcon(options.iconPath)) {
+				const iconClass = ThemeIcon.asClassName(options.iconPath);
+				iconNode.className = `monaco-icon-label-iconpath ${iconClass}`;
+				iconNode.style.backgroundImage = '';
+			} else {
+				iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
+			}
 			iconNode.style.backgroundRepeat = 'no-repeat';
 			iconNode.style.backgroundPosition = 'center';
 			iconNode.style.backgroundSize = 'contain';
@@ -191,7 +199,8 @@ export class IconLabel extends Disposable {
 		if (description || this.descriptionNode) {
 			const descriptionNode = this.getOrCreateDescriptionNode();
 			if (descriptionNode instanceof HighlightedLabel) {
-				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined, undefined, options?.labelEscapeNewLines, options?.supportIcons);
+				const supportIcons = options?.supportIcons ?? this.creationOptions?.supportIcons;
+				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined, undefined, options?.labelEscapeNewLines, supportIcons);
 				this.setupHover(descriptionNode.element, options?.descriptionTitle);
 			} else {
 				descriptionNode.textContent = description && options?.labelEscapeNewLines ? HighlightedLabel.escapeNewLines(description, []) : (description || '');
@@ -331,6 +340,7 @@ class LabelWithHighlights extends Disposable {
 	private label: string | string[] | undefined = undefined;
 	private singleLabel: HighlightedLabel | undefined = undefined;
 	private options: IIconLabelValueOptions | undefined;
+	private readonly _labelDisposables = this._register(new DisposableStore());
 
 	constructor(private container: HTMLElement, private supportIcons: boolean) {
 		super();
@@ -349,13 +359,15 @@ class LabelWithHighlights extends Disposable {
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
+				this._labelDisposables.clear();
 				this.container.textContent = '';
 				this.container.classList.remove('multiple');
-				this.singleLabel = this._register(new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId }))));
+				this.singleLabel = this._labelDisposables.add(new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId }))));
 			}
 
 			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines, supportIcons);
 		} else {
+			this._labelDisposables.clear();
 			this.container.textContent = '';
 			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
@@ -369,7 +381,7 @@ class LabelWithHighlights extends Disposable {
 				const id = options?.domId && `${options?.domId}_${i}`;
 
 				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' });
-				const highlightedLabel = this._register(new HighlightedLabel(dom.append(this.container, name)));
+				const highlightedLabel = this._labelDisposables.add(new HighlightedLabel(dom.append(this.container, name)));
 				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines, supportIcons);
 
 				if (i < label.length - 1) {

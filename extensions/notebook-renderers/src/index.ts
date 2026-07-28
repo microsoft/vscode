@@ -65,8 +65,7 @@ const domEval = (container: Element) => {
 		for (const key of preservedScriptAttributes) {
 			const val = node[key] || node.getAttribute && node.getAttribute(key);
 			if (val) {
-				// eslint-disable-next-line local/code-no-any-casts
-				scriptTag.setAttribute(key, val as any);
+				scriptTag.setAttribute(key, val as unknown as string);
 			}
 		}
 
@@ -76,8 +75,8 @@ const domEval = (container: Element) => {
 };
 
 function getAltText(outputInfo: OutputItem) {
-	const metadata = outputInfo.metadata;
-	if (typeof metadata === 'object' && metadata && 'vscode_altText' in metadata && typeof metadata.vscode_altText === 'string') {
+	const metadata = outputInfo.metadata as Record<string, unknown> | undefined;
+	if (typeof metadata === 'object' && metadata && typeof metadata.vscode_altText === 'string') {
 		return metadata.vscode_altText;
 	}
 	return undefined;
@@ -337,9 +336,9 @@ function findScrolledHeight(container: HTMLElement): number | undefined {
 }
 
 function scrollingEnabled(output: OutputItem, options: RenderOptions) {
-	const metadata = output.metadata;
+	const metadata = output.metadata as Record<string, unknown> | undefined;
 	return (typeof metadata === 'object' && metadata
-		&& 'scrollable' in metadata && typeof metadata.scrollable === 'boolean') ?
+		&& typeof metadata.scrollable === 'boolean') ?
 		metadata.scrollable : options.outputScrolling;
 }
 

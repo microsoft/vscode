@@ -35,7 +35,7 @@ export interface IResourceLabelProps {
 }
 
 function toResource(props: IResourceLabelProps | undefined): URI | undefined {
-	if (!props || !props.resource) {
+	if (!props?.resource) {
 		return undefined;
 	}
 

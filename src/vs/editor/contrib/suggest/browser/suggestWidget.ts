@@ -40,14 +40,15 @@ import { isWindows } from '../../../../base/common/platform.js';
 /**
  * Suggest widget colors
  */
-registerColor('editorSuggestWidget.background', editorWidgetBackground, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
+const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', editorWidgetBackground, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
 registerColor('editorSuggestWidget.border', editorWidgetBorder, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
 export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', editorForeground, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
-registerColor('editorSuggestWidget.selectedForeground', quickInputListFocusForeground, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
-registerColor('editorSuggestWidget.selectedIconForeground', quickInputListFocusIconForeground, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', quickInputListFocusBackground, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
+const editorSuggestWidgetSelectedForeground = registerColor('editorSuggestWidget.selectedForeground', { dark: quickInputListFocusForeground, light: quickInputListFocusForeground, hcDark: editorSuggestWidgetBackground, hcLight: editorSuggestWidgetBackground }, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
+registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputListFocusIconForeground, light: quickInputListFocusIconForeground, hcDark: editorSuggestWidgetBackground, hcLight: editorSuggestWidgetBackground }, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hcDark: editorSuggestWidgetForeground, hcLight: editorSuggestWidgetForeground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetFocusOutline = registerColor('editorSuggestWidget.focusOutline', activeContrastBorder, nls.localize('editorSuggestWidgetFocusOutline', 'Outline color of the focused (keyboard-navigated) entry in the suggest widget.'));
 registerColor('editorSuggestWidget.highlightForeground', listHighlightForeground, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
-registerColor('editorSuggestWidget.focusHighlightForeground', listFocusHighlightForeground, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
+registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hcDark: editorSuggestWidgetSelectedForeground, hcLight: editorSuggestWidgetSelectedForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
 registerColor('editorSuggestWidgetStatus.foreground', transparent(editorSuggestWidgetForeground, .5), nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
 
 const enum State {
@@ -106,7 +107,7 @@ export class SuggestWidget implements IDisposable {
 
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
-	private _loadingTimeout?: IDisposable;
+	private readonly _loadingTimeout = new MutableDisposable();
 	private readonly _pendingLayout = new MutableDisposable();
 	private readonly _pendingShowDetails = new MutableDisposable();
 	private _currentSuggestionDetails?: CancelablePromise<void>;
@@ -130,6 +131,7 @@ export class SuggestWidget implements IDisposable {
 	private readonly _ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetDetailsFocused: IContextKey<boolean>;
 
 	private readonly _showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
@@ -266,10 +268,10 @@ export class SuggestWidget implements IDisposable {
 		});
 		this._list.style(getListStyles({
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-			listInactiveFocusOutline: activeContrastBorder
+			listInactiveFocusOutline: editorSuggestWidgetFocusOutline
 		}));
 
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu);
+		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, undefined);
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 
@@ -292,6 +294,12 @@ export class SuggestWidget implements IDisposable {
 		this._ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasFocusedSuggestion = SuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetDetailsFocused = SuggestContext.DetailsFocused.bindTo(_contextKeyService);
+
+		const detailsFocusTracker = dom.trackFocus(this._details.widget.domNode);
+		this._disposables.add(detailsFocusTracker);
+		this._disposables.add(detailsFocusTracker.onDidFocus(() => this._ctxSuggestWidgetDetailsFocused.set(true)));
+		this._disposables.add(detailsFocusTracker.onDidBlur(() => this._ctxSuggestWidgetDetailsFocused.set(false)));
 
 		this._disposables.add(dom.addStandardDisposableListener(this._details.widget.domNode, 'keydown', e => {
 			this._onDetailsKeydown.fire(e);
@@ -306,12 +314,17 @@ export class SuggestWidget implements IDisposable {
 		this._list.dispose();
 		this._status.dispose();
 		this._disposables.dispose();
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.dispose();
 		this._pendingLayout.dispose();
 		this._pendingShowDetails.dispose();
 		this._showTimeout.dispose();
 		this._contentWidget.dispose();
 		this.element.dispose();
+		this._onDidSelect.dispose();
+		this._onDidFocus.dispose();
+		this._onDidHide.dispose();
+		this._onDidShow.dispose();
+		this._onDetailsKeydown.dispose();
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
@@ -524,14 +537,14 @@ export class SuggestWidget implements IDisposable {
 		this._isAuto = !!auto;
 
 		if (!this._isAuto) {
-			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
+			this._loadingTimeout.value = disposableTimeout(() => this._setState(State.Loading), delay);
 		}
 	}
 
 	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean, noFocus: boolean): void {
 
 		this._contentWidget.setPosition(this.editor.getPosition());
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.clear();
 
 		this._currentSuggestionDetails?.cancel();
 		this._currentSuggestionDetails = undefined;
@@ -764,7 +777,7 @@ export class SuggestWidget implements IDisposable {
 	hideWidget(): void {
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.clear();
 
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);

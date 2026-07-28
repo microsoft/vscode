@@ -385,8 +385,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				size: stat.size,
 				readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(uri.scheme),
 				locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
-				etag: files.etag({ mtime: stat.mtime, size: stat.size }),
-				children: undefined
+				executable: Boolean((stat.permissions ?? 0) & files.FilePermission.Executable),
+				etag: files.etag({ mtime: stat.mtime, size: stat.size })
 			};
 
 			this.trace(`exit saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
@@ -459,7 +459,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							finalMatchedTargets.add(uri);
 						});
 					}).catch(err => {
-						// temporary fix for https://github.com/microsoft/vscode/issues/205044: don't show notebook results for remotehub repos.
+						// don't show notebook results for remotehub repos.
 						if (err.code === 'ENOENT') {
 							console.warn(`Could not find notebook search results, ignoring notebook results.`);
 							return {

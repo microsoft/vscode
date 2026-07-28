@@ -10,9 +10,11 @@ import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
-import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
+import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
+import { isString } from '../../../../base/common/types.js';
+import { clamp } from '../../../../base/common/numbers.js';
 
 // #region TerminalConfigurationService
 
@@ -20,6 +22,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	declare _serviceBrand: undefined;
 
 	protected _fontMetrics: TerminalFontMetrics;
+	private _skipTerminalCommands: ReadonlySet<string> = new Set(DEFAULT_COMMANDS_TO_SKIP_SHELL);
 
 	protected _config!: Readonly<ITerminalConfiguration>;
 	get config() { return this._config; }
@@ -31,7 +34,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 		return TerminalLocation.Panel;
 	}
 
-	private readonly _onConfigChanged = new Emitter<void>();
+	private readonly _onConfigChanged = this._register(new Emitter<void>());
 	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
 	constructor(
@@ -51,16 +54,28 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	setPanelContainer(panelContainer: HTMLElement): void { return this._fontMetrics.setPanelContainer(panelContainer); }
 	configFontIsMonospace(): boolean { return this._fontMetrics.configFontIsMonospace(); }
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont { return this._fontMetrics.getFont(w, xtermCore, excludeDimensions); }
+	shouldCommandSkipShell(commandId: string): boolean { return this._skipTerminalCommands.has(commandId); }
 
 	private _updateConfig(): void {
 		const configValues = { ...this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION) };
 		configValues.fontWeight = this._normalizeFontWeight(configValues.fontWeight, DEFAULT_FONT_WEIGHT);
 		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
 		this._config = configValues;
+		const skipTerminalCommands = new Set(DEFAULT_COMMANDS_TO_SKIP_SHELL);
+		const commandsToSkipShell = configValues.commandsToSkipShell ?? [];
+		for (let i = 0; i < commandsToSkipShell.length; i++) {
+			const command = commandsToSkipShell[i];
+			if (command[0] === '-') {
+				skipTerminalCommands.delete(command.slice(1));
+				continue;
+			}
+			skipTerminalCommands.add(command);
+		}
+		this._skipTerminalCommands = skipTerminalCommands;
 		this._onConfigChanged.fire();
 	}
 
-	private _normalizeFontWeight(input: any, defaultWeight: FontWeight): FontWeight {
+	private _normalizeFontWeight(input: FontWeight, defaultWeight: FontWeight): FontWeight {
 		if (input === 'normal' || input === 'bold') {
 			return input;
 		}
@@ -244,18 +259,14 @@ export class TerminalFontMetrics extends Disposable {
 
 // #region Utils
 
-function clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {
-	let r = parseInt(source, 10);
+function clampInt<T>(source: string | number, minimum: number, maximum: number, fallback: T): number | T {
+	if (source === null || source === undefined) {
+		return fallback;
+	}
+	const r = isString(source) ? parseInt(source, 10) : source;
 	if (isNaN(r)) {
 		return fallback;
 	}
-	if (typeof minimum === 'number') {
-		r = Math.max(minimum, r);
-	}
-	if (typeof maximum === 'number') {
-		r = Math.min(maximum, r);
-	}
-	return r;
+	return clamp(r, minimum, maximum);
 }
-
 // #endregion Utils

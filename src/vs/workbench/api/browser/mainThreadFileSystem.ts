@@ -150,7 +150,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		}
 	}
 
-	private static _handleError(err: any): never {
+	private static _handleError(err: unknown): never {
 		if (err instanceof FileOperationError) {
 			switch (err.fileOperationResult) {
 				case FileOperationResult.FILE_NOT_FOUND:

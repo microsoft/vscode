@@ -139,8 +139,14 @@ export interface ICwdDetectionCapability {
 	readonly type: TerminalCapability.CwdDetection;
 	readonly onDidChangeCwd: Event<string>;
 	readonly cwds: string[];
+	/**
+	 * Whether the current cwd came from a trusted source. This is `true` only when the cwd was
+	 * reported by the VS Code shell integration with a valid nonce. OSC 7, OSC 9;9 and OSC 1337
+	 * cwd updates are always considered untrusted because their protocols have no nonce.
+	 */
+	readonly isTrusted: boolean;
 	getCwd(): string;
-	updateCwd(cwd: string): void;
+	updateCwd(cwd: string, isTrusted?: boolean): void;
 }
 
 export interface IShellEnvDetectionCapability {
@@ -251,6 +257,12 @@ export interface ICommandDetectionCapability {
 	 * always be present when running the _builtin_ SI scripts.
 	 */
 	setCommandLine(commandLine: string, isTrusted: boolean): void;
+	/**
+	 * Sets the command ID to use for the next command that starts.
+	 * This allows pre-assigning an ID before the shell sends the command start sequence,
+	 * which is useful for linking commands across renderer and ptyHost.
+	 */
+	setNextCommandId(command: string, commandId: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -291,7 +303,7 @@ interface IBaseTerminalCommand {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
-	id: string;
+	id: string | undefined;
 
 	// Optional serializable
 	cwd: string | undefined;

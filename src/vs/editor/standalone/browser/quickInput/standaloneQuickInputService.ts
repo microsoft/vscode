@@ -102,6 +102,7 @@ export class StandaloneQuickInputService implements IQuickInputService {
 	get currentQuickInput() { return this.activeService.currentQuickInput; }
 	get quickAccess() { return this.activeService.quickAccess; }
 	get backButton() { return this.activeService.backButton; }
+	get alignment() { return this.activeService.alignment; }
 	get onShow() { return this.activeService.onShow; }
 	get onHide() { return this.activeService.onHide; }
 

@@ -135,7 +135,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private formatters: ResourceLabelFormatter[];
 
-	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
+	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400, leakWarningName: 'LabelService._onDidChangeFormatters' }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
 	private readonly storedFormattersMemento: Memento<IStoredFormatters>;
@@ -192,11 +192,9 @@ export class LabelService extends Disposable implements ILabelService {
 					continue;
 				}
 
-				if (
-					match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) &&
+				if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
 					(
-						!bestResult ||
-						!bestResult.authority ||
+						!bestResult?.authority ||
 						formatter.authority.length > bestResult.authority.length ||
 						((formatter.authority.length === bestResult.authority.length) && formatter.priority)
 					)
@@ -456,10 +454,23 @@ export class LabelService extends Disposable implements ILabelService {
 					const i = resource.authority.indexOf('+');
 					return i === -1 ? resource.authority : resource.authority.slice(i + 1);
 				}
-				case 'path':
+				case 'path': {
+					let pathValue = resource.path;
+					if (formatting.stripPathSegments) {
+						let pos = 0;
+						for (let i = 0; i < formatting.stripPathSegments; i++) {
+							const next = pathValue.indexOf('/', pos + 1);
+							if (next === -1) {
+								break;
+							}
+							pos = next;
+						}
+						pathValue = pathValue.substring(pos);
+					}
 					return formatting.stripPathStartingSeparator
-						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
-						: resource.path;
+						? pathValue.slice(pathValue[0] === formatting.separator ? 1 : 0)
+						: pathValue;
+				}
 				default: {
 					if (qsToken === 'query') {
 						const { query } = resource;

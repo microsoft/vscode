@@ -144,9 +144,7 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	show(id: string): void {
-		if (this.hidden.has(id)) {
-			this.hidden.delete(id);
-
+		if (this.hidden.delete(id)) {
 			this.updateVisibility(id, true);
 
 			this.saveState();

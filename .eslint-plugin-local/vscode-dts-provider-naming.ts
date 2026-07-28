@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
+import * as eslint from 'eslint';
 
-export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
+export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -19,18 +19,18 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const config = <{ allowed: string[] }>context.options[0];
+		const config = context.options[0] as { allowed: string[] };
 		const allowed = new Set(config.allowed);
 
 		return {
-			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node: any) => {
-				const interfaceName = (<TSESTree.TSInterfaceDeclaration>(<TSESTree.Identifier>node).parent?.parent).id.name;
+			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node: TSESTree.Node) => {
+				const interfaceName = ((node as TSESTree.Identifier).parent?.parent as TSESTree.TSInterfaceDeclaration).id.name;
 				if (allowed.has(interfaceName)) {
 					// allowed
 					return;
 				}
 
-				const methodName = ((<TSESTree.TSMethodSignatureNonComputedName>node).key as TSESTree.Identifier).name;
+				const methodName = ((node as TSESTree.TSMethodSignatureNonComputedName).key as TSESTree.Identifier).name;
 
 				if (!ApiProviderNaming._providerFunctionNames.test(methodName)) {
 					context.report({

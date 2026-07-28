@@ -539,6 +539,7 @@ export interface INotebookEditor {
 	readonly textModel?: NotebookTextModel;
 	readonly isVisible: boolean;
 	readonly isReadOnly: boolean;
+	readonly isReplHistory: boolean;
 	readonly notebookOptions: NotebookOptions;
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;

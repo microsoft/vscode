@@ -27,7 +27,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly allConfigBasedTips: Map<string, IRawConfigBasedExtensionTip> = new Map<string, IRawConfigBasedExtensionTip>();
 

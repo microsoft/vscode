@@ -8,7 +8,7 @@ import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, Semanti
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { isGithubTarget } from './promptValidator.js';
+import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
 
 export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	/**
@@ -32,9 +32,9 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 		if (!promptAST.body) {
 			return undefined;
 		}
-
-		if (isGithubTarget(promptType, promptAST.header?.target)) {
-			// In GitHub Copilot mode, we don't provide variable semantic tokens to tool references
+		const target = getTarget(promptType, promptAST.header ?? model.uri);
+		if (!isVSCodeOrDefaultTarget(target)) {
+			// variables syntax is only support for VS Code and default targets, not for GitHub Copilot or Claude custom agents
 			return undefined;
 		}
 
@@ -56,9 +56,11 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 			: a.range.startLineNumber - b.range.startLineNumber);
 
 		for (const ref of ordered) {
+			// Also include the '#tool:' prefix for syntax highlighting purposes, even if it's not originally part of the variable name itself.
+			const extraCharCount = '#tool:'.length;
 			const line = ref.range.startLineNumber - 1; // zero-based
-			const char = ref.range.startColumn - 2; // zero-based, include the leading #
-			const length = ref.range.endColumn - ref.range.startColumn + 1;
+			const char = ref.range.startColumn - extraCharCount - 1; // zero-based
+			const length = ref.range.endColumn - ref.range.startColumn + extraCharCount;
 			const deltaLine = line - lastLine;
 			const deltaChar = deltaLine === 0 ? char - lastChar : char;
 			data.push(deltaLine, deltaChar, length, 0 /* variable token type index */, 0 /* no modifiers */);

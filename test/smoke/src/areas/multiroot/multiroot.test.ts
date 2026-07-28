@@ -46,6 +46,9 @@ export function setup(logger: Logger) {
 
 		// Shared before/after handling
 		installAllHandlers(logger, opts => {
+			if (!opts.workspacePath) {
+				throw new Error('Multiroot tests require a workspace to be open');
+			}
 			const workspacePath = createWorkspaceFile(opts.workspacePath);
 			return { ...opts, workspacePath };
 		});

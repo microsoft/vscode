@@ -139,3 +139,24 @@ export function isWCOEnabled(): boolean {
 export function getWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefined {
 	return (targetWindow.navigator as Navigator & { windowControlsOverlay?: { getTitlebarAreaRect: () => DOMRect } })?.windowControlsOverlay?.getTitlebarAreaRect();
 }
+
+export interface IMonacoEnvironment {
+
+	createTrustedTypesPolicy?<Options extends TrustedTypePolicyOptions>(
+		policyName: string,
+		policyOptions?: Options,
+	): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
+
+	getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
+
+	getWorkerUrl?(moduleId: string, label: string): string;
+
+	globalAPI?: boolean;
+
+}
+interface IGlobalWithMonacoEnvironment {
+	MonacoEnvironment?: IMonacoEnvironment;
+}
+export function getMonacoEnvironment(): IMonacoEnvironment | undefined {
+	return (globalThis as IGlobalWithMonacoEnvironment).MonacoEnvironment;
+}

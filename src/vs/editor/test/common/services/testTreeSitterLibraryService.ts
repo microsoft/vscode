@@ -22,6 +22,10 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 		return undefined;
 	}
 
+	async getLanguagePromise(languageId: string): Promise<Language | undefined> {
+		return undefined;
+	}
+
 	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
 	}

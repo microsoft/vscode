@@ -36,7 +36,7 @@ class NullBackupStoreService implements IUserDataSyncLocalStoreService {
 }
 
 class NullEnablementService implements IUserDataSyncEnablementService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onDidChangeEnablement = new Emitter<boolean>();
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;

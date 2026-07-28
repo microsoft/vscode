@@ -65,7 +65,7 @@ CommandsRegistry.registerCommand({
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 
 		const folders = await selectWorkspaceFolders(accessor);
-		if (!folders || !folders.length) {
+		if (!folders?.length) {
 			return;
 		}
 
@@ -80,7 +80,7 @@ CommandsRegistry.registerCommand({
 		const contextService = accessor.get(IWorkspaceContextService);
 
 		const folders = await selectWorkspaceFolders(accessor);
-		if (!folders || !folders.length) {
+		if (!folders?.length) {
 			return;
 		}
 

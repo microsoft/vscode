@@ -14,16 +14,15 @@ import { Config } from '../common/config';
 const DEFAULT_REDIRECT_URI = 'https://vscode.dev/redirect';
 
 export const enum ExtensionHost {
-	WebWorker,
 	Remote,
 	Local
 }
 
 interface IMsalFlowOptions {
 	supportsRemoteExtensionHost: boolean;
-	supportsWebWorkerExtensionHost: boolean;
 	supportsUnsupportedClient: boolean;
 	supportsBroker: boolean;
+	supportsPortableMode: boolean;
 }
 
 interface IMsalFlowTriggerOptions {
@@ -36,6 +35,12 @@ interface IMsalFlowTriggerOptions {
 	logger: LogOutputChannel;
 	uriHandler: UriEventHandler;
 	claims?: string;
+	/**
+	 * Resource indicator (RFC 8707) for MCP-style flows. When provided, MSAL forwards
+	 * this as the `resource` parameter to the authorization & token endpoints so the
+	 * issued token is bound to the requested resource.
+	 */
+	resource?: string;
 }
 
 interface IMsalFlow {
@@ -48,12 +53,12 @@ class DefaultLoopbackFlow implements IMsalFlow {
 	label = 'default';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: false,
-		supportsWebWorkerExtensionHost: false,
 		supportsUnsupportedClient: true,
-		supportsBroker: true
+		supportsBroker: true,
+		supportsPortableMode: true
 	};
 
-	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, resource, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying default msal flow...');
 		let redirectUri: string | undefined;
 		if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
@@ -69,7 +74,9 @@ class DefaultLoopbackFlow implements IMsalFlow {
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
 			claims,
-			redirectUri
+			resource,
+			redirectUri,
+			responseMode: 'form_post'
 		});
 	}
 }
@@ -78,12 +85,12 @@ class UrlHandlerFlow implements IMsalFlow {
 	label = 'protocol handler';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: false,
 		supportsUnsupportedClient: false,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: false
 	};
 
-	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, resource, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying protocol handler flow...');
 		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, DEFAULT_REDIRECT_URI, callbackUri, logger);
 		let redirectUri: string | undefined;
@@ -99,6 +106,7 @@ class UrlHandlerFlow implements IMsalFlow {
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
 			claims,
+			resource,
 			redirectUri
 		});
 	}
@@ -108,14 +116,14 @@ class DeviceCodeFlow implements IMsalFlow {
 	label = 'device code';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: false,
 		supportsUnsupportedClient: true,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: true
 	};
 
-	async trigger({ cachedPca, authority, scopes, claims, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, resource, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying device code flow...');
-		const result = await cachedPca.acquireTokenByDeviceCode({ scopes, authority, claims });
+		const result = await cachedPca.acquireTokenByDeviceCode({ scopes, authority, claims, resource });
 		if (!result) {
 			throw new Error('Device code flow did not return a result');
 		}
@@ -123,7 +131,7 @@ class DeviceCodeFlow implements IMsalFlow {
 	}
 }
 
-const allFlows: IMsalFlow[] = [
+export const allFlows: IMsalFlow[] = [
 	new DefaultLoopbackFlow(),
 	new UrlHandlerFlow(),
 	new DeviceCodeFlow()
@@ -133,22 +141,19 @@ export interface IMsalFlowQuery {
 	extensionHost: ExtensionHost;
 	supportedClient: boolean;
 	isBrokerSupported: boolean;
+	isPortableMode: boolean;
 }
 
 export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
 	const flows = [];
 	for (const flow of allFlows) {
 		let useFlow: boolean = true;
-		switch (query.extensionHost) {
-			case ExtensionHost.Remote:
-				useFlow &&= flow.options.supportsRemoteExtensionHost;
-				break;
-			case ExtensionHost.WebWorker:
-				useFlow &&= flow.options.supportsWebWorkerExtensionHost;
-				break;
+		if (query.extensionHost === ExtensionHost.Remote) {
+			useFlow &&= flow.options.supportsRemoteExtensionHost;
 		}
 		useFlow &&= flow.options.supportsBroker || !query.isBrokerSupported;
 		useFlow &&= flow.options.supportsUnsupportedClient || query.supportedClient;
+		useFlow &&= flow.options.supportsPortableMode || !query.isPortableMode;
 		if (useFlow) {
 			flows.push(flow);
 		}

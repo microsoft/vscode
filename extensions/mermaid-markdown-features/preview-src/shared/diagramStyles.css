@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+@import '@vscode/codicons/dist/codicon.css';
+
+.mermaid-zoom-controls {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	display: flex;
+	width: auto;
+	gap: 2px;
+	z-index: 100;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, transparent);
+	border-radius: 6px;
+	padding: 2px;
+}
+
+.mermaid-zoom-controls-auto-hide {
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+}
+
+.mermaid-wrapper:hover .mermaid-zoom-controls-auto-hide,
+.mermaid-wrapper:focus .mermaid-zoom-controls-auto-hide,
+.mermaid-wrapper:focus-within .mermaid-zoom-controls-auto-hide {
+	opacity: 1;
+}
+
+.mermaid-zoom-controls button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.mermaid-zoom-controls button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mermaid-zoom-controls button.active {
+	background: var(--vscode-toolbar-activeBackground);
+	color: var(--vscode-focusBorder);
+}
+
+.mermaid-wrapper {
+	position: relative;
+	width: 100%;
+	overflow: hidden;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	transition: border-color 0.2s ease-in-out;
+	margin-bottom: 1em;
+}
+
+.mermaid-wrapper:hover,
+.mermaid-wrapper:focus,
+.mermaid-wrapper:focus-within {
+	border-color: var(--vscode-editorWidget-border);
+}
+
+.mermaid-content {
+	transform-origin: 0 0;
+}
+
+.mermaid-resize-handle {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 10px;
+	cursor: ns-resize;
+	background: transparent;
+	z-index: 50;
+}
+
+.mermaid-resize-handle::after {
+	content: '';
+	position: absolute;
+	bottom: 2px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 40px;
+	height: 3px;
+	background: var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.4));
+	border-radius: 2px;
+	opacity: 0;
+	transition: opacity 0.15s ease-in-out;
+	transition-delay: 0s;
+}
+
+.mermaid-resize-handle:hover::after {
+	opacity: 1;
+	transition-delay: 0.3s;
+}

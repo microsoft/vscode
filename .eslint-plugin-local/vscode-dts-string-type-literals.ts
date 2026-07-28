@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
-export = new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
+export default new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines' },
@@ -18,8 +19,8 @@ export = new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
-			['TSPropertySignature[optional=false] TSTypeAnnotation TSLiteralType Literal']: (node: any) => {
-				const raw = String((<TSESTree.Literal>node).raw);
+			['TSPropertySignature[optional=false] TSTypeAnnotation TSLiteralType Literal']: (node: ESTree.Literal) => {
+				const raw = String((node as TSESTree.Literal).raw);
 
 				if (/^('|").*\1$/.test(raw)) {
 

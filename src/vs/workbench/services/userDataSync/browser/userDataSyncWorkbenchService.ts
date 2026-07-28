@@ -42,6 +42,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { IUserDataSyncMachinesService } from '../../../../platform/userDataSync/common/userDataSyncMachines.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { env } from '../../../../base/common/process.js';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -63,7 +64,7 @@ export function isMergeEditorInput(editor: unknown): editor is MergeEditorInput 
 
 export class UserDataSyncWorkbenchService extends Disposable implements IUserDataSyncWorkbenchService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
 	private static CACHED_AUTHENTICATION_PROVIDER_KEY = 'userDataSyncAccountProvider';
@@ -271,7 +272,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.logService.trace(`Settings Sync: Updating the account status to ${accountStatus}`);
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			const logMsg = `Settings Sync: Account status changed from ${previous} to ${accountStatus}`;
+			if (env.VSCODE_DEV) {
+				this.logService.trace(logMsg);
+			} else {
+				this.logService.info(logMsg);
+			}
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);

@@ -93,21 +93,21 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
+	getValue(arg1?: unknown, arg2?: unknown): unknown {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this.configuration.getValue(section, overrides, undefined);
 	}
 
-	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: any, arg3?: any, arg4?: any, options?: any): Promise<void> {
+	updateValue(key: string, value: unknown): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, options?: IConfigurationUpdateOptions): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 
-		const target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
+		const target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
 		if (target !== undefined) {
 			if (target !== ConfigurationTarget.USER_LOCAL && target !== ConfigurationTarget.USER) {
 				throw new Error(`Unable to write ${key} to target ${target}.`);
@@ -199,11 +199,11 @@ class ConfigurationEditing {
 		this.queue = new Queue<void>();
 	}
 
-	write(path: JSONPath, value: any): Promise<void> {
+	write(path: JSONPath, value: unknown): Promise<void> {
 		return this.queue.queue(() => this.doWriteConfiguration(path, value)); // queue up writes to prevent race conditions
 	}
 
-	private async doWriteConfiguration(path: JSONPath, value: any): Promise<void> {
+	private async doWriteConfiguration(path: JSONPath, value: unknown): Promise<void> {
 		let content: string;
 		try {
 			const fileContent = await this.fileService.readFile(this.settingsResource);
@@ -228,7 +228,7 @@ class ConfigurationEditing {
 		await this.fileService.writeFile(this.settingsResource, VSBuffer.fromString(content));
 	}
 
-	private getEdits(content: string, path: JSONPath, value: any): Edit[] {
+	private getEdits(content: string, path: JSONPath, value: unknown): Edit[] {
 		const { tabSize, insertSpaces, eol } = this.formattingOptions;
 
 		// With empty path the entire file is being replaced, so we just use JSON.stringify

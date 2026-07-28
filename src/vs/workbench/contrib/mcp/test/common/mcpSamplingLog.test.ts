@@ -12,6 +12,7 @@ import {
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ISamplingStoredData, McpSamplingLog } from '../../common/mcpSamplingLog.js';
 import { IMcpServer } from '../../common/mcpTypes.js';
+import { asArray } from '../../../../../base/common/arrays.js';
 
 suite('MCP - Sampling Log', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,7 +30,14 @@ suite('MCP - Sampling Log', () => {
 	setup(() => {
 		storage = ds.add(new TestStorageService());
 		log = ds.add(new McpSamplingLog(storage));
-		clock = sinon.useFakeTimers();
+		// `shouldClearNativeTimers` silently absorbs `clearTimeout` calls for
+		// native timer IDs scheduled outside the fake clock (e.g. by cross-test
+		// background schedulers) instead of emitting a `console.warn` that would
+		// fail the renderer's no-console-output assertion. The option exists in
+		// @sinonjs/fake-timers but is missing from the @types/sinon typings, so
+		// we widen the config type locally.
+		const fakeTimerOpts: Partial<sinon.SinonFakeTimersConfig> & { shouldClearNativeTimers: boolean } = { shouldClearNativeTimers: true };
+		clock = sinon.useFakeTimers(fakeTimerOpts);
 		clock.setSystemTime(new Date('2023-10-01T00:00:00Z').getTime());
 	});
 
@@ -216,8 +224,8 @@ suite('MCP - Sampling Log', () => {
 		// Verify all requests are stored correctly
 		assert.strictEqual(data.lastReqs.length, 3);
 		assert.strictEqual(data.lastReqs[0].request.length, 2); // Mixed content request has 2 messages
-		assert.strictEqual(data.lastReqs[1].request[0].content.type, 'image');
-		assert.strictEqual(data.lastReqs[2].request[0].content.type, 'text');
+		assert.strictEqual(asArray(data.lastReqs[1].request[0].content)[0].type, 'image');
+		assert.strictEqual(asArray(data.lastReqs[2].request[0].content)[0].type, 'text');
 	});
 
 	test('handles multiple servers', async () => {

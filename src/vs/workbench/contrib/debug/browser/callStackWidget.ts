@@ -167,8 +167,9 @@ export class CallStackWidget extends Disposable {
 	public setFrames(frames: AnyStackFrame[]): void {
 		// cancel any existing load
 		this.currentFramesDs.clear();
-		this.cts = new CancellationTokenSource();
-		this._register(toDisposable(() => this.cts!.dispose(true)));
+		const cts = new CancellationTokenSource();
+		this.currentFramesDs.add(toDisposable(() => cts.dispose(true)));
+		this.cts = cts;
 
 		this.list.splice(0, this.list.length, this.mapFrames(frames));
 	}

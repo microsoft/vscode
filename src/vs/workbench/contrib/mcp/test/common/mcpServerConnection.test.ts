@@ -22,6 +22,7 @@ import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpSe
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { Event } from '../../../../../base/common/event.js';
+import { McpTaskManager } from '../../common/mcpTaskManager.js';
 
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
@@ -94,6 +95,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			trustBehavior: McpServerTrust.Kind.Trusted,
 			scope: StorageScope.APPLICATION,
 			configTarget: ConfigurationTarget.USER,
+			order: 0,
 		};
 
 		// Create server definition
@@ -107,7 +109,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 				args: [],
 				env: {},
 				envFile: undefined,
-				cwd: '/test'
+				cwd: '/test',
+				sandbox: undefined
 			}
 		};
 	});
@@ -139,6 +142,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -168,6 +172,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -188,6 +193,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -215,6 +221,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -240,6 +247,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -275,6 +283,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 
 		// Start the connection
@@ -309,6 +318,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 				dispose: () => { }
 			} as Partial<ILogger> as ILogger,
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -329,6 +339,153 @@ suite('Workbench - MCP - ServerConnection', () => {
 		await timeout(10);
 	});
 
+	test('should emit a sandbox filesystem block for read-only errors with backtick paths', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const message = 'error: failed to open file `/test-for-sandbox/.git`: Read-only file system (os error 30)';
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog(message);
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'filesystem',
+			message,
+			path: '/test-for-sandbox/.git',
+		});
+
+		await startPromise;
+
+		connection.dispose();
+		await timeout(10);
+	});
+
+	test('should emit a sandbox filesystem block for read-only errors with double-quoted paths', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const message = 'error: failed to open file `/test-for-sandbox/.testfile`: Read-only file system (os error 30)';
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog(message);
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'filesystem',
+			message,
+			path: '/test-for-sandbox/.testfile',
+		});
+
+		await startPromise;
+
+		connection.dispose();
+		await timeout(10);
+	});
+
+	test('should emit a sandbox filesystem block for read-only at-path errors with double-quoted paths', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const message = 'error: Read-only file system (os error 30) at path "/test-for-sandbox/.testfile"';
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog(message);
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'filesystem',
+			message,
+			path: '/test-for-sandbox/.testfile',
+		});
+
+		await startPromise;
+
+		connection.dispose();
+		await timeout(10);
+	});
+
+	test('should emit a sandbox network block with the denied host', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog('No matching config rule, denying: api.example.com:443.');
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'network',
+			message: 'No matching config rule, denying: api.example.com:443.',
+			host: 'api.example.com',
+		});
+
+		await startPromise;
+
+		connection.dispose();
+		await timeout(10);
+	});
+
 	test('should correctly handle transitions to and from error state', async () => {
 		// Create server connection
 		const connection = instantiationService.createInstance(
@@ -339,6 +496,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -378,6 +536,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			serverDefinition.launch,
 			new NullLogger(),
 			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 

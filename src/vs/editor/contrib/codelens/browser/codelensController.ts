@@ -42,7 +42,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
 	private readonly _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
-	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
+	private _resolveCodeLensesPromise: CancelablePromise<void[]> | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -76,6 +76,7 @@ export class CodeLensContribution implements IEditorContribution {
 		this._localDispose();
 		this._localToDispose.dispose();
 		this._disposables.dispose();
+		this._resolveCodeLensesScheduler.dispose();
 		this._oldCodeLensModels.dispose();
 		this._currentCodeLensModel?.dispose();
 	}

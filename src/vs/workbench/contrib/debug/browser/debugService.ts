@@ -117,10 +117,10 @@ export class DebugService implements IDebugService {
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
-		this._onDidChangeState = new Emitter<State>();
-		this._onDidNewSession = new Emitter<IDebugSession>();
-		this._onWillNewSession = new Emitter<IDebugSession>();
-		this._onDidEndSession = new Emitter();
+		this._onDidChangeState = this.disposables.add(new Emitter<State>());
+		this._onDidNewSession = this.disposables.add(new Emitter<IDebugSession>());
+		this._onWillNewSession = this.disposables.add(new Emitter<IDebugSession>());
+		this._onDidEndSession = this.disposables.add(new Emitter());
 
 		this.adapterManager = this.instantiationService.createInstance(AdapterManager, {
 			onDidNewSession: this.onDidNewSession,
@@ -136,7 +136,7 @@ export class DebugService implements IDebugService {
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 
-		this.viewModel = new ViewModel(contextKeyService);
+		this.viewModel = this.disposables.add(new ViewModel(contextKeyService));
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
@@ -641,8 +641,9 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession.fire(session);
 
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.suppressDebugView) {
+		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'.
+		// Note: 'openOnDebugBreak' is intentionally excluded here - that case is handled in debugSession when a breakpoint is hit.
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) && !session.suppressDebugView) {
 			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 		}
 
@@ -1127,9 +1128,13 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	async removeBreakpoints(id?: string): Promise<void> {
+	async removeBreakpoints(id?: string | string[]): Promise<void> {
 		const breakpoints = this.model.getBreakpoints();
-		const toRemove = breakpoints.filter(bp => !id || bp.getId() === id);
+		const toRemove = id === undefined
+			? breakpoints
+			: id instanceof Array
+				? breakpoints.filter(bp => id.includes(bp.getId()))
+				: breakpoints.filter(bp => bp.getId() === id);
 		// note: using the debugger-resolved uri for aria to reflect UI state
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
 		const urisToClear = new Set(toRemove.map(bp => bp.originalUri.toString()));
@@ -1194,8 +1199,8 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async removeInstructionBreakpoints(instructionReference?: string, offset?: number): Promise<void> {
-		this.model.removeInstructionBreakpoints(instructionReference, offset);
+	async removeInstructionBreakpoints(instructionReference?: string, offset?: number, address?: bigint): Promise<void> {
+		this.model.removeInstructionBreakpoints(instructionReference, offset, address);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 	}
