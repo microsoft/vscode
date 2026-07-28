@@ -30,6 +30,7 @@ Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contributi
 - The enablement bit is read once through the sessions-layer `AgentHostEnablementService`; the contribution does not subscribe to config changes.
 - Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
 - Registers a per-session-type **working-directory resolver** (`IAgentHostSessionWorkingDirectoryResolver`) for each `agent-host-${sessionType.id}` scheme, refreshed on `onDidChangeSessionTypes`.
+- Handles root `auth/required` notifications in either the editor or Agents window; the focused window owns interactive recovery to avoid duplicate sign-in flows. An expired token is replaced once for the same account and scopes, forwarding is retried at most three times with exponential backoff, and repeated rejection surfaces one notification.
 - The same module also wires the heavy lifting from the workbench chat layer at `WorkbenchPhase.AfterRestored`:
   - `AgentHostContribution` — agent discovery, session-handler registration, language-model providers, customization harness (via `IChatSessionsService`).
   - `AgentHostTerminalContribution` — terminal integration for agent host sessions.

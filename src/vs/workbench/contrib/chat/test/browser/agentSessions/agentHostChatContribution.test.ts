@@ -21,13 +21,15 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
-import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -42,6 +44,7 @@ import { IAuthenticationService } from '../../../../../services/authentication/c
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
@@ -60,6 +63,7 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { IAgentHostAuthenticationRecoveryService } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
@@ -676,6 +680,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
@@ -730,6 +735,18 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	const commandService = new MockCommandService();
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
+	instantiationService.stub(IAgentHostAuthenticationRecoveryService, {
+		register: () => toDisposable(() => { }),
+		recover: async () => false,
+	});
+	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
+		override readonly hasFocus = true;
+		override readonly onDidChangeFocus = Event.None;
+
+		override async hadLastFocus(): Promise<boolean> {
+			return true;
+		}
+	}());
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
@@ -10117,6 +10134,55 @@ suite('AgentHostChatContribution', () => {
 				}) as unknown as IAuthenticationService['getSessions'],
 			};
 		}
+
+		test('sessions window replaces an expired token from auth/required', async () => {
+			const account = { id: '1', label: 'octocat' };
+			let token = 'rejected-token';
+			let createSessionCalls = 0;
+			const authService: Partial<IAuthenticationService> = {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_providerId, scopes) => !Array.isArray(scopes) ? [] : [{
+					id: 'github-session',
+					account,
+					scopes: [...scopes],
+					accessToken: token,
+				}],
+				createSession: async (_providerId, scopes) => {
+					createSessionCalls++;
+					token = 'fresh-token';
+					return {
+						id: 'fresh-github-session',
+						account,
+						scopes: Array.isArray(scopes) ? [...scopes] : [],
+						accessToken: token,
+					};
+				},
+			};
+			const { instantiationService, agentHostService } = createTestServices(disposables, undefined, authService, undefined, undefined, true);
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+
+			agentHostService.fireNotification({
+				type: 'auth/required',
+				channel: 'ahp-root://root',
+				resource: 'https://api.github.com',
+				reason: AuthRequiredReason.Expired,
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				createSessionCalls,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				createSessionCalls: 1,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'rejected-token' },
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'fresh-token' },
+				],
+			});
+		});
 
 		test('does not re-authenticate when token unchanged across rootState changes', async () => {
 			const tokenRef = { current: 'tok-1' };

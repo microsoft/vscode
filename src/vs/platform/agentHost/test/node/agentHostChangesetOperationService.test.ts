@@ -75,6 +75,12 @@ class TestGitStateService implements IAgentHostGitStateService {
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
+
+	async handleAuthenticationTokenUpdated(_resource: string): Promise<void> { }
+
+	isAuthenticationTokenRejected(_resource: string, _token: string): boolean { return false; }
+
+	rejectAuthenticationToken(_sessionKey: string, _resource: string, _token: string): boolean { return false; }
 }
 
 suite('AgentHostChangesetOperationService', () => {

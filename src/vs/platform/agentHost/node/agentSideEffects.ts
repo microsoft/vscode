@@ -247,6 +247,10 @@ export class AgentSideEffects extends Disposable {
 		}));
 	}
 
+	refreshAgentInfos(): void {
+		this._publishAgentInfos(this._options.agents.get());
+	}
+
 	/**
 	 * Publishes agent descriptors using the last known model lists.
 	 */

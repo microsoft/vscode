@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, ResourceQueue, SequencerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -261,6 +261,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _peerChatCatalogWrites = new Map<string, Promise<void>>();
 	private readonly _authService: AgentHostAuthenticationService;
+	private readonly _authenticationSequencer = new SequencerByKey<string>();
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
 	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
@@ -430,15 +431,19 @@ export class AgentService extends Disposable implements IAgentService {
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
 		this._gitHubEndpointService = this._register(instantiationService.createInstance(AgentHostGitHubEndpointService));
 		services.set(IAgentHostGitHubEndpointService, this._gitHubEndpointService);
-		// A GitHub Enterprise URI change repoints every agent's GitHub resource
-		// identity to a different authorization server, so the client must obtain a
-		// token for the new resource. One root-channel `auth/required` covers all
-		// agents (the URI is host-level config).
+		// Publish the new resources before requesting tokens so clients can resolve
+		// each notification against the updated root state.
 		this._register(this._gitHubEndpointService.onDidChange(() => {
-			this._stateManager.emitAuthRequired({
-				resource: this._gitHubEndpointService.getCopilotResource().resource,
-				reason: AuthRequiredReason.Required,
-			});
+			this._sideEffects?.refreshAgentInfos();
+			for (const resource of [
+				this._gitHubEndpointService.getCopilotResource(),
+				this._gitHubEndpointService.getRepoResource(),
+			]) {
+				this._stateManager.emitAuthRequired({
+					resource: resource.resource,
+					reason: AuthRequiredReason.Required,
+				});
+			}
 		}));
 		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
@@ -720,7 +725,17 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- auth ---------------------------------------------------------------
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		return this._authService.authenticate(params, this._providers.values());
+		return this._authenticationSequencer.queue(params.resource, async () => {
+			const repoResource = this._gitHubEndpointService.getRepoResource();
+			if (this._gitStateService.isAuthenticationTokenRejected(params.resource, params.token)) {
+				return { authenticated: false };
+			}
+			const result = await this._authService.authenticate(params, this._providers.values());
+			if (result.authenticated && params.resource === repoResource.resource) {
+				void this._gitStateService.handleAuthenticationTokenUpdated(params.resource);
+			}
+			return result;
+		});
 	}
 
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {

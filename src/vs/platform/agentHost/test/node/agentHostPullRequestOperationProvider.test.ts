@@ -21,6 +21,9 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
 	async attachSessionGitHubPullRequest(): Promise<void> { }
+	async handleAuthenticationTokenUpdated(_resource: string): Promise<void> { }
+	isAuthenticationTokenRejected(): boolean { return false; }
+	rejectAuthenticationToken(): boolean { return false; }
 };
 
 const githubBranchWithUncommittedChanges: ISessionGitState = {

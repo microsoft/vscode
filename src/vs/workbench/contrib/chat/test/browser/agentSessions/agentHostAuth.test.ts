@@ -4,24 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { IAuthenticationService, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
@@ -35,12 +40,35 @@ class TestCommandService extends mock<ICommandService>() {
 	}
 }
 
-function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'>, authenticationService: IAuthenticationService, commandService = new TestCommandService()): TestInstantiationService {
+function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'>, authenticationService: IAuthenticationService, commandService = new TestCommandService(), notificationService: INotificationService = new TestNotificationService(), hostService: IHostService = createHostService(true), storageService?: IStorageService): TestInstantiationService {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IAuthenticationService, authenticationService);
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(INotificationService, notificationService);
+	instantiationService.stub(IHostService, hostService);
+	instantiationService.stub(IStorageService, storageService ?? disposables.add(new InMemoryStorageService()));
 	return instantiationService;
+}
+
+function createHostService(hasFocus: boolean): IHostService {
+	return new class extends mock<IHostService>() {
+		override readonly hasFocus = hasFocus;
+		override readonly onDidChangeFocus = Event.None;
+
+		override async hadLastFocus(): Promise<boolean> {
+			return hasFocus;
+		}
+	}();
+}
+
+class RecordingNotificationService extends TestNotificationService {
+	readonly errors: Array<string | Error> = [];
+
+	override error(error: string | Error) {
+		this.errors.push(error);
+		return super.error(error);
+	}
 }
 
 function createMockAuthService(overrides: {
@@ -366,6 +394,370 @@ suite('AgentHostAuthTokenCache', () => {
 		await cache.authenticate('https://other.example.com', ['read'], 'tok2', authenticate);
 
 		assert.strictEqual(authenticateCalls, 4);
+	});
+});
+
+suite('AgentHostAuthenticationRecovery', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const protectedResource: ProtectedResourceMetadata = {
+		resource: 'https://api.github.com/repos',
+		resource_name: 'GitHub Repository',
+		authorization_servers: ['https://github.com/login/oauth'],
+		scopes_supported: ['repo'],
+	};
+
+	test('forwards an existing token when authentication is required', async () => {
+		let createSessionCalls = 0;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: 'existing-token' }],
+			createSession: async () => {
+				createSessionCalls++;
+				return { accessToken: 'unexpected-token' };
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const authenticateCalls: string[] = [];
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'required-test',
+			authenticate: async request => {
+				authenticateCalls.push(request.token);
+				return { authenticated: true };
+			},
+		}));
+
+		await recovery.recover(protectedResource, AuthRequiredReason.Required);
+
+		assert.deepStrictEqual({
+			createSessionCalls,
+			authenticateCalls,
+		}, {
+			createSessionCalls: 0,
+			authenticateCalls: ['existing-token'],
+		});
+	});
+
+	test('defers interactive recovery until the window is focused', async () => {
+		const focusEmitter = disposables.add(new Emitter<boolean>());
+		let focused = false;
+		const hostService = new class extends mock<IHostService>() {
+			override readonly onDidChangeFocus = focusEmitter.event;
+			override get hasFocus(): boolean {
+				return focused;
+			}
+			override async hadLastFocus(): Promise<boolean> {
+				return focused;
+			}
+		}();
+		let createSessionCalls = 0;
+		const sessionCreated = new DeferredPromise<void>();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: 'rejected-token' }],
+			createSession: async () => {
+				createSessionCalls++;
+				sessionCreated.complete();
+				return { accessToken: 'fresh-token' };
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService, undefined, undefined, hostService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'focus-test',
+			authenticate: async () => ({ authenticated: true }),
+		}));
+
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+		const callsBeforeFocus = createSessionCalls;
+		focused = true;
+		focusEmitter.fire(true);
+		await sessionCreated.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			callsBeforeFocus,
+			callsAfterFocus: createSessionCalls,
+		}, {
+			callsBeforeFocus: 0,
+			callsAfterFocus: 1,
+		});
+	});
+
+	test('drops deferred recovery after a fresh token is forwarded in the background', async () => {
+		const focusEmitter = disposables.add(new Emitter<boolean>());
+		let focused = false;
+		const hostService = new class extends mock<IHostService>() {
+			override readonly onDidChangeFocus = focusEmitter.event;
+			override get hasFocus(): boolean {
+				return focused;
+			}
+		}();
+		let currentToken = 'rejected-token';
+		let createSessionCalls = 0;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: currentToken }],
+			createSession: async () => {
+				createSessionCalls++;
+				return { accessToken: 'unexpected-token' };
+			},
+		});
+		const cache = new AgentHostAuthTokenCache();
+		const instantiationService = createAuthInstantiationService(disposables, authService, undefined, undefined, hostService);
+		let recoveryAuthenticateCalls = 0;
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'background-token-test',
+			authenticate: async () => {
+				recoveryAuthenticateCalls++;
+				return { authenticated: true };
+			},
+		}));
+
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+		currentToken = 'fresh-token';
+		await cache.authenticate(protectedResource.resource, protectedResource.scopes_supported, currentToken, async () => { });
+		focused = true;
+		focusEmitter.fire(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			createSessionCalls,
+			recoveryAuthenticateCalls,
+		}, {
+			createSessionCalls: 0,
+			recoveryAuthenticateCalls: 0,
+		});
+	});
+
+	test('shares the prompt cooldown across windows', async () => {
+		const sharedStorage = disposables.add(new InMemoryStorageService());
+		let createSessionCalls = 0;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: 'rejected-token' }],
+			createSession: async () => {
+				createSessionCalls++;
+				return { accessToken: 'fresh-token' };
+			},
+		});
+		const firstInstantiationService = createAuthInstantiationService(disposables, authService, undefined, undefined, createHostService(true), sharedStorage);
+		const secondInstantiationService = createAuthInstantiationService(disposables, authService, undefined, undefined, createHostService(true), sharedStorage);
+		const authenticateCalls: string[] = [];
+		const options = {
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'shared-host',
+			authenticate: async (request: { token: string }) => {
+				authenticateCalls.push(request.token);
+				return { authenticated: true };
+			},
+		};
+		const first = disposables.add(firstInstantiationService.createInstance(AgentHostAuthenticationRecovery, options));
+		const second = disposables.add(secondInstantiationService.createInstance(AgentHostAuthenticationRecovery, options));
+
+		await first.recover(protectedResource, AuthRequiredReason.Expired);
+		await second.recover(protectedResource, AuthRequiredReason.Expired);
+
+		assert.deepStrictEqual({
+			createSessionCalls,
+			authenticateCalls,
+		}, {
+			createSessionCalls: 1,
+			authenticateCalls: ['fresh-token'],
+		});
+	});
+
+	test('joins concurrent recovery and lets an operation accept the completed result', async () => {
+		const releaseSession = new DeferredPromise<{ accessToken: string }>();
+		const createSessionStarted = new DeferredPromise<void>();
+		let createSessionCalls = 0;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: 'rejected-token' }],
+			createSession: async () => {
+				createSessionCalls++;
+				createSessionStarted.complete();
+				return releaseSession.p;
+			},
+		});
+		const cache = new AgentHostAuthTokenCache();
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'joined-recovery-test',
+			authenticate: async () => ({ authenticated: true }),
+		}));
+
+		const notificationRecovery = recovery.recover(protectedResource, AuthRequiredReason.Expired);
+		await createSessionStarted.p;
+		const operationRecovery = recovery.recover(protectedResource, AuthRequiredReason.Expired, true);
+		releaseSession.complete({ accessToken: 'fresh-token' });
+		const joinedResults = await Promise.all([notificationRecovery, operationRecovery]);
+		const completedResult = await recovery.recover(protectedResource, AuthRequiredReason.Expired, true);
+
+		assert.deepStrictEqual({
+			createSessionCalls,
+			joinedResults,
+			completedResult,
+		}, {
+			createSessionCalls: 1,
+			joinedResults: [true, true],
+			completedResult: true,
+		});
+	});
+
+	test('replaces the rejected session and retries forwarding with backoff', async () => {
+		const account = { id: '1', label: 'octocat' };
+		let createSessionOptions: Parameters<IAuthenticationService['createSession']>[2];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: 'rejected-token', account }],
+			createSession: async (_providerId, _scopes, options) => {
+				createSessionOptions = options;
+				return { accessToken: 'fresh-token' };
+			},
+		});
+		const notifications = new RecordingNotificationService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, undefined, notifications);
+		const authenticateCalls: string[] = [];
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'backoff-test',
+			retryDelay: () => 0,
+			authenticate: async request => {
+				authenticateCalls.push(request.token);
+				if (authenticateCalls.length < 3) {
+					throw new Error('connection unavailable');
+				}
+				return { authenticated: true };
+			},
+		}));
+
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+
+		assert.deepStrictEqual({
+			createSessionOptions,
+			authenticateCalls,
+			errors: notifications.errors,
+		}, {
+			createSessionOptions: {
+				account,
+				authorizationServer: URI.parse('https://github.com/login/oauth'),
+				resource: protectedResource.resource,
+				activateImmediate: true,
+			},
+			authenticateCalls: ['fresh-token', 'fresh-token', 'fresh-token'],
+			errors: [],
+		});
+	});
+
+	test('reports failure after three forwarding attempts', async () => {
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: 'rejected-token' }],
+			createSession: async () => ({ accessToken: 'fresh-token' }),
+		});
+		const notifications = new RecordingNotificationService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, undefined, notifications);
+		let authenticateCalls = 0;
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'failure-test',
+			retryDelay: () => 0,
+			authenticate: async () => {
+				authenticateCalls++;
+				throw new Error('connection unavailable');
+			},
+		}));
+
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+
+		assert.deepStrictEqual({
+			authenticateCalls,
+			errors: notifications.errors.map(String),
+		}, {
+			authenticateCalls: 3,
+			errors: ['Agent Host authentication for GitHub Repository could not be refreshed. Sign in again to continue.'],
+		});
+	});
+
+	test('does not prompt again when the replacement token is rejected', async () => {
+		let currentToken = 'rejected-token';
+		let createSessionCalls = 0;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: currentToken }],
+			createSession: async () => {
+				createSessionCalls++;
+				currentToken = 'fresh-token';
+				return { accessToken: currentToken };
+			},
+		});
+		const notifications = new RecordingNotificationService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, undefined, notifications);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'replacement-test',
+			authenticate: async () => ({ authenticated: true }),
+		}));
+
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+
+		assert.deepStrictEqual({
+			createSessionCalls,
+			errors: notifications.errors.map(String),
+		}, {
+			createSessionCalls: 1,
+			errors: ['Agent Host authentication for GitHub Repository could not be refreshed. Sign in again to continue.'],
+		});
+	});
+
+	test('can replace a recovered token after the prompt cooldown', async () => {
+		let now = 0;
+		let currentToken = 'rejected-token';
+		let createSessionCalls = 0;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [{ scopes: ['repo'], accessToken: currentToken }],
+			createSession: async () => {
+				createSessionCalls++;
+				currentToken = `fresh-token-${createSessionCalls}`;
+				return { accessToken: currentToken };
+			},
+		});
+		const notifications = new RecordingNotificationService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, undefined, notifications);
+		const authenticateCalls: string[] = [];
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			logPrefix: '[AgentHost]',
+			now: () => now,
+			recoveryKey: 'cooldown-test',
+			authenticate: async request => {
+				authenticateCalls.push(request.token);
+				return { authenticated: true };
+			},
+		}));
+
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+		now = 5 * 60_000 + 1;
+		await recovery.recover(protectedResource, AuthRequiredReason.Expired);
+
+		assert.deepStrictEqual({
+			createSessionCalls,
+			authenticateCalls,
+			errors: notifications.errors,
+		}, {
+			createSessionCalls: 2,
+			authenticateCalls: ['fresh-token-1', 'fresh-token-2'],
+			errors: [],
+		});
 	});
 });
 

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
+import { AgentHostGitHubApiError, AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 
 type Captured = { url: string; init: RequestInit | undefined };
@@ -104,6 +104,59 @@ suite('AgentHostOctoKitService', () => {
 			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
 			url: 'https://api.github.com/repos/o/r/pulls?head=o%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1',
 			method: 'GET',
+		});
+	});
+
+	test('findPullRequestByHeadBranch exposes status and retry-after on failure', async () => {
+		const service = makeService(capturingFetch(new Response('{"message":"Bad credentials"}', {
+			status: 401,
+			statusText: 'Unauthorized',
+			headers: { 'Retry-After': '7' },
+		})).fetch);
+
+		await assert.rejects(
+			() => service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal()),
+			error => {
+				assert.deepStrictEqual(error instanceof AgentHostGitHubApiError ? {
+					statusCode: error.statusCode,
+					retryAfterMs: error.retryAfterMs,
+					message: error.message,
+				} : undefined, {
+					statusCode: 401,
+					retryAfterMs: 7_000,
+					message: 'GitHub API request failed: GET repos/o/r/pulls?head=o%3Afeature&state=all&sort=updated&direction=desc&per_page=1 - 401 Unauthorized - {"message":"Bad credentials"}',
+				});
+				return true;
+			},
+		);
+	});
+
+	test('findPullRequestByHeadBranch returns the cached pull request on 304', async () => {
+		const responses = [
+			new Response(JSON.stringify([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json', ETag: '"pr-9"' },
+			}),
+			new Response(undefined, { status: 304 }),
+		];
+		const requestHeaders: Array<Record<string, string>> = [];
+		const fetch: FetchFunction = async (_input, init) => {
+			requestHeaders.push(init?.headers as Record<string, string>);
+			return responses.shift()!;
+		};
+		const service = makeService(fetch);
+
+		const first = await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+		const second = await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			ifNoneMatch: requestHeaders[1]?.['If-None-Match'],
+		}, {
+			first: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
+			second: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
+			ifNoneMatch: '"pr-9"',
 		});
 	});
 

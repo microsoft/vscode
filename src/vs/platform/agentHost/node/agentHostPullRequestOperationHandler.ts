@@ -9,15 +9,17 @@ import { localize } from '../../../nls.js';
 import { IAgentService } from '../common/agentService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AHP_AUTH_REQUIRED, AHP_AUTH_REQUIRED_ERROR_NAME, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
-import { type AutoMergeMethod, type CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { AgentHostGitHubApiError, type AutoMergeMethod, type CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
+import type { ProtectedResourceMetadata } from '../common/state/protocol/state.js';
 
 /**
  * Soft upper bound, in characters, for the conversation context fed to the
@@ -72,6 +74,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
@@ -131,13 +134,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const base = baseBranchName;
 
 		const repoResource = this._gitHubEndpointService.getRepoResource();
+		const apiBaseUri = this._gitHubEndpointService.getApiBaseUri();
+		const graphQlUri = this._gitHubEndpointService.getGraphQlUri();
 		const authToken = this._agentService.getAuthToken({
 			resource: repoResource.resource,
 			scopes: repoResource.scopes_supported,
 		});
 		if (!authToken) {
-			throw new ProtocolError(
-				AHP_AUTH_REQUIRED,
+			throw this._createAuthRequiredError(
 				localize('agentHost.changeset.pr.authRequired', "Sign in to GitHub with repository access to create a pull request."),
 				[repoResource],
 			);
@@ -176,10 +180,17 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
+		let existing: CreatedPullRequest | undefined;
+		try {
+			this._throwIfGitHubEndpointChanged(apiBaseUri, repoResource);
+			existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal, apiBaseUri);
+		} catch (error) {
+			this._throwIfGitHubAuthenticationFailure(error, sessionUri, repoResource, authToken);
+			throw error;
+		}
 		if (existing) {
 			this._throwIfCancelled(token);
-			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token, graphQlUri);
 		}
 		this._throwIfCancelled(token);
 
@@ -191,6 +202,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${branchName} -> ${base}`);
 		let created: CreatedPullRequest;
 		try {
+			this._throwIfGitHubEndpointChanged(apiBaseUri, repoResource);
 			created = await this._octoKitService.createPullRequest(
 				gitHubState.owner,
 				gitHubState.repo,
@@ -201,24 +213,59 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				this._draft,
 				authToken,
 				signal,
+				apiBaseUri,
 			);
 		} catch (err) {
 			this._throwIfCancelled(token);
+			this._throwIfGitHubAuthenticationFailure(err, sessionUri, repoResource, authToken);
 			let foundAfterFailure: CreatedPullRequest | undefined;
 			try {
-				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
-			} catch {
+				this._throwIfGitHubEndpointChanged(apiBaseUri, repoResource);
+				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal, apiBaseUri);
+			} catch (findError) {
 				this._throwIfCancelled(token);
+				this._throwIfGitHubAuthenticationFailure(findError, sessionUri, repoResource, authToken);
 				throw err;
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token, graphQlUri);
 			}
 			throw err;
 		}
 		this._throwIfCancelled(token);
-		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token, graphQlUri);
+	}
+
+	private _throwIfGitHubEndpointChanged(apiBaseUri: string, resource: ProtectedResourceMetadata): void {
+		if (
+			this._gitHubEndpointService.getApiBaseUri() === apiBaseUri
+			&& this._gitHubEndpointService.getRepoResource().resource === resource.resource
+		) {
+			return;
+		}
+		const currentResource = this._gitHubEndpointService.getRepoResource();
+		throw this._createAuthRequiredError(
+			localize('agentHost.changeset.pr.endpointChanged', "GitHub configuration changed. Authenticate again to create the pull request."),
+			[currentResource],
+		);
+	}
+
+	private _throwIfGitHubAuthenticationFailure(error: unknown, sessionUri: string, resource: ProtectedResourceMetadata, token: string): void {
+		if (!(error instanceof AgentHostGitHubApiError) || error.statusCode !== 401) {
+			return;
+		}
+		this._gitStateService.rejectAuthenticationToken(sessionUri, resource.resource, token);
+		throw this._createAuthRequiredError(
+			localize('agentHost.changeset.pr.authExpired', "GitHub authentication expired. Sign in again to create the pull request."),
+			[resource],
+		);
+	}
+
+	private _createAuthRequiredError(message: string, resources: readonly ProtectedResourceMetadata[]): ProtocolError {
+		const error = new ProtocolError(AHP_AUTH_REQUIRED, message, { resources });
+		error.name = AHP_AUTH_REQUIRED_ERROR_NAME;
+		return error;
 	}
 
 	/**
@@ -236,6 +283,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		authToken: string,
 		signal: AbortSignal,
 		token: CancellationToken,
+		graphQlUri: string,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!this._autoMergeMethod) {
 			// No auto-merge configured
@@ -248,7 +296,10 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 		if (pr.nodeId) {
 			try {
-				await this._octoKitService.enablePullRequestAutoMerge(pr.nodeId, this._autoMergeMethod, authToken, signal);
+				if (this._gitHubEndpointService.getGraphQlUri() !== graphQlUri) {
+					throw new Error('GitHub endpoint changed before auto-merge could be enabled');
+				}
+				await this._octoKitService.enablePullRequestAutoMerge(pr.nodeId, this._autoMergeMethod, authToken, signal, graphQlUri);
 				autoMergeOutcome = 'enabled';
 			} catch (err) {
 				this._throwIfCancelled(token);

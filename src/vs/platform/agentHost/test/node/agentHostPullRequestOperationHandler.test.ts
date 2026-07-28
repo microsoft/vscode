@@ -5,18 +5,21 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
+import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { AutoMergeMethod, CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
+import { AgentHostGitHubApiError, type AutoMergeMethod, type CreatedPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -111,6 +114,7 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 	readonly calls: string[] = [];
 	existing: CreatedPullRequest | undefined;
 	existingAfterCreateFailure: CreatedPullRequest | undefined;
+	findError: Error | undefined;
 	createError: Error | undefined;
 	findAfterCreateError: Error | undefined;
 	autoMergeError: Error | undefined;
@@ -135,6 +139,9 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 			}
 			return this.existingAfterCreateFailure;
 		}
+		if (this.findError) {
+			throw this.findError;
+		}
 		return this.existing;
 	}
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, _token: string, _signal: AbortSignal): Promise<void> {
@@ -142,6 +149,22 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 		if (this.autoMergeError) {
 			throw this.autoMergeError;
 		}
+	}
+}
+
+class TestGitStateService implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidRefreshSessionGitState = Event.None;
+	readonly rejectedTokens: Array<{ sessionKey: string; resource: string; token: string }> = [];
+
+	async refreshSessionGitState(): Promise<void> { }
+	async setSessionGitHubState(): Promise<void> { }
+	async attachSessionGitHubPullRequest(): Promise<void> { }
+	async handleAuthenticationTokenUpdated(): Promise<void> { }
+	isAuthenticationTokenRejected(): boolean { return false; }
+	rejectAuthenticationToken(sessionKey: string, resource: string, token: string): boolean {
+		this.rejectedTokens.push({ sessionKey, resource, token });
+		return true;
 	}
 }
 
@@ -159,7 +182,7 @@ function createAgentService(withCopilotToken = false): IAgentService {
 	} as IAgentService;
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; copilotApiService: TestCopilotApiService } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; copilotApiService: TestCopilotApiService; gitStateService: TestGitStateService } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
@@ -185,6 +208,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	});
 	stateManager.setSessionMeta(session.toString(), sessionMeta);
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
+	const gitStateService = new TestGitStateService();
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
 			options?.draft ?? false,
@@ -197,10 +221,11 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				return state;
 			},
 			event => createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`),
-			createAgentService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, new NullLogService()),
+			createAgentService(options?.withCopilotToken), gitService, gitStateService, octoKitService, createTestGitHubEndpointService(), copilotApiService, new NullLogService()),
 		session,
 		createdEvents,
 		copilotApiService,
+		gitStateService,
 	};
 }
 
@@ -262,6 +287,29 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			followUp: { content: { uri: 'https://github.com/microsoft/vscode/pull/7', contentType: 'text/html' }, external: true },
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/7'],
 		});
+	});
+
+	test('maps a rejected repository token to auth-required recovery', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		octoKitService.findError = new AgentHostGitHubApiError('Bad credentials', 401, undefined);
+		const { handler, session, gitStateService } = setup(disposables, gitService, octoKitService);
+
+		await assert.rejects(
+			() => handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None),
+			error => {
+				if (!(error instanceof ProtocolError) || error.code !== AHP_AUTH_REQUIRED || typeof error.data !== 'object' || error.data === null) {
+					return false;
+				}
+				return Array.isArray(Object.getOwnPropertyDescriptor(error.data, 'resources')?.value);
+			},
+		);
+
+		assert.deepStrictEqual(gitStateService.rejectedTokens, [{
+			sessionKey: session.toString(),
+			resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
+			token: 'gh-token',
+		}]);
 	});
 
 	// A visible PR button can race with refreshed git state. If the backend

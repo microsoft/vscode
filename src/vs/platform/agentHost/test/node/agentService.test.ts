@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IConnectionTrackerService, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -2228,6 +2228,49 @@ suite('AgentService (node dispatcher)', () => {
 				readToken: 'read-token',
 				profileToken: 'profile-token',
 				supersetToken: 'profile-token',
+			});
+		});
+
+		test('serializes authentication so an older request cannot overwrite a newer token', async () => {
+			const oldAuthenticationStarted = new DeferredPromise<void>();
+			const releaseOldAuthentication = new DeferredPromise<void>();
+			copilotAgent.getProtectedResources = () => [GITHUB_REPO_PROTECTED_RESOURCE];
+			copilotAgent.authenticate = async (resource, token) => {
+				copilotAgent.authenticateCalls.push({ resource, token });
+				if (token === 'old-token') {
+					oldAuthenticationStarted.complete();
+					await releaseOldAuthentication.p;
+				}
+				return true;
+			};
+			service.registerProvider(copilotAgent);
+
+			const oldAuthentication = service.authenticate({
+				resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
+				scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported,
+				token: 'old-token',
+			});
+			await oldAuthenticationStarted.p;
+			const newAuthentication = service.authenticate({
+				resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
+				scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported,
+				token: 'new-token',
+			});
+			releaseOldAuthentication.complete();
+			await Promise.all([oldAuthentication, newAuthentication]);
+
+			assert.deepStrictEqual({
+				token: service.getAuthToken({
+					resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
+					scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported,
+				}),
+				calls: copilotAgent.authenticateCalls,
+			}, {
+				token: 'new-token',
+				calls: [
+					{ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, token: 'old-token' },
+					{ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, token: 'new-token' },
+				],
 			});
 		});
 

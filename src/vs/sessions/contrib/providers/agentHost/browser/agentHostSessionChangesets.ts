@@ -9,15 +9,19 @@ import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObs
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { format } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { isDefined, isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus, type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_AUTH_REQUIRED, AHP_AUTH_REQUIRED_ERROR_NAME, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { IAgentHostAuthenticationRecoveryService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
@@ -160,6 +164,53 @@ function toSessionChangesetOperation(operation: ChangesetOperation): ISessionCha
 	};
 }
 
+function getAuthRequiredResources(error: unknown, connection: IAgentConnection): readonly ProtectedResourceMetadata[] | undefined {
+	if (error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED) {
+		const resources = Array.isArray(error.data)
+			? error.data
+			: isObject(error.data)
+				? Object.getOwnPropertyDescriptor(error.data, 'resources')?.value
+				: undefined;
+		return Array.isArray(resources) && resources.every(isProtectedResourceMetadata) ? resources : undefined;
+	}
+	if (!(error instanceof Error) || error.name !== AHP_AUTH_REQUIRED_ERROR_NAME) {
+		return undefined;
+	}
+	const rootState = connection.rootState.value;
+	if (!rootState || rootState instanceof Error) {
+		return undefined;
+	}
+	const resources = new Map<string, ProtectedResourceMetadata>();
+	for (const agent of rootState.agents) {
+		for (const resource of agent.protectedResources ?? []) {
+			if (resource.scopes_supported?.includes('repo')) {
+				resources.set(resource.resource, resource);
+			}
+		}
+	}
+	return [...resources.values()];
+}
+
+function isProtectedResourceMetadata(value: unknown): value is ProtectedResourceMetadata {
+	return isObject(value) && typeof Object.getOwnPropertyDescriptor(value, 'resource')?.value === 'string';
+}
+
+export async function invokeChangesetOperationWithAuthenticationRecovery(
+	connection: IAgentConnection,
+	params: InvokeChangesetOperationParams,
+	authenticationRecoveryService: IAgentHostAuthenticationRecoveryService,
+): Promise<void> {
+	try {
+		await connection.invokeChangesetOperation(params);
+	} catch (error) {
+		const resources = getAuthRequiredResources(error, connection);
+		if (!resources || !await authenticationRecoveryService.recover(connection, resources, AuthRequiredReason.Expired)) {
+			throw error;
+		}
+		await connection.invokeChangesetOperation(params);
+	}
+}
+
 abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	abstract readonly id: string;
 	abstract readonly label: string;
@@ -185,6 +236,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		changeset: Changeset,
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
+		private readonly _authenticationRecoveryService: IAgentHostAuthenticationRecoveryService,
 	) {
 		this.capabilities = {
 			review: changeset.capabilities?.review !== undefined
@@ -297,7 +349,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			}
 		}
 
-		await connection.invokeChangesetOperation({
+		const params: InvokeChangesetOperationParams = {
 			operationId,
 			channel: channel.toString(),
 			target: target?.kind === 'resource'
@@ -306,7 +358,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 					resource: target.resource.toString()
 				}
 				: undefined,
-		});
+		};
+		await invokeChangesetOperationWithAuthenticationRecovery(connection, params, this._authenticationRecoveryService);
 	}
 
 	setReviewState(resources: readonly URI[], reviewed: boolean): void {
@@ -363,8 +416,9 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: Changeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
+		@IAgentHostAuthenticationRecoveryService authenticationRecoveryService: IAgentHostAuthenticationRecoveryService,
 	) {
-		super(changesetSummary, options, dialogService);
+		super(changesetSummary, options, dialogService, authenticationRecoveryService);
 
 		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
 
@@ -400,8 +454,9 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: Changeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
+		@IAgentHostAuthenticationRecoveryService authenticationRecoveryService: IAgentHostAuthenticationRecoveryService,
 	) {
-		super(changesetSummary, options, dialogService);
+		super(changesetSummary, options, dialogService, authenticationRecoveryService);
 
 		this.id = changesetSummary.changeKind;
 
