@@ -14,6 +14,7 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import * as event from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -49,6 +50,7 @@ import { FileKind, IFileService } from '../../../../../platform/files/common/fil
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
@@ -539,9 +541,20 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState));
+
+		const imageElements = this._register(new MutableDisposable<IDisposable>());
+		const renderImageElements = (buffer: Uint8Array) => {
+			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState);
+			// createImageElements resets the label; restore the deletion hint after each render.
+			this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+		};
+		renderImageElements(imageData ?? new Uint8Array());
+
+		// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
+		if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
+			void this.loadImageBytes(resource, renderImageElements);
+		}
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
-		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
 		const canOpenCarousel = !!imageData && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
@@ -557,6 +570,20 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
 		}
+	}
+
+	private async loadImageBytes(resource: URI, render: (buffer: Uint8Array) => void): Promise<void> {
+		let content: VSBuffer;
+		try {
+			content = (await this.fileService.readFile(resource)).value;
+		} catch {
+			// The file may no longer exist; keep the icon fallback that is already rendered.
+			return;
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		render(content.buffer);
 	}
 
 	private async openInCarousel(id: string, name: string, data: Uint8Array | undefined, referenceUri: URI | undefined, preferCurrentInput: boolean | undefined): Promise<void> {
@@ -605,13 +632,24 @@ export function createImageHoverContent(resource: URI | undefined, fullName: str
 	cacheKey: string,
 	onContentsChanged?: () => void,
 	clickHandler?: () => void,
-	onImageUrl?: (url: string, isThumbnail: boolean, image: HTMLImageElement) => void): { readonly element: HTMLElement; readonly disposable: IDisposable } {
+	onImageUrl?: (url: string, isThumbnail: boolean, image: HTMLImageElement) => void,
+	imageAlt = ''): { readonly element: HTMLElement; readonly disposable: IDisposable } {
 
 	const disposable = new DisposableStore();
 	const hoverElement = dom.$('div.chat-attached-context-hover');
-	const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
+	const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: imageAlt });
 	const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
 	hoverElement.appendChild(imageContainer);
+
+	if (clickHandler) {
+		imageContainer.classList.add('clickable');
+		imageContainer.tabIndex = 0;
+		imageContainer.role = 'button';
+		imageContainer.ariaLabel = localize('chat.openImagePreview', "Open in Images Preview");
+		disposable.add(registerOpenEditorListeners(imageContainer, async () => {
+			await clickHandler();
+		}));
+	}
 
 	if (resource) {
 		const urlContainer = clickHandler
@@ -724,6 +762,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
 		}
 	}
+
+	// Remove old DOM so the widget can safely re-render after hydrated bytes load.
+	disposable.add(toDisposable(() => {
+		currentPill.remove();
+		textLabel.remove();
+	}));
+
 	return disposable;
 }
 
@@ -1230,6 +1275,10 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -1240,11 +1289,11 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.style.cursor = 'pointer';
 		const attachmentLabel = attachment.name;
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
-		this.label.setLabel(withIcon, undefined, { title: localize('chat.clickToViewContents', "Click to view the contents of: {0}", attachmentLabel) });
+		this.label.setLabel(withIcon);
 
 		this._register(this.hoverService.setupDelayedHover(this.element, this.getHoverContent(attachment), commonHoverLifecycleOptions));
 
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
+		this._register(registerOpenEditorListeners(this.element, async () => {
 			await this.openElementAttachment(attachment);
 		}));
 	}
@@ -1259,6 +1308,10 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		// Wrap all sections in a scrollable container for VS Code styled scrollbar
 		const scrollableContent = dom.$('div.chat-element-hover-content');
 		const innerScrollables: DomScrollableElement[] = [];
+
+		if (attachment.imageData) {
+			this.appendImagePreview(attachment, scrollableContent, () => scrollableElement.scanDomNode());
+		}
 
 		// ELEMENT section: show the selected element tag with all attributes
 		{
@@ -1425,6 +1478,51 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		return false;
 	}
 
+	private appendImagePreview(attachment: IElementVariableEntry, container: HTMLElement, onContentsChanged: () => void): void {
+		const section = dom.$('div.chat-element-hover-section.chat-element-hover-screenshot');
+		section.appendChild(dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.screenshot', "SCREENSHOT")));
+		container.appendChild(section);
+
+		const previewDisposables = this._register(new DisposableStore());
+		const appendPreview = (data: Uint8Array) => {
+			if (previewDisposables.isDisposed) {
+				return;
+			}
+			const resource = URI.isUri(attachment.imageData)
+				? attachment.imageData
+				: URI.from({ scheme: Schemas.data, path: `${attachment.id}/${encodeURIComponent(attachment.name)}` });
+			const clickHandler = this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)
+				? async () => this.chatImageCarouselService.openCarouselAtResource(resource, data)
+				: undefined;
+			const preview = createImageHoverContent(
+				undefined,
+				attachment.name,
+				data,
+				`${attachment.id}:screenshot`,
+				onContentsChanged,
+				clickHandler,
+				undefined,
+				localize('chat.elementHover.screenshotAlt', "Screenshot of attached element {0}", attachment.name),
+			);
+			previewDisposables.add(preview.disposable);
+			section.appendChild(preview.element);
+		};
+
+		const inlineData = coerceImageBuffer(attachment.imageData);
+		if (inlineData) {
+			appendPreview(inlineData);
+		} else if (URI.isUri(attachment.imageData)) {
+			void this.fileService.readFile(attachment.imageData).then(
+				content => appendPreview(content.value.buffer),
+				error => {
+					this.logService.warn(`[ElementChatAttachmentWidget] Failed to read screenshot '${attachment.imageData}': ${toErrorMessage(error)}`);
+					section.remove();
+					onContentsChanged();
+				}
+			);
+		}
+	}
+
 	private getSimpleHoverContent(attachment: IElementVariableEntry): IDelayedHoverOptions {
 		const content = attachment.value?.toString() ?? '';
 		const hoverContent = new MarkdownString();
@@ -1432,6 +1530,33 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (content.trim().length > 0) {
 			hoverContent.appendMarkdown('\n\n');
 			hoverContent.appendCodeblock('text', content);
+		}
+
+		if (attachment.imageData) {
+			const hoverElement = dom.$('div.chat-attached-context-hover.chat-element-hover');
+			const scrollableContent = dom.$('div.chat-element-hover-content');
+			this.appendImagePreview(attachment, scrollableContent, () => scrollableElement.scanDomNode());
+
+			const markdownSection = dom.$('div.chat-element-hover-section');
+			const renderedMarkdown = this._register(this.markdownRendererService.render(hoverContent));
+			markdownSection.appendChild(renderedMarkdown.element);
+			scrollableContent.appendChild(markdownSection);
+
+			const scrollableElement = this._register(new DomScrollableElement(scrollableContent, {
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Hidden,
+				consumeMouseWheelIfScrollbarIsNeeded: true,
+			}));
+			const scrollableDomNode = scrollableElement.getDomNode();
+			scrollableDomNode.classList.add('chat-element-hover-scrollable');
+			hoverElement.appendChild(scrollableDomNode);
+
+			return {
+				...commonHoverOptions,
+				content: hoverElement,
+				additionalClasses: ['chat-element-data-hover'],
+				onDidShow: () => scrollableElement.scanDomNode(),
+			};
 		}
 
 		return {

@@ -28,7 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostElementAttachmentDisplayKind } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
+import { AgentHostElementAttachmentDisplayKind, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -66,6 +66,7 @@ import {
 	type IAgentFeedbackVariableEntry,
 	type IChatRequestChatReferenceVariableEntry,
 	type IChatRequestVariableEntry,
+	type IElementVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
@@ -77,7 +78,7 @@ import { ChatMode } from '../../../common/chatModes.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -88,7 +89,7 @@ import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -337,6 +338,18 @@ function emptyDraftFromLastTurn(state: ISessionWithDefaultChat): Message | undef
 		...(message.model ? { model: message.model } : {}),
 		...(message.agent ? { agent: message.agent } : {}),
 	};
+}
+
+/**
+ * Whether two drafts carry the same user-authored content, ignoring the
+ * {@link Message.model | model} / {@link Message.agent | agent} selection.
+ *
+ * Used to recognize a draft that differs from an applied remote one only
+ * because this client substituted a model it could resolve locally, which must
+ * not be published back over the originating client's selection.
+ */
+function sameDraftUserContent(a: Message | undefined, b: Message | undefined): boolean {
+	return (a?.text ?? '') === (b?.text ?? '') && equals(a?.attachments, b?.attachments);
 }
 
 /**
@@ -2809,9 +2822,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
 
 			if ((status === ToolCallStatus.Completed || status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
-				// Revive terminal before finalizing — handles the case where
-				// Running was skipped (e.g. throttling) and terminal content
-				// only appears at Completed time.
+				// Detach live non-PTY output before completion synchronously rebuilds the terminal subpart.
 				this._ensureLeftStreaming(invocation, tc, opts);
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, outputTerminalAttachment);
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
@@ -3442,10 +3453,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Detects terminal content in a tool call and creates a local terminal
-	 * instance backed by the agent host connection. Updates the invocation's
-	 * `toolSpecificData` to `kind: 'terminal'` and clears
-	 * `HiddenAfterComplete` so the terminal UI stays visible.
+	 * Synchronizes PTY and non-PTY terminal content, including the live-to-retained output handoff, and updates invocation metadata.
 	 */
 	private _reviveTerminalIfNeeded(
 		invocation: ChatToolInvocation,
@@ -3469,11 +3477,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
 		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
-		const hasStaticNonPtyResult = tc.status === ToolCallStatus.Completed
+		const hasRetainedNonPtySnapshot = tc.status === ToolCallStatus.Completed
 			&& !isPty
 			&& terminalContent.result?.exitCode !== undefined
 			&& terminalContent.result.preview !== undefined;
-		if (!isPty && !hasStaticNonPtyResult && outputTerminalAttachment.sessionId !== sessionId) {
+		if (hasRetainedNonPtySnapshot) {
+			outputTerminalAttachment.disposable.clear();
+			outputTerminalAttachment.sessionId = undefined;
+		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
 			outputTerminalAttachment.disposable.value = this._agentHostTerminalService.attachOutputTerminal(this._config.connection, terminalCommandUri, sessionId);
 			outputTerminalAttachment.sessionId = sessionId;
 		}
@@ -4028,7 +4039,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
-		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
@@ -4051,7 +4062,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				session: requestedSession,
 				model,
 				provider: this._config.provider,
-				workingDirectory,
+				workingDirectories,
 				fork,
 				config,
 				importConversation,
@@ -4070,7 +4081,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						session: requestedSession,
 						model,
 						provider: this._config.provider,
-						workingDirectory,
+						workingDirectories,
 						fork,
 						config,
 						importConversation,
@@ -4208,15 +4219,35 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 		const delayer = store.add(new Delayer<void>(AgentHostSessionHandler.DRAFT_SYNC_DEBOUNCE_MS));
-		let lastDraft = this._getSessionState(backendSession.toString(), chatKey)?.draft;
+		const chatSubscription = this._ensureChatSubscription(backendSession.toString(), chatKey);
+		const readRemoteDraft = (): Message | undefined => {
+			const value = chatSubscription.value;
+			return value && !(value instanceof Error) ? value.draft : undefined;
+		};
+		let syncedDraft = readRemoteDraft();
+		// The last `draft` object seen on the chat channel. Protocol state is
+		// immutable, so an identical reference means the draft did not change —
+		// letting the listener bail on a reference check instead of a deep
+		// compare, which matters because it runs on every chat state change
+		// (each streaming delta), not just draft changes.
+		let lastRemoteDraft = syncedDraft;
+		let appliedRemoteDraft: Message | undefined;
 		store.add(autorun(reader => {
 			const state = inputModel.state.read(reader);
 			delayer.trigger(() => {
-				const draft = this._inputStateToDraft(sessionResource, state);
-				if (equals(lastDraft, draft)) {
+				if (state?.origin === ChatInputStateOrigin.Remote) {
 					return;
 				}
-				lastDraft = draft;
+				const draft = this._inputStateToDraft(sessionResource, state);
+				if (equals(syncedDraft, draft)) {
+					return;
+				}
+				if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
+					syncedDraft = draft;
+					return;
+				}
+				appliedRemoteDraft = undefined;
+				syncedDraft = draft;
 
 				this._config.connection.dispatch(chatKey, {
 					type: ActionType.ChatDraftChanged,
@@ -4224,6 +4255,54 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				});
 			}).catch(() => { /* delayer disposed */ });
 		}));
+		store.add(chatSubscription.onDidChange(() => {
+			const remoteDraft = readRemoteDraft();
+			if (remoteDraft === lastRemoteDraft) {
+				return;
+			}
+			lastRemoteDraft = remoteDraft;
+			if (equals(syncedDraft, remoteDraft)) {
+				return;
+			}
+			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
+			if (!equals(syncedDraft, localDraft)) {
+				// The pending outbound debounce will publish the local edit (last writer wins).
+				return;
+			}
+			syncedDraft = remoteDraft;
+			appliedRemoteDraft = remoteDraft;
+			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
+		}));
+	}
+
+	/** Applies a remote draft without replacing local input state the protocol does not carry. */
+	private _applyRemoteDraft(inputModel: IInputModel, sessionResource: URI, draft: Message | undefined): void {
+		if (!draft) {
+			inputModel.setState({
+				inputText: '',
+				selections: [],
+				attachments: [],
+				origin: ChatInputStateOrigin.Remote,
+			});
+			return;
+		}
+		const serializedState = this._draftToInputState(sessionResource, draft);
+		if (!serializedState) {
+			return;
+		}
+		const state = reviveSerializableInputState(serializedState);
+		const partialState: Partial<IChatModelInputState> = {
+			inputText: state.inputText,
+			selections: state.selections,
+			attachments: state.attachments,
+			mode: state.mode,
+			origin: ChatInputStateOrigin.Remote,
+		};
+		if (state.selectedModel) {
+			partialState.selectedModel = state.selectedModel;
+			partialState.modelConfiguration = state.modelConfiguration;
+		}
+		inputModel.setState(partialState);
 	}
 
 	private _inputStateToDraft(sessionResource: URI, state: IChatModelInputState | undefined): Message | undefined {
@@ -4396,6 +4475,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	private _resolveRequestedWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
+		const primary = this._resolveRequestedWorkingDirectory(sessionResource);
+		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._getRootState(), this._config.provider);
 	}
 
 	/**
@@ -4670,7 +4754,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			);
 		}
 		if (v.kind === 'element') {
-			return this._toSimpleAttachment(v.name, v.value, v._meta, AgentHostElementAttachmentDisplayKind, referenceRange);
+			const correlationId = generateUuid();
+			const metadata = { ...v._meta, ...toElementAttachmentMeta(correlationId) };
+			const elementAttachment = this._toSimpleAttachment(v.name, v.value, metadata, AgentHostElementAttachmentDisplayKind, referenceRange);
+			const imageAttachment = this._toElementImageAttachment(v, sessionResource, metadata);
+			return imageAttachment ? [elementAttachment, imageAttachment] : elementAttachment;
 		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
@@ -4715,6 +4803,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			attachment._meta = v._meta;
 		}
 		return attachment;
+	}
+
+	private _toElementImageAttachment(v: IElementVariableEntry, sessionResource: URI, metadata: Record<string, unknown>): MessageAttachment | undefined {
+		if (v.imageData instanceof Uint8Array) {
+			return {
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: `${v.name} screenshot`,
+				displayKind: 'image',
+				data: encodeBase64(VSBuffer.wrap(v.imageData)),
+				contentType: v.imageMimeType ?? 'image/png',
+				_meta: metadata,
+			};
+		}
+		if (URI.isUri(v.imageData)) {
+			return this._toResourceAttachment(v.imageData, `${v.name} screenshot`, 'image', sessionResource, metadata);
+		}
+		return undefined;
 	}
 
 	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment {

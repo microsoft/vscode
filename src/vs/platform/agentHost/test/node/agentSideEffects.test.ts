@@ -3810,6 +3810,17 @@ suite('AgentSideEffects', () => {
 			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
 
+		async function waitForMetadata(key: string): Promise<string> {
+			for (let attempt = 0; attempt < 100; attempt++) {
+				const value = await sessionDb.getMetadata(key);
+				if (value !== undefined) {
+					return value;
+				}
+				await timeout(10);
+			}
+			throw new Error(`Session metadata '${key}' was not persisted`);
+		}
+
 		teardown(async () => {
 			await sessionDb.close();
 		});
@@ -3841,10 +3852,7 @@ suite('AgentSideEffects', () => {
 				title: 'Custom Title',
 			});
 
-			// Wait for the async persistence
-			await new Promise(r => setTimeout(r, 50));
-
-			assert.strictEqual(await sessionDb.getMetadata('customTitle'), 'Custom Title');
+			assert.strictEqual(await waitForMetadata('customTitle'), 'Custom Title');
 		});
 
 		test('handleListSessions returns persisted custom title', async () => {
@@ -3962,11 +3970,40 @@ suite('AgentSideEffects', () => {
 				config: { autoApprove: 'autoApprove' },
 			});
 
-			await new Promise(r => setTimeout(r, 50));
+			const persisted = await waitForMetadata('configValues');
+			assert.deepStrictEqual(JSON.parse(persisted), { autoApprove: 'autoApprove' });
+		});
 
-			const persisted = await sessionDb.getMetadata('configValues');
-			assert.ok(persisted);
-			assert.deepStrictEqual(JSON.parse(persisted!), { autoApprove: 'autoApprove' });
+		test('server-dispatched SessionConfigChanged persists merged config values to the database', async () => {
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+				onTurnComplete: () => { },
+			});
+
+			const session = localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+			});
+			session.config = { schema: { type: 'object', properties: {} }, values: { mode: 'plan', autoApprove: 'default' } };
+
+			localStateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { mode: 'interactive' },
+			});
+
+			const persisted = await waitForMetadata('configValues');
+			assert.deepStrictEqual(JSON.parse(persisted), { mode: 'interactive', autoApprove: 'default' });
 		});
 
 		test('SessionConfigChanged notifies the agent with the post-reducer merged values', async () => {
@@ -4315,6 +4352,72 @@ suite('AgentSideEffects', () => {
 			subState = stateManager.getSessionState(subagentUri);
 			assert.strictEqual(subState!.activeTurn, undefined, 'subagent turn should be completed');
 			assert.strictEqual(subState!.turns.length, 1);
+
+			agent.fireProgress({
+				kind: 'subagent_resumed',
+				chat: URI.parse(defaultChatUri),
+				toolCallId: 'tc-1',
+				message: { text: 'Follow up', origin: { kind: MessageKind.User } },
+			});
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-1',
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId: 'parent-turn',
+					part: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
+				},
+			});
+
+			subState = stateManager.getSessionState(subagentUri);
+			assert.deepStrictEqual({
+				message: subState?.activeTurn?.message.text,
+				response: subState?.activeTurn?.responseParts[0],
+				completedTurns: subState?.turns.length,
+			}, {
+				message: 'Follow up',
+				response: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
+				completedTurns: 1,
+			});
+		});
+
+		test('permission requests for inactive and unroutable subagents are denied', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-inactive', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-inactive' });
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-starting',
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-starting-permission', toolName: 'shell', displayName: 'Shell' },
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation',
+				chat: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-starting',
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-starting-permission', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command' },
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation',
+				chat: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-inactive',
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-inactive-permission', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command' },
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation',
+				chat: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-missing',
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-missing-permission', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command' },
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-inactive-permission', approved: false },
+				{ requestId: 'tc-missing-permission', approved: false },
+			]);
 		});
 
 		test('cancelSubagentSessions cancels all subagent chats', () => {

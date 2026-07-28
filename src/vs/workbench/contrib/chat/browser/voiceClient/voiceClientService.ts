@@ -770,7 +770,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 * can answer recall questions across reconnects without backend
 	 * persistence. See ``IVoicePriorTimelineEntry``.
 	 */
-	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig): void {
+	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
@@ -780,18 +780,25 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
+			if (voiceInstructions) {
+				payload.voice_instructions = voiceInstructions;
+			}
 			this._ws.send(JSON.stringify(payload));
 			this._sessionStartedOnSocket = true;
 		}
 	}
 
-	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
+	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
 			// `auto_narrate: false` for the same reason as start_session: this client
 			// drives narration, so the backend must not also auto-narrate.
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false }));
+			const payload: Record<string, unknown> = { type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
+			if (voiceInstructions) {
+				payload.voice_instructions = voiceInstructions;
+			}
+			this._ws.send(JSON.stringify(payload));
 			this._sessionStartedOnSocket = true;
 		}
 	}

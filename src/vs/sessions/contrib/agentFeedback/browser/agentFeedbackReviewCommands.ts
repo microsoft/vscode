@@ -68,7 +68,7 @@ export function registerAgentFeedbackReviewCommands(): void {
 		// active session for in-scope files, so the "open file at range"
 		// affordance works even before the resource has accumulated feedback);
 		// fall back to the most recent session that has feedback for it.
-		const sessionResource = feedbackService.getSessionForFile(resource)?.resource
+		const sessionResource = feedbackService.getFeedbackSessionResource(resource)
 			?? feedbackService.getMostRecentSessionForResource(resource);
 		if (!sessionResource) {
 			return;

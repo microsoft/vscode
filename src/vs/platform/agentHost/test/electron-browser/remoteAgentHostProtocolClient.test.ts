@@ -25,12 +25,12 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, ROOT_STATE_URI, StateComponents, customizationId } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
@@ -266,6 +266,37 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [{ name: 'late', type: 'file' }] } });
 		assert.strictEqual(transport.sentMessages.length, 1);
+	});
+
+	test('listSessions carries the workspace-less marker back on _meta', async () => {
+		// Regression: the sessions provider resolves a session's kind (quick
+		// chat vs. workspace) from `_meta.workspaceless`, and after a window
+		// reload a listing is what materializes it.
+		// Dropping `_meta` on the way back made every restored quick chat look
+		// workspace-bound and leak the host's scratch cwd as a workspace folder.
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [{
+					resource: 'agent-session://copilotcli/quick-1',
+					provider: 'copilotcli',
+					title: 'Quick Chat',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					workingDirectories: [URI.file('/home/user/.copilot/chats/quick-1').toString()],
+					_meta: withSessionWorkspaceless(undefined, true),
+				}],
+			},
+		});
+
+		const sessions = await resultPromise;
+		assert.deepStrictEqual(sessions.map(s => readSessionWorkspaceless(s._meta)), [true]);
 	});
 
 	test('queues requests and notifications until a client transport initializes', async () => {
@@ -879,6 +910,23 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const updatedSystemProxyEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostSystemProxyEnabledConfigKey);
 		assert.deepStrictEqual(getRootConfig(updatedSystemProxyEnabled), { [AgentHostSystemProxyEnabledConfigKey]: false });
+	});
+
+	test('forwards Copilot multi-root enablement on connect and when the setting changes', async () => {
+		const configurationService = new TestConfigurationService({ [AgentHostCopilotMultiRootEnabledSettingId]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+
+		await connectClient(client, transport);
+
+		const multiRootEnabled = findRootConfigNotification(transport.sentMessages, AgentHostCopilotMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(multiRootEnabled), { [AgentHostCopilotMultiRootEnabledConfigKey]: true });
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(AgentHostCopilotMultiRootEnabledSettingId, false);
+		fireConfigurationChange(configurationService, AgentHostCopilotMultiRootEnabledSettingId);
+
+		const updatedMultiRootEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostCopilotMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostCopilotMultiRootEnabledConfigKey]: false });
 	});
 
 	test('forwards auto-reply on connect and when the setting changes', async () => {

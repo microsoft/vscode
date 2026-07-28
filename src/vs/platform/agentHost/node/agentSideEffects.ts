@@ -93,11 +93,11 @@ export interface IAgentSideEffectsOptions {
 	 * Host-owned working-directory resolution hook, awaited before the agent's
 	 * first send so the session's working directory (an isolated worktree created
 	 * on the first send, or the picked folder) is resolved before the agent
-	 * materializes and its cwd is locked. Resolves to the working directory to
-	 * hand the agent, or `undefined` for workspace-less sessions. Provided by
-	 * {@link AgentService}.
+	 * materializes and its cwd is locked. Resolves to the working directories to
+	 * hand the agent (index 0 = process root), or `undefined` for workspace-less
+	 * sessions. Provided by {@link AgentService}.
 	 */
-	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<URI | undefined>;
+	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/**
@@ -207,10 +207,8 @@ export class AgentSideEffects extends Disposable {
 			this._publishAgentInfos(agents, reader);
 		}));
 
-		// Server-dispatched ChatToolCallComplete actions (e.g. from
-		// the disconnect timeout in ProtocolServerHandler) bypass
-		// handleAction, so the agent's SDK deferred never resolves.
-		// Listen for these envelopes and notify the agent directly.
+		// Observe envelopes for side effects that must include server-dispatched
+		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
 				if (envelope.action.type === ActionType.ChatTurnCancelled) {
@@ -237,6 +235,12 @@ export class AgentSideEffects extends Disposable {
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
+			}
+			if (envelope.action.type === ActionType.SessionConfigChanged) {
+				const values = this._stateManager.getSessionState(envelope.channel)?.config?.values;
+				if (values) {
+					this._persistSessionFlag(envelope.channel, 'configValues', JSON.stringify(values));
+				}
 			}
 		}));
 	}
@@ -548,6 +552,11 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
+		if (signal.kind === 'subagent_resumed') {
+			this._resumeSubagentSession(signal.chat.toString(), signal.toolCallId, signal.message);
+			return;
+		}
+
 		if (signal.kind === 'subagent_completed') {
 			this.completeSubagentSession(signal.chat.toString(), signal.toolCallId);
 			return;
@@ -577,14 +586,26 @@ export class AgentSideEffects extends Disposable {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession.chatUri);
 				if (subTurnId) {
 					this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, 'remap', agent);
+				} else {
+					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
+					if (signal.kind === 'pending_confirmation') {
+						agent.respondToPermissionRequest(signal.state.toolCallId, false);
+					}
 				}
+				return;
+			}
+
+			const pendingSignals = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
+			if (signal.kind === 'pending_confirmation' && !pendingSignals) {
+				this._logService.error(`[AgentSideEffects] Denying permission for unroutable subagent ${sessionKey}/${parentToolCallId}: toolCallId=${signal.state.toolCallId}`);
+				agent.respondToPermissionRequest(signal.state.toolCallId, false);
 				return;
 			}
 
 			// Subagent session does not exist yet — buffer the signal so we can
 			// replay it after `subagent_started` arrives.
 			this._logService.trace(`[AgentSideEffects] Buffering ${this._describeSignal(signal)} for pending subagent ${sessionKey}/${parentToolCallId}`);
-			let buffer = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
+			let buffer = pendingSignals;
 			if (!buffer) {
 				buffer = [];
 				this._pendingSubagentSignals.set(buffer, sessionKey, parentToolCallId);
@@ -729,10 +750,8 @@ export class AgentSideEffects extends Disposable {
 
 			// Drop any events that were buffered for a subagent whose
 			// `subagent_started` never arrived (e.g. the parent tool failed
-			// before the subagent was created). The actual subagent session
-			// teardown is driven by the `subagent_completed` signal because
-			// background subagents (`mode: background`) continue running
-			// after the parent tool call returns.
+			// before the subagent was created). A registered child chat remains
+			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
 				this._changesets.onToolCallEditsApplied(sessionUri, turnId);
@@ -870,8 +889,9 @@ export class AgentSideEffects extends Disposable {
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
 		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
 
-		// Already tracking this subagent
-		if (this._subagentChats.get(chatURI, toolCallId)) {
+		const existing = this._subagentChats.get(chatURI, toolCallId);
+		if (existing) {
+			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined);
 			return;
 		}
 
@@ -941,6 +961,27 @@ export class AgentSideEffects extends Disposable {
 		return typeof elapsed === 'number' && Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
 	}
 
+	private _resumeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string, message: Message | undefined): void {
+		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
+		if (!subagent) {
+			this._logService.error(`[AgentSideEffects] Cannot resume unknown subagent ${parentChatURI}/${toolCallId}`);
+			return;
+		}
+		if (this._stateManager.getActiveTurnId(subagent.chatUri)) {
+			return;
+		}
+
+		const turnId = generateUuid();
+		this._logService.info(`[AgentSideEffects] Resuming subagent turn: ${subagent.chatUri} (parent=${parentChatURI}, toolCallId=${toolCallId})`);
+		this._stateManager.dispatchServerAction(subagent.chatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: message ?? { text: '', origin: { kind: MessageKind.User } },
+		});
+		this._subagentChats.set({ ...subagent, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
+	}
+
 	/**
 	 * Cancels all active subagent sessions for a given parent session.
 	 */
@@ -963,11 +1004,8 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Completes the subagent session associated with a parent tool call.
-	 * Driven by the `subagent_completed` signal from the agent (which the
-	 * SDK fires on both `subagent.completed` and `subagent.failed`), not by
-	 * parent tool call completion — background subagents keep running after
-	 * their parent tool returns.
+	 * Completes the active turn for the subagent associated with a parent tool
+	 * call. The chat remains registered so a later steered turn can resume it.
 	 */
 	completeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string): void {
 		// Drop any events that were buffered waiting for a `subagent_started`
@@ -989,7 +1027,6 @@ export class AgentSideEffects extends Disposable {
 				duration: this._turnDuration(subagent.turnStopWatch),
 			});
 		}
-		this._subagentChats.delete(parentChatURI, toolCallId);
 	}
 
 	/**
@@ -1348,13 +1385,8 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionConfigChanged: {
-				// Persist merged values so a future `restoreSession` can re-hydrate
-				// the user's previous selections (e.g. autoApprove).
 				const sessionState = this._stateManager.getSessionState(channel);
 				const values = sessionState?.config?.values;
-				if (values) {
-					this._persistSessionFlag(channel, 'configValues', JSON.stringify(values));
-				}
 				if (this._worktree && sessionState?.lifecycle === SessionLifecycle.Creating) {
 					const sessionId = AgentSession.id(channel);
 					const isolation = values?.[SessionConfigKey.Isolation];
@@ -1615,11 +1647,12 @@ export class AgentSideEffects extends Disposable {
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		try {
 			// Host-owned working-directory resolution: resolve the session's working
-			// directory before the agent materializes, so the agent runs in it
-			// without ever knowing how it was derived. Returns the created worktree
-			// for worktree sessions (created here on the first send) or the picked
-			// folder for folder sessions; undefined for workspace-less sessions.
-			const resolvedWorkingDirectory = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
+			// directories before the agent materializes, so the agent runs in
+			// index 0 (the process root) without ever knowing how it was derived.
+			// Index 0 is the created worktree for worktree sessions (created here on
+			// the first send) or the picked folder for folder sessions; undefined for
+			// workspace-less sessions. Any additional roots follow index 0.
+			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
 
 			const selectionUpdates: Promise<void>[] = [];
 			if (message.model) {
@@ -1634,7 +1667,7 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, resolvedAttachments, turnId, senderClientId, clientType);
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
