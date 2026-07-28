@@ -12,7 +12,6 @@ import { ITransaction, autorun, derived, derivedDisposable, derivedObservableWit
 import { isEqual } from '../../../../../base/common/resources.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -73,9 +72,8 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _suggestWidgetAdapter;
 
 	private readonly _enabledInConfig;
-	private readonly _isScreenReaderEnabled;
 	private readonly _editorDictationInProgress;
-	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
+	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && !this._editorDictationInProgress.read(reader));
 
 	private readonly _debounceValue;
 
@@ -130,7 +128,6 @@ export class InlineCompletionsController extends Disposable {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this.editor);
@@ -141,7 +138,6 @@ export class InlineCompletionsController extends Disposable {
 			() => this.model.get()?.selectedInlineCompletion.get()?.getSingleTextEdit(),
 		));
 		this._enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
-		this._isScreenReaderEnabled = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
 		this._editorDictationInProgress = observableFromEvent(this,
 			this._contextKeyService.onDidChangeContext,
 			() => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true
