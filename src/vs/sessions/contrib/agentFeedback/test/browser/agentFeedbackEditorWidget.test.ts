@@ -15,7 +15,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
-import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidgetContribution.js';
+import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidget.js';
 import { AgentFeedbackKind, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 

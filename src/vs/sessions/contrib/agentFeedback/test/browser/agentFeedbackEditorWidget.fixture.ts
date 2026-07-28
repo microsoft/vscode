@@ -13,7 +13,8 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../edito
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
-import { AgentFeedbackEditorWidget, AgentFeedbackEditorWidgetContribution } from '../../browser/agentFeedbackEditorWidgetContribution.js';
+import { AgentFeedbackEditorWidget } from '../../browser/agentFeedbackEditorWidget.js';
+import { AgentFeedbackEditorWidgetContribution } from '../../browser/agentFeedbackEditorWidgetContribution.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
