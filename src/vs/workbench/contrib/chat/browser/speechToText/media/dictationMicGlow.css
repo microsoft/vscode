@@ -60,9 +60,9 @@
 	50% { filter: brightness(1.14); }
 }
 
-/* The segmented voice-input pill's cell is rounded more than a toolbar button. */
+/* The segmented voice-input pill's cell is rounded as a pill when expanded. */
 .chat-voice-input-mode-cell.dictation {
-	--dictation-mic-glow-radius: 7px;
+	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
 }
 
 /* High-contrast themes replace the soft glow with a solid outline, which must
