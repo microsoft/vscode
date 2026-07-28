@@ -825,6 +825,7 @@ export class SuggestWidget implements IDisposable {
 		const bodyBox = dom.getClientArea(this.element.domNode.ownerDocument.body);
 		const info = this.getLayoutInfo();
 
+		const hasPersistedSize = !!size;
 		if (!size) {
 			size = info.defaultSize;
 		}
@@ -851,7 +852,19 @@ export class SuggestWidget implements IDisposable {
 			if (width > maxWidth) {
 				width = maxWidth;
 			}
-			const preferredWidth = this._completionModel ? this._completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
+			const fitWidthToDetails = this.editor.getOption(EditorOption.suggest).fitWidthToDetails;
+			const preferredLabelLen = this._completionModel
+				? (fitWidthToDetails ? this._completionModel.stats.pLabelDetailLen : this._completionModel.stats.pLabelLen)
+				: 0;
+			const preferredWidth = this._completionModel ? preferredLabelLen * info.typicalHalfwidthCharacterWidth : width;
+
+			if (fitWidthToDetails && !hasPersistedSize && this._completionModel) {
+				// Grow to fit the inline detail text (icon + inter-column gap + read-more affordance),
+				// capped at the editor widget's width. Respects a user-dragged size.
+				const cap = Math.min(maxWidth, this.editor.getLayoutInfo().width);
+				const extra = info.itemHeight + 4 * info.typicalHalfwidthCharacterWidth;
+				width = Math.min(cap, Math.max(width, preferredWidth + extra));
+			}
 
 			// height math
 			const fullHeight = info.statusBarHeight + this._list.contentHeight + info.borderHeight;
