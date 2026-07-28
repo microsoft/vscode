@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -32,6 +33,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -57,11 +59,14 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override readonly onNarrationInterrupted = this.narrationInterruptedEmitter.event;
 	override readonly onSessionInit = Event.None;
 	override readonly onError = Event.None;
-	override readonly onDidChangeConnectionState = Event.None;
+	private readonly connectionStateEmitter = new Emitter<boolean>();
+	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
 	override readonly onFatalDisconnect = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
+	private connected = false;
 
-	override disconnect(): void { }
+	override get isConnected(): boolean { return this.connected; }
+	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	override sendSessionContext(): void { }
 	override flushSessionContext(): void { }
@@ -107,6 +112,11 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.narrationUnblockedEmitter.fire(event);
 	}
 
+	fireConnectionState(connected: boolean): void {
+		this.connected = connected;
+		this.connectionStateEmitter.fire(connected);
+	}
+
 	dispose(): void {
 		this.audioResponseEmitter.dispose();
 		this.bargeInEmitter.dispose();
@@ -115,19 +125,21 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.speechStartedEmitter.dispose();
 		this.narrationUnblockedEmitter.dispose();
 		this.narrationInterruptedEmitter.dispose();
+		this.connectionStateEmitter.dispose();
 	}
 }
 
 class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 	readonly pttDownCalls: { turnId: string; passive: boolean | undefined }[] = [];
 	abortCalls = 0;
+	prepareCalls = 0;
 	override readonly onPttStart = Event.None;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
 	override readonly onPttDiagnostic = Event.None;
 	override readonly analyserNode = undefined;
 	override isMuted = false;
-	override prepare(): void { }
+	override prepare(): void { this.prepareCalls++; }
 	override async startCapture(): Promise<void> { }
 	override stopCapture(): void { }
 	override abortPtt(): void { this.abortCalls++; }
@@ -148,6 +160,11 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	override readonly onPlaybackStarted = Event.None;
 	override readonly onPlaybackStopped = this.playbackStoppedEmitter.event;
 	override readonly analyserNode = undefined;
+	override ensureContext(): AudioContext {
+		return new class extends mock<AudioContext>() {
+			override resume(): Promise<void> { return Promise.resolve(); }
+		}();
+	}
 	override playAudioChunk(audio: string): void {
 		if (audio) {
 			this.playedAudio.push(audio);
@@ -310,6 +327,9 @@ suite('VoiceSessionController', () => {
 		micCaptureService: IMicCaptureService = new TestMicCaptureService(),
 		configurationService: IConfigurationService = new TestConfigurationService({ 'agents.voice.handsFree': false }),
 		chatService: IChatService = new TestChatService(),
+		promptsService: IPromptsService = new class extends mock<IPromptsService>() {
+			override async getVoiceInstructions(): Promise<undefined> { return undefined; }
+		}(),
 	): IVoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -343,6 +363,7 @@ suite('VoiceSessionController', () => {
 			new TestAccessibilityService(),
 			new TestChatWidgetService(),
 			new class extends mock<INotificationService>() { }(),
+			promptsService,
 		));
 	}
 
@@ -359,6 +380,44 @@ suite('VoiceSessionController', () => {
 			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
 			{ state: 'idle', last_response_summary: 'The rebase completed.' },
 		]);
+	});
+
+	test('does not finish connecting after voice instructions resolve for a stale attempt', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const micCaptureService = new RecordingMicCaptureService();
+		const voiceInstructionsStarted = new DeferredPromise<void>();
+		const voiceInstructions = new DeferredPromise<string | undefined>();
+		const promptsService = new class extends mock<IPromptsService>() {
+			override getVoiceInstructions(): Promise<string | undefined> {
+				voiceInstructionsStarted.complete();
+				return voiceInstructions.p;
+			}
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			undefined,
+			undefined,
+			promptsService,
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await voiceInstructionsStarted.p;
+		controller.disconnect();
+		voiceInstructions.complete('Use Contoso DB.');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			connected: controller.isConnected.get(),
+			prepareCalls: micCaptureService.prepareCalls,
+		}, {
+			connected: false,
+			prepareCalls: 0,
+		});
 	});
 
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {

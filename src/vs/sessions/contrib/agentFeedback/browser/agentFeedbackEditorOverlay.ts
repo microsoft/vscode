@@ -75,6 +75,7 @@ class AgentFeedbackOverlayController {
 			agentFeedbackService.onDidChangeFeedback,
 			agentFeedbackService.onDidChangeNavigation,
 			planReviewFeedbackService.onDidChangeRegistrations,
+			agentFeedbackService.onDidChangeFeedbackScope,
 		));
 
 		this._store.add(autorun(r => {
@@ -90,7 +91,7 @@ class AgentFeedbackOverlayController {
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
 			for (const candidate of candidates) {
-				const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
+				const sessionResource = agentFeedbackService.getFeedbackSessionResource(candidate);
 				if (!sessionResource) {
 					continue;
 				}

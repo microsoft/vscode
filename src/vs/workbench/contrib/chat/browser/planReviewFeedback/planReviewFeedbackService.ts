@@ -80,6 +80,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	readonly onDidChangeRegistrations: Event<void> = this._onDidChangeRegistrations.event;
 
 	readonly onDidChangeComments = Event.any(Event.signal(this.onDidChangeFeedback), Event.signal(this.onDidChangeNavigation), this.onDidChangeRegistrations);
+	readonly onDidRevealComment = Event.None;
 
 	constructor(
 		@IAgentEditorCommentsBridge bridge: IAgentEditorCommentsBridge,

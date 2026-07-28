@@ -218,6 +218,7 @@ class Editor extends Disposable {
 	#revealGeneration = 0;
 
 	readonly #comments = new CommentsModel();
+	#commentsView: VsCodeV2CommentsView | undefined;
 	/** Whether the workbench feedback store currently accepts new comments for this resource. */
 	readonly #acceptsComments = observableValue<boolean>('acceptsComments', false);
 	readonly #vscode = acquireVsCodeApi();
@@ -273,6 +274,10 @@ class Editor extends Disposable {
 						this.#activeFeedbackRequestId = activeFeedbackRequestId;
 						this.#revealActiveFeedback(this.#activeFeedbackId);
 					}
+					break;
+				}
+				case 'revealComment': {
+					this.#commentsView?.revealComment(message.id);
 					break;
 				}
 			}
@@ -351,7 +356,7 @@ class Editor extends Disposable {
 		// the light/dark token wrapper. `resolveLine` maps a comment's start offset
 		// to a 1-based line for the card header.
 		const isLight = document.body.classList.contains('vscode-light');
-		this._register(new VsCodeV2CommentsView(this.#comments, view, {
+		this.#commentsView = this._register(new VsCodeV2CommentsView(this.#comments, view, {
 			theme: isLight ? 'light' : 'dark',
 			resolveLine: (offset) => model.sourceText.get().value.slice(0, offset).split('\n').length,
 		}));

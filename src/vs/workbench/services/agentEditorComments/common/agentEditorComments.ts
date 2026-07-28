@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -24,11 +24,17 @@ export interface IAgentEditorReview {
 	readonly activeFeedbackRequestId: number;
 }
 
+export interface IAgentEditorCommentRevealEvent {
+	readonly resource: URI;
+	readonly id: string;
+}
+
 /**
  * Supplies agent comments for a resource, such as session feedback or plan review comments.
  */
 export interface IAgentEditorCommentsProvider {
 	readonly onDidChangeComments: Event<void>;
+	readonly onDidRevealComment: Event<IAgentEditorCommentRevealEvent>;
 	/** Whether new comments can be added for the resource (i.e. it is in scope for a session). */
 	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
@@ -47,6 +53,7 @@ export interface IAgentEditorCommentsBridge {
 
 	/** Fired when comments change, or when a provider is registered/unregistered. */
 	readonly onDidChangeComments: Event<void>;
+	readonly onDidRevealComment: Event<IAgentEditorCommentRevealEvent>;
 
 	/** Whether new comments can be added for the resource. */
 	acceptsComments(resource: URI): boolean;
@@ -66,13 +73,18 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 
 	private readonly _onDidChangeComments = this._register(new Emitter<void>());
 	readonly onDidChangeComments = this._onDidChangeComments.event;
+	private readonly _onDidRevealComment = this._register(new Emitter<IAgentEditorCommentRevealEvent>());
+	readonly onDidRevealComment = this._onDidRevealComment.event;
 
 	private readonly _providers: { provider: IAgentEditorCommentsProvider; listener: IDisposable }[] = [];
 
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable {
 		const entry = {
 			provider,
-			listener: provider.onDidChangeComments(() => this._onDidChangeComments.fire()),
+			listener: combinedDisposable(
+				provider.onDidChangeComments(() => this._onDidChangeComments.fire()),
+				provider.onDidRevealComment(event => this._onDidRevealComment.fire(event)),
+			),
 		};
 		this._providers.push(entry);
 		this._onDidChangeComments.fire();

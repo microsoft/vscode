@@ -78,7 +78,6 @@ import { IChatAttachmentResolveService } from '../attachments/chatAttachmentReso
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
-import { getRandomChatInputPlaceholder, installRotatingChatPlaceholder } from './input/chatInputPlaceholderRotation.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -348,8 +347,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _goalBannerDismissedForCurrentRequest = false;
 	private readonly _goalBannerDismissListener = this._register(new MutableDisposable<IDisposable>());
 
-	private readonly _rotatingPlaceholder = this._register(new MutableDisposable<IDisposable>());
-
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 
@@ -502,14 +499,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.tips.enabled')) {
 				if (!this.configurationService.getValue<boolean>('chat.tips.enabled')) {
-					// Clear the existing tip so it doesn't linger
-					if (this.inputPart) {
-						this._gettingStartedTipPartRef = undefined;
-						this._gettingStartedTipPart.clear();
-						const tipContainer = this.inputPart.gettingStartedTipContainerElement;
-						dom.clearNode(tipContainer);
-						dom.setVisibility(false, tipContainer);
-					}
+					this.clearGettingStartedTip();
 				} else {
 					this.updateChatViewVisibility();
 				}
@@ -1108,16 +1098,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Show/hide the getting-started tip container based on empty state.
 			// Only use this in the standard chat layout where the welcome view is shown.
 			if (isStandardLayout && this.inputPart) {
-				const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 				if (numItems === 0) {
 					this.renderGettingStartedTipIfNeeded();
 				} else {
 					// Dispose the cached tip part so the next empty state picks a
 					// fresh (rotated) tip instead of re-showing the stale one.
-					this._gettingStartedTipPartRef = undefined;
-					this._gettingStartedTipPart.clear();
-					dom.clearNode(tipContainer);
-					dom.setVisibility(false, tipContainer);
+					this.clearGettingStartedTip();
 				}
 			}
 		}
@@ -1191,7 +1177,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderGettingStartedTipIfNeeded(): void {
-		if (!this.inputPart) {
+		if (!this.inputPart || !this.viewModel) {
 			return;
 		}
 
@@ -1199,12 +1185,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
 		if (!tip) {
-			if (this._gettingStartedTipPart.value) {
-				this._gettingStartedTipPartRef = undefined;
-				this._gettingStartedTipPart.clear();
-				dom.clearNode(tipContainer);
-			}
-			dom.setVisibility(false, tipContainer);
+			this.clearGettingStartedTip();
 			return;
 		}
 
@@ -1239,6 +1220,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		dom.clearNode(tipContainer);
 		tipContainer.appendChild(tipPart.domNode);
 		dom.setVisibility(true, tipContainer);
+	}
+
+	private clearGettingStartedTip(): void {
+		this._gettingStartedTipPartRef = undefined;
+		this._gettingStartedTipPart.clear();
+		if (this.inputPart) {
+			const tipContainer = this.inputPart.gettingStartedTipContainerElement;
+			dom.clearNode(tipContainer);
+			dom.setVisibility(false, tipContainer);
+		}
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -2252,6 +2243,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}
+			this.clearGettingStartedTip();
 			this.viewModel = undefined;
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
@@ -2278,11 +2270,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Switching sessions resets tip service state; clear any rendered tip so
 		// empty-state rendering picks a fresh, context-appropriate tip.
-		this._gettingStartedTipPartRef = undefined;
-		this._gettingStartedTipPart.clear();
-		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
-		dom.clearNode(tipContainer);
-		dom.setVisibility(false, tipContainer);
+		this.clearGettingStartedTip();
 
 		// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel
 		// fires onDidChangeViewModel, which ChatInputPart listens to and expects the input model to be initialized.
@@ -2297,23 +2285,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
-			const contributedPlaceholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
-			const staticPlaceholder = contributedPlaceholder ?? localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
-			this.viewModel.setInputPlaceholder(staticPlaceholder);
-
-			const isEmptyAgentHostSession = !!this._lockedAgent.agentHostProviderId && !contributedPlaceholder && model.getRequests().length === 0;
-			if (isEmptyAgentHostSession) {
-				this.inputEditor.updateOptions({ placeholder: getRandomChatInputPlaceholder() });
-				this._rotatingPlaceholder.value = installRotatingChatPlaceholder(this.inputEditor);
-			} else {
-				this._rotatingPlaceholder.clear();
-				this.inputEditor.updateOptions({ placeholder: staticPlaceholder });
+			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
+			if (!placeholder) {
+				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
 			}
-		} else {
-			this._rotatingPlaceholder.clear();
-			if (this.viewModel.inputPlaceholder) {
-				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
-			}
+			this.viewModel.setInputPlaceholder(placeholder);
+			this.inputEditor.updateOptions({ placeholder });
+		} else if (this.viewModel.inputPlaceholder) {
+			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
 		}
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
@@ -2326,23 +2305,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
 			this.updateWorkingProgressBorder();
 
-			if (events?.some(e => e?.kind === 'changePlaceholder') && !this._rotatingPlaceholder.value) {
+			// Update the editor's placeholder text when it changes in the view model
+			if (events?.some(e => e?.kind === 'changePlaceholder')) {
 				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
 			}
 
 			this.onDidChangeItems();
-			if (events?.some(e => e?.kind === 'addRequest')) {
-				if (this._rotatingPlaceholder.value) {
-					this._rotatingPlaceholder.clear();
-					this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
-				}
-				if (this.visible) {
-					this.listWidget.scrollToEnd();
-				}
+			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
+				this.listWidget.scrollToEnd();
 			}
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
-			this._rotatingPlaceholder.clear();
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
@@ -2448,7 +2421,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setInputPlaceholder(placeholder: string): void {
-		this._rotatingPlaceholder.clear();
 		this.viewModel?.setInputPlaceholder(placeholder);
 	}
 
@@ -2515,7 +2487,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderWelcomeViewContentIfNeeded();
 
 		// Reset to default placeholder
-		this._rotatingPlaceholder.clear();
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
@@ -3209,6 +3180,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/**
+	 * Updates the widget's available space after the intrinsic input height changed.
+	 * The input has already laid itself out, so this only resizes the list-side
+	 * surfaces and must not call {@link ChatInputPart.layout}.
+	 */
+	layoutForInputHeight(height: number, width: number): void {
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950);
+		this.bodyDimension = new dom.Dimension(width, height);
+		this._layoutListForInputHeight();
+	}
+
+	/**
 	 * Re-layout just the list, welcome container, and list container to match
 	 * the current input-part height. Called both from {@link layout} and from
 	 * the inputPart.height autorun so we never re-enter inputPart.layout when
@@ -3417,6 +3399,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
+}
+
+export function layoutChatWidgetForInputHeight(widget: Pick<ChatWidget, 'setInputPartMaxHeightOverride' | 'layoutForInputHeight'>, inputMaxHeight: number | undefined, height: number, width: number): void {
+	widget.setInputPartMaxHeightOverride(inputMaxHeight);
+	widget.layoutForInputHeight(height, width);
 }
 
 const MIN_LIST_HEIGHT = 50;

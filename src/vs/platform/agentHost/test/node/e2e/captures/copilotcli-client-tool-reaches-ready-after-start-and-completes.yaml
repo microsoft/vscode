@@ -31,5 +31,5 @@ exchanges:
               tool_use_id: toolcall_0
               content: XYLOPHONE
     response:
-      content: The magic word is **XYLOPHONE**.
+      content: 'The magic word is: **XYLOPHONE**'
       stopReason: end_turn
