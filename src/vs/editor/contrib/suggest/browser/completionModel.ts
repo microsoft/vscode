@@ -16,7 +16,6 @@ type StrictCompletionItem = Required<CompletionItem>;
 
 export interface ICompletionStats {
 	pLabelLen: number;
-	pLabelDetailLen: number;
 }
 
 export class LineContext {
@@ -126,7 +125,6 @@ export class CompletionModel {
 		this._itemsByProvider = new Map();
 
 		const labelLengths: number[] = [];
-		const labelDetailLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
@@ -232,7 +230,6 @@ export class CompletionModel {
 
 			// update stats
 			labelLengths.push(item.textLabel.length);
-			labelDetailLengths.push(item.textLabel.length + CompletionModel._inlineDetailLength(item));
 		}
 
 		this._filteredItems = target.sort(this._snippetCompareFn);
@@ -240,23 +237,8 @@ export class CompletionModel {
 		this._stats = {
 			pLabelLen: labelLengths.length ?
 				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
-				: 0,
-			pLabelDetailLen: labelDetailLengths.length ?
-				quickSelect(labelDetailLengths.length - .85, labelDetailLengths, (a, b) => a - b)
 				: 0
 		};
-	}
-
-	/**
-	 * Length of the inline detail text rendered alongside the label (the signature
-	 * shown after the label and the description shown on the right).
-	 */
-	private static _inlineDetailLength(item: CompletionItem): number {
-		const label = item.completion.label;
-		if (typeof label === 'string') {
-			return item.completion.detail?.length ?? 0;
-		}
-		return (label.detail?.length ?? 0) + (label.description?.length ?? 0);
 	}
 
 	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {
