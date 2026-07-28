@@ -226,10 +226,7 @@ export class LayoutController extends BaseLayoutController {
 			return;
 		}
 
-		// [D4] Carry the draft's side pane over as-is rather than forcing Changes:
-		// an open side pane keeps showing its current container, and a closed one
-		// records no container so opening it later picks the default for the
-		// session's change state at that time ([D3d]).
+		// [D4] Preserve the draft's visible container; a hidden pane uses the reveal-time default.
 		this._viewStateBySession.set(to.resource, {
 			auxiliaryBarVisible,
 			auxiliaryBarActiveViewContainerId: replacedSessionIsActive && auxiliaryBarVisible
