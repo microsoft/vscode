@@ -60,9 +60,7 @@ export class EditorDictationStartAction extends EditorAction2 {
 				// Available either through the built-in on-device engine or the
 				// speech extension's provider.
 				ContextKeyExpr.or(HasSpeechProvider, BuiltinDictationConfigured),
-				// Keep the command available while editor dictation is in progress
-				// so the same keybinding can toggle it off, but disable it while an
-				// unrelated speech-to-text session (e.g. voice chat) is running.
+				// Keep the toggle available for editor dictation, but not unrelated speech-to-text sessions.
 				ContextKeyExpr.or(SpeechToTextInProgress.toNegated(), EDITOR_DICTATION_IN_PROGRESS),
 				EditorContextKeys.readOnly.toNegated()	// disable in read-only editors
 			),
