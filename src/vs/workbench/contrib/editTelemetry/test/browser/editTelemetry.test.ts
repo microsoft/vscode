@@ -31,6 +31,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { UserAttentionService, UserAttentionServiceEnv } from '../../../../services/userAttention/browser/userAttentionBrowser.js';
 import { IUserAttentionService } from '../../../../services/userAttention/common/userAttentionService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 
 suite('Edit Telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +60,7 @@ suite('Edit Telemetry', () => {
 		instantiationService.stubInstance(UriVisibilityProvider, { isVisible: (uri, reader) => true, });
 		instantiationService.stub(IRandomService, new DeterministicRandomService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITextFileService, { isDirty: () => false });
 
 		const w = new MutableObservableWorkspace();
 		const docs = disposables.add(new AnnotatedDocuments(w, instantiationService));
