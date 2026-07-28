@@ -180,8 +180,8 @@ suite('PluginMarketplaceService', () => {
 	test('readConfiguredMarketplaces converts policy dict to named marketplace entries', () => {
 		const configService = new TestConfigurationService({
 			[ChatConfiguration.ExtraMarketplaces]: {
-				'acme-internal': { source: 'https://plugins.internal.acme.com', autoUpdate: true },
-				'acme-public': { source: 'https://copilot-plugins.acme.io', autoUpdate: false },
+				'acme-internal': '{"source":"https://plugins.internal.acme.com","autoUpdate":true}',
+				'acme-public': '{"source":"https://copilot-plugins.acme.io","autoUpdate":false}',
 				'vscode-team-kit': 'microsoft/vscode-team-kit',
 				'invalid': null,
 			},
@@ -216,8 +216,8 @@ suite('PluginMarketplaceService', () => {
 			{ name: 'default', source: { source: 'github', repo: 'microsoft/default' } },
 		]);
 		assert.deepStrictEqual(dict, {
-			always: { source: 'microsoft/always', autoUpdate: true },
-			never: { source: 'microsoft/never', autoUpdate: false },
+			always: '{"source":"microsoft/always","autoUpdate":true}',
+			never: '{"source":"microsoft/never","autoUpdate":false}',
 			default: 'microsoft/default',
 		});
 	});
@@ -226,7 +226,7 @@ suite('PluginMarketplaceService', () => {
 		const configService = new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
 			[ChatConfiguration.ExtraMarketplaces]: {
-				managed: { source: 'microsoft/plugins', autoUpdate: true },
+				managed: '{"source":"microsoft/plugins","autoUpdate":true}',
 			},
 		});
 		const refs = parseMarketplaceReferences(readConfiguredMarketplaces(configService as unknown as IConfigurationService).effectiveValues);
@@ -588,8 +588,8 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 
 	test('managed marketplace autoUpdate overrides the global setting by canonical identity', () => {
 		const service = createService('off', {
-			always: { source: 'microsoft/always', autoUpdate: true },
-			never: { source: 'microsoft/never', autoUpdate: false },
+			always: '{"source":"microsoft/always","autoUpdate":true}',
+			never: '{"source":"microsoft/never","autoUpdate":false}',
 			inherited: 'microsoft/inherited',
 		});
 

@@ -24,11 +24,8 @@ import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceSe
  * Only plugins from the reported marketplaces are updated. The marketplace
  * service applies managed per-marketplace policy before reporting updates.
  *
- * The flag is cleared after every attempt — including failures — so the
- * next periodic check's `false → true` transition can always re-trigger the
- * autorun. `updateAllPlugins` already clears it on success; clearing again
- * in `finally` is a no-op on the success path and handles the partial-
- * failure path where the install service leaves the flag at `true`.
+ * Processed marketplace IDs are acknowledged after every attempt, including
+ * failures. IDs reported while an update is running remain queued.
  */
 export class PluginAutoUpdate extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.pluginAutoUpdate';
@@ -63,10 +60,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			this._logService.error('[PluginAutoUpdate] Failed to auto-update plugins:', err);
 		} finally {
 			this._updateInFlight = false;
-			// Ensure the flag is cleared even on partial failure so the next
-			// periodic check can re-arm the autorun via a `false → true`
-			// transition.
-			this._pluginMarketplaceService.clearUpdatesAvailable();
+			this._pluginMarketplaceService.clearUpdatesAvailable(marketplaceIds);
 		}
 	}
 }

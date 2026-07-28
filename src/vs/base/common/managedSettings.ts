@@ -16,7 +16,7 @@ export interface IExtraKnownMarketplaceConfigValue {
 	readonly autoUpdate: boolean;
 }
 
-export type ExtraKnownMarketplacesConfigDict = Record<string, string | IExtraKnownMarketplaceConfigValue>;
+export type ExtraKnownMarketplacesConfigDict = Record<string, string>;
 
 /**
  * A single entry in the enterprise-managed `strictKnownMarketplaces` allowlist
@@ -43,8 +43,8 @@ export interface IStrictMarketplaceSource {
  * setting (and carried as the canonical JSON value of the `extraKnownMarketplaces`
  * managed setting across both the server endpoint and native MDM delivery).
  *
- * Entries without `autoUpdate` retain the legacy string value. Entries with an
- * explicit override use `{ source, autoUpdate }`.
+ * Entries without `autoUpdate` retain the legacy source string. Entries with an
+ * explicit override use a JSON-encoded {@link IExtraKnownMarketplaceConfigValue}.
  *
  * Plain-string entries (allowed by the policy schema but unnamed) are stored with
  * the value used as both key and value so they survive the round-trip intact.
@@ -71,7 +71,7 @@ export function extraKnownMarketplacesToConfigDict(entries: readonly (string | I
 			const s = entry.source;
 			const base = s.source === 'github' ? s.repo : s.url;
 			const source = s.ref ? `${base}#${s.ref}` : base;
-			obj[entry.name] = entry.autoUpdate === undefined ? source : { source, autoUpdate: entry.autoUpdate };
+			obj[entry.name] = entry.autoUpdate === undefined ? source : JSON.stringify({ source, autoUpdate: entry.autoUpdate } satisfies IExtraKnownMarketplaceConfigValue);
 		}
 	}
 	return obj;

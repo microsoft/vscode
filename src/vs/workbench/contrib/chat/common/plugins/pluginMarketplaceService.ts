@@ -163,8 +163,8 @@ export interface IPluginMarketplaceService {
 	 * may be added over time; consumers should not assume a specific source.
 	 */
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
-	/** Clears the marketplaces reported by {@link marketplacesWithUpdates}. */
-	clearUpdatesAvailable(): void;
+	/** Clears all reported marketplaces, or only the provided canonical IDs. */
+	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void;
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
@@ -422,8 +422,13 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		super.dispose();
 	}
 
-	clearUpdatesAvailable(): void {
-		this._marketplacesWithUpdates.set(new Set(), undefined);
+	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void {
+		if (!marketplaceIds) {
+			this._marketplacesWithUpdates.set(new Set(), undefined);
+			return;
+		}
+		const remaining = new Set([...this._marketplacesWithUpdates.get()].filter(id => !marketplaceIds.has(id)));
+		this._marketplacesWithUpdates.set(remaining, undefined);
 	}
 
 	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]> {

@@ -71,7 +71,7 @@ suite('normalizeManagedSettings', () => {
 			}
 		});
 		assert.deepStrictEqual(result, {
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":{"source":"github/agent-skills","autoUpdate":true},"b":{"source":"https://example.com/repo.git#v1","autoUpdate":false},"c":"github/copilot-plugins"}',
+			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"{\\"source\\":\\"github/agent-skills\\",\\"autoUpdate\\":true}","b":"{\\"source\\":\\"https://example.com/repo.git#v1\\",\\"autoUpdate\\":false}","c":"github/copilot-plugins"}',
 		});
 	});
 

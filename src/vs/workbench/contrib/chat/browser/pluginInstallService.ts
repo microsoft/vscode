@@ -355,6 +355,14 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {
+		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
+			this._notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('strictMarketplaceBlockedUpdate', "Updates from '{0}' are blocked by your organization's policy.", plugin.marketplaceReference.displayLabel),
+			});
+			return false;
+		}
+
 		const kind = plugin.sourceDescriptor.kind;
 
 		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
@@ -522,13 +530,17 @@ export class PluginInstallService implements IPluginInstallService {
 				},
 			});
 		} else if (updatedNames.length > 0) {
-			this._pluginMarketplaceService.clearUpdatesAvailable();
+			if (!options.automatic) {
+				this._pluginMarketplaceService.clearUpdatesAvailable(options.marketplaceIds);
+			}
 			this._notificationService.notify({
 				severity: Severity.Info,
 				message: localize('updateAllSuccess', "Updated plugins: {0}", updatedNames.join(', ')),
 			});
 		} else if (!token.isCancellationRequested) {
-			this._pluginMarketplaceService.clearUpdatesAvailable();
+			if (!options.automatic) {
+				this._pluginMarketplaceService.clearUpdatesAvailable(options.marketplaceIds);
+			}
 		}
 
 		return { updatedNames, failedNames };

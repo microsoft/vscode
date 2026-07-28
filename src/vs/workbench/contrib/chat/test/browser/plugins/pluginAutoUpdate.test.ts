@@ -20,7 +20,7 @@ suite('PluginAutoUpdate', () => {
 		marketplacesWithUpdates: ReturnType<typeof observableValue<ReadonlySet<string>>>;
 		updateAllCalls: IUpdateAllPluginsOptions[];
 		updateAllImpl: () => Promise<IUpdateAllPluginsResult>;
-		clearUpdatesAvailableCalls: number;
+		clearUpdatesAvailableCalls: ReadonlySet<string>[];
 	}
 
 	function createContribution(stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
@@ -30,15 +30,16 @@ suite('PluginAutoUpdate', () => {
 			marketplacesWithUpdates: observableValue<ReadonlySet<string>>('test.marketplacesWithUpdates', new Set()),
 			updateAllCalls: [],
 			updateAllImpl: async () => ({ updatedNames: [], failedNames: [] }),
-			clearUpdatesAvailableCalls: 0,
+			clearUpdatesAvailableCalls: [],
 			...stateOverrides,
 		};
 
 		instantiationService.stub(IPluginMarketplaceService, {
 			marketplacesWithUpdates: state.marketplacesWithUpdates,
-			clearUpdatesAvailable: () => {
-				state.clearUpdatesAvailableCalls++;
-				state.marketplacesWithUpdates.set(new Set(), undefined);
+			clearUpdatesAvailable: marketplaceIds => {
+				state.clearUpdatesAvailableCalls.push(marketplaceIds ?? new Set());
+				const remaining = new Set([...state.marketplacesWithUpdates.get()].filter(id => !marketplaceIds?.has(id)));
+				state.marketplacesWithUpdates.set(remaining, undefined);
 			},
 		} as Partial<IPluginMarketplaceService> as IPluginMarketplaceService);
 
@@ -79,28 +80,28 @@ suite('PluginAutoUpdate', () => {
 		})), [{ silent: true, automatic: true, marketplaceIds: ['github:microsoft/plugins'] }]);
 	});
 
-	test('does not run a second update concurrently with one in flight', async () => {
+	test('queues a marketplace reported while another update is in flight', async () => {
 		let resolveUpdate!: () => void;
 		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
 			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
 		});
+		let updateCount = 0;
 		const { state } = createContribution({
-			updateAllImpl: () => pendingUpdate,
+			updateAllImpl: () => updateCount++ === 0 ? pendingUpdate : Promise.resolve({ updatedNames: [], failedNames: [] }),
 		});
 
 		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
 		await flushMicrotasks();
-		// While the first update is still pending, simulate a redundant signal
-		// (e.g. another periodic check firing). Observable de-dupes equal
-		// values, so toggle false→true to force the autorun to re-run.
-		state.marketplacesWithUpdates.set(new Set(), undefined);
-		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
+		state.marketplacesWithUpdates.set(new Set(['a', 'b']), undefined);
 		await flushMicrotasks();
 
 		assert.strictEqual(state.updateAllCalls.length, 1, 'should not start a second concurrent update');
 
 		resolveUpdate();
 		await pendingUpdate;
+		await flushMicrotasks();
+		await flushMicrotasks();
+		assert.deepStrictEqual(state.updateAllCalls.map(call => [...call.marketplaceIds ?? []]), [['a'], ['b']]);
 	});
 
 	test('continues running on subsequent cycles after the previous update finished', async () => {
@@ -153,7 +154,8 @@ suite('PluginAutoUpdate', () => {
 		await flushMicrotasks();
 
 		assert.strictEqual(state.updateAllCalls.length, 1);
-		assert.strictEqual(state.clearUpdatesAvailableCalls, 1);
+		assert.strictEqual(state.clearUpdatesAvailableCalls.length, 1);
+		assert.deepStrictEqual([...state.clearUpdatesAvailableCalls[0]], ['a']);
 		assert.strictEqual(state.marketplacesWithUpdates.get().size, 0);
 
 		// The next periodic check finds updates again; the cleared flag lets
@@ -173,7 +175,7 @@ suite('PluginAutoUpdate', () => {
 		await flushMicrotasks();
 		await flushMicrotasks();
 
-		assert.strictEqual(state.clearUpdatesAvailableCalls, 1);
+		assert.strictEqual(state.clearUpdatesAvailableCalls.length, 1);
 		assert.strictEqual(state.marketplacesWithUpdates.get().size, 0);
 	});
 });

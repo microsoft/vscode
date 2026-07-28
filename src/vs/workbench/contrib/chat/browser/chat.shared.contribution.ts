@@ -1279,28 +1279,15 @@ configurationRegistry.registerConfiguration({
 			// Policy-only delivery slot for enterprise-managed marketplace entries (via the
 			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
 			//
-			// Stored as a named object whose values are either the legacy source string or
-			// `{ source, autoUpdate }` when an explicit update override is managed.
+			// Stored as a named string map. Explicit update overrides are JSON-encoded
+			// inside the value string so the Settings Editor can use its inline object renderer.
 			// This ensures:
 			//   - The Settings Editor (ComplexObject renderer) can display entries inline when
 			//     managed by policy, rather than only showing "Edit in settings.json".
 			//   - Marketplace names are preserved for `enabledPlugins["plugin@<name>"]` resolution.
 			//
 			type: 'object',
-			additionalProperties: {
-				anyOf: [
-					{ type: 'string' },
-					{
-						type: 'object',
-						properties: {
-							source: { type: 'string' },
-							autoUpdate: { type: 'boolean' },
-						},
-						required: ['source', 'autoUpdate'],
-						additionalProperties: false,
-					},
-				],
-			},
+			additionalProperties: { type: ['string'] as ['string'] },
 			default: {},
 			scope: ConfigurationScope.APPLICATION,
 			included: false,

@@ -767,6 +767,28 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(state.updatePluginSourceCalls.length, 1);
 		});
 
+		test('blocks direct updates when the strict marketplace policy disallows the source', async () => {
+			const { service, state } = createService({
+				strictMarketplacePolicyActive: true,
+				marketplaceTrusted: false,
+			});
+			const plugin = createPlugin({
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+			});
+
+			const updated = await service.updatePlugin(plugin);
+
+			assert.deepStrictEqual({
+				updated,
+				updateCalls: state.updatePluginSourceCalls.length,
+				notifications: state.notifications.map(notification => notification.message),
+			}, {
+				updated: false,
+				updateCalls: 0,
+				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization\'s policy.'],
+			});
+		});
+
 		test('re-installs for npm plugin updates', async () => {
 			const { service, state } = createService({
 				ensurePluginSourceResult: URI.file('/cache/agentPlugins/npm/my-pkg'),

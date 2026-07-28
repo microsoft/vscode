@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { ExtraKnownMarketplacesConfigDict } from '../../../../../base/common/managedSettings.js';
+import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceConfigValue } from '../../../../../base/common/managedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../constants.js';
 
@@ -57,11 +57,12 @@ export function readConfiguredMarketplaces(configurationService: IConfigurationS
 	// parseMarketplaceReferences can set displayLabel = name (critical for enabledPlugins keys).
 	const extraObj = configurationService.getValue<ExtraKnownMarketplacesConfigDict>(ChatConfiguration.ExtraMarketplaces) ?? {};
 	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).flatMap(([name, value]) => {
-		if (typeof value !== 'string' && (!value || typeof value !== 'object' || typeof value.source !== 'string')) {
+		if (typeof value !== 'string') {
 			return [];
 		}
-		const src = typeof value === 'string' ? value : value.source;
-		const autoUpdate = typeof value === 'string' ? undefined : value.autoUpdate;
+		const encoded = parseExtraMarketplaceConfigValue(value);
+		const src = encoded?.source ?? value;
+		const autoUpdate = encoded?.autoUpdate;
 		const isGithubShorthand = _githubShorthandRe.test(src);
 		return [isGithubShorthand
 			? { name, autoUpdate, source: { source: 'github' as const, repo: src } }
@@ -73,6 +74,20 @@ export function readConfiguredMarketplaces(configurationService: IConfigurationS
 		extraValues,
 		effectiveValues: [...userValues, ...extraValues],
 	};
+}
+
+function parseExtraMarketplaceConfigValue(value: string): IExtraKnownMarketplaceConfigValue | undefined {
+	try {
+		const parsed = JSON.parse(value);
+		return parsed
+			&& typeof parsed === 'object'
+			&& typeof parsed.source === 'string'
+			&& typeof parsed.autoUpdate === 'boolean'
+			? parsed
+			: undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 export function parseMarketplaceReferences(values: readonly unknown[]): IMarketplaceReference[] {
