@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -295,7 +295,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getFolder() { return undefined; }
 	}());
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
-		override readonly enabled = false;
+		override readonly enabled = constObservable(false);
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);
