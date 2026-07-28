@@ -433,6 +433,84 @@
 	width: 100%;
 }
 
+.interactive-item-container .completed-response-disclosure {
+	width: 100%;
+	margin-bottom: var(--vscode-spacing-size80);
+	interpolate-size: allow-keywords;
+
+	&::details-content {
+		block-size: 0;
+		box-sizing: border-box;
+		overflow: hidden;
+		opacity: 0;
+		margin-inline-start: var(--vscode-spacing-size60);
+		padding-inline-start: var(--vscode-spacing-size120);
+		border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+		border-image: linear-gradient(to bottom, var(--vscode-chat-requestBorder) 0 95%, transparent 95%) 1;
+		transition:
+			block-size 180ms cubic-bezier(0.2, 0, 0, 1),
+			opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+			content-visibility 180ms allow-discrete;
+	}
+
+	&[open]::details-content {
+		block-size: auto;
+		opacity: 1;
+	}
+}
+
+.interactive-item-container .completed-response-disclosure:not([open]) {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.interactive-item-container .completed-response-summary {
+	width: fit-content;
+	max-width: 100%;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+	list-style: none;
+}
+
+.interactive-item-container .completed-response-summary * {
+	cursor: inherit;
+}
+
+.interactive-item-container .completed-response-summary::-webkit-details-marker {
+	display: none;
+}
+
+.interactive-item-container .completed-response-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.interactive-item-container .completed-response-disclosure[open] .completed-response-summary .monaco-button {
+	color: var(--vscode-foreground);
+}
+
+.interactive-item-container .completed-response-disclosure[open] .completed-response-summary {
+	padding-bottom: var(--vscode-spacing-size80);
+}
+
+.interactive-item-container .completed-response-disclosure > :last-child,
+.interactive-item-container .completed-response-disclosure > :last-child.rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.monaco-reduce-motion .completed-response-disclosure::details-content,
+.monaco-workbench.monaco-reduce-motion .completed-response-disclosure::details-content {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.completed-response-disclosure::details-content {
+		transition: none;
+	}
+}
+
 .interactive-item-container > .value .chat-used-context {
 	margin-bottom: 14px;
 }
@@ -652,12 +730,14 @@
 	font-family: var(--monaco-monospace-font);
 }
 
-.interactive-item-container .value > .rendered-markdown p {
+.interactive-item-container .value > .rendered-markdown p,
+.interactive-item-container .value > .completed-response-disclosure > .rendered-markdown p {
 	/* Targetting normal text paras. `p` can also appear in other elements/widgets */
 	margin: 0 0 16px 0;
 }
 
-.interactive-item-container .value > .chat-tool-invocation-part {
+.interactive-item-container .value > .chat-tool-invocation-part,
+.interactive-item-container .value > .completed-response-disclosure > .chat-tool-invocation-part {
 	.rendered-markdown p {
 		margin: 0 0 6px 0;
 	}
@@ -787,7 +867,8 @@
 	}
 }
 
-.interactive-item-container .value > .rendered-markdown li > p {
+.interactive-item-container .value > .rendered-markdown li > p,
+.interactive-item-container .value > .completed-response-disclosure > .rendered-markdown li > p {
 	margin: 0;
 }
 
@@ -892,11 +973,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-height: 0;
 }
 
-.interactive-item-container.interactive-item-compact .value > .rendered-markdown p {
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown p,
+.interactive-item-container.interactive-item-compact .value > .completed-response-disclosure > .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value > .rendered-markdown li > p {
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown li > p,
+.interactive-item-container.interactive-item-compact .value > .completed-response-disclosure > .rendered-markdown li > p {
 	margin: 0;
 }
 
