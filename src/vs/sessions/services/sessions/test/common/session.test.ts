@@ -9,7 +9,28 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IGitHubInfo, ISessionWorkspace, sessionFileChangesEqual, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, sessionFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+
+suite('isActiveSessionStatus', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('treats in-progress and needs-input sessions as active', () => {
+		assert.deepStrictEqual([
+			SessionStatus.Untitled,
+			SessionStatus.InProgress,
+			SessionStatus.NeedsInput,
+			SessionStatus.Completed,
+			SessionStatus.Error,
+		].map(status => isActiveSessionStatus(status)), [
+			false,
+			true,
+			true,
+			false,
+			false,
+		]);
+	});
+});
 
 suite('sessionFileChangesEqual', () => {
 
@@ -137,5 +158,67 @@ suite('sessionWorkspaceEqual', () => {
 
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
+	});
+});
+
+suite('getSessionWorkspaceKind', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function workspace(options: { workTreeUri?: URI; isVirtualWorkspace?: boolean; folders?: boolean } = {}): ISessionWorkspace {
+		const root = URI.file('/repo');
+		return {
+			uri: root,
+			label: 'repo',
+			icon: Codicon.repo,
+			folders: options.folders === false ? [] : [{
+				root,
+				workingDirectory: options.workTreeUri ?? root,
+				name: 'repo',
+				description: undefined,
+				gitRepository: {
+					uri: root,
+					workTreeUri: options.workTreeUri,
+					baseBranchName: 'main',
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: options.isVirtualWorkspace ?? false,
+		};
+	}
+
+	test('classifies workspaces', () => {
+		assert.deepStrictEqual({
+			checkout: getSessionWorkspaceKind(workspace()),
+			worktree: getSessionWorkspaceKind(workspace({ workTreeUri: URI.file('/worktrees/repo') })),
+			virtual: getSessionWorkspaceKind(workspace({ isVirtualWorkspace: true })),
+			noFolders: getSessionWorkspaceKind(workspace({ folders: false })),
+			undefinedWorkspace: getSessionWorkspaceKind(undefined),
+			// A pending worktree still reports the checkout it was started from.
+			pendingWorktree: getSessionWorkspaceKind(workspace(), true),
+			pendingVirtual: getSessionWorkspaceKind(workspace({ isVirtualWorkspace: true }), true),
+		}, {
+			checkout: SessionWorkspaceKind.Folder,
+			worktree: SessionWorkspaceKind.Worktree,
+			virtual: SessionWorkspaceKind.Virtual,
+			noFolders: SessionWorkspaceKind.Worktree,
+			undefinedWorkspace: SessionWorkspaceKind.Worktree,
+			pendingWorktree: SessionWorkspaceKind.Worktree,
+			pendingVirtual: SessionWorkspaceKind.Virtual,
+		});
+	});
+});
+
+suite('getUntitledSessionTitle', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns "New Chat" for a quick chat', () => {
+		assert.strictEqual(getUntitledSessionTitle(true), 'New Chat');
+	});
+
+	test('returns "New Session" for a non-quick-chat session', () => {
+		assert.strictEqual(getUntitledSessionTitle(false), 'New Session');
 	});
 });

@@ -36,6 +36,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	DetachBackgroundProcesses = 'chat.tools.terminal.detachBackgroundProcesses',
 	BackgroundNotifications = 'chat.tools.terminal.backgroundNotifications',
 	OutputDeltas = 'chat.tools.terminal.outputDeltas',
+	OutputCompaction = 'chat.tools.terminal.outputCompaction',
 	IdlePollInterval = 'chat.tools.terminal.idlePollInterval',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
@@ -529,13 +530,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxEnabled]: {
-		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
+		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
 		type: 'string',
-		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 		enumDescriptions: [
 			localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
 			localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
-			localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools and allow all network domains.'),
 		],
 		default: AgentSandboxEnabledValue.Off,
 		tags: ['preview'],
@@ -550,7 +550,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localization: {
 				description: {
 					key: 'agentSandbox.enabledSetting',
-					value: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
+					value: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
 				},
 				enumDescriptions: [
 					{
@@ -561,27 +561,41 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 						key: 'agentSandbox.enabledSetting.onDescription',
 						value: localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
 					},
-					{
-						key: 'agentSandbox.enabledSetting.allowNetworkDescription',
-						value: localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools and allow all network domains.'),
-					},
 				]
 			}
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: {
-		markdownDescription: localize('agentSandbox.windowsEnabledSetting', "Controls whether agent mode uses sandboxing on Windows."),
+		markdownDescription: localize('agentSandbox.windowsEnabledSetting', "Controls whether agent mode uses sandboxing on Windows. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
 		type: 'string',
-		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.AllowNetwork],
+		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 		enumDescriptions: [
 			localize('agentSandbox.windowsEnabledSetting.offDescription', 'Disable sandboxing for agent mode tools on Windows.'),
-			localize('agentSandbox.windowsEnabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools on Windows and allow all network domains.'),
+			localize('agentSandbox.windowsEnabledSetting.onDescription', 'Enable sandboxing for agent mode tools on Windows.'),
 		],
 		default: AgentSandboxEnabledValue.Off,
 		tags: ['experimental'],
 		restricted: true,
 		experiment: {
 			mode: 'auto'
+		}
+	},
+	[AgentSandboxSettingId.AgentSandboxAllowNetwork]: {
+		markdownDescription: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'boolean',
+		default: false,
+		tags: ['preview'],
+		restricted: true,
+		policy: {
+			name: 'ChatAgentSandboxAllowNetwork',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.127',
+			localization: {
+				description: {
+					key: 'agentSandbox.allowNetwork',
+					value: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+				}
+			}
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: {
@@ -603,7 +617,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
-		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is set to `on` and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is enabled and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
@@ -808,6 +822,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		},
 		markdownDescription: localize('outputDeltas.description', "When enabled, repeated get terminal output tool calls return only output added since the previous poll for the same terminal execution, or a short unchanged-output message when there is no new output."),
+	},
+	[TerminalChatAgentToolsSettingId.OutputCompaction]: {
+		restricted: true,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
+		markdownDescription: localize('outputCompaction.description', "When enabled, the output of commands run by the run in terminal tool is compacted before being returned to the model, reducing the number of tokens spent on noisy output (for example progress bars or repeated log lines) while preserving the important information."),
 	}
 };
 

@@ -33,6 +33,7 @@ import { OptionalChatRequestParams, Prediction } from '../../../platform/network
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { ISimulationTestContext } from '../../../platform/simulationTestContext/common/simulationTestContext';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { raceFilter } from '../../../util/common/async';
 import { AsyncIterUtils, AsyncIterUtilsExt } from '../../../util/common/asyncIterableUtils';
@@ -62,9 +63,9 @@ import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFilterin
 import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
-import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces } from '../common/promptCrafting';
+import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces, runGlobalBudgetCascade, CascadeResult } from '../common/promptCrafting';
 import { countTokensForLines, toUniquePath } from '../common/promptCraftingUtils';
-import { ISimilarFilesContextService } from '../common/similarFilesContextService';
+import { INeighborFileSnippet, ISimilarFilesContextService } from '../common/similarFilesContextService';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../common/systemMessages';
 import { PromptTags } from '../common/tags';
 import { TerminalMonitor } from '../common/terminalOutput';
@@ -177,6 +178,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		@ILanguageDiagnosticsService private readonly langDiagService: ILanguageDiagnosticsService,
 		@IIgnoreService private readonly ignoreService: IIgnoreService,
 		@ISimilarFilesContextService private readonly similarFilesContextService: ISimilarFilesContextService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this.userInteractionMonitor = this.instaService.createInstance(UserInteractionMonitor);
 		this.terminalMonitor = this.instaService.createInstance(TerminalMonitor);
@@ -250,6 +252,87 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		);
 	}
 
+	/**
+	 * Gathers language context and neighbor snippets and clips the current file, returning the
+	 * pieces {@link getUserPrompt} needs, or a {@link NoNextEditReason} when the request is
+	 * cancelled mid-gathering or the current file cannot fit its budget.
+	 *
+	 * Under a global budget the current file is clipped LAST: the cascade runs first so the
+	 * current file can reuse whatever budget it leaves unused (via `finalSurplus`), and the
+	 * already-run cascade is returned as `precomputedCascade` so {@link getUserPrompt} renders
+	 * it exactly once. With no global budget (prod default) the current file is clipped to its
+	 * own per-part cap first, byte-identical to the legacy path.
+	 */
+	private async gatherContextAndClipCurrentFile(
+		globalBudget: xtabPromptOptions.GlobalBudgetOptions | undefined,
+		activeDocument: StatelessNextEditDocument,
+		request: StatelessNextEditRequest,
+		promptOptions: xtabPromptOptions.PromptOptions,
+		telemetry: StatelessNextEditTelemetryBuilder,
+		cancellationToken: CancellationToken,
+		gatherLanguageContext: () => Promise<LanguageContextResponse | undefined>,
+		gatherNeighborSnippets: () => Promise<readonly INeighborFileSnippet[] | undefined>,
+		clipCurrentFileToBudget: (overriddenMaxTokens: number | undefined) => Result<{ clippedTaggedCurrentDoc: ClippedDocument; areaAroundCodeToEdit: string }, 'outOfBudget'>,
+	): Promise<Result<{
+		clippedTaggedCurrentDoc: ClippedDocument;
+		areaAroundCodeToEdit: string;
+		precomputedCascade: CascadeResult | undefined;
+		langCtx: LanguageContextResponse | undefined;
+		neighborSnippets: readonly INeighborFileSnippet[] | undefined;
+	}, NoNextEditReason>> {
+		if (globalBudget !== undefined) {
+			// Clip the current file LAST. Gather the cascade inputs (which do not depend
+			// on the current-file clip) and run the cascade first, then size the current
+			// file to `currentFileBudget + finalSurplus` so it reuses whatever budget the
+			// cascade left unused. The already-run cascade is threaded into
+			// `getUserPrompt` as `precomputedCascade` so it renders exactly once.
+			const langCtx = await gatherLanguageContext();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterLanguageContextAwait'));
+			}
+
+			const neighborSnippets = await gatherNeighborSnippets();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
+			}
+
+			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
+			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
+
+			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
+			if (taggedCurrentFileContentResult.isError()) {
+				return Result.error(new NoNextEditReason.PromptTooLarge('currentFile'));
+			}
+			const { clippedTaggedCurrentDoc, areaAroundCodeToEdit } = taggedCurrentFileContentResult.val;
+			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
+			return Result.ok({ clippedTaggedCurrentDoc, areaAroundCodeToEdit, precomputedCascade: cascade, langCtx, neighborSnippets });
+		} else {
+			// No global budget (prod default): clip the current file to its own per-part
+			// cap, then gather context. Byte-identical to the legacy path.
+			const taggedCurrentFileContentResult = clipCurrentFileToBudget(undefined);
+			if (taggedCurrentFileContentResult.isError()) {
+				return Result.error(new NoNextEditReason.PromptTooLarge('currentFile'));
+			}
+			const { clippedTaggedCurrentDoc, areaAroundCodeToEdit } = taggedCurrentFileContentResult.val;
+			// Record the clipped line count BEFORE the context-gathering awaits so it is
+			// still emitted when the request is cancelled mid-gathering (matches the
+			// legacy prod timing — the cancellation path below also reports telemetry).
+			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
+
+			const langCtx = await gatherLanguageContext();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterLanguageContextAwait'));
+			}
+
+			const neighborSnippets = await gatherNeighborSnippets();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
+			}
+
+			return Result.ok({ clippedTaggedCurrentDoc, areaAroundCodeToEdit, precomputedCascade: undefined, langCtx, neighborSnippets });
+		}
+	}
+
 	private async *doGetNextEditWithSelection(
 		request: StatelessNextEditRequest,
 		selection: Range | null,
@@ -310,27 +393,37 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const doesIncludeCursorTag = editWindowLines.some(line => line.includes(PromptTags.CURSOR));
 		const shouldRemoveCursorTagFromResponse = !doesIncludeCursorTag; // we'd like to remove the tag only if the original edit-window didn't include the tag
 
-		const taggedCurrentFileContentResult = constructTaggedFile(
-			currentDocument,
-			editWindowLinesRange,
-			areaAroundEditWindowLinesRange,
-			promptOptions,
-			XtabProvider.computeTokens,
-			{
-				includeLineNumbers: {
-					areaAroundCodeToEdit: xtabPromptOptions.IncludeLineNumbersOption.None,
-					currentFileContent: promptOptions.currentFile.includeLineNumbers,
-				}
-			}
-		);
-
-		if (taggedCurrentFileContentResult.isError()) {
-			return new NoNextEditReason.PromptTooLarge('currentFile');
+		// Under a global budget the current file is clipped LAST so it reuses whatever
+		// budget the cascade parts (recently-viewed, language context, neighbors, diff
+		// history) leave unused: the cascade runs first, then the current file is
+		// clipped to `currentFileBudget + cascadeFinalSurplus`, so it trims less. With
+		// no global budget (prod default) the current file keeps its own per-part cap.
+		const globalBudget = promptOptions.globalBudget;
+		if (globalBudget !== undefined) {
+			xtabPromptOptions.GlobalBudgetOptions.validate(globalBudget);
 		}
 
-		const { clippedTaggedCurrentDoc, areaAroundCodeToEdit } = taggedCurrentFileContentResult.val;
-
-		telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
+		// Clips the current file to `overriddenMaxTokens` (or its per-part
+		// `currentFile.maxTokens` cap when `overriddenMaxTokens` is undefined),
+		// returning the tagged lines plus the area around the code to edit.
+		const clipCurrentFileToBudget = (overriddenMaxTokens: number | undefined) => {
+			const cfPromptOptions = overriddenMaxTokens !== undefined
+				? { ...promptOptions, currentFile: { ...promptOptions.currentFile, maxTokens: overriddenMaxTokens } }
+				: promptOptions;
+			return constructTaggedFile(
+				currentDocument,
+				editWindowLinesRange,
+				areaAroundEditWindowLinesRange,
+				cfPromptOptions,
+				XtabProvider.computeTokens,
+				{
+					includeLineNumbers: {
+						areaAroundCodeToEdit: xtabPromptOptions.IncludeLineNumbersOption.None,
+						currentFileContent: promptOptions.currentFile.includeLineNumbers,
+					}
+				}
+			);
+		};
 
 		const { aggressivenessLevel, userHappinessScore } = this.userInteractionMonitor.getAggressivenessLevel();
 
@@ -344,7 +437,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			telemetry.setXtabUserHappinessScore(userHappinessScore);
 		}
 
-		const langCtx = await this.getAndProcessLanguageContext(
+		const gatherLanguageContext = () => this.getAndProcessLanguageContext(
 			request,
 			delaySession,
 			activeDocument,
@@ -354,23 +447,31 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			cancellationToken,
 		);
 
-		if (cancellationToken.isCancellationRequested) {
-			return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
-		}
-
-		const neighborSnippets = promptOptions.neighborFiles.enabled
-			? await raceCancellation(
+		const gatherNeighborSnippets = () => promptOptions.neighborFiles.enabled
+			? raceCancellation(
 				raceTimeout(
-					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset),
+					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles),
 					delaySession.getDebounceTime()
 				),
 				cancellationToken,
 			)
-			: undefined;
+			: Promise.resolve(undefined);
 
-		if (cancellationToken.isCancellationRequested) {
-			return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
+		const contextResult = await this.gatherContextAndClipCurrentFile(
+			globalBudget,
+			activeDocument,
+			request,
+			promptOptions,
+			telemetry,
+			cancellationToken,
+			gatherLanguageContext,
+			gatherNeighborSnippets,
+			clipCurrentFileToBudget,
+		);
+		if (contextResult.isError()) {
+			return contextResult.err;
 		}
+		const { clippedTaggedCurrentDoc, areaAroundCodeToEdit, precomputedCascade, langCtx, neighborSnippets } = contextResult.val;
 
 		const lintErrors = new LintErrors(activeDocument.id, currentDocument, this.langDiagService, request.xtabEditHistory);
 
@@ -388,12 +489,12 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			XtabProvider.computeTokens,
 			promptOptions,
 			neighborSnippets,
+			precomputedCascade,
 		);
 
-		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);
+		const { prompt: userPrompt, nDiffsInPrompt, neighborSnippetsResult, sectionTokens } = getUserPrompt(promptPieces);
 
 		telemetry.setNDiffsInPrompt(nDiffsInPrompt);
-		telemetry.setDiffTokensInPrompt(diffTokensInPrompt);
 		if (neighborSnippetsResult) {
 			telemetry.setNNeighborSnippetsComputed(neighborSnippetsResult.nComputed);
 			telemetry.setNNeighborSnippetsInPrompt(neighborSnippetsResult.nIncluded);
@@ -404,13 +505,21 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const prediction = this.getPredictedOutput(activeDocument, currentDocument.cursorLineOffset, editWindowLines, cursorLineInEditWindowOffset, responseFormat);
 
+		const systemMsg = pickSystemPrompt(promptOptions.promptingStrategy);
 		const messages = constructMessages({
-			systemMsg: pickSystemPrompt(promptOptions.promptingStrategy),
+			systemMsg,
 			userMsg: userPrompt,
 		});
 
 		logContext.setPrompt(messages);
 		telemetry.setPrompt(messages);
+
+		// Report approximate (char/4) per-section token counts, filling in the
+		// system-prompt count which getUserPrompt cannot know. Do this BEFORE the
+		// HARD_CHAR_LIMIT early-return so oversized prompts still report counts.
+		const promptSectionTokens = { ...sectionTokens, systemPrompt: XtabProvider.computeTokens(systemMsg) };
+		telemetry.setPromptSectionTokens(promptSectionTokens);
+		logContext.setPromptSectionTokens(promptSectionTokens);
 
 		const HARD_CHAR_LIMIT = 30000 * 4; // 30K tokens, assuming 4 chars per token -- we use approximation here because counting tokens exactly is time-consuming
 		const promptCharCount = charCount(messages);
@@ -436,7 +545,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		// Fire-and-forget: compute GhostText-style similar files context for telemetry
 		telemetry.setSimilarFilesContext(
-			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset)
+			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles)
 		);
 
 		request.fetchIssued = true;
@@ -944,6 +1053,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					const fastYieldLineWithCursor = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
+					const fastYieldLineWithCursorMultiLine = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursorMultiLine, this.expService);
 					const splitPatchOnDiff = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
 						XtabPatchResponseHandler.handleResponse(
@@ -956,6 +1066,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							duplicateAdditionsMode,
 							fastYieldLineWithCursor,
 							splitPatchOnDiff,
+							fastYieldLineWithCursorMultiLine,
 						),
 					);
 					break;
@@ -1447,6 +1558,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			neighborFiles: {
 				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
+				includeRelatedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesIncludeRelatedFiles, this.expService),
 			},
 			diffHistory: {
 				nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),
@@ -1456,13 +1568,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			},
 			lintOptions: undefined,
 			includePostScript: true,
-			globalBudget: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, this.expService)
-				? {
-					totalTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, this.expService),
-					order: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_ORDER,
-					shares: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_SHARES,
-				}
-				: undefined,
+			globalBudget: this.getGlobalBudget(),
 		};
 
 		const selectedModelConfig = this.modelService.selectedModelConfiguration();
@@ -1471,6 +1577,36 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			promptOptions: overrideModelConfig(sourcedModelConfig, modelConfig),
 			modelServiceConfig: modelConfig
 		};
+	}
+
+	/**
+	 * Resolve the opt-in global budget from its single experiment-driven JSON
+	 * config string (mirrors `modelConfigurationString`). Returns `undefined`
+	 * — disabling the global budget, identical to prod — when the string is
+	 * unset, empty, or fails to parse/validate. Parse failures are reported via
+	 * telemetry so misconfigured experiments are observable.
+	 */
+	private getGlobalBudget(): xtabPromptOptions.GlobalBudgetOptions | undefined {
+		const configString = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, this.expService);
+		if (!configString) {
+			return undefined;
+		}
+
+		const result = xtabPromptOptions.GlobalBudgetOptions.fromConfigString(configString);
+		if (result.isError()) {
+			/* __GDPR__
+				"incorrectNesGlobalBudgetConfig" : {
+					"owner": "ulugbekna",
+					"comment": "Capture if the experiment-driven NES global budget config string is invalid or malformed, so the global budget was disabled.",
+					"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Error message from parsing or validation." },
+					"configValue": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The invalid config string so the bad experiment value can be identified." }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryEvent('incorrectNesGlobalBudgetConfig', { errorMessage: result.err, configValue: configString });
+			return undefined;
+		}
+
+		return result.val;
 	}
 
 	private getEndpointWithLogging(configuredModelName: string | undefined, logContext: InlineEditRequestLogContext, telemetry: StatelessNextEditTelemetryBuilder): ChatEndpoint {

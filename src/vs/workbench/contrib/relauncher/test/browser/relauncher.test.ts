@@ -92,6 +92,17 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
+	test('prompts to restart when chat.agentHost.byokModels.enabled changes', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.agentHost.byokModels.enabled',
+			() => ({ chat: { agentHost: { byokModels: { enabled: true } } } }),
+			c => c.chat.agentHost.byokModels.enabled = false);
+
+		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
+		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
+	});
+
 	test('prompts to restart when chat.agents.claude.preferAgentHost changes', async () => {
 		confirmResult = true;
 		await changeSetting(
@@ -109,6 +120,17 @@ suite('SettingsChangeRelauncher', () => {
 			'chat.editor.claude.preferAgentHost',
 			() => ({ chat: { editor: { claude: { preferAgentHost: true } } } }),
 			c => c.chat.editor.claude.preferAgentHost = false);
+
+		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
+		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
+	});
+
+	test('prompts to restart when chat.editor.codex.preferAgentHost changes', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.editor.codex.preferAgentHost',
+			() => ({ chat: { editor: { codex: { preferAgentHost: true } } } }),
+			c => c.chat.editor.codex.preferAgentHost = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');

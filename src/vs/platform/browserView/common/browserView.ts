@@ -7,7 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
-import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, PermissionCategory } from './browserPermissions.js';
+import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -68,6 +68,10 @@ export interface IElementAncestor {
 	readonly classNames?: string[];
 }
 
+export interface IBrowserElementSelectionOptions {
+	readonly highlightFocusedElement?: boolean;
+}
+
 export interface IElementData {
 	readonly url?: string;
 	readonly outerHTML: string;
@@ -123,6 +127,14 @@ export interface IBrowserViewWindowConfiguration {
 	 * workspace folder paths.
 	 */
 	readonly trustedFileRoots: readonly string[];
+	/**
+	 * Whether Workspace Trust is disabled entirely
+	 * (`security.workspace.trust.enabled: false`) for this window. When
+	 * `true`, every `file://` request is allowed regardless of
+	 * {@link trustedFileRoots} since there is no meaningful notion of an
+	 * untrusted folder to enforce.
+	 */
+	readonly trustAllFiles: boolean;
 }
 
 export interface IBrowserViewBounds {
@@ -310,6 +322,13 @@ export interface IBrowserViewFaviconChangeEvent {
 export interface IBrowserViewPermissionRequestEvent {
 	origin: string;
 	category: PermissionCategory;
+	device?: IBrowserViewDeviceRequest;
+}
+
+export interface IBrowserViewDeviceRequest {
+	requestId: string;
+	deviceType: BrowserDeviceType;
+	devices: IBrowserDeviceCandidate[];
 }
 
 export interface IBrowserViewFindInPageOptions {
@@ -588,6 +607,17 @@ export interface IBrowserViewService {
 	setPermissions(id: string, origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
 
 	/**
+	 * Answer an in-progress hardware-device chooser raised via
+	 * {@link onDynamicDidRequestPermission} (its `device` payload). Pass the
+	 * chosen `deviceId`, or `null` to cancel the chooser.
+	 *
+	 * @param id The browser view identifier
+	 * @param requestId The device request to answer
+	 * @param deviceId The selected device id, or `null` to cancel
+	 */
+	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
+
+	/**
 	 * Get captured console logs for a browser view.
 	 * Console messages are automatically captured from the moment the view is created.
 	 * @param id The browser view identifier
@@ -602,8 +632,9 @@ export interface IBrowserViewService {
 	 *
 	 * @param id The browser view identifier
 	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 * @param options Options used when enabling element selection.
 	 */
-	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+	toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
 
 	/**
 	 * Toggle drag-to-select area picking on the top frame of a browser view.

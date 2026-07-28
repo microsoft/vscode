@@ -5,7 +5,8 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -22,7 +23,6 @@ import { BrowserViewCommandId } from '../../../../../platform/browserView/common
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import {
@@ -33,7 +33,6 @@ import {
 	getBrowserSearchEngineLabel,
 	resolveAddressBarInputType,
 } from '../../common/browserSearch.js';
-import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 import {
 	BROWSER_EDITOR_ACTIVE,
 	BrowserActionCategory,
@@ -217,6 +216,14 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	private readonly _navbar: BrowserNavigationBar;
 	private readonly _canGoBackContext: IContextKey<boolean>;
 	private readonly _canGoForwardContext: IContextKey<boolean>;
+	private readonly _pendingTryFocus = this._register(new MutableDisposable());
+
+	/**
+	 * Whether a navigation has been initiated on the current tab. Once true,
+	 * an empty URL means "navigation in flight" rather than "fresh tab", so
+	 * {@link tryFocus} keeps focus on the page instead of reopening the picker.
+	 */
+	private _hasInitiatedNavigation = false;
 
 	constructor(
 		editor: BrowserEditor,
@@ -260,30 +267,43 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	}
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
+		// A model that is already loading on attach (e.g. switching back to a
+		// tab mid-navigation) counts as having initiated navigation.
+		this._hasInitiatedNavigation = model.loading;
 		this._updateFromModel(model);
 		store.add(model.onDidNavigate(() => this._updateFromModel(model)));
-		store.add(model.onWillNavigate(url => this._navbar.previewUrl(url)));
+		store.add(model.onWillNavigate(url => {
+			this._hasInitiatedNavigation = true;
+			this._navbar.previewUrl(url);
+		}));
 	}
 
 	override onModelDetached(): void {
+		this._hasInitiatedNavigation = false;
 		this._navbar.clear();
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
 	}
 
 	override tryFocus(): boolean {
-		// A new tab (no URL loaded) auto-opens the picker so the user can
-		// immediately type / browse suggestions. For tabs that already have a
-		// URL (e.g. error or loading state — page-renderer focus didn't claim
-		// us, or input is still prerendering before the model attaches) we
-		// just focus the display so the URL stays visible.
 		const input = this.editor.input;
-		const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
-		if (!url) {
-			this._navbar.openUrlPicker();
-		} else {
-			this._navbar.focusUrlInput();
-		}
+
+		// Defer one tick so editor-tab activation can focus the tab control first;
+		// then we move focus into the browser editor's URL flow.
+		this._pendingTryFocus.value = disposableTimeout(() => {
+			if (this.editor.input !== input) {
+				return;
+			}
+
+			// A new tab (no URL loaded) auto-opens the picker so the user can immediately type / browse suggestions.
+			// Otherwise we move focus into the browser editor so it doesn't stay on the tab control.
+			const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
+			if (!url && !this._hasInitiatedNavigation) {
+				this._navbar.openUrlPicker();
+			} else {
+				this.editor.ensureBrowserFocus();
+			}
+		}, 0);
 		return true;
 	}
 
@@ -516,12 +536,7 @@ class OpenBrowserSettingsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const ids = ['workbench.browser.*', 'chat.sendElementsToChat.*'];
-		if (IsSessionsWindowContext.getValue(contextKeyService)) {
-			ids.push(AgentHostChatToolsEnabledSettingId);
-		}
-		await preferencesService.openSettings({ query: `@id:${ids.join(',')}` });
+		await preferencesService.openSettings({ query: `@id:workbench.browser.*` });
 	}
 }
 

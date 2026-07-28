@@ -18,7 +18,6 @@ import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
 export const navigateNextFeedbackActionId = 'agentFeedbackEditor.action.navigateNext';
@@ -38,7 +37,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<boolean | void> {
 		const editorService = accessor.get(IEditorService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const codeReviewService = accessor.get(ICodeReviewService);
@@ -50,7 +49,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 			?? editorService.visibleEditorPanes[0];
 		const candidates = getActiveResourceCandidates(activePane?.input);
 		for (const candidate of candidates) {
-			const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource
+			const sessionResource = agentFeedbackService.getFeedbackSessionResource(candidate)
 				?? agentFeedbackService.getMostRecentSessionForResource(candidate);
 			if (!sessionResource) {
 				continue;
@@ -67,7 +66,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		}
 	}
 
-	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> | void;
+	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<boolean | void> | boolean | void;
 }
 
 class SubmitFeedbackAction extends AgentFeedbackEditorAction {
@@ -88,9 +87,9 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		});
 	}
 
-	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> {
+	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<boolean> {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
-		await agentFeedbackService.submitFeedback(sessionResource);
+		return agentFeedbackService.submitFeedback(sessionResource);
 	}
 }
 
@@ -172,15 +171,9 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
-			return;
-		}
-
-		const sessionResource = activeSession.resource;
+		const sessionResource = agentFeedbackService.activeFeedbackSessionResource.get();
 		const hasAcceptedFeedback = agentFeedbackService.getFeedback(sessionResource).some(item => item.state === AgentFeedbackState.Accepted);
 		if (!hasAcceptedFeedback) {
 			return;

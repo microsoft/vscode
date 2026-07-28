@@ -6,6 +6,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { resolveAppModulePath } from './appNodeModules';
 
 let shimCreated: Promise<void> | undefined = undefined;
 
@@ -40,7 +41,7 @@ export async function ensureRipgrepShim(extensionPath: string, vscodeAppRoot: st
 }
 
 async function _ensureRipgrepShim(extensionPath: string, vscodeAppRoot: string, logService: ILogService): Promise<void> {
-	const vscodeRipgrepPath = path.join(vscodeAppRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', process.platform + '-' + process.arch);
+	const vscodeRipgrepPath = await resolveAppModulePath(vscodeAppRoot, '@vscode', 'ripgrep-universal', 'bin', process.platform + '-' + process.arch);
 
 	await copyRipgrepShim(extensionPath, vscodeRipgrepPath, logService);
 }

@@ -78,7 +78,7 @@ suite('generateUserPrompt', () => {
 		);
 	});
 
-	test('rejects non-text generated user prompt content', async () => {
+	test('ignores non-text generated user prompt content and keeps the text', async () => {
 		renderPromptElementMock.mockResolvedValue({
 			messages: [{
 				role: ChatRole.User,
@@ -89,6 +89,27 @@ suite('generateUserPrompt', () => {
 			}],
 		} as Awaited<ReturnType<typeof renderPromptElement>>);
 
-		await expect(generateUserPrompt(request, undefined, chatVariables, instantiationService)).rejects.toThrow('[CopilotCLISession] Unexpected generated prompt structure.');
+		await expect(generateUserPrompt(request, undefined, chatVariables, instantiationService)).resolves.toBe('Implement this.');
+	});
+
+	test('falls back to the request prompt when no user messages are rendered', async () => {
+		renderPromptElementMock.mockResolvedValue({
+			messages: [],
+		} as unknown as Awaited<ReturnType<typeof renderPromptElement>>);
+
+		await expect(generateUserPrompt(request, undefined, chatVariables, instantiationService)).resolves.toBe('Implement this.');
+	});
+
+	test('falls back to the override prompt when the rendered user message has no text', async () => {
+		renderPromptElementMock.mockResolvedValue({
+			messages: [{
+				role: ChatRole.User,
+				content: [
+					{ type: 'image_url' },
+				],
+			}],
+		} as unknown as Awaited<ReturnType<typeof renderPromptElement>>);
+
+		await expect(generateUserPrompt(request, 'Describe this image.', chatVariables, instantiationService)).resolves.toBe('Describe this image.');
 	});
 });

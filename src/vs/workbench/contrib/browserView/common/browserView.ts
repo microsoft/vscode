@@ -25,6 +25,7 @@ import {
 	IPermissionCategoryState,
 } from '../../../../platform/browserView/common/browserPermissions.js';
 import type { BrowserEditorInput } from './browserEditorInput.js';
+import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -51,6 +52,7 @@ import {
 	IBrowserViewState,
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
+	IBrowserElementSelectionOptions,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -65,6 +67,25 @@ export const enum BrowserViewSharingState {
 	NotShared = 'notShared',
 	/** Browser tools are disabled — sharing is not possible. */
 	Unavailable = 'unavailable',
+}
+
+/** Whether a browser URL belongs to the same destination host as the target URL. */
+export function browserViewUrlMatches(candidateUrl: string | undefined, targetUrl: string, includeBlank = false): boolean {
+	const target = URL.parse(targetUrl);
+	if (!target || (target.protocol !== 'file:' && !target.host)) {
+		return false;
+	}
+	if (includeBlank && (!candidateUrl || candidateUrl === 'about:blank')) {
+		return true;
+	}
+
+	const candidate = URL.parse(candidateUrl ?? '');
+	return candidate?.host === target.host ||
+		(target.protocol === 'file:' && candidate?.protocol === 'file:') ||
+		!!(candidate?.host && target.host && (
+			candidate.host.endsWith('.' + target.host) ||
+			target.host.endsWith('.' + candidate.host)
+		));
 }
 
 /** Extracts the host from a URL string for zoom tracking purposes. */
@@ -256,6 +277,19 @@ export interface IBrowserViewWorkbenchService {
 	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput>;
 
 	/**
+	 * Resolve the preferred editor group for opening an integrated browser
+	 * editor. Honors the `workbench.browser.newTabPlacement` setting, routing new
+	 * tabs into a dedicated (locked) side group or auxiliary window when
+	 * configured. When the workbench forces editors into a modal part
+	 * (`workbench.editor.useModal: 'all'`), browser opens that target the active
+	 * group (or leave it unspecified) are
+	 * redirected to the main editor area so the browser docks instead of opening
+	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
+	 * specific group) are left untouched.
+	 */
+	getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined>;
+
+	/**
 	 * Register a handler that decides whether an editor should be opened for a
 	 * newly created browser view. The editor is opened only when every
 	 * registered handler allows it.
@@ -381,11 +415,12 @@ export interface IBrowserViewModel extends IDisposable {
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	deleteHistory(entryIds?: readonly number[]): Promise<void>;
 	setPermissions(origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
+	selectDevice(requestId: string, deviceId: string | null): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
-	toggleElementSelection(enabled?: boolean): Promise<void>;
+	toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
 	toggleAreaSelection(enabled?: boolean): Promise<void>;
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
@@ -765,6 +800,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.setPermissions(this.id, origin, grants);
 	}
 
+	async selectDevice(requestId: string, deviceId: string | null): Promise<void> {
+		return this.browserViewService.selectDevice(this.id, requestId, deviceId);
+	}
+
 	/**
 	 * @param forceApply When true, the IPC call is made even if the local cached zoom index
 	 * already matches the requested value. Pass true after cross-document navigation because
@@ -812,8 +851,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.getConsoleLogs(this.id);
 	}
 
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
-		return this.browserViewService.toggleElementSelection(this.id, enabled);
+	async toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void> {
+		return this.browserViewService.toggleElementSelection(this.id, enabled, options);
 	}
 
 	async toggleAreaSelection(enabled?: boolean): Promise<void> {

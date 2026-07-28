@@ -75,7 +75,7 @@ function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreat
 		description: observableValue('description', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false, runsWorktreeCreatedTasks: opts.runsWorktreeCreatedTasks },
+		capabilities: constObservable({ supportsMultipleChats: false, runsWorktreeCreatedTasks: opts.runsWorktreeCreatedTasks }),
 	};
 	return { session, loading, status, workspace, isArchived };
 }

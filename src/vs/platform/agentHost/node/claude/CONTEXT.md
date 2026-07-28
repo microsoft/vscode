@@ -778,7 +778,7 @@ SDK; the host does not need to gate.
 | `onClientToolCallComplete(...)` | Host → SDK | Resolves the in-process MCP tool's pending promise | Same mechanism as `respondToUserInputRequest` |
 | `setCustomizationEnabled(uri, enabled)` | Host → SDK | `Query.reloadPlugins()` (runtime) | **Defer-and-coalesce** when busy: set `_pendingPluginReload`, drain at next yield. Idle path applies immediately. The SDK's `reloadPlugins` returns the refreshed `commands / agents / plugins / mcpServers` — useful as a verification probe but not required for correctness |
 | `getCustomizations()` | SDK → Host (projection) | `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` | Compose the live snapshot from runtime SDK queries plus the host plugin manager's enabled set |
-| `getSessionCustomizations(session)` | Disk scan (+ SDK filter) → Host (projection) | Disk scan of `~/.claude/**` + `<cwd>/.claude/**`; live `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` used only as a **filter** when materialized | **Phase 16.** See "Phase 16 — disk-scan customization resolution" below. Pre-materialize: client-pushed ∪ full disk scan + curated built-ins. Materialized: client-pushed ∪ (disk scan ∩ SDK-known) + SDK-only / built-in read-only entries |
+| `getSessionCustomizations(session)` | Disk scan (+ SDK filter) → Host (projection) | Disk scan of `~/.claude/**` + `<cwd>/.claude/**`; live `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` + `system/init.plugins` used only as a **filter** when materialized | **Phase 16 + 17.** See "Phase 16 — disk-scan customization resolution" and "Phase 17 — hooks + native plugins" below. Pre-materialize: client-pushed ∪ full disk scan (agents/skills/commands/MCP/rules/hooks/native plugins) + curated built-ins. Materialized: client-pushed ∪ (disk scan ∩ SDK-known) + SDK-only / built-in read-only entries; hooks/rules bypass the filter |
 
 **Phase 16 — disk-scan customization resolution.** As shipped,
 `getSessionCustomizations` does **not** project SDK query payloads into
@@ -811,7 +811,46 @@ item's real editable `file:` `uri`:
   fires `onDidCustomizationsChange` so the list updates live.
 - The synthetic-stub `ClaudeSdkCustomizationBundler` (Phase 11) is **deleted**.
 
-**Skills as plugins.** The SDK has no `Options.skills` field. A
+**Phase 17 — hooks + native plugins (surface only).** Phase 17 extends the
+Phase 16 disk scan with two more user/workspace-configured tiers. Both are
+**surface-only**: the SDK already loads them via `settingSources`, so
+`Options.plugins` / `claudeSdkOptions.ts` are **untouched** (plumbing native
+plugins in would double-load — `claudeSkills.ts` skips `.claude` dirs).
+
+- **Hooks** (`scan/claudeHookScan.ts`): reads the `hooks` block from the
+  user/project/local `settings.json` (+ `settings.local.json`) via the shared
+  `parseHooksJson`; surfaces one `HookCustomization` per declaring file under a
+  per-scope `DirectoryCustomization` (`contents: Hook`). There is **no SDK hook
+  enumeration API**, so hooks are disk-only and **bypass** the post-materialize
+  filter (like rules). `disableAllHooks` drops a scope; `managed` is excluded.
+- **Native plugins** (`scan/claudeNativePluginScan.ts`): resolves
+  `enabledPlugins` (precedence `user < project < local`, enabled = value
+  `!== false`) to on-disk roots — marketplace cache
+  (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, newest version by
+  mtime with a numeric-`localeCompare` tie-break) or in-place `@skills-dir` —
+  parses each with the shared multi-format `detectPluginFormat` +
+  `parsePlugin`, and surfaces each as a **top-level** `PluginCustomization`
+  (not a per-scope directory) whose children are the bundled
+  agents/skills/instructions/hooks/MCP. `splitPluginId` guards against path
+  traversal in untrusted-workspace ids.
+- **Post-materialize plugin filter matches on `system/init.plugins[].source`
+  (the `<plugin>@<marketplace>` id), not `path`.** The SDK `init.plugins`
+  `path` is unreliable for a workspace-`local`-scoped plugin (the runtime
+  reports a bogus parent-of-workspace path), so path-matching dropped loaded
+  plugins. The runtime payload carries an undocumented `source` field (= the
+  id); `claudeSdkPipeline.ts` captures it type-safely (the `.d.ts` omits it) and
+  the filter prefers `source === id`, falling back to normalized `path`. Capture
+  runs on **every** `system/init` (ungated by `_isResumed`).
+- **PB-10 — surfaced plugins suppress their own components from the standalone
+  SDK fallbacks.** Once a plugin is shown as a container, the SDK *also* reports
+  its agents/commands/MCP in `supportedAgents`/`supportedCommands`/
+  `mcpServerStatus`, so the Phase-16 SDK-only fallbacks re-surfaced them as
+  duplicate standalone rows. The builder suppresses any fallback whose name
+  matches a surfaced plugin's parsed component name in **both** bare
+  (`inbox-setup`) and namespaced (`<plugin>:inbox-setup`) forms (SDK naming is
+  inconsistent — agents namespaced, skills usually bare). The standalone skill
+  scan also skips any `.claude/skills/<name>/` dir that is itself a plugin root
+  (PB-8), so a `@skills-dir` plugin's skills surface only under its container.
 directory containing a `skills/` subfolder *is* a valid plugin from
 the SDK's point of view (`SdkPluginConfig { type: 'local', path }`).
 The host can pass a "skills-only plugin" directory via
@@ -882,6 +921,12 @@ For each SessionMessage in order:
       'tool_use'  → push ToolCallResponsePart (open; awaits tool_result);
                     record tool_use_id → Turn.id in the attribution map
       empty       → skip
+      NOTE: with no Turn open, the assistant envelope STARTS one, keyed on
+        its own uuid. Two cases: a subagent transcript (no spawning prompt
+        exists, userMessage.text = '') and a parent transcript the SDK
+        truncated mid-turn (userMessage.text = a placeholder). Dropping
+        instead would empty the whole chat when the slice holds no user
+        message at all — see "Truncated transcripts" below.
   ('system', subtype === 'compact_boundary'):
       → push SystemNotificationResponsePart (compact metadata)
   ('system', other allowlisted subtypes):
@@ -889,6 +934,15 @@ For each SessionMessage in order:
   ('system', other):
       → drop
 ```
+
+**Truncated transcripts.** For transcripts over ~5 MB the SDK's
+`getSessionMessages` returns only the bytes AFTER the last compact
+boundary, so the slice can begin mid-turn or contain no `user` envelope
+at all. The host opts out via `CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP=1`
+(set in [claudeAgentSdkService.ts](./claudeAgentSdkService.ts)), and the
+mapper additionally recovers promptless leading turns so a slice that
+still arrives truncated degrades to a placeholder prompt rather than an
+empty chat.
 
 **Turn-level fields on replay.**
 - `state` is `'completed'` for any Turn that's followed by a later
@@ -1366,7 +1420,7 @@ sees the deltas it can act on.
 
 | IAgent surface | SDK primitive(s) | What it does |
 |---|---|---|
-| `setPendingMessages?(session, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the session's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
+| `setPendingMessages?(chat, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the chat's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
 | (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted on SDK ack) | Agent fires this signal when the SDK confirms the steering message was delivered to the model. Host then dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. |
 
 ##### Pending-message taxonomy (locked at the protocol layer)
@@ -1386,7 +1440,7 @@ agent boundary:
 
 ```ts
 setPendingMessages?(
-    session: URI,
+    chat: URI,
     steeringMessage: PendingMessage | undefined,
     queuedMessages: readonly PendingMessage[]
 ): void;
@@ -2042,7 +2096,7 @@ available on each `CCAModel` and should flow through verbatim.
 |---|---|
 | Returns | `IAgentSessionMetadata[]` ([agentService.ts:100-124](../../common/agentService.ts#L100-L124)) |
 | Required fields | `session: URI`, `startTime: number`, `modifiedTime: number` |
-| Optional fields | `project`, `summary`, `status`, `activity`, `model`, `workingDirectory`, `customizationDirectory`, `isRead`, `isArchived`, `diffs`, `_meta` |
+| Optional fields | `project`, `summary`, `status`, `activity`, `model`, `workingDirectory`, `isRead`, `isArchived`, `diffs`, `_meta` |
 | Claude SDK source | **Top-level** `listSessions(options?): Promise<SDKSessionInfo[]>` ([sdk.d.ts:729](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L729)) — *not* a `Query` method |
 | `SDKSessionInfo` shape | `{ sessionId, summary, lastModified, customTitle?, firstPrompt?, gitBranch?, cwd?, tag?, createdAt }` ([sdk.d.ts:2782-2825](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L2782-L2825)) |
 
@@ -2098,7 +2152,6 @@ the two SDKs disagree on which fields they carry:
 | `workingDirectory` | sidecar | SDK (`cwd`) — sidecar redundant |
 | `model` | sidecar | sidecar (SDK doesn't carry it) |
 | `project` | resolved from `cwd` | resolved from `cwd` |
-| `customizationDirectory` | sidecar | sidecar |
 | `_meta.git` | not populated by `listSessions` | not populated by `listSessions` |
 | `isArchived` | host-side archive store, not from SDK | host-side archive store, not from SDK |
 | `status` | not populated by `listSessions` | not populated by `listSessions` |

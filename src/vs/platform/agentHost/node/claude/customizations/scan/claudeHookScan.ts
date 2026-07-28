@@ -63,7 +63,7 @@ export async function scanClaudeHooks(
 		}
 		// All groups parsed from one file share a single file-level
 		// `customization`, so the first group carries the entry we surface.
-		const groups = parseHooksJson(uri, raw, workingDirectory, userHome.fsPath);
+		const groups = parseHooksJson(uri, raw, workingDirectory, userHome);
 		if (groups.length > 0) {
 			result.push(groups[0].customization);
 		}
