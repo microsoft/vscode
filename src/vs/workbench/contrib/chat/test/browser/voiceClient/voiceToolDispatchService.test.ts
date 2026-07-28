@@ -95,16 +95,26 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.strictEqual(result.ok, true);
 	});
 
-	test('refuses a pending id that was never published for this part', async () => {
-		// `peekPendingId` never mints, so an id from a part that has since been
-		// spliced out of the response cannot resolve to whatever took its place.
-		const part = new ChatElicitationRequestPart('t', 'm', '', 'Ok', 'No',
+	test('refuses an id minted for a part that has since been replaced', async () => {
+		// A pending id is an identity, not a position. `Response.clear` and
+		// `clearToPreviousToolInvocation` splice the part list, so a position
+		// the backend was told about can end up occupied by a different
+		// request -- and approving *that* is approving something the user was
+		// never shown. This is the case a positional id gets wrong.
+		const published = new ChatElicitationRequestPart('t', 'm', '', 'Ok', 'No',
 			async () => ElicitationState.Accepted);
-		const call = approvalCall(part, 'approve');
-		(call.args as Record<string, unknown>)['pending_id'] = `${requestId}#p999999`;
+		const call = approvalCall(published, 'approve');
 
-		const result = await serviceFor(part).respondToSession(call);
+		let replacementWasAccepted = false;
+		const replacement = new ChatElicitationRequestPart('t2', 'm2', '', 'Ok', 'No',
+			async () => {
+				replacementWasAccepted = true;
+				return ElicitationState.Accepted;
+			});
+
+		const result = await serviceFor(replacement).respondToSession(call);
 
 		assert.deepStrictEqual(result, { ok: false, reason: 'stale_pending' });
+		assert.strictEqual(replacementWasAccepted, false);
 	});
 });

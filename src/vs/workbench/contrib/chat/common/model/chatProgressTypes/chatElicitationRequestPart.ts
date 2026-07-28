@@ -18,6 +18,22 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 	public readonly isHidden: IObservable<boolean> = this._isHiddenValue;
 	public reject?: (() => Promise<void>) | undefined;
 
+	/**
+	 * Whether something has already claimed the right to settle this request.
+	 *
+	 * An elicitation can be settled from several places at once -- the widget's
+	 * buttons, a voice command, and `hide()` -- and settling is asynchronous,
+	 * so without this the last handler to *finish* would win rather than the
+	 * first one to *start*. That is how a request the user declined by mouse
+	 * could still end up reported as accepted, and how the accept handler could
+	 * run (opening a URL, granting an authorization) after a decline.
+	 *
+	 * Claiming is synchronous and JavaScript is single-threaded, so first-wins
+	 * here is genuine rather than merely likely. This matches the confirmation
+	 * and question-carousel parts, which are already first-wins.
+	 */
+	private _settled = false;
+
 	constructor(
 		public readonly title: string | IMarkdownString,
 		public readonly message: string | IMarkdownString,
@@ -34,16 +50,29 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 	) {
 		if (reject) {
 			this.reject = async () => {
+				if (!this._claimSettlement()) {
+					return;
+				}
 				const state = await reject!();
 				this.state.set(state, undefined);
 			};
 		}
 	}
 
-	accept(value: IAction | true): Promise<void> {
-		return this._accept(value).then(state => {
-			this.state.set(state, undefined);
-		});
+	/** Take ownership of settling this request, or report that someone else already has. */
+	private _claimSettlement(): boolean {
+		if (this._settled) {
+			return false;
+		}
+		this._settled = true;
+		return true;
+	}
+
+	async accept(value: IAction | true): Promise<void> {
+		if (!this._claimSettlement()) {
+			return;
+		}
+		this.state.set(await this._accept(value), undefined);
 	}
 
 	hide(): void {
@@ -52,7 +81,10 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 		}
 		this._isHiddenValue.set(true, undefined, undefined);
 		this.onHide?.();
-		if (this.state.get() === ElicitationState.Pending) {
+		// Only stand in for a settlement nobody else has recorded or started: a
+		// resolved state is authoritative, and an accept or reject still
+		// awaiting its handler is the real outcome.
+		if (this.state.get() === ElicitationState.Pending && this._claimSettlement()) {
 			this.state.set(ElicitationState.Rejected, undefined);
 		}
 	}
