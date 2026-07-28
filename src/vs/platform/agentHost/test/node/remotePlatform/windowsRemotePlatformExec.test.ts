@@ -206,7 +206,14 @@ async function createCliZip(dir: string): Promise<Buffer> {
 	let testDir: string;
 
 	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'winRemotePlatformExec');
+		// Prefer the CI runner temp dir over `os.tmpdir()`, which on Windows CI
+		// is an 8.3 short path (`C:\Users\RUNNER~1\...`). PowerShell reports the
+		// canonical long form back, so paths built from the short form would
+		// never compare equal. `RUNNER_TEMP` is set by GitHub Actions and
+		// `AGENT_TEMPDIRECTORY` by Azure DevOps; see the same note in
+		// `sessionPermissions.test.ts`.
+		const baseTmp = process.env.AGENT_TEMPDIRECTORY || process.env.RUNNER_TEMP || tmpdir();
+		testDir = getRandomTestPath(baseTmp, 'vsctests', 'winRemotePlatformExec');
 		fs.mkdirSync(testDir, { recursive: true });
 	});
 
