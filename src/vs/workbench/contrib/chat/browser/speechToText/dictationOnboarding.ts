@@ -24,6 +24,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard } from '../widget/input/chatInputOnboarding.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -500,8 +501,9 @@ export interface IDictationOnboardingBannerOptions {
  */
 export class DictationOnboardingBanner extends Disposable {
 
-	readonly domNode = dom.$('.dictation-onboarding-banner');
+	readonly domNode: HTMLElement;
 
+	private readonly card: ChatInputOnboardingCard;
 	private readonly preview: MicrophonePreview;
 	private readonly waveform: MicrophoneWaveform;
 	private readonly hint: HTMLElement;
@@ -522,18 +524,17 @@ export class DictationOnboardingBanner extends Disposable {
 	) {
 		super();
 
-		// Attach up front: the Agents window is an auxiliary window, so anything
-		// window-bound below (`AudioContext`, `navigator.mediaDevices`) has to
-		// resolve against the document the card actually lives in.
-		bannerOptions.container.appendChild(this.domNode);
-		this._register(toDisposable(() => this.domNode.remove()));
-
-		this.domNode.setAttribute('role', 'region');
-		this.domNode.setAttribute('aria-label', localize('dictation.onboarding.region', "Dictation introduction"));
-		// Sighted users get this from the waveform moving as they talk. A
-		// screen-reader user has no waveform to watch, so the card has to say
-		// what it is for and how to leave it.
-		this.domNode.setAttribute('aria-description', localize('dictation.onboarding.regionDescription', "Say anything to check your microphone, then start dictating."));
+		this.card = this._register(new ChatInputOnboardingCard({
+			container: bannerOptions.container,
+			className: 'dictation-onboarding-banner',
+			ariaLabel: localize('dictation.onboarding.region', "Dictation introduction"),
+			// Sighted users get this from the waveform moving as they talk. A
+			// screen-reader user has no waveform to watch, so the card has to say
+			// what it is for and how to leave it.
+			ariaDescription: localize('dictation.onboarding.regionDescription', "Say anything to check your microphone, then start dictating."),
+			onEscape: () => this.cancel(),
+		}));
+		this.domNode = this.card.domNode;
 
 		const header = dom.append(this.domNode, dom.$('.dictation-onboarding-header'));
 		const title = dom.append(header, dom.$('.dictation-onboarding-title'));
@@ -571,13 +572,6 @@ export class DictationOnboardingBanner extends Disposable {
 			label: localize('dictation.onboarding.systemDefault', "System default"),
 		}];
 		this.renderPicker();
-
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
-			if (new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
-				dom.EventHelper.stop(event, true);
-				this.cancel();
-			}
-		}));
 
 		const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
 		if (mediaDevices) {
@@ -763,19 +757,12 @@ export class DictationOnboardingBanner extends Disposable {
 	 * with the picker for room and never moves as the card re-flows.
 	 */
 	private renderClose(): void {
-		const close = dom.append(this.domNode, dom.$('.dictation-onboarding-close'));
-		close.tabIndex = 0;
-		close.setAttribute('role', 'button');
-		close.setAttribute('aria-label', localize('dictation.onboarding.close', "Start Dictating"));
-		dom.append(close, dom.$(`span.codicon.codicon-${Codicon.check.id}`)).setAttribute('aria-hidden', 'true');
-		this._register(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.finish()));
-		this._register(dom.addDisposableListener(close, dom.EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				keyboardEvent.preventDefault();
-				this.finish();
-			}
-		}));
+		this.card.addAction({
+			className: 'dictation-onboarding-close',
+			ariaLabel: localize('dictation.onboarding.close', "Start Dictating"),
+			icon: Codicon.check,
+			onActivate: () => this.finish(),
+		});
 	}
 
 	/**
@@ -861,101 +848,44 @@ export interface IDictationOnboardingService {
 	show(startDictation?: () => void): boolean;
 }
 
-interface IHost {
-	readonly container: HTMLElement;
-	readonly focusRoot: HTMLElement;
-	lastFocused: number;
-}
-
 export class DictationOnboardingService extends Disposable implements IDictationOnboardingService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly hosts = new Set<IHost>();
-	private readonly banner = this._register(new MutableDisposable<DisposableStore>());
-	private bannerHost: IHost | undefined;
+	private readonly onboarding: ChatInputOnboarding;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey: DICTATION_INTRO_SHOWN_KEY,
+			hostClass: 'has-dictation-onboarding',
+		}));
 	}
 
 	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable {
-		const host: IHost = { container, focusRoot, lastFocused: 0 };
-		this.hosts.add(host);
-
-		const store = new DisposableStore();
-		const focusTracker = store.add(dom.trackFocus(focusRoot));
-		store.add(focusTracker.onDidFocus(() => host.lastFocused = Date.now()));
-		store.add(toDisposable(() => {
-			this.hosts.delete(host);
-			if (this.bannerHost === host) {
-				this.hide();
-			}
-		}));
-		return store;
+		return this.onboarding.registerHost(container, focusRoot);
 	}
 
 	showIfNeeded(startDictation: () => void): boolean {
-		if (this.storageService.getBoolean(DICTATION_INTRO_SHOWN_KEY, StorageScope.APPLICATION, false)) {
-			return false;
-		}
-		return this.show(startDictation);
+		return this.onboarding.showIfNeeded(context => this.createBanner(context.container, context.dismiss, startDictation));
 	}
 
 	show(startDictation?: () => void): boolean {
-		const host = this.pickHost();
-		if (!host) {
-			return false;
-		}
+		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, startDictation));
+	}
 
-		this.storageService.store(DICTATION_INTRO_SHOWN_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-
-		// Tear the previous card down *first*. Assigning to the `MutableDisposable`
-		// below would otherwise dispose it afterwards, and its disposer strips the
-		// very class this one just added - leaving the new card invisible.
-		this.hide();
-
-		const store = new DisposableStore();
-		host.container.classList.add('has-dictation-onboarding');
-		store.add(toDisposable(() => host.container.classList.remove('has-dictation-onboarding')));
-		store.add(this.instantiationService.createInstance(DictationOnboardingBanner, {
-			container: host.container,
-			onCancel: () => this.hide(),
+	private createBanner(container: HTMLElement, dismiss: () => void, startDictation?: () => void): DictationOnboardingBanner {
+		return this.instantiationService.createInstance(DictationOnboardingBanner, {
+			container,
+			onCancel: dismiss,
 			onStartDictation: () => {
-				this.hide();
+				dismiss();
 				startDictation?.();
 			},
-		}));
-
-		this.bannerHost = host;
-		this.banner.value = store;
-		return true;
-	}
-
-	/**
-	 * The visible host that was focused most recently - i.e. the chat input the
-	 * user just pressed the mic in. Falls back to any visible host so a
-	 * command-palette invocation still gets the card.
-	 */
-	private pickHost(): IHost | undefined {
-		let best: IHost | undefined;
-		for (const host of this.hosts) {
-			if (!host.container.isConnected || host.focusRoot.getClientRects().length === 0) {
-				continue;
-			}
-			if (!best || host.lastFocused > best.lastFocused) {
-				best = host;
-			}
-		}
-		return best;
-	}
-
-	private hide(): void {
-		this.bannerHost = undefined;
-		this.banner.clear();
+		});
 	}
 }
 
