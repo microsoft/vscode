@@ -18,9 +18,7 @@
 	z-index: 1;
 }
 
-/* Light gathered at the edge over a faint inner bloom, with the middle left
-	clear so the glyph is never clouded. Opacity stays in a narrow band so a loud
-	syllable swells the glow rather than slamming it to full. */
+/* Audio-reactive inner glow matching Voice Mode's listening glow style (inner border + inset wash). */
 .dictation-mic-active::after {
 	content: '';
 	position: absolute;
@@ -28,19 +26,11 @@
 	z-index: 0;
 	pointer-events: none;
 	border-radius: var(--dictation-mic-glow-radius, var(--vscode-cornerRadius-small));
-	background:
-		radial-gradient(circle at 50% 56%,
-			color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 22%, transparent) 0%,
-			color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 8%, transparent) 50%,
-			transparent 84%),
-		radial-gradient(circle at 50% 50%,
-			transparent 34%,
-			color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 10%, transparent) 68%,
-			color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 34%, transparent) 100%);
+	background: color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 12%, transparent);
 	box-shadow:
-		inset 0 0 0 1px color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 28%, transparent),
-		inset 0 0 calc(4px + var(--dictation-mic-level) * 6px) color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 40%, transparent);
-	opacity: calc(0.34 + var(--dictation-mic-level) * 0.42);
+		inset 0 0 0 1px color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) calc(30% + var(--dictation-mic-level) * 30%), transparent),
+		inset 0 0 calc(3px + var(--dictation-mic-level) * 6px) color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) calc(10% + var(--dictation-mic-level) * 20%), transparent);
+	opacity: calc(0.5 + var(--dictation-mic-level) * 0.5);
 	transition: opacity 260ms ease-out, box-shadow 320ms ease-out;
 	will-change: opacity, box-shadow;
 }
