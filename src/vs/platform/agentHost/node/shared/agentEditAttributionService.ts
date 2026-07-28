@@ -25,10 +25,13 @@ const MAX_TRACKED_RESOURCES = 100;
 const MAX_INTERVALS_PER_RESOURCE = 10_000;
 const MAX_SETTLED_FLUSHES = 1_000;
 const MAX_STANDALONE_OWNERSHIP = 1_000;
+const MAX_NON_REPOSITORY_DIRECTORIES = 1_000;
 const PREPARED_FLUSH_TTL = 5 * 60 * 1000;
 const SETTLED_FLUSH_TTL = 10 * 60 * 1000;
 const STANDALONE_OWNERSHIP_TTL = 10 * 60 * 60 * 1000;
+const NON_REPOSITORY_DIRECTORY_TTL = 10 * 60 * 1000;
 const GIT_STATE_POLL_INTERVAL = 30_000;
+const GIT_STATE_TIMEOUT = 10_000;
 const execFileAsync = promisify(execFile);
 
 interface IAttributedInterval {
@@ -47,6 +50,12 @@ interface ISourceStatistics {
 	insertedCount: number;
 }
 
+interface IStandaloneOwnership {
+	readonly timestamp: number;
+	readonly agentModifiedCount: number;
+	readonly lastSequence: number;
+}
+
 interface ITrackedResource {
 	readonly key: string;
 	readonly sessionUri: string;
@@ -55,6 +64,7 @@ interface ITrackedResource {
 	intervals: IAttributedInterval[];
 	readonly sources: Map<string, ISourceStatistics>;
 	repositoryRoot: string | undefined;
+	lastSequence: number;
 }
 
 export interface IAgentEditAttributionGitState {
@@ -73,8 +83,9 @@ interface IPreparedFlush {
 	readonly sources: readonly ISourceStatistics[];
 	readonly retainedBySource: ReadonlyMap<string, number>;
 	readonly agentModifiedCount: number;
+	readonly lastSequence: number;
 	readonly resources: readonly ITrackedResource[];
-	readonly standaloneOwnershipKeys: readonly string[];
+	readonly standaloneOwnership: readonly (readonly [string, IStandaloneOwnership])[];
 	readonly timestamp: number;
 }
 
@@ -82,13 +93,16 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _resources = new Map<string, ITrackedResource>();
+	private readonly _claimedResources = new Set<ITrackedResource>();
 	private readonly _preparedFlushes = new Map<string, IPreparedFlush>();
+	private readonly _preparingFlushes = new Map<string, Promise<IPreparedEditAttributionFlush | undefined>>();
 	private readonly _settledFlushes = new Map<string, { readonly result: IEditAttributionFlushResult; readonly timestamp: number }>();
-	private readonly _standaloneOwnership = new Map<string, { readonly timestamp: number; readonly agentModifiedCount: number }>();
+	private readonly _standaloneOwnership = new Map<string, IStandaloneOwnership>();
 	private readonly _repositories = new Map<string, IAgentEditAttributionGitState>();
-	private readonly _nonRepositoryDirectories = new Set<string>();
+	private readonly _nonRepositoryDirectories = new Map<string, number>();
 	private _trackedTextLength = 0;
 	private _sequence = 0;
+	private _generation = 0;
 	private _enabled = true;
 
 	constructor(
@@ -109,19 +123,20 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	}
 
 	setEnabled(enabled: boolean): void {
-		if (this._enabled === enabled) {
+		if (!this._enabled || enabled) {
 			return;
 		}
-		this._enabled = enabled;
-		if (!enabled) {
-			this._resources.clear();
-			this._preparedFlushes.clear();
-			this._settledFlushes.clear();
-			this._standaloneOwnership.clear();
-			this._repositories.clear();
-			this._nonRepositoryDirectories.clear();
-			this._trackedTextLength = 0;
-		}
+		this._enabled = false;
+		this._generation++;
+		this._resources.clear();
+		this._claimedResources.clear();
+		this._preparedFlushes.clear();
+		this._preparingFlushes.clear();
+		this._settledFlushes.clear();
+		this._standaloneOwnership.clear();
+		this._repositories.clear();
+		this._nonRepositoryDirectories.clear();
+		this._trackedTextLength = 0;
 	}
 
 	async recordEdit(edit: IAgentEditAttribution): Promise<IFileEditAttributionMarker | undefined> {
@@ -142,12 +157,19 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			};
 		}
 
+		const generation = this._generation;
 		const key = resourceKey(edit.sessionUri, edit.filePath);
-		await this._ensureCapacity(key, edit.afterText.length);
+		await this._ensureCapacity(key, edit.afterText.length, generation);
+		if (!this._isCurrentGeneration(generation)) {
+			return undefined;
+		}
 		let resource = this._resources.get(key);
 		const repository = resource?.repositoryRoot
 			? this._repositories.get(resource.repositoryRoot)
-			: await this._getOrCreateRepository(edit.filePath);
+			: await this._getOrCreateRepository(edit.filePath, generation);
+		if (!this._isCurrentGeneration(generation)) {
+			return undefined;
+		}
 		if (!resource) {
 			resource = {
 				key,
@@ -157,6 +179,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				intervals: [],
 				sources: new Map(),
 				repositoryRoot: repository?.root,
+				lastSequence: 0,
 			};
 			this._resources.set(key, resource);
 			this._trackedTextLength += edit.beforeText.length;
@@ -168,6 +191,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 
 		if (resource.currentContent !== edit.beforeText) {
 			const bridge = await this._diffComputeService.computeDiffCounts(resource.currentContent, edit.beforeText);
+			if (!this._isCurrentGeneration(generation)) {
+				return undefined;
+			}
 			this._applyChanges(resource, bridge.changes, undefined, edit.beforeText);
 		}
 
@@ -188,42 +214,72 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			resource.sources.set(sourceKey, source);
 		}
 		this._applyChanges(resource, edit.changes, source, edit.afterText);
-		if (resource.intervals.length > MAX_INTERVALS_PER_RESOURCE) {
-			await this._flushStandalone(resource, 'closed');
-			return undefined;
-		}
-
-		return {
+		const marker: IFileEditAttributionMarker = {
 			version: 1,
 			editId: generateUuid(),
 			sequence: ++this._sequence,
 			beforeDigest: createFileEditContentDigest(edit.beforeText),
 			afterDigest: createFileEditContentDigest(edit.afterText),
 		};
+		resource.lastSequence = marker.sequence;
+		if (resource.intervals.length > MAX_INTERVALS_PER_RESOURCE) {
+			await this._flushStandalone(resource, 'closed', generation);
+			return this._isCurrentGeneration(generation) ? marker : undefined;
+		}
+
+		return marker;
 	}
 
 	async flushSession(sessionUri: string): Promise<void> {
+		const generation = this._generation;
+		if (!this._isCurrentGeneration(generation)) {
+			return;
+		}
 		const resources = Array.from(this._resources.values()).filter(resource => resource.sessionUri === sessionUri);
-		await Promise.all(resources.map(resource => this._flushStandalone(resource, 'closed')));
+		await Promise.allSettled(resources.map(resource => this._flushStandalone(resource, 'closed', generation)));
 	}
 
 	async prepareFlush(params: IPrepareEditAttributionFlushParams): Promise<IPreparedEditAttributionFlush | undefined> {
+		const generation = this._generation;
+		if (!this._isCurrentGeneration(generation)) {
+			return undefined;
+		}
 		this._expireFlushState();
 		if (params.isDirty) {
 			return undefined;
+		}
+		const preparing = this._preparingFlushes.get(params.flushToken);
+		if (preparing) {
+			return preparing;
 		}
 		const existing = this._preparedFlushes.get(params.flushToken);
 		if (existing) {
 			return {
 				flushToken: existing.token,
 				agentModifiedCount: existing.agentModifiedCount,
+				lastSequence: existing.lastSequence,
 			};
 		}
 		if (this._settledFlushes.has(params.flushToken)) {
 			return undefined;
 		}
+		const prepare = this._prepareFlush(params, generation);
+		this._preparingFlushes.set(params.flushToken, prepare);
+		try {
+			return await prepare;
+		} finally {
+			if (this._preparingFlushes.get(params.flushToken) === prepare) {
+				this._preparingFlushes.delete(params.flushToken);
+			}
+		}
+	}
+
+	private async _prepareFlush(params: IPrepareEditAttributionFlushParams, generation: number): Promise<IPreparedEditAttributionFlush | undefined> {
 		const standaloneOwnershipKey = this._filePathKey(params.resource.fsPath);
 		const standaloneOwnership = this._standaloneOwnership.get(standaloneOwnershipKey);
+		if (standaloneOwnership) {
+			this._standaloneOwnership.delete(standaloneOwnershipKey);
+		}
 		const resources = Array.from(this._resources.values()).filter(resource => extUriBiasedIgnorePathCase.isEqual(URI.file(resource.filePath), params.resource));
 		if (resources.length === 0 && !standaloneOwnership) {
 			return undefined;
@@ -231,7 +287,10 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const preparedResources: IPreparedFlush[] = [];
 		try {
 			for (const resource of resources) {
-				const prepared = await this._prepareResource(resource, params.trigger, params.statsUuid);
+				const prepared = await this._prepareResource(resource, params.trigger, params.statsUuid, generation);
+				if (!this._isCurrentGeneration(generation)) {
+					return undefined;
+				}
 				if (prepared) {
 					preparedResources.push(prepared);
 				}
@@ -239,6 +298,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		} catch (error) {
 			for (const prepared of preparedResources) {
 				this._restoreResources(prepared.resources);
+			}
+			if (standaloneOwnership) {
+				this._restoreStandaloneOwnership([[standaloneOwnershipKey, standaloneOwnership]]);
 			}
 			throw error;
 		}
@@ -248,28 +310,37 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			params.statsUuid,
 			params.flushToken,
 			params.languageId,
-			standaloneOwnership ? [standaloneOwnershipKey] : [],
-			standaloneOwnership?.agentModifiedCount ?? 0,
+			standaloneOwnership ? [[standaloneOwnershipKey, standaloneOwnership]] : [],
 			this._now(),
 		);
+		if (!this._isCurrentGeneration(generation)) {
+			return undefined;
+		}
+		if (this._settledFlushes.has(params.flushToken)) {
+			this._restoreResources(prepared.resources);
+			this._restoreStandaloneOwnership(prepared.standaloneOwnership);
+			return undefined;
+		}
 		this._preparedFlushes.set(prepared.token, prepared);
 		return {
 			flushToken: prepared.token,
 			agentModifiedCount: prepared.agentModifiedCount,
+			lastSequence: prepared.lastSequence,
 		};
 	}
 
 	async commitFlush(params: ICommitEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
+		if (!this._enabled) {
+			return { outcome: 'missing', agentModifiedCount: 0 };
+		}
 		this._expireFlushState();
 		const prepared = this._preparedFlushes.get(params.flushToken);
 		if (!prepared) {
 			return this._settledFlushes.get(params.flushToken)?.result ?? { outcome: 'missing', agentModifiedCount: 0 };
 		}
 		this._preparedFlushes.delete(params.flushToken);
+		this._releaseResourceClaims(prepared.resources);
 		this._emitTelemetry(prepared, params.totalModifiedCount);
-		for (const ownershipKey of prepared.standaloneOwnershipKeys) {
-			this._standaloneOwnership.delete(ownershipKey);
-		}
 		const result = { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount } as const;
 		this._recordSettledFlush(params.flushToken, result);
 		this._cleanupRepositories(prepared.resources);
@@ -277,6 +348,17 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	}
 
 	async cancelFlush(params: ICancelEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
+		const preparing = this._preparingFlushes.get(params.flushToken);
+		if (preparing) {
+			try {
+				await preparing;
+			} catch {
+				// The prepare path restores its own resources before rejecting.
+			}
+		}
+		if (!this._enabled) {
+			return { outcome: 'missing', agentModifiedCount: 0 };
+		}
 		this._expireFlushState();
 		const settled = this._settledFlushes.get(params.flushToken);
 		if (settled) {
@@ -290,16 +372,15 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 		this._preparedFlushes.delete(params.flushToken);
 		if (prepared.resources.some(resource => this._resources.has(resource.key))) {
+			this._releaseResourceClaims(prepared.resources);
 			this._emitTelemetry(prepared, prepared.agentModifiedCount);
-			for (const ownershipKey of prepared.standaloneOwnershipKeys) {
-				this._standaloneOwnership.delete(ownershipKey);
-			}
 			const result = { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount } as const;
 			this._recordSettledFlush(params.flushToken, result);
 			this._cleanupRepositories(prepared.resources);
 			return result;
 		} else {
 			this._restoreResources(prepared.resources);
+			this._restoreStandaloneOwnership(prepared.standaloneOwnership);
 		}
 		const result = { outcome: 'cancelled', agentModifiedCount: 0 } as const;
 		this._recordSettledFlush(params.flushToken, result);
@@ -307,17 +388,20 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		return result;
 	}
 
-	private async _ensureCapacity(key: string, nextLength: number): Promise<void> {
+	private async _ensureCapacity(key: string, nextLength: number, generation: number): Promise<void> {
 		const existingLength = this._resources.get(key)?.currentContent.length ?? 0;
 		while (
-			this._resources.size >= MAX_TRACKED_RESOURCES ||
-			this._trackedTextLength - existingLength + nextLength > MAX_TOTAL_TRACKED_TEXT
+			this._isCurrentGeneration(generation) &&
+			(
+				this._resources.size >= MAX_TRACKED_RESOURCES ||
+				this._trackedTextLength - existingLength + nextLength > MAX_TOTAL_TRACKED_TEXT
+			)
 		) {
 			const oldest = this._resources.values().next().value;
 			if (!oldest) {
 				return;
 			}
-			await this._flushStandalone(oldest, 'closed');
+			await this._flushStandalone(oldest, 'closed', generation);
 		}
 	}
 
@@ -348,13 +432,30 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	}
 
 	private async _flushAll(trigger: EditTelemetryTrigger): Promise<void> {
-		await Promise.all(Array.from(this._resources.values(), resource => this._flushStandalone(resource, trigger)));
+		const generation = this._generation;
+		if (!this._isCurrentGeneration(generation)) {
+			return;
+		}
+		await Promise.allSettled(Array.from(this._resources.values(), resource => this._flushStandalone(resource, trigger, generation)));
 	}
 
 	async checkGitState(): Promise<void> {
+		const generation = this._generation;
+		if (!this._isCurrentGeneration(generation)) {
+			return;
+		}
 		this._expireFlushState();
 		for (const repository of Array.from(this._repositories.values())) {
-			const current = await this._gitStateReader(repository.root);
+			let current: IAgentEditAttributionGitState | undefined;
+			try {
+				current = await this._gitStateReader(repository.root);
+			} catch (error) {
+				this._logService.warn(`[AgentEditAttributionService] Failed to read Git state for ${repository.root}: ${error}`);
+				continue;
+			}
+			if (!this._isCurrentGeneration(generation)) {
+				return;
+			}
 			if (!current) {
 				continue;
 			}
@@ -363,24 +464,33 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				: current.head !== repository.head
 					? 'hashChange'
 					: undefined;
-			repository.branch = current.branch;
-			repository.head = current.head;
 			if (!trigger) {
 				continue;
 			}
 			const resources = Array.from(this._resources.values()).filter(resource => resource.repositoryRoot === repository.root);
-			await Promise.all(resources.map(resource => this._flushStandalone(resource, trigger)));
+			const results = await Promise.allSettled(resources.map(resource => this._flushStandalone(resource, trigger, generation)));
+			const hasPendingResources = Array.from(this._resources.values()).some(resource => resource.repositoryRoot === repository.root);
+			const hasClaimedResources = Array.from(this._claimedResources).some(resource => resource.repositoryRoot === repository.root);
+			if (this._isCurrentGeneration(generation) && results.every(result => result.status === 'fulfilled') && !hasPendingResources && !hasClaimedResources) {
+				repository.branch = current.branch;
+				repository.head = current.head;
+			}
 		}
 	}
 
-	private async _getOrCreateRepository(filePath: string): Promise<IAgentEditAttributionGitState | undefined> {
+	private async _getOrCreateRepository(filePath: string, generation: number): Promise<IAgentEditAttributionGitState | undefined> {
 		const workingDirectory = dirname(filePath);
-		if (this._nonRepositoryDirectories.has(workingDirectory)) {
+		const nonRepositoryTimestamp = this._nonRepositoryDirectories.get(workingDirectory);
+		if (nonRepositoryTimestamp !== undefined && nonRepositoryTimestamp >= this._now() - NON_REPOSITORY_DIRECTORY_TTL) {
 			return undefined;
 		}
+		this._nonRepositoryDirectories.delete(workingDirectory);
 		const current = await this._gitStateReader(workingDirectory);
+		if (!this._isCurrentGeneration(generation)) {
+			return undefined;
+		}
 		if (!current) {
-			this._nonRepositoryDirectories.add(workingDirectory);
+			this._recordNonRepositoryDirectory(workingDirectory);
 			return undefined;
 		}
 		const existing = this._repositories.get(current.root);
@@ -391,9 +501,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		return current;
 	}
 
-	private async _flushStandalone(resource: ITrackedResource, trigger: EditTelemetryTrigger): Promise<void> {
-		const prepared = await this._prepareResource(resource, trigger, generateUuid());
-		if (!prepared) {
+	private async _flushStandalone(resource: ITrackedResource, trigger: EditTelemetryTrigger, generation: number): Promise<void> {
+		const prepared = await this._prepareResource(resource, trigger, generateUuid(), generation);
+		if (!prepared || !this._isCurrentGeneration(generation)) {
 			return;
 		}
 		this._preparedFlushes.set(prepared.token, prepared);
@@ -401,19 +511,28 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			flushToken: prepared.token,
 			totalModifiedCount: prepared.agentModifiedCount,
 		});
-		this._recordStandaloneOwnership(resource.filePath, prepared.agentModifiedCount);
+		if (this._isCurrentGeneration(generation)) {
+			this._recordStandaloneOwnership(resource.filePath, prepared.agentModifiedCount, prepared.lastSequence);
+		}
 	}
 
-	private async _prepareResource(resource: ITrackedResource, trigger: EditTelemetryTrigger, statsUuid: string): Promise<IPreparedFlush | undefined> {
-		if (this._resources.get(resource.key) !== resource) {
+	private async _prepareResource(resource: ITrackedResource, trigger: EditTelemetryTrigger, statsUuid: string, generation: number): Promise<IPreparedFlush | undefined> {
+		if (!this._isCurrentGeneration(generation) || this._resources.get(resource.key) !== resource) {
 			return undefined;
 		}
 		this._resources.delete(resource.key);
+		this._claimedResources.add(resource);
 		this._trackedTextLength -= resource.currentContent.length;
 		try {
 			const currentContent = await this._readCurrentContent(resource.filePath);
+			if (!this._isCurrentGeneration(generation)) {
+				return undefined;
+			}
 			if (currentContent !== resource.currentContent) {
 				const diff = await this._diffComputeService.computeDiffCounts(resource.currentContent, currentContent);
+				if (!this._isCurrentGeneration(generation)) {
+					return undefined;
+				}
 				this._applyChanges(resource, diff.changes, undefined, currentContent, false);
 			}
 			const retainedBySource = new Map<string, number>();
@@ -430,12 +549,16 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					.slice(0, 30),
 				retainedBySource,
 				agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
+				lastSequence: resource.lastSequence,
 				resources: [resource],
-				standaloneOwnershipKeys: [],
+				standaloneOwnership: [],
 				timestamp: this._now(),
 			};
 			return prepared;
 		} catch (error) {
+			if (!this._isCurrentGeneration(generation)) {
+				return undefined;
+			}
 			this._logService.warn(`[AgentEditAttributionService] Failed to flush ${resource.filePath}: ${error}`);
 			if (!this._resources.has(resource.key)) {
 				this._resources.set(resource.key, resource);
@@ -446,6 +569,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	}
 
 	private _emitTelemetry(prepared: IPreparedFlush, totalModifiedCount: number): void {
+		if (!this._enabled) {
+			return;
+		}
 		for (const source of prepared.sources) {
 			const data = {
 				mode: 'longterm',
@@ -502,10 +628,17 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 
 	private _restoreResources(resources: readonly ITrackedResource[]): void {
 		for (const resource of resources) {
+			this._claimedResources.delete(resource);
 			if (!this._resources.has(resource.key)) {
 				this._resources.set(resource.key, resource);
 				this._trackedTextLength += resource.currentContent.length;
 			}
+		}
+	}
+
+	private _releaseResourceClaims(resources: readonly ITrackedResource[]): void {
+		for (const resource of resources) {
+			this._claimedResources.delete(resource);
 		}
 	}
 
@@ -515,11 +648,36 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			if (
 				repositoryRoot &&
 				!Array.from(this._resources.values()).some(candidate => candidate.repositoryRoot === repositoryRoot) &&
+				!Array.from(this._claimedResources).some(candidate => candidate.repositoryRoot === repositoryRoot) &&
 				!Array.from(this._preparedFlushes.values()).some(prepared => prepared.resources.some(candidate => candidate.repositoryRoot === repositoryRoot))
 			) {
 				this._repositories.delete(repositoryRoot);
 			}
+			const workingDirectory = dirname(resource.filePath);
+			if (
+				!Array.from(this._resources.values()).some(candidate => dirname(candidate.filePath) === workingDirectory) &&
+				!Array.from(this._claimedResources).some(candidate => dirname(candidate.filePath) === workingDirectory) &&
+				!Array.from(this._preparedFlushes.values()).some(prepared => prepared.resources.some(candidate => dirname(candidate.filePath) === workingDirectory))
+			) {
+				this._nonRepositoryDirectories.delete(workingDirectory);
+			}
 		}
+	}
+
+	private _recordNonRepositoryDirectory(workingDirectory: string): void {
+		this._nonRepositoryDirectories.delete(workingDirectory);
+		this._nonRepositoryDirectories.set(workingDirectory, this._now());
+		while (this._nonRepositoryDirectories.size > MAX_NON_REPOSITORY_DIRECTORIES) {
+			const oldestDirectory = this._nonRepositoryDirectories.keys().next().value;
+			if (oldestDirectory === undefined) {
+				break;
+			}
+			this._nonRepositoryDirectories.delete(oldestDirectory);
+		}
+	}
+
+	private _isCurrentGeneration(generation: number): boolean {
+		return this._enabled && generation === this._generation;
 	}
 
 	private _recordSettledFlush(flushToken: string, result: IEditAttributionFlushResult): void {
@@ -534,14 +692,25 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 	}
 
-	private _recordStandaloneOwnership(filePath: string, agentModifiedCount: number): void {
+	private _recordStandaloneOwnership(filePath: string, agentModifiedCount: number, lastSequence: number): void {
 		const key = this._filePathKey(filePath);
-		const existing = this._standaloneOwnership.get(key);
-		this._standaloneOwnership.delete(key);
-		this._standaloneOwnership.set(key, {
+		this._restoreStandaloneOwnership([[key, {
 			timestamp: this._now(),
-			agentModifiedCount: (existing?.agentModifiedCount ?? 0) + agentModifiedCount,
-		});
+			agentModifiedCount,
+			lastSequence,
+		}]]);
+	}
+
+	private _restoreStandaloneOwnership(ownership: readonly (readonly [string, IStandaloneOwnership])[]): void {
+		for (const [key, value] of ownership) {
+			const existing = this._standaloneOwnership.get(key);
+			this._standaloneOwnership.delete(key);
+			this._standaloneOwnership.set(key, {
+				timestamp: Math.max(existing?.timestamp ?? 0, value.timestamp),
+				agentModifiedCount: (existing?.agentModifiedCount ?? 0) + value.agentModifiedCount,
+				lastSequence: Math.max(existing?.lastSequence ?? 0, value.lastSequence),
+			});
+		}
 		while (this._standaloneOwnership.size > MAX_STANDALONE_OWNERSHIP) {
 			const oldestKey = this._standaloneOwnership.keys().next().value;
 			if (oldestKey === undefined) {
@@ -561,10 +730,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			if (prepared.timestamp < now - PREPARED_FLUSH_TTL) {
 				this._preparedFlushes.delete(flushToken);
 				if (prepared.resources.some(resource => this._resources.has(resource.key))) {
+					this._releaseResourceClaims(prepared.resources);
 					this._emitTelemetry(prepared, prepared.agentModifiedCount);
 					this._recordSettledFlush(flushToken, { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount });
 				} else {
 					this._restoreResources(prepared.resources);
+					this._restoreStandaloneOwnership(prepared.standaloneOwnership);
 					this._recordSettledFlush(flushToken, { outcome: 'cancelled', agentModifiedCount: 0 });
 				}
 				this._cleanupRepositories(prepared.resources);
@@ -598,8 +769,7 @@ function combinePreparedFlushes(
 	statsUuid: string,
 	flushToken: string,
 	languageId: string,
-	standaloneOwnershipKeys: readonly string[],
-	standaloneAgentModifiedCount: number,
+	standaloneOwnership: readonly (readonly [string, IStandaloneOwnership])[],
 	timestamp: number,
 ): IPreparedFlush {
 	const retainedBySource = new Map<string, number>();
@@ -626,9 +796,14 @@ function combinePreparedFlushes(
 			.toSorted((a, b) => (retainedBySource.get(b.sourceKey) ?? 0) - (retainedBySource.get(a.sourceKey) ?? 0))
 			.slice(0, 30),
 		retainedBySource,
-		agentModifiedCount: standaloneAgentModifiedCount + Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
+		agentModifiedCount: standaloneOwnership.reduce((sum, [, value]) => sum + value.agentModifiedCount, 0) + Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
+		lastSequence: Math.max(
+			0,
+			...flushes.map(flush => flush.lastSequence),
+			...standaloneOwnership.map(([, value]) => value.lastSequence),
+		),
 		resources: flushes.flatMap(flush => flush.resources),
-		standaloneOwnershipKeys,
+		standaloneOwnership,
 		timestamp,
 	};
 }
@@ -723,15 +898,18 @@ function mergeIntervals(intervals: readonly IAttributedInterval[]): IAttributedI
 
 async function readGitState(workingDirectory: string): Promise<IAgentEditAttributionGitState | undefined> {
 	try {
-		const [{ stdout: rootOutput }, { stdout: headOutput }, branchResult] = await Promise.all([
-			execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: workingDirectory }),
-			execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workingDirectory }),
-			execFileAsync('git', ['symbolic-ref', '--short', '-q', 'HEAD'], { cwd: workingDirectory }).catch(() => ({ stdout: '' })),
-		]);
+		const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel', 'HEAD', '--abbrev-ref', 'HEAD'], {
+			cwd: workingDirectory,
+			timeout: GIT_STATE_TIMEOUT,
+		});
+		const [root, head, branch] = stdout.trim().split(/\r?\n/);
+		if (!root || !head || !branch) {
+			return undefined;
+		}
 		return {
-			root: rootOutput.trim(),
-			head: headOutput.trim(),
-			branch: branchResult.stdout.trim(),
+			root,
+			head,
+			branch: branch === 'HEAD' ? '' : branch,
 		};
 	} catch {
 		return undefined;

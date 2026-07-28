@@ -61,6 +61,12 @@ export class AgentHostEditAttributionUnknownOutcomeError extends Error {
 	}
 }
 
+export class AgentHostEditAttributionDeferredError extends Error {
+	constructor(cause: unknown) {
+		super('The Agent Host edit attribution was deferred', { cause });
+	}
+}
+
 export interface IAgentHostEditMarkerService {
 	createCorrelation(resource: URI): IExternalEditCorrelation;
 	takeCoverageGap?(resource: URI): IAgentHostEditAttributionCoverageGap | undefined;
@@ -82,6 +88,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 	private readonly _coverageGaps = new Map<string, IAgentHostEditAttributionCoverageGap & { readonly timestamp: number }>();
 	private readonly _onDidSuppress = this._register(new Emitter<string>());
 	private readonly _onDidInvalidate = this._register(new Emitter<string>());
+	private readonly _onDidReceiveMarker = this._register(new Emitter<{ readonly resourceKey: string; readonly connection: IAgentConnection; readonly sequence: number }>());
 	private readonly _connectionListeners = this._register(new DisposableStore());
 
 	constructor(
@@ -121,14 +128,15 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 	}
 
 	async prepareFlush(resource: URI, trigger: EditTelemetryTrigger, statsUuid: string, isDirty: boolean, languageId = 'plaintext'): Promise<IPreparedAgentHostEditAttributionFlush | undefined> {
-		const route = this._routes.get(this._key(resource));
+		const resourceKey = this._key(resource);
+		this._prune(resourceKey);
+		const route = this._routes.get(resourceKey);
 		if (!route) {
 			return undefined;
 		}
 		const flushToken = generateUuid();
-		let result;
 		try {
-			result = await this._resourceRead(route.connection, buildPrepareEditAttributionResource({
+			const result = await this._resourceRead(route.connection, buildPrepareEditAttributionResource({
 				resource: route.resource,
 				trigger,
 				statsUuid,
@@ -136,57 +144,94 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 				flushToken,
 				languageId,
 			}));
-		} catch (prepareError) {
-			try {
-				const result = await this._readOutcome(route.connection, buildCancelEditAttributionResource({ flushToken }));
-				if (result.outcome === 'committed') {
-					return {
-						flushToken,
-						agentModifiedCount: result.agentModifiedCount,
-						commit: async () => { },
-					};
-				}
-			} catch (cancelError) {
-				throw new AggregateError([prepareError, cancelError], 'Failed to prepare or cancel Agent Host edit attribution');
+			const prepared = JSON.parse(result.data) as IPreparedEditAttributionFlush | null;
+			if (
+				prepared &&
+				(
+					prepared.flushToken !== flushToken ||
+					!Number.isSafeInteger(prepared.agentModifiedCount) ||
+					prepared.agentModifiedCount < 0 ||
+					(prepared.lastSequence !== undefined && (!Number.isSafeInteger(prepared.lastSequence) || prepared.lastSequence < 0))
+				)
+			) {
+				throw new Error('Agent Host edit attribution returned an invalid prepared flush');
 			}
-			throw prepareError;
-		}
-		const prepared = JSON.parse(result.data) as IPreparedEditAttributionFlush | null;
-		if (prepared && prepared.flushToken !== flushToken) {
-			throw new Error('Agent Host edit attribution returned an unexpected flush token');
-		}
-		return prepared ? {
-			...prepared,
-			commit: async totalModifiedCount => {
-				let commitError: unknown = new Error(`Agent Host edit attribution commit failed: ${prepared.flushToken}`);
-				try {
-					const result = await this._readOutcome(route.connection, buildCommitEditAttributionResource({
-						flushToken: prepared.flushToken,
-						totalModifiedCount,
-					}));
-					if (result.outcome === 'committed') {
+			if (prepared?.lastSequence !== undefined) {
+				await this._waitForMarker(resourceKey, route.connection, prepared.lastSequence);
+			}
+			return prepared ? {
+				...prepared,
+				commit: async totalModifiedCount => {
+					let commitError: unknown = new Error(`Agent Host edit attribution commit failed: ${prepared.flushToken}`);
+					try {
+						const result = await this._readOutcome(route.connection, buildCommitEditAttributionResource({
+							flushToken: prepared.flushToken,
+							totalModifiedCount,
+						}));
+						if (result.outcome === 'committed') {
+							return;
+						}
+						commitError = new Error(`Agent Host edit attribution commit was not found: ${prepared.flushToken}`);
+					} catch (error) {
+						commitError = error;
+					}
+					let cancelResult: IEditAttributionFlushResult;
+					try {
+						cancelResult = await this._readOutcome(route.connection, buildCancelEditAttributionResource({
+							flushToken: prepared.flushToken,
+						}));
+					} catch (cancelError) {
+						throw new AgentHostEditAttributionUnknownOutcomeError(new AggregateError(
+							[commitError, cancelError],
+							'Failed to commit or cancel Agent Host edit attribution'
+						));
+					}
+					if (cancelResult.outcome === 'committed') {
 						return;
 					}
-					commitError = new Error(`Agent Host edit attribution commit was not found: ${prepared.flushToken}`);
-				} catch (error) {
-					commitError = error;
-				}
-				try {
-					const result = await this._readOutcome(route.connection, buildCancelEditAttributionResource({
-						flushToken: prepared.flushToken,
-					}));
-					if (result.outcome === 'committed') {
-						return;
-					}
-				} catch (cancelError) {
-					throw new AgentHostEditAttributionUnknownOutcomeError(new AggregateError(
-						[commitError, cancelError],
-						'Failed to commit or cancel Agent Host edit attribution'
-					));
-				}
-				throw commitError;
-			},
-		} : undefined;
+					throw new AgentHostEditAttributionDeferredError(commitError);
+				},
+			} : undefined;
+		} catch (prepareError) {
+			return this._recoverFailedPrepare(route.connection, flushToken, prepareError);
+		}
+	}
+
+	private async _recoverFailedPrepare(connection: IAgentConnection, flushToken: string, prepareError: unknown): Promise<IPreparedAgentHostEditAttributionFlush> {
+		let cancelResult: IEditAttributionFlushResult;
+		try {
+			cancelResult = await this._readOutcome(connection, buildCancelEditAttributionResource({ flushToken }));
+		} catch (cancelError) {
+			throw new AgentHostEditAttributionUnknownOutcomeError(new AggregateError(
+				[prepareError, cancelError],
+				'Failed to prepare or cancel Agent Host edit attribution'
+			));
+		}
+		if (cancelResult.outcome === 'committed') {
+			return {
+				flushToken,
+				agentModifiedCount: cancelResult.agentModifiedCount,
+				commit: async () => { },
+			};
+		}
+		throw new AgentHostEditAttributionDeferredError(prepareError);
+	}
+
+	private async _waitForMarker(resourceKey: string, connection: IAgentConnection, sequence: number): Promise<void> {
+		const isCaughtUp = () => {
+			const route = this._routes.get(resourceKey);
+			return route?.connection === connection && route.lastSequence >= sequence;
+		};
+		if (isCaughtUp()) {
+			return;
+		}
+		const marker = await raceTimeout(Event.toPromise(Event.filter(
+			this._onDidReceiveMarker.event,
+			event => event.resourceKey === resourceKey && event.connection === connection && event.sequence >= sequence
+		)), COORDINATION_TIMEOUT);
+		if (!marker && !isCaughtUp()) {
+			throw new Error(`Timed out waiting for Agent Host edit attribution marker: ${sequence}`);
+		}
 	}
 
 	private async _resourceRead(connection: IAgentConnection, resource: URI) {
@@ -253,6 +298,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 						timestamp: Date.now(),
 						lastSequence: marker.sequence,
 					});
+					this._onDidReceiveMarker.fire({ resourceKey, connection, sequence: marker.sequence });
 					while (this._routes.size > MAX_ROUTES) {
 						const oldestKey = this._routes.keys().next().value;
 						if (oldestKey === undefined) {

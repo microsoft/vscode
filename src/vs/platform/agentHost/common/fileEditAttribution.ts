@@ -55,6 +55,7 @@ export const IAgentEditAttributionService = createDecorator<IAgentEditAttributio
 
 export interface IAgentEditAttributionService {
 	readonly _serviceBrand: undefined;
+	/** Disabling attribution is permanent for the lifetime of the service. */
 	setEnabled(enabled: boolean): void;
 	recordEdit(edit: IAgentEditAttribution): Promise<IFileEditAttributionMarker | undefined>;
 	flushSession(sessionUri: string): Promise<void>;
@@ -90,6 +91,7 @@ export interface IPrepareEditAttributionFlushParams {
 export interface IPreparedEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
+	readonly lastSequence?: number;
 }
 
 export interface ICommitEditAttributionFlushParams {

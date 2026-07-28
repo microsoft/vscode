@@ -21,7 +21,7 @@ import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { sumByCategory } from '../helpers/utils.js';
 import { IScmRepoAdapter, ScmAdapter } from './scmAdapter.js';
 import { IRandomService } from '../randomService.js';
-import { AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService, IPreparedAgentHostEditAttributionFlush } from './agentHostEditMarkerService.js';
+import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService, IPreparedAgentHostEditAttributionFlush } from './agentHostEditMarkerService.js';
 
 export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'user' | 'ide' | 'external' | 'unknown';
 
@@ -208,6 +208,7 @@ class TrackedDocumentInfo extends Disposable {
 		let data = this.getTelemetryData(ranges);
 		const statsUuid = this._randomService.generateUuid();
 		let preparedAgentFlush: IPreparedAgentHostEditAttributionFlush | undefined;
+		let deferSuppressedExternal = false;
 		const isDirty = this._textFileService.isDirty(this._doc.document.uri);
 		if (mode === 'longterm' && this._agentHostEditMarkerService) {
 			try {
@@ -220,9 +221,14 @@ class TrackedDocumentInfo extends Disposable {
 				);
 			} catch (error) {
 				this._logService.error(`[EditSourceTrackingImpl] Failed to prepare Agent Host edit attribution: ${error}`);
+				deferSuppressedExternal = error instanceof AgentHostEditAttributionDeferredError || error instanceof AgentHostEditAttributionUnknownOutcomeError;
 			}
 		}
 		if (preparedAgentFlush) {
+			t.applyPendingExternalEdits();
+			ranges = t.getTrackedRanges();
+			internalKeys = t.getAllKeys();
+			data = this.getTelemetryData(ranges);
 			try {
 				await preparedAgentFlush.commit(data.totalModifiedCharactersInFinalState + preparedAgentFlush.agentModifiedCount);
 			} catch (error) {
@@ -230,9 +236,10 @@ class TrackedDocumentInfo extends Disposable {
 				if (!(error instanceof AgentHostEditAttributionUnknownOutcomeError)) {
 					preparedAgentFlush = undefined;
 				}
+				deferSuppressedExternal = error instanceof AgentHostEditAttributionDeferredError || error instanceof AgentHostEditAttributionUnknownOutcomeError;
 			}
 		}
-		const includeSuppressedExternal = !preparedAgentFlush && !isDirty && mode === 'longterm' && !!this._agentHostEditMarkerService;
+		const includeSuppressedExternal = !preparedAgentFlush && !deferSuppressedExternal && !isDirty && mode === 'longterm' && !!this._agentHostEditMarkerService;
 		if (includeSuppressedExternal) {
 			ranges = t.getTrackedRanges(undefined, true);
 			internalKeys = t.getAllKeys(true);

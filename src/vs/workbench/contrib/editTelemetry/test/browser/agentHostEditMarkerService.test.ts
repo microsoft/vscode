@@ -21,7 +21,7 @@ import { ActionEnvelope } from '../../../../../platform/agentHost/common/state/s
 import { ToolResultContentType } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { AgentHostEditMarkerService } from '../../browser/telemetry/agentHostEditMarkerService.js';
+import { AgentHostEditAttributionDeferredError, AgentHostEditMarkerService } from '../../browser/telemetry/agentHostEditMarkerService.js';
 
 suite('Agent Host Edit Marker Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -152,6 +152,28 @@ suite('Agent Host Edit Marker Service', () => {
 		assert.strictEqual(correlation.isSuppressed(observation), false);
 	}));
 
+	test('does not coordinate with an expired route', () => runWithFakedTimers({}, async () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		context.fireMarker(marker(1, 'a', 'ab'));
+		const observation = correlation.register('a', 'ab');
+		await timeout(10 * 60 * 60 * 1000 + 1);
+
+		const prepared = await context.service.prepareFlush(context.resource, 'hashChange', 'stats-1', false);
+
+		assert.deepStrictEqual({
+			prepared,
+			suppressed: correlation.isSuppressed(observation),
+			invalidatedIds: context.invalidatedIds,
+			resourceReads: context.resourceReads,
+		}, {
+			prepared: undefined,
+			suppressed: false,
+			invalidatedIds: [observation],
+			resourceReads: [],
+		});
+	}));
+
 	test('matches ambient remote model URIs to Agent Host file markers', () => {
 		const context = createContext();
 		const remoteResource = URI.from({
@@ -191,6 +213,26 @@ suite('Agent Host Edit Marker Service', () => {
 		});
 	});
 
+	test('waits for the prepared Agent marker before coordinating', async () => {
+		const context = createContext({ isAmbient: false, authority: 'remote-one', prepareSequence: 2 });
+		const remoteResource = toAgentHostUri(context.resource, 'remote-one');
+		context.service.createCorrelation(remoteResource);
+		context.fireMarker(marker(1, 'a', 'ab'));
+
+		const prepare = context.service.prepareFlush(remoteResource, 'hashChange', 'stats-1', false);
+		await timeout(0);
+		context.fireMarker(marker(2, 'ab', 'abc'));
+		const prepared = await prepare;
+
+		assert.deepStrictEqual({
+			agentModifiedCount: prepared?.agentModifiedCount,
+			resourceReads: context.resourceReads,
+		}, {
+			agentModifiedCount: 2,
+			resourceReads: ['/prepare'],
+		});
+	});
+
 	test('cancels a prepared flush when the commit transport fails', async () => {
 		const context = createContext({ isAmbient: false, authority: 'remote-one', failCommit: true });
 		const remoteResource = toAgentHostUri(context.resource, 'remote-one');
@@ -198,7 +240,7 @@ suite('Agent Host Edit Marker Service', () => {
 		context.fireMarker(marker(1, 'a', 'ab'));
 
 		const prepared = await context.service.prepareFlush(remoteResource, 'hashChange', 'stats-1', false);
-		await assert.rejects(() => prepared!.commit(5), /Commit failed/);
+		await assert.rejects(() => prepared!.commit(5), error => error instanceof AgentHostEditAttributionDeferredError);
 
 		assert.deepStrictEqual(context.resourceReads, ['/prepare', '/commit', '/cancel']);
 	});
@@ -212,7 +254,7 @@ suite('Agent Host Edit Marker Service', () => {
 		const result = context.service.prepareFlush(remoteResource, 'hashChange', 'stats-1', false);
 		await timeout(15_001);
 
-		await assert.rejects(result, /request timed out: \/prepare/);
+		await assert.rejects(result, error => error instanceof AgentHostEditAttributionDeferredError);
 		assert.deepStrictEqual(context.resourceReads, ['/prepare', '/cancel']);
 	}));
 
@@ -239,6 +281,38 @@ suite('Agent Host Edit Marker Service', () => {
 		});
 	});
 
+	test('cancels a malformed prepared response', async () => {
+		const context = createContext({
+			isAmbient: false,
+			authority: 'remote-one',
+			prepareResponse: '{',
+		});
+		const remoteResource = toAgentHostUri(context.resource, 'remote-one');
+		context.service.createCorrelation(remoteResource);
+		context.fireMarker(marker(1, 'a', 'ab'));
+
+		const result = context.service.prepareFlush(remoteResource, 'hashChange', 'stats-1', false);
+
+		await assert.rejects(result, error => error instanceof AgentHostEditAttributionDeferredError);
+		assert.deepStrictEqual(context.resourceReads, ['/prepare', '/cancel']);
+	});
+
+	test('cancels a prepared response with an unexpected token', async () => {
+		const context = createContext({
+			isAmbient: false,
+			authority: 'remote-one',
+			prepareResponse: JSON.stringify({ flushToken: 'unexpected', agentModifiedCount: 2 }),
+		});
+		const remoteResource = toAgentHostUri(context.resource, 'remote-one');
+		context.service.createCorrelation(remoteResource);
+		context.fireMarker(marker(1, 'a', 'ab'));
+
+		const result = context.service.prepareFlush(remoteResource, 'hashChange', 'stats-1', false);
+
+		await assert.rejects(result, error => error instanceof AgentHostEditAttributionDeferredError);
+		assert.deepStrictEqual(context.resourceReads, ['/prepare', '/cancel']);
+	});
+
 	test('times out a stalled commit request and cancels the flush', () => runWithFakedTimers({}, async () => {
 		const context = createContext({ isAmbient: false, authority: 'remote-one', stalledResources: ['/commit'] });
 		const remoteResource = toAgentHostUri(context.resource, 'remote-one');
@@ -249,7 +323,7 @@ suite('Agent Host Edit Marker Service', () => {
 		const result = prepared!.commit(5);
 		await timeout(15_001);
 
-		await assert.rejects(result, /request timed out: \/commit/);
+		await assert.rejects(result, error => error instanceof AgentHostEditAttributionDeferredError);
 		assert.deepStrictEqual(context.resourceReads, ['/prepare', '/commit', '/cancel']);
 	}));
 
@@ -290,6 +364,8 @@ suite('Agent Host Edit Marker Service', () => {
 		readonly failCommit?: boolean;
 		readonly stalledResources?: readonly string[];
 		readonly cancelOutcome?: EditAttributionFlushOutcome;
+		readonly prepareResponse?: string;
+		readonly prepareSequence?: number;
 	} = {}) {
 		const {
 			isAmbient = true,
@@ -298,6 +374,8 @@ suite('Agent Host Edit Marker Service', () => {
 			failCommit = false,
 			stalledResources = [],
 			cancelOutcome = 'cancelled',
+			prepareResponse,
+			prepareSequence,
 		} = options;
 		const actionEmitter = disposables.add(new Emitter<ActionEnvelope>());
 		const resourceReads: string[] = [];
@@ -318,9 +396,10 @@ suite('Agent Host Edit Marker Service', () => {
 				const request = parseEditAttributionResource(resource);
 				return {
 					data: resource.path === '/prepare'
-						? JSON.stringify({
+						? prepareResponse ?? JSON.stringify({
 							flushToken: request?.kind === 'prepare' ? request.params.flushToken : '',
 							agentModifiedCount: 2,
+							lastSequence: prepareSequence,
 						})
 						: JSON.stringify({
 							outcome: resource.path === '/commit' ? 'committed' : cancelOutcome,

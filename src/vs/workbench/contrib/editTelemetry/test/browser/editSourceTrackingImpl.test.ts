@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,7 +25,7 @@ import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js
 import { StringEditWithReason } from '../../browser/helpers/observableWorkspace.js';
 import { IAiEditTelemetryService } from '../../browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSourceTrackingImpl } from '../../browser/telemetry/editSourceTrackingImpl.js';
-import { AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService } from '../../browser/telemetry/agentHostEditMarkerService.js';
+import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService } from '../../browser/telemetry/agentHostEditMarkerService.js';
 import { IScmRepoAdapter, ScmAdapter } from '../../browser/telemetry/scmAdapter.js';
 import { IRandomService } from '../../browser/randomService.js';
 import { MutableObservableWorkspace } from './editTelemetry.test.js';
@@ -215,6 +215,67 @@ suite('Edit Source Tracking Windows', () => {
 				totalModifiedCharacters: 8,
 			}],
 			commits: [8],
+		});
+
+		context.disposables.dispose();
+	}));
+
+	test('recomputes workbench totals after a late Agent marker', () => runWithFakedTimers({}, async () => {
+		const onDidSuppress = new Emitter<string>();
+		const prepareStarted = new DeferredPromise<void>();
+		const continuePrepare = new DeferredPromise<void>();
+		let suppressed = false;
+		const committedTotals: number[] = [];
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: onDidSuppress.event,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => suppressed,
+				release: () => { },
+			}),
+			prepareFlush: async (_resource, trigger) => {
+				if (trigger !== 'hashChange') {
+					return undefined;
+				}
+				prepareStarted.complete();
+				await continuePrepare.p;
+				return {
+					flushToken: 'flush-1',
+					agentModifiedCount: 3,
+					commit: async totalModifiedCount => {
+						committedTotals.push(totalModifiedCount);
+					},
+				};
+			},
+		};
+		const context = setup(undefined, markerService);
+		context.disposables.add(onDidSuppress);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await prepareStarted.p;
+		suppressed = true;
+		onDidSuppress.fire('observation');
+		continuePrepare.complete();
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			committedTotals,
+			stats: context.stats.map(event => ({
+				otherAIModifiedCount: event.otherAIModifiedCount,
+				externalModifiedCount: event.externalModifiedCount,
+				totalModifiedCharacters: event.totalModifiedCharacters,
+			})),
+		}, {
+			committedTotals: [3],
+			stats: [{
+				otherAIModifiedCount: 3,
+				externalModifiedCount: 0,
+				totalModifiedCharacters: 3,
+			}],
 		});
 
 		context.disposables.dispose();
@@ -457,6 +518,38 @@ suite('Edit Source Tracking Windows', () => {
 			modifiedCount: 8,
 			totalModifiedCount: 8,
 		}]);
+
+		context.disposables.dispose();
+	}));
+
+	test('does not fall back when Agent Host attribution is deferred', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => true,
+				release: () => { },
+			}),
+			prepareFlush: async () => {
+				throw new AgentHostEditAttributionDeferredError(new Error('Prepare cancelled'));
+			},
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			detailCount: context.details.length,
+			statsCount: context.stats.length,
+		}, {
+			detailCount: 0,
+			statsCount: 0,
+		});
 
 		context.disposables.dispose();
 	}));
