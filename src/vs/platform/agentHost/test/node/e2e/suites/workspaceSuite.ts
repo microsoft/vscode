@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType, NotificationType } from '../../../../common/state/sessionActions.js';
+import { ActionType, NotificationType, type IToolCallContentChangedAction, type IToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
 import { buildDefaultChatUri, ROOT_STATE_URI, type SessionState, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
@@ -216,27 +216,32 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		}
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, addedSummary.resource, 'turn-wt-terminal', `Run exactly this shell command, with no modifications: \`${PRINT_CWD_COMMAND}\``, 3);
-
-		// Approve in a loop rather than once. A pinned command is not on the
-		// provider's auto-approve list the way `pwd` is, and a turn can raise
-		// more than one approval before the terminal resource appears — a
-		// single-shot check leaves the later one pending and the turn stalls on
-		// `session/inputNeededSet`. This mirrors the branch above and
-		// `driveTurnToCompletion`.
 		const approvalLoop = startBackgroundApprovalLoop(context.client, {
 			approvalSeqStart: 100,
 			allow: [{ toolName: config.shellToolName }],
 		});
 		try {
+			dispatchTurn(context.client, addedSummary.resource, 'turn-wt-terminal', `Run exactly this shell command, with no modifications: \`${PRINT_CWD_COMMAND}\``, 3);
+
+			const toolStartNotif = await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallStart')) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as IToolCallStartAction;
+				return action.turnId === 'turn-wt-terminal' && action.toolName === config.shellToolName;
+			}, 60_000);
+			const toolCallId = (getActionEnvelope(toolStartNotif).action as IToolCallStartAction).toolCallId;
+
 			const terminalContentNotif = await context.client.waitForNotification(n => {
 				if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
 					return false;
 				}
-				const action = getActionEnvelope(n).action as { content: readonly ToolResultContent[] };
-				return terminalResourceFromContent(action.content) !== undefined;
+				const action = getActionEnvelope(n).action as IToolCallContentChangedAction;
+				return action.turnId === 'turn-wt-terminal'
+					&& action.toolCallId === toolCallId
+					&& terminalResourceFromContent(action.content) !== undefined;
 			}, 60_000);
-			const terminalContentAction = getActionEnvelope(terminalContentNotif).action as { content: readonly ToolResultContent[] };
+			const terminalContentAction = getActionEnvelope(terminalContentNotif).action as IToolCallContentChangedAction;
 			const terminalUri = terminalResourceFromContent(terminalContentAction.content);
 			assert.ok(terminalUri, 'shell tool should expose its terminal resource');
 

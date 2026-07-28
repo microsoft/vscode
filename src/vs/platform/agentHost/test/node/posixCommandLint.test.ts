@@ -82,8 +82,8 @@ suite('posixCommandLint', () => {
 			{ command: `echo ok`, toolName: 'bash' },
 			{ command: `cat x 2>/dev/null`, toolName: 'powershell' },
 		]), [
-			{ command: `wc -l lines.txt`, toolName: 'bash', reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide' },
-			{ command: `cat x 2>/dev/null`, toolName: 'powershell', reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide' },
+			{ command: `wc -l lines.txt`, toolName: 'bash', reason: 'uses a POSIX coreutil or shell builtin that is not portable to Windows shells' },
+			{ command: `cat x 2>/dev/null`, toolName: 'powershell', reason: 'uses a POSIX coreutil or shell builtin that is not portable to Windows shells' },
 		]);
 	});
 });

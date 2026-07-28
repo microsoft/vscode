@@ -17,6 +17,7 @@ export const USER_NAME_PLACEHOLDER = '${user}';
  * gap, group 4 the group. Anchored per line so it only matches a real listing.
  */
 const LISTING_OWNER_RE = /^([dlcbps-][rwxStTs-]{9}[+@.]?\s+\d+\s+)(\S+)(\s+)(\S+)/gm;
+const PATH_SEGMENT_END = '(?=$|[/\\\\\\s"\'`,:;!?#)\\]}>])';
 
 /**
  * Replaces the recording machine's account name where it identifies a *user*,
@@ -49,7 +50,7 @@ export function scrubUserName(text: string, userName: string): string {
 	}
 	const escaped = escapeRegExpCharacters(userName);
 	return text
-		.replace(new RegExp(`(?<=[/\\\\])${escaped}\\b`, 'g'), USER_NAME_PLACEHOLDER)
+		.replace(new RegExp(`(?<=[/\\\\])${escaped}${PATH_SEGMENT_END}`, 'g'), USER_NAME_PLACEHOLDER)
 		.replace(LISTING_OWNER_RE, (match, prefix: string, owner: string, gap: string, group: string) => {
 			if (owner !== userName && group !== userName) {
 				return match;

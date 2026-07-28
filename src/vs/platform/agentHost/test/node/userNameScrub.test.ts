@@ -22,13 +22,25 @@ suite('userNameScrub', () => {
 			'/home/runner/work/file.txt',
 			'C:\\Users\\runner\\AppData\\Local',
 			'file:///home/runner/x',
+			'/home/runner',
+			'/home/runner\nnext line',
+			'path: \'/home/runner\'',
+			'path: `/home/runner`',
+			'path: /home/runner,',
 			// Embedded JSON escapes the separator.
 			'{"path":"C:\\\\Users\\\\runner\\\\x"}',
+			'{"path":"/home/runner"}',
 		].map(text => scrubUserName(text, 'runner')), [
 			'/home/${user}/work/file.txt',
 			'C:\\Users\\${user}\\AppData\\Local',
 			'file:///home/${user}/x',
+			'/home/${user}',
+			'/home/${user}\nnext line',
+			'path: \'/home/${user}\'',
+			'path: `/home/${user}`',
+			'path: /home/${user},',
 			'{"path":"C:\\\\Users\\\\${user}\\\\x"}',
+			'{"path":"/home/${user}"}',
 		]);
 	});
 
@@ -56,6 +68,8 @@ suite('userNameScrub', () => {
 			'forerunner',
 			'runneradmin',
 			'a runner-up value',
+			'/tmp/runner.js',
+			'C:\\Users\\runner-admin\\AppData',
 		];
 		assert.deepStrictEqual(prose.map(text => scrubUserName(text, 'runner')), prose);
 	});
