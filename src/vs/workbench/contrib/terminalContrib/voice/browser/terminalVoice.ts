@@ -112,6 +112,7 @@ export class TerminalVoiceSession extends Disposable {
 	}
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 	private readonly _disposables: DisposableStore;
+	private readonly _decorationDisposables: DisposableStore;
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
 		@IChatSpeechToTextService private readonly _chatSpeechToTextService: IChatSpeechToTextService,
@@ -125,6 +126,7 @@ export class TerminalVoiceSession extends Disposable {
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
 		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 		this._disposables = this._register(new DisposableStore());
+		this._decorationDisposables = this._register(new DisposableStore());
 		this._terminalDictationInProgress = TerminalContextKeys.terminalDictationInProgress.bindTo(contextKeyService);
 	}
 
@@ -394,7 +396,7 @@ export class TerminalVoiceSession extends Disposable {
 		}
 		element.dataset.terminalVoiceInteractive = 'true';
 		element.style.cursor = 'pointer';
-		this._disposables.add(addDisposableListener(element, EventType.CLICK, e => {
+		this._decorationDisposables.add(addDisposableListener(element, EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
 			this.stop(true);
@@ -403,11 +405,12 @@ export class TerminalVoiceSession extends Disposable {
 		const title = keybindingLabel
 			? localize('terminalVoice.stopDictationHover', "Stop Dictation ({0})", keybindingLabel)
 			: localize('terminalVoice.stopDictationHoverNoKeybinding', "Stop Dictation");
-		this._disposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, title));
+		this._decorationDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, title));
 	}
 
 	private _updateDecoration(): void {
-		// Dispose the old decoration and recreate it at the new position
+		// Dispose the old decoration and its interaction listeners before recreating
+		this._decorationDisposables.clear();
 		this._decoration?.dispose();
 		this._marker?.dispose();
 		this._decoration = undefined;
