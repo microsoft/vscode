@@ -195,7 +195,7 @@ Chat input history in the Agents Window is scoped by `ISession.sessionId`. Press
 
 Each session operates on an **`ISessionWorkspace`** containing one or more **`ISessionFolder`** instances. Folders encapsulate a working directory and optional git repository information (`ISessionGitRepository`), including branch state, upstream tracking, and GitHub PR info.
 
-Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
+Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants. The picker supplements its own history with VS Code's recently opened folders, excluding folders below a path segment ending in `.worktrees`; explicitly picked session workspace history remains available.
 
 Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
 
