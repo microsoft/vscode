@@ -8,13 +8,13 @@ import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, pars
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Lazy } from '../common/lazy.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
 import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
-import { dirname, resolvePath } from '../common/resources.js';
+import { basename as pathBasename } from '../common/path.js';
+import { basename, dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI, UriComponents } from '../common/uri.js';
 import * as DOM from './dom.js';
@@ -35,6 +35,9 @@ export interface MarkdownRenderOptions {
 	readonly asyncRenderCallback?: () => void;
 
 	readonly actionHandler?: MarkdownActionHandler;
+
+	/** Rewrites parsed Markdown link and image destinations before sanitization. */
+	readonly transformUri?: (href: string, kind: 'link' | 'image') => string;
 
 	readonly fillInIncompleteTokens?: boolean;
 
@@ -66,26 +69,47 @@ export interface MarkdownSanitizerConfig {
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 }
 
-const defaultMarkedRenderers = Object.freeze({
-	image: ({ href, title, text }: marked.Tokens.Image): string => {
-		let dimensions: string[] = [];
-		let attributes: string[] = [];
-		if (href) {
-			({ href, dimensions } = parseHrefAndDimensions(href));
-			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
+/**
+ * Returns a human-readable tooltip string for a link href.
+ * For file:// URIs, converts to a decoded OS file system path to avoid
+ * showing raw URL-encoded paths (e.g. "C:\Users\..." instead of "file:///c%3A/Users/...").
+ */
+function getLinkTitle(href: string): string {
+	try {
+		const parsed = URI.parse(href);
+		if (parsed.scheme === Schemas.file) {
+			const path = parsed.fsPath;
+			const fragment = parsed.fragment;
+			return escapeDoubleQuotes(fragment ? `${path}#${fragment}` : path);
 		}
-		if (text) {
-			attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
-		}
-		if (title) {
-			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
-		}
-		if (dimensions.length) {
-			attributes = attributes.concat(dimensions);
-		}
-		return '<img ' + attributes.join(' ') + '>';
-	},
+	} catch {
+		// fall through
+	}
+	return '';
+}
 
+function renderImage({ href, title, text }: marked.Tokens.Image, transformUri?: (href: string) => string): string {
+	let dimensions: string[] = [];
+	let attributes: string[] = [];
+	if (href) {
+		({ href, dimensions } = parseHrefAndDimensions(href));
+		href = transformUri?.(href) ?? href;
+		attributes.push(`src="${escapeDoubleQuotes(href)}"`);
+	}
+	if (text) {
+		attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
+	}
+	if (title) {
+		attributes.push(`title="${escapeDoubleQuotes(title)}"`);
+	}
+	if (dimensions.length) {
+		attributes = attributes.concat(dimensions);
+	}
+	return '<img ' + attributes.join(' ') + '>';
+}
+
+const defaultMarkedRenderers = Object.freeze({
+	image: renderImage,
 	paragraph(this: marked.Renderer, { tokens }: marked.Tokens.Paragraph): string {
 		return `<p>${this.parser.parseInline(tokens)}</p>`;
 	},
@@ -104,6 +128,17 @@ const defaultMarkedRenderers = Object.freeze({
 		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
 		href = removeMarkdownEscapes(href);
 
+		// For file:// URIs without an explicit title, show the decoded OS path instead of
+		// the raw URL-encoded URI (e.g. display "C:\Users\..." instead of "file:///c%3A/Users/...")
+		if (!title && href.startsWith(`${Schemas.file}:`)) {
+			title = getLinkTitle(href);
+		}
+
+		// For command: URIs without an explicit title, avoid exposing the raw
+		// command string as a title/tooltip — screen readers announce it as
+		// redundant technical information (see #321416).
+		const isCommandUri = href.startsWith(`${Schemas.command}:`);
+
 		// HTML Encode href
 		href = href.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
@@ -111,7 +146,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
 
-		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
+		const effectiveTitle = title || (isCommandUri ? '' : href);
+		return `<a href="${href}" title="${effectiveTitle}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -358,8 +394,11 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 
 function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer(options.markedOptions);
-	renderer.image = defaultMarkedRenderers.image;
-	renderer.link = defaultMarkedRenderers.link;
+	renderer.image = token => renderImage(token, href => options.transformUri?.(href, 'image') ?? href);
+	renderer.link = token => defaultMarkedRenderers.link.call(renderer, {
+		...token,
+		href: options.transformUri?.(token.href, 'link') ?? token.href,
+	});
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
 
 	if (markdown.supportAlertSyntax) {
@@ -651,6 +690,8 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	/** Controls if the ``` of code blocks should be preserved in the output or not */
 	readonly includeCodeBlocksFences?: boolean;
+	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
+	readonly useLinkFormatter?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -662,7 +703,15 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	const renderer = createPlainTextRenderer();
+	if (options?.includeCodeBlocksFences) {
+		renderer.code = codeBlockFences;
+	}
+	if (options?.useLinkFormatter) {
+		renderer.link = linkFormatter;
+	}
+
+	const html = marked.parse(value, { async: false, renderer });
 	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
@@ -721,7 +770,7 @@ function createPlainTextRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return escape(text);
+		return text;
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
@@ -740,15 +789,22 @@ function createPlainTextRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
 
-const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createPlainTextRenderer();
-	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
-	};
-	return renderer;
-});
+const codeBlockFences = ({ text }: marked.Tokens.Code): string => {
+	return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
+};
+
+const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
+	try {
+		if (href) {
+			const uri = URI.parse(href);
+			return text.trim() || basename(uri);
+		}
+	} catch (e) {
+		return text.trim() || pathBasename(href);
+	}
+	return text;
+};
 
 function mergeRawTokenText(tokens: marked.Token[]): string {
 	let mergedTokenText = '';
@@ -768,27 +824,11 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 		if (subtoken.type === 'text') {
 			const lines = subtoken.raw.split('\n');
 			const lastLine = lines[lines.length - 1];
-			if (lastLine.includes('`')) {
-				return completeCodespan(token);
-			}
 
-			else if (lastLine.includes('**')) {
-				return completeDoublestar(token);
-			}
-
-			else if (lastLine.match(/\*\w/)) {
-				return completeStar(token);
-			}
-
-			else if (lastLine.match(/(^|\s)__\w/)) {
-				return completeDoubleUnderscore(token);
-			}
-
-			else if (lastLine.match(/(^|\s)_\w/)) {
-				return completeUnderscore(token);
-			}
-
-			else if (
+			// An incomplete link target must be completed before emphasis/codespan. The link is the
+			// innermost unfinished construct, so any emphasis marker (e.g. the `**` in `**[text](htt`)
+			// belongs to an enclosing span. Completing the emphasis first would leave the link broken.
+			if (
 				// Text with start of link target
 				hasLinkTextAndStartOfLinkTarget(lastLine) ||
 				// This token doesn't have the link text, eg if it contains other markdown constructs that are in other subtokens.
@@ -812,6 +852,26 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 				return completeLinkTarget(token);
 			}
 
+			else if (lastLine.includes('`')) {
+				return completeCodespan(token);
+			}
+
+			else if (lastLine.includes('**')) {
+				return completeDoublestar(token);
+			}
+
+			else if (lastLine.match(/\*\w/)) {
+				return completeStar(token);
+			}
+
+			else if (lastLine.match(/(^|\s)__\w/)) {
+				return completeDoubleUnderscore(token);
+			}
+
+			else if (lastLine.match(/(^|\s)_\w/)) {
+				return completeUnderscore(token);
+			}
+
 			// Contains the start of link text, and no following tokens contain the link target
 			else if (lastLine.match(/(^|\s)\[\w*[^\]]*$/)) {
 				return completeLinkText(token);
@@ -823,11 +883,42 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 }
 
 function hasLinkTextAndStartOfLinkTarget(str: string): boolean {
-	return !!str.match(/(^|\s)\[.*\]\(\w*/);
+	// Allow links after opening parentheses and emphasis/strikethrough markers, such as `**[text](htt`.
+	return !!str.match(/(?:^|[\s(*_~])\[.*\]\(\w*/);
 }
 
 function hasStartOfLinkTargetAndNoLinkText(str: string): boolean {
 	return !!str.match(/^[^\[]*\]\([^\)]*$/);
+}
+
+function completeBlockquotePattern(blockquote: marked.Tokens.Blockquote, links: marked.Links): marked.Tokens.Blockquote | undefined {
+	let lastInterestingIndex = blockquote.tokens.length - 1;
+	while (lastInterestingIndex >= 0 && blockquote.tokens[lastInterestingIndex].type === 'space') {
+		lastInterestingIndex--;
+	}
+
+	const lastToken = blockquote.tokens[lastInterestingIndex];
+	if (lastToken?.type !== 'paragraph') {
+		return undefined;
+	}
+
+	const completedToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+	if (!completedToken) {
+		return undefined;
+	}
+
+	const completion = completedToken.raw.slice(lastToken.raw.trimEnd().length);
+	const trailingQuoteOnlyLines = blockquote.raw.match(/(?:\n[ \t]*>[ \t]*(?=\n|$))+\n?$/)?.[0] ?? '';
+	const insertionIndex = blockquote.raw.length - trailingQuoteOnlyLines.length;
+	const completedRaw = blockquote.raw.slice(0, insertionIndex) + completion + trailingQuoteOnlyLines;
+	const lexer = new marked.Lexer();
+	lexer.tokens.links = links;
+	const completedBlockquote = lexer.lex(completedRaw)[0];
+	if (completedBlockquote.type === 'blockquote') {
+		return completedBlockquote as marked.Tokens.Blockquote;
+	}
+
+	return undefined;
 }
 
 function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List | undefined {
@@ -945,21 +1036,40 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		}
 	}
 
-	const lastToken = tokens.at(-1);
-	if (!newTokens && lastToken?.type === 'list') {
-		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+	// Find the last "interesting" token, skipping trailing `space` and `html`
+	// tokens. Callers like the chat content renderer wrap markdown in
+	// `<body>...</body>` (so dompurify keeps leading comments), which leaves
+	// `</body>` as the literal last token — without this skip, the
+	// paragraph / list fixups never fire for that content.
+	let lastInterestingIdx = tokens.length - 1;
+	while (lastInterestingIdx >= 0 && (tokens[lastInterestingIdx].type === 'space' || tokens[lastInterestingIdx].type === 'html')) {
+		lastInterestingIdx--;
+	}
+	const lastInterestingToken = lastInterestingIdx >= 0 ? tokens[lastInterestingIdx] : undefined;
+	const trailingTokens = tokens.slice(lastInterestingIdx + 1);
+
+	if (!newTokens && lastInterestingToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastInterestingToken as marked.Tokens.List);
 		if (newListToken) {
-			newTokens = [newListToken];
-			i = tokens.length - 1;
+			newTokens = [newListToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
-	if (!newTokens && lastToken?.type === 'paragraph') {
+	if (!newTokens && lastInterestingToken?.type === 'blockquote') {
+		const newBlockquoteToken = completeBlockquotePattern(lastInterestingToken as marked.Tokens.Blockquote, tokens.links);
+		if (newBlockquoteToken) {
+			newTokens = [newBlockquoteToken, ...trailingTokens];
+			i = lastInterestingIdx;
+		}
+	}
+
+	if (!newTokens && lastInterestingToken?.type === 'paragraph') {
 		// Only operates on a single token, because any newline that follows this should break these patterns
-		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		const newToken = completeSingleLinePattern(lastInterestingToken as marked.Tokens.Paragraph);
 		if (newToken) {
-			newTokens = [newToken];
-			i = tokens.length - 1;
+			newTokens = [newToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
@@ -972,6 +1082,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		return newTokensList as marked.TokensList;
 	}
 
+	const lastToken = tokens.at(-1);
 	if (lastToken?.type === 'heading') {
 		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
 		if (completeTokens) {

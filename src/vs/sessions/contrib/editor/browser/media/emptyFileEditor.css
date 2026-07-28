@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.empty-file-editor {
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+	user-select: none;
+}
+
+.empty-file-editor-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: var(--vscode-spacing-size160);
+	padding: 20px;
+	max-width: 280px;
+}
+
+.empty-file-editor-icon.codicon {
+	font-size: 24px !important;
+	width: 24px;
+	height: 24px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.8;
+}
+
+.empty-file-editor-description {
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.empty-file-editor-actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-top: 2px;
+}

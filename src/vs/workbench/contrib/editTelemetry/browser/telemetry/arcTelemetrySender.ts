@@ -11,7 +11,7 @@ import { EditDeltaInfo, EditSuggestionId, ITextModelEditSourceMetadata } from '.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditSourceData, IDocumentWithAnnotatedEdits, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
 import { IAiEditTelemetryService } from './aiEditTelemetry/aiEditTelemetryService.js';
-import type { ScmRepoAdapter } from './scmAdapter.js';
+import type { IScmRepoAdapter } from './scmAdapter.js';
 import { forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { ProviderId } from '../../../../../editor/common/languages.js';
 import { ArcTelemetryReporter } from './arcTelemetryReporter.js';
@@ -20,7 +20,7 @@ import { IRandomService } from '../randomService.js';
 export class EditTelemetryReportInlineEditArcSender extends Disposable {
 	constructor(
 		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
-		scmRepoBridge: IObservable<ScmRepoAdapter | undefined>,
+		scmRepoBridge: IObservable<IScmRepoAdapter | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -47,6 +47,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					extensionVersion: string;
 					opportunityId: string;
 					languageId: string;
+					correlationId: string | undefined;
 					didBranchChange: number;
 					timeDelayMs: number;
 
@@ -64,6 +65,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline suggestion.' };
 					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+					correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation id of the inline suggestion.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -79,6 +81,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					extensionVersion: data.$extensionVersion ?? '',
 					opportunityId: data.$$requestUuid ?? 'unknown',
 					languageId: data.$$languageId,
+					correlationId: data.$$correlationId,
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
 
@@ -92,7 +95,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					...forwardToChannelIf(isCopilotLikeExtension(data.$extensionId)),
 				});
 			}, () => {
-				this._store.deleteAndLeak(reporter);
+				this._store.delete(reporter);
 			}));
 		}));
 	}
@@ -142,6 +145,7 @@ export class CreateSuggestionIdForChatOrInlineChatCaller extends Disposable {
 				// eslint-disable-next-line local/code-no-any-casts
 				modeId: data.props.$$mode as any,
 				editDeltaInfo: EditDeltaInfo.fromEdit(edit, _prev),
+				sourceRequestId: undefined,
 			});
 		}));
 	}
@@ -150,7 +154,7 @@ export class CreateSuggestionIdForChatOrInlineChatCaller extends Disposable {
 export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposable {
 	constructor(
 		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
-		scmRepoBridge: IObservable<ScmRepoAdapter | undefined>,
+		scmRepoBridge: IObservable<IScmRepoAdapter | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IRandomService private readonly _randomService: IRandomService,
 	) {
@@ -252,7 +256,7 @@ export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposa
 					...forwardToChannelIf(isCopilotLikeExtension(data.props.$extensionId)),
 				});
 			}, () => {
-				this._store.deleteAndLeak(reporter);
+				this._store.delete(reporter);
 			}));
 		}));
 	}

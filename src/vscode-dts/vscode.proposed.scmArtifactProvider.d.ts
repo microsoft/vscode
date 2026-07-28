@@ -29,5 +29,7 @@ declare module 'vscode' {
 		readonly name: string;
 		readonly description?: string;
 		readonly icon?: IconPath;
+		readonly timestamp?: number;
+		readonly command?: Command;
 	}
 }

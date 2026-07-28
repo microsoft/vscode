@@ -172,6 +172,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	}
 
 	public override onScrollChanged(e?: ViewScrollChangedEvent): boolean {
+		if (this._store.isDisposed) {
+			return false;
+		}
 		const dpr = getActiveWindow().devicePixelRatio;
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
@@ -257,6 +260,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		let decorationStyleSetBold: boolean | undefined;
 		let decorationStyleSetColor: number | undefined;
 		let decorationStyleSetOpacity: number | undefined;
+		let decorationStyleSetStrikethrough: boolean | undefined;
+		let decorationStyleSetStrikethroughThickness: number | undefined;
+		let decorationStyleSetStrikethroughColor: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -343,7 +349,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
 			charWidth = viewLineOptions.spaceWidth * dpr;
-			absoluteOffsetX = 0;
+			absoluteOffsetX = (lineData.minColumn - 1) * charWidth;
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
@@ -375,6 +381,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
 					decorationStyleSetOpacity = undefined;
+					decorationStyleSetStrikethrough = undefined;
+					decorationStyleSetStrikethroughThickness = undefined;
+					decorationStyleSetStrikethroughColor = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -419,6 +428,36 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 										decorationStyleSetOpacity = parsedValue;
 										break;
 									}
+									case 'text-decoration':
+									case 'text-decoration-line': {
+										if (value === 'line-through') {
+											decorationStyleSetStrikethrough = true;
+										}
+										break;
+									}
+									case 'text-decoration-thickness': {
+										const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+										if (match) {
+											decorationStyleSetStrikethroughThickness = parseFloat(match[1]);
+										}
+										break;
+									}
+									case 'text-decoration-color': {
+										let colorValue = value;
+										const varMatch = value.match(/^var\((--[^,]+),\s*(?:initial|inherit)\)$/);
+										if (varMatch) {
+											colorValue = ViewGpuContext.decorationCssRuleExtractor.resolveCssVariable(this._viewGpuContext.canvas.domNode, varMatch[1]);
+										}
+										const parsedColor = Color.Format.CSS.parse(colorValue);
+										if (parsedColor) {
+											decorationStyleSetStrikethroughColor = parsedColor.toNumber32Bit();
+										}
+										break;
+									}
+									case 'text-decoration-style': {
+										// These are validated in canRender and use default behavior
+										break;
+									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
 							}
@@ -443,7 +482,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 						continue;
 					}
 
-					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity, decorationStyleSetStrikethrough, decorationStyleSetStrikethroughThickness, decorationStyleSetStrikethroughColor);
 					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(

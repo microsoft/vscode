@@ -12,7 +12,7 @@ import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
 import { truncate } from './util';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
-import { AvatarQuery, AvatarQueryCommit } from './api/git';
+import type { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 export class GitTimelineItem extends TimelineItem {

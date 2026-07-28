@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
-import { formatError } from '../utils/runner';
-import { RuntimeEnvironment, startServer } from '../cssServer';
-import { getNodeFSRequestService } from './nodeFs';
+import { formatError } from '../utils/runner.js';
+import { RuntimeEnvironment, startServer } from '../cssServer.js';
+import { getNodeFSRequestService } from './nodeFs.js';
 
 // Create a connection for the server.
 const connection: Connection = createConnection();

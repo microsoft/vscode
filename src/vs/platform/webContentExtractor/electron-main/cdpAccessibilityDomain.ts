@@ -61,9 +61,14 @@ interface AXNodeTree {
 	parent: AXNodeTree | null;
 }
 
-function createNodeTree(nodes: AXNode[]): AXNodeTree | null {
+/**
+ * Creates a forest of node trees from the given AXNodes.
+ * When nodes come from multiple frames (e.g., main frame + iframes),
+ * each frame has its own RootWebArea, resulting in multiple trees.
+ */
+function createNodeTrees(nodes: AXNode[]): AXNodeTree[] {
 	if (nodes.length === 0) {
-		return null;
+		return [];
 	}
 
 	// Create a map of node IDs to their corresponding nodes for quick lookup
@@ -141,14 +146,16 @@ function createNodeTree(nodes: AXNode[]): AXNodeTree | null {
 		}
 	}
 
-	// Find the root node (a node without a parent)
+	// Find all root nodes (nodes without a parent)
+	// When nodes come from multiple frames, each frame has its own root
+	const roots: AXNodeTree[] = [];
 	for (const node of nodeMap.values()) {
 		if (!node.parent) {
-			return node;
+			roots.push(node);
 		}
 	}
 
-	return null;
+	return roots;
 }
 
 /**
@@ -159,23 +166,38 @@ const LINE_MAX_LENGTH = 80;
 
 /**
  * Converts an accessibility tree represented by AXNode objects into a markdown string.
+ * Handles multiple root nodes (e.g., from main frame + iframes) by processing each tree
+ * and combining the results.
  *
  * @param uri The URI of the document
  * @param axNodes The array of AXNode objects representing the accessibility tree
  * @returns A markdown representation of the accessibility tree
  */
 export function convertAXTreeToMarkdown(uri: URI, axNodes: AXNode[]): string {
-	const tree = createNodeTree(axNodes);
-	if (!tree) {
+	const trees = createNodeTrees(axNodes);
+	if (trees.length === 0) {
 		return ''; // Return empty string for empty tree
 	}
 
-	// Process tree to extract main content and navigation links
-	const mainContent = extractMainContent(uri, tree);
-	const navLinks = collectNavigationLinks(tree);
+	// Process each tree and collect main content and navigation links
+	const allMainContent: string[] = [];
+	const allNavLinks: string[] = [];
+
+	for (const tree of trees) {
+		const mainContent = extractMainContent(uri, tree);
+		const navLinks = collectNavigationLinks(tree);
+
+		if (mainContent.trim().length > 0) {
+			allMainContent.push(mainContent);
+		}
+		allNavLinks.push(...navLinks);
+	}
+
+	// Combine all main content from all trees
+	const combinedMainContent = allMainContent.join('\n\n');
 
 	// Combine main content and navigation links
-	return mainContent + (navLinks.length > 0 ? '\n\n## Additional Links\n' + navLinks.join('\n') : '');
+	return combinedMainContent + (allNavLinks.length > 0 ? '\n\n## Additional Links\n' + allNavLinks.join('\n') : '');
 }
 
 function extractMainContent(uri: URI, tree: AXNodeTree): string {

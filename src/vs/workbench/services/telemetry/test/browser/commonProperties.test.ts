@@ -7,11 +7,9 @@ import { resolveWorkbenchCommonProperties } from '../../browser/workbenchCommonP
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 
 suite('Browser Telemetry - common properties', function () {
-
-	const commit: string = (undefined)!;
-	const version: string = (undefined)!;
 	let testStorageService: InMemoryStorageService;
 
 	teardown(() => {
@@ -31,7 +29,7 @@ suite('Browser Telemetry - common properties', function () {
 			};
 		};
 
-		const props = resolveWorkbenchCommonProperties(testStorageService, commit, version, false, undefined, undefined, false, resolveCommonTelemetryProperties);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, { isSessionsWindow: false } as IWorkbenchEnvironmentService, false, resolveCommonTelemetryProperties);
 
 		assert.ok(hasKey(props, {
 			commitHash: true,
@@ -62,10 +60,10 @@ suite('Browser Telemetry - common properties', function () {
 			});
 		};
 
-		const props = resolveWorkbenchCommonProperties(testStorageService, commit, version, false, undefined, undefined, false, resolveCommonTelemetryProperties);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, { isSessionsWindow: false } as IWorkbenchEnvironmentService, false, resolveCommonTelemetryProperties);
 		assert.strictEqual(props['userId'], 1);
 
-		const props2 = resolveWorkbenchCommonProperties(testStorageService, commit, version, false, undefined, undefined, false, resolveCommonTelemetryProperties);
+		const props2 = resolveWorkbenchCommonProperties(testStorageService, undefined!, { isSessionsWindow: false } as IWorkbenchEnvironmentService, false, resolveCommonTelemetryProperties);
 		assert.strictEqual(props2['userId'], 2);
 	});
 });

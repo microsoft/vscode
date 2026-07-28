@@ -509,6 +509,9 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 			return;
 		}
 
+		// Clear the parent change listener before disposeContext to avoid
+		// forwarding parent events after this service has begun tearing down.
+		this._parentChangeListener.clear();
 		this._parent.disposeContext(this._myContextId);
 		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
 		super.dispose();
@@ -529,9 +532,9 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public disposeContext(contextId: number): void {
-		if (this._isDisposed) {
-			return;
-		}
+		// Always forward to parent even after disposal — a child context may
+		// be disposed after us and must still reach the root ContextKeyService
+		// to delete its entry from _contexts.
 		this._parent.disposeContext(contextId);
 	}
 

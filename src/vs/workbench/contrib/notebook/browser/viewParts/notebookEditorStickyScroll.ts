@@ -188,7 +188,7 @@ export class NotebookStickyScroll extends Disposable {
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
-			menuActionOptions: { shouldForwardArgs: true, arg: args },
+			menuActionOptions: { shouldForwardArgs: true, arg: args, renderShortTitle: true },
 		});
 	}
 

@@ -716,6 +716,49 @@ suite('NKeyMap', () => {
 		assert.deepStrictEqual(Array.from(map.values()), [1, 2, 3]);
 	});
 
+	test('getAll', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'a', 'b', 'd');
+		map.set(3, 'a', 'e', 'f');
+		map.set(4, 'g', 'h', 'i');
+		assert.deepStrictEqual(Array.from(map.getAll('a', 'b')), [1, 2]);
+		assert.deepStrictEqual(Array.from(map.getAll('a')), [1, 2, 3]);
+		assert.deepStrictEqual(Array.from(map.getAll('missing')), []);
+	});
+
+	test('delete', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'a', 'b', 'd');
+		map.set(3, 'x', 'y', 'z');
+		assert.strictEqual(map.delete('a', 'b', 'c'), true);
+		assert.strictEqual(map.delete('a', 'b', 'c'), false);
+		assert.deepStrictEqual(Array.from(map.values()), [2, 3]);
+	});
+
+	test('deleteAll', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'a', 'b', 'd');
+		map.set(3, 'a', 'e', 'f');
+		map.set(4, 'g', 'h', 'i');
+		assert.strictEqual(map.deleteAll('a', 'b'), true);
+		assert.deepStrictEqual(Array.from(map.values()), [3, 4]);
+		assert.strictEqual(map.deleteAll('missing'), false);
+		assert.strictEqual(map.deleteAll(), true);
+		assert.deepStrictEqual(Array.from(map.values()), []);
+	});
+
+	test('deleteAll cleans empty parent maps', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'x', 'y', 'z');
+		assert.strictEqual(map.deleteAll('a', 'b'), true);
+		assert.strictEqual(map.deleteAll('a'), false);
+		assert.deepStrictEqual(Array.from(map.values()), [2]);
+	});
+
 	test('toString', () => {
 		const map = new NKeyMap<number, [string, string, string]>();
 		map.set(1, 'f', 'o', 'o');

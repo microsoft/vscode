@@ -26,7 +26,7 @@ import { defaultKeybindingLabelStyles } from '../../../../../../../platform/them
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitAlternativeActionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
 import { FirstFnArg, } from '../utils/utils.js';
 import { InlineSuggestionGutterMenuData } from './gutterIndicatorView.js';
 
@@ -36,7 +36,7 @@ export class GutterIndicatorMenuContent {
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _data: InlineSuggestionGutterMenuData,
-		private readonly _close: (focusEditor: boolean) => void,
+		private readonly _close: (focusEditor: boolean, commandId?: string) => void,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -59,19 +59,43 @@ export class GutterIndicatorMenuContent {
 				isActive: activeElement.map(v => v === options.id),
 				onHoverChange: v => activeElement.set(v ? options.id : undefined, undefined),
 				onAction: () => {
-					this._close(true);
-					return this._commandService.executeCommand(typeof options.commandId === 'string' ? options.commandId : options.commandId.get(), ...(options.commandArgs ?? []));
+					const commandId = typeof options.commandId === 'string' ? options.commandId : options.commandId.get();
+					this._close(true, commandId);
+					return this._commandService.executeCommand(commandId, ...(options.commandArgs ?? []));
 				},
 			};
 		};
+
+		const extensionCommandGroups = this._data.extensionCommands.map(group =>
+			group.map((c, idx) => option(createOptionArgs({
+				id: c.command.id + '_' + idx,
+				title: c.command.title,
+				icon: c.icon ?? Codicon.symbolEvent,
+				commandId: c.command.id,
+				commandArgs: c.command.arguments
+			})))
+		);
+
+		const extensionCommandNodes: ChildNode = [];
+		for (const group of extensionCommandGroups) {
+			if (group.length > 0) {
+				extensionCommandNodes.push(separator());
+				extensionCommandNodes.push(...group);
+			}
+		}
+
+		if (this._data.extensionCommandsOnly) {
+			// drop leading separator
+			return hoverContent(extensionCommandNodes.slice(1));
+		}
 
 		const title = header(this._data.displayName);
 
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
-			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
+			title: localize('gotoAndAccept', "Go To / Accept"),
 			icon: Codicon.check,
-			commandId: inlineSuggestCommitId
+			commandId: inlineSuggestCommitId,
 		}));
 
 		const reject = option(createOptionArgs({
@@ -81,13 +105,12 @@ export class GutterIndicatorMenuContent {
 			commandId: hideInlineCompletionId
 		}));
 
-		const extensionCommands = this._data.extensionCommands.map((c, idx) => option(createOptionArgs({
-			id: c.command.id + '_' + idx,
-			title: c.command.title,
-			icon: c.icon ?? Codicon.symbolEvent,
-			commandId: c.command.id,
-			commandArgs: c.command.arguments
-		})));
+		const alternativeCommand = this._data.alternativeAction ? option(createOptionArgs({
+			id: 'alternativeCommand',
+			title: this._data.alternativeAction.command.title,
+			icon: this._data.alternativeAction.icon,
+			commandId: inlineSuggestCommitAlternativeActionId,
+		})) : undefined;
 
 		const showModelEnabled = false;
 		const modelOptions = showModelEnabled ? this._data.modelInfo?.models.map((m: { id: string; name: string }) => option({
@@ -148,15 +171,15 @@ export class GutterIndicatorMenuContent {
 		return hoverContent([
 			title,
 			gotoAndAccept,
+			alternativeCommand,
 			reject,
 			toggleCollapsedMode,
 			modelOptions.length ? separator() : undefined,
 			...modelOptions,
-			extensionCommands.length ? separator() : undefined,
 			snooze,
 			settings,
 
-			...extensionCommands,
+			...extensionCommandNodes,
 
 			actionBarFooter ? separator() : undefined,
 			actionBarFooter

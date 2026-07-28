@@ -4,3 +4,15 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "devcontainers" # https://containers.dev/guide/dependabot
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/extensions/markdown-language-features"
+    schedule:
+      interval: "cron"
+      cronjob: "0 2,17 * * *"
+      timezone: "Europe/Zurich"
+    allow:
+      - dependency-name: "@vscode/markdown-editor"
