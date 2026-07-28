@@ -856,9 +856,17 @@ export class CapiReplayProxy {
 	private _expandReplayMessage(message: IAnthropicMessage): IAnthropicMessage {
 		return {
 			...message,
-			content: message.content.map(block => block.type === 'text'
-				? { ...block, text: this._expandReplayPlaceholders(block.text) }
-				: { ...block, name: expandShellToolName(block.name), input: this._expandReplayValue(block.input) }),
+			content: message.content.map(block => {
+				if (block.type === 'text') {
+					return { ...block, text: this._expandReplayPlaceholders(block.text) };
+				}
+				if (block.type === 'tool_use') {
+					return { ...block, name: expandShellToolName(block.name), input: this._expandReplayValue(block.input) };
+				}
+				// Any future block kind passes through untouched rather than being
+				// rewritten as if it were a tool call.
+				return block;
+			}),
 		};
 	}
 
