@@ -88,10 +88,6 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', false);
 				override readonly dictationAvailable = observableValue<boolean>('dictationAvailable', false);
 				override readonly handsFree = observableValue<boolean>('handsFree', true);
-				override readonly simulatedVoiceState = observableValue<undefined>('simulatedVoiceState', undefined);
-				override readonly simulatedHandsFree = observableValue<undefined>('simulatedHandsFree', undefined);
-				override readonly simulatedVersion = observableValue<undefined>('simulatedVersion', undefined);
-				override readonly simulatedHover = observableValue<boolean>('simulatedHover', false);
 			}());
 			reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 				override readonly isConnected = observableValue<boolean>('isConnected', false);

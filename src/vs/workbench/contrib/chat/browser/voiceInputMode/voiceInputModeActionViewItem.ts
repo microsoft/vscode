@@ -16,12 +16,11 @@ import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -37,7 +36,7 @@ import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
 import { getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
-import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
+import { IVoiceInputModeService, VoiceInputMode } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
@@ -184,97 +183,6 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 }
 
 /**
- * Dev/preview commands to force the voice-cell visual states without a live backend
- * connection. Registered via {@link registerVoiceInputModeSimulateActions}.
- */
-const SIMULATE_STATES: { readonly id: string; readonly label: string; readonly state: SimulatedVoiceState | undefined }[] = [
-	{ id: 'off', label: 'Off (Disconnected)', state: 'off' },
-	{ id: 'connecting', label: 'Connecting', state: 'connecting' },
-	{ id: 'idle', label: 'Connected (Idle)', state: 'idle' },
-	{ id: 'listening', label: 'Listening', state: 'listening' },
-	{ id: 'speaking', label: 'Speaking', state: 'speaking' },
-	{ id: 'dictating', label: 'Dictating', state: 'dictating' },
-];
-
-export function registerVoiceInputModeSimulateActions(): void {
-	// Prototype walkthroughs — one per push-to-talk design. Each auto-plays (looping)
-	// through the full lifecycle with accurate bars, colors, hover previews and the real
-	// input-box glow, so the four interaction models can be compared side by side.
-	const VERSIONS: { readonly version: VoiceWalkthroughVersion; readonly label: string }[] = [
-		{ version: 'handsFree', label: 'v4 \u2014 Hands-Free (Auto-Listen)' },
-		{ version: 'keyboardHold', label: 'v1 \u2014 Keyboard Hold-to-Talk (Walkie-Talkie)' },
-		{ version: 'buttonHold', label: 'v2 \u2014 Button Hold-to-Talk' },
-		{ version: 'clickToggle', label: 'v3 \u2014 Button Click-to-Toggle Listening' },
-	];
-	for (const { version, label } of VERSIONS) {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.action.chat.voiceInputMode.simulate.walkthrough.${version}`,
-					title: { value: `Voice Input Mode: Prototype Walkthrough \u2014 ${label}`, original: `Voice Input Mode: Prototype Walkthrough \u2014 ${label}` },
-					category: { value: 'Developer', original: 'Developer' },
-					precondition: IsDevelopmentContext,
-					f1: true,
-				});
-			}
-			run(accessor: ServicesAccessor): void {
-				accessor.get(IVoiceInputModeService).startVoiceStateWalkthrough(version);
-			}
-		});
-	}
-
-	// Manual step — advance to the next state on each invocation (bind a key to click through).
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.voiceInputMode.simulate.step',
-				title: { value: 'Voice Input Mode: Prototype Step (Next State)', original: 'Voice Input Mode: Prototype Step (Next State)' },
-				category: { value: 'Developer', original: 'Developer' },
-				precondition: IsDevelopmentContext,
-				f1: true,
-			});
-		}
-		run(accessor: ServicesAccessor): void {
-			accessor.get(IVoiceInputModeService).stepVoiceStateWalkthrough();
-		}
-	});
-
-	// Clear — stop any walkthrough and return to the real state.
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.voiceInputMode.simulate.clear',
-				title: { value: 'Voice Input Mode: Simulate \u2014 Clear', original: 'Voice Input Mode: Simulate \u2014 Clear' },
-				category: { value: 'Developer', original: 'Developer' },
-				precondition: IsDevelopmentContext,
-				f1: true,
-			});
-		}
-		run(accessor: ServicesAccessor): void {
-			accessor.get(IVoiceInputModeService).clearSimulation();
-		}
-	});
-
-	for (const { id, label, state } of SIMULATE_STATES) {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.action.chat.voiceInputMode.simulate.${id}`,
-					// Dev-only utility — not localized.
-					title: { value: `Voice Input Mode: Simulate \u2014 ${label}`, original: `Voice Input Mode: Simulate \u2014 ${label}` },
-					category: { value: 'Developer', original: 'Developer' },
-					precondition: IsDevelopmentContext,
-					f1: true,
-				});
-			}
-			run(accessor: ServicesAccessor): void {
-				accessor.get(IVoiceInputModeService).setSimulatedVoiceState(state);
-			}
-		});
-	}
-}
-
-/**
  * Optional host hooks for reusing {@link VoiceInputModeActionViewItem} outside the
  * main chat input (e.g. the agents-window new-session composer), where dictation and
  * voice must target that surface rather than the last focused chat widget.
@@ -387,7 +295,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._voiceCell,
 			() => {
-				const connectedish = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get() || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
+				const connectedish = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get();
 				return getVoiceModeHoverContent(connectedish
 					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
 					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
@@ -464,35 +372,19 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._register(autorun(reader => {
 			const dictationAvailable = this.voiceInputModeService.dictationAvailable.read(reader);
 			const voiceAvailable = this.voiceInputModeService.voiceAvailable.read(reader);
-			const simHandsFree = this.voiceInputModeService.simulatedHandsFree.read(reader);
-			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
-			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			const handsFree = this.voiceInputModeService.handsFree.read(reader);
 
-			// Resolve the effective state — a simulation override wins over live state.
-			let isDictating: boolean;
-			let connected: boolean;
-			let connecting: boolean;
-			let listening: boolean;
-			let speaking: boolean;
-			if (sim !== undefined) {
-				isDictating = sim === 'dictating';
-				connecting = sim === 'connecting';
-				connected = sim === 'idle' || sim === 'listening' || sim === 'speaking';
-				listening = sim === 'listening';
-				speaking = sim === 'speaking';
-			} else {
-				isDictating = dictationActive.read(reader);
-				connected = this.voiceSessionController.isConnected.read(reader);
-				connecting = this.voiceSessionController.isConnecting.read(reader);
-				const voiceState = this.voiceSessionController.voiceState.read(reader);
-				listening = connected && voiceState === 'listening';
-				speaking = connected && voiceState === 'speaking';
-			}
+			const isDictating = dictationActive.read(reader);
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const connecting = this.voiceSessionController.isConnecting.read(reader);
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const listening = connected && voiceState === 'listening';
+			const speaking = connected && voiceState === 'speaking';
 			const voiceLive = listening || speaking;
 			const voiceOn = connected || connecting;
 			this._voiceLive = voiceLive;
-			// First-use model download/load (real state only; simulations never prepare).
-			const dictationBusy = sim === undefined && dictationPreparing.read(reader);
+			// First-use model download/load.
+			const dictationBusy = dictationPreparing.read(reader);
 
 			// The dedicated listen (start/stop speaking) toggle shows in manual
 			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
@@ -542,7 +434,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._voiceCell!.classList.toggle('speaking', speaking);
 			this._voiceCell!.setAttribute('aria-pressed', String(voiceOn));
 			// Simulated hover (walkthrough only) mirrors the real :hover disconnect preview.
-			this._voiceCell!.classList.toggle('sim-hover', this.voiceInputModeService.simulatedHover.read(reader));
 
 			// Listen / stop-speaking toggle: mic to start, stop to end.
 			this._listenCell!.classList.toggle('collapsed', !listenPresent);
