@@ -33,6 +33,7 @@ function renderVoiceModeOnboarding(width: string) {
 		disposableStore.add(instantiationService.createInstance(VoiceModeOnboardingBanner, {
 			container: host,
 			onDismiss: () => undefined,
+			source: 'automatic',
 		}));
 	};
 }

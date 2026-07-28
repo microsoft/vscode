@@ -11,6 +11,8 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AgentsVoiceStorageKeys } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -21,6 +23,19 @@ suite('Voice Mode onboarding', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface ITestHost { root: HTMLElement; container: HTMLElement; focused: number }
+	interface ITelemetryEvent { readonly name: string; readonly data: unknown }
+
+	class TestTelemetryService extends NullTelemetryServiceShape {
+		constructor(private readonly events: ITelemetryEvent[]) {
+			super();
+		}
+
+		override publicLog2(eventName?: string, data?: unknown): void {
+			if (eventName) {
+				this.events.push({ name: eventName, data });
+			}
+		}
+	}
 
 	function createHost(store: Pick<DisposableStore, 'add'>): ITestHost {
 		const root = dom.$('div');
@@ -38,7 +53,7 @@ suite('Voice Mode onboarding', () => {
 		});
 	}
 
-	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = [], holds: boolean[] = []): VoiceModeOnboardingService {
+	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = [], holds: boolean[] = [], telemetryEvents: ITelemetryEvent[] = []): VoiceModeOnboardingService {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand(id: string): Promise<undefined> {
@@ -53,11 +68,13 @@ suite('Voice Mode onboarding', () => {
 			override pttDown(): void { }
 			override pttUp(): void { }
 		});
+		instantiationService.stub(ITelemetryService, new TestTelemetryService(telemetryEvents));
 		return store.add(instantiationService.createInstance(VoiceModeOnboardingService));
 	}
 
 	test('auditions a voice, dismisses, and never returns', () => {
-		const service = createService(disposables);
+		const telemetryEvents: ITelemetryEvent[] = [];
+		const service = createService(disposables, [], [], telemetryEvents);
 		const host = createHost(disposables);
 		disposables.add(register(service, host));
 
@@ -77,8 +94,39 @@ suite('Voice Mode onboarding', () => {
 		const shownAgain = host.container.classList.contains('has-voice-mode-onboarding');
 
 		assert.deepStrictEqual(
-			{ shown, selectedOnOpen, selectedAfterPick, shownAfterClose, shownAgain },
-			{ shown: true, selectedOnOpen: 0, selectedAfterPick: 1, shownAfterClose: false, shownAgain: false });
+			{ shown, selectedOnOpen, selectedAfterPick, shownAfterClose, shownAgain, telemetryEvents },
+			{
+				shown: true,
+				selectedOnOpen: 0,
+				selectedAfterPick: 1,
+				shownAfterClose: false,
+				shownAgain: false,
+				telemetryEvents: [
+					{ name: 'voiceModeOnboarding.action', data: { action: 'shown', source: 'automatic' } },
+					{ name: 'voiceModeOnboarding.action', data: { action: 'selectVoice', source: 'automatic' } },
+					{ name: 'voiceModeOnboarding.action', data: { action: 'close', source: 'automatic' } },
+				],
+			});
+	});
+
+	test('can be shown again manually', () => {
+		const telemetryEvents: ITelemetryEvent[] = [];
+		const service = createService(disposables, [], [], telemetryEvents);
+		const host = createHost(disposables);
+		disposables.add(register(service, host));
+
+		const shown = service.show();
+		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
+
+		assert.deepStrictEqual(
+			{ shown, telemetryEvents },
+			{
+				shown: true,
+				telemetryEvents: [
+					{ name: 'voiceModeOnboarding.action', data: { action: 'shown', source: 'manual' } },
+					{ name: 'voiceModeOnboarding.action', data: { action: 'close', source: 'manual' } },
+				],
+			});
 	});
 
 	test('can be dismissed without choosing a voice', () => {
@@ -157,11 +205,16 @@ suite('Voice Mode onboarding', () => {
 		// on `session_init` with the card still on screen.
 		service.showIfNeeded();
 		const heldWhileOpen = holds.slice();
+		const listeningNotice = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-listening-notice')?.textContent;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
 
 		assert.deepStrictEqual(
-			{ heldWhileOpen, afterDismiss: holds },
-			{ heldWhileOpen: [true], afterDismiss: [true, false] });
+			{ heldWhileOpen, listeningNotice, afterDismiss: holds },
+			{
+				heldWhileOpen: [true],
+				listeningNotice: 'Voice Mode isn\'t listening while this introduction is open. Close it when you\'re ready to use the microphone.',
+				afterDismiss: [true, false],
+			});
 	});
 
 	test('the one appearance is only spent once the card is really up', () => {

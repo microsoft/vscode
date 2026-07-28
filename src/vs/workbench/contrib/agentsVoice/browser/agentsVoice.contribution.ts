@@ -37,6 +37,7 @@ import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
 	VoiceDisabledClassification, VoiceDisabledEvent,
@@ -49,6 +50,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
 import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
+import { SHOW_VOICE_MODE_ONBOARDING_COMMAND } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 
 // --- Context Keys ---
 
@@ -406,6 +408,23 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.openSettings', { query: 'agents.voice' });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_VOICE_MODE_ONBOARDING_COMMAND,
+			title: nls.localize2('agentsVoice.showOnboarding', "Voice Mode: Show Introduction"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		if (!accessor.get(IVoiceModeOnboardingService).show()) {
+			accessor.get(INotificationService).info(nls.localize('agentsVoice.onboardingNeedsChat', "Open a chat to see the Voice Mode introduction."));
+		}
 	}
 });
 

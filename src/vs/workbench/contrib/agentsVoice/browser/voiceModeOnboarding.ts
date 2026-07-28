@@ -19,8 +19,9 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import './media/voiceModeOnboarding.css';
@@ -37,6 +38,20 @@ const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
  * is why the link reads "how it responds" rather than naming the file.
  */
 const VOICE_INSTRUCTIONS_COMMAND = 'workbench.action.chat.configureVoiceInstructions';
+
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
+
+type VoiceModeOnboardingActionClassification = {
+	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
+	source: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Whether the card appeared automatically on first use or was opened manually.' };
+	owner: 'meganrogge';
+	comment: 'Tracks engagement with the Voice Mode onboarding card.';
+};
+
+type VoiceModeOnboardingActionEvent = {
+	action: VoiceModeOnboardingAction;
+	source: 'automatic' | 'manual';
+};
 
 /**
  * The voices Voice Mode actually speaks with (mirrors the `agents.voice.voice`
@@ -509,6 +524,7 @@ export interface IVoiceModeOnboardingBannerOptions {
 	/** The element the banner attaches itself to. */
 	readonly container: HTMLElement;
 	readonly onDismiss: () => void;
+	readonly source: 'automatic' | 'manual';
 }
 
 /**
@@ -539,6 +555,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
@@ -549,7 +566,10 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			container: options.container,
 			className: 'voice-mode-onboarding-banner',
 			ariaLabel: localize('voiceMode.onboarding.region', "Voice Mode introduction"),
-			onEscape: () => this.options.onDismiss(),
+			onEscape: () => {
+				this.logAction('escape');
+				this.options.onDismiss();
+			},
 		}));
 		this.domNode = this.card.domNode;
 		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode));
@@ -568,12 +588,14 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
 		title.textContent = localize('voiceMode.onboarding.title', "Welcome to Voice Mode");
 		this.renderDescription(copy);
+		this.renderListeningNotice(copy);
 
 		this.renderSharedWaveform(instantiationService);
 
 		const actions = dom.append(this.domNode, dom.$('.voice-mode-onboarding-actions'));
 		this.renderVoices(actions);
 		this.renderClose();
+		this.logAction('shown');
 	}
 
 	/**
@@ -682,6 +704,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 				callback: index => {
 					const command = commands[Number(index)];
 					if (command) {
+						this.logAction(index === '0' ? 'openSettings' : 'openInstructions');
 						this.commandService.executeCommand(command)
 							.catch(error => this.logService.error(`[voice] Failed to run ${command}: ${error}`));
 					}
@@ -708,6 +731,17 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		}
 	}
 
+	private renderListeningNotice(container: HTMLElement): void {
+		const notice = dom.append(container, dom.$('.voice-mode-onboarding-listening-notice'));
+		const icon = dom.append(notice, dom.$(`span.codicon.codicon-${Codicon.mic.id}`));
+		icon.setAttribute('aria-hidden', 'true');
+		const text = dom.append(notice, dom.$('span'));
+		text.textContent = localize(
+			'voiceMode.onboarding.listeningPaused',
+			"Voice Mode isn't listening while this introduction is open. Close it when you're ready to use the microphone."
+		);
+	}
+
 	/**
 	 * Dismissal is always available and never gated: a disabled close would trap
 	 * someone in the card. Choosing a voice already commits it, so this is only
@@ -723,6 +757,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
+		this.logAction('selectVoice');
 		this.selectedVoice = voice;
 		this.updateSelection();
 		this.player.play(voice.id);
@@ -767,6 +802,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	 */
 	private finish(): void {
 		this.player.stop();
+		this.logAction('close');
 
 		// Releasing the hold is what hands the session back: hands-free picks up
 		// and starts listening, push-to-talk stays quiet until the mic button.
@@ -776,6 +812,13 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			: localize('voiceMode.onboarding.ready', "Voice Mode is ready. Press the mic button to start talking."));
 
 		this.options.onDismiss();
+	}
+
+	private logAction(action: VoiceModeOnboardingAction): void {
+		this.telemetryService.publicLog2<VoiceModeOnboardingActionEvent, VoiceModeOnboardingActionClassification>(
+			'voiceModeOnboarding.action',
+			{ action, source: this.options.source }
+		);
 	}
 }
 
@@ -802,6 +845,9 @@ export interface IVoiceModeOnboardingService {
 	 * the first successful show, so it never appears again.
 	 */
 	showIfNeeded(): void;
+
+	/** Show the introduction again regardless of whether it has been seen. */
+	show(): boolean;
 }
 
 export class VoiceModeOnboardingService extends Disposable implements IVoiceModeOnboardingService {
@@ -826,10 +872,19 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 	}
 
 	showIfNeeded(): void {
-		this.onboarding.showIfNeeded(context => this.instantiationService.createInstance(VoiceModeOnboardingBanner, {
+		this.onboarding.showIfNeeded(context => this.createBanner(context, 'automatic'));
+	}
+
+	show(): boolean {
+		return this.onboarding.show(context => this.createBanner(context, 'manual'));
+	}
+
+	private createBanner(context: IChatInputOnboardingContext, source: 'automatic' | 'manual'): VoiceModeOnboardingBanner {
+		return this.instantiationService.createInstance(VoiceModeOnboardingBanner, {
 			container: context.container,
 			onDismiss: () => context.dismiss(dom.isAncestorOfActiveElement(context.container)),
-		}));
+			source,
+		});
 	}
 }
 
