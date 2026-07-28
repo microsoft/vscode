@@ -26,6 +26,24 @@ const HARD_WHEEL_DISTANCE = 20;
 const WHEEL_WINDOW_MS = 120;
 
 /**
+ * Whether a widget can host the timeline at all: it needs a full chat transcript pinned under the top
+ * of the widget. Widgets that render their input on top (quick chat, the new-session composer) have no
+ * transcript there.
+ */
+function supportsPromptTimeline(widget: IChatWidget): boolean {
+	return widget.location === ChatAgentLocation.Chat && !widget.rendersInputOnTop;
+}
+
+/**
+ * Whether the sticky prompt header is mounted for a widget. Shared with the accessibility help so it
+ * only describes the header (and its navigation buttons) on widgets that actually get one.
+ */
+export function isStickyPromptHeaderShown(widget: IChatWidget, configurationService: IConfigurationService): boolean {
+	return supportsPromptTimeline(widget)
+		&& configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_HEADER_SETTING) === true;
+}
+
+/**
  * Per-widget contribution that overlays the prompt timeline on the chat transcript. It shows the sticky
  * header (`chat.promptTimeline.stickyHeader`, both windows) and/or the rail
  * (`sessions.promptTimeline.rail`, Agents window only), and is torn down and re-created when either
@@ -49,10 +67,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	) {
 		super();
 
-		// The timeline only makes sense for a full chat transcript pinned under the top of the widget:
-		// the chat view/editor in the workbench and the session view in the Agents window. Widgets that
-		// render their input on top (quick chat, the new-session composer) have no transcript there.
-		if (widget.location !== ChatAgentLocation.Chat || widget.rendersInputOnTop) {
+		if (!supportsPromptTimeline(widget)) {
 			return;
 		}
 
