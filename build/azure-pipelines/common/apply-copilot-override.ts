@@ -12,19 +12,19 @@ import { clearRuntimeSourceMarker, writeRuntimeSourceMarker, writeRuntimeToken }
 import { COPILOT_APP_ID, mintInstallationToken } from './mintGithubAppToken.ts';
 
 /**
- * Applies the `.copilot-version` overrides before `npm ci` in the product build.
+ * Applies the `copilotOverride` overrides before `npm ci` in the product build.
  *
  * For each requested package:
- *   - feed spec  -> pin the manifest dependency to that version/range/dist-tag.
- *   - SDK git    -> build a tarball from source and pin the manifest to `file:`.
- *   - runtime git-> write a marker + signal the pipeline to install the Rust
+ *   - feed spec    -> pin the manifest dependency to that version/range/dist-tag.
+ *   - SDK commit   -> build a tarball from source and pin the manifest to `file:`.
+ *   - runtime commit-> write a marker + signal the pipeline to install the Rust
  *                   toolchain; gulp packaging then builds the runtime from source
  *                   per target (see `build/lib/copilotRuntimeSource.ts`). The
  *                   manifest is left unchanged (native comes from source, not npm).
  *
  * Rewriting the manifests + refreshing the lockfiles busts the node_modules
  * cache key (derived from those files) so the override is actually installed.
- * A no-op for a normal build (all `.copilot-version` values empty).
+ * A no-op for a normal build (all `copilotOverride` values empty).
  */
 
 const ROOT = path.join(import.meta.dirname, '../../../');
@@ -139,10 +139,10 @@ async function main(): Promise<void> {
 
 	await handleRuntimeSource(runtimeGit);
 	if (overrides.length === 0) {
-		console.log('[copilot-override] No overrides in .copilot-version — nothing to do.');
+		console.log('[copilot-override] No overrides in copilotOverride — nothing to do.');
 		return;
 	}
-	console.log(`[copilot-override] Overrides: ${overrides.map(o => `${o.pkg}=${o.kind === 'feed' ? o.spec : `git:${o.repo}#${o.ref}`}`).join(', ')}`);
+	console.log(`[copilot-override] Overrides: ${overrides.map(o => `${o.pkg}=${o.kind === 'feed' ? o.spec : `${o.repo}@${o.ref}`}`).join(', ')}`);
 
 	// Manifest pins for feed + SDK-source overrides (runtime source is handled via
 	// the marker above and does not touch the manifests). Build source artifacts

@@ -217,7 +217,7 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 	const packageName = `@github/copilot-${copilotPackagePlatformArch}`;
 	const packageDir = path.join(nodeModulesRoot, ...packageName.split('/'));
 
-	// A `.copilot-version` runtime `git:<ref>` override builds the runtime from
+	// A `copilotOverride` runtime `git:<commit>` override builds the runtime from
 	// source (full native build) and replaces the published platform package.
 	if (isRuntimeSourceActive()) {
 		materializeRuntimeSourcePackage(packageDir, copilotPackagePlatformArch);

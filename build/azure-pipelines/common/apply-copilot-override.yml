@@ -1,13 +1,13 @@
-# Copilot runtime + SDK override (.copilot-version). No-op for a normal build.
+# Copilot runtime + SDK override (package.json copilotOverride). No-op for a normal build.
 #
 # Runs `apply-copilot-override.ts` BEFORE the node_modules cache-key step so a
 # feed/SDK override rewrites the manifests + lockfiles and naturally busts the
-# cache. The SDK can also be built from source at a branch/commit (git:), cloned
-# from its public repo. A runtime git: override builds the runtime from source
-# during gulp packaging; set `installRuntimeToolchain: true` in the compile jobs
-# so the Rust toolchain is installed only when actually building from source.
-# Feed auth is set up first (the standard npmAuthenticate runs only after the
-# cache-key step). Mirrors common/apply-sdk-canary.yml.
+# cache. The SDK can also be built from source at a commit SHA, cloned from
+# its public repo. A runtime commit override builds the runtime from source during
+# gulp packaging; set `installRuntimeToolchain: true` in the compile jobs so the
+# Rust toolchain is installed only when actually building from source. Feed auth
+# is set up first (the standard npmAuthenticate runs only after the cache-key
+# step). Mirrors common/apply-sdk-canary.yml.
 
 parameters:
   - name: windows
@@ -22,7 +22,7 @@ parameters:
 steps:
   # Detect whether a runtime source build is requested and surface it as a
   # pipeline variable so the Key Vault + toolchain steps below can gate on it
-  # (covers both the committed .copilot-version and the queue-time param).
+  # (covers both the committed copilotOverride field and the queue-time param).
   - ${{ if eq(parameters.windows, true) }}:
       - powershell: node build/azure-pipelines/common/apply-copilot-override.ts --detect
         env:
@@ -43,8 +43,8 @@ steps:
         displayName: Copilot override — get runtime App key
         condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
         inputs:
-          azureSubscription: vscode-oss-build-secrets
-          KeyVaultName: vscode-oss-build-secrets
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
           SecretsFilter: copilot-agent-runtime-gh-app
 
   - ${{ if eq(parameters.windows, true) }}:

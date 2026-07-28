@@ -126,15 +126,15 @@ parameters:
     displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
     type: string
     default: auto
-  # .copilot-version overrides: pin @github/copilot-sdk / @github/copilot to a
-  # feed version or build from source at a branch/commit (git:<ref>). 'default'
-  # uses the committed .copilot-version file. See .copilot-version.
+  # copilotOverride (package.json): pin @github/copilot-sdk / @github/copilot to
+  # a feed version or build from source at a commit SHA. 'default' uses
+  # the committed package.json copilotOverride field.
   - name: VSCODE_COPILOT_SDK
-    displayName: "Copilot override: @github/copilot-sdk ('default' = use .copilot-version)"
+    displayName: "Copilot override: @github/copilot-sdk ('default' = use package.json)"
     type: string
     default: default
   - name: VSCODE_COPILOT_RUNTIME
-    displayName: "Copilot override: @github/copilot ('default' = use .copilot-version)"
+    displayName: "Copilot override: @github/copilot ('default' = use package.json)"
     type: string
     default: default
 
@@ -157,7 +157,7 @@ variables:
     ${{ else }}:
       value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
   # Normalize the 'default' sentinel to empty so apply-copilot-override falls back
-  # to the committed .copilot-version file; a non-'default' value overrides it.
+  # to the committed package.json copilotOverride field; a non-'default' value overrides it.
   - name: VSCODE_COPILOT_SDK
     ${{ if eq(parameters.VSCODE_COPILOT_SDK, 'default') }}:
       value: ""

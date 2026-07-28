@@ -76,7 +76,7 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      # Runtime/SDK override (.copilot-version). Placed before the cache key so a
+      # Runtime/SDK override (package.json copilotOverride). Placed before the cache key so a
       # feed/SDK override busts it and gets installed by npm ci below; installs the
       # Rust toolchain only for a runtime source build. Alpine builds the musl
       # runtime natively (per-arch host), so no cross toolchain is needed.

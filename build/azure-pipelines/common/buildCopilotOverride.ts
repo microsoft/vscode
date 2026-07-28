@@ -9,7 +9,7 @@ import { execFileSync } from 'child_process';
 import type { GitOverride } from './copilotOverride.ts';
 
 /**
- * Source build for the `.copilot-version` SDK `git:<ref>` override. The SDK is
+ * Source build for the `copilotOverride` SDK `git:<commit>` override. The SDK is
  * pure TypeScript, so this clones its public repo, runs the package's own build,
  * and packs a tarball the manifests pin via `file:`. The runtime is a full
  * native build handled separately in `build/lib/copilotRuntimeSource.ts`.
@@ -39,29 +39,31 @@ function redactSecrets(text: string): string {
 }
 
 /**
- * Clones `owner/name` at `ref` into `dest` (shallow). Assumes public repos; an
- * optional `COPILOT_OVERRIDE_TOKEN` / `GITHUB_TOKEN` authenticates a private
- * clone via `http.extraheader`, keeping the token out of the URL, `.git/config`
- * and (redacted) logs.
+ * Fetches `owner/name` at commit `sha` into `dest` (shallow, single commit).
+ * Assumes public repos; an optional `COPILOT_OVERRIDE_TOKEN` / `GITHUB_TOKEN`
+ * authenticates a private fetch via `http.extraheader`, keeping the token out of
+ * the URL, `.git/config` and (redacted) logs.
  */
-function cloneRepo(repo: string, ref: string, dest: string): void {
+function cloneRepo(repo: string, sha: string, dest: string): void {
 	fs.rmSync(dest, { recursive: true, force: true });
-	fs.mkdirSync(path.dirname(dest), { recursive: true });
+	fs.mkdirSync(dest, { recursive: true });
 
 	const token = (process.env['COPILOT_OVERRIDE_TOKEN'] ?? process.env['GITHUB_TOKEN'] ?? '').trim();
 	const authArgs = token ? ['-c', `http.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`] : [];
 	const url = `https://github.com/${repo}.git`;
 
-	// Shallow clone the single ref. A branch/tag resolves directly; a commit sha
-	// needs an unshallowed fetch, so fall back to a full clone + checkout.
+	// Fetch just the pinned commit (GitHub allows fetching a reachable SHA), then
+	// check it out. Falls back to a full fetch if the shallow SHA fetch is refused.
+	run('git', ['init', '-q'], dest);
+	run('git', ['remote', 'add', 'origin', url], dest);
 	try {
-		run('git', [...authArgs, 'clone', '--depth', '1', '--branch', ref, url, dest], ROOT);
+		run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', sha], dest);
 	} catch {
-		console.log(`[copilot-override] Shallow branch clone failed for ${repo}@${ref}; retrying as a full clone + checkout (commit sha?).`);
-		run('git', [...authArgs, 'clone', url, dest], ROOT);
-		run('git', ['checkout', ref], dest);
+		console.log(`[copilot-override] Shallow fetch of ${repo}@${sha} failed; retrying with a full fetch.`);
+		run('git', [...authArgs, 'fetch', 'origin'], dest);
 	}
-	console.log(`[copilot-override] Cloned ${repo}@${ref} -> ${dest}`);
+	run('git', ['checkout', '-q', sha], dest);
+	console.log(`[copilot-override] Checked out ${repo}@${sha} -> ${dest}`);
 }
 
 /**

@@ -7,34 +7,45 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Shared parsing/resolution for the `.copilot-version` override mechanism.
+ * Shared parsing/resolution for the `copilotOverride` mechanism.
  *
- * `.copilot-version` is a top-level `key=value` file (analogous to the electron
- * `target=` pin in `.npmrc`) that overrides the `@github/copilot` (runtime) and
- * `@github/copilot-sdk` packages VS Code depends on. See `.copilot-version` for
- * the value grammar. Queue-time pipeline parameters surface as the environment
- * variables `VSCODE_COPILOT_SDK` / `VSCODE_COPILOT_RUNTIME` and take precedence
- * over the committed file so one-off builds don't need a commit.
+ * `copilotOverride` is a top-level object in the root `package.json` (alongside
+ * `distro`) that overrides the `@github/copilot` (runtime) and
+ * `@github/copilot-sdk` packages VS Code depends on. It is keyed by npm package
+ * name — matching the `dependencies` entry it overrides — and each value is one
+ * of:
+ *
+ *   - empty        -> no override (use the version pinned in `dependencies`)
+ *   - <npm-spec>   -> a published version/range/dist-tag, e.g. `1.2.3`
+ *   - <40-hex sha> -> build from source at that commit (never drifts)
+ *
+ * A bare full 40-character lowercase commit SHA selects a source build — no npm
+ * version/range/dist-tag is 40 hex chars, so the two never collide — while
+ * branches and tags are not accepted, so a committed override can never move
+ * under us. Queue-time pipeline parameters surface as the environment variables
+ * `VSCODE_COPILOT_SDK` / `VSCODE_COPILOT_RUNTIME` and take precedence over the
+ * committed field so one-off builds don't need a commit.
  */
 
-/** The two overridable packages, keyed by their short id in `.copilot-version`. */
+/** The two overridable packages, by short id (used for env vars and logging). */
 export type CopilotPackageId = 'sdk' | 'runtime';
 
-/** Maps the short id to the npm package name declared in the manifests. */
-export const COPILOT_NPM_NAME: Record<CopilotPackageId, string> = {
-	sdk: '@github/copilot-sdk',
-	runtime: '@github/copilot',
-};
+interface CopilotPackage {
+	readonly pkg: CopilotPackageId;
+	/** npm package name — the `copilotOverride` key and the manifest dependency. */
+	readonly npmName: string;
+	/**
+	 * `owner/name` GitHub repository a commit override is built from.
+	 * `@github/copilot` is published from the internal copilot-agent-runtime repo,
+	 * so source builds of it require credentials (a GitHub App installation token).
+	 */
+	readonly repo: string;
+}
 
-/**
- * Source repositories for `git:<ref>` overrides. `@github/copilot` is published
- * from the internal github/copilot-agent-runtime repo, so source builds of it
- * require credentials for that repo (a GitHub App installation token).
- */
-const SOURCE_REPO: Record<CopilotPackageId, string> = {
-	sdk: 'github/copilot-sdk',
-	runtime: 'github/copilot-agent-runtime',
-};
+const COPILOT_PACKAGES: readonly CopilotPackage[] = [
+	{ pkg: 'sdk', npmName: '@github/copilot-sdk', repo: 'github/copilot-sdk' },
+	{ pkg: 'runtime', npmName: '@github/copilot', repo: 'github/copilot-agent-runtime' },
+];
 
 /**
  * A published-version override: pin the manifest to a concrete feed version,
@@ -49,8 +60,8 @@ export interface FeedOverride {
 }
 
 /**
- * A source override: build the package from `repo` at `ref` (a branch, tag or
- * commit) with a TypeScript-only build, then consume the result locally.
+ * A source override: build the package from `repo` at `ref` (a commit SHA),
+ * then consume the result locally.
  */
 export interface GitOverride {
 	readonly pkg: CopilotPackageId;
@@ -58,7 +69,7 @@ export interface GitOverride {
 	readonly kind: 'git';
 	/** `owner/name` GitHub repository the package is built from. */
 	readonly repo: string;
-	/** Branch, tag or commit to build. */
+	/** Full 40-character commit SHA to build. */
 	readonly ref: string;
 }
 
@@ -74,71 +85,56 @@ const SAFE_SPEC = /^[\w./+~^><=|* @#-]+$/;
 
 function assertSafeSpec(label: string, value: string): void {
 	if (!SAFE_SPEC.test(value)) {
-		throw new Error(`[copilot-override] Refusing unsafe ${label} "${value}": only semver specs and git refs are allowed.`);
+		throw new Error(`[copilot-override] Refusing unsafe ${label} "${value}": only semver specs and commit SHAs are allowed.`);
 	}
 }
 
-/**
- * Parses a `key=value` file. Blank lines and `#` comments are ignored; values
- * are trimmed and surrounding quotes stripped. Duplicate keys: last wins.
- */
-export function parseKeyValueFile(filePath: string): Map<string, string> {
-	const result = new Map<string, string>();
-	if (!fs.existsSync(filePath)) {
-		return result;
-	}
-	const text = fs.readFileSync(filePath, 'utf8');
-	for (const rawLine of text.split(/\r?\n/)) {
-		const line = rawLine.trim();
-		if (!line || line.startsWith('#')) {
-			continue;
-		}
-		const eq = line.indexOf('=');
-		if (eq === -1) {
-			throw new Error(`[copilot-override] Malformed line in ${filePath} (expected key=value): "${rawLine}"`);
-		}
-		const key = line.slice(0, eq).trim();
-		let value = line.slice(eq + 1).trim();
-		if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) {
-			value = value.slice(1, -1);
-		}
-		result.set(key, value);
-	}
-	return result;
-}
+/** A bare full commit SHA selects a source build (no npm spec is 40 hex chars). */
+const COMMIT_SHA = /^[0-9a-f]{40}$/;
+/** Hex-ish values that are probably a mistyped commit (short or upper-case). */
+const COMMIT_SHA_LIKE = /^[0-9a-fA-F]{7,40}$/;
 
 /**
- * Reads `.copilot-version` merged with the `VSCODE_COPILOT_*` environment
- * overrides and returns one resolved override per package that requests one.
- * Returns an empty array for a normal build (all values empty).
+ * Reads the root `package.json` `copilotOverride` field merged with the
+ * `VSCODE_COPILOT_*` environment overrides and returns one resolved override per
+ * package that requests one. Returns an empty array for a normal build (all
+ * values empty).
  *
- * @param root repository root containing `.copilot-version`.
+ * @param root repository root containing `package.json`.
  * @param env  environment to read queue-time overrides from (defaults to process.env).
  */
 export function resolveCopilotOverrides(root: string, env: NodeJS.ProcessEnv = process.env): CopilotOverride[] {
-	const file = parseKeyValueFile(path.join(root, '.copilot-version'));
+	const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+	const field: Record<string, unknown> = packageJson.copilotOverride ?? {};
+
+	// A misspelled package name would otherwise be silently ignored.
+	for (const key of Object.keys(field)) {
+		if (!COPILOT_PACKAGES.some(p => p.npmName === key)) {
+			throw new Error(`[copilot-override] Unknown package "${key}" in package.json copilotOverride. Expected one of: ${COPILOT_PACKAGES.map(p => p.npmName).join(', ')}.`);
+		}
+	}
 
 	const overrides: CopilotOverride[] = [];
-	for (const pkg of ['sdk', 'runtime'] as const) {
-		// Env (queue-time pipeline parameter) wins over the committed file, but an
-		// empty/whitespace env value means "unset" and falls back to the file — the
-		// pipeline normalizes its 'default' sentinel to an empty string.
+	for (const { pkg, npmName, repo } of COPILOT_PACKAGES) {
+		// Env (queue-time pipeline parameter) wins over the committed field, but an
+		// empty/whitespace env value means "unset" and falls back to package.json —
+		// the pipeline normalizes its 'default' sentinel to an empty string.
 		const envValue = (env[`VSCODE_COPILOT_${pkg.toUpperCase()}`] ?? '').trim();
-		const value = (envValue || (file.get(pkg) ?? '')).trim();
+		const committed = typeof field[npmName] === 'string' ? field[npmName] as string : '';
+		const value = (envValue || committed).trim();
 		if (!value) {
 			continue;
 		}
 
-		const npmName = COPILOT_NPM_NAME[pkg];
-		if (value.startsWith('git:')) {
-			const ref = value.slice('git:'.length).trim();
-			if (!ref) {
-				throw new Error(`[copilot-override] Empty git ref for "${pkg}" (value "${value}").`);
-			}
-			assertSafeSpec(`${pkg} git ref`, ref);
-			overrides.push({ pkg, npmName, kind: 'git', repo: SOURCE_REPO[pkg], ref });
+		if (COMMIT_SHA.test(value)) {
+			// A full 40-char lowercase SHA builds the package from source at that commit.
+			overrides.push({ pkg, npmName, kind: 'git', repo, ref: value });
+		} else if (COMMIT_SHA_LIKE.test(value)) {
+			// A short or upper-case hash would otherwise fall through to the feed and
+			// fail later with a confusing "version not found"; reject it up front.
+			throw new Error(`[copilot-override] "${npmName}" override "${value}" looks like a commit but is not a full 40-character lowercase SHA. Use the full commit hash (source build) or a published version (feed).`);
 		} else {
-			assertSafeSpec(`${pkg} version`, value);
+			assertSafeSpec(`${npmName} version`, value);
 			overrides.push({ pkg, npmName, kind: 'feed', spec: value });
 		}
 	}

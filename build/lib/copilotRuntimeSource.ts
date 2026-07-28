@@ -9,7 +9,7 @@ import * as path from 'path';
 
 /**
  * Full native source build of the `@github/copilot` runtime for a
- * `.copilot-version` `runtime=git:<ref>` override.
+ * `copilotOverride` `runtime` commit override.
  *
  * Unlike the SDK (pure TypeScript), the runtime carries compiled Rust addons, so
  * "build from source" means a real per-target native build — there is no JS-only
@@ -130,18 +130,22 @@ function ensureCheckout(marker: RuntimeMarker): string {
 	}
 
 	fs.rmSync(srcDir, { recursive: true, force: true });
-	fs.mkdirSync(path.dirname(srcDir), { recursive: true });
+	fs.mkdirSync(srcDir, { recursive: true });
 
 	const token = resolveCloneToken();
 	const authArgs = gitAuthArgs(token);
 	const url = `https://github.com/${marker.repo}.git`;
+	// Fetch just the pinned commit (GitHub allows fetching a reachable SHA), then
+	// check it out. Falls back to a full fetch if the shallow SHA fetch is refused.
+	run('git', ['init', '-q'], srcDir);
+	run('git', ['remote', 'add', 'origin', url], srcDir);
 	try {
-		run('git', [...authArgs, 'clone', '--depth', '1', '--branch', marker.ref, url, srcDir], process.cwd());
+		run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', marker.ref], srcDir);
 	} catch {
-		console.log(`[copilot-runtime-source] Shallow branch clone failed for ${marker.repo}@${marker.ref}; retrying full clone + checkout.`);
-		run('git', [...authArgs, 'clone', url, srcDir], process.cwd());
-		run('git', ['checkout', marker.ref], srcDir);
+		console.log(`[copilot-runtime-source] Shallow fetch of ${marker.repo}@${marker.ref} failed; retrying with a full fetch.`);
+		run('git', [...authArgs, 'fetch', 'origin'], srcDir);
 	}
+	run('git', ['checkout', '-q', marker.ref], srcDir);
 
 	// corepack provisions the pnpm version pinned by the runtime's packageManager
 	// field; `--ignore-scripts` skips dependency lifecycle builds (the runtime's

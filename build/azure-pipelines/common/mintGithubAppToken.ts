@@ -14,7 +14,7 @@ import * as https from 'https';
  *
  * The `copilot-agent-runtime` GitHub App:
  *   App ID  4297675
- *   Secret  vscode-oss-build-secrets / copilot-agent-runtime-gh-app (private key PEM)
+ *   Secret  vscode-build-secrets / copilot-agent-runtime-gh-app (private key PEM)
  */
 
 /** Default App ID for the `copilot-agent-runtime` GitHub App. */

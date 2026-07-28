@@ -9,7 +9,7 @@ import * as path from 'path';
 
 /**
  * Installs the Rust toolchain needed to build the `@github/copilot` runtime from
- * source, for a `.copilot-version` `runtime=git:<ref>` override. Invoked by a
+ * source, for a `copilotOverride` `runtime` commit override. Invoked by a
  * pipeline step that is gated on `VSCODE_COPILOT_RUNTIME_SOURCE=true`, so normal
  * and feed/SDK-only builds never pay this cost.
  *
