@@ -567,8 +567,9 @@ export function sessionHasChanges(session: ISession, reader: IReader | undefined
 	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
 		return true;
 	}
-	if ((session.changesSummary?.read(reader)?.files ?? 0) > 0) {
-		return true;
+	const changesSummary = session.changesSummary?.read(reader);
+	if (changesSummary !== undefined) {
+		return changesSummary.files > 0;
 	}
 	return session.changes.read(reader).length > 0;
 }
