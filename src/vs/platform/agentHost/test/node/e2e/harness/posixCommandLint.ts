@@ -43,6 +43,9 @@ interface IPosixPattern {
 }
 
 /**
+ * `pwd` is deliberately absent: PowerShell defines it as an alias for
+ * `Get-Location`, and the host uses PowerShell as its shell on Windows.
+ *
  * Constructs that do not run under `cmd`. Each is anchored to a command
  * position — the start of the string, or after a `|`, `&&`, `||` or `;` — so
  * that an argument or file name that merely contains the word does not trip it
@@ -52,7 +55,7 @@ const COMMAND_POSITION = String.raw`(?:^|[|;]|&&|\|\|)\s*`;
 
 const POSIX_PATTERNS: readonly IPosixPattern[] = [
 	{
-		pattern: new RegExp(`${COMMAND_POSITION}(?:ls|cat|rm|mv|cp|touch|wc|head|tail|grep|sed|awk|find|xxd|printf|pwd|chmod|chown|du|df|which|basename|dirname|mkdir|rmdir|ln|tee|sort|uniq|cut|tr|test|\\[|export|unset|source|\\.)\\b`),
+		pattern: new RegExp(`${COMMAND_POSITION}(?:ls|cat|rm|mv|cp|touch|wc|head|tail|grep|sed|awk|find|xxd|printf|chmod|chown|du|df|which|basename|dirname|mkdir|rmdir|ln|tee|sort|uniq|cut|tr|test|\\[|export|unset|source|\\.)\\b`),
 		reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide',
 	},
 	{

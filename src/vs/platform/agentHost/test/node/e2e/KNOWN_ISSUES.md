@@ -25,13 +25,13 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.
 
-### What is still Windows-scoped, and why
+### What is still Windows-scoped
 
-The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux, and every capture that runs a shell command is portable. Permission approval, file operations, renames, deletes, directory creation, and git status all run on Windows.
+The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux, and every capture that runs a shell command is portable. Permission approval, file operations, renames, deletes, directory creation, git status, git-backed config completions, and worktree resolution all run on Windows.
 
-One test remains deliberately scoped, at its call site with a comment:
+One row remains, and it is not about command portability: `a bang command runs locally and exposes terminal output`, where the successful bang command produces output but does not complete reliably.
 
-- `worktree session uses the resolved worktree as working directory` — cannot be fixed by pinning. `pwd` is auto-approved as a safe read-only command, while a pinned `node -e "…"` is not, so the turn stops on a permission prompt the test never answers. The assertions also compare POSIX-shaped paths. Worktree resolution itself is still asserted on Windows through the `sessionAdded` working-directory check in the same test's non-shell half.
+`POSIX_COMMAND_EXCEPTIONS` in `agentHostE2ETestHarness.ts` — the opt-out from the record-time command check — is currently empty. Keep it that way if at all possible; an entry there means a capture that can never replay on Windows.
 
 ### Steering versus pinning
 

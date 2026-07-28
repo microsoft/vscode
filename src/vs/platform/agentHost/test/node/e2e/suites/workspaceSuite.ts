@@ -28,7 +28,7 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, isWindows } = context;
+	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled } = context;
 	test('session is created with the correct working directory', async function () {
 		this.timeout(120_000);
 
@@ -53,14 +53,13 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	// Worktree isolation asserts on resolved `.worktrees/...` paths and a
 	// host-terminal `pwd`, which are POSIX-shaped (the fixtures were recorded on
 	// macOS); skip on Windows where the worktree paths and shell differ.
-	// Explicitly Windows-scoped. Unlike the other shell tests this one cannot be
-	// made portable by pinning the command: `pwd` is auto-approved as a safe
-	// read-only command, whereas a pinned `node -e "..."` is not, so the turn
-	// stops on a permission prompt the test does not answer. The assertions also
-	// compare POSIX-shaped paths. Worktree resolution itself is covered on
-	// Windows by the `sessionAdded` working-directory assertion in this test's
-	// non-shell half.
-	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
+	// `pwd` is portable here despite not being a cmd builtin: the shell turn is
+	// only reached when the provider routes commands through the host terminal
+	// tool, which on Windows is PowerShell, where `pwd` is an alias for
+	// `Get-Location`. The path assertions use `URI.fsPath`, which is
+	// platform-native, and the expected value is derived at runtime from the
+	// host's own `sessionAdded` notification rather than hardcoded.
+	(config.supportsWorktreeIsolation && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);

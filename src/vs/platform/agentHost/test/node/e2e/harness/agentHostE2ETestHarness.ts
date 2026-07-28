@@ -171,12 +171,7 @@ function fixturePathFor(provider: string, testTitle: string): string {
  * exceptions are countable in one place; adding to it should be rare and
  * deliberate. See `harness/posixCommandLint.ts`.
  */
-const POSIX_COMMAND_EXCEPTIONS = new Set([
-	// `pwd` is auto-approved as a safe read-only command while a pinned
-	// `node -e "…"` is not, so pinning stops the turn on a permission prompt the
-	// test never answers. Its assertions also compare POSIX-shaped paths.
-	'worktree session uses the resolved worktree as working directory',
-]);
+const POSIX_COMMAND_EXCEPTIONS = new Set<string>([]);
 
 export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean } {
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(testTitle);
