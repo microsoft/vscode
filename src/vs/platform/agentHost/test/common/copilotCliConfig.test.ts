@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyModelFamilyAlias, resolveModelCapabilityOverride, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
+import { applyModelFamilyAlias, getRuntimeModelFamilyOverride, resolveModelCapabilityOverride, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 
 suite('copilotCliConfig', () => {
@@ -58,6 +58,9 @@ suite('copilotCliConfig', () => {
 				// no entry at all / no overrides
 				resolveModelCapabilityOverride({ 'preview-model-x': { family: 'claude-opus-4-8' } }, 'other-model'),
 				resolveModelCapabilityOverride(undefined, 'preview-model-x'),
+				// no model id (server-side "Auto"): only the wildcard can match
+				resolveModelCapabilityOverride(overrides, undefined),
+				resolveModelCapabilityOverride({ 'preview-model-x': { family: 'claude-opus-4-8' } }, undefined),
 				// malformed (non-object) entries are ignored
 				resolveModelCapabilityOverride({ 'preview-model-x': 'oops' as never, '*': 42 as never }, 'preview-model-x'),
 			],
@@ -65,6 +68,37 @@ suite('copilotCliConfig', () => {
 				{ family: 'claude-opus-4-8', reasoningEffort: 'high', excludedTools: ['mcp:*'] },
 				{ reasoningEffort: 'medium', excludedTools: ['mcp:*'] },
 				{ family: 'claude-opus-4-8' },
+				undefined,
+				undefined,
+				{ reasoningEffort: 'medium', excludedTools: ['mcp:*'] },
+				undefined,
+				undefined,
+			]
+		);
+	});
+
+	test('getRuntimeModelFamilyOverride lowers only the wildcard entry family', () => {
+		assert.deepStrictEqual(
+			[
+				// the wildcard entry is model-independent, so it reaches the runtime
+				getRuntimeModelFamilyOverride({ '*': { family: 'claude-opus-4-8' } }),
+				// a wildcard family still wins for the runtime when a specific entry also exists
+				getRuntimeModelFamilyOverride({ '*': { family: 'claude-opus-4-8' }, 'preview-model-x': { family: 'gpt-5' } }),
+				// per-model entries stay VS Code-side (the runtime setting is process-scoped)
+				getRuntimeModelFamilyOverride({ 'preview-model-x': { family: 'claude-opus-4-8' } }),
+				// unset / empty / malformed → no override
+				getRuntimeModelFamilyOverride({ '*': { reasoningEffort: 'high' } }),
+				getRuntimeModelFamilyOverride({ '*': { family: '' } }),
+				getRuntimeModelFamilyOverride({ '*': { family: 42 as never } }),
+				getRuntimeModelFamilyOverride({ '*': 'oops' as never }),
+				getRuntimeModelFamilyOverride(undefined),
+			],
+			[
+				'claude-opus-4-8',
+				'claude-opus-4-8',
+				undefined,
+				undefined,
+				undefined,
 				undefined,
 				undefined,
 				undefined,

@@ -35,7 +35,7 @@ import { IAgentHostReviewService } from '../../common/agentHostReviewService.js'
 import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, getRuntimeModelFamilyOverride } from '../../common/copilotCliConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
@@ -81,6 +81,15 @@ const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'htt
  * Proxy env vars we set when injecting the resolved CAPI proxy.
  */
 const COPILOT_PROXY_SET_ENV_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY'] as const;
+/**
+ * Shape a runtime model family (`COPILOT_MODEL_FAMILY`) must have to be
+ * forwarded to the CLI subprocess: an id like `claude-opus-4-8` or
+ * `gpt-5.1-codex-max`. The runtime looks the value up as a key in its static
+ * agent/model config map, so nothing outside this alphabet can match anyway,
+ * and the check keeps arbitrary workspace-configured input out of the
+ * subprocess environment (see `CopilotAgent._getRuntimeModelFamily`).
+ */
+const RUNTIME_MODEL_FAMILY_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
@@ -536,9 +545,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		)));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
-		// startup changes, disposing any active sessions. Both session sync (a client
-		// option) and the rubber duck flag (a subprocess env var) are applied in
-		// `_ensureClient`, so they only take effect on the next client start.
+		// startup changes, disposing any active sessions. Session sync (a client
+		// option), the rubber duck flag, and the runtime model-family alias (both
+		// subprocess env vars) are applied in `_ensureClient`, so they only take
+		// effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to restart client after config change', err)
@@ -586,6 +596,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastSessionSyncEnabled: boolean = this._isSessionSyncEnabled();
 	private _lastRubberDuckEnabled: boolean = this._isRubberDuckEnabled();
 	private _lastEnterpriseHost: string | undefined = this._getEnterpriseHost();
+	private _lastRuntimeModelFamily: string | undefined = this._getRuntimeModelFamily();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -593,6 +604,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isRubberDuckEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.RubberDuck) === true;
+	}
+
+	/**
+	 * The family alias lowered onto the runtime process as
+	 * `COPILOT_MODEL_FAMILY` (see {@link getRuntimeModelFamilyOverride}): the
+	 * `*` capability-override entry's family, or `undefined` when unset.
+	 * Process-scoped, hence read here (client env) rather than per session.
+	 *
+	 * The value is workspace-configurable and is the only capability-override
+	 * field that crosses into the CLI subprocess environment, so it is checked
+	 * against the id shape a runtime family actually has. Anything else is
+	 * dropped with a warning rather than forwarded: a value carrying a NUL
+	 * makes `child_process.spawn` throw, which would take down every session in
+	 * the window (the client is shared), not just the misconfigured setting.
+	 */
+	private _getRuntimeModelFamily(): string | undefined {
+		const family = getRuntimeModelFamilyOverride(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides));
+		if (family === undefined || RUNTIME_MODEL_FAMILY_PATTERN.test(family)) {
+			return family;
+		}
+		// JSON-encoded and truncated: the rejected value is arbitrary workspace
+		// input and may carry control characters or be very long.
+		this._logService.warn(`[Copilot] Ignoring '*' model-family capability override ${JSON.stringify(family.slice(0, 40))}; expected an id like 'claude-opus-4-8' (letters, digits, '.', '_', '-'; 64 characters max)`);
+		return undefined;
 	}
 
 	private _getEnterpriseHost(): string | undefined {
@@ -606,28 +641,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Restarts the CLI client when a config value that is only read at client
 	 * startup ({@link _isSessionSyncEnabled} client option, {@link _isRubberDuckEnabled}
-	 * subprocess env var, or the `COPILOT_GH_HOST` enterprise host env var) has
-	 * changed. Any active sessions are disposed before the client is stopped; the
+	 * subprocess env var, the `COPILOT_GH_HOST` enterprise host env var, or the
+	 * `COPILOT_MODEL_FAMILY` runtime family alias) has changed. Any active
+	 * sessions are disposed before the client is stopped; the
 	 * latest values are picked up the next time {@link _ensureClient} runs. If the
 	 * client is still starting up, the in-flight start detects the change against
 	 * {@link _lastSessionSyncEnabled} / {@link _lastRubberDuckEnabled} /
-	 * {@link _lastEnterpriseHost} and aborts so it never comes up stale.
+	 * {@link _lastEnterpriseHost} / {@link _lastRuntimeModelFamily} and aborts so
+	 * it never comes up stale.
 	 */
 	private async _restartClientIfStartupConfigChanged(): Promise<void> {
 		const sessionSync = this._isSessionSyncEnabled();
 		const rubberDuck = this._isRubberDuckEnabled();
 		const enterpriseHost = this._getEnterpriseHost();
-		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastEnterpriseHost === enterpriseHost) {
+		const runtimeModelFamily = this._getRuntimeModelFamily();
+		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastEnterpriseHost === enterpriseHost && this._lastRuntimeModelFamily === runtimeModelFamily) {
 			return;
 		}
 		const changed = [
 			this._lastSessionSyncEnabled !== sessionSync ? `sessionSync=${sessionSync}` : undefined,
 			this._lastRubberDuckEnabled !== rubberDuck ? `rubberDuck=${rubberDuck}` : undefined,
 			this._lastEnterpriseHost !== enterpriseHost ? `enterpriseHost=${enterpriseHost}` : undefined,
+			this._lastRuntimeModelFamily !== runtimeModelFamily ? `modelFamily=${runtimeModelFamily}` : undefined,
 		].filter((v): v is string => v !== undefined).join(', ');
 		this._lastSessionSyncEnabled = sessionSync;
 		this._lastRubberDuckEnabled = rubberDuck;
 		this._lastEnterpriseHost = enterpriseHost;
+		this._lastRuntimeModelFamily = runtimeModelFamily;
 		if (this._client) {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 			this._sessions.clearAndDisposeAll();
@@ -943,6 +983,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionSyncAtStartup = this._isSessionSyncEnabled();
 		const rubberDuckAtStartup = this._isRubberDuckEnabled();
 		const enterpriseHostAtStartup = this._getEnterpriseHost();
+		const runtimeModelFamilyAtStartup = this._getRuntimeModelFamily();
 		const clientStarting = (async () => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
 
@@ -1010,6 +1051,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 				delete env['RUBBER_DUCK_AGENT'];
 			}
 
+			// Alias the model family the runtime resolves its own per-model config
+			// from (system-prompt parts, model capabilities, reasoning-effort
+			// profile) when the session's model id has no entry of its own — the
+			// runtime-side half of the `family` capability override. It is a
+			// process-scoped runtime setting (`service.agent.modelFamily`, no
+			// per-session SDK field), so only the model-independent `*` entry is
+			// lowered here; a change restarts the client
+			// (see `_restartClientIfStartupConfigChanged`).
+			const runtimeModelFamily = this._getRuntimeModelFamily();
+			if (runtimeModelFamily) {
+				env['COPILOT_MODEL_FAMILY'] = runtimeModelFamily;
+				this._logService.info(`[Copilot] Set CLI env: COPILOT_MODEL_FAMILY=${runtimeModelFamily}`);
+			} else {
+				delete env['COPILOT_MODEL_FAMILY'];
+			}
+
 			// Resolve the CLI entry point and native SDK binaries from node_modules.
 			// In the desktop app these live next to the ASAR archive in
 			// `node_modules.asar.unpacked` (the `@github/copilot-<platform>` CLI and
@@ -1050,7 +1107,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
-			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup) {
+			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup || this._getRuntimeModelFamily() !== runtimeModelFamilyAtStartup) {
 				await client.stop();
 				throw new Error('Copilot startup config changed while the client was starting');
 			}

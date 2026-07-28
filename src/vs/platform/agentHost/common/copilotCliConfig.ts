@@ -41,7 +41,15 @@ export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 export interface ICopilotCliModelCapabilityOverride {
-	/** Alias the model's family for prompt/capability routing (e.g. `"claude-opus-4-8"`). */
+	/**
+	 * Alias the model's family for prompt/capability routing (e.g. `"claude-opus-4-8"`).
+	 *
+	 * Always applies to the agent host's own prompt routing (see
+	 * {@link applyModelFamilyAlias}). On the `*` entry it is additionally lowered
+	 * onto the Copilot runtime process so the runtime's own family-keyed config
+	 * (prompt parts, model capabilities, effort profile) follows the alias — see
+	 * {@link getRuntimeModelFamilyOverride}.
+	 */
 	readonly family?: string;
 	/** Reasoning effort for sessions on this model; wins over the global {@link CopilotCliConfigKey.ReasoningEffortOverride}. Unrecognized values are ignored. */
 	readonly reasoningEffort?: string;
@@ -63,14 +71,20 @@ export const MODEL_CAPABILITY_OVERRIDE_WILDCARD = '*';
  * under the model's own entry, so a specific entry's fields win and the
  * wildcard fills the gaps. Returns `undefined` when neither entry exists.
  *
+ * `modelId` is optional because a session can run without a chosen model
+ * (server-side "Auto"). Such a session has no model-id entry to look up, but
+ * the wildcard still applies to it — it is defined as matching every session,
+ * and silently exempting model-less sessions would make a `*` entry mean
+ * "every model except Auto".
+ *
  * Field values are NOT validated here: the root-config validator only checks
  * that the setting is an object (it does not descend into
  * `additionalProperties`), so use sites validate each field defensively —
  * mirroring {@link getModelFamilyAlias}.
  */
-export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string): ICopilotCliModelCapabilityOverride | undefined {
+export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string | undefined): ICopilotCliModelCapabilityOverride | undefined {
 	const wildcard = overrides?.[MODEL_CAPABILITY_OVERRIDE_WILDCARD];
-	const entry = overrides?.[modelId];
+	const entry = modelId !== undefined ? overrides?.[modelId] : undefined;
 	if (!isObject(wildcard) && !isObject(entry)) {
 		return undefined;
 	}
@@ -114,7 +128,7 @@ export const copilotCliConfigSchema = createSchema({
 				family: {
 					type: 'string',
 					title: localize('agentHost.config.modelCapabilityOverrides.family.title', "Family"),
-					description: localize('agentHost.config.modelCapabilityOverrides.family.description', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`)."),
+					description: localize('agentHost.config.modelCapabilityOverrides.family.description', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`). On the `*` entry the alias is also applied to the Copilot runtime process, so the runtime's own family-keyed configuration follows it; the runtime restarts when this value changes."),
 				},
 				reasoningEffort: {
 					type: 'string',
@@ -143,6 +157,26 @@ export const copilotCliConfigSchema = createSchema({
 /** Returns the configured family alias for `modelId`, or `undefined`. Malformed entries are treated as unset. */
 function getModelFamilyAlias(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string): string | undefined {
 	const family = resolveModelCapabilityOverride(overrides, modelId)?.family;
+	return typeof family === 'string' && family.length > 0 ? family : undefined;
+}
+
+/**
+ * Returns the family alias to lower onto the Copilot runtime process (as
+ * `COPILOT_MODEL_FAMILY`), or `undefined` when none applies.
+ *
+ * Only the wildcard ({@link MODEL_CAPABILITY_OVERRIDE_WILDCARD}) entry
+ * qualifies: the runtime reads its family override from a **process-scoped**
+ * runtime setting (`service.agent.modelFamily`) that one runtime process shares
+ * across every session it hosts, so a per-model-id entry cannot be expressed
+ * there without leaking onto sessions running other models. The wildcard entry
+ * is model-independent by definition, so lowering it preserves its meaning.
+ *
+ * Per-model `family` entries still alias VS Code's own prompt routing (see
+ * {@link applyModelFamilyAlias}); they just stop at the process boundary.
+ */
+export function getRuntimeModelFamilyOverride(overrides: CopilotCliModelCapabilityOverrides | undefined): string | undefined {
+	const wildcard = overrides?.[MODEL_CAPABILITY_OVERRIDE_WILDCARD];
+	const family = isObject(wildcard) ? wildcard.family : undefined;
 	return typeof family === 'string' && family.length > 0 ? family : undefined;
 }
 

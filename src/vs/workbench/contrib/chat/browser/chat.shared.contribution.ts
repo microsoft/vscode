@@ -1282,19 +1282,19 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostReasoningEffortOverrideSettingId]: {
 			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created or resumed and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
 			default: '',
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
-			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating preview models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4-8`) to route a model to that family's tuned system prompt without a code change (the model id sent to the runtime is unaffected), a `reasoningEffort` to pin its effort level, or `availableTools`/`excludedTools` to filter its tool set. Tool filters apply when a session launches; the reasoning effort also re-applies on a mid-session model change. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating preview models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4-8`) to route a model to that family's tuned system prompt without a code change (the model id sent to the runtime is unaffected), a `reasoningEffort` to pin its effort level, or `availableTools`/`excludedTools` to filter its tool set. Tool filters apply when a session launches; the reasoning effort also re-applies when a session resumes and on a mid-session model change. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
 			additionalProperties: {
 				type: 'object',
 				properties: {
 					family: {
 						type: 'string',
-						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.family', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`)."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.family', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`). On the `*` entry the alias is also applied to the Copilot runtime process, so the runtime's own family-keyed configuration follows it; changing it restarts the runtime."),
 					},
 					reasoningEffort: {
 						type: 'string',

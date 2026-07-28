@@ -123,8 +123,18 @@ matches every model, a specific entry wins field-by-field) carry the non-prompt
 experimentation knobs the launcher applies: `family` (prompt-routing alias, so
 a preview model resolves through another family's contributor),
 `reasoningEffort` (wins over `chat.agentHost.reasoningEffortOverride`,
-re-applied on mid-session model change), and `availableTools`/`excludedTools`
-(SDK tool filters; launch-frozen).
+re-applied on session resume and mid-session model change), and
+`availableTools`/`excludedTools` (SDK tool filters; launch-frozen).
+
+`family` has a second, runtime-side half. The Copilot runtime keys its *own*
+per-model config (system-prompt parts, model capabilities, reasoning-effort
+profile) off the model id, falling back to a family when the id is unknown — and
+that family can be aliased only through the process-scoped
+`service.agent.modelFamily` runtime setting (env `COPILOT_MODEL_FAMILY`; the SDK
+has no per-session field for it). `CopilotAgent` therefore lowers the `'*'`
+entry's `family` — the one entry that is model-independent — onto the CLI
+subprocess env, restarting the client when it changes. Per-model `family`
+entries stay VS Code-side.
 
 > **Security note.** The setting is workspace-configurable and forwarded to the
 > agent host, so entries must never carry content that reaches the prompt or

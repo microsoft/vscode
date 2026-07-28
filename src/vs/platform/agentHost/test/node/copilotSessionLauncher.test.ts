@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -13,10 +14,11 @@ import type { IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '..
 import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
-import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, resolveByokSessionConfig, resolveCopilotReasoningEffort } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, resolveByokSessionConfig, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort } from '../../node/copilot/copilotSessionLauncher.js';
 
 /**
  * Covers the BYOK provider/model synthesis the launcher feeds into
@@ -356,10 +358,32 @@ suite('resolveCopilotReasoningEffort', () => {
 				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
 				// no per-model entry, unset global ('' marker) → picker value
 				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: '' }), log, 's1'),
-				// no model: the per-model stage is skipped, the global override applies
+				// no model (server-side "Auto"): the `*` entry still matches, and
+				// beats the global override just as it does for a known model
 				resolveCopilotReasoningEffort(undefined, configOf({ reasoningEffortOverride: 'high', modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
+				// no model and no wildcard → the global override applies
+				resolveCopilotReasoningEffort(undefined, configOf({ reasoningEffortOverride: 'high', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
 			],
-			['low', 'high', 'low', 'xhigh', 'medium', 'high']
+			['low', 'high', 'low', 'xhigh', 'medium', 'low', 'high']
+		);
+	});
+
+	test('resolveConfiguredReasoningEffortOverride reports only the configured override, never the picker value', () => {
+		const log = new NullLogService();
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		assert.deepStrictEqual(
+			[
+				// same precedence as the full resolution...
+				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
+				// ...but with no picker fallback: nothing configured (or only
+				// invalid values) reads as "leave the session's effort alone",
+				// which is what the resume path forwards.
+				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: '' }), log, 's1'),
+				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'turbo' }), log, 's1'),
+				resolveConfiguredReasoningEffortOverride(model, configOf({}), log, 's1'),
+			],
+			['low', 'xhigh', undefined, undefined, undefined]
 		);
 	});
 });
@@ -401,5 +425,80 @@ suite('filterClientToolNames', () => {
 				['readPage', 'runTask'],
 			]
 		);
+	});
+});
+
+/**
+ * Covers the session config the launcher hands to `resumeSession`: a resumed
+ * session keeps the effort the runtime persisted for it unless the host has an
+ * override configured, in which case the override re-applies at resume (create
+ * always resolves the full effort in `_createSession`).
+ */
+suite('CopilotSessionLauncher resume config', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Builds a launcher over a config service stubbed with a fixed root-value bag. */
+	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition>): CopilotSessionLauncher {
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
+		services.set(IAgentConfigurationService, {
+			_serviceBrand: undefined,
+			getRootValue: (_schema: unknown, key: string) => values[key as keyof typeof values],
+		} as unknown as IAgentConfigurationService);
+		// The launcher's other dependencies are unused by this path and resolve
+		// to `undefined` under the non-strict InstantiationService.
+		const instantiationService = store.add(new InstantiationService(services));
+		return instantiationService.createInstance(CopilotSessionLauncher);
+	}
+
+	/** Invokes the private config builder with a minimal resume plan. */
+	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ reasoningEffort?: string; excludedTools?: string[] }> {
+		const plan = {
+			kind: 'resume',
+			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+			sessionId: 'sess-1',
+			workingDirectory: URI.file('/workspace'),
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: 'token',
+			fallback: { model },
+		};
+		const runtime = { createClientSdkTools: () => [], createServerSdkTools: () => [] };
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ reasoningEffort?: string; excludedTools?: string[] }> })._buildSessionConfig(plan, runtime);
+	}
+
+	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
+		const store = new DisposableStore();
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		const perModel = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), model);
+		const global = await buildResumeConfig(createLauncher(store, { reasoningEffortOverride: 'xhigh' }), model);
+		// The picker value is NOT re-sent: without an override the resumed
+		// session keeps whatever effort the runtime persisted for it.
+		const none = await buildResumeConfig(createLauncher(store, {}), model);
+
+		assert.deepStrictEqual(
+			[perModel.reasoningEffort, global.reasoningEffort, none.reasoningEffort],
+			['low', 'xhigh', undefined]
+		);
+		store.dispose();
+	});
+
+	test('a session with no stored model still gets the wildcard entry effort and tool filters', async () => {
+		const store = new DisposableStore();
+		// Sessions created without an explicit model (server-side "Auto") resume
+		// with `fallback.model === undefined`; `*` means every session, so
+		// exempting them would make the entry mean "every model except Auto".
+		const launcher = createLauncher(store, { modelCapabilityOverrides: { '*': { reasoningEffort: 'high', excludedTools: ['mcp:*'] }, 'gpt-5': { reasoningEffort: 'low' } } });
+		const config = await buildResumeConfig(launcher, undefined);
+
+		assert.deepStrictEqual(
+			[config.reasoningEffort, config.excludedTools],
+			['high', ['mcp:*']]
+		);
+		store.dispose();
 	});
 });

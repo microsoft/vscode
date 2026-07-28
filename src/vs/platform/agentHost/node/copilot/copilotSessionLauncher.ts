@@ -265,36 +265,56 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined, eff
 }
 
 /**
- * Resolves the reasoning effort, applying the host-level overrides and logging
- * whether they applied. Precedence: the per-model capability override (keyed
- * by the real, un-aliased model id) wins over the global override, which wins
- * over the model picker's thinking level; an invalid value at either stage
- * falls through to the next. Shared by the launcher (create) and
- * `CopilotAgent._changeModel` (mid-session model change) for consistency.
+ * Log label for a session's model: the model id, or a marker for a session
+ * with no chosen model (server-side "Auto") so the log line still reads.
  */
-export function resolveCopilotReasoningEffort(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
-	if (model) {
-		const overrides = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
-		const perModel = resolveModelCapabilityOverride(overrides, model.id)?.reasoningEffort;
-		if (perModel !== undefined) {
-			if (isReasoningEffort(perModel)) {
-				logService.info(`[Copilot:${sessionId}] Applying per-model reasoning-effort override '${perModel}' for '${model.id}'`);
-				return perModel;
-			}
-			logService.warn(`[Copilot:${sessionId}] Ignoring invalid per-model reasoning-effort override '${perModel}' for '${model.id}'; expected one of [${ReasoningEfforts.join(', ')}]`);
+function describeModelId(model: ModelSelection | undefined): string {
+	return model?.id ?? '(no model)';
+}
+
+/**
+ * Resolves the configured host-level reasoning-effort override alone (no picker
+ * fallback), logging whether it applied. Precedence: the per-model capability
+ * override (keyed by the real, un-aliased model id, falling back to the `*`
+ * entry) wins over the global
+ * {@link CopilotCliConfigKey.ReasoningEffortOverride}; an invalid value at
+ * either stage falls through to the next, and `undefined` means "no override
+ * configured — use the session's own effort".
+ */
+export function resolveConfiguredReasoningEffortOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
+	const overrides = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
+	// A model-less session (server-side "Auto") has no model-id entry, but the
+	// `*` entry still applies to it — see `resolveModelCapabilityOverride`.
+	const perModel = resolveModelCapabilityOverride(overrides, model?.id)?.reasoningEffort;
+	if (perModel !== undefined) {
+		if (isReasoningEffort(perModel)) {
+			logService.info(`[Copilot:${sessionId}] Applying per-model reasoning-effort override '${perModel}' for '${describeModelId(model)}'`);
+			return perModel;
 		}
+		logService.warn(`[Copilot:${sessionId}] Ignoring invalid per-model reasoning-effort override '${perModel}' for '${describeModelId(model)}'; expected one of [${ReasoningEfforts.join(', ')}]`);
 	}
 	const rawOverride = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ReasoningEffortOverride);
 	// '' is the schema's unset marker, so an unset override reads as `undefined`.
 	const override = rawOverride ? rawOverride : undefined;
-	if (override !== undefined) {
-		if (isReasoningEffort(override)) {
-			logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
-		} else {
-			logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);
-		}
+	if (override === undefined) {
+		return undefined;
 	}
-	return getCopilotReasoningEffort(model, override);
+	if (isReasoningEffort(override)) {
+		logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
+		return override;
+	}
+	logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);
+	return undefined;
+}
+
+/**
+ * Resolves the reasoning effort, applying the host-level overrides (see
+ * {@link resolveConfiguredReasoningEffortOverride}) over the model picker's
+ * thinking level. Shared by the launcher (create) and
+ * `CopilotAgent._changeModel` (mid-session model change) for consistency.
+ */
+export function resolveCopilotReasoningEffort(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
+	return resolveConfiguredReasoningEffortOverride(model, configurationService, logService, sessionId) ?? getCopilotReasoningEffort(model);
 }
 
 /**
@@ -648,15 +668,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
-		// Capability overrides are keyed by the real, un-aliased model id; the
-		// resolved entry drives the tool filters below.
+		// Capability overrides are keyed by the real, un-aliased model id (a
+		// model-less "Auto" session matches the `*` entry only); the resolved
+		// entry drives the tool filters below.
 		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
-		const capabilityOverride = model ? resolveModelCapabilityOverride(capabilityOverrides, model.id) : undefined;
+		const capabilityOverride = resolveModelCapabilityOverride(capabilityOverrides, model?.id);
 		// Per-model tool filters, passed through to the SDK's allow/deny fields
 		// (`excludedTools` wins inside the SDK). Like the system message, they
 		// are frozen at launch — a mid-session model change cannot re-apply them.
-		const availableTools = getToolFilterOverride(capabilityOverride?.availableTools, 'availableTools', model?.id ?? '', this._logService, plan.sessionId);
-		const excludedTools = getToolFilterOverride(capabilityOverride?.excludedTools, 'excludedTools', model?.id ?? '', this._logService, plan.sessionId);
+		const availableTools = getToolFilterOverride(capabilityOverride?.availableTools, 'availableTools', describeModelId(model), this._logService, plan.sessionId);
+		const excludedTools = getToolFilterOverride(capabilityOverride?.excludedTools, 'excludedTools', describeModelId(model), this._logService, plan.sessionId);
 		// Client tools (browser tools, tasks, etc.) are addressed by the name the
 		// agent sees them under; the FILTERED set gates tool-specific prompt
 		// sections so the prompt never advertises a tool the filters disabled.
@@ -685,6 +706,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return {
 			...byok,
 			clientName: 'vscode',
+			// Resume only: `_createSession` re-resolves the full effort (override
+			// over picker) for a create. A resumed session keeps the effort the
+			// runtime persisted for it, so only a configured override is sent —
+			// otherwise the field stays absent and nothing is re-pinned.
+			...(plan.kind === 'resume' ? { reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId) } : {}),
 			enableMcpApps: true,
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
