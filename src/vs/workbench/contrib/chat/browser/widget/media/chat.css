@@ -1196,6 +1196,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize-compact);
 	/* Keep the control corner radius in both states — the enabled rule below only
 		adds the filled background, it shouldn't be what defines the shape. */
 	border-radius: var(--vscode-cornerRadius-small);
@@ -1203,9 +1205,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-newline::before {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-arrow-up-compact::before {
 	display: inline-block;
 	transform: translateY(0.5px);
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-plus::before {
+	transform: translateX(0.5px);
 }
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
