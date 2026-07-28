@@ -1174,7 +1174,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								: s.status === AgentSessionStatus.Completed ? 'idle'
 									: 'unknown');
 					if (currentState !== 'unknown') {
-						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '', pendingId: this._pendingIdFor(s.resource.toString()), lastResponseSummary: info?.last_response_summary ?? '' });
+						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '', pendingId: currentState === 'waiting_for_confirmation' ? this._pendingIdFor(s.resource.toString()) : '', lastResponseSummary: info?.last_response_summary ?? '' });
 					}
 				}
 				// Also seed regular chat sessions so the autorun doesn't trigger false transitions
@@ -1184,7 +1184,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (chatModel.getRequests().length === 0) { continue; }
 					const info = this._getAgentStateInfo(chatModel);
 					if (info.state !== 'unknown') {
-						this._prevSessionStates.set(key, { state: info.state, detail: info.detail ?? '', pendingId: this._pendingIdFor(key), lastResponseSummary: info.last_response_summary ?? '' });
+						this._prevSessionStates.set(key, { state: info.state, detail: info.detail ?? '', pendingId: info.state === 'waiting_for_confirmation' ? this._pendingIdFor(key) : '', lastResponseSummary: info.last_response_summary ?? '' });
 					}
 				}
 
@@ -1253,7 +1253,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						// a second form asking the same things looks identical. The pending
 						// id names the occurrence, and is what makes replacing one form
 						// with another a transition worth narrating.
-						const pendingId = this._pendingIdFor(sessionId);
+						const pendingId = currentState === 'waiting_for_confirmation' ? this._pendingIdFor(sessionId) : '';
 						const isDetailTransition = !isStateTransition && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 						// A completed reply's summary often lands AFTER the idle
 						// transition (or updates while still idle); the model stays
@@ -3839,6 +3839,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * like no change at all and is never narrated.
 	 */
 	private _pendingIdFor(sessionId: string): string {
+		// Only meaningful while a session is showing a pending item; callers skip
+		// it otherwise rather than walk a settled response's parts for nothing.
 		let resource: URI | undefined;
 		try {
 			resource = URI.parse(sessionId);
@@ -5032,7 +5034,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 			const prev = this._prevSessionStates.get(sessionId);
 			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-			const pendingId = this._pendingIdFor(sessionId);
+			const pendingId = currentState === 'waiting_for_confirmation' ? this._pendingIdFor(sessionId) : '';
 			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 
 			// Arm the awaiting-summary marker on a genuine new turn so this run's
@@ -5103,7 +5105,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 			const prev = this._prevSessionStates.get(key);
 			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-			const pendingId = this._pendingIdFor(key);
+			const pendingId = currentState === 'waiting_for_confirmation' ? this._pendingIdFor(key) : '';
 			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 
 			// Arm the awaiting-summary marker on a genuine new turn.
