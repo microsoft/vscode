@@ -311,6 +311,10 @@ export class NewChatWidget extends Disposable {
 		if (!this._chatTipContainer) {
 			return;
 		}
+		// Don't show a tip in the no-agent-host empty state — there is no usable composer.
+		if (this._chatTipContainer.parentElement?.classList.contains('no-agent-host')) {
+			return;
+		}
 		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
 			this._isChatTipSessionInitialized = false;
 			this._clearChatTip();
@@ -554,12 +558,14 @@ export class NewChatWidget extends Disposable {
 			chatWidgetContent.classList.remove('no-agent-host');
 			dom.clearNode(pickerSlot);
 			stateDisposables.value = this._renderWorkspacePicker(pickerSlot);
+			this._renderChatTip();
 		};
 
 		const showEmptyState = () => {
 			chatWidgetContent.classList.add('no-agent-host');
 			dom.clearNode(pickerSlot);
 			stateDisposables.value = this._renderEmptyState(pickerSlot);
+			this._clearChatTip();
 		};
 
 		const filter = this.agentHostFilterService;
