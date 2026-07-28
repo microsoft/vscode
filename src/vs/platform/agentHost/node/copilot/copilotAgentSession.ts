@@ -3751,6 +3751,17 @@ export class CopilotAgentSession extends Disposable {
 			if (!turnId) {
 				return;
 			}
+			if (!e.agentId) {
+				this._telemetryReporter.autoModeRouterDecision({
+					session: this.sessionUri.toString(),
+					turnId,
+					chosenModel: e.data.chosenModel,
+					predictedLabel: e.data.predictedLabel,
+					confidence: e.data.confidence,
+					candidateModels: e.data.candidateModels,
+					categoryScores: e.data.categoryScores,
+				});
+			}
 			autoModeResolved = { turnId, data: e.data };
 			const priorUsage = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
 			const usage: UsageInfo = {

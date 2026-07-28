@@ -60,6 +60,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { getDictationHoverMarkdown } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonMenuActions.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
@@ -339,8 +340,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		private readonly options: {
 			session: IObservable<IActiveSession | undefined>;
 			getContextFolderUri: () => URI | undefined;
-			sendRequest: (request: INewChatInputSendRequest) => Promise<void>;
+			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
 			canSendRequest: IObservable<boolean>;
+			canSubmitWithoutSession?: IObservable<boolean>;
+			hasAdditionalSendContent?: IObservable<boolean>;
 			loading: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
@@ -377,6 +380,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
 		this._canSendRequest = derived(this, reader => {
+			if (this.options.canSubmitWithoutSession?.read(reader)) {
+				return true;
+			}
 			const modelSelection = this._sessionModelSelectionModel.state.read(reader);
 			return this.options.canSendRequest.read(reader) && modelSelection.hasSelectableModel && !modelSelection.pendingSelection;
 		});
@@ -408,6 +414,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 		this._register(autorun(reader => {
 			this._canSendRequest.read(reader);
+			this.options.hasAdditionalSendContent?.read(reader);
 			const isLoading = this.options.loading.read(reader);
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
@@ -865,10 +872,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupDelayedHover(button, () => ({
 			// While the model prepares, surface the download/connecting hover
 			// (which invites the user to click to cancel) so this composer matches
-			// the main chat toolbar affordance.
+			// the main chat toolbar affordance. Idle gets the richer description
+			// naming the configured dictation model.
 			content: sttService.isPreparingModel
 				? getDictationDownloadHoverMarkdown(sttService)
-				: (sttService.state !== ChatSpeechToTextState.Idle ? stopLabel : micLabel),
+				: (sttService.state !== ChatSpeechToTextState.Idle ? stopLabel : getDictationHoverMarkdown(micLabel, this.configurationService)),
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
 		})));
@@ -889,13 +897,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				// First-use only. The on-device backend downloads a model, so
 				// render a download icon wrapped by a progress ring; the cloud
 				// backend just connects, so render a plain spinner instead.
+				// Glyphs render at the compact 12px size, so use the `*Compact`
+				// variants where one exists.
 				if (sttService.currentBackend === 'mai') {
-					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 				} else {
-					dom.append(button, renderIcon(Codicon.micDownload));
+					dom.append(button, renderIcon(Codicon.micDownloadCompact));
 					downloadRing.value = new DictationDownloadRing(button, sttService);
 				}
 			} else {
+				// `mic` / `micFilled` have no compact variant, so they stay as-is.
 				dom.append(button, renderIcon(recording ? Codicon.micFilled : Codicon.mic));
 			}
 			button.classList.toggle('recording', recording && !preparing);
@@ -1048,20 +1059,25 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Send ---
 
 
-	private async _send(background = false): Promise<void> {
+	async submit(background = false): Promise<boolean> {
+		return this._send(background);
+	}
+
+	private async _send(background = false): Promise<boolean> {
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
 		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
-		if ((!query && !hasSendableAttachment) || this._sending) {
-			return;
+		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
+		if ((!query && !hasSendableAttachment && !hasAdditionalSendContent) || this._sending) {
+			return false;
 		}
 
 		// Respect the same gate as the send button (e.g. a session with no
 		// usable model). The Enter keybinding and slash-command paths reach
 		// here directly, bypassing the button's disabled state.
 		if (!this._canSendRequest.get()) {
-			return;
+			return false;
 		}
 
 		// Measure any pending dictation accuracy against the text being sent,
@@ -1069,14 +1085,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		notifyDictationSubmitted(this._editor);
 
 		const session = this.options.session.get();
-		if (session && await this.chatSubmitRequestHandlerService.tryHandle({
+		if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
 			sessionResource: session.resource,
 			providerId: session.providerId,
 			sessionId: session.sessionId,
 			input: query,
 		})) {
 			this._editor.getModel()?.setValue('');
-			return;
+			return true;
 		}
 
 		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
@@ -1095,18 +1111,25 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateSendButtonState();
 		this._updateInputLoadingState();
 
+		let sent = false;
 		try {
-			await this.options.sendRequest({ query: request, attachments: attachedContext, background });
+			sent = await this.options.sendRequest({ query: request, attachments: attachedContext, background });
+			if (!sent) {
+				return false;
+			}
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
+			return false;
+		} finally {
+			this._sending = false;
+			this._editor.updateOptions({ readOnly: false });
+			this._updateDraftState();
+			this._updateSendButtonState();
+			this._updateInputLoadingState();
 		}
-
-		this._sending = false;
-		this._editor.updateOptions({ readOnly: false });
-		this._updateSendButtonState();
-		this._updateInputLoadingState();
+		return sent;
 	}
 
 	private _updateSendButtonState(): void {
@@ -1115,7 +1138,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
-		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment) && this._canSendRequest.get();
+		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
+		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment || hasAdditionalSendContent) && this._canSendRequest.get();
 	}
 
 	private _restoreState(): void {

@@ -8,11 +8,8 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
     response:
-      content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
       stopReason: end_turn
-      usage:
-        inputTokens: 2586
-        outputTokens: 46
   - request:
       model: claude-opus-4.8
       system: ${system}
@@ -20,7 +17,7 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
         - role: assistant
-          content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
           content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
     response:
@@ -32,9 +29,6 @@ exchanges:
             command: pwd
             description: Print working directory
       stopReason: tool_use
-      usage:
-        inputTokens: 2
-        outputTokens: 74
   - request:
       model: claude-opus-4.8
       system: ${system}
@@ -42,7 +36,7 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
         - role: assistant
-          content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
           content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
         - role: assistant
@@ -56,10 +50,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+              content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
     response:
-      content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
       stopReason: end_turn
-      usage:
-        inputTokens: 2
-        outputTokens: 46

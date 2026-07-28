@@ -941,7 +941,7 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 			markdownDescription: nls.localize('chat.turnStatusPills', "Controls whether agent status pills are shown above the chat input while a turn is in progress and inside the completed response. Only applies to agent sessions."),
-			default: false,
+			default: true,
 		},
 		[mcpAccessConfig]: {
 			type: 'string',

@@ -190,16 +190,16 @@ const ENABLED_SETTING = 'dictation.enabled';
 /**
  * Selects the dictation model. On-device model ids (e.g.
  * `nemotron-speech-streaming-en-0.6b`) run through {@link ILocalTranscriptionService};
- * the sentinel {@link MAI_MODEL_ID} routes to the cloud voice service instead.
+ * the sentinel {@link DICTATION_MAI_MODEL_ID} routes to the cloud voice service instead.
  */
-const MODEL_SETTING = 'dictation.model';
+export const DICTATION_MODEL_SETTING = 'dictation.model';
 
 export const enum DictationSettingId {
 	ShowTranscript = 'dictation.showTranscript',
 }
 
 /** `dictation.model` sentinel selecting the cloud voice backend used by Voice Mode. */
-const MAI_MODEL_ID = 'mai';
+export const DICTATION_MAI_MODEL_ID = 'mai';
 
 /**
  * Experimental: when enabled, the final dictation transcript is passed through a
@@ -592,7 +592,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ENABLED_SETTING) || e.affectsConfiguration(MODEL_SETTING)) {
+			if (e.affectsConfiguration(ENABLED_SETTING) || e.affectsConfiguration(DICTATION_MODEL_SETTING)) {
 				this._updateConfiguredContextKey();
 			}
 		}));
@@ -600,7 +600,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	/** Read the configured dictation backend, derived from the selected model. */
 	private _getBackend(): DictationBackend {
-		return this._configurationService.getValue<string>(MODEL_SETTING) === MAI_MODEL_ID ? 'mai' : 'nemo';
+		return this._configurationService.getValue<string>(DICTATION_MODEL_SETTING) === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
 	}
 
 	get currentBackend(): string {
@@ -1116,7 +1116,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private _getModelId(): string | undefined {
-		const value = this._configurationService.getValue<string>(MODEL_SETTING);
+		const value = this._configurationService.getValue<string>(DICTATION_MODEL_SETTING);
 		return value ? value.trim() || undefined : undefined;
 	}
 

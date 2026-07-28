@@ -102,6 +102,16 @@ Whenever the user flags a wrong pattern, rejects an approach, or gives design/ru
 
 - **Shared commands must delegate behavior to the layout service, not inspect a layout implementation**: `workbench.action.toggleAuxiliaryBar` must call the semantic `IWorkbenchLayoutService.toggleSecondarySideBar()` operation. Do not branch on optional layout properties or concrete workbench shape in the shared action; each workbench owns how its secondary-sidebar affordance maps to visible parts.
 
+- **Definitive session deletion and temporary list eviction are different operations**: deletion clears durable provenance and pending state; filtering a still-existing session only removes its visible list entry. Keep the list-removal helper side-effect-free, and let each caller explicitly update its mutation generation instead of passing an "already incremented" boolean.
+
+- **Keep session-list refresh filtering linear**: when retention pruning needs the complete backend key set, collect those keys while filtering entries in the original loop, then reconcile last-seen/pruning afterward. Do not introduce a candidate-map/filter/map pipeline when one loop plus one reconciliation call expresses the lifecycle more clearly.
+
+- **Centralize session workspace filtering behind a semantic predicate**: refresh, add-notification, and summary-update paths should call one `_isSessionInWorkspace(entry)`-style helper. Keep key construction, working-directory parsing, pending-local lookup, and provenance checks out of each caller so the high-level list flow stays readable and all paths apply identical rules.
+
+- **Feature-specific workspace storage must be gated at the storage service boundary**: Editor multi-root provenance is enabled only for a non-Sessions window with `WorkbenchState.WORKSPACE` and more than one open folder. Lazy-load it only after that gate passes; folder/empty/Agents windows must use ordinary path filtering and never read, write, refresh, or delete the persisted state.
+
+- **Keep legacy single-folder filtering explicit when adding multi-root provenance**: zero-folder windows still include all sessions, and one-folder windows still use direct any-directory path containment. Call the provenance service only when the window has multiple folders; keep its internal scope gate as defense-in-depth.
+
 - **Name semantic layout operations after the user-facing surface**: a shared operation must use the stable UI concept (`toggleSecondarySideBar()`), not the implementation term (`AuxiliaryBar`) that happens to back it in classic layouts. This keeps single-pane mappings clear and avoids leaking layout internals through the API.
 
 - **Semantic layout commands need matching visibility and focus semantics**: when a shared command maps to a different surface, expose a semantic visibility query for its toggled state and transfer focus before hiding the currently focused mapped surface. Otherwise menu labels lie about the action and keyboard users retain focus in hidden content.
