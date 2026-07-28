@@ -156,6 +156,12 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}));
 
+		this._register(autorun(reader => {
+			if (!this._enabled.read(reader)) {
+				this.stop();
+			}
+		}));
+
 		{ // Determine editor type
 			const isNotebook = this.textModel.uri.scheme === Schemas.vscodeNotebookCell;
 			const [diffEditor] = this._codeEditorService.listDiffEditors()
@@ -370,7 +376,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._onlyRequestInlineEditsSignal.read(reader);
 		this._forceUpdateExplicitlySignal.read(reader);
 		this._fetchSpecificProviderSignal.read(reader);
-		const shouldUpdate = ((this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader))
+		const shouldUpdate = (this._enabled.read(reader) && (this._selectedSuggestItem.read(reader) || this._isActive.read(reader)))
 			&& (!this._inlineCompletionsService.isSnoozing() || changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit);
 		if (!shouldUpdate) {
 			this._source.cancelUpdate();
