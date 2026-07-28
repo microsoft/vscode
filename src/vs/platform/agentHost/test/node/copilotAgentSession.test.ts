@@ -881,7 +881,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('preserves simple attachment display kind through SDK blobs', async () => {
+	test('sends display-kind simple attachments as inline text SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const attachment = {
 			type: MessageAttachmentKind.Simple,
@@ -894,7 +894,7 @@ suite('CopilotAgentSession', () => {
 		const sdkAttachment = {
 			type: 'blob' as const,
 			data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
-			mimeType: 'text/plain; x-vscode-display-kind=workspace',
+			mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=workspace',
 			displayName: attachment.label,
 		};
 		assert.deepStrictEqual(mockSession.sendRequests, [{
@@ -978,7 +978,7 @@ suite('CopilotAgentSession', () => {
 			attachments: [{
 				type: 'blob',
 				data: encodeBase64(VSBuffer.fromString('Transcript text')),
-				mimeType: 'text/plain; x-vscode-display-kind=paste',
+				mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=paste',
 				displayName: 'Previous conversation',
 			}],
 		}]);
@@ -994,7 +994,7 @@ suite('CopilotAgentSession', () => {
 				attachments: [{
 					type: 'blob',
 					data: encodeBase64(VSBuffer.fromString('Transcript text')),
-					mimeType: 'text/plain; x-vscode-display-kind=paste',
+					mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=paste',
 					displayName: 'Previous conversation',
 				}],
 			},

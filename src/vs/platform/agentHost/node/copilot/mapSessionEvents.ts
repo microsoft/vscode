@@ -709,13 +709,13 @@ function sdkAttachmentToProtocol(
 			if (typeof attachment.data !== 'string') {
 				return undefined;
 			}
-			if (attachment.mimeType.startsWith('text/plain')) {
-				const displayKind = readSimpleAttachmentDisplayKindFromMimeType(attachment.mimeType);
+			const simpleDisplayKind = readSimpleAttachmentDisplayKindFromMimeType(attachment.mimeType);
+			if (attachment.mimeType.startsWith('text/plain') || simpleDisplayKind !== undefined) {
 				return {
 					type: MessageAttachmentKind.Simple,
 					label: attachment.displayName ?? 'attachment',
 					modelRepresentation: decodeBase64(attachment.data ?? '').toString(),
-					...(displayKind !== undefined ? { displayKind } : {}),
+					...(simpleDisplayKind !== undefined ? { displayKind: simpleDisplayKind } : {}),
 				};
 			}
 			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;
