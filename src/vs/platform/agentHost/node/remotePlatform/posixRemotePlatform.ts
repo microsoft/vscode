@@ -5,12 +5,14 @@
 
 import {
 	shellEscape,
+	sshOperation,
 	validateCommit,
 	validateShellToken,
 	type ISshExec,
 } from '../sshRemoteAgentHostHelpers.js';
 import {
 	_asRemotePath,
+	type IInstallCliOptions,
 	type IRemoteLaunchSpec,
 	type IRemotePlatform,
 	type IRemotePlatformInfo,
@@ -97,31 +99,39 @@ export class PosixRemotePlatform implements IRemotePlatform {
 	}
 
 	async isExecutableFile(exec: ISshExec, path: RemotePath): Promise<boolean> {
-		const { code } = await exec(`test -x ${path}`, { ignoreExitCode: true });
+		const { code } = await exec(`test -x ${path}`, { description: sshOperation.checkCli, ignoreExitCode: true });
 		return code === 0;
 	}
 
 	async touchFile(exec: ISshExec, path: RemotePath): Promise<boolean> {
-		const { code } = await exec(`touch -- ${path}`, { ignoreExitCode: true });
+		const { code } = await exec(`touch -- ${path}`, { description: sshOperation.touchCli, ignoreExitCode: true });
 		return code === 0;
 	}
 
 	async versionCheck(exec: ISshExec, cliBin: RemotePath): Promise<boolean> {
-		const { code } = await exec(`${cliBin} --version`, { ignoreExitCode: true });
+		const { code } = await exec(`${cliBin} --version`, { description: sshOperation.verifyCli, ignoreExitCode: true });
 		return code === 0;
 	}
 
-	async installCli(exec: ISshExec, options: { url: string; installRoot: RemotePath; cliBin: RemotePath }): Promise<void> {
-		const { url, installRoot, cliBin } = options;
+	async installCli(exec: ISshExec, options: IInstallCliOptions): Promise<void> {
+		const { url, installRoot, cliBin, publish } = options;
+		// `mv -n` (GNU, BSD and BusyBox) leaves an existing destination alone;
+		// `mv -f` renames over it and fails the `&&` chain when it cannot.
+		const publishStep = publish === 'immutable'
+			? `mv -n "$tmpdir"/* ${cliBin}`
+			: `mv -f "$tmpdir"/* ${cliBin}`;
+		// The explicit modes are the install boundary: `mktemp -d` is already
+		// 0700, but `mkdir -p` and `tar` both answer to the ambient umask.
 		const cmd = [
 			`mkdir -p ${installRoot}`,
+			`chmod 700 ${installRoot}`,
 			`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
 			`(cd "$tmpdir" && curl -fsSL ${shellEscape(url)} | tar xz)`,
-			`mv "$tmpdir"/* ${cliBin}`,
-			`chmod +x ${cliBin}`,
+			publishStep,
+			`chmod 700 ${cliBin}`,
 			`rm -rf "$tmpdir"`,
 		].join(' && ');
-		await exec(cmd);
+		await exec(cmd, { description: sshOperation.installCli });
 	}
 
 	async pruneOldClis(exec: ISshExec, serverDataFolderName: string, quality: string, keep: number): Promise<void> {
@@ -131,7 +141,7 @@ export class PosixRemotePlatform implements IRemotePlatform {
 		const root = this.installRoot(serverDataFolderName);
 		const archive = this.cliArchiveName(quality);
 		const cmd = `ls -1t -- ${root}/${archive}-${COMMIT_GLOB} 2>/dev/null | awk 'NR>${keep}' | xargs -I{} rm -f -- {} 2>/dev/null; true`;
-		await exec(cmd, { ignoreExitCode: true });
+		await exec(cmd, { description: sshOperation.pruneClis, ignoreExitCode: true });
 	}
 
 	async findFallbackClis(exec: ISshExec, serverDataFolderName: string, quality: string): Promise<readonly RemotePath[]> {
@@ -145,7 +155,7 @@ export class PosixRemotePlatform implements IRemotePlatform {
 			`ls -1 -- ${legacyBin} 2>/dev/null`,
 			'true',
 		].join('; ');
-		const { stdout } = await exec(cmd, { ignoreExitCode: true });
+		const { stdout } = await exec(cmd, { description: sshOperation.findClis, ignoreExitCode: true });
 		const results: RemotePath[] = [];
 		for (const line of stdout.split('\n')) {
 			const trimmed = line.trim();

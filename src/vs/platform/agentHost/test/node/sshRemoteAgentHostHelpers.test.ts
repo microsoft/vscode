@@ -482,13 +482,15 @@ suite('SSH Remote Agent Host Helpers', () => {
 				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=0\n'),
 				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=99999\n'),
 				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=nope\n'),
+				// A zone index cannot be expressed in a URL authority.
+				parseAgentHostEndpointLine('__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=fe80::1%eth0 port=1234\n'),
 				parseAgentHostEndpointLine('ws://localhost:1234?tkn=abc'),
-			], [undefined, undefined, undefined, undefined, undefined, undefined]);
+			], [undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
 		});
 
 		test('ignores a line that has not arrived in full', () => {
 			// The buffer grows chunk by chunk, so a partial line must not be
-			// mistaken for a complete one — that would latch a truncated port
+			// mistaken for a complete one - that would latch a truncated port
 			// or token and clear the start-up timeout.
 			const complete = '__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=10.1.2.3 port=31545 token=abcdef\n';
 			assert.deepStrictEqual([

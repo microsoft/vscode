@@ -447,7 +447,7 @@ pub enum CodeError {
 	SingletonLockfileOpenFailed(std::io::Error),
 	#[error("could not publish the agent host lockfile, refusing to start an undiscoverable agent host: {0}")]
 	AgentHostMetadataWriteFailed(String),
-	#[error("refusing to use the running agent host: {0}. Run `code agent kill` and start it again to mint fresh credentials")]
+	#[error("refusing to use the running agent host: {0}. Remove that file and the agent host lockfile, then start the agent host again to mint fresh credentials")]
 	AgentHostInsecureCredentials(String),
 	#[error("could not read singleton lock file: {0:?}")]
 	SingletonLockfileReadFailed(rmp_serde::decode::Error),

@@ -54,13 +54,31 @@ export interface IRemoteLaunchSpec {
  * A single launch argument: either a literal value the platform quotes, or a
  * {@link RemotePath} the platform emits as-is.
  *
- * The distinction is load-bearing. A remote path is a shell *expression* —
- * `~/...` on POSIX, `"$env:USERPROFILE\..."` on Windows — that only resolves
+ * The distinction is load-bearing. A remote path is a shell *expression* -
+ * `~/...` on POSIX, `"$env:USERPROFILE\..."` on Windows - that only resolves
  * because the remote shell expands it. Quoting one as a literal ships the
  * unexpanded text to the CLI, which then tries to create a directory called
  * `$env:USERPROFILE\...`.
  */
 export type LaunchArg = string | { readonly path: RemotePath };
+
+/**
+ * How {@link IRemotePlatform.installCli} publishes the downloaded binary.
+ *
+ * `immutable` names a commit-keyed destination whose content is fixed by its
+ * name, so an existing file is by definition the same build and wins. `replaceable`
+ * names a mutable dev-build destination whose existing content may be anything,
+ * so it is overwritten and a failure to overwrite is an error.
+ */
+export type CliPublishPolicy = 'immutable' | 'replaceable';
+
+/** Inputs to {@link IRemotePlatform.installCli}. */
+export interface IInstallCliOptions {
+	readonly url: string;
+	readonly installRoot: RemotePath;
+	readonly cliBin: RemotePath;
+	readonly publish: CliPublishPolicy;
+}
 
 /**
  * Per-OS strategy for the remote operations the SSH agent-host transport
@@ -96,7 +114,7 @@ export interface IRemotePlatform {
 	/**
 	 * Parse a candidate path returned by the remote. Returns the branded
 	 * remote path when it matches one of the recognised shapes,
-	 * `undefined` otherwise — remote output arrives untrusted and only
+	 * `undefined` otherwise - remote output arrives untrusted and only
 	 * validated shapes may re-enter a command.
 	 */
 	parseFallbackCliPath(candidate: string, serverDataFolderName: string, quality: string): RemotePath | undefined;
@@ -111,11 +129,12 @@ export interface IRemotePlatform {
 	versionCheck(exec: ISshExec, cliBin: RemotePath): Promise<boolean>;
 
 	/**
-	 * Download and unpack the CLI archive from `url` into `installRoot`
-	 * and publish it at `cliBin`. Concurrent invocations for the same
-	 * commit-keyed destination must not corrupt each other.
+	 * Download and unpack the CLI archive from `url` into `installRoot` and
+	 * publish it at `cliBin` under the requested {@link CliPublishPolicy}.
+	 * The install root, the extraction directory and the published binary are
+	 * left restricted to the connecting account before the binary can run.
 	 */
-	installCli(exec: ISshExec, options: { url: string; installRoot: RemotePath; cliBin: RemotePath }): Promise<void>;
+	installCli(exec: ISshExec, options: IInstallCliOptions): Promise<void>;
 
 	/**
 	 * Remove older commit-keyed CLI binaries from the install root,

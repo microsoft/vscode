@@ -183,39 +183,75 @@ suite('WindowsRemotePlatform', () => {
 
 	suite('installCli', () => {
 
-		test('publishes without -Force and treats existing destination as success', async () => {
+		/** Slice out the publication block, which is the only policy-dependent part. */
+		function publishStepOf(payload: string): string {
+			return payload
+				.split(`if ($null -eq $extracted) { throw 'No .exe extracted from CLI archive' }\n`)[1]
+				.split('\n} finally {')[0];
+		}
+
+		test('protects the install boundary, then publishes according to the policy', async () => {
 			const p = windowsPlatform();
 			const installRoot = p.installRoot(sdf);
 			const cliBin = p.cliBin(sdf, quality, commit);
-			const url = 'https://example.test/cli.zip';
-			const fake = createFakeExec([{ match: /.*/, code: 0 }]);
+			const observed: Record<string, unknown> = {};
 
-			await p.installCli(fake.exec, { url, installRoot, cliBin });
+			for (const publish of ['immutable', 'replaceable'] as const) {
+				const fake = createFakeExec([{ match: /.*/, code: 0 }]);
+				await p.installCli(fake.exec, { url: `https://example.test/'inject'`, installRoot, cliBin, publish });
+				const [boundary, download] = fake.calls.map(call => decodePayload(call.command));
+				assertEnvelope(boundary);
+				assertEnvelope(download);
+				observed[publish] = {
+					allowedSids: /^\$sids = .*$/m.exec(boundary)?.[0],
+					grantsRoot: boundary.includes(`& icacls $root /inheritance:r /grant:r @($sids | ForEach-Object { '*' + $_ + ':(OI)(CI)F' }) | Out-Null`),
+					sweepsForeignSids: boundary.includes(`foreach ($s in (Get-VSCodeExtraSid $root)) { & icacls $root /remove:g ('*' + $s) | Out-Null }`),
+					refusesUnprotectedRoot: boundary.includes(`if ($LASTEXITCODE -ne 0 -or $extra.Count -gt 0) { throw ('Could not restrict permissions on ' + $root`),
+					boundaryDownloadsNothing: !boundary.includes('Invoke-WebRequest'),
+					escapedUrl: /^\$url = .*$/m.exec(download)?.[0],
+					requiresProtectedRoot: download.includes(`if (-not (Test-Path -PathType Container -LiteralPath $root)) { throw 'Install root is missing' }`),
+					resetsPublishedAcl: download.includes(`& icacls $dest /reset | Out-Null`),
+					publishStep: publishStepOf(download),
+					forcesMove: /Move-Item[^\n]*-Force/.test(download),
+					withinCommandLineBudget: fake.calls.every(call => call.command.length < 8000),
+				};
+			}
 
-			const payload = decodePayload(fake.calls[0].command);
-			assertEnvelope(payload);
-			assert.ok(payload.includes(`$root = ${installRoot}`));
-			assert.ok(payload.includes(`$dest = ${cliBin}`));
-			assert.ok(payload.includes(`$url = 'https://example.test/cli.zip'`));
-			assert.ok(payload.includes(`Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip`));
-			assert.ok(payload.includes(`Expand-Archive -LiteralPath $zip -DestinationPath $tmpdir -Force`));
-			assert.ok(payload.includes(`Move-Item -LiteralPath $extracted.FullName -Destination $dest -ErrorAction Stop`));
-			assert.ok(!/Move-Item[^\n]*-Force/.test(payload), 'must not use -Force on Move-Item (would overwrite mapped binary)');
-			assert.ok(payload.includes(`if (-not (Test-Path -PathType Leaf -LiteralPath $dest)) { throw }`));
-			assert.ok(payload.includes(`Remove-Item -LiteralPath $tmpdir -Recurse -Force -ErrorAction SilentlyContinue`));
-			assert.ok(payload.trimEnd().endsWith(`exit 0`));
-		});
-
-		test('URL is embedded as a single-quoted PS literal with single quotes escaped', async () => {
-			const p = windowsPlatform();
-			const fake = createFakeExec([{ match: /.*/, code: 0 }]);
-			await p.installCli(fake.exec, {
-				url: 'https://example.test/\'inject\'',
-				installRoot: p.installRoot(sdf),
-				cliBin: p.cliBin(sdf, quality, commit),
+			const boundary = {
+				allowedSids: `$sids = @('S-1-3-4', 'S-1-5-18', 'S-1-5-32-544')`,
+				grantsRoot: true,
+				sweepsForeignSids: true,
+				refusesUnprotectedRoot: true,
+				boundaryDownloadsNothing: true,
+				escapedUrl: `$url = 'https://example.test/''inject'''`,
+				requiresProtectedRoot: true,
+				resetsPublishedAcl: true,
+				forcesMove: false,
+				withinCommandLineBudget: true,
+			};
+			assert.deepStrictEqual(observed, {
+				immutable: {
+					...boundary,
+					publishStep: [
+						`  try {`,
+						`    Move-Item -LiteralPath $extracted.FullName -Destination $dest -ErrorAction Stop`,
+						`  } catch {`,
+						`    if (-not (Test-Path -PathType Leaf -LiteralPath $dest)) { throw }`,
+						`  }`,
+					].join('\n'),
+				},
+				replaceable: {
+					...boundary,
+					publishStep: [
+						`  if (Test-Path -PathType Leaf -LiteralPath $dest) {`,
+						`    try { [System.IO.File]::Replace($extracted.FullName, $dest, [NullString]::Value) }`,
+						`    catch { throw ('Could not replace ' + $dest + ': ' + $_.Exception.Message) }`,
+						`  } else {`,
+						`    Move-Item -LiteralPath $extracted.FullName -Destination $dest -ErrorAction Stop`,
+						`  }`,
+					].join('\n'),
+				},
 			});
-			const payload = decodePayload(fake.calls[0].command);
-			assert.ok(payload.includes(`$url = 'https://example.test/''inject'''`));
 		});
 	});
 
@@ -295,7 +331,7 @@ suite('WindowsRemotePlatform', () => {
 			assert.ok(payload.trimEnd().endsWith(`exit $LASTEXITCODE`));
 		});
 
-		test('buildRawLaunchCommand throws — raw overrides are POSIX-only', () => {
+		test('buildRawLaunchCommand throws - raw overrides are POSIX-only', () => {
 			const p = windowsPlatform();
 			assert.throws(() => p.buildRawLaunchCommand('/opt/dev/code agent host'), /not supported on Windows/);
 		});

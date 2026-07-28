@@ -72,8 +72,8 @@ function spawnWire(command: string, mode: InvocationMode, home: string): Promise
 function createLocalExec(mode: InvocationMode, home: string): ISshExec {
 	return async (command, opts) => {
 		const result = await spawnWire(command, mode, home);
-		if (result.code !== 0 && !opts?.ignoreExitCode) {
-			throw new Error(`command failed (exit ${result.code}): ${command}\nstderr: ${result.stderr}`);
+		if (result.code !== 0 && !opts.ignoreExitCode) {
+			throw new Error(`could not ${opts.description} (exit ${result.code})\nstderr: ${result.stderr}`);
 		}
 		return result;
 	};
@@ -83,7 +83,7 @@ function psLiteral(value: string): string {
 	return `'${value.replace(/'/g, `''`)}'`;
 }
 
-async function runPowerShell(script: string): Promise<void> {
+async function runPowerShell(script: string): Promise<string> {
 	const result = await new Promise<IExecResult>((resolve, reject) => {
 		const child = cp.spawn('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { windowsHide: true });
 		const stdout: Buffer[] = [];
@@ -100,6 +100,37 @@ async function runPowerShell(script: string): Promise<void> {
 	if (result.code !== 0) {
 		throw new Error(`test scaffolding PowerShell failed (exit ${result.code}): ${result.stderr}`);
 	}
+	return result.stdout;
+}
+
+interface IAclSnapshot {
+	readonly inheritanceBlocked: boolean;
+	readonly allowedSids: readonly string[];
+}
+
+/**
+ * Every principal the DACL grants, inherited ACEs included, so a host that
+ * converts inherited entries into explicit ones rather than dropping them is
+ * still caught.
+ */
+async function readAcl(path: string): Promise<IAclSnapshot> {
+	const script = [
+		`$sd = if (Test-Path -PathType Container -LiteralPath ${psLiteral(path)}) { [System.Security.AccessControl.DirectorySecurity]::new(${psLiteral(path)}, 'Access') } else { [System.Security.AccessControl.FileSecurity]::new(${psLiteral(path)}, 'Access') }`,
+		`$sids = @($sd.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | Where-Object { $_.AccessControlType -eq 'Allow' } | ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique) -join ','`,
+		`Write-Output ($sd.AreAccessRulesProtected.ToString() + '|' + $sids)`,
+	].join('\n');
+	const [blocked, sids] = (await runPowerShell(script)).trim().split('|');
+	return { inheritanceBlocked: blocked === 'True', allowedSids: sids ? sids.split(',') : [] };
+}
+
+/** DACL an install boundary is expected to carry: owner, SYSTEM, Administrators. */
+const BOUNDARY_SIDS = ['S-1-3-4', 'S-1-5-18', 'S-1-5-32-544'];
+const PROTECTED_ACL: IAclSnapshot = { inheritanceBlocked: true, allowedSids: BOUNDARY_SIDS };
+const INHERITED_ACL: IAclSnapshot = { inheritanceBlocked: false, allowedSids: BOUNDARY_SIDS };
+
+/** Grant `Everyone` full control so anything inherited from here is visible. */
+function grantEveryone(path: string): Promise<string> {
+	return runPowerShell(`& icacls ${psLiteral(path)} /grant '*S-1-1-0:(OI)(CI)F' | Out-Null; exit $LASTEXITCODE`);
 }
 
 function windowsPlatform(): WindowsRemotePlatform {
@@ -133,9 +164,14 @@ function writeStampedFile(path: string, contents: string, ageInHours: number): v
 	fs.utimesSync(path, stamp, stamp);
 }
 
-async function serveZip(bytes: Buffer): Promise<{ url: string; dispose(): Promise<void> }> {
+/**
+ * Serves the CLI archive. `beforeRespond` runs once the payload has asked for
+ * the archive, which is the only moment the extraction temp directory exists.
+ */
+async function serveZip(bytes: Buffer, beforeRespond?: () => Promise<void>): Promise<{ url: string; dispose(): Promise<void> }> {
 	const http = await import('http');
-	const server = http.createServer((_request, response) => {
+	const server = http.createServer(async (_request, response) => {
+		await beforeRespond?.();
 		response.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': String(bytes.length) });
 		response.end(bytes);
 	});
@@ -262,7 +298,7 @@ async function createCliZip(dir: string): Promise<Buffer> {
 		});
 	});
 
-	test('installCli downloads, expands and publishes the CLI, then tolerates a populated destination', async () => {
+	test('installCli downloads, expands and publishes the CLI, then tolerates a populated immutable destination', async () => {
 		const platform = windowsPlatform();
 		const zipBytes = await createCliZip(testDir);
 		const server = await serveZip(zipBytes);
@@ -276,10 +312,12 @@ async function createCliZip(dir: string): Promise<Buffer> {
 					url: server.url,
 					installRoot: platform.installRoot(SDF),
 					cliBin: platform.cliBin(SDF, QUALITY, COMMIT),
+					publish: 'immutable' as const,
 				};
 
 				await platform.installCli(exec, options);
 				const installed = fs.readFileSync(cliFilePath(home, commitExeName(COMMIT)), 'utf8');
+				fs.writeFileSync(cliFilePath(home, commitExeName(COMMIT)), 'winner');
 				await platform.installCli(exec, options);
 
 				observed[mode] = {
@@ -293,8 +331,118 @@ async function createCliZip(dir: string): Promise<Buffer> {
 		}
 
 		assert.deepStrictEqual(observed, {
-			direct: { installed: CLI_MARKER, stillInstalled: CLI_MARKER, leftovers: [] },
-			cmd: { installed: CLI_MARKER, stillInstalled: CLI_MARKER, leftovers: [] },
+			direct: { installed: CLI_MARKER, stillInstalled: 'winner', leftovers: [] },
+			cmd: { installed: CLI_MARKER, stillInstalled: 'winner', leftovers: [] },
+		});
+	});
+
+	test('installCli replaces a stale destination under the replaceable policy', async () => {
+		const platform = windowsPlatform();
+		const zipBytes = await createCliZip(testDir);
+		const server = await serveZip(zipBytes);
+		const observed: Record<string, unknown> = {};
+
+		try {
+			for (const mode of MODES) {
+				const home = homeFor(mode);
+				seedInstallRoot(home);
+				const dest = cliFilePath(home, `${ARCHIVE}.exe`);
+				fs.writeFileSync(dest, 'stale-and-broken');
+				const options = {
+					url: server.url,
+					installRoot: platform.installRoot(SDF),
+					cliBin: platform.cliBin(SDF, QUALITY),
+					publish: 'replaceable' as const,
+				};
+
+				await platform.installCli(createLocalExec(mode, home), options);
+
+				observed[mode] = {
+					replaced: fs.readFileSync(dest, 'utf8'),
+					leftovers: fs.readdirSync(installRootPath(home)).filter(entry => entry.startsWith('.cli-install-')),
+				};
+			}
+		} finally {
+			await server.dispose();
+		}
+
+		assert.deepStrictEqual(observed, {
+			direct: { replaced: CLI_MARKER, leftovers: [] },
+			cmd: { replaced: CLI_MARKER, leftovers: [] },
+		});
+	});
+
+	test('installCli replaces a running destination under the replaceable policy', async () => {
+		// `File.Replace` renames the mapped image aside instead of unlinking
+		// it, so publication succeeds and the running process is undisturbed.
+		const platform = windowsPlatform();
+		const zipBytes = await createCliZip(testDir);
+		const server = await serveZip(zipBytes);
+		const home = homeFor('direct');
+		seedInstallRoot(home);
+		const dest = cliFilePath(home, `${ARCHIVE}.exe`);
+		fs.copyFileSync(join(SYSTEM32, 'ping.exe'), dest);
+
+		const child = cp.spawn(dest, ['-n', '600', '127.0.0.1'], { windowsHide: true });
+		const exited = new Promise<void>(resolve => child.on('close', () => resolve()));
+		const observed: Record<string, unknown> = {};
+		try {
+			await new Promise<void>((resolve, reject) => {
+				child.once('spawn', () => resolve());
+				child.once('error', reject);
+			});
+
+			await platform.installCli(createLocalExec('direct', home), {
+				url: server.url,
+				installRoot: platform.installRoot(SDF),
+				cliBin: platform.cliBin(SDF, QUALITY),
+				publish: 'replaceable',
+			});
+
+			observed.replaced = fs.readFileSync(dest, 'utf8');
+			observed.stillRunning = child.exitCode === null;
+		} finally {
+			child.kill();
+			await exited;
+			await server.dispose();
+		}
+
+		assert.deepStrictEqual(observed, { replaced: CLI_MARKER, stillRunning: true });
+	});
+
+	test('installCli restricts the install root, the extraction directory and the published binary', async () => {
+		const platform = windowsPlatform();
+		const zipBytes = await createCliZip(testDir);
+		const home = homeFor('direct');
+		// A parent handing out full control to everyone: without an explicit
+		// boundary every path created beneath it inherits that grant.
+		await grantEveryone(home);
+
+		let tempDirAcl: IAclSnapshot | undefined;
+		const server = await serveZip(zipBytes, async () => {
+			const staging = fs.readdirSync(installRootPath(home)).find(entry => entry.startsWith('.cli-install-'));
+			tempDirAcl = staging ? await readAcl(join(installRootPath(home), staging)) : undefined;
+		});
+
+		try {
+			await platform.installCli(createLocalExec('direct', home), {
+				url: server.url,
+				installRoot: platform.installRoot(SDF),
+				cliBin: platform.cliBin(SDF, QUALITY, COMMIT),
+				publish: 'immutable',
+			});
+		} finally {
+			await server.dispose();
+		}
+
+		assert.deepStrictEqual({
+			installRoot: await readAcl(installRootPath(home)),
+			tempDir: tempDirAcl,
+			publishedBinary: await readAcl(cliFilePath(home, commitExeName(COMMIT))),
+		}, {
+			installRoot: PROTECTED_ACL,
+			tempDir: INHERITED_ACL,
+			publishedBinary: INHERITED_ACL,
 		});
 	});
 

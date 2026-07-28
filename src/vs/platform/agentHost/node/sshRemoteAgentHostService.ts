@@ -35,7 +35,9 @@ import {
 	extractAgentHostWebSocketURL,
 	parseAgentHostEndpointLine,
 	redactToken,
+	sshOperation,
 	type ISshExec,
+	type ISshExecOptions,
 } from './sshRemoteAgentHostHelpers.js';
 import { PosixRemotePlatform } from './remotePlatform/posixRemotePlatform.js';
 import { detectRemotePlatform } from './remotePlatform/remotePlatformDetection.js';
@@ -88,7 +90,7 @@ const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
  * How long to wait for `code agent host` to report its endpoint.
  *
  * This must be the *outer* budget. The CLI allows itself five minutes for the
- * supervisor to become ready, and our timer starts earlier still — before the
+ * supervisor to become ready, and our timer starts earlier still - before the
  * remote shell starts, before the CLI is even invoked. An equal budget would
  * let us give up while the CLI is legitimately still within its own, which on a
  * slow link means abandoning a first connect that was about to succeed.
@@ -274,7 +276,7 @@ function isEncryptedPrivateKey(key: Buffer): boolean {
 	return !!cipher && cipher.value !== 'none';
 }
 
-function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: boolean }): Promise<{ stdout: string; stderr: string; code: number }> {
+function sshExec(client: SSHClient, command: string, opts: ISshExecOptions): Promise<{ stdout: string; stderr: string; code: number }> {
 	return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
 		client.exec(command, (err: Error | undefined, stream: SSHChannel) => {
 			if (err) {
@@ -295,8 +297,13 @@ function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: b
 					reject(error);
 					return;
 				}
-				if (code !== 0 && !opts?.ignoreExitCode) {
-					reject(new Error(`SSH command failed (exit ${code}): ${command}\nstderr: ${stderr}`));
+				if (code !== 0 && !opts.ignoreExitCode) {
+					// The command itself never reaches the message: on Windows it is
+					// an opaque base64 payload, and it may carry secrets.
+					const detail = redactToken(stderr.trim());
+					reject(new Error(detail
+						? localize('sshCommandFailedDetail', "Could not {0} on the remote (exit code {1}).\n{2}", opts.description, code, detail)
+						: localize('sshCommandFailed', "Could not {0} on the remote (exit code {1}).", opts.description, code)));
 				} else {
 					resolve({ stdout, stderr, code: code ?? 0 });
 				}
@@ -313,6 +320,11 @@ function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: b
 /** Create a bound exec function for the given SSH client. */
 function bindSshExec(client: SSHClient): ISshExec {
 	return (command, opts) => sshExec(client, command, opts);
+}
+
+/** Raised when a freshly installed CLI still fails its `--version` check. */
+function cliUnusableAfterInstallError(cliBin: string): Error {
+	return new Error(localize('sshCliUnusableAfterInstall', "The VS Code CLI installed on the remote at {0} does not run.", cliBin));
 }
 
 function startRemoteAgentHost(
@@ -338,7 +350,7 @@ function startRemoteAgentHost(
 				executable: _asRemotePath(cliBin!),
 				args: ['--cli-data-dir', { path: _asRemotePath(cliDataDir!) }, 'agent', 'host', '--port', '0'],
 			});
-		logService.info(`${LOG_PREFIX} Starting remote agent host: ${cmd}`);
+		logService.info(`${LOG_PREFIX} Remote operation: ${sshOperation.launchAgentHost}`);
 
 		client.exec(cmd, (err: Error | undefined, stream: SSHChannel) => {
 			if (err) {
@@ -752,10 +764,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			//    itself classifies its lockfile and either reuses the live
 			//    supervisor or spawns a fresh one; both paths report the same
 			//    endpoint line we parse. The desktop therefore neither reads,
-			//    writes nor cleans up remote lifecycle state — the CLI owns
+			//    writes nor cleans up remote lifecycle state - the CLI owns
 			//    it. See REMOTE_PLATFORM.md section 4.
 			if (config.remoteAgentHostCommand) {
-				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
+				this._logService.info(`${LOG_PREFIX} Using the configured custom agent host command`);
 			} else {
 				const platform = await detectRemotePlatform(bindSshExec(sshClient));
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.info.os}-${platform.info.arch}`);
@@ -1429,11 +1441,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		const url = buildCLIDownloadUrl(platform.info.os, platform.info.arch, this._quality, commit);
 
 		try {
-			await platform.installCli(exec, { url, installRoot, cliBin });
+			await platform.installCli(exec, { url, installRoot, cliBin, publish: 'immutable' });
 			// Validate the installed binary actually runs. If the archive was
 			// for the wrong platform / corrupted, this surfaces immediately.
 			if (!(await platform.versionCheck(exec, cliBin))) {
-				throw new Error(`CLI at ${cliBin} failed --version check after install`);
+				throw cliUnusableAfterInstallError(cliBin);
 			}
 			this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
 			// Prune older commit-keyed installs now that the new binary is
@@ -1474,7 +1486,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
 		const url = buildCLIDownloadUrl(platform.info.os, platform.info.arch, this._quality);
 
-		await platform.installCli(exec, { url, installRoot, cliBin });
+		// The destination is a mutable dev-build name and the binary already
+		// there failed its version check, so it must be overwritten - and the
+		// replacement re-validated, or the connection fails further downstream
+		// with nothing pointing at the CLI.
+		await platform.installCli(exec, { url, installRoot, cliBin, publish: 'replaceable' });
+		if (!(await platform.versionCheck(exec, cliBin))) {
+			throw cliUnusableAfterInstallError(cliBin);
+		}
 		this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
 		return cliBin;
 	}

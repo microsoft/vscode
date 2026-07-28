@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import type { ISshExec } from '../sshRemoteAgentHostHelpers.js';
+import { sshOperation, type ISshExec } from '../sshRemoteAgentHostHelpers.js';
 import { PosixRemotePlatform } from './posixRemotePlatform.js';
 import type { IRemotePlatform, IRemotePlatformInfo, RemoteArch, RemoteOS } from './remotePlatform.js';
 import { buildWindowsDetectionCommand, WindowsRemotePlatform } from './windowsRemotePlatform.js';
@@ -76,7 +76,7 @@ export function resolveWindowsPlatformInfo(probeOutput: string): IRemotePlatform
  * probes' output so the failure is diagnosable.
  */
 export async function detectRemotePlatform(exec: ISshExec): Promise<IRemotePlatform> {
-	const posix = await exec('uname -s -m', { ignoreExitCode: true });
+	const posix = await exec('uname -s -m', { description: sshOperation.detectPlatform, ignoreExitCode: true });
 	if (posix.code === 0) {
 		const info = resolveRemotePlatformInfo(posix.stdout);
 		if (info) {
@@ -85,7 +85,7 @@ export async function detectRemotePlatform(exec: ISshExec): Promise<IRemotePlatf
 	}
 
 	const windowsCommand = buildWindowsDetectionCommand();
-	const win = await exec(windowsCommand, { ignoreExitCode: true });
+	const win = await exec(windowsCommand, { description: sshOperation.detectPlatform, ignoreExitCode: true });
 	if (win.code === 0) {
 		const info = resolveWindowsPlatformInfo(win.stdout);
 		if (info) {

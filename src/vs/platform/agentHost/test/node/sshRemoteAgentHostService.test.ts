@@ -883,18 +883,33 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			'should not download CLI when already installed');
 	});
 
-	test('downloads CLI when version check fails', async () => {
+	test('downloads CLI when version check fails, then re-validates the replacement', async () => {
 		service.execResponses = [
 			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '', code: 127 },             // CLI --version fails (not found)
 			{ stdout: '', code: 0 },               // curl | tar install
+			{ stdout: '1.0.0\n', code: 0 },       // post-install --version succeeds
 		];
 
 		await service.connect(makeConfig());
 
-		const execCalls = service.mockClients[0].execCalls;
-		assert.ok(execCalls.some(c => c.includes('curl')),
-			'should download CLI when not installed');
+		const installCall = service.mockClients[0].execCalls.find(c => c.includes('curl'));
+		assert.deepStrictEqual({
+			downloaded: !!installCall,
+			overwritesDestination: !!installCall?.includes('mv -f '),
+			revalidated: service.mockClients[0].execCalls.filter(c => c.includes('--version')).length,
+		}, { downloaded: true, overwritesDestination: true, revalidated: 2 });
+	});
+
+	test('rejects when the freshly downloaded CLI still does not run', async () => {
+		service.execResponses = [
+			{ stdout: 'Linux x86_64\n', code: 0 },
+			{ stdout: '', code: 127 },             // CLI --version fails (not found)
+			{ stdout: '', code: 0 },               // curl | tar install reports success
+			{ stdout: '', code: 126 },             // post-install --version still fails
+		];
+
+		await assert.rejects(service.connect(makeConfig()), /does not run/);
 	});
 
 	// --- Commit-pinned install flow (release builds with productService.commit) ---
@@ -968,8 +983,8 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			assert.ok(installCall, `should have run curl install; saw: ${JSON.stringify(execCalls)}`);
 			assert.ok(installCall!.includes(`commit:${commit}`),
 				`install URL should be commit-pinned; got: ${installCall}`);
-			assert.ok(installCall!.includes(`mv `) && installCall!.includes(cliBin),
-				`install should atomic-mv into commit-keyed path; got: ${installCall}`);
+			assert.ok(installCall!.includes(`mv -n `) && installCall!.includes(cliBin),
+				`install should atomic-mv into commit-keyed path without overwriting; got: ${installCall}`);
 		});
 
 		test('falls back to any usable CLI when commit-pinned download fails', async () => {
@@ -1223,7 +1238,7 @@ suite('SSHRemoteAgentHostMainService - Windows remote', () => {
 
 		const execCalls = service.mockClients[0].execCalls;
 		// Detection ran the single combined POSIX probe first, then the
-		// encoded Windows probe — proving the fix landed and the regression
+		// encoded Windows probe - proving the fix landed and the regression
 		// (two `uname` calls) cannot slip back in.
 		const posixProbeIdx = execCalls.findIndex(c => c === 'uname -s -m');
 		assert.ok(posixProbeIdx >= 0, `combined uname probe missing; saw: ${JSON.stringify(execCalls)}`);
@@ -1247,19 +1262,44 @@ suite('SSHRemoteAgentHostMainService - Windows remote', () => {
 			{ stdout: '', code: 127 },                                              // uname -s -m fails
 			{ stdout: 'VSCODE_REMOTE_OS=win32 VSCODE_REMOTE_ARCH=arm64\r\n', code: 0 }, // Windows detection probe
 			{ stdout: '', code: 1 },                                                // versionCheck fails → download
-			{ stdout: '', code: 0 },                                                // installCli succeeds
+			{ stdout: '', code: 0 },                                                // install boundary succeeds
+			{ stdout: '', code: 0 },                                                // download succeeds
 		];
 
 		await service.connect(makeConfig({ sshConfigHost: 'win-arm-host' }));
 
 		const execCalls = service.mockClients[0].execCalls;
-		// Detection + versionCheck + installCli are all encoded PS payloads;
-		// no POSIX shell strings should slip through.
+		// Detection, versionCheck, both installCli steps and the post-install
+		// versionCheck are encoded PS payloads; no POSIX shell strings.
 		const psCalls = execCalls.filter(c => c.startsWith(PS_PREFIX));
-		assert.strictEqual(psCalls.length, 3,
-			`expected 3 encoded-PS calls (detect, version, install); saw: ${JSON.stringify(execCalls)}`);
-		assert.ok(!execCalls.some(c => c.includes('curl')), `POSIX curl must not run; saw: ${JSON.stringify(execCalls)}`);
-		assert.ok(!execCalls.some(c => c.includes('test -x')), `POSIX test -x must not run; saw: ${JSON.stringify(execCalls)}`);
+		assert.strictEqual(psCalls.length, 5,
+			`expected 5 encoded-PS calls (detect, version, boundary, download, re-version); saw ${execCalls.length} calls`);
+		assert.ok(!execCalls.some(c => c.includes('curl')), `POSIX curl must not run; saw ${execCalls.length} calls`);
+		assert.ok(!execCalls.some(c => c.includes('test -x')), `POSIX test -x must not run; saw ${execCalls.length} calls`);
+	});
+
+	test('a failing command reports the operation, never the encoded payload', async () => {
+		service.execResponses = [
+			{ stdout: '', code: 127 },                                              // uname -s -m fails
+			{ stdout: 'VSCODE_REMOTE_OS=win32 VSCODE_REMOTE_ARCH=x64\r\n', code: 0 }, // Windows detection probe
+			{ stdout: '', code: 1 },                                                // versionCheck fails → download
+			{ stdout: '', code: 5 },                                                // installCli fails
+		];
+
+		await assert.rejects(
+			() => service.connect(makeConfig({ sshConfigHost: 'win-host' })),
+			(err: Error) => {
+				const payload = service.mockClients[0].execCalls.filter(c => c.startsWith(PS_PREFIX)).pop()!.slice(PS_PREFIX.length);
+				assert.deepStrictEqual({
+					message: err.message,
+					leaksPayload: err.message.includes(payload.slice(0, 32)),
+				}, {
+					message: 'Could not install the VS Code CLI on the remote (exit code 5).',
+					leaksPayload: false,
+				});
+				return true;
+			},
+		);
 	});
 
 	test('rejects with a diagnostic quoting both probes when neither parses', async () => {
@@ -1271,12 +1311,12 @@ suite('SSHRemoteAgentHostMainService - Windows remote', () => {
 		await assert.rejects(
 			() => service.connect(makeConfig({ sshConfigHost: 'weird-host' })),
 			(err: Error) => {
-				const msg = err.message;
-				return msg.includes('Could not detect remote platform')
-					&& msg.includes('POSIX probe')
-					&& msg.includes('"FreeBSD amd64"')
-					&& msg.includes('Windows probe')
-					&& msg.includes('"noise line"');
+				assert.deepStrictEqual(err.message, [
+					'Could not determine the operating system of the remote.',
+					'POSIX probe exited 0: "FreeBSD amd64"',
+					'Windows probe exited 0: "noise line"',
+				].join('\n'));
+				return true;
 			},
 		);
 	});

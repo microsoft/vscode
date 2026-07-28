@@ -1018,13 +1018,16 @@ impl AgentHostSidecar {
 	pub async fn bind_tcp(
 		log: log::Logger,
 		manager: Arc<AgentHostManager>,
-		addr: SocketAddr,
-		host_label: Option<String>,
-		loopback_auth: LoopbackAuth,
-		connection_token_file: Option<String>,
-		tunnel_name: Option<String>,
-		lockfile_path: PathBuf,
+		binding: AgentHostBinding,
 	) -> Result<Arc<Self>, AnyError> {
+		let AgentHostBinding {
+			addr,
+			host_label,
+			loopback_auth,
+			connection_token_file,
+			tunnel_name,
+			lockfile_path,
+		} = binding;
 		let public_token = loopback_auth.into_token();
 		let listener = TcpListener::bind(addr)
 			.await
@@ -1043,6 +1046,7 @@ impl AgentHostSidecar {
 		let metadata = build_metadata(
 			pid,
 			host,
+			dial_host_for_bound(bound_addr.ip()),
 			bound_addr.port(),
 			public_token.clone(),
 			connection_token_file,
@@ -1053,7 +1057,7 @@ impl AgentHostSidecar {
 			// supervisor: `code agent host` classifies it to decide whether to
 			// reuse or spawn, `code agent ps` lists from it, and the desktop
 			// resolves the endpoint through it. A supervisor that serves without
-			// publishing it is invisible — every later invocation spawns another
+			// publishing it is invisible - every later invocation spawns another
 			// one, and nothing can find any of them to clean up. Failing here
 			// keeps the invariant that readiness implies discoverability.
 			return Err(CodeError::AgentHostMetadataWriteFailed(e.to_string()).into());
@@ -1161,6 +1165,7 @@ impl Drop for AgentHostSidecar {
 fn build_metadata(
 	pid: u32,
 	host: String,
+	dial_host: String,
 	port: u16,
 	connection_token: Option<String>,
 	connection_token_file: Option<String>,
@@ -1168,6 +1173,7 @@ fn build_metadata(
 ) -> AgentHostMetadata {
 	let mut metadata = AgentHostMetadata::new(pid, port);
 	metadata.host = Some(host);
+	metadata.dial_host = Some(dial_host);
 	metadata.connection_token = connection_token;
 	metadata.connection_token_file = connection_token_file;
 	metadata.quality = VSCODE_CLI_QUALITY.map(str::to_string);
@@ -1175,9 +1181,37 @@ fn build_metadata(
 	metadata
 }
 
+/// Address a client should dial to reach a listener bound to `bound`.
+///
+/// A wildcard bind is reachable through the loopback of its own family; any
+/// other address is already the thing to dial.
+pub fn dial_host_for_bound(bound: std::net::IpAddr) -> String {
+	if !bound.is_unspecified() {
+		return bound.to_string();
+	}
+	match bound {
+		std::net::IpAddr::V4(_) => std::net::Ipv4Addr::LOCALHOST.to_string(),
+		std::net::IpAddr::V6(_) => std::net::Ipv6Addr::LOCALHOST.to_string(),
+	}
+}
+
 /// Name of the file `code agent host` mints its connection token into,
 /// relative to the launcher root, when `--connection-token-file` is absent.
 pub const AGENT_HOST_TOKEN_FILE_NAME: &str = "agent-host-token";
+
+/// Everything a supervisor needs to bind its public listener and publish
+/// itself, so callers pass one value rather than a row of positional options.
+pub struct AgentHostBinding {
+	pub addr: SocketAddr,
+	/// The `--host` the user asked for, recorded verbatim so a later
+	/// invocation can tell a differing request from a matching one. It is not
+	/// what clients dial; see [`dial_host_for_bound`].
+	pub host_label: Option<String>,
+	pub loopback_auth: LoopbackAuth,
+	pub connection_token_file: Option<String>,
+	pub tunnel_name: Option<String>,
+	pub lockfile_path: PathBuf,
+}
 
 /// How the loopback TCP accept loop authenticates incoming connections.
 /// Forces callers to make a deliberate choice rather than accidentally
@@ -1248,6 +1282,9 @@ pub enum AgentHostLockfileDecision {
 	Reuse {
 		pid: u32,
 		host: Option<String>,
+		/// Resolved address to dial. Absent in lockfiles written before it
+		/// was recorded, where the caller falls back to the `host` label.
+		dial_host: Option<String>,
 		port: u16,
 		token: Option<String>,
 		tunnel_name: Option<String>,
@@ -1275,7 +1312,7 @@ enum TokenFileLocation {
 ///
 /// Prefers the recorded path. Falling back to the default roots is what keeps
 /// a supervisor started by an older CLI usable, but only when the candidate
-/// holds exactly this supervisor's token — otherwise it is some other
+/// holds exactly this supervisor's token - otherwise it is some other
 /// installation's file and proves nothing about this one.
 fn locate_token_file(
 	metadata: &AgentHostMetadata,
@@ -1388,6 +1425,7 @@ fn classify_agent_host_lockfile_with_roots(
 	AgentHostLockfileDecision::Reuse {
 		pid: metadata.pid,
 		host: metadata.host,
+		dial_host: metadata.dial_host,
 		port: metadata.port,
 		token: metadata.connection_token,
 		tunnel_name: metadata.tunnel_name,
@@ -1629,6 +1667,7 @@ mod tests {
 		let metadata = build_metadata(
 			42,
 			"127.0.0.1".to_string(),
+			"127.0.0.1".to_string(),
 			8080,
 			Some("tok".to_string()),
 			Some("/tmp/agent-host-token".to_string()),
@@ -1652,6 +1691,7 @@ mod tests {
 		let metadata = build_metadata(
 			42,
 			"0.0.0.0".to_string(),
+			"127.0.0.1".to_string(),
 			8080,
 			None,
 			None,
@@ -1671,12 +1711,14 @@ mod tests {
 		let sidecar = AgentHostSidecar::bind_tcp(
 			log::Logger::test(),
 			manager,
-			SocketAddr::from(([127, 0, 0, 1], 0)),
-			Some("localhost".to_string()),
-			LoopbackAuth::Token("tok".to_string()),
-			None,
-			Some("my-tunnel".to_string()),
-			lockfile.clone(),
+			AgentHostBinding {
+				addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+				host_label: Some("localhost".to_string()),
+				loopback_auth: LoopbackAuth::Token("tok".to_string()),
+				connection_token_file: None,
+				tunnel_name: Some("my-tunnel".to_string()),
+				lockfile_path: lockfile.clone(),
+			},
 		)
 		.await
 		.unwrap();
@@ -1700,12 +1742,14 @@ mod tests {
 			let _sidecar = AgentHostSidecar::bind_tcp(
 				log::Logger::test(),
 				manager,
-				SocketAddr::from(([127, 0, 0, 1], 0)),
-				None,
-				LoopbackAuth::Disabled,
-				None,
-				None,
-				lockfile.clone(),
+				AgentHostBinding {
+					addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+					host_label: None,
+					loopback_auth: LoopbackAuth::Disabled,
+					connection_token_file: None,
+					tunnel_name: None,
+					lockfile_path: lockfile.clone(),
+				},
 			)
 			.await
 			.unwrap();
@@ -1724,12 +1768,14 @@ mod tests {
 		let sidecar = AgentHostSidecar::bind_tcp(
 			log::Logger::test(),
 			manager,
-			SocketAddr::from(([127, 0, 0, 1], 0)),
-			None,
-			LoopbackAuth::Disabled,
-			None,
-			None,
-			lockfile.clone(),
+			AgentHostBinding {
+				addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+				host_label: None,
+				loopback_auth: LoopbackAuth::Disabled,
+				connection_token_file: None,
+				tunnel_name: None,
+				lockfile_path: lockfile.clone(),
+			},
 		)
 		.await
 		.unwrap();
@@ -1789,6 +1835,7 @@ mod tests {
 			AgentHostLockfileDecision::Reuse {
 				pid,
 				host: Some("127.0.0.1".to_string()),
+				dial_host: None,
 				port: 4321,
 				token: Some("tok".to_string()),
 				tunnel_name: None,
@@ -1818,6 +1865,7 @@ mod tests {
 			AgentHostLockfileDecision::Reuse {
 				pid,
 				host: None,
+				dial_host: None,
 				port: 4321,
 				token: Some("tok".to_string()),
 				tunnel_name: None,
@@ -1883,7 +1931,7 @@ mod tests {
 	#[test]
 	fn classify_reuses_a_legacy_lockfile_whose_token_file_matches() {
 		// No recorded path, but a default root holds exactly this
-		// supervisor's token — enough to verify the real file.
+		// supervisor's token - enough to verify the real file.
 		let dir = tempfile::tempdir().unwrap();
 		let lockfile = dir.path().join("agent-host.lock");
 		write_secure_token_file(dir.path(), "tok");
@@ -1903,6 +1951,7 @@ mod tests {
 			AgentHostLockfileDecision::Reuse {
 				pid,
 				host: None,
+				dial_host: None,
 				port: 4321,
 				token: Some("tok".to_string()),
 				tunnel_name: None,
@@ -1953,6 +2002,7 @@ mod tests {
 			AgentHostLockfileDecision::Reuse {
 				pid,
 				host: None,
+				dial_host: None,
 				port: 4321,
 				token: None,
 				tunnel_name: None,

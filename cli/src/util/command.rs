@@ -127,7 +127,7 @@ pub fn new_std_command(exe: impl AsRef<OsStr>) -> std::process::Command {
 ///   child runs in its own session, with no controlling terminal, and
 ///   does not receive `SIGHUP` / `SIGINT` propagated from the CLI's
 ///   terminal.
-/// * **Windows** — sets `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, plus
+/// * **Windows** - sets `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, plus
 ///   `CREATE_BREAKAWAY_FROM_JOB` when the current job object permits it.
 ///   `CREATE_NEW_PROCESS_GROUP` makes the child immune to the parent's
 ///   `Ctrl+C` / `Ctrl+Break`; `CREATE_NO_WINDOW` gives the child its own
@@ -139,14 +139,14 @@ pub fn new_std_command(exe: impl AsRef<OsStr>) -> std::process::Command {
 ///   `CREATE_BREAKAWAY_FROM_JOB` is what makes the child survive its
 ///   launching context on Windows. Win32-OpenSSH runs each exec channel in
 ///   a job object carrying `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, so when
-///   the channel closes every process in the job is terminated — including
+///   the channel closes every process in the job is terminated - including
 ///   an otherwise fully detached grandchild. Measured against Win32-OpenSSH
 ///   on Windows 11: the exec channel's job reports limit flags `0x2800`
 ///   (`BREAKAWAY_OK` set, `SILENT_BREAKAWAY_OK` clear,
 ///   `KILL_ON_JOB_CLOSE` set), and a child spawned without the flag dies
 ///   with the channel while one carrying it survives. Because
 ///   `SILENT_BREAKAWAY_OK` is clear, the flag has to be requested
-///   explicitly — detaching alone is not enough.
+///   explicitly - detaching alone is not enough.
 ///
 /// Callers that need the child to truly outlive the parent should also
 /// set `kill_on_drop(false)` on tokio commands and avoid retaining the
@@ -243,7 +243,7 @@ fn detach_creation_flags() -> u32 {
 /// Probed once and cached: the answer is a property of the job we were
 /// launched into and cannot change for the life of the process. The probe is
 /// a real spawn, because the job's limit flags are not by themselves
-/// conclusive — nested jobs and `SILENT_BREAKAWAY_OK` both affect the
+/// conclusive - nested jobs and `SILENT_BREAKAWAY_OK` both affect the
 /// outcome, and `CreateProcess` is the only authority that matters.
 #[cfg(windows)]
 fn should_use_breakaway_from_job() -> bool {
@@ -368,7 +368,7 @@ pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 mod windows_tests {
 	use super::*;
 
-	/// The flag must be included whenever the job we are in permits it —
+	/// The flag must be included whenever the job we are in permits it -
 	/// this is the whole reason a supervisor survives the SSH exec channel
 	/// that launched it, and nothing else in the flag set escapes a job.
 	#[test]

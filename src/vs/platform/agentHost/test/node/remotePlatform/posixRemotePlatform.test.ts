@@ -233,35 +233,35 @@ suite('PosixRemotePlatform', () => {
 
 	suite('installCli', () => {
 
-		test('emits the mkdir/mktemp/curl/mv/chmod pipeline joined with &&', async () => {
-			const p = linuxPlatform();
-			const installRoot = p.installRoot(sdf);
-			const cliBin = p.cliBin(sdf, quality, commit);
-			const url = 'https://update.code.visualstudio.com/commit:' + commit + '/cli-linux-x64/insider';
-			const fake = createFakeExec([{ match: /.*/, code: 0 }]);
-
-			await p.installCli(fake.exec, { url, installRoot, cliBin });
-
-			const expected = [
-				`mkdir -p ${installRoot}`,
-				`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
-				`(cd "$tmpdir" && curl -fsSL '${url}' | tar xz)`,
-				`mv "$tmpdir"/* ${cliBin}`,
-				`chmod +x ${cliBin}`,
-				`rm -rf "$tmpdir"`,
-			].join(' && ');
-			assert.deepStrictEqual(fake.calls, [{ command: expected, ignoreExitCode: false }]);
-		});
-
-		test('shell-escapes URLs that contain single quotes', async () => {
+		test('emits the mkdir/chmod/mktemp/curl/mv pipeline joined with && for each publish policy', async () => {
 			const p = linuxPlatform();
 			const installRoot = p.installRoot(sdf);
 			const cliBin = p.cliBin(sdf, quality, commit);
 			const url = 'https://example.test/cli?q=\'inject\'';
-			const fake = createFakeExec([{ match: /.*/, code: 0 }]);
-			await p.installCli(fake.exec, { url, installRoot, cliBin });
-			assert.ok(fake.calls[0].command.includes(`| tar xz)`));
-			assert.ok(fake.calls[0].command.includes(`'https://example.test/cli?q='\\''inject'\\'''`));
+			const observed: Record<string, unknown> = {};
+
+			for (const publish of ['immutable', 'replaceable'] as const) {
+				const fake = createFakeExec([{ match: /.*/, code: 0 }]);
+				await p.installCli(fake.exec, { url, installRoot, cliBin, publish });
+				observed[publish] = fake.calls;
+			}
+
+			const pipeline = (moveStep: string) => [{
+				command: [
+					`mkdir -p ${installRoot}`,
+					`chmod 700 ${installRoot}`,
+					`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
+					`(cd "$tmpdir" && curl -fsSL 'https://example.test/cli?q='\\''inject'\\''' | tar xz)`,
+					moveStep,
+					`chmod 700 ${cliBin}`,
+					`rm -rf "$tmpdir"`,
+				].join(' && '),
+				ignoreExitCode: false,
+			}];
+			assert.deepStrictEqual(observed, {
+				immutable: pipeline(`mv -n "$tmpdir"/* ${cliBin}`),
+				replaceable: pipeline(`mv -f "$tmpdir"/* ${cliBin}`),
+			});
 		});
 	});
 

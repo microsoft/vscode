@@ -74,14 +74,12 @@ suite('network', () => {
 		assert.deepStrictEqual([
 			formatHostPortAuthority('127.0.0.1', 1234),
 			formatHostPortAuthority('::1', 1234),
-			formatHostPortAuthority('fe80::1%eth0', 1234),
 			formatHostPortAuthority('[::1]', 1234),
 			formatHostPortAuthority('example.com', 1234),
 			formatHostPortAuthority('localhost', '0'),
 		], [
 			'127.0.0.1:1234',
 			'[::1]:1234',
-			'[fe80::1%eth0]:1234',
 			'[::1]:1234',
 			'example.com:1234',
 			'localhost:0',

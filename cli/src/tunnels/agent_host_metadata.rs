@@ -36,11 +36,17 @@ pub struct AgentHostMetadata {
 	/// Absolute path of the file the supervisor's connection token was
 	/// minted into. Recorded so a process deciding whether to reuse this
 	/// supervisor can check *that* file's permissions rather than guessing
-	/// a location — `--connection-token-file` can place it anywhere.
+	/// a location - `--connection-token-file` can place it anywhere.
 	/// Absent for a tokenless supervisor and for lockfiles written before
 	/// this field existed.
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub connection_token_file: Option<String>,
+	/// Address callers should dial, resolved from what the listener actually
+	/// bound rather than from the `--host` label. A label like `localhost`
+	/// can resolve differently in two processes, so recording it verbatim
+	/// would let a client reach for an address nothing is listening on.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub dial_host: Option<String>,
 	pub protocol_version: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub quality: Option<String>,
@@ -57,6 +63,7 @@ impl AgentHostMetadata {
 			host: None,
 			connection_token: None,
 			connection_token_file: None,
+			dial_host: None,
 			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			quality: None,
 			tunnel_name: None,
