@@ -41,6 +41,7 @@ import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
 import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
+import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
 
 // `http`/`https`/`js-yaml` are lazily required (slow to load and/or not in this
 // layer's import allowlist); `import type` above still gives us http/https types.
@@ -109,7 +110,7 @@ export function expandShellToolName(toolName: string, platform: NodeJS.Platform 
  * `homeDir` normalization misses it — scrub it explicitly to keep local identity
  * out of fixtures.
  */
-const USER_PLACEHOLDER = '${user}';
+const USER_PLACEHOLDER = USER_NAME_PLACEHOLDER;
 /**
  * Placeholder for the upstream CAPI origin in recorded response bodies. Token /
  * user-discovery responses echo the CAPI host (`endpoints.api`); rewriting that
@@ -845,7 +846,7 @@ export class CapiReplayProxy {
 			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
 		}
 		if (this._options.userName) {
-			result = replaceAll(result, this._options.userName, USER_PLACEHOLDER);
+			result = scrubUserName(result, this._options.userName);
 		}
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);

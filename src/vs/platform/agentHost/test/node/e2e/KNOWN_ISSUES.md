@@ -25,16 +25,6 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.
 
-### The user name is scrubbed by naive substring replacement
-
-`normalizeSnapshotText` in `ahpSnapshot.ts` ends with `.replaceAll(normalization.userName, '${user}')`. That is an unanchored substring replacement, so any occurrence of the account name in captured text is rewritten, whether or not it refers to the user.
-
-This is a cross-platform hazard because the account name differs per environment: a developer's own name locally, `runner` on GitHub Actions Linux, `runneradmin` on Windows. `runner` in particular is an ordinary English word, so a snapshot recorded on macOS keeps the literal text while the same run on Linux CI normalizes it to `${user}`, and the snapshot mismatches for a reason unrelated to the behavior under test.
-
-Verified against the current implementation with `userName: 'runner'`: the tool output `the runner completed` serializes as `the ${user} completed`.
-
-Home directory paths are already handled by the `${homedir}` replacement that runs just before this one, so the bare user-name pass is only needed for occurrences outside a home path. Restricting it to path-like contexts (preceded by a separator) would keep that coverage without corrupting prose. Left alone for now because no committed snapshot currently trips it — fix it alongside the first test that does.
-
 ### What is still Windows-scoped, and why
 
 The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux, and every capture that runs a shell command is portable. Permission approval, file operations, renames, deletes, directory creation, and git status all run on Windows.
