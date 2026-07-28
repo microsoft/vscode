@@ -50,6 +50,10 @@ interface ResolvedConfig {
 	readonly captureContent: boolean | undefined;
 	/** Parsed OTEL_EXPORTER_OTLP_HEADERS for outbound forwarding. */
 	readonly headers: Record<string, string> | undefined;
+	/** Effective OTLP protocol configured for the SDK runtime. */
+	readonly otlpProtocol: string;
+	/** Resource attributes applied to host-produced metadata spans. */
+	readonly resourceAttributes: Record<string, string>;
 }
 
 function isTruthy(v: string | undefined): boolean {
@@ -77,6 +81,29 @@ function parseOtlpHeaders(raw: string | undefined): Record<string, string> | und
 		}
 	}
 	return Object.keys(out).length ? out : undefined;
+}
+
+function parseResourceAttributes(raw: string | undefined, serviceName: string | undefined): Record<string, string> {
+	const attributes: Record<string, string> = {};
+	for (const pair of raw?.split(',') ?? []) {
+		const eq = pair.indexOf('=');
+		if (eq <= 0) {
+			continue;
+		}
+		const key = pair.slice(0, eq).trim();
+		const value = pair.slice(eq + 1).trim();
+		if (key) {
+			try {
+				attributes[key] = decodeURIComponent(value);
+			} catch {
+				attributes[key] = value;
+			}
+		}
+	}
+	if (serviceName) {
+		attributes['service.name'] = serviceName;
+	}
+	return attributes;
 }
 
 export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
@@ -110,6 +137,8 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 			? undefined
 			: isTruthy(env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT),
 		headers: parseOtlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
+		otlpProtocol: protocol,
+		resourceAttributes: parseResourceAttributes(env.OTEL_RESOURCE_ATTRIBUTES, env.OTEL_SERVICE_NAME),
 	};
 }
 
@@ -165,9 +194,13 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		if (!this._config.enabled || this._config.captureContent !== true || !conversationId || !title) {
 			return;
 		}
+		if (!this._config.dbSpanExporter && !this._canForwardSyntheticSpan()) {
+			return;
+		}
 
+		const boundedTitle = title.slice(0, 200);
 		this._titleExportQueue = this._titleExportQueue
-			.then(() => this._emitSessionTitleSpan(conversationId, sessionUri, title))
+			.then(() => this._emitSessionTitleSpan(conversationId, sessionUri, boundedTitle))
 			.catch(err => this._logService.warn('[agentHost.otel] failed to emit session title span', err));
 	}
 
@@ -279,6 +312,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			endTime: now,
 			status: { code: SpanStatusCode.OK },
 			attributes: {
+				...this._config.resourceAttributes,
 				[GenAiAttr.CONVERSATION_ID]: conversationId,
 				[AgentHostSessionTitleAttribute]: title,
 				[AgentHostSessionUriAttribute]: sessionUri,
@@ -286,22 +320,39 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			events: [],
 		};
 
-		this._spanStore?.insertSpan(span);
+		try {
+			this._spanStore?.insertSpan(span);
+		} catch (err) {
+			this._logService.warn('[agentHost.otel] failed to persist session title span', err);
+		}
 		const result = { spans: [span], rejected: 0, errors: [] };
 		this._forwarder?.forwardSpans?.(result);
-		this._forwarder?.forwardRaw?.(this._encodeOtlpSpan(span), 'application/json');
+		if (this._canForwardSyntheticSpan()) {
+			this._forwarder?.forwardRaw?.(this._encodeOtlpSpan(span), 'application/json');
+		}
+	}
+
+	private _canForwardSyntheticSpan(): boolean {
+		return this._config.exporterType === 'file'
+			|| this._config.exporterType === 'console'
+			|| (this._config.exporterType === 'otlp-http' && this._config.otlpProtocol !== 'http/protobuf');
 	}
 
 	private _encodeOtlpSpan(span: ICompletedSpanData): Buffer {
-		const attributes = Object.entries(span.attributes).map(([key, value]) => ({
+		const resourceAttributeKeys = new Set(Object.keys(this._config.resourceAttributes));
+		const attributes = Object.entries(span.attributes)
+			.filter(([key]) => !resourceAttributeKeys.has(key) || key === GenAiAttr.CONVERSATION_ID || key.startsWith('vscode.agent_host.'))
+			.map(([key, value]) => ({
 			key,
 			value: typeof value === 'string' ? { stringValue: value }
 				: typeof value === 'number' ? { doubleValue: value }
 					: typeof value === 'boolean' ? { boolValue: value }
 						: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
 		}));
+		const resourceAttributes = Object.entries(this._config.resourceAttributes).map(([key, value]) => ({ key, value: { stringValue: value } }));
 		return Buffer.from(JSON.stringify({
 			resourceSpans: [{
+				...(resourceAttributes.length ? { resource: { attributes: resourceAttributes } } : {}),
 				scopeSpans: [{
 					scope: { name: this._config.sourceName ?? 'vscode.agent-host' },
 					spans: [{

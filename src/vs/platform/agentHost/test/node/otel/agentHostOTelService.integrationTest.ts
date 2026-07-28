@@ -107,6 +107,8 @@ const OTEL_ENV_KEYS = [
 	'OTEL_EXPORTER_OTLP_PROTOCOL',
 	'OTEL_EXPORTER_OTLP_HEADERS',
 	'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+	'OTEL_RESOURCE_ATTRIBUTES',
+	'OTEL_SERVICE_NAME',
 ] as const;
 
 function saveEnv(): ISavedEnv {
@@ -158,12 +160,21 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		strictEqual(cfg.exporterType, 'otlp-grpc');
 	});
 
-	test('readAgentHostOTelEnv: parses OTEL_EXPORTER_OTLP_HEADERS into key-value map', () => {
+	test('readAgentHostOTelEnv: parses headers and resource attributes', () => {
 		const cfg = readAgentHostOTelEnv({
 			COPILOT_OTEL_ENABLED: 'true',
 			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer xyz,x-tenant=acme',
+			OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=dev,custom=value%20with%20spaces,service.name=ignored',
+			OTEL_SERVICE_NAME: 'agent-host',
 		});
-		deepStrictEqual(cfg.headers, { authorization: 'Bearer xyz', 'x-tenant': 'acme' });
+		deepStrictEqual({ headers: cfg.headers, resourceAttributes: cfg.resourceAttributes }, {
+			headers: { authorization: 'Bearer xyz', 'x-tenant': 'acme' },
+			resourceAttributes: {
+				'deployment.environment.name': 'dev',
+				custom: 'value with spaces',
+				'service.name': 'agent-host',
+			},
+		});
 	});
 
 	test('getSdkTelemetryConfig: returns undefined when fully disabled', async () => {
@@ -277,6 +288,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		try {
 			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
 			process.env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = 'true';
+			process.env.OTEL_SERVICE_NAME = 'agent-host-test';
 
 			const di = store.add(new TestInstantiationService());
 			di.set(ILogService, new NullLogService());
@@ -284,7 +296,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
 
 			await svc.getSdkTelemetryConfig();
-			svc.emitSessionTitleChanged('conv-title', 'copilotcli:/conv-title', 'Updated title');
+			svc.emitSessionTitleChanged('conv-title', 'copilotcli:/conv-title', `Updated title ${'x'.repeat(300)}`);
 			await svc.flush();
 
 			const dbPath = svc.getSpansDbPath();
@@ -294,8 +306,9 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				const spans = reader.getSpansByConversationId('conv-title');
 				strictEqual(spans.length, 1);
 				strictEqual(spans[0].name, AgentHostSessionTitleSpanName);
-				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionTitleAttribute), 'Updated title');
+				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionTitleAttribute)?.length, 200);
 				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionUriAttribute), 'copilotcli:/conv-title');
+				strictEqual(reader.getSpanAttribute(spans[0].span_id, 'service.name'), 'agent-host-test');
 			} finally {
 				reader.close();
 			}
