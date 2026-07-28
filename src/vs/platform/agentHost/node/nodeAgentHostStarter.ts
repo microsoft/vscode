@@ -7,13 +7,14 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostRubberDuckEnabledSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
@@ -69,26 +70,33 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		const env: Record<string, string> = {
 			...shellEnv as Record<string, string>,
+			// Announce that everything spawned below this process is driven by
+			// VS Code's agent, so `gh` inherits it. Set after the inherited
+			// env so it wins.
+			[AiAgentEnvVar]: AiAgentEnvValue,
 			VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 		};
 
-		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when the user points the SDK path
-		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
-		// or when the env var is already set on the parent process (developer
-		// override). The SDK itself is intentionally not bundled with VS Code.
-		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
-			|| process.env[AgentHostClaudeSdkPathEnvVar]
-			|| '';
-		if (claudeSdkPath) {
-			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
-		}
+		// Forward the Claude/Codex SDK overrides + codex home/args from
+		// workbench settings to the agent host process. Parent env wins on
+		// collision — see `buildAgentSdkEnv` for the precedence rule.
+		const sdkEnv = buildAgentSdkEnv({
+			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
+			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
+			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
+			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
+			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
+			byokModelsEnabled: this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId),
+		}, process.env);
+		Object.assign(env, sdkEnv);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
-		// (developer override) — see `buildAgentHostOTelEnv`.
+		// for user settings, while enterprise policy values win over inherited env —
+		// see `buildAgentHostOTelEnv`.
+		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
@@ -96,13 +104,17 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env);
+		}, process.env, {
+			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
+			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
+			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
+			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
+		});
 		Object.assign(env, otelEnv);
-
-		// Enable rubber duck critic subagent when the setting is on.
-		if (this._configurationService.getValue<boolean>(AgentHostRubberDuckEnabledSettingId)) {
-			env['RUBBER_DUCK_AGENT'] = 'true';
-		}
 
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {

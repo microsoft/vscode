@@ -15,6 +15,7 @@ import { registerUpdateLinksOnRename } from './languageFeatures/linkUpdater';
 import { ILogger } from './logging';
 import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownEditorProvider } from './preview/markdownEditorProvider';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
 import { ExtensionContentSecurityPolicyArbiter } from './preview/security';
@@ -44,6 +45,14 @@ export function activateShared(
 
 	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
+
+	context.subscriptions.push(vscode.window.registerCustomEditorProvider(
+		MarkdownEditorProvider.viewType,
+		new MarkdownEditorProvider(context.extensionUri, context.globalState, opener),
+		{
+			webviewOptions: { retainContextWhenHidden: true },
+			supportsMultipleEditorsPerDocument: true,
+		}));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		previewManager.updateConfiguration();

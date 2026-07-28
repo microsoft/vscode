@@ -80,7 +80,7 @@ export function extractToolUseId(extra: unknown): string | undefined {
 /**
  * Name of the single in-process MCP server we register client tools on.
  * Exported so the stream mapper can strip the SDK's `mcp__<server>__` name
- * prefix before stamping `SessionToolCallStart.toolClientId`.
+ * prefix before stamping `ChatToolCallStart.toolClientId`.
  */
 export const CLAUDE_CLIENT_MCP_SERVER_NAME = 'client';
 
@@ -104,7 +104,7 @@ export function stripClientToolNamePrefix(toolName: string): string {
 /**
  * Whether the SDK-emitted tool name carries the in-process MCP server
  * prefix, i.e. the tool is one of the workbench's client-provided tools.
- * Used by the stream mapper to set `SessionToolCallStart.toolClientId` so
+ * Used by the stream mapper to set `ChatToolCallStart.toolClientId` so
  * the workbench takes the client-tool invocation branch.
  */
 export function hasClientToolNamePrefix(toolName: string): boolean {

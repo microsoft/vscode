@@ -40,6 +40,7 @@ export class InlineCompletionsHover implements IHoverPart {
 export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {
 
 	public readonly hoverOrdinal: number = 4;
+	public readonly hideCopyButton: boolean = true;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

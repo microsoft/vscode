@@ -89,8 +89,8 @@ suite('PluginAutoUpdate', () => {
 		assert.deepStrictEqual(state.updateAllCalls, []);
 	});
 
-	test('triggers update for the delayed auto-update mode', async () => {
-		const { state } = createContribution('delayed');
+	test('triggers update when extensions.autoUpdate is on', async () => {
+		const { state } = createContribution('on');
 
 		state.hasUpdatesAvailable.set(true, undefined);
 		await flushMicrotasks();

@@ -160,6 +160,8 @@ describe('NESProvider Facade', () => {
 			telemetrySender,
 			terminalService,
 			logTarget,
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
 		});
 		nextEditProvider.updateTreatmentVariables({
 			'config.github.copilot.chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString': '{ "modelName": "xtab-test", "promptingStrategy": "copilotNesXtab", "includeTagsInCurrentFile": false }',
@@ -173,6 +175,15 @@ describe('NESProvider Facade', () => {
 		assert.ok(fetcher.requests[0].url.endsWith('/models'), `Unexpected URL: ${fetcher.requests[0].url}`);
 		assert.ok(fetcher.requests[1].url.endsWith('/chat/completions'), `Unexpected URL: ${fetcher.requests[1].url}`);
 
+		// The model list request must carry the editor headers derived from the provided editor info.
+		assert.deepStrictEqual({
+			'Editor-Version': fetcher.requests[0].options.headers?.['Editor-Version'],
+			'Editor-Plugin-Version': fetcher.requests[0].options.headers?.['Editor-Plugin-Version'],
+		}, {
+			'Editor-Version': 'my-editor/1.2.3',
+			'Editor-Plugin-Version': 'my-plugin/4.5.6',
+		});
+
 		assert(fetcher.requests[1].options.json);
 		assert(typeof fetcher.requests[1].options.json === 'object');
 		assert('model' in fetcher.requests[1].options.json);
@@ -180,7 +191,8 @@ describe('NESProvider Facade', () => {
 
 		assert(result.result);
 
-		const { range, newText } = result.result;
+		const { range, newText, targetDocumentUri } = result.result;
+		assert.strictEqual(targetDocumentUri, doc.id.toString(), 'targetDocumentUri should reference the requested document');
 		const offsetRange = OffsetRange.fromTo(range.start, range.endExclusive);
 		const replace = StringReplacement.replace(offsetRange, newText);
 		doc.applyEdit(replace.toEdit());
@@ -250,6 +262,8 @@ describe('NESProvider Facade', () => {
 				terminalService: new NullTerminalService(),
 				logTarget: new TestLogTarget(),
 				languageDiagnosticsService: diagnosticsService,
+				editorInfo: { name: 'my-editor', version: '1.2.3' },
+				editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
 			});
 
 			nextEditProvider.updateTreatmentVariables({

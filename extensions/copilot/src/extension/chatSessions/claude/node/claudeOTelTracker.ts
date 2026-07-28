@@ -171,6 +171,15 @@ export class ClaudeOTelTracker {
 	 * Accumulates parent-only token usage from an assistant message.
 	 * Excludes subagent turns so gen_ai.usage.* on the root span is comparable
 	 * with the foreground agent.
+	 *
+	 * NOTE: Anthropic SDK `Usage` does not surface reasoning/thinking tokens
+	 * separately (they are folded into `output_tokens`). The per-turn chat spans
+	 * emitted by `chatMLFetcher` (via `ClaudeStreamingPassThroughEndpoint`) do
+	 * carry `gen_ai.usage.reasoning_tokens` / `gen_ai.usage.reasoning.output_tokens`
+	 * because CAPI normalizes the response. To populate reasoning tokens on this
+	 * root `invoke_agent claude` span we would need to bridge that count from the
+	 * pass-through endpoint into this tracker. See toolCallingLoop.ts for the
+	 * pattern used by the foreground agent.
 	 */
 	private _accumulateParentTokenUsage(message: SDKMessage & { type: 'assistant' }): void {
 		if (message.parent_tool_use_id) {

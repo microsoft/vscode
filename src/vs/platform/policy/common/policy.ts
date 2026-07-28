@@ -8,15 +8,21 @@ import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { PolicyName } from '../../../base/common/policy.js';
+import { IManagedSettingsPolicyDefinitions, PolicyName } from '../../../base/common/policy.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export type PolicyValue = string | number | boolean;
 export type PolicyDefinition = {
 	type: 'string' | 'number' | 'boolean';
 	value?: (policyData: IPolicyData) => string | number | boolean | undefined;
+	managedSettings?: IManagedSettingsPolicyDefinitions;
 	restrictedValue?: PolicyValue;
 };
+
+/** Returns a structured-clone-safe copy of `definition`, dropping the non-cloneable `value` callback. */
+export function toSerializablePolicyDefinition(definition: PolicyDefinition): PolicyDefinition {
+	return { type: definition.type, managedSettings: definition.managedSettings, restrictedValue: definition.restrictedValue };
+}
 
 /**
  * Returns the value to apply for `definition` when the account-policy gate is active
@@ -56,10 +62,16 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 	readonly onDidChange = this._onDidChange.event;
 
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
-		const size = Object.keys(this.policyDefinitions).length;
-		this.policyDefinitions = { ...policyDefinitions, ...this.policyDefinitions };
+		// Replace existing definitions; identity comparison avoids redundant watcher churn.
+		let changed = false;
+		for (const name of Object.keys(policyDefinitions)) {
+			if (this.policyDefinitions[name] !== policyDefinitions[name]) {
+				this.policyDefinitions[name] = policyDefinitions[name];
+				changed = true;
+			}
+		}
 
-		if (size !== Object.keys(this.policyDefinitions).length) {
+		if (changed) {
 			await this._updatePolicyDefinitions(this.policyDefinitions);
 		}
 
@@ -71,7 +83,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 	}
 
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> {
-		return Iterable.reduce<[PolicyName, PolicyDefinition], IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>>(Object.entries(this.policyDefinitions), (r, [name, definition]) => ({ ...r, [name]: { definition, value: this.policies.get(name)! } }), {});
+		return Iterable.reduce<[PolicyName, PolicyDefinition], IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>>(Object.entries(this.policyDefinitions), (r, [name, definition]) => ({ ...r, [name]: { definition: toSerializablePolicyDefinition(definition), value: this.policies.get(name)! } }), {});
 	}
 
 	protected abstract _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void>;

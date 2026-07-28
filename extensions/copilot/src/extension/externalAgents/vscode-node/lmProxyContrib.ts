@@ -34,6 +34,6 @@ export class LanguageModelProxyContrib extends Disposable implements IExtensionC
 			}
 		};
 
-		this._register(Event.runAndSubscribe(authenticationService.onDidAuthenticationChange, updateRegistration));
+		this._register(Event.runAndSubscribe(authenticationService.onDidCopilotTokenChange, updateRegistration));
 	}
 }

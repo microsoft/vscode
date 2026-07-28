@@ -24,7 +24,7 @@ import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation 
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
-import { CustomDataPartMimeTypes } from '../common/endpointTypes';
+import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
@@ -163,12 +163,19 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	async makeChatRequest2({
 		debugName,
 		messages,
+		ignoreStatefulMarker,
+		summarizedAtRoundId,
 		requestOptions,
 		finishedCb,
 		location,
 		source,
+		telemetryProperties,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
-		const vscodeMessages = convertToApiChatMessage(messages);
+		const vscodeMessages = convertToApiChatMessage(messages, {
+			ignoreStatefulMarker,
+			summarizedAtRoundId,
+			emitCacheBreakpoints: modelVendorHandlesCacheBreakpoints(this.languageModel.vendor),
+		});
 		const ourRequestId = generateUuid();
 
 		// Capture active OTel trace context to propagate through IPC to the BYOK provider.
@@ -177,6 +184,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		// - Anthropic: inside AnthropicLMProvider
 		// - Gemini: inside GeminiNativeBYOKLMProvider
 		const activeTraceCtx = this._otelService.getActiveTraceContext();
+		const telemetryTurn = getTelemetryTurnFromProperties(telemetryProperties);
 
 		const vscodeOptions: vscode.LanguageModelChatRequestOptions = {
 			tools: ((requestOptions?.tools ?? []) as OpenAiFunctionTool[]).map(tool => ({
@@ -188,6 +196,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			modelOptions: {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
+				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
 			}
 		};
 
@@ -307,7 +316,27 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	}
 }
 
-export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
+function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOptions['telemetryProperties']): number | undefined {
+	if (typeof telemetryProperties?.turnIndex !== 'string') {
+		return undefined;
+	}
+
+	if (!/^\d+$/.test(telemetryProperties.turnIndex)) {
+		return undefined;
+	}
+
+	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
+	return Number.isSafeInteger(turn) ? turn : undefined;
+}
+
+interface ConvertToApiChatMessageOptions {
+	readonly ignoreStatefulMarker?: boolean;
+	readonly summarizedAtRoundId?: string;
+	/** Emit the {@link CustomDataPartMimeTypes.CacheControl} sentinel for cache breakpoints. Defaults to `false` (fail closed) so it never reaches a provider that can't consume it (#313920). */
+	readonly emitCacheBreakpoints?: boolean;
+}
+
+export function convertToApiChatMessage(messages: Raw.ChatMessage[], options: ConvertToApiChatMessageOptions = {}): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
 	const apiMessages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> = [];
 	for (const message of messages) {
 		const apiContent: Array<vscode.LanguageModelTextPart | vscode.LanguageModelToolResultPart2 | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart> = [];
@@ -330,10 +359,17 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vsco
 					continue;
 				}
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
-				apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
+				if (options.emitCacheBreakpoints) {
+					apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
+				}
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.Opaque) {
 				const statefulMarker = rawPartAsStatefulMarker(contentPart);
-				if (statefulMarker) {
+				// A marker created under a different local summary generation points at
+				// server-side history that the rendered summary has replaced. Omit it so
+				// this request establishes a new BYOK Responses chain from the summary.
+				if (statefulMarker
+					&& !options.ignoreStatefulMarker
+					&& statefulMarker.summarizedAtRoundId === options.summarizedAtRoundId) {
 					apiContent.push(new vscode.LanguageModelDataPart(encodeStatefulMarker(statefulMarker.modelId, statefulMarker.marker), CustomDataPartMimeTypes.StatefulMarker));
 				}
 				const thinkingData = rawPartAsThinkingData(contentPart);

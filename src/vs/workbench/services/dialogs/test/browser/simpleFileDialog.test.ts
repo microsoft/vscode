@@ -4,180 +4,194 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import * as resources from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AGENT_HOST_SCHEME, AGENT_HOST_LABEL_FORMATTER, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService, IFileStat } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { SimpleFileDialog } from '../../browser/simpleFileDialog.js';
 
-/**
- * Tests for the scoped path prefix logic used by SimpleFileDialog.
- *
- * SimpleFileDialog is tightly coupled to many services and difficult to
- * instantiate in isolation. Instead of mocking the full dialog, we test
- * the underlying data transformations that drive the fix:
- *
- * 1. computeScopedPathPrefix - derived from comparing the raw URI path
- *    with the label-service-formatted output.
- * 2. pathFromUri - stripping the prefix from the raw path.
- * 3. remoteUriFrom - re-adding the prefix to user input.
- */
-suite('SimpleFileDialog - scoped path prefix', () => {
+suite('SimpleFileDialog', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
-	 * Replicates the stripPathSegments logic from the label service to
-	 * produce the display path that the label formatter would return.
-	 */
-	function labelFormatterDisplay(path: string, stripSegments: number): string {
-		let pos = 0;
-		for (let i = 0; i < stripSegments; i++) {
-			const next = path.indexOf('/', pos + 1);
-			if (next === -1) {
-				break;
-			}
-			pos = next;
-		}
-		return path.substring(pos);
-	}
+	let fileService: FileService;
+	let provider: InMemoryFileSystemProvider;
 
-	/**
-	 * Replicates SimpleFileDialog.computeScopedPathPrefix:
-	 * compares raw URI path with formatted display path to find the prefix.
-	 */
-	function computeScopedPathPrefix(uri: URI, displayPath: string): string {
-		const fullPath = uri.path;
-		if (displayPath && fullPath.endsWith(displayPath)) {
-			return fullPath.substring(0, fullPath.length - displayPath.length);
-		}
-		return '';
-	}
-
-	/**
-	 * Replicates the scoped branch of SimpleFileDialog.pathFromUri:
-	 * strips the prefix from the raw URI path.
-	 */
-	function pathFromUri(uri: URI, prefix: string, endWithSeparator: boolean = false): string {
-		let path = uri.path;
-		if (prefix && path.startsWith(prefix)) {
-			path = path.substring(prefix.length);
-		}
-		let result = path.replace(/\n/g, '');
-		result = result.replace(/\\/g, '/');
-		if (endWithSeparator && !result.endsWith('/')) {
-			result = result + '/';
-		}
-		return result;
-	}
-
-	/**
-	 * Replicates the scoped branch of SimpleFileDialog.remoteUriFrom:
-	 * re-adds the prefix to construct a proper URI.
-	 */
-	function remoteUriFrom(path: string, scheme: string, authority: string, prefix: string): URI {
-		return URI.from({ scheme, authority, path: prefix + path });
-	}
-
-	test('computeScopedPathPrefix extracts prefix for agent host URI', () => {
-		const authority = agentHostAuthority('localhost:8089');
-		const uri = agentHostUri(authority, '/Users/roblou/code');
-
-		const displayPath = labelFormatterDisplay(uri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		const prefix = computeScopedPathPrefix(uri, displayPath);
-
-		assert.strictEqual(prefix, '/file/-');
-		assert.strictEqual(displayPath, '/Users/roblou/code');
+	setup(() => {
+		fileService = disposables.add(new FileService(new NullLogService()));
+		provider = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, provider));
 	});
 
-	test('computeScopedPathPrefix works for URI with original authority', () => {
-		const authority = agentHostAuthority('localhost:8089');
-		const originalUri = URI.from({ scheme: 'agenthost-content', authority: 'session1', path: '/snap/before' });
-		const uri = URI.from({
-			scheme: AGENT_HOST_SCHEME,
-			authority,
-			path: `/${originalUri.scheme}/${originalUri.authority}${originalUri.path}`,
+	function createFolderOnlyDialog(fileService: IFileService, options: { isWindows?: boolean } = {}) {
+		let promptedUri: URI | undefined;
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			fileService,
+			filePickBox: { validationMessage: undefined },
+			requiresTrailing: false,
+			allowFolderSelection: true,
+			allowFileSelection: false,
+			isWindows: options.isWindows ?? false,
+			yesNoPrompt: async (uri: URI) => {
+				promptedUri = uri;
+				return true;
+			}
 		});
 
-		const displayPath = labelFormatterDisplay(uri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		const prefix = computeScopedPathPrefix(uri, displayPath);
+		return { dialog, get promptedUri() { return promptedUri; } };
+	}
 
-		assert.strictEqual(prefix, '/agenthost-content/session1');
-		assert.strictEqual(displayPath, '/snap/before');
+	test('creates nested missing folders from a folder-only open dialog', async () => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const nestedFolder = resources.joinPath(existingFolder, 'newFolder1', 'newFolder2');
+
+		await fileService.createFolder(existingFolder);
+
+		const result = createFolderOnlyDialog(fileService);
+
+		assert.strictEqual(await result.dialog.validate(nestedFolder), true);
+		assert.strictEqual(result.promptedUri?.toString(), nestedFolder.toString());
+		assert.strictEqual(await fileService.exists(nestedFolder), true);
 	});
 
-	test('computeScopedPathPrefix returns empty for scheme without stripping', () => {
-		const uri = URI.from({ scheme: 'file', path: '/Users/roblou/code' });
-		// If display matches the full path, prefix is empty
-		const prefix = computeScopedPathPrefix(uri, '/Users/roblou/code');
-		assert.strictEqual(prefix, '');
+	test('does not create a missing folder below a readonly parent', async () => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const nestedFolder = resources.joinPath(existingFolder, 'newFolder');
+
+		await fileService.createFolder(existingFolder);
+		provider.setReadOnly(true);
+
+		const result = createFolderOnlyDialog(fileService);
+
+		assert.strictEqual(await result.dialog.validate(nestedFolder), false);
+		assert.strictEqual(result.promptedUri, undefined);
+		assert.strictEqual(await fileService.exists(nestedFolder), false);
 	});
 
-	test('pathFromUri strips prefix to show clean path', () => {
-		const authority = agentHostAuthority('localhost:8089');
-		const uri = agentHostUri(authority, '/Users/roblou/code');
-		const prefix = '/file/-';
+	test('does not create a missing folder below a file', async () => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
+		const existingFile = resources.joinPath(root, 'file.txt');
+		const nestedFolder = resources.joinPath(existingFile, 'newFolder');
 
-		assert.strictEqual(pathFromUri(uri, prefix), '/Users/roblou/code');
+		await fileService.createFile(existingFile, VSBuffer.fromString('contents'));
+
+		const result = createFolderOnlyDialog(fileService);
+
+		assert.strictEqual(await result.dialog.validate(nestedFolder), false);
+		assert.strictEqual(result.promptedUri, undefined);
+		assert.strictEqual(await fileService.exists(nestedFolder), false);
 	});
 
-	test('pathFromUri with trailing separator', () => {
-		const authority = agentHostAuthority('localhost:8089');
-		const uri = agentHostUri(authority, '/Users/roblou/code');
-		const prefix = '/file/-';
+	test('does not create a missing folder with an invalid path segment', async () => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const nestedFolder = resources.joinPath(existingFolder, 'bad:name', 'newFolder');
 
-		assert.strictEqual(pathFromUri(uri, prefix, true), '/Users/roblou/code/');
+		await fileService.createFolder(existingFolder);
+
+		const result = createFolderOnlyDialog(fileService, { isWindows: true });
+
+		assert.strictEqual(await result.dialog.validate(nestedFolder), false);
+		assert.strictEqual(result.promptedUri, undefined);
+		assert.strictEqual(await fileService.exists(nestedFolder), false);
 	});
 
-	test('pathFromUri without prefix returns raw path', () => {
-		const uri = URI.from({ scheme: 'file', path: '/Users/roblou/code' });
-		assert.strictEqual(pathFromUri(uri, ''), '/Users/roblou/code');
+	test('does not create a missing folder when parent lookup fails for reasons other than missing files', async () => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const protectedFolder = resources.joinPath(existingFolder, 'protected');
+		const nestedFolder = resources.joinPath(protectedFolder, 'newFolder');
+
+		await fileService.createFolder(existingFolder);
+
+		const guardedFileService = {
+			...fileService,
+			stat: async (resource: URI) => {
+				if (resource.toString() === protectedFolder.toString()) {
+					throw createFileSystemProviderError('No permissions', FileSystemProviderErrorCode.NoPermissions);
+				}
+				return fileService.stat(resource);
+			},
+			createFolder: (resource: URI) => fileService.createFolder(resource)
+		} as IFileService;
+
+		const result = createFolderOnlyDialog(guardedFileService);
+
+		assert.strictEqual(await result.dialog.validate(nestedFolder), false);
+		assert.strictEqual(result.promptedUri, undefined);
+		assert.strictEqual(await fileService.exists(nestedFolder), false);
 	});
 
-	test('remoteUriFrom re-adds prefix to reconstruct encoded URI', () => {
-		const authority = agentHostAuthority('localhost:8089');
-		const prefix = '/file/-';
-		const cleanPath = '/Users/roblou/code';
+	test('does not let a canceled slow folder update overwrite a newer folder', async () => {
+		const slowFolder = URI.file('/slow');
+		const fastFolder = URI.file('/fast');
 
-		const result = remoteUriFrom(cleanPath, AGENT_HOST_SCHEME, authority, prefix);
+		let resolveSlow!: (stat: IFileStat) => void;
+		const slowResolve = new Promise<IFileStat>(resolve => resolveSlow = resolve);
 
-		assert.strictEqual(result.scheme, AGENT_HOST_SCHEME);
-		assert.strictEqual(result.authority, authority);
-		assert.strictEqual(result.path, '/file/-/Users/roblou/code');
-	});
+		function folderStat(resource: URI): IFileStat {
+			return {
+				resource,
+				name: resources.basename(resource),
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				mtime: 0,
+				ctime: 0,
+				etag: '',
+				size: 0,
+				readonly: false,
+				locked: false,
+				children: []
+			};
+		}
 
-	test('full round-trip: URI -> pathFromUri -> remoteUriFrom -> same URI', () => {
-		const authority = agentHostAuthority('localhost:8089');
-		const originalPath = '/Users/roblou/code/vscode';
-		const uri = agentHostUri(authority, originalPath);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IFileService, 'resolve', (resource: URI) => resources.isEqual(resource, slowFolder) ? slowResolve : Promise.resolve(folderStat(resource)));
 
-		// Compute prefix
-		const displayPath = labelFormatterDisplay(uri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		const prefix = computeScopedPathPrefix(uri, displayPath);
+		const dialog = disposables.add(instantiationService.createInstance(SimpleFileDialog)) as unknown as {
+			updateItems(newFolder: URI, force?: boolean, trailing?: string): Promise<boolean>;
+			currentFolder: URI;
+			filePickBox: {
+				value: string;
+				valueSelection: undefined;
+				items: readonly unknown[];
+				itemActivation: ItemActivation | undefined;
+				busy: boolean;
+				inputHasFocus(): boolean;
+			};
+			createItems(): Promise<readonly unknown[]>;
+		};
+		dialog.filePickBox = {
+			value: '',
+			valueSelection: undefined,
+			items: [],
+			itemActivation: undefined,
+			busy: false,
+			inputHasFocus: () => false
+		};
+		dialog.currentFolder = URI.file('/');
+		dialog.createItems = async () => [];
 
-		// pathFromUri extracts clean path
-		const cleanPath = pathFromUri(uri, prefix);
-		assert.strictEqual(cleanPath, originalPath);
+		const slowUpdate = dialog.updateItems(slowFolder, true).catch(() => undefined);
+		await dialog.updateItems(fastFolder, true);
 
-		// remoteUriFrom reconstructs the original URI
-		const reconstructed = remoteUriFrom(cleanPath, AGENT_HOST_SCHEME, authority, prefix);
-		assert.strictEqual(reconstructed.path, uri.path);
-		assert.strictEqual(reconstructed.scheme, uri.scheme);
-		assert.strictEqual(reconstructed.authority, uri.authority);
-	});
+		assert.strictEqual(dialog.currentFolder.toString(), resources.addTrailingPathSeparator(fastFolder).toString());
+		assert.strictEqual(dialog.filePickBox.value, '/fast/');
 
-	test('createBackItem root detection with prefix', () => {
-		const authority = agentHostAuthority('localhost:8089');
-		const prefix = '/file/-';
+		resolveSlow(folderStat(slowFolder));
+		await slowUpdate;
 
-		// Simulate root folder: path = prefix + '/'
-		const rootUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: prefix + '/' });
-		const pathAfterPrefix = rootUri.path.substring(prefix.length);
-		assert.strictEqual(pathAfterPrefix === '/' || pathAfterPrefix === '', true, 'root should be detected');
-
-		// Simulate non-root folder
-		const subUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: prefix + '/Users/roblou' });
-		const subPathAfterPrefix = subUri.path.substring(prefix.length);
-		assert.notStrictEqual(subPathAfterPrefix, '/');
-		assert.notStrictEqual(subPathAfterPrefix, '');
+		assert.strictEqual(dialog.currentFolder.toString(), resources.addTrailingPathSeparator(fastFolder).toString());
+		assert.strictEqual(dialog.filePickBox.value, '/fast/');
 	});
 });

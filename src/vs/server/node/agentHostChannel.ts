@@ -13,11 +13,10 @@
 // `RemoteAgentHostProtocolClient` over IPC instead of a raw WebSocket.
 
 import { Emitter, Event } from '../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../base/common/network.js';
 import { IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { IServerLifetimeService } from './serverLifetimeService.js';
 import type * as wsTypes from 'ws';
 import type * as netTypes from 'net';
 
@@ -94,8 +93,8 @@ export class UnavailableAgentHostChannel<TContext> implements IServerChannel<TCo
 /**
  * Default upstream factory: opens an AHP WebSocket to the local agent host.
  */
-const defaultUpstreamFactory = (logService: ILogService, lifetime: IServerLifetimeService): UpstreamConnectionFactory =>
-	(endpoint) => new WebSocketUpstreamConnection(endpoint, logService, lifetime);
+const defaultUpstreamFactory = (logService: ILogService): UpstreamConnectionFactory =>
+	(endpoint) => new WebSocketUpstreamConnection(endpoint, logService);
 
 class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnection {
 	private readonly _onFrame = this._register(new Emitter<string>());
@@ -107,12 +106,10 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 	private _ws: wsTypes.WebSocket | undefined;
 	private _connectPromise: Promise<void> | undefined;
 	private _closeFired = false;
-	private readonly _lifetimeToken = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _endpoint: IAgentHostUpstreamEndpoint,
 		private readonly _logService: ILogService,
-		private readonly _serverLifetimeService: IServerLifetimeService,
 	) {
 		super();
 	}
@@ -137,7 +134,6 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 			const onOpen = () => {
 				cleanup();
 				this._logService.trace('[AgentHostChannel] Upstream open');
-				this._lifetimeToken.value = this._serverLifetimeService.active('AgentHostChannel');
 				socket.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
 					this._onFrame.fire(text);
@@ -196,7 +192,6 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 			return;
 		}
 		this._closeFired = true;
-		this._lifetimeToken.clear();
 		this._onClose.fire();
 	}
 
@@ -236,11 +231,10 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		ipcServer: IPCServer<TContext>,
 		private readonly _endpoint: IAgentHostUpstreamEndpoint,
 		private readonly _logService: ILogService,
-		serverLifetimeService: IServerLifetimeService,
 		upstreamFactory?: UpstreamConnectionFactory,
 	) {
 		super();
-		this._upstreamFactory = upstreamFactory ?? defaultUpstreamFactory(_logService, serverLifetimeService);
+		this._upstreamFactory = upstreamFactory ?? defaultUpstreamFactory(_logService);
 		this._register(ipcServer.onDidRemoveConnection(c => this._disposeCtx(c.ctx as unknown as TContext)));
 	}
 
