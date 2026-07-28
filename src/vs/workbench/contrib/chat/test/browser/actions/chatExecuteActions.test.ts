@@ -10,15 +10,16 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { GetHandoffsActionId, ExecuteHandoffActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { IChatMode, IChatModes, IChatModeService, ICustomAgentInfo } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
-import { SessionType } from '../../../common/chatSessionsService.js';
 
 interface IExecuteHandoffResult {
 	success: boolean;
@@ -26,11 +27,6 @@ interface IExecuteHandoffResult {
 	error?: string;
 }
 
-// CommandsRegistry types all handlers as returning void, but our commands
-// return real values. This helper performs the double cast safely.
-function runCommand<T>(handler: Function, ...args: unknown[]): T {
-	return handler(...args) as unknown as T;
-}
 
 async function runCommandAsync<T>(handler: Function, ...args: unknown[]): Promise<T> {
 	return await handler(...args) as unknown as T;
@@ -71,7 +67,7 @@ suite('GetHandoffsAction', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('should return all modes when no sourceCustomAgent is specified', () => {
+	test('should return all modes when no sourceCustomAgent is specified', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const planMode = createMockMode({
 			id: 'plan',
@@ -86,7 +82,7 @@ suite('GetHandoffsAction', () => {
 		const handler = CommandsRegistry.getCommand(GetHandoffsActionId)?.handler;
 		assert.ok(handler);
 
-		const result = runCommand<ICustomAgentInfo[]>(handler, instantiationService);
+		const result = await runCommandAsync<ICustomAgentInfo[]>(handler, instantiationService);
 		assert.strictEqual(result.length, 2);
 		assert.strictEqual(result[0].name, 'ask');
 		assert.strictEqual(result[0].handoffs.length, 0);
@@ -94,7 +90,7 @@ suite('GetHandoffsAction', () => {
 		assert.strictEqual(result[1].handoffs.length, 1);
 	});
 
-	test('should filter by sourceCustomAgent (case-insensitive)', () => {
+	test('should filter by sourceCustomAgent (case-insensitive)', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const planMode = createMockMode({
 			id: 'plan',
@@ -109,13 +105,13 @@ suite('GetHandoffsAction', () => {
 		const handler = CommandsRegistry.getCommand(GetHandoffsActionId)?.handler;
 		assert.ok(handler);
 
-		const result = runCommand<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'Plan' });
+		const result = await runCommandAsync<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'Plan' });
 		assert.deepStrictEqual(result.length, 1);
 		assert.strictEqual(result[0].name, 'plan');
 		assert.strictEqual(result[0].handoffs.length, 1);
 	});
 
-	test('should return empty array for non-matching sourceCustomAgent', () => {
+	test('should return empty array for non-matching sourceCustomAgent', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 
 		instantiationService.set(IChatModeService, new MockChatModeService({ builtin: [askMode], custom: [] }));
@@ -123,7 +119,7 @@ suite('GetHandoffsAction', () => {
 		const handler = CommandsRegistry.getCommand(GetHandoffsActionId)?.handler;
 		assert.ok(handler);
 
-		const result = runCommand<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'nonexistent' });
+		const result = await runCommandAsync<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'nonexistent' });
 		assert.deepStrictEqual(result, []);
 	});
 });
@@ -198,7 +194,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should fall back to lastFocusedWidget when sessionResource is omitted', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -218,7 +214,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should resolve widget by sessionResource', async () => {
 		const chatModeService = new MockChatModeService({ builtin: [], custom: [planMode] });
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 		const sessionUri = URI.parse('test://session/1');
 
 		const mockWidgetService = new class extends MockChatWidgetService {
@@ -243,7 +239,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should match by id (primary)', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -262,7 +258,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should fall back to label match when id is not provided', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget, executeHandoffCalls } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -281,7 +277,7 @@ suite('ExecuteHandoffAction', () => {
 
 	test('should return error for non-matching identifier', async () => {
 		const chatModeService = new MockChatModeService();
-		const { widget } = createMockWidget(planMode, await chatModeService.awaitModes(SessionType.Local));
+		const { widget } = createMockWidget(planMode, await chatModeService.getLocalModes());
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -301,7 +297,7 @@ suite('ExecuteHandoffAction', () => {
 	test('should resolve sourceCustomAgent to look up handoffs from a different mode', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const modeService = new MockChatModeService({ builtin: [askMode], custom: [planMode] });
-		const { widget, executeHandoffCalls } = createMockWidget(askMode, await modeService.awaitModes(SessionType.Local)); // widget is in "ask" mode (no handoffs)
+		const { widget, executeHandoffCalls } = createMockWidget(askMode, await modeService.getLocalModes()); // widget is in "ask" mode (no handoffs)
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -326,7 +322,7 @@ suite('ExecuteHandoffAction', () => {
 
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
 		const chatModeService = new MockChatModeService({ builtin: [askMode], custom: [] });
-		const { widget } = createMockWidget(askMode, await chatModeService.awaitModes(SessionType.Local)); // widget is in "ask" mode (no handoffs)
+		const { widget } = createMockWidget(askMode, await chatModeService.getLocalModes()); // widget is in "ask" mode (no handoffs)
 
 		const mockWidgetService = new class extends MockChatWidgetService {
 			override readonly lastFocusedWidget = widget as IChatWidget;
@@ -341,5 +337,111 @@ suite('ExecuteHandoffAction', () => {
 		const result = await runCommandAsync<IExecuteHandoffResult>(handler, instantiationService, { id: 'implement:start-implementation' });
 		assert.strictEqual(result.success, false);
 		assert.ok(result.error?.includes('No handoffs available'));
+	});
+});
+
+suite('SwitchToNextPinnedModelAction', () => {
+	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('invokes switchToNextPinnedModel on the last focused widget', async () => {
+		let switchCalls = 0;
+		const mockWidget = {
+			input: {
+				switchToNextPinnedModel: () => {
+					switchCalls++;
+				}
+			}
+		} as unknown as IChatWidget;
+
+		const mockWidgetService = new class extends MockChatWidgetService {
+			override readonly lastFocusedWidget = mockWidget;
+		};
+
+		instantiationService.set(IChatWidgetService, mockWidgetService);
+
+		const handler = CommandsRegistry.getCommand('workbench.action.chat.switchToNextPinnedModel')?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync<void>(handler, instantiationService);
+		assert.strictEqual(switchCalls, 1);
+	});
+
+	test('is a no-op when there is no focused widget', async () => {
+		instantiationService.set(IChatWidgetService, new MockChatWidgetService());
+
+		const handler = CommandsRegistry.getCommand('workbench.action.chat.switchToNextPinnedModel')?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync<void>(handler, instantiationService);
+	});
+});
+
+suite('ChatSubmitAction', () => {
+	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('passes acceptInputOptions to the widget', async () => {
+		let acceptedOptions: unknown;
+		const widget = {
+			input: {
+				pendingDelegationTarget: undefined,
+			} as IChatWidget['input'],
+			acceptInput: async (_query: string | undefined, options: IChatAcceptInputOptions | undefined) => {
+				acceptedOptions = options;
+				return undefined;
+			},
+		} satisfies Partial<IChatWidget>;
+
+		instantiationService.set(ITelemetryService, NullTelemetryService);
+		instantiationService.set(IChatWidgetService, new MockChatWidgetService());
+
+		const handler = CommandsRegistry.getCommand(ChatSubmitAction.ID)?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync<void>(handler, instantiationService, {
+			widget: widget as IChatWidget,
+			acceptInputOptions: { cancelCurrentRequest: true },
+		});
+
+		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true });
 	});
 });

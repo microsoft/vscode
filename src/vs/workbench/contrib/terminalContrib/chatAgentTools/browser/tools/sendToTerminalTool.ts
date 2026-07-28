@@ -60,6 +60,15 @@ export interface ISendToTerminalInputParams {
 	waitForOutput?: boolean;
 }
 
+/**
+ * Cancel/EOF signals: Ctrl-C (ETX, 0x03), Ctrl-D (EOT, 0x04), Ctrl-\ (FS, 0x1c).
+ * When sent on their own these interrupt or close the foreground process rather
+ * than completing it, so the model needs an extra nudge that the turn is not done.
+ */
+function isCancelSignal(command: string): boolean {
+	return /^[\u0003\u0004\u001c]$/.test(command.trim());
+}
+
 const FocusTerminalByIdCommandId = 'workbench.action.terminal.chat.focusTerminalById';
 CommandsRegistry.registerCommand(FocusTerminalByIdCommandId, async (accessor, instanceId: number) => {
 	const terminalService = accessor.get(ITerminalService);
@@ -372,10 +381,14 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			recentOutput = getOutput(execution.instance, startMarker ?? undefined, { lastNLines: 20 });
 		}
 
+		const steering = isCancelSignal(args.command)
+			? `\n\nNote: The input you sent was a cancel signal (Ctrl-C / Ctrl-D / Ctrl-\\). The previously running command was interrupted, not completed. This is not a signal to end the turn — if you intend to run a recovery or follow-up command, issue it now in this same turn. Call ${TerminalToolId.GetTerminalOutput} first if you need to verify the shell is back at a prompt.`
+			: '';
+
 		return {
 			content: [{
 				kind: 'text',
-				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output:\n${recentOutput}` : ''}`
+				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output:\n${recentOutput}` : ''}${steering}`
 			}]
 		};
 	}

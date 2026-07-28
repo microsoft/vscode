@@ -8,6 +8,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, CopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
+import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
@@ -84,8 +85,8 @@ function modelsResponse(models: object[]): Response {
 	});
 }
 
-function createService(fetchImpl: FetchFunction): CopilotApiService {
-	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService);
+function createService(fetchImpl: FetchFunction, enterpriseUri?: string): CopilotApiService {
+	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri));
 }
 
 type CapturedRequest = { url: string; init: RequestInit | undefined };
@@ -125,11 +126,44 @@ suite('CopilotApiService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// #region Token Minting
+	test('combines internal organizations from the Copilot token with login from user discovery', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					login: 'octocat',
+					copilotignore_enabled: true,
+					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			if (url.includes('/token')) {
+				return tokenResponse({
+					token: 'rt=1;tid=tracking-id',
+					organization_list: [
+						'a5db0bcaae94032fe715fb34a5e4bce2',
+						'551cca60ce19654d894e786220822482',
+					],
+				});
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
 
-	suite('Token Minting', () => {
+		assert.deepStrictEqual(await service.resolveRestrictedTelemetryContext('gh-token'), {
+			restrictedTelemetryEnabled: true,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: 'https://telemetry.example',
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+			copilotIgnoreEnabled: true,
+		});
+	});
 
-		test('mints a token on first request', async () => {
+	// #region Endpoint Discovery
+
+	suite('Endpoint Discovery', () => {
+
+		test('runs endpoint discovery on first request', async () => {
 			let mintCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
@@ -144,7 +178,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 1);
 		});
 
-		test('reuses cached token for consecutive calls with same github token', async () => {
+		test('reuses cached endpoint discovery for consecutive calls with same github token', async () => {
 			let mintCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
@@ -161,7 +195,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 1);
 		});
 
-		test('re-mints when the github token changes', async () => {
+		test('re-discovers endpoints when the github token changes', async () => {
 			let mintCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
@@ -177,43 +211,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 2);
 		});
 
-		test('re-mints when the copilot token is within 5 minutes of expiry', async () => {
-			let mintCount = 0;
-			const service = createService(async (input) => {
-				const url = getUrl(input);
-				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					// Both expires_at AND refresh_in must point to a soon-expiring token,
-					// because cache validity prefers refresh_in over expires_at.
-					return tokenResponse({ expires_at: Date.now() / 1000 + 120, refresh_in: 0 });
-				}
-				return anthropicResponse([{ type: 'text', text: 'hi' }]);
-			});
-
-			await service.messages('gh-tok', baseRequest);
-			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 2);
-		});
-
-		test('uses refresh_in (not expires_at) for cache validity to tolerate clock skew', async () => {
-			// Server says expires_at is in the past (simulating client clock ahead of server),
-			// but refresh_in is comfortably long. Cache must still be valid.
-			let mintCount = 0;
-			const service = createService(async (input) => {
-				const url = getUrl(input);
-				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse({ expires_at: Date.now() / 1000 - 999, refresh_in: 1800 });
-				}
-				return anthropicResponse([{ type: 'text', text: 'hi' }]);
-			});
-
-			await service.messages('gh-tok', baseRequest);
-			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 1);
-		});
-
-		test('invalidates cached token on 401 from messages so the next call re-mints', async () => {
+		test('invalidates cached endpoint discovery on 401 from messages so the next call re-discovers', async () => {
 			let mintCount = 0;
 			let messageCallCount = 0;
 			const service = createService(async (input) => {
@@ -234,7 +232,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 2);
 		});
 
-		test('invalidates cached token on 403 from models so the next call re-mints', async () => {
+		test('invalidates cached endpoint discovery on 403 from models so the next call re-discovers', async () => {
 			let mintCount = 0;
 			let modelsCallCount = 0;
 			const service = createService(async (input) => {
@@ -255,7 +253,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 2);
 		});
 
-		test('does not re-mint when copilot token has plenty of time left', async () => {
+		test('does not re-discover when the cache is still warm for the same token', async () => {
 			let mintCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
@@ -271,7 +269,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 1);
 		});
 
-		test('uses endpoints.api from the token envelope as the CAPI base', async () => {
+		test('uses endpoints.api from the /copilot_internal/user response as the CAPI base', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
 				{ endpoints: { api: 'https://custom.copilot.example.com' } },
@@ -280,6 +278,30 @@ suite('CopilotApiService', () => {
 
 			await service.messages('gh-tok', baseRequest);
 			assert.strictEqual(captured().url, 'https://custom.copilot.example.com/v1/messages');
+		});
+
+		test('reuses endpoint discovery when resolving the GitHub login', async () => {
+			let discoveryCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal/user')) {
+					discoveryCount++;
+					return new Response(JSON.stringify({
+						login: 'octocat',
+						endpoints: { api: 'https://custom.copilot.example.com' },
+					}), { status: 200 });
+				}
+				throw new Error(`Unexpected URL: ${url}`);
+			});
+
+			const apiEndpoint = await service.resolveApiEndpoint('gh-tok');
+			const login = await service.resolveUserLogin('gh-tok');
+
+			assert.deepStrictEqual({ apiEndpoint, login, discoveryCount }, {
+				apiEndpoint: 'https://custom.copilot.example.com',
+				login: 'octocat',
+				discoveryCount: 1,
+			});
 		});
 
 		test('falls back to default API base when endpoints.api is missing', async () => {
@@ -292,7 +314,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(captured().url, 'https://api.githubcopilot.com/v1/messages');
 		});
 
-		test('sends the github token as Authorization header to the mint endpoint', async () => {
+		test('sends the github token as a Bearer Authorization header to the discovery endpoint', async () => {
 			let capturedAuthHeader: string | undefined;
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
@@ -305,26 +327,41 @@ suite('CopilotApiService', () => {
 			});
 
 			await service.messages('my-secret-gh-token', baseRequest);
-			assert.strictEqual(capturedAuthHeader, 'token my-secret-gh-token');
+			assert.strictEqual(capturedAuthHeader, 'Bearer my-secret-gh-token');
 		});
 
-		test('throws on 403 from token mint', async () => {
+		test('routes endpoint discovery to the GitHub Enterprise host when configured', async () => {
+			let discoveryUrl: string | undefined;
+			const service = createService(async (input) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					discoveryUrl = url;
+					return tokenResponse();
+				}
+				return anthropicResponse([{ type: 'text', text: 'ok' }]);
+			}, 'https://acme.ghe.com');
+
+			await service.messages('gh-tok', baseRequest);
+			assert.strictEqual(discoveryUrl, 'https://api.acme.ghe.com/copilot_internal/user');
+		});
+
+		test('throws on 403 from endpoint discovery', async () => {
 			const service = createService(async () => new Response('{"message":"Not authorized"}', { status: 403, statusText: 'Forbidden' }));
 			await assert.rejects(
 				() => service.messages('bad-tok', baseRequest),
-				(err: Error) => err.message.includes('Copilot token minting failed: 403'),
+				(err: Error) => err.message.includes('Copilot endpoint discovery failed: 403'),
 			);
 		});
 
-		test('throws on 500 from token mint', async () => {
+		test('throws on 500 from endpoint discovery', async () => {
 			const service = createService(async () => new Response('internal error', { status: 500, statusText: 'Internal Server Error' }));
 			await assert.rejects(
 				() => service.messages('gh-tok', baseRequest),
-				(err: Error) => err.message.includes('Copilot token minting failed: 500'),
+				(err: Error) => err.message.includes('Copilot endpoint discovery failed: 500'),
 			);
 		});
 
-		test('does not double-mint when concurrent requests race on first call', async () => {
+		test('does not double-discover when concurrent requests race on first call', async () => {
 			let mintCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
@@ -343,7 +380,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 1);
 		});
 
-		test('in-flight mint dedup spans concurrent messages + models calls', async () => {
+		test('in-flight discovery dedup spans concurrent messages + models calls', async () => {
 			let mintCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
@@ -365,7 +402,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(mintCount, 1);
 		});
 
-		test('error from token mint does not include the github token', async () => {
+		test('error from endpoint discovery does not include the github token', async () => {
 			const service = createService(async () => new Response('forbidden', { status: 403, statusText: 'Forbidden' }));
 			await assert.rejects(
 				() => service.messages('super-secret-gh-token-xyz', baseRequest),
@@ -373,7 +410,7 @@ suite('CopilotApiService', () => {
 			);
 		});
 
-		test('error from CAPI does not include the copilot or github token', async () => {
+		test('error from CAPI does not include the github token', async () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
@@ -387,7 +424,7 @@ suite('CopilotApiService', () => {
 			);
 		});
 
-		test('mints independently for concurrent requests with different github tokens', async () => {
+		test('discovers independently for concurrent requests with different github tokens', async () => {
 			const minted: string[] = [];
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
@@ -407,6 +444,84 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(minted.length, 2);
 			assert.ok(minted.some(h => h.includes('gh-tok-A')));
 			assert.ok(minted.some(h => h.includes('gh-tok-B')));
+		});
+
+		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
+			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			const SMOKE_TEST_ENV = 'VSCODE_SMOKE_TEST_PROXY_HEADER';
+			let saved: string | undefined;
+			let savedSmokeTestEnv: string | undefined;
+
+			setup(() => {
+				saved = process.env[ENV];
+				savedSmokeTestEnv = process.env[SMOKE_TEST_ENV];
+				delete process.env[SMOKE_TEST_ENV];
+			});
+			teardown(() => {
+				if (saved === undefined) {
+					delete process.env[ENV];
+				} else {
+					process.env[ENV] = saved;
+				}
+				if (savedSmokeTestEnv === undefined) {
+					delete process.env[SMOKE_TEST_ENV];
+				} else {
+					process.env[SMOKE_TEST_ENV] = savedSmokeTestEnv;
+				}
+			});
+
+			test('a loopback override skips discovery and routes CAPI at the override', async () => {
+				process.env[ENV] = 'http://127.0.0.1:12345';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
+			});
+
+			test('the reserved smoke-test host skips discovery only with the proxy marker', async () => {
+				process.env[ENV] = 'http://vscode-smoke.test:12345';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'the smoke-test override must skip endpoint discovery');
+			});
+
+			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
+				process.env[ENV] = 'https://evil.example.com';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, true, 'a non-loopback override must be ignored so the token is never sent to it');
+			});
 		});
 	});
 
@@ -498,8 +613,9 @@ suite('CopilotApiService', () => {
 			const headers = captured().init?.headers as Record<string, string>;
 
 			assert.strictEqual(headers['Content-Type'], 'application/json');
-			assert.strictEqual(headers['Authorization'], 'Bearer copilot-tok-abc');
-			assert.strictEqual(headers['OpenAI-Intent'], 'conversation');
+			assert.strictEqual(headers['Authorization'], 'Bearer gh-tok');
+			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
+			assert.strictEqual(headers['X-Interaction-Type'], 'messages-proxy');
 			assert.ok(headers['X-Request-Id'], 'should have a request id');
 			assert.ok(headers['X-GitHub-Api-Version'], 'CAPIClient should inject API version');
 			assert.ok(headers['VScode-SessionId'], 'CAPIClient should inject session id');
@@ -547,7 +663,7 @@ suite('CopilotApiService', () => {
 
 			assert.strictEqual(headers['X-Custom-Trace'], 'abc-123');
 			assert.strictEqual(headers['X-Session-Id'], 'sess-456');
-			assert.strictEqual(headers['Authorization'], 'Bearer copilot-tok-abc', 'standard headers should not be overridden');
+			assert.strictEqual(headers['Authorization'], 'Bearer gh-tok', 'standard headers should not be overridden');
 		});
 
 		test('caller-supplied headers cannot override security-sensitive standard headers', async () => {
@@ -568,10 +684,29 @@ suite('CopilotApiService', () => {
 			});
 			const headers = captured().init?.headers as Record<string, string>;
 
-			assert.strictEqual(headers['Authorization'], 'Bearer copilot-tok-abc');
+			assert.strictEqual(headers['Authorization'], 'Bearer gh-tok');
 			assert.strictEqual(headers['Content-Type'], 'application/json');
 			assert.notStrictEqual(headers['X-Request-Id'], 'attacker-id');
-			assert.strictEqual(headers['OpenAI-Intent'], 'conversation');
+			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
+		});
+
+		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+			const { fetch: fetchFn, captured } = routingFetch(
+				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
+			);
+			const service = createService(fetchFn);
+
+			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			await service.messages('gh-tok', baseRequest);
+			const withHeader = captured().init?.headers as Record<string, string>;
+
+			// Opt-in: the header is omitted entirely so CAPI authorizes against
+			// the token's real entitlement instead of the derived integration id.
+			await service.messages('gh-tok', baseRequest, { suppressIntegrationId: true });
+			const suppressed = captured().init?.headers as Record<string, string>;
+
+			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
+			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
 	});
 
@@ -1494,7 +1629,7 @@ suite('CopilotApiService', () => {
 			});
 
 			await service.models('gh-tok');
-			assert.strictEqual(capturedAuthHeader, 'Bearer copilot-tok-abc');
+			assert.strictEqual(capturedAuthHeader, 'Bearer gh-tok');
 		});
 
 		test('throws on non-200 response', async () => {
@@ -1555,7 +1690,24 @@ suite('CopilotApiService', () => {
 			await service.models('gh-tok', {
 				headers: { 'Authorization': 'Bearer attacker-token' },
 			});
-			assert.strictEqual(capturedHeaders?.['Authorization'], 'Bearer copilot-tok-abc');
+			assert.strictEqual(capturedHeaders?.['Authorization'], 'Bearer gh-tok');
+		});
+
+		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+			const { fetch: fetchFn, captured } = routingFetch(() => modelsResponse([]));
+			const service = createService(fetchFn);
+
+			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			await service.models('gh-tok');
+			const withHeader = captured().init?.headers as Record<string, string>;
+
+			// Opt-in: the header is omitted entirely so CAPI authorizes against
+			// the token's real entitlement instead of the derived integration id.
+			await service.models('gh-tok', { suppressIntegrationId: true });
+			const suppressed = captured().init?.headers as Record<string, string>;
+
+			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
+			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
 	});
 

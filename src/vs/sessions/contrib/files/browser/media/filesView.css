@@ -23,15 +23,9 @@
 	gap: 8px;
 }
 
-.files-empty-view-body .files-empty-welcome-icon.codicon {
-	font-size: 32px !important;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.4;
-}
-
 .files-empty-view-body .files-empty-welcome-message {
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 /* Sync Changes Action */

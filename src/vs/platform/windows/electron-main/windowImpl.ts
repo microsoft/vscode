@@ -207,7 +207,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
-				// TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
+				// TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250632
 				// where showing the custom menu seems broken on Windows
 				if (isLinux) {
 					if (cx > 35 /* Cursor is beyond app icon in title bar */) {
@@ -462,15 +462,15 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private dimColor(color: string): string {
 
-		// Blend a CSS color with black at 30% opacity to match the
-		// dimming overlay of `rgba(0, 0, 0, 0.3)` used by modals.
+		// Blend a CSS color with black at 50% opacity to match the
+		// dimming overlay of `rgba(0, 0, 0, 0.5)` used by modals.
 
 		const parsed = Color.Format.CSS.parse(color);
 		if (!parsed) {
 			return color;
 		}
 
-		const dimFactor = 0.7; // 1 - 0.3 opacity of black overlay
+		const dimFactor = 0.5; // 1 - 0.5 opacity of black overlay
 		const r = Math.round(parsed.rgba.r * dimFactor);
 		const g = Math.round(parsed.rgba.g * dimFactor);
 		const b = Math.round(parsed.rgba.b * dimFactor);

@@ -81,7 +81,7 @@ export class GitHubPullRequestTitleAndDescriptionGenerator implements TitleAndDe
 		const template: string | undefined = context.template;
 		const compareBranch: string | undefined = context.compareBranch;
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const charLimit = Math.floor((endpoint.modelMaxPromptTokens * 4) / 3);
 
 		const prompt = await this.createPRTitleAndDescriptionPrompt(commitMessages, patches, issues, template, compareBranch, charLimit);
@@ -190,7 +190,7 @@ export class GitHubPullRequestTitleAndDescriptionGenerator implements TitleAndDe
 			}
 		}
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptRenderer = PromptRenderer.create(this.instantiationService, endpoint, GitHubPullRequestPrompt, { commitMessages, issues, patches, template, compareBranch });
 		return promptRenderer.render(undefined, undefined);
 	}

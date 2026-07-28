@@ -8,7 +8,7 @@
 
 ### Mobile Part Subclasses
 
-Desktop Parts (`ChatBarPart`, `SidebarPart`, `PanelPart`, `AuxiliaryBarPart`) remain unchanged. Each has a **mobile subclass** that extends it and overrides only `layout()` and/or `updateStyles()`. `AgenticPaneCompositePartService` conditionally instantiates the mobile or desktop variant at startup based on viewport width (`< 640px` → phone).
+Desktop Parts (`SessionsPart`, `SidebarPart`, `PanelPart`, `AuxiliaryBarPart`) remain unchanged. Each has a **mobile subclass** that extends it and overrides only `layout()` and/or `updateStyles()`. `AgenticPaneCompositePartService` conditionally instantiates the mobile or desktop variant at startup based on viewport width (`< 640px` → phone).
 
 Each mobile Part checks the current layout class (via `isPhoneLayout(layoutService)`) at every call. When the viewport is phone it applies mobile behavior (full-cell layout, no card chrome, no session-bar subtraction). When the viewport is tablet/desktop — which happens when a real phone rotates past the 640px breakpoint — it delegates to the desktop `super` implementation. This means a `Mobile*Part` instance is safe to keep through a viewport-class transition without producing wrong layout math.
 
@@ -35,7 +35,7 @@ Two registrations can target the same slot with opposite `when` clauses, pointin
 | Feature | Phone Status | Mechanism |
 |---------|--------------|-----------|
 | Sessions list (sidebar) | ✅ Compatible | No gate |
-| Chat views (ChatBar) | ✅ Compatible | No gate |
+| Sessions Part (chat views) | ✅ Compatible | No gate — phone enforces a single visible session via `MobileSessionsPart` |
 | Changes view (AuxiliaryBar) | ❌ Gated (with mobile equivalent) | `when: !sessionsIsPhoneLayout` on view descriptor; phone uses `MobileChangesView` overlay reachable from the title-bar Changes pill |
 | Files view (AuxiliaryBar) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
 | Logs view (Panel) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
@@ -54,7 +54,7 @@ On phone-sized viewports (`< 640px` width):
 │  [☰]  Session Title      [+|👤] │  ← MobileTitlebarPart (prepended before grid)
 ├──────────────────────────────────┤
 │                                  │
-│     Chat (edge-to-edge)          │  ← Grid: ChatBarPart fills 100%
+│     Chat (edge-to-edge)          │  ← Grid: SessionsPart fills 100% (single SessionView)
 │                                  │
 │                                  │
 │                                  │
@@ -92,7 +92,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 |---|---|---|
 | **Titlebar** (3-section toolbar) | **MobileTitlebarPart** (☰ / title / +|👤) | Always visible at top |
 | **Sidebar** (sessions list) | Drawer overlay (85% width) | Hamburger button (☰) |
-| **ChatBar** (chat widget) | Same Part, edge-to-edge, no card chrome | Default view (always visible) |
+| **Sessions Part** (chat views) | Same Part (`MobileSessionsPart`), edge-to-edge, no card chrome, single visible session | Default view (always visible) |
 | **AuxiliaryBar** (files, changes) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **Panel** (terminal, output) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **SessionCompositeBar** (chat tabs) | Hidden on phone | — |
@@ -105,7 +105,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | File | Purpose |
 |------|---------|
-| `browser/parts/mobile/mobileChatBarPart.ts` | Extends `ChatBarPart`. Overrides `layout()` (no card margins) and `updateStyles()` (no inline card styles). |
+| `browser/parts/mobile/mobileSessionsPart.ts` | Extends `SessionsPart`. Overrides `layout()` (no card margins) and `updateStyles()` (no inline card styles). Phone layout always shows a single `SessionView` filling the part. |
 | `browser/parts/mobile/mobileSidebarPart.ts` | Extends `SidebarPart`. Overrides `updateStyles()` (no inline card/title styles). |
 | `browser/parts/mobile/mobileAuxiliaryBarPart.ts` | Extends `AuxiliaryBarPart`. Overrides `layout()` and `updateStyles()` (no card margins or inline styles). |
 | `browser/parts/mobile/mobilePanelPart.ts` | Extends `PanelPart`. Overrides `layout()` and `updateStyles()` (no card margins or inline styles). |
@@ -115,13 +115,26 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 | File | Purpose |
 |------|---------|
 | `mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, contextual right slot (+ for in-chat, account indicator for welcome). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. Includes account state tracking, avatar loading, and account panel with copilot dashboard. |
-| `mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, chip row styling. |
+| `browser/media/phoneLayout.css` | Shared phone-layout CSS imported by the sessions workbench: touch behavior, quick picks, dialogs, notifications, modal editors, and panel/auxiliary-bar overlays. |
+| `mobileChatShell.css` | Phone chat-shell CSS: flex column layout, split-view positioning, card chrome removal, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, and chip row styling. |
 | `mobilePickerSheet.ts` | Reusable phone-friendly bottom sheet for picker-style choices. Promise-based overlay with backdrop, drag handle, header (title + Done button + optional header actions), sectioned listbox, and optional inline search with debounced cancellable loads. Uses `DisposableStore` for lifecycle. |
 | `media/mobilePickerSheet.css` | Styling for the bottom sheet widget (backdrop, slide-up animation, row layout, search input, section dividers, checkmarks). |
 | `mobileChipLaneScroll.ts` | Pointer-event-based horizontal scroll helper for the config chip row. Overcomes monaco's `Gesture.addTarget` eating `touchmove` by translating `pointermove` into `scrollLeft` updates. Phone-gated via `isPhoneLayout()` — no-ops on desktop. |
+| `mobileSessionFilterChips.ts` | Status filter-chip row shown below the sessions-list header on phone (Completed / In Progress / Failed). Drives the same filter API as `ISessionsList` so chips and the desktop filter menu stay in sync. |
+| `mobileSortGroupSheet.ts` | `showMobileSortGroupSheet(...)`: bottom sheet presenting the sort and group toggles (with a divider between groups) as the phone replacement for the desktop sort/group menus. |
+| `mobileVisualViewport.ts` | Tracks the `VisualViewport` to detect the virtual keyboard (threshold `KEYBOARD_VISIBLE_THRESHOLD_PX = 50`), drives the `sessionsKeyboardVisible` context key, and exposes the current keyboard height via the `--vscode-keyboard-height` CSS custom property. |
+| `mobileEdgeSwipe.ts` | Left-edge swipe gesture that opens the sidebar drawer (edge hit zone, commit-travel and vertical-tolerance thresholds). |
+| `mobilePulldownDismiss.ts` *(under `contributions/`)* | Pull-down-to-dismiss gesture for the full-screen overlays (commit by travel or flick velocity, with a dead-zone before visual feedback). |
+| `longPress.ts` | `installLongPress(...)`: long-press gesture helper (hold-time + move-threshold) used for touch context actions, with click suppression after the press fires. |
 | `contributions/mobileChangesView.ts` | Full-screen overlay listing every file changed in the active session (master view). Reactive over `ISessionsManagementService.activeSession.changes`. Each row uses a codicon change-type icon (`diffAdded` / `diffModified` / `diffRemoved` via `ThemeIcon.asClassNameArray`), filename, relative path, an A/M/D pill, and `+N -N` counters. Tapping a row invokes `MOBILE_OPEN_DIFF_VIEW_COMMAND_ID` with the per-file payload **plus** the full sibling list and index — the diff view uses that for prev/next chevrons. Replaces the legacy QuickPick the title-bar Changes pill used to open. |
 | `contributions/mobileDiffView.ts` | Full-screen overlay rendering a unified diff for one file (detail view). Uses `linesDiffComputers.getDefault()` for hunk computation and async `tokenizeToString` from `editor/common/languages/textToHtmlTokenizer.ts` for Monaco-quality syntax highlighting. After tokenization, a per-render `<style>` block is injected from `TokenizationRegistry.getColorMap()` so `<span class="mtkN">` token classes resolve to the active theme's colors. When no TextMate grammar is registered for the language (the agents window doesn't load language extensions), falls back to a regex tokenizer that emits `<span class="mobile-diff-tok-{kind}">` CSS-class spans; per-theme colors for those classes are defined in `mobileOverlayViews.css`. Header includes prev/next chevrons + "N / M" position when multiple siblings are passed; horizontal-swipe gesture as an alt navigation. Supports deletion-only diffs (`modifiedURI` undefined). |
-| `contributions/media/mobileOverlayViews.css` | Shared CSS for both overlays — the `mobile-overlay-*` chrome (header, back button, body, scroll wrapper), diff-specific styles (sticky hunk header, `min-width: max-content` on lines so horizontal scroll engages, 3px coloured left-edge bar on add/remove rows, prev/next nav buttons), and the master-list row styles (file-icon themable container, A/M/D pill, +/− counters). |
+| `contributions/mobileMultiDiffView.ts` | Full-screen overlay rendering the diffs of **all** changed files in one scrollable surface (multi-file variant of `MobileDiffView`), virtualized via `mobileMultiDiffVirtualizer.ts`. |
+| `contributions/mobileMultiDiffVirtualizer.ts` | Pure layout/virtualization helper for `MobileMultiDiffView`: computes which file headers, hunk headers, and rows are visible for a given viewport/scroll position using estimated and measured metrics. |
+| `contributions/mobileDiffHelpers.ts` | Shared diff helpers for the overlays, including an extension→languageId fallback map (the agents window does not load language extensions, so `ILanguageService` guessing returns `'unknown'` for most files). |
+| `contributions/mobileDiffColors.ts` | Registers the `agentsMobileDiff.*` color tokens (icons, A/M/D pills, +N/−N counters, edge bars) used by the phone changes/diff overlays. Imported as a side-effect; needed because `vs/workbench/contrib/scm` (and its `gitDecoration.*` tokens) is not loaded in the agents window. |
+| `contributions/media/mobileOverlayViews.css` | Shared CSS for the single-file overlays — the `mobile-overlay-*` chrome (header, back button, body, scroll wrapper), diff-specific styles (sticky hunk header, `min-width: max-content` on lines so horizontal scroll engages, 3px coloured left-edge bar on add/remove rows, prev/next nav buttons), and the master-list row styles (file-icon themable container, A/M/D pill, +/− counters). |
+| `contributions/media/mobileMultiDiffView.css` | CSS for the multi-file diff overlay. |
+| `contrib/sessions/browser/mobile/mobileOverlayContribution.ts` | Registers the commands that open the changes / diff / multi-diff overlays and tracks the active overlay via `MutableDisposable`s so a re-invocation closes the prior overlay before opening a new one. (Lives under `contrib/` because the overlay commands need contrib-level services.) |
 
 ### Mobile Picker Subclasses
 
@@ -133,12 +146,15 @@ Mobile picker subclasses live in `contrib/` alongside their base classes (not in
 
 | File | Base class | Purpose |
 |------|-----------|---------|
-| `contrib/copilotChatSessions/browser/mobilePermissionPicker.ts` | `PermissionPicker` | Renders Default/Bypass/Autopilot as a bottom sheet on phone. |
-| `contrib/chat/browser/mobileSessionTypePicker.ts` | `SessionTypePicker` | Renders session-type choices as a bottom sheet on phone. |
+| `contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.ts` | `PermissionPicker` | Renders Default/Bypass/Autopilot as a bottom sheet on phone. |
+| `contrib/chat/browser/mobile/mobileSessionTypePicker.ts` | `SessionTypePicker` | Renders session-type choices as a bottom sheet on phone. |
+| `contrib/providers/agentHost/browser/mobile/mobileAgentHostModePicker.ts` | `AgentHostModePicker` | Renders agent-host mode choices as a bottom sheet on phone. |
 | `contrib/chat/browser/webWorkspacePicker.ts` | `WorkspacePicker` | Web variant: scopes to active host filter and renders as a bottom sheet on phone. Note: this is the only "mobile" picker that lives in a non-`mobile*`-named file because the same class also handles the desktop-web case (host scoping). |
-| `contrib/chat/browser/mobileWorkspacePickerSheet.ts` | (helper) | Builds `IMobilePickerSheetItem[]` from workspace picker items + browse actions. Used by `WebWorkspacePicker` on phone. |
-| `contrib/chat/browser/agentHost/mobileAgentHostSessionConfigPicker.ts` | `AgentHostSessionConfigPicker` | Routes Isolation + Branch to a unified bottom sheet on phone. Defined in the same file as the base to avoid a circular ESM import. |
-| `contrib/chat/browser/agentHost/mobileChatInputConfigPicker.ts` | (standalone) | Phone-only chat-input chip that combines Mode + Model into a unified bottom sheet. Replaces the desktop mode + model pickers (gated off via `when:` clauses) on phone-layout viewports. |
+| `contrib/automations/browser/automationDialog.ts` | `AutomationsWorkspacePicker` | `MobileAutomationsWorkspacePicker` renders the Automation workspace target, including **No workspace**, through the workspace bottom sheet on phone. |
+| `contrib/chat/browser/mobile/mobileWorkspacePickerSheet.ts` | (helper) | Builds `IMobilePickerSheetItem[]` from workspace picker items + browse actions. Used by `WebWorkspacePicker` on phone. |
+| `contrib/providers/agentHost/browser/agentHostSessionConfigPicker.ts` | `AgentHostSessionConfigPicker` | The phone variant `MobileAgentHostSessionConfigPicker` is a private subclass defined **in the same file** as the base (to avoid a circular ESM import); it routes Isolation + Branch to a unified bottom sheet on phone. |
+| `contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.ts` | (standalone) | Phone-only compact Mode and Model picker button that opens a unified bottom sheet. It consumes the input-scoped `SessionModelSelectionModel`, so it shares the desktop picker's models snapshot, current selection, canonical persistence, and empty-model state without enumerating language models itself. |
+| `contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts` | `IChatPhonePresenterImpl` | Builds the combined sheet for an opened chat. Agent Host rows come from `ISessionsProvider.getModelsSnapshot`; model actions route through the owning workbench delegate or input-scoped `SessionModelSelectionModel`, while every action revalidates provider/session/chat identity through `IUriIdentityService`. |
 
 ### Layout & Navigation
 
@@ -160,7 +176,7 @@ Mobile picker subclasses live in `contrib/` alongside their base classes (not in
 | File | Key Changes |
 |------|-------------|
 | `browser/workbench.ts` | Layout policy integration, MobileTitlebarPart creation/destruction (via `DisposableStore`), sidebar drawer open/close with backdrop, viewport-class-change detection, window resize listener, grid height calculation (subtracts MobileTitlebarPart height), titlebar grid visibility toggle, `ISessionsManagementService` for new session button. |
-| `browser/parts/chatBarPart.ts` | `_lastLayout` changed from `private` to `protected` for mobile subclass access. |
+| `browser/parts/sessionsPart.ts` | `_lastLayout` exposed as `protected` for mobile subclass access. |
 
 ### Styling
 

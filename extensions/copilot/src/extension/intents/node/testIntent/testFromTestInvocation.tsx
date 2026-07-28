@@ -9,7 +9,6 @@ import { IResponsePart } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IParserService } from '../../../../platform/parser/node/parserService';
-import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { isNotebookCellOrNotebookChatInput } from '../../../../util/common/notebooks';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { illegalArgument } from '../../../../util/vs/base/common/errors';
@@ -27,12 +26,9 @@ import { Tag } from '../../../prompts/node/base/tag';
 import { ChatToolReferences, ChatVariables, UserQuery } from '../../../prompts/node/panel/chatVariables';
 import { HistoryWithInstructions } from '../../../prompts/node/panel/conversationHistory';
 import { CustomInstructions } from '../../../prompts/node/panel/customInstructions';
-import { CodeBlock } from '../../../prompts/node/panel/safeElements';
 import { SelectionSplitKind, SummarizedDocumentData, SummarizedDocumentWithSelection } from './summarizedDocumentWithSelection';
 import { TestDeps } from './testDeps';
-import { ITestGenInfo, ITestGenInfoStorage } from './testInfoStorage';
 import { TestsIntent } from './testIntent';
-import { formatRequestAndUserQuery } from './testPromptUtil';
 import { PseudoStopStartResponseProcessor } from '../../../prompt/node/pseudoStartStopConversationCallback';
 
 
@@ -50,7 +46,6 @@ export class TestFromTestInvocation implements IIntentInvocation {
 		private readonly context: IDocumentContext,
 		private readonly alreadyConsumedChatVariable: vscode.ChatPromptReference | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITestGenInfoStorage private readonly testGenInfoStorage: ITestGenInfoStorage,
 	) {
 	}
 
@@ -61,12 +56,6 @@ export class TestFromTestInvocation implements IIntentInvocation {
 		>,
 		token: vscode.CancellationToken
 	) {
-		const testGenInfo = this.testGenInfoStorage.sourceFileToTest;
-
-		if (testGenInfo !== undefined) {
-			this.testGenInfoStorage.sourceFileToTest = undefined;
-		}
-
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
 			this.endpoint,
@@ -75,7 +64,6 @@ export class TestFromTestInvocation implements IIntentInvocation {
 				context: this.context,
 				promptContext,
 				alreadyConsumedChatVariable: this.alreadyConsumedChatVariable,
-				testGenInfo,
 			}
 		);
 
@@ -114,14 +102,12 @@ type Props = PromptElementProps<{
 	context: IDocumentContext;
 	promptContext: IBuildPromptContext;
 	alreadyConsumedChatVariable: vscode.ChatPromptReference | undefined;
-	testGenInfo: ITestGenInfo | undefined;
 }>;
 
 class TestFromTestPrompt extends PromptElement<Props> {
 
 	constructor(
 		props: Props,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IParserService private readonly parserService: IParserService
 	) {
 		super(props);
@@ -130,32 +116,13 @@ class TestFromTestPrompt extends PromptElement<Props> {
 	override async render(_state: void, sizing: PromptSizing) {
 
 		const { history, query, chatVariables, } = this.props.promptContext;
-		const { context, testGenInfo, alreadyConsumedChatVariable, } = this.props;
+		const { context, alreadyConsumedChatVariable, } = this.props;
 
 		if (isNotebookCellOrNotebookChatInput(context.document.uri)) {
 			throw illegalArgument('TestFromTestPrompt should not be used for notebooks');
 		}
 
-		const testedSymbolIdentifier = testGenInfo?.identifier;
-
-		const requestAndUserQuery = testGenInfo === undefined
-			? `Please, generate more tests, taking into account existing tests. ${query}`.trim()
-			: formatRequestAndUserQuery({
-				workspaceService: this.workspaceService,
-				chatVariables,
-				userQuery: query,
-				testFileToWriteTo: context.document.uri,
-				testedSymbolIdentifier,
-				context,
-			});
-
-		let testedDeclarationExcerpt = undefined;
-		if (testGenInfo !== undefined) {
-			const srcFileDoc = await this.workspaceService.openTextDocument(testGenInfo.uri);
-			const declStart = testGenInfo.target.start;
-			const expandedRange = testGenInfo.target.with(declStart.with(declStart.line, 0));
-			testedDeclarationExcerpt = srcFileDoc.getText(expandedRange);
-		}
+		const requestAndUserQuery = `Please, generate more tests, taking into account existing tests. ${query}`.trim();
 
 		const data = await SummarizedDocumentData.create(
 			this.parserService,
@@ -190,7 +157,7 @@ class TestFromTestPrompt extends PromptElement<Props> {
 					<ChatVariables priority={750} chatVariables={filteredChatVariables} />
 
 					{/* include summarized source file: */}
-					<Test2Impl priority={800} documentContext={context} srcFile={testGenInfo} />
+					<Test2Impl priority={800} documentContext={context} />
 					{/* include summarized test file: */}
 					<Tag name='testsFile' priority={900}>
 						<SummarizedDocumentWithSelection
@@ -198,13 +165,7 @@ class TestFromTestPrompt extends PromptElement<Props> {
 							tokenBudget={sizing.tokenBudget / 3}
 							_allowEmptySelection={true}
 						/>{ /* FIXME@ulugbekna: rework summarization to be more intelligent */}
-						{/* repeat tested declaration -- otherwise, model seems to forget it: */}
 					</Tag>
-					{testGenInfo !== undefined && testedDeclarationExcerpt !== undefined && /* FIXME@ulugbekna: include class around */
-						<Tag name='codeToTest' priority={900}>
-							{`Repeating excerpt from \`${testGenInfo?.uri.path}\` here that needs to be tested:`}{/* FIXME@ulugbekna */}<br />
-							<CodeBlock uri={testGenInfo.uri} languageId={context.language.languageId} code={testedDeclarationExcerpt} />
-						</Tag>}
 					<Tag name='userPrompt' priority={900}>
 						<UserQuery chatVariables={filteredChatVariables} query={requestAndUserQuery} />
 					</Tag>

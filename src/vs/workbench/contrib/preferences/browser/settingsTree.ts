@@ -2868,7 +2868,10 @@ class ApplySettingToAllProfilesAction extends Action {
 		const value = this.configService.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 
 		if (this.checked) {
-			value.splice(value.indexOf(this.setting.key), 1);
+			const idx = value.indexOf(this.setting.key);
+			if (idx !== -1) {
+				value.splice(idx, 1);
+			}
 		} else {
 			value.push(this.setting.key);
 		}

@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { AgentSandboxEnabledValue } from '../../../../platform/sandbox/common/settings.js';
 import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
@@ -136,7 +137,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 	},
 	[TerminalSettingId.TabsAllowAgentCliTitle]: {
-		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
+		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, Command Code, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
 		type: 'boolean',
 		default: true,
 	},
@@ -482,13 +483,9 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
-		tags: ['preview'],
-		default: false,
-		experiment: {
-			mode: 'auto'
-		},
+		default: true,
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -718,6 +715,30 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
+		key: TerminalContribSettingId.AgentSandboxEnabled,
+		migrateFn: (value: unknown, valueAccessor) => {
+			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
+				return [];
+			}
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxEnabled, { value: AgentSandboxEnabledValue.On }]];
+			if (valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxAllowNetwork, { value: true }]);
+			}
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.AgentSandboxWindowsEnabled,
+		migrateFn: (value: unknown, valueAccessor) => {
+			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
+				return [];
+			}
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxWindowsEnabled, { value: AgentSandboxEnabledValue.On }]];
+			if (valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxAllowNetwork, { value: true }]);
+			}
+			return configurationKeyValuePairs;
+		}
+	}, {
 		key: TerminalContribSettingId.DeprecatedAgentSandboxEnabled,
 		migrateFn: (value: unknown, valueAccessor) => {
 			// The deprecated key `chat.agent.sandbox` is now also a namespace prefix
@@ -733,7 +754,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			}
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			if (valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? 'on' : 'off' }]);
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off }]);
 			}
 			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxEnabled, { value: undefined }]);
 			return configurationKeyValuePairs;

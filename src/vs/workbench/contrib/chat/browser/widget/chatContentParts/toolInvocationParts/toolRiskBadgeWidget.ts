@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -21,6 +23,8 @@ const RISK_BADGE_CLASS = 'tool-risk-badge';
 export class ToolRiskBadgeWidget extends Disposable {
 
 	public readonly domNode: HTMLElement;
+
+	public get isDisposed(): boolean { return this._store.isDisposed; }
 
 	private readonly _iconEl: HTMLElement;
 	private readonly _textEl: HTMLElement;
@@ -39,6 +43,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 
 		this.domNode = dom.$(`span.${RISK_BADGE_CLASS}`);
 		this._iconEl = dom.$('span.tool-risk-icon');
+		this._iconEl.setAttribute('aria-hidden', 'true');
 		this._textEl = dom.$('span.tool-risk-text');
 		this._detailsIconEl = dom.$('span.tool-risk-details-icon');
 		this._detailsIconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
@@ -48,6 +53,20 @@ export class ToolRiskBadgeWidget extends Disposable {
 		this.domNode.append(this._iconEl, this._textEl, this._detailsIconEl);
 		this._refreshDetailsHover();
 		this.setLoading();
+
+		this._register(dom.addDisposableListener(this._detailsIconEl, dom.EventType.CLICK, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._hoverService.showManagedHover(this._detailsIconEl);
+		}));
+		this._register(dom.addDisposableListener(this._detailsIconEl, dom.EventType.KEY_DOWN, e => {
+			const ev = new StandardKeyboardEvent(e);
+			if (ev.keyCode === KeyCode.Enter || ev.keyCode === KeyCode.Space) {
+				ev.preventDefault();
+				ev.stopPropagation();
+				this._hoverService.showManagedHover(this._detailsIconEl);
+			}
+		}));
 	}
 
 	setLoading(): void {
@@ -75,7 +94,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 				break;
 			case ToolRiskLevel.Red:
 				this._setVariant('red');
-				this._setText('!');
+				this._setIcon(Codicon.error);
 				break;
 		}
 		this.domNode.style.display = '';
@@ -109,11 +128,6 @@ export class ToolRiskBadgeWidget extends Disposable {
 	private _setIcon(icon: ThemeIcon): void {
 		this._iconEl.textContent = '';
 		this._iconEl.className = 'tool-risk-icon ' + ThemeIcon.asClassName(icon);
-	}
-
-	private _setText(text: string): void {
-		this._iconEl.className = 'tool-risk-icon';
-		this._iconEl.textContent = text;
 	}
 
 	private _setHover(content: string): void {

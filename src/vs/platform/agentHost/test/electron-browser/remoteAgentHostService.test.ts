@@ -14,10 +14,13 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
-import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
+import { AgentsWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
+import type { Implementation } from '../../common/state/protocol/common/commands.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
 // ---- Mock transport ---------------------------------------------------------
 
@@ -40,6 +43,12 @@ class MockProtocolClient extends Disposable {
 	readonly onDidClose = this._onDidClose.event;
 	readonly onDidAction = Event.None;
 	readonly onDidNotification = Event.None;
+	readonly onDidChangeConnectionState = Event.None;
+	readonly onDidReceiveOtlpLogs = Event.None;
+	readonly connectionState = 'connecting' as const;
+	readonly initializeResult = undefined;
+	readonly telemetryCapabilities = undefined;
+	readonly triggerVscodeUpgradeCalls: string[] = [];
 
 	public connectDeferred = new DeferredPromise<void>();
 
@@ -49,6 +58,11 @@ class MockProtocolClient extends Disposable {
 
 	async connect(): Promise<void> {
 		return this.connectDeferred.p;
+	}
+
+	async triggerVscodeUpgrade(method: string) {
+		this.triggerVscodeUpgradeCalls.push(method);
+		return { ok: true, upgradeStarted: true };
 	}
 
 	fireClose(): void {
@@ -79,7 +93,12 @@ class TestConfigurationService {
 	}
 
 	async updateValue(_key: string, value: unknown): Promise<void> {
-		this._entries = (value as IRawRemoteAgentHostEntry[] | undefined) ?? [];
+		const entries = (value as IRawRemoteAgentHostEntry[] | undefined) ?? [];
+		const changed = JSON.stringify(this._entries) !== JSON.stringify(entries);
+		this._entries = entries;
+		if (!changed) {
+			return;
+		}
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
 		});
@@ -91,6 +110,13 @@ class TestConfigurationService {
 
 	setEntries(entries: IRemoteAgentHostEntry[]): void {
 		this._entries = entries.map(entryToRawEntry).filter((e): e is IRawRemoteAgentHostEntry => e !== undefined);
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
+		});
+	}
+
+	setRawEntries(entries: IRawRemoteAgentHostEntry[]): void {
+		this._entries = entries;
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
 		});
@@ -113,7 +139,9 @@ suite('RemoteAgentHostService', () => {
 	const disposables = new DisposableStore();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
+	let createdClientInfos: (Implementation | undefined)[];
 	let registeredFormatters: ResourceLabelFormatter[];
+	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
 
 	setup(() => {
@@ -121,11 +149,14 @@ suite('RemoteAgentHostService', () => {
 		disposables.add(toDisposable(() => configService.dispose()));
 
 		createdClients = [];
+		createdClientInfos = [];
 
-		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		const storageService = disposables.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, storageService);
 		registeredFormatters = [];
 		instantiationService.stub(ILabelService, {
 			registerFormatter(formatter: ResourceLabelFormatter) {
@@ -140,10 +171,10 @@ suite('RemoteAgentHostService', () => {
 		} as Partial<ILabelService>);
 
 		// Mock the instantiation service to capture created protocol clients.
-		// `_connectTo` calls `createInstance` for both `WebSocketClientTransport` and
-		// `RemoteAgentHostProtocolClient`. We only care about tracking the protocol
-		// client; for the transport we return a no-op disposable so the test can
-		// continue to assert on `createdClients.length`.
+		// `_connectTo` calls `createInstance` for `WebSocketClientTransport`
+		// and `RemoteAgentHostProtocolClient`. We only care about tracking
+		// the protocol client; for the transport we return a no-op
+		// disposable so the test can keep asserting on `createdClients.length`.
 		const mockInstantiationService: Partial<IInstantiationService> = {
 			createInstance: (ctor: unknown, ...args: unknown[]) => {
 				const ctorName = (ctor as { name?: string }).name;
@@ -151,6 +182,7 @@ suite('RemoteAgentHostService', () => {
 					return disposables.add(new MockTransport());
 				}
 				const client = new MockProtocolClient(args[0] as string);
+				createdClientInfos.push(args[4] as Implementation | undefined);
 				disposables.add(client);
 				createdClients.push(client);
 				return client;
@@ -206,9 +238,23 @@ suite('RemoteAgentHostService', () => {
 		await waitForConnected();
 
 		const connected = service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status));
-		assert.strictEqual(connected.length, 1);
-		assert.strictEqual(connected[0].address, 'host1:8080');
-		assert.strictEqual(connected[0].name, 'Host 1');
+		assert.deepStrictEqual({
+			connection: connected.map(({ address, name }) => ({ address, name })),
+			clientInfo: createdClientInfos,
+		}, {
+			connection: [{ address: 'host1:8080', name: 'Host 1' }],
+			clientInfo: [editorWindowAgentHostClientInfo],
+		});
+	});
+
+	test('agents window service identifies its protocol client', async () => {
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+
+		assert.deepStrictEqual(createdClientInfos, [agentsWindowAgentHostClientInfo]);
 	});
 
 	test('getConnection returns client after successful connect', async () => {
@@ -496,6 +542,38 @@ suite('RemoteAgentHostService', () => {
 			);
 		}
 
+		test('keeps incompatible managed connection addressable for server upgrade', async () => {
+			const mockClient = disposables.add(new MockProtocolClient('ssh:remote.example'));
+			await service.addManagedConnection(
+				{
+					name: 'SSH Host',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+					},
+				},
+				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+				undefined,
+				RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
+			);
+
+			const upgradeResult = await service.triggerServerUpgrade('ssh:remote.example', '_vscodeUpgrade');
+
+			assert.deepStrictEqual({
+				status: service.connections[0].status,
+				connectedConnection: service.getConnection('ssh:remote.example'),
+				upgradeCalls: mockClient.triggerVscodeUpgradeCalls,
+				upgradeResult,
+			}, {
+				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
+				connectedConnection: undefined,
+				upgradeCalls: ['_vscodeUpgrade'],
+				upgradeResult: { ok: true, upgradeStarted: true },
+			});
+		});
+
 		test('disposes transportDisposable when entry is removed via removeRemoteAgentHost', async () => {
 			const t = makeTransportDisposable();
 			await addManaged('Managed', 'managed:1234', t.disposable);
@@ -505,6 +583,15 @@ suite('RemoteAgentHostService', () => {
 
 			assert.strictEqual(t.disposed(), true, 'transport disposable runs when entry is removed');
 			assert.strictEqual(service.getConnection('ws://managed:1234'), undefined);
+		});
+
+		test('throws when disabled', async () => {
+			configService.setEnabled(false);
+
+			await assert.rejects(
+				() => addManaged('Managed', 'managed:1234'),
+				/not enabled/,
+			);
 		});
 
 		test('does NOT dispose previous transportDisposable when entry is replaced', async () => {
@@ -535,6 +622,123 @@ suite('RemoteAgentHostService', () => {
 			service.dispose();
 
 			assert.strictEqual(t.disposed(), true, 'transport disposable runs when service is disposed');
+		});
+
+		test('stores SSH connection details outside the remote hosts setting', async () => {
+			const mockClient = disposables.add(new MockProtocolClient('ssh:remote.example'));
+			await service.addManagedConnection(
+				{
+					name: 'SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+						user: 'me',
+						port: 2222,
+					},
+				},
+				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+			);
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [{
+					name: 'SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+						user: 'me',
+						port: 2222,
+					},
+				}],
+			});
+		});
+
+		test('migrates legacy SSH connection details from settings to storage', async () => {
+			service.dispose();
+			configService.setRawEntries([{
+				address: 'ssh:legacy',
+				name: 'Legacy SSH Host',
+				connectionToken: 'ssh-token',
+				sshConfigHost: 'legacy',
+				sshHostName: 'legacy.example',
+				sshUser: 'me',
+				sshPort: 2222,
+			}]);
+
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [{
+					name: 'Legacy SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:legacy',
+						sshConfigHost: 'legacy',
+						hostName: 'legacy.example',
+						user: 'me',
+						port: 2222,
+					},
+				}],
+			});
+
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [{
+					name: 'Legacy SSH Host',
+					connectionToken: 'ssh-token',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:legacy',
+						sshConfigHost: 'legacy',
+						hostName: 'legacy.example',
+						user: 'me',
+						port: 2222,
+					},
+				}],
+			});
+		});
+
+		test('fires change when removing a storage-only SSH entry', async () => {
+			service.dispose();
+			configService.setRawEntries([{
+				address: 'ssh:legacy',
+				name: 'Legacy SSH Host',
+				sshConfigHost: 'legacy',
+				sshHostName: 'legacy.example',
+			}]);
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			const changed = Event.toPromise(service.onDidChangeConnections);
+			await service.removeRemoteAgentHost('ssh:legacy');
+			await changed;
+
+			assert.deepStrictEqual({
+				settings: configService.entries,
+				configured: service.configuredEntries,
+			}, {
+				settings: [],
+				configured: [],
+			});
 		});
 	});
 

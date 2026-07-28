@@ -54,7 +54,7 @@ export class FeedbackGenerator {
 			};
 		}
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 
 		const prompts: RenderPromptResult[] = [];
 		const batches = [filteredInput];

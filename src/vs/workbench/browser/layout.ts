@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
+import { alert } from '../../base/browser/ui/aria/aria.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
@@ -47,6 +48,7 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
+import { localize } from '../../nls.js';
 
 //#region Layout Implementation
 
@@ -97,11 +99,22 @@ enum LayoutClasses {
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
+	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
-	NO_SHADOWS = 'no-shadows'
+	NO_SHADOWS = 'no-shadows',
+	FLOATING_PANELS = 'floating-panels',
+	// Presentation class for the Modern UI Update experiment, owned/toggled at
+	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
+	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
+	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
+	// height) via `.closest('.style-override')`. The contribution runs in the
+	// `Restored` phase — after the first layout — so without this early
+	// application the first layout would size parts against the default (35px)
+	// title and leave them mismatched until the next relayout.
+	STYLE_OVERRIDE = 'style-override'
 }
 
 interface IPathToOpen extends IPath {
@@ -437,6 +450,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.updateShadows();
 			}
 
+			// Modern UI Update (floating panels presentation)
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				this.updateFloatingPanels();
+				this.layout(); // re-layout so parts pick up the new floating margins
+			}
+
 			// Auxiliary Sidebar
 			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
 				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
@@ -609,6 +628,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const container of Array.from(this.containers)) {
 			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
 		}
+	}
+
+	isFloatingPanelsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true;
+	}
+
+	private updateFloatingPanels(): void {
+		// Floating panels is a main-window concept: only the main container hosts
+		// the side bars and bottom panel. Scope the class (and therefore the CSS
+		// card margins) to the main container so auxiliary windows — whose parts do
+		// not apply the matching content insets in code — are left untouched.
+		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1708,6 +1739,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.parent,				// in that case the workbench will span the entire site
 				this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 			);
+
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
 			size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
@@ -1842,6 +1874,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setActivityBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
+		this.mainContainer.classList.toggle(LayoutClasses.ACTIVITYBAR_HIDDEN, hidden);
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
@@ -1879,9 +1912,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
+			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
-			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
+			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
+			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
+			`panel-position-${positionToString(this.getPanelPosition())}`,
+			`panel-alignment-${this.getPanelAlignment()}`
 		]);
 	}
 
@@ -2013,7 +2052,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// panel alignment requires the editor part to be visible
 		this.setAuxiliaryBarMaximized(false);
 
+		// Adjust CSS — capture old value before updating state model
+		const oldAlignmentValue = this.getPanelAlignment();
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
+		this.mainContainer.classList.remove(`panel-alignment-${oldAlignmentValue}`);
+		this.mainContainer.classList.add(`panel-alignment-${alignment}`);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
 
@@ -2281,6 +2324,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	toggleSecondarySideBar(): void {
+		const visible = !this.isSecondarySideBarVisible();
+		this.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
+		alert(visible
+			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
+			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
+	}
+
+	isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.AUXILIARYBAR_PART);
+	}
+
 	hasMainWindowBorder(): boolean {
 		return this.state.runtime.mainWindowBorder;
 	}
@@ -2345,6 +2400,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelContainer = assertReturnsDefined(panelPart.getContainer());
 		panelContainer.classList.remove(oldPositionValue);
 		panelContainer.classList.add(newPositionValue);
+		this.mainContainer.classList.remove(`panel-position-${oldPositionValue}`);
+		this.mainContainer.classList.add(`panel-position-${newPositionValue}`);
 
 		// Update Styles
 		panelPart.updateStyles();
@@ -2960,11 +3017,12 @@ class LayoutStateModel extends Disposable {
 				return true;
 			}
 
-			// New users: Show auxiliary bar even in empty workspaces
-			// but not if the user explicitly hides it
+			// New users: Show auxiliary bar even in empty workspaces,
+			// but not if the user explicitly hides it or AI features are disabled.
 			if (
 				this.isNew[StorageScope.APPLICATION] &&
-				configuration.value !== 'hidden'
+				configuration.value !== 'hidden' &&
+				!this.configurationService.getValue<boolean>('chat.disableAIFeatures')
 			) {
 				return false;
 			}

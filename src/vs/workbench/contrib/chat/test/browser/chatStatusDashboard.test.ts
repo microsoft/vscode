@@ -5,13 +5,20 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
+import { ConfigurationTarget, type IConfigurationOverrides, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import product from '../../../../../platform/product/common/product.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../chat/browser/chatStatus/chatStatusDashboard.js';
 import { IChatStatusItemService } from '../../../chat/browser/chatStatus/chatStatusItemService.js';
@@ -19,9 +26,11 @@ import { IChatStatusItemService } from '../../../chat/browser/chatStatus/chatSta
 interface IQuotaConfig {
 	percentRemaining: number;
 	unlimited: boolean;
+	hasQuota?: boolean;
 	usageBasedBilling?: boolean;
 	resetAt?: number;
 	entitlement?: number;
+	creditsUsed?: number;
 }
 
 function createEntitlementService(opts: {
@@ -41,6 +50,7 @@ function createEntitlementService(opts: {
 		copilotTrackingId: undefined,
 		onDidChangeQuotaExceeded: Event.None,
 		onDidChangeQuotaRemaining: Event.None,
+		onDidChangeUsageBasedBilling: Event.None,
 		quotas: {
 			chat: opts.chat,
 			completions: opts.completions,
@@ -59,11 +69,13 @@ function createEntitlementService(opts: {
 		anonymous: false,
 		onDidChangeAnonymous: Event.None,
 		anonymousObs: observableValue({}, false),
+		acceptQuotas: () => { },
+		clearQuotas: () => { },
 		markAnonymousRateLimited: () => { },
 		markSetupCompleted: () => { },
 		setForceHidden: () => { },
-		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
+		hasByokModels: false,
 	} as IChatEntitlementService;
 }
 
@@ -86,9 +98,26 @@ function getIncludedLabels(element: HTMLElement): string[] {
 	return Array.from(indicators).map(el => el.textContent ?? '');
 }
 
+function getIncludedDescriptions(element: HTMLElement): string[] {
+	const indicators = element.querySelectorAll('.quota-indicator.included .description');
+	return Array.from(indicators).map(el => el.textContent ?? '');
+}
+
 function getQuotaValues(element: HTMLElement): string[] {
 	const values = element.querySelectorAll('.quota-indicator:not(.included) .quota-value');
 	return Array.from(values).map(el => el.textContent ?? '');
+}
+
+function getCreditsUsed(element: HTMLElement): { value: string; suffix: string; reset: string } | undefined {
+	const indicator = element.querySelector('.quota-indicator.credits-used');
+	if (!indicator) {
+		return undefined;
+	}
+	return {
+		value: indicator.querySelector('.quota-value')?.textContent ?? '',
+		suffix: indicator.querySelector('.quota-value-suffix')?.textContent ?? '',
+		reset: indicator.querySelector('.quota-reset')?.textContent ?? ''
+	};
 }
 
 const dashboardOptions: IChatStatusDashboardOptions = {
@@ -98,11 +127,114 @@ const dashboardOptions: IChatStatusDashboardOptions = {
 	disableCompletionsSnooze: true,
 };
 
+class TestCompletionsConfigurationService extends TestConfigurationService {
+
+	private pendingUpdate: { value: Record<string, boolean>; target: ConfigurationTarget; deferred: DeferredPromise<void> } | undefined;
+
+	constructor(
+		private readonly settingId: string,
+		private readonly defaultValue: Record<string, boolean>,
+		private userValue: Record<string, boolean>,
+		private workspaceValue?: Record<string, boolean>,
+	) {
+		super();
+	}
+
+	override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
+		if (arg1 === this.settingId) {
+			return { ...this.defaultValue, ...this.userValue, ...this.workspaceValue } as T;
+		}
+		return super.getValue<T>(arg1, arg2);
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		if (key === this.settingId) {
+			const userValue = this.userValue as T;
+			return {
+				defaultValue: this.defaultValue as T,
+				userValue,
+				userLocalValue: userValue,
+				workspaceValue: this.workspaceValue as T | undefined,
+				value: { ...this.defaultValue, ...this.userValue, ...this.workspaceValue } as T,
+			};
+		}
+		return super.inspect<T>(key, overrides);
+	}
+
+	override updateValue(key: string, value: unknown, target?: ConfigurationTarget): Promise<void> {
+		if (key !== this.settingId || typeof value !== 'object' || value === null || this.pendingUpdate) {
+			throw new Error('Unexpected configuration update');
+		}
+
+		const deferred = new DeferredPromise<void>();
+		this.pendingUpdate = {
+			value: { ...value } as Record<string, boolean>,
+			target: target ?? ConfigurationTarget.USER_LOCAL,
+			deferred,
+		};
+		return deferred.p;
+	}
+
+	async completeUpdate(): Promise<void> {
+		if (!this.pendingUpdate) {
+			await timeout(0);
+		}
+		const pendingUpdate = this.pendingUpdate;
+		if (!pendingUpdate) {
+			throw new Error('No configuration update is pending');
+		}
+
+		this.pendingUpdate = undefined;
+		if (pendingUpdate.target === ConfigurationTarget.WORKSPACE) {
+			this.workspaceValue = pendingUpdate.value;
+		} else if (pendingUpdate.target === ConfigurationTarget.USER_LOCAL) {
+			this.userValue = pendingUpdate.value;
+		} else {
+			throw new Error(`Unexpected configuration target: ${pendingUpdate.target}`);
+		}
+		this.onDidChangeConfigurationEmitter.fire({
+			source: pendingUpdate.target,
+			affectedKeys: new Set([this.settingId]),
+			change: { keys: [this.settingId], overrides: [] },
+			affectsConfiguration: candidate => candidate === this.settingId,
+		});
+		await pendingUpdate.deferred.complete(undefined);
+		await timeout(0);
+	}
+
+	async failUpdate(error: Error): Promise<void> {
+		if (!this.pendingUpdate) {
+			await timeout(0);
+		}
+		const pendingUpdate = this.pendingUpdate;
+		if (!pendingUpdate) {
+			throw new Error('No configuration update is pending');
+		}
+
+		this.pendingUpdate = undefined;
+		await pendingUpdate.deferred.error(error);
+		await timeout(0);
+	}
+
+	get configuredValue(): Record<string, boolean> {
+		return this.userValue;
+	}
+
+	get configuredWorkspaceValue(): Record<string, boolean> | undefined {
+		return this.workspaceValue;
+	}
+}
+
 suite('ChatStatusDashboard', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createDashboard(entitlementService: IChatEntitlementService): ChatStatusDashboard {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+	function createDashboard(entitlementService: IChatEntitlementService, options: {
+		dashboardOptions?: IChatStatusDashboardOptions;
+		configurationService?: TestConfigurationService;
+		activeTextEditorLanguageId?: string;
+	} = {}): ChatStatusDashboard {
+		const configurationService = options.configurationService;
+		const instantiationService = workbenchInstantiationService(configurationService ? { configurationService: () => configurationService } : undefined, store);
 
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IChatStatusItemService, {
@@ -122,14 +254,234 @@ suite('ChatStatusDashboard', () => {
 		instantiationService.stub(IMarkdownRendererService, {
 			_serviceBrand: undefined,
 		});
+		if (options.activeTextEditorLanguageId) {
+			const activeTextEditorLanguageId = options.activeTextEditorLanguageId;
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override readonly activeTextEditorLanguageId = activeTextEditorLanguageId;
+			});
+		}
 
-		const dashboard = store.add(instantiationService.createInstance(ChatStatusDashboard, dashboardOptions));
+		const dashboard = store.add(instantiationService.createInstance(ChatStatusDashboard, options.dashboardOptions ?? dashboardOptions));
 
 		mainWindow.document.body.appendChild(dashboard.element);
 		store.add({ dispose: () => dashboard.element.remove() });
 
 		return dashboard;
 	}
+
+	test('preserves inline suggestion language setting state across writes', async () => {
+		const defaultChat = product.defaultChatAgent;
+		assert.ok(defaultChat);
+
+		const configurationService = new TestCompletionsConfigurationService(
+			defaultChat.completionsEnablementSetting,
+			{ '*': true, markdown: false },
+			{ '*': true, markdown: false },
+		);
+		const dashboard = createDashboard(createEntitlementService({ entitlement: ChatEntitlement.Pro }), {
+			dashboardOptions: {
+				...dashboardOptions,
+				disableInlineSuggestionsSettings: false,
+			},
+			configurationService,
+			activeTextEditorLanguageId: 'markdown',
+		});
+
+		const languageCheckbox = dashboard.element.querySelectorAll<HTMLElement>('.settings .monaco-checkbox').item(1);
+		const overriddenHint = dashboard.element.querySelector<HTMLElement>('.setting-overridden');
+		assert.ok(languageCheckbox && overriddenHint);
+		const getState = () => ({
+			ariaChecked: languageCheckbox.getAttribute('aria-checked'),
+			className: languageCheckbox.className,
+			overriddenHint: overriddenHint.textContent,
+			configuredValue: { ...configurationService.configuredValue },
+		});
+
+		languageCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		const pointerRequestedState = getState();
+		await configurationService.completeUpdate();
+		const pointerCommittedState = getState();
+
+		const spaceEvent = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, shiftKey: true });
+		Object.defineProperty(spaceEvent, 'keyCode', { value: 32 });
+		languageCheckbox.dispatchEvent(spaceEvent);
+		const keyboardRequestedState = getState();
+		await configurationService.completeUpdate();
+		const keyboardCommittedState = getState();
+
+		languageCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		const pointerUncheckedRequestedState = getState();
+		await configurationService.completeUpdate();
+		const pointerUncheckedCommittedState = getState();
+
+		assert.deepStrictEqual({
+			pointerRequested: pointerRequestedState,
+			pointerCommitted: pointerCommittedState,
+			keyboardRequested: keyboardRequestedState,
+			keyboardCommitted: keyboardCommittedState,
+			pointerUncheckedRequested: pointerUncheckedRequestedState,
+			pointerUncheckedCommitted: pointerUncheckedCommittedState,
+		}, {
+			pointerRequested: {
+				ariaChecked: 'mixed',
+				className: 'monaco-custom-toggle monaco-checkbox codicon codicon-dash',
+				overriddenHint: '(overridden)',
+				configuredValue: { '*': true, markdown: false },
+			},
+			pointerCommitted: {
+				ariaChecked: 'mixed',
+				className: 'monaco-custom-toggle monaco-checkbox codicon codicon-dash',
+				overriddenHint: '',
+				configuredValue: { '*': true },
+			},
+			keyboardRequested: {
+				ariaChecked: 'true',
+				className: 'monaco-custom-toggle monaco-checkbox checked codicon codicon-check',
+				overriddenHint: '',
+				configuredValue: { '*': true },
+			},
+			keyboardCommitted: {
+				ariaChecked: 'true',
+				className: 'monaco-custom-toggle monaco-checkbox checked codicon codicon-check',
+				overriddenHint: '',
+				configuredValue: { '*': true, markdown: true },
+			},
+			pointerUncheckedRequested: {
+				ariaChecked: 'false',
+				className: 'monaco-custom-toggle monaco-checkbox',
+				overriddenHint: '',
+				configuredValue: { '*': true, markdown: true },
+			},
+			pointerUncheckedCommitted: {
+				ariaChecked: 'false',
+				className: 'monaco-custom-toggle monaco-checkbox',
+				overriddenHint: '(overridden)',
+				configuredValue: { '*': true, markdown: false },
+			},
+		});
+
+		for (let i = 0; i < 3; i++) {
+			languageCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		}
+		const rapidRequestedState = getState();
+		for (let i = 0; i < 3; i++) {
+			await configurationService.completeUpdate();
+		}
+
+		assert.deepStrictEqual({
+			requested: rapidRequestedState,
+			committed: getState(),
+		}, {
+			requested: {
+				ariaChecked: 'false',
+				className: 'monaco-custom-toggle monaco-checkbox',
+				overriddenHint: '(overridden)',
+				configuredValue: { '*': true, markdown: false },
+			},
+			committed: {
+				ariaChecked: 'false',
+				className: 'monaco-custom-toggle monaco-checkbox',
+				overriddenHint: '(overridden)',
+				configuredValue: { '*': true, markdown: false },
+			},
+		});
+	});
+
+	test('removes inherited language overrides from every configured scope', async () => {
+		const defaultChat = product.defaultChatAgent;
+		assert.ok(defaultChat);
+
+		const configurationService = new TestCompletionsConfigurationService(
+			defaultChat.completionsEnablementSetting,
+			{ '*': true, markdown: false },
+			{ '*': true, markdown: true },
+			{ markdown: false },
+		);
+		const dashboard = createDashboard(createEntitlementService({ entitlement: ChatEntitlement.Pro }), {
+			dashboardOptions: {
+				...dashboardOptions,
+				disableInlineSuggestionsSettings: false,
+			},
+			configurationService,
+			activeTextEditorLanguageId: 'markdown',
+		});
+
+		const languageCheckbox = dashboard.element.querySelectorAll<HTMLElement>('.settings .monaco-checkbox').item(1);
+		const overriddenHint = dashboard.element.querySelector<HTMLElement>('.setting-overridden');
+		assert.ok(languageCheckbox && overriddenHint);
+
+		languageCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await configurationService.completeUpdate();
+		const intermediateState = {
+			ariaChecked: languageCheckbox.getAttribute('aria-checked'),
+			overriddenHint: overriddenHint.textContent,
+			userValue: { ...configurationService.configuredValue },
+			workspaceValue: { ...configurationService.configuredWorkspaceValue },
+		};
+
+		await configurationService.completeUpdate();
+
+		assert.deepStrictEqual({
+			intermediate: intermediateState,
+			committed: {
+				ariaChecked: languageCheckbox.getAttribute('aria-checked'),
+				overriddenHint: overriddenHint.textContent,
+				userValue: configurationService.configuredValue,
+				workspaceValue: configurationService.configuredWorkspaceValue,
+			},
+		}, {
+			intermediate: {
+				ariaChecked: 'mixed',
+				overriddenHint: '(overridden)',
+				userValue: { '*': true, markdown: true },
+				workspaceValue: {},
+			},
+			committed: {
+				ariaChecked: 'mixed',
+				overriddenHint: '',
+				userValue: { '*': true },
+				workspaceValue: {},
+			},
+		});
+	});
+
+	test('restores the override hint when the final queued write fails', async () => {
+		const defaultChat = product.defaultChatAgent;
+		assert.ok(defaultChat);
+
+		const configurationService = new TestCompletionsConfigurationService(
+			defaultChat.completionsEnablementSetting,
+			{ '*': true, markdown: false },
+			{ '*': true, markdown: false },
+		);
+		const dashboard = createDashboard(createEntitlementService({ entitlement: ChatEntitlement.Pro }), {
+			dashboardOptions: {
+				...dashboardOptions,
+				disableInlineSuggestionsSettings: false,
+			},
+			configurationService,
+			activeTextEditorLanguageId: 'markdown',
+		});
+
+		const languageCheckbox = dashboard.element.querySelectorAll<HTMLElement>('.settings .monaco-checkbox').item(1);
+		const overriddenHint = dashboard.element.querySelector<HTMLElement>('.setting-overridden');
+		assert.ok(languageCheckbox && overriddenHint);
+
+		languageCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		languageCheckbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await configurationService.completeUpdate();
+		await configurationService.failUpdate(new Error('Unable to update configuration'));
+
+		assert.deepStrictEqual({
+			ariaChecked: languageCheckbox.getAttribute('aria-checked'),
+			overriddenHint: overriddenHint.textContent,
+			configuredValue: configurationService.configuredValue,
+		}, {
+			ariaChecked: 'mixed',
+			overriddenHint: '',
+			configuredValue: { '*': true },
+		});
+	});
 
 	// --- COPILOT FREE ---
 
@@ -301,6 +653,90 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), []);
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
+	});
+
+	test('Enterprise Managed — PRU with credits used: shows consumed credits with reset time', () => {
+		const resetAt = Math.floor(Date.UTC(2026, 6, 5, 14, 0, 0) / 1000);
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
+			completions: { percentRemaining: 100, unlimited: true },
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		const credits = getCreditsUsed(dashboard.element);
+		assert.strictEqual(credits?.value, '1,284');
+		assert.strictEqual(credits?.suffix, 'Credits Used');
+		assert.ok(credits?.reset.startsWith('Resets Jul 5 at '));
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), []);
+	});
+
+	test('Enterprise Managed — PRU with credits used (compact): shows plan title, credits and reset', () => {
+		const resetAt = Math.floor(Date.UTC(2026, 4, 31, 21, 0, 0) / 1000);
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
+			completions: { percentRemaining: 100, unlimited: true },
+			entitlement: ChatEntitlement.Business,
+		}), { dashboardOptions: { ...dashboardOptions, compactQuotaLayout: true } });
+
+		const indicator = dashboard.element.querySelector('.quota-indicator.credits-used');
+		const credits = getCreditsUsed(dashboard.element);
+		assert.ok(indicator?.classList.contains('compact'));
+		assert.strictEqual(indicator?.querySelector('.quota-title')?.textContent, 'Copilot Business');
+		assert.strictEqual(credits?.value, '1,284');
+		assert.strictEqual(credits?.suffix, 'Credits used');
+		assert.ok(credits?.reset.startsWith('Resets May 31 at '));
+	});
+
+	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage.');
+	});
+
+	test('Enterprise — pooled exhausted (no overages): shows exhausted indicator and enterprise callout', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage.');
+	});
+
+	test('Enterprise — pooled exhausted TBB (no overages): shows Credits exhausted', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, usageBasedBilling: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Credits']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
+	});
+
+	test('Enterprise — pooled exhausted but overages enabled: shows budget exceeded (hasQuota=false overrides overages)', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage.');
 	});
 
 	test('Enterprise — TBB (multi-quota): shows only Credits, not Chat messages or Inline Suggestions', () => {
@@ -441,7 +877,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional spend will be used.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional budget will be used.');
 	});
 
 	test('Callout: shows paused when quota exhausted and overage not permitted', () => {
@@ -450,6 +886,28 @@ suite('ChatStatusDashboard', () => {
 			completions: { percentRemaining: 90, unlimited: false },
 			additionalUsageEnabled: false,
 			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
+	test('Callout: Free — no paused message when only inline suggestions limit is reached', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 90, unlimited: false },
+			completions: { percentRemaining: 0, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), null);
+	});
+
+	test('Callout: Free — shows paused when chat limit is reached', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 0, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Free,
 		}));
 
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
@@ -479,7 +937,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 
-	test('Callout: UBB — shows additional spend active when quota exhausted and overage count > 0', () => {
+	test('Callout: UBB — shows additional budget active when quota exhausted and overage count > 0', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			completions: { percentRemaining: 90, unlimited: false },
@@ -488,7 +946,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
 	test('Callout: shows warning when quota >= 75% used and overage not permitted', () => {
@@ -512,7 +970,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
 
-	test('Callout: TBB — shows additional spend active when exhausted with overage permitted but no usage yet', () => {
+	test('Callout: TBB — shows additional budget active when exhausted with overage permitted but no usage yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -520,10 +978,10 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
-	test('Callout: TBB — shows additional spend wording when overage count > 0', () => {
+	test('Callout: TBB — shows additional budget wording when overage count > 0', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -531,7 +989,143 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
+	});
+
+	test('Callout: Enterprise — shows org-specific wording when approaching limit with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot will pause when your limits are reached. Please contact your admin to increase your limits.');
+	});
+
+	test('Callout: Business — shows org-specific wording when approaching limit with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot will pause when your limits are reached. Please contact your admin to increase your limits.');
+	});
+
+	test('Callout: Enterprise — shows org-specific wording when quota exhausted with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
+	});
+
+	test('Callout: Business — shows org-specific wording when quota exhausted with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
+	});
+
+	// --- LIVE UPDATES ---
+
+	function createMutableEntitlementService(opts: {
+		chat?: IQuotaConfig;
+		completions?: IQuotaConfig;
+		premiumChat?: IQuotaConfig;
+		usageBasedBilling?: boolean;
+		additionalUsageEnabled?: boolean;
+		additionalUsageCount?: number;
+		entitlement?: ChatEntitlement;
+	}, emitterStore: Pick<DisposableStore, 'add'>): IChatEntitlementService & { quotas: ReturnType<typeof createEntitlementService>['quotas']; fireQuotaRemaining: () => void; fireQuotaExceeded: () => void } {
+		const onDidChangeQuotaRemaining = emitterStore.add(new Emitter<void>());
+		const onDidChangeQuotaExceeded = emitterStore.add(new Emitter<void>());
+		const svc = {
+			...createEntitlementService(opts),
+			onDidChangeQuotaRemaining: onDidChangeQuotaRemaining.event,
+			onDidChangeQuotaExceeded: onDidChangeQuotaExceeded.event,
+			fireQuotaRemaining: () => onDidChangeQuotaRemaining.fire(),
+			fireQuotaExceeded: () => onDidChangeQuotaExceeded.fire(),
+		};
+		return svc;
+	}
+
+	test('Live update: quota indicators update when onDidChangeQuotaRemaining fires', () => {
+		const svc = createMutableEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false },
+			completions: { percentRemaining: 70, unlimited: false },
+			entitlement: ChatEntitlement.Free,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+
+		// Simulate fresh quota data arriving
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			chat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 40, unlimited: false },
+		};
+		svc.fireQuotaRemaining();
+
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['50%', '60%']);
+	});
+
+	test('Live update: callout appears when onDidChangeQuotaExceeded fires and quota becomes exhausted', () => {
+		const svc = createMutableEntitlementService({
+			premiumChat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Pro,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+		assert.strictEqual(getCalloutText(dashboard.element), null);
+
+		// Quota becomes exhausted
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			premiumChat: { percentRemaining: 0, unlimited: false },
+		};
+		svc.fireQuotaExceeded();
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
+	test('Live update: header button visibility updates when quota changes', () => {
+		const svc = createMutableEntitlementService({
+			premiumChat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Pro,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+
+		// No callout initially (quota < 75% used), so button should be hidden
+		const headerButton = dashboard.element.querySelector('.header-cta-button') as HTMLElement;
+		assert.ok(headerButton);
+		assert.strictEqual(headerButton.style.display, 'none');
+
+		// Quota approaches limit (>= 75% used)
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			premiumChat: { percentRemaining: 20, unlimited: false },
+		};
+		svc.fireQuotaRemaining();
+
+		assert.notStrictEqual(headerButton.style.display, 'none');
 	});
 
 });
