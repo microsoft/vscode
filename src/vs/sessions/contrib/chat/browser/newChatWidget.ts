@@ -10,6 +10,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposa
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -32,6 +33,10 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback
 import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ChatTipContentPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatTipContentPart.js';
+import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
+import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 // #region --- New Chat Widget ---
 
@@ -39,6 +44,9 @@ export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
+	private readonly _chatTipPart = this._register(new MutableDisposable<DisposableStore>());
+	private _chatTipContainer: HTMLElement | undefined;
+	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
@@ -87,7 +95,8 @@ export class NewChatWidget extends Disposable {
 	constructor(
 		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -95,6 +104,7 @@ export class NewChatWidget extends Disposable {
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
+		@IChatTipService private readonly chatTipService: IChatTipService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -180,6 +190,23 @@ export class NewChatWidget extends Disposable {
 			this._newChatInput.focus();
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration('chat.tips.enabled')) {
+				return;
+			}
+			if (this.configurationService.getValue<boolean>('chat.tips.enabled')) {
+				this._renderChatTip();
+			} else {
+				this._clearChatTip();
+			}
+		}));
+		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(foregroundSessionCountContextKeys)) {
+				this._renderChatTip();
+			}
+		}));
+
 		// Re-sync the picker's displayed selection when the session's workspace
 		// changes externally (e.g. sessionsService.openNewSession({ folderUri })).
 		this._register(autorun(reader => {
@@ -225,6 +252,8 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
+		this._chatTipContainer = dom.append(chatWidgetContent, dom.$('.chat-getting-started-tip-container'));
+		this._renderChatTip();
 		this._newChatInput.render(chatWidgetContent, parent);
 
 		// Quick chat composer: hide the workspace picker for workspace-less
@@ -276,6 +305,48 @@ export class NewChatWidget extends Disposable {
 		}
 
 		chatWidgetContainer.classList.add('revealed');
+	}
+
+	private _renderChatTip(): void {
+		if (!this._chatTipContainer) {
+			return;
+		}
+		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
+			this._isChatTipSessionInitialized = false;
+			this._clearChatTip();
+			return;
+		}
+		if (!this._isChatTipSessionInitialized) {
+			this._isChatTipSessionInitialized = true;
+			this.chatTipService.resetSession();
+		}
+
+		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
+		if (!tip) {
+			this._clearChatTip();
+			return;
+		}
+		if (this._chatTipPart.value) {
+			dom.setVisibility(true, this._chatTipContainer);
+			return;
+		}
+
+		const store = new DisposableStore();
+		const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
+		const tipPart = store.add(this.instantiationService.createInstance(ChatTipContentPart, tip, renderer));
+		store.add(tipPart.onDidHide(() => this._clearChatTip()));
+		this._chatTipPart.value = store;
+		dom.clearNode(this._chatTipContainer);
+		this._chatTipContainer.appendChild(tipPart.domNode);
+		dom.setVisibility(true, this._chatTipContainer);
+	}
+
+	private _clearChatTip(): void {
+		this._chatTipPart.clear();
+		if (this._chatTipContainer) {
+			dom.clearNode(this._chatTipContainer);
+			dom.setVisibility(false, this._chatTipContainer);
+		}
 	}
 
 	/**
