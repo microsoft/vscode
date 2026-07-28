@@ -44,15 +44,17 @@ Pinning uses `node -e "…"`, which is guaranteed present because the suite runs
 
 The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Pin only when steering has actually been tried and failed, and note which it was.
 
-### Pinning a command changes its permission posture
+### Approve tool calls in a loop, not once
 
-Providers auto-approve a small set of safe read-only commands. `pwd` is on that list; an arbitrary `node -e "…"` is not.
+Providers auto-approve a small set of safe read-only commands (`pwd` among them). A pinned `node -e "…"` is not on that list, so pinning a command generally *adds* an approval round-trip that the previous command did not need.
 
-That matters when porting a test off a POSIX-only command, because pinning does more than change the string — it can turn a tool call that completed silently into one that raises `session/inputNeededSet` and waits. A test whose flow does not answer that confirmation then hangs until its timeout, which looks nothing like a portability failure.
+That is fine — the approval flow is a normal part of the protocol and every shared helper already drives it. `driveTurnToCompletion` confirms each unconfirmed `chat/toolCallReady` as it arrives, and `startBackgroundApprovalLoop` does the same for tests that drive turns by hand. Both are loops.
 
-`worktree session uses the resolved worktree as working directory` is the case in point: replacing `pwd` with `node -e "console.log(process.cwd())"` was tried on both of its turns and stalled on confirmation each time, even though the second turn does dispatch `ChatToolCallConfirmed`. It keeps `pwd`, which is portable regardless — PowerShell defines it as an alias for `Get-Location`.
+What does not work is approving once. A turn can raise more than one approval, so a single `waitForNotification` for `chat/toolCallReady` followed by one `ChatToolCallConfirmed` leaves any later request pending; the turn then stalls on `session/inputNeededSet` until the test times out. The failure looks like a hang, not a permission problem, which makes it easy to misread as the pinned command being unsupported.
 
-Two things follow. Check whether a command you are about to pin was previously auto-approved, and prefer steering to a file tool where one exists, since that avoids the permission surface entirely.
+`worktree session uses the resolved worktree as working directory` had exactly this shape: its host-terminal branch approved once while its SDK-shell branch used `startBackgroundApprovalLoop`. Both branches now use the loop, and the command is pinned like everywhere else.
+
+Prefer steering to a file tool where one exists — that avoids the approval surface entirely. Where a shell command is genuinely required, pin it and drive approvals with one of the shared loops.
 
 ### Temporary git repositories on Windows
 

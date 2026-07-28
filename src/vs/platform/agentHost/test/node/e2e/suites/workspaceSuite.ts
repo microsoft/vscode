@@ -13,7 +13,7 @@ import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, NotificationType } from '../../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
-import { buildDefaultChatUri, ROOT_STATE_URI, ToolCallConfirmationReason, type SessionState, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ROOT_STATE_URI, type SessionState, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import {
 	dispatchTurn,
@@ -28,6 +28,15 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
+	/**
+	 * Prints the shell's working directory.
+	 *
+	 * Pinned like every other shell command in the suite. `node` is guaranteed
+	 * present since the suite runs under it, and `console.log` writes the raw
+	 * path — PowerShell's `pwd` returns a `PathInfo` the console renders as a
+	 * formatted table, which can wrap a long temp path.
+	 */
+	const PRINT_CWD_COMMAND = `node -e "console.log(process.cwd())"`;
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled } = context;
 	test('session is created with the correct working directory', async function () {
 		this.timeout(120_000);
@@ -50,21 +59,9 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			`subscribe snapshot summary should carry the requested working directory`);
 	});
 
-	// Unlike the other shell tests, the command here is deliberately left as
-	// `pwd` rather than pinned to `node -e "..."`.
-	//
-	// `pwd` is on the provider's auto-approve list as a safe read-only command,
-	// so its tool call completes without a confirmation round-trip. An arbitrary
-	// `node -e` invocation is not, and replacing the command makes the turn stop
-	// on `session/inputNeededSet` that this test's confirmation handling does not
-	// satisfy — verified by trying it on both turns.
-	//
-	// It is portable anyway: the shell turn is only reached when the provider
-	// routes commands through the host terminal tool, which on Windows is
-	// PowerShell, where `pwd` is an alias for `Get-Location`. The path
-	// assertions use `URI.fsPath`, which is platform-native, and compare against
-	// a value derived at runtime from the host's own `sessionAdded` notification
-	// rather than a hardcoded POSIX path.
+	// Runs on Windows: the command is pinned to `node`, and the path assertions
+	// use `URI.fsPath` compared against a value derived at runtime from the
+	// host's own `sessionAdded` notification rather than a hardcoded POSIX path.
 	(config.supportsWorktreeIsolation && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 
@@ -175,7 +172,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			});
 			try {
 				context.client.clearReceived();
-				dispatchTurn(context.client, addedSummary.resource, 'turn-wt-terminal', 'Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.', 3);
+				dispatchTurn(context.client, addedSummary.resource, 'turn-wt-terminal', `Run exactly this shell command, with no modifications, in the session current working directory: \`${PRINT_CWD_COMMAND}\`. Do not specify a working-directory override.`, 3);
 
 				// The `pwd` output can arrive as streaming partial content
 				// (`toolCallContentChanged`) or in the final tool result
@@ -206,45 +203,42 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		}
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, addedSummary.resource, 'turn-wt-terminal', 'Run the shell command: pwd', 3);
+		dispatchTurn(context.client, addedSummary.resource, 'turn-wt-terminal', `Run exactly this shell command, with no modifications: \`${PRINT_CWD_COMMAND}\``, 3);
 
-		const toolStartNotif = await context.client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'), 60_000);
-		const toolStartAction = getActionEnvelope(toolStartNotif).action as { toolCallId: string };
+		// Approve in a loop rather than once. A pinned command is not on the
+		// provider's auto-approve list the way `pwd` is, and a turn can raise
+		// more than one approval before the terminal resource appears — a
+		// single-shot check leaves the later one pending and the turn stalls on
+		// `session/inputNeededSet`. This mirrors the branch above and
+		// `driveTurnToCompletion`.
+		const approvalLoop = startBackgroundApprovalLoop(context.client, {
+			approvalSeqStart: 100,
+			allow: [{ toolName: config.shellToolName }],
+		});
+		try {
+			const terminalContentNotif = await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as { content: readonly ToolResultContent[] };
+				return terminalResourceFromContent(action.content) !== undefined;
+			}, 60_000);
+			const terminalContentAction = getActionEnvelope(terminalContentNotif).action as { content: readonly ToolResultContent[] };
+			const terminalUri = terminalResourceFromContent(terminalContentAction.content);
+			assert.ok(terminalUri, 'shell tool should expose its terminal resource');
 
-		const toolReadyNotif = await context.client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'), 30_000);
-		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { confirmed?: string };
-		if (!toolReadyAction.confirmed) {
-			context.client.dispatch({
-				channel: buildDefaultChatUri(addedSummary.resource),
-				clientSeq: 4,
-				action: {
-					type: ActionType.ChatToolCallConfirmed,
-					turnId: 'turn-wt-terminal',
-					toolCallId: toolStartAction.toolCallId, approved: true,
-					confirmed: ToolCallConfirmationReason.UserAction,
-				},
-			});
+			const terminalSubscribeResult = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
+			const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
+			assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
+
+			await context.client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+			const terminalSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
+			const terminalState = terminalSnapshot.snapshot!.state as TerminalState;
+			assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath),
+				`working directory output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
+		} finally {
+			await approvalLoop.stop();
 		}
-
-		const terminalContentNotif = await context.client.waitForNotification(n => {
-			if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
-				return false;
-			}
-			const action = getActionEnvelope(n).action as { toolCallId: string; content: readonly ToolResultContent[] };
-			return action.toolCallId === toolStartAction.toolCallId && terminalResourceFromContent(action.content) !== undefined;
-		}, 30_000);
-		const terminalContentAction = getActionEnvelope(terminalContentNotif).action as { content: readonly ToolResultContent[] };
-		const terminalUri = terminalResourceFromContent(terminalContentAction.content);
-		assert.ok(terminalUri, 'shell tool should expose its terminal resource');
-
-		const terminalSubscribeResult = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
-		const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
-		assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
-
-		await context.client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
-		const terminalSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
-		const terminalState = terminalSnapshot.snapshot!.state as TerminalState;
-		assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath),
-			`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
+		assert.deepStrictEqual(approvalLoop.errors, [], 'no unexpected tool calls should have been denied');
 	});
 }
