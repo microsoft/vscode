@@ -54,19 +54,50 @@ export interface IVoiceSessionPending {
 }
 
 /**
- * Derive the id that routes a voice response back to the exact pending part.
+ * Per-occurrence tokens for pending response parts.
  *
- * Response parts have no stable identity of their own, so this uses the part's
- * position in `response.value`. That list is append-only — new parts are pushed
- * and adjacent markdown is merged in place, never spliced out — so an index,
- * once assigned, keeps naming the same part for the life of the request.
+ * An earlier version of this identity used the part's index in `response.value`
+ * on the reasoning that the list is append-only. It is not: `Response.clear` and
+ * `Response.clearToPreviousToolInvocation` both splice it, so a retry can seat a
+ * brand new part at an index that has already been published to the backend. The
+ * backend keys partial answers and "already narrated" markers off this id, so a
+ * reused id lets a draft written for one form be submitted against another.
  *
- * Both the outbound `pending` payload and the inbound lookup call this. If they
- * ever diverge, every spoken answer comes back `stale_pending` and the feature
- * silently stops working, which is exactly why it is one exported function.
+ * A token minted per part object cannot be reused, because a spliced-out part is
+ * never seen again. Entries are weakly held, so they die with the model.
  */
-export function derivePendingId(requestId: string, partIndex: number): string {
-	return `${requestId}#${partIndex}`;
+const pendingOccurrenceTokens = new WeakMap<object, string>();
+let pendingOccurrenceCounter = 0;
+
+/**
+ * Derive the id that routes a voice response back to this exact pending part.
+ *
+ * Call this only when publishing a part as the session's pending request; it
+ * mints a token on first sight. Use `peekPendingId` to resolve an id that came
+ * back from the backend, so that parts which were never offered cannot be
+ * matched by a stale id.
+ *
+ * The number after `#p` is a mint counter, not an index into `response.value`.
+ */
+export function derivePendingId(requestId: string, part: object): string {
+	let token = pendingOccurrenceTokens.get(part);
+	if (token === undefined) {
+		token = `p${++pendingOccurrenceCounter}`;
+		pendingOccurrenceTokens.set(part, token);
+	}
+	return `${requestId}#${token}`;
+}
+
+/**
+ * Resolve the id of an already-published pending part, or `undefined`.
+ *
+ * Deliberately does not mint: a part the client never published as pending has
+ * no id, so an id the backend echoes back can only ever match the part it was
+ * issued for.
+ */
+export function peekPendingId(requestId: string, part: object): string | undefined {
+	const token = pendingOccurrenceTokens.get(part);
+	return token === undefined ? undefined : `${requestId}#${token}`;
 }
 
 /**

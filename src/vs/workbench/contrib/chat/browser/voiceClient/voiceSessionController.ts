@@ -5595,8 +5595,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		for (let index = parts.length - 1; index >= 0; index--) {
 			const part = parts[index];
-			const pendingId = derivePendingId(lastRequest.id, index);
-			const routing = { pending_id: pendingId, request_id: lastRequest.id };
+			// Minted lazily: an id is issued only once the part is confirmed to be
+			// a live pending request, so a part the backend can never answer never
+			// gets an identity that a stale id could collide with.
+			const routing = () => ({ pending_id: derivePendingId(lastRequest.id, part), request_id: lastRequest.id });
 
 			if (part.kind === 'questionCarousel') {
 				const carousel = part as IChatQuestionCarousel;
@@ -5605,7 +5607,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				return {
 					type: 'questions',
-					...routing,
+					...routing(),
 					...(carousel.resolveId ? { resolve_id: carousel.resolveId } : {}),
 					allow_skip: carousel.allowSkip === true,
 					...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
@@ -5633,7 +5635,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				return {
 					type: 'elicitation',
-					...routing,
+					...routing(),
 					title: this._plainText(elicitation.title),
 					message: this._plainText(elicitation.message),
 				};
@@ -5646,7 +5648,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				return {
 					type: 'approval',
-					...routing,
+					...routing(),
 					approval_kind: 'confirmation',
 					title: confirmation.title,
 					message: this._plainText(confirmation.message),
@@ -5666,7 +5668,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					: this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
 				return {
 					type: 'approval',
-					...routing,
+					...routing(),
 					approval_kind: 'toolInvocation',
 					...(message ? { message } : {}),
 				};

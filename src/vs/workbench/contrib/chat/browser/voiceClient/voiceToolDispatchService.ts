@@ -16,7 +16,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { derivePendingId, IVoiceDispatchResult, IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceDispatchResult, IVoiceToolCall, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IChatWidgetService } from '../chat.js';
 
@@ -289,7 +289,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		if (!request || !parts) {
 			return { ok: false, reason: 'stale_pending' };
 		}
-		const index = parts.findIndex((_part, at) => derivePendingId(request.id, at) === pendingId);
+		const index = parts.findIndex(candidate => peekPendingId(request.id, candidate) === pendingId);
 		if (index < 0) {
 			return { ok: false, reason: 'stale_pending' };
 		}
@@ -320,15 +320,23 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			if (elicitation.state.get() !== ElicitationState.Pending) {
 				return { ok: false, reason: 'stale_pending' };
 			}
-			if (approve) {
-				await elicitation.accept(true);
-				return { ok: true };
-			}
-			if (!elicitation.reject) {
+			if (!approve && !elicitation.reject) {
 				return { ok: false, reason: 'unsupported' };
 			}
-			await elicitation.reject();
-			return { ok: true };
+			if (approve) {
+				await elicitation.accept(true);
+			} else {
+				await elicitation.reject!();
+			}
+			// The handler decides the outcome, not the caller: an authorization
+			// elicitation opens a URL and settles as Rejected when that fails, and
+			// the part stays Pending for the length of the await, so a click can
+			// still win. Reporting what we asked for rather than what happened is
+			// exactly how the assistant ends up saying "Okay, approved" for
+			// something the agent received as a decline.
+			const settled = elicitation.state.get();
+			const wanted = approve ? ElicitationState.Accepted : ElicitationState.Rejected;
+			return settled === wanted ? { ok: true } : { ok: false };
 		}
 
 		if (part.kind === 'confirmation') {

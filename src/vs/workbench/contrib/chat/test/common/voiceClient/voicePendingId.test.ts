@@ -5,33 +5,54 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { derivePendingId } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
 
 suite('derivePendingId', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// This id is the only thing routing a spoken answer back to the form that
-	// asked. The controller derives it when it describes a pending request and
-	// the dispatch service derives it again to find that request, so these
+	// asked. The controller mints it when it describes a pending request and the
+	// dispatch service looks it up again to find that request, so these
 	// properties are what stop an answer from landing on the wrong part -- or,
 	// if the two ever disagreed, from landing anywhere at all.
 
+	const part = (kind: string): object => ({ kind });
+
 	test('is stable for the same request and part', () => {
-		assert.strictEqual(derivePendingId('req-1', 3), derivePendingId('req-1', 3));
+		const carousel = part('questionCarousel');
+		assert.strictEqual(derivePendingId('req-1', carousel), derivePendingId('req-1', carousel));
 	});
 
 	test('distinguishes two pending parts in one response', () => {
-		assert.notStrictEqual(derivePendingId('req-1', 0), derivePendingId('req-1', 1));
+		assert.notStrictEqual(
+			derivePendingId('req-1', part('questionCarousel')),
+			derivePendingId('req-1', part('questionCarousel')),
+		);
 	});
 
-	test('distinguishes the same position in different requests', () => {
-		assert.notStrictEqual(derivePendingId('req-1', 0), derivePendingId('req-2', 0));
+	test('distinguishes the same part in different requests', () => {
+		const carousel = part('questionCarousel');
+		assert.notStrictEqual(derivePendingId('req-1', carousel), derivePendingId('req-2', carousel));
 	});
 
-	test('cannot be forged by a request id that embeds the separator', () => {
-		// A request id is a generated uuid, but if one ever contained '#' then
-		// `a#1` + part 0 would otherwise collide with `a` + part 1, and an answer
-		// meant for one form would be applied to another.
-		assert.notStrictEqual(derivePendingId('a#1', 0), derivePendingId('a', 1));
+	test('does not reuse an id when a part is replaced at the same position', () => {
+		// `Response.clearToPreviousToolInvocation` splices the part list, so a
+		// retry can seat a new part where an already-published one used to be.
+		// Under the previous index-based scheme both got `req#5`, which let a
+		// draft written for the first form be submitted against the second.
+		const parts = [part('markdown'), part('questionCarousel')];
+		const first = derivePendingId('req-1', parts[1]);
+		parts.splice(1, 1, part('questionCarousel'));
+		assert.notStrictEqual(derivePendingId('req-1', parts[1]), first);
+	});
+
+	test('peek does not match a part that was never published as pending', () => {
+		assert.strictEqual(peekPendingId('req-1', part('markdown')), undefined);
+	});
+
+	test('peek resolves a part that was published', () => {
+		const carousel = part('questionCarousel');
+		const minted = derivePendingId('req-1', carousel);
+		assert.strictEqual(peekPendingId('req-1', carousel), minted);
 	});
 });
