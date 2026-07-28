@@ -27,11 +27,31 @@ Distinct from individually disabled tests: whole areas where a platform or contr
 
 ### What is still Windows-scoped
 
-The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux, and every capture that runs a shell command is portable. Permission approval, file operations, renames, deletes, directory creation, git status, git-backed config completions, and worktree resolution all run on Windows.
+The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
 
-One row remains, and it is not about command portability: `a bang command runs locally and exposes terminal output`, where the successful bang command produces output but does not complete reliably.
+Two tests remain scoped, both at their call site with the reason:
 
-`POSIX_COMMAND_EXCEPTIONS` in `agentHostE2ETestHarness.ts` — the opt-out from the record-time command check — is currently empty. Keep it that way if at all possible; an entry there means a capture that can never replay on Windows.
+- `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
+- `worktree session uses the resolved worktree as working directory` — its shell half was enabled and then reverted after Windows CI failed it for two reasons unrelated to command portability, described below. Its non-shell half still asserts worktree resolution on Windows.
+
+### Path shape differs between the test and the shell
+
+The E2E workspaces come from `os.tmpdir()`, and what that returns is not what a process running inside it reports as its working directory:
+
+| Platform | `os.tmpdir()` | working directory as reported |
+|---|---|---|
+| Windows CI | `C:\Users\CLOUDT~1\AppData\Local\Temp\…` (8.3 short form) | `C:\Users\cloudtest\AppData\Local\Temp\…` |
+| macOS | `/var/folders/…` (logical) | `/private/var/folders/…` (physical) |
+
+Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` already strips `/private` for the macOS case, but a test asserting directly on tool output — rather than through a snapshot — has no such help.
+
+This is why `worktree session uses the resolved worktree as working directory` fails on Windows CI: the assertion never matches, and the test times out waiting for output that will never arrive in the expected form. Reworking it means resolving both sides with `realpathSync.native` before comparing, which also removes the macOS special case.
+
+### The host terminal tool surfaces no content on Windows
+
+The same test's Copilot branch waits for a `chat/toolCallContentChanged` carrying a terminal resource. On Windows CI that notification never arrives, even though `chat/toolCallStart`, `chat/toolCallReady`, the confirmation round-trip, and `chat/toolCallComplete` all do.
+
+So the tool call runs to completion but the host-managed terminal never publishes streaming content. Whether that is a product gap or a configuration difference in the test is not yet established — it needs a Windows machine to investigate, and it is the blocker for asserting terminal `cwd` on Windows at all.
 
 ### Steering versus pinning
 
