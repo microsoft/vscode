@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -27,7 +27,9 @@ import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
-import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference, IChatQuestionCarousel, IChatConfirmation, IChatElicitationRequest, ElicitationState } from '../../common/chatService/chatService.js';
+import { getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -87,6 +89,22 @@ interface IDeferredResponse {
 	readonly turnId?: string;
 	finalized: boolean;
 	readonly chunks: IDeferredChunk[];
+}
+
+/**
+ * Derive the id that routes a voice response back to the exact pending part.
+ *
+ * Response parts have no stable identity of their own, so this uses the part's
+ * position in `response.value`. That list is append-only — new parts are pushed
+ * and adjacent markdown is merged in place, never spliced out — so an index,
+ * once assigned, keeps naming the same part for the life of the request.
+ *
+ * Both the outbound `pending` payload and the inbound lookup call this. If they
+ * ever diverge, every spoken answer comes back `stale_pending` and the feature
+ * silently stops working, which is exactly why it is one exported function.
+ */
+export function derivePendingId(requestId: string, partIndex: number): string {
+	return `${requestId}#${partIndex}`;
 }
 
 interface IPendingSolicitedNarration {
@@ -5088,12 +5106,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				? { state: 'thinking', hideConfirmationDetail: true }
 				: this._reportedAgentState(heldState, isActive);
 			const shipSummary = heldState === stateInfo.state ? stateInfo.last_response_summary : undefined;
+			// `pending` ships even when the detail is held back: it is what makes a
+			// form answerable, and withholding it would leave a form the user can
+			// see with no way to answer it by voice.
+			const pending = this._buildPendingPayload(model);
 			return {
 				id: s.resource.toString(),
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(shipSummary ? { last_response_summary: shipSummary } : {}),
+				...(pending ? { pending } : {}),
 			};
 		});
 
@@ -5112,12 +5135,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			const isActive = key === targetSessionId;
 			const scoped = this._reportedAgentState(stateInfo.state, isActive);
+			const pending = this._buildPendingPayload(chatModel);
 			sessionList.push({
 				id: key,
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
+				...(pending ? { pending } : {}),
 			});
 		}
 
@@ -5378,6 +5403,118 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const responseText = lastRequest?.response?.response.getMarkdown().trim() ?? '';
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
+	}
+
+	/**
+	 * Describe what a session is waiting on, structurally.
+	 *
+	 * `_getAgentStateInfo` flattens the same state into one human-readable
+	 * string for the legacy `agent_state_detail` field. That string is fine to
+	 * *say* but cannot be *acted on* — a question form becomes
+	 * `questions: <titles>`, losing the options, their values and the ids — which
+	 * is why a spoken answer to a form used to have nowhere to land. This returns
+	 * what the backend needs to resolve an answer and route it back to the exact
+	 * part that raised it.
+	 *
+	 * Scans newest-first and returns the first still-open part, so an
+	 * already-answered earlier form can't shadow the live one. Plan review is
+	 * deliberately not typed here; it stays on the legacy string path.
+	 */
+	private _buildPendingPayload(model: IChatModel | undefined | null): IVoiceSessionPending | undefined {
+		const lastRequest = model?.getRequests().at(-1);
+		const parts = lastRequest?.response?.response.value;
+		if (!lastRequest || !parts) {
+			return undefined;
+		}
+
+		for (let index = parts.length - 1; index >= 0; index--) {
+			const part = parts[index];
+			const pendingId = derivePendingId(lastRequest.id, index);
+			const routing = { pending_id: pendingId, request_id: lastRequest.id };
+
+			if (part.kind === 'questionCarousel') {
+				const carousel = part as IChatQuestionCarousel;
+				if (carousel.isUsed || carousel.answeredExternally || carousel.questions.length === 0) {
+					continue;
+				}
+				return {
+					type: 'questions',
+					...routing,
+					...(carousel.resolveId ? { resolve_id: carousel.resolveId } : {}),
+					allow_skip: carousel.allowSkip === true,
+					...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
+					questions: carousel.questions.map((question): IVoicePendingQuestion => ({
+						id: question.id,
+						type: question.type,
+						title: question.title ?? '',
+						required: question.required === true,
+						allow_freeform: question.allowFreeformInput === true,
+						// The ordinal the user hears has to be the one they see, so
+						// it comes from the same ordering the widget renders from.
+						options: getOptionsWithDefaultsFirst(question).map(({ option }, ordinalIndex) => ({
+							ordinal: ordinalIndex + 1,
+							label: option.label,
+							value: option.value,
+						})),
+					})),
+				};
+			}
+
+			if (part.kind === 'elicitation2') {
+				const elicitation = part as IChatElicitationRequest;
+				if (elicitation.state.get() !== ElicitationState.Pending) {
+					continue;
+				}
+				return {
+					type: 'elicitation',
+					...routing,
+					title: this._plainText(elicitation.title),
+					message: this._plainText(elicitation.message),
+				};
+			}
+
+			if (part.kind === 'confirmation') {
+				const confirmation = part as IChatConfirmation;
+				if (confirmation.isUsed) {
+					continue;
+				}
+				return {
+					type: 'approval',
+					...routing,
+					approval_kind: 'confirmation',
+					title: confirmation.title,
+					message: this._plainText(confirmation.message),
+				};
+			}
+
+			if (part.kind === 'toolInvocation') {
+				const state = (part as IChatToolInvocation).state.get();
+				if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					continue;
+				}
+				const params = state.parameters as Record<string, unknown> | undefined;
+				const command = params?.['command'] ?? params?.['input'];
+				const explanation = params?.['explanation'] ?? params?.['goal'];
+				const message = typeof command === 'string' && command
+					? `command: ${command}${typeof explanation === 'string' && explanation ? `\nreason: ${explanation}` : ''}`
+					: this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
+				return {
+					type: 'approval',
+					...routing,
+					approval_kind: 'toolInvocation',
+					...(message ? { message } : {}),
+				};
+			}
+		}
+
+		return undefined;
+	}
+
+	private _plainText(value: string | IMarkdownString | undefined): string {
+		if (!value) {
+			return '';
+		}
+		return typeof value === 'string' ? value : value.value;
 	}
 
 	private _classifyPendingType(response: { response: { value: readonly { kind: string }[] } }): 'approval' | 'input' {
