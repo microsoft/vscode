@@ -48,6 +48,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
+import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
 
 // --- Context Keys ---
 
@@ -112,6 +113,35 @@ class AgentsVoiceTelemetryContribution extends Disposable implements IWorkbenchC
 }
 
 registerWorkbenchContribution2(AgentsVoiceTelemetryContribution.ID, AgentsVoiceTelemetryContribution, WorkbenchPhase.AfterRestored);
+
+// --- First-run introduction ---
+
+/**
+ * Shows the Voice Mode introduction the first time a session starts. This
+ * watches the connection state rather than any one entry point, because Voice
+ * Mode can be started from the input-mode pill, a command, a keybinding or the
+ * Agents window - all of which land here.
+ */
+class AgentsVoiceOnboardingContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentsVoiceOnboarding';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@IVoiceModeOnboardingService voiceModeOnboardingService: IVoiceModeOnboardingService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			if (voiceSessionController.isConnecting.read(reader) || voiceSessionController.isConnected.read(reader)) {
+				voiceModeOnboardingService.showIfNeeded();
+			}
+		}));
+	}
+}
+
+// Registered at the same late phase as the connected-key contribution so it
+// does not force `IVoiceSessionController` to instantiate early.
+registerWorkbenchContribution2(AgentsVoiceOnboardingContribution.ID, AgentsVoiceOnboardingContribution, WorkbenchPhase.Eventually);
 
 // --- Voice mode button in Chat toolbar ---
 // Shows the voice mode icon in both idle and active states.
@@ -408,6 +438,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const storageService = accessor.get(IStorageService);
 		storageService.remove(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE);
+		storageService.remove(AgentsVoiceStorageKeys.IntroBannerShown, StorageScope.APPLICATION);
 	}
 });
 
