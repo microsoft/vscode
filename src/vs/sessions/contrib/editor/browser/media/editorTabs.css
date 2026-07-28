@@ -24,6 +24,10 @@
 	--tab-border-top-color: transparent !important;
 }
 
+.agent-sessions-workbench .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
+	padding: 0 var(--vscode-spacing-size100) 0 0 !important;
+}
+
 /* Size tabs to their content and never shrink them, so that when more tabs
  * exist than fit the container they overflow and the horizontal scrollbar
  * appears (matching the default editor behaviour). The default `sizing-fit`
