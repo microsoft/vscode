@@ -307,8 +307,7 @@ suite('ChatToolProgressSubPart', () => {
 				ariaLabel: button?.getAttribute('aria-label'),
 				tabIndex: button?.tabIndex,
 				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
-				// A `codicon-*` class on the button root would apply the 16px codicon
-				// font to the label text, which falls back to serif and overflows.
+				// `codicon-*` on the root would restyle the label text.
 				rootCarriesCodiconClass: button?.classList.contains('codicon'),
 				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
 					.flatMap(el => [...el.classList]).filter(c => c.startsWith('codicon-')),

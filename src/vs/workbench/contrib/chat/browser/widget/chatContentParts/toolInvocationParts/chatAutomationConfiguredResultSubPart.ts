@@ -39,9 +39,7 @@ export class ChatAutomationConfiguredResultSubPart extends BaseChatToolInvocatio
 		const label = data.operation === 'created'
 			? localize('automationConfigured.created', "Created an automation: {0}", data.automationName)
 			: localize('automationConfigured.updated', "Edited an automation: {0}", data.automationName);
-		// `ButtonWithIcon` renders the icon into its own child span. A plain `Button`
-		// would put the `codicon-*` classes on the button root, applying the 16px
-		// codicon font to the label text and overflowing the pill.
+		// `ButtonWithIcon` keeps the `codicon-*` classes off the button root, where they would restyle the label text.
 		const button = this._register(new ButtonWithIcon(this.domNode, {
 			...defaultButtonStyles,
 			secondary: true,
