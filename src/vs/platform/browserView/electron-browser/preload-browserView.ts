@@ -415,6 +415,7 @@ class ElementPicker {
 		window.addEventListener('click', this._onClick, true);
 		window.addEventListener('contextmenu', this._onClick, true);
 		window.addEventListener('focusin', this._onFocusIn, true);
+		window.addEventListener('blur', this._onWindowBlur);
 		window.addEventListener('keydown', this._onKeyDown, true);
 
 		const focusedElement = this._getFocusedElement();
@@ -442,6 +443,7 @@ class ElementPicker {
 		window.removeEventListener('click', this._onClick, true);
 		window.removeEventListener('contextmenu', this._onClick, true);
 		window.removeEventListener('focusin', this._onFocusIn, true);
+		window.removeEventListener('blur', this._onWindowBlur);
 		window.removeEventListener('keydown', this._onKeyDown, true);
 
 		this._highlight.style.display = 'none';
@@ -594,6 +596,14 @@ class ElementPicker {
 		const focusedElement = this._getFocusedElement();
 		this._focusedTarget = focusedElement?.matches(':focus-visible') ? focusedElement : undefined;
 		this._updateHighlight(this._focusedTarget);
+	};
+
+	private _onWindowBlur = (): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		this._focusedTarget = undefined;
+		this._updateHighlight(undefined);
 	};
 
 	private _onKeyDown = (e: KeyboardEvent): void => {
