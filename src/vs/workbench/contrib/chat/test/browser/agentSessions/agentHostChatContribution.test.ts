@@ -806,7 +806,6 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		ensureSyncedCustomizationProvider: () => { },
 	});
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-	instantiationService.stub(IAgentHostWorkspaceSessionMembershipStore, instantiationService.createInstance(AgentHostWorkspaceSessionMembershipStore));
 	instantiationService.stub(ICustomizationHarnessService, {
 		registerExternalHarness: () => toDisposable(() => { }),
 	});
@@ -843,6 +842,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
+	instantiationService.stub(IAgentHostWorkspaceSessionMembershipStore, instantiationService.createInstance(AgentHostWorkspaceSessionMembershipStore));
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	instantiationService.stub(IChatInputNotificationService, {
 		_serviceBrand: undefined,
@@ -2665,11 +2665,20 @@ suite('AgentHostChatContribution', () => {
 
 		test('summary eviction preserves workspace membership but session removal clears it', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const a = URI.file('/workspace/a');
+			const b = URI.file('/workspace/b');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.WORKSPACE,
+				getWorkspace: () => ({ id: 'workspace', folders: [a, b].map((uri, index) => ({ uri, name: uri.path, index, toResource: () => uri })) }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
 			let include = true;
 			const removedMemberships: string[] = [];
 			const workspaceMembership: IAgentHostWorkspaceSessionMembershipStore = {
 				_serviceBrand: undefined,
 				reconcileBackendSessions: () => { },
+				markSeen: () => { },
 				shouldInclude: () => include,
 				remove: key => removedMemberships.push(key),
 				has: () => false,
@@ -2870,11 +2879,26 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'out-ws'), startTime: 1000, modifiedTime: 2000, summary: 'Outside workspace', workingDirectories: [URI.file('/other/place')] });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'no-wd'), startTime: 1000, modifiedTime: 2000, summary: 'No working directory' });
 
-			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			let membershipChecks = 0;
+			const workspaceMembership: IAgentHostWorkspaceSessionMembershipStore = {
+				_serviceBrand: undefined,
+				reconcileBackendSessions: () => { },
+				markSeen: () => { },
+				shouldInclude: () => { membershipChecks++; return false; },
+				remove: () => { },
+				has: () => false,
+			};
+			const listController = createSessionListController(disposables, instantiationService, agentHostService, 'agent-host-copilot', 'copilot', undefined, workspaceMembership);
 
 			await listController.refresh(CancellationToken.None);
 
-			assert.deepStrictEqual(listController.items.map(item => item.label), ['In workspace', 'Tail in workspace']);
+			assert.deepStrictEqual({
+				labels: listController.items.map(item => item.label),
+				membershipChecks,
+			}, {
+				labels: ['In workspace', 'Tail in workspace'],
+				membershipChecks: 0,
+			});
 		});
 
 		test('refresh does not filter when no workspace folders are open', async () => {
@@ -2937,7 +2961,7 @@ suite('AgentHostChatContribution', () => {
 			let folders = [a, b];
 			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
 			instantiationService.stub(IWorkspaceContextService, {
-				getWorkbenchState: () => folders.length > 1 ? WorkbenchState.WORKSPACE : WorkbenchState.FOLDER,
+				getWorkbenchState: () => WorkbenchState.WORKSPACE,
 				getWorkspace: () => ({ id: 'workspace', folders: folders.map((uri, index) => ({ uri, name: uri.path, index, toResource: () => uri })) }),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
@@ -2954,6 +2978,10 @@ suite('AgentHostChatContribution', () => {
 
 			await listController.refresh(CancellationToken.None);
 			const initial = listController.items.map(item => item.label);
+			folders = [a];
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+			const oneOriginalFolderRemaining = listController.items.map(item => item.label);
 			folders = [c, d];
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 			await timeout(0);
@@ -2964,10 +2992,12 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual({
 				initial,
+				oneOriginalFolderRemaining,
 				changedMultiRootWorkspace,
 				singleFolderWorkspace: listController.items.map(item => item.label),
 			}, {
 				initial: ['Multi-root session'],
+				oneOriginalFolderRemaining: ['Multi-root session'],
 				changedMultiRootWorkspace: ['Multi-root session'],
 				singleFolderWorkspace: [],
 			});

@@ -11,6 +11,7 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 const STORAGE_KEY = 'agentHost.workspaceSessionMembership.v1';
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -30,51 +31,61 @@ export const IAgentHostWorkspaceSessionMembershipStore = createDecorator<IAgentH
 
 export interface IAgentHostWorkspaceSessionMembershipStore {
 	readonly _serviceBrand: undefined;
-	/** Refreshes last-seen timestamps from a complete backend snapshot and prunes memberships absent for over 30 days. */
+	/** Sets exact last-seen timestamps from a complete backend snapshot and prunes memberships absent for over 30 days. */
 	reconcileBackendSessions(sessionKeys: readonly string[]): void;
+	/** Refreshes one membership after an isolated backend notification. */
+	markSeen(key: string): void;
+	/** Returns whether a session belongs to this workspace, recording new multi-root provenance when appropriate. */
 	shouldInclude(key: string, workingDirectories: readonly URI[], isPendingLocalSession: boolean): boolean;
+	/** Removes durable provenance after the backend session is definitively deleted. */
 	remove(key: string): void;
+	/** Returns whether this eligible Editor multi-root workspace has recorded the session. */
 	has(key: string): boolean;
 }
 
-/** Persists multi-root session provenance for the current workspace. */
+/**
+ * Keeps multi-root sessions associated with the Editor Window workspace where they were first seen, even when that workspace's folders later change.
+ * Backend snapshots batch last-seen updates and stale pruning; outside Editor multi-root workspaces the storage remains dormant.
+ */
 export class AgentHostWorkspaceSessionMembershipStore implements IAgentHostWorkspaceSessionMembershipStore {
 
 	declare readonly _serviceBrand: undefined;
 	private readonly _entries = new Map<string, number>();
+	private _loaded = false;
+	private _dirty = false;
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
-	) {
-		this._load();
-	}
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+	) { }
 
 	protected now(): number {
 		return Date.now();
 	}
 
 	reconcileBackendSessions(sessionKeys: readonly string[]): void {
-		if (this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+		if (!this._isEnabled()) {
 			return;
 		}
+		this._ensureLoaded();
 
 		const now = this.now();
 		const present = new Set(sessionKeys);
-		let didChange = false;
 		for (const key of present) {
-			didChange = this._markSeen(key, now) || didChange;
+			if (this._entries.has(key) && this._entries.get(key) !== now) {
+				this._entries.set(key, now);
+				this._dirty = true;
+			}
 		}
 		for (const [key, lastSeenAt] of this._entries) {
 			if (!present.has(key) && now - lastSeenAt > RETENTION_MS) {
 				this._entries.delete(key);
-				didChange = true;
+				this._dirty = true;
 			}
 		}
-		if (didChange) {
-			this._save();
-		}
+		this._flushIfDirty();
 	}
 
 	shouldInclude(key: string, workingDirectories: readonly URI[], isPendingLocalSession: boolean): boolean {
@@ -82,50 +93,73 @@ export class AgentHostWorkspaceSessionMembershipStore implements IAgentHostWorks
 		const pathMatches = workingDirectories.some(directory =>
 			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
 		);
-		const isWorkspace = this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		const isMultiRootSession = workingDirectories.length > 1;
-
-		if (isWorkspace && isMultiRootSession) {
-			if (this._entries.has(key)) {
-				this._markSeenAndSave(key);
-			} else if (isPendingLocalSession || pathMatches) {
-				this._entries.set(key, this.now());
-				this._save();
-			}
-		}
 
 		if (folders.length === 0) {
 			return true;
 		}
-		if (folders.length === 1 || !isMultiRootSession || !isWorkspace) {
+		if (!this._isEnabled() || !isMultiRootSession) {
 			return pathMatches;
+		}
+		this._ensureLoaded();
+		if (!this._entries.has(key) && (isPendingLocalSession || pathMatches)) {
+			this._entries.set(key, this.now());
+			this._dirty = true;
 		}
 		return this._entries.has(key);
 	}
 
+	markSeen(key: string): void {
+		if (!this._isEnabled()) {
+			return;
+		}
+		this._ensureLoaded();
+		this._markSeen(key, this.now());
+		this._flushIfDirty();
+	}
+
 	remove(key: string): void {
+		if (!this._isEnabled()) {
+			return;
+		}
+		this._ensureLoaded();
 		if (this._entries.delete(key)) {
-			this._save();
+			this._dirty = true;
+			this._flushIfDirty();
 		}
 	}
 
 	has(key: string): boolean {
+		if (!this._isEnabled()) {
+			return false;
+		}
+		this._ensureLoaded();
 		return this._entries.has(key);
 	}
 
-	private _markSeenAndSave(key: string): void {
-		if (this._markSeen(key, this.now())) {
-			this._save();
+	/** Restricts durable provenance to Editor Windows with an actual multi-root workspace. */
+	private _isEnabled(): boolean {
+		return !this._environmentService.isSessionsWindow
+			&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE
+			&& this._workspaceContextService.getWorkspace().folders.length > 1;
+	}
+
+	/** Loads workspace membership lazily so ineligible windows never read this storage. */
+	private _ensureLoaded(): void {
+		if (!this._loaded) {
+			this._loaded = true;
+			this._load();
 		}
 	}
 
-	private _markSeen(key: string, now: number): boolean {
+	/** Advances notification-driven freshness only after the daily write-throttle interval. */
+	private _markSeen(key: string, now: number): void {
 		const lastSeenAt = this._entries.get(key);
 		if (lastSeenAt === undefined || now - lastSeenAt < SEEN_WRITE_INTERVAL_MS) {
-			return false;
+			return;
 		}
 		this._entries.set(key, now);
-		return true;
+		this._dirty = true;
 	}
 
 	private _load(): void {
@@ -155,16 +189,21 @@ export class AgentHostWorkspaceSessionMembershipStore implements IAgentHostWorks
 		}
 	}
 
-	private _save(): void {
-		if (this._entries.size === 0) {
-			this._storageService.remove(STORAGE_KEY, StorageScope.WORKSPACE);
+	/** Persists all accumulated membership changes in one whole-map write. */
+	private _flushIfDirty(): void {
+		if (!this._dirty) {
 			return;
 		}
-		const value: ISerializedMembership = {
-			version: 1,
-			sessions: [...this._entries].map(([key, lastSeenAt]) => ({ key, lastSeenAt })),
-		};
-		this._storageService.store(STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (this._entries.size === 0) {
+			this._storageService.remove(STORAGE_KEY, StorageScope.WORKSPACE);
+		} else {
+			const value: ISerializedMembership = {
+				version: 1,
+				sessions: [...this._entries].map(([key, lastSeenAt]) => ({ key, lastSeenAt })),
+			};
+			this._storageService.store(STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+		this._dirty = false;
 	}
 }
 

@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -268,6 +269,7 @@ export class AgentHostSessionListStore extends Disposable {
 			if (!this._isSessionInWorkspace(entry)) {
 				return;
 			}
+			this._workspaceMembership.markSeen(key);
 			this._mutationGeneration++;
 			this._entries.set(key, entry);
 			// The backend has now announced this session, so it is no longer a
@@ -299,6 +301,7 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 
+			this._workspaceMembership.markSeen(key);
 			this._mutationGeneration++;
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
@@ -349,9 +352,17 @@ export class AgentHostSessionListStore extends Disposable {
 		};
 	}
 
+	/** Uses legacy path containment for zero/single-folder windows and durable provenance only for multi-root workspaces. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		const key = this._key(entry.provider, entry.rawId);
 		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		if (folders.length === 0) {
+			return true;
+		}
+		if (folders.length === 1) {
+			return workingDirectories.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folders[0].uri));
+		}
+		const key = this._key(entry.provider, entry.rawId);
 		return this._workspaceMembership.shouldInclude(key, workingDirectories, this._pendingNewSessions.has(key));
 	}
 
