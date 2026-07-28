@@ -22,7 +22,8 @@ import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
-import { FileEditTracker } from '../../node/shared/fileEditTracker.js';
+import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
+import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 
 suite('FileEditTracker', () => {
 
@@ -47,6 +48,7 @@ suite('FileEditTracker', () => {
 		services.set(IDiffComputeService, diffComputeService);
 		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IEditArcReporterService, new NullEditArcReporterService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		tracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 	});
@@ -114,6 +116,7 @@ suite('FileEditTracker', () => {
 
 	test('attaches Agent attribution marker to the file edit result', async () => {
 		const services = new ServiceCollection();
+		let arcReportCount = 0;
 		services.set(ILogService, new NullLogService());
 		services.set(IFileService, fileService);
 		services.set(IDiffComputeService, new TestDiffComputeService());
@@ -133,6 +136,10 @@ suite('FileEditTracker', () => {
 			cancelFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
 		});
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IEditArcReporterService, {
+			_serviceBrand: undefined,
+			reportEdit: async () => { arcReportCount++; },
+		});
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 		await fileService.writeFile(URI.file('/workspace/marker.txt'), VSBuffer.fromString('before'));
@@ -149,6 +156,7 @@ suite('FileEditTracker', () => {
 			beforeDigest: createFileEditContentDigest('before'),
 			afterDigest: createFileEditContentDigest('after'),
 		});
+		assert.strictEqual(arcReportCount, 1);
 	});
 
 	test('returns the file edit result when attribution fails', async () => {
@@ -168,6 +176,7 @@ suite('FileEditTracker', () => {
 			cancelFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
 		});
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IEditArcReporterService, new NullEditArcReporterService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 		await fileService.writeFile(URI.file('/workspace/fallback.txt'), VSBuffer.fromString('before'));
@@ -198,6 +207,7 @@ suite('FileEditTracker', () => {
 		services.set(IDiffComputeService, new TestDiffComputeService({ added: 1, removed: 1, changes: [] }));
 		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IEditArcReporterService, new NullEditArcReporterService());
 		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 		const localTracker = inst.createInstance(FileEditTracker, 'copilot:/test-session', db);
 

@@ -7,7 +7,7 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
-import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
+import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { Message } from '../../common/state/sessionState.js';
 
@@ -189,6 +189,20 @@ export class TestDiffComputeService implements IDiffComputeService {
 
 	async computeDiffCounts(original: string, modified: string): Promise<IDiffCountResult> {
 		this.callCount++;
+		return this._computeDiffCounts(original, modified);
+	}
+
+	async computeDetailedDiff(original: string, modified: string): Promise<IDetailedDiffResult> {
+		const counts = this._computeDiffCounts(original, modified);
+		return {
+			added: counts.added,
+			removed: counts.removed,
+			replacements: original === modified ? [] : [{ start: 0, endExclusive: original.length, text: modified }],
+			hitTimeout: false,
+		};
+	}
+
+	private _computeDiffCounts(original: string, modified: string): IDiffCountResult {
 		if (this._result) {
 			return this._result;
 		}
