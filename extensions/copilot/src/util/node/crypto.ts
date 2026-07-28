@@ -13,3 +13,15 @@ export async function createSha256FromStream(stream: Readable): Promise<string> 
 	}
 	return hash.digest('hex');
 }
+
+/**
+ * Synchronous SHA-256 hex digest used to redact identifiers in OTel telemetry
+ * (e.g., MCP server names). Returns `''` for empty/undefined input so callers
+ * can short-circuit on `!result`.
+ */
+export function hashTelemetryValue(value: string | undefined | null): string {
+	if (!value) {
+		return '';
+	}
+	return createHash('sha256').update(value).digest('hex');
+}

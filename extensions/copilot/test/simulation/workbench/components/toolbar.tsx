@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Select, ToggleButton, Tooltip } from '@fluentui/react-components';
+import { Select, Text, ToggleButton, Tooltip } from '@fluentui/react-components';
 import { WeatherMoon20Regular, WeatherSunny20Regular } from '@fluentui/react-icons';
 import * as mobx from 'mobx';
 import * as mobxlite from 'mobx-react-lite';
@@ -16,6 +16,7 @@ import { SimulationRunsProvider } from '../stores/simulationBaseline';
 import { SimulationRunner } from '../stores/simulationRunner';
 import { SimulationTestsProvider } from '../stores/simulationTestsProvider';
 import { TestSource, TestSourceValue } from '../stores/testSource';
+import { WorkbenchModeValue } from '../stores/workbenchMode';
 import { AMLModeToolbar } from './amlModeToolbar';
 import { ThemeKind } from './app';
 import { LocalModeToolbar } from './localModeToolbar';
@@ -30,6 +31,7 @@ type ToolbarProps = {
 	amlProvider: AMLProvider;
 	simulationRunsProvider: SimulationRunsProvider;
 	simulationTestsProvider: SimulationTestsProvider;
+	workbenchMode: WorkbenchModeValue;
 	testSource: TestSourceValue;
 	onFiltererChange: (filter: TestFilterer | undefined) => void;
 	allLanguageIds: readonly string[];
@@ -46,6 +48,7 @@ export const Toolbar = mobxlite.observer(
 		amlProvider,
 		simulationRunsProvider,
 		simulationTestsProvider,
+		workbenchMode,
 		testSource,
 		onFiltererChange,
 		allLanguageIds,
@@ -54,6 +57,13 @@ export const Toolbar = mobxlite.observer(
 	}: ToolbarProps) => {
 
 		const toolbarContent = (() => {
+			if (workbenchMode.value === 'adhocRequest') {
+				return (
+					<div className='toolbar' style={{ display: 'flex', alignItems: 'center' }}>
+						<Text size={400}>Adhoc request sender</Text>
+					</div>
+				);
+			}
 			switch (testSource.value) {
 				case TestSource.Local:
 					return (
@@ -93,7 +103,7 @@ export const Toolbar = mobxlite.observer(
 				{toolbarContent}
 				<div style={{ display: 'flex', justifyContent: 'end', maxHeight: '35px' }}>
 					<ThemeToggler theme={theme} toggleTheme={toggleTheme} />
-					<ModeToggler testSource={testSource} onFiltererChange={onFiltererChange} />
+					<ModeToggler workbenchMode={workbenchMode} testSource={testSource} onFiltererChange={onFiltererChange} />
 				</div>
 			</div>
 		);
@@ -110,25 +120,39 @@ const ThemeToggler = ({ theme, toggleTheme }: { theme: ThemeKind; toggleTheme: (
 	</Tooltip>
 );
 
-const testSourceOptions: { value: string; label: string; source: TestSource }[] = [
+const ADHOC_REQUEST_OPTION = 'adhocRequest';
+
+/**
+ * Options for the workbench mode selector. The test-source entries put the
+ * workbench into 'tests' mode and select a {@link TestSource}; the adhoc entry
+ * switches to the standalone "Adhoc request sender" mode.
+ */
+const modeOptions: { value: string; label: string; source?: TestSource }[] = [
 	{ value: String(TestSource.Local), label: 'Local', source: TestSource.Local },
 	{ value: String(TestSource.NesExternal), label: 'NES External', source: TestSource.NesExternal },
 	{ value: String(TestSource.External), label: 'AML', source: TestSource.External },
+	{ value: ADHOC_REQUEST_OPTION, label: 'Adhoc Request' },
 ];
 
-const ModeToggler = ({ testSource, onFiltererChange }: { testSource: TestSourceValue; onFiltererChange: (filter: TestFilterer | undefined) => void }) => (
+const ModeToggler = ({ workbenchMode, testSource, onFiltererChange }: { workbenchMode: WorkbenchModeValue; testSource: TestSourceValue; onFiltererChange: (filter: TestFilterer | undefined) => void }) => (
 	<Select
 		style={{ marginLeft: '8px', minWidth: '140px' }}
-		value={String(testSource.value)}
+		value={workbenchMode.value === 'adhocRequest' ? ADHOC_REQUEST_OPTION : String(testSource.value)}
 		onChange={mobx.action((_e, data) => {
-			const selected = testSourceOptions.find(o => o.value === data.value);
-			if (selected) {
-				testSource.value = selected.source;
-				onFiltererChange(undefined);
+			const selected = modeOptions.find(o => o.value === data.value);
+			if (!selected) {
+				return;
 			}
+			if (selected.source === undefined) {
+				workbenchMode.value = 'adhocRequest';
+			} else {
+				workbenchMode.value = 'tests';
+				testSource.value = selected.source;
+			}
+			onFiltererChange(undefined);
 		})}
 	>
-		{testSourceOptions.map(o => (
+		{modeOptions.map(o => (
 			<option key={o.value} value={o.value}>{o.label}</option>
 		))}
 	</Select>

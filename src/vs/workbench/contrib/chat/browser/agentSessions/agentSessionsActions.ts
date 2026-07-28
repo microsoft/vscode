@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -33,8 +36,10 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -154,12 +159,14 @@ export class PickAgentSessionAction extends Action2 {
 	}
 }
 
-export class ArchiveAllAgentSessionsAction extends Action2 {
+abstract class BaseArchiveAllAgentSessionsAction extends Action2 {
 
-	constructor() {
+	constructor(private readonly wording: ChatSessionArchiveActionWording) {
+		const action = getChatSessionArchiveActionPresentation(wording).archiveAll;
 		super({
 			id: 'workbench.action.chat.archiveAllAgentSessions',
-			title: localize2('archiveAll.label', "Archive All Workspace Agent Sessions"),
+			title: action.title,
+			icon: action.icon,
 			precondition: ChatContextKeys.enabled,
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,
@@ -175,11 +182,17 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 		}
 
 		const confirmed = await dialogService.confirm({
-			message: sessionsToArchive.length === 1
-				? localize('archiveAllSessions.confirmSingle', "Are you sure you want to archive 1 agent session?")
-				: localize('archiveAllSessions.confirm', "Are you sure you want to archive {0} agent sessions?", sessionsToArchive.length),
-			detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
-			primaryButton: localize('archiveAllSessions.archive', "Archive")
+			message: this.wording === ChatSessionArchiveActionWording.MarkAsDone
+				? sessionsToArchive.length === 1
+					? localize('markAllSessionsDone.confirmSingle', "Are you sure you want to mark 1 agent session as done?")
+					: localize('markAllSessionsDone.confirm', "Are you sure you want to mark {0} agent sessions as done?", sessionsToArchive.length)
+				: sessionsToArchive.length === 1
+					? localize('archiveAllSessions.confirmSingle', "Are you sure you want to archive 1 agent session?")
+					: localize('archiveAllSessions.confirm', "Are you sure you want to archive {0} agent sessions?", sessionsToArchive.length),
+			detail: this.wording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize('markAllSessionsDone.detail', "You can restore sessions later if needed from the sessions view.")
+				: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
+			primaryButton: getChatSessionArchiveActionPresentation(this.wording).archiveAll.title.value
 		});
 
 		if (!confirmed.confirmed) {
@@ -189,6 +202,18 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 		for (const session of sessionsToArchive) {
 			session.setArchived(true);
 		}
+	}
+}
+
+export class ArchiveAllAgentSessionsAction extends BaseArchiveAllAgentSessionsAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+export class MarkAllAgentSessionsDoneAction extends BaseArchiveAllAgentSessionsAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
 
@@ -225,13 +250,14 @@ export class MarkAllAgentSessionsReadAction extends Action2 {
 
 const ConfirmArchiveStorageKey = 'chat.sessions.confirmArchive';
 
-export class ArchiveAgentSessionSectionAction extends Action2 {
+abstract class BaseArchiveAgentSessionSectionAction extends Action2 {
 
-	constructor() {
+	constructor(private readonly wording: ChatSessionArchiveActionWording) {
+		const action = getChatSessionArchiveActionPresentation(wording).archiveAll;
 		super({
 			id: 'agentSessionSection.archive',
-			title: localize2('archiveSection', "Archive All"),
-			icon: Codicon.archive,
+			title: action.title,
+			icon: action.icon,
 			menu: [{
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
@@ -257,11 +283,17 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: context.sessions.length === 1
-					? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 agent session from '{0}'?", context.label)
-					: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
-				detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
-				primaryButton: localize('archiveSectionSessions.archive', "Archive All"),
+				message: this.wording === ChatSessionArchiveActionWording.MarkAsDone
+					? context.sessions.length === 1
+						? localize('markSectionSessionsDone.confirmSingle', "Are you sure you want to mark 1 agent session from '{0}' as done?", context.label)
+						: localize('markSectionSessionsDone.confirm', "Are you sure you want to mark {0} agent sessions from '{1}' as done?", context.sessions.length, context.label)
+					: context.sessions.length === 1
+						? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 agent session from '{0}'?", context.label)
+						: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
+				detail: this.wording === ChatSessionArchiveActionWording.MarkAsDone
+					? localize('markSectionSessionsDone.detail', "You can restore sessions later if needed from the sessions view.")
+					: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
+				primaryButton: getChatSessionArchiveActionPresentation(this.wording).archiveAll.title.value,
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				}
@@ -282,13 +314,26 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 	}
 }
 
-export class UnarchiveAgentSessionSectionAction extends Action2 {
-
+export class ArchiveAgentSessionSectionAction extends BaseArchiveAgentSessionSectionAction {
 	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+export class MarkAgentSessionSectionDoneAction extends BaseArchiveAgentSessionSectionAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
+	}
+}
+
+abstract class BaseUnarchiveAgentSessionSectionAction extends Action2 {
+
+	constructor(private readonly wording: ChatSessionArchiveActionWording) {
+		const action = getChatSessionArchiveActionPresentation(wording).unarchiveAll;
 		super({
 			id: 'agentSessionSection.unarchive',
-			title: localize2('unarchiveSection', "Unarchive All"),
-			icon: Codicon.unarchive,
+			title: action.title,
+			icon: action.icon,
 			menu: [{
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
@@ -315,8 +360,10 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 			if (!skipConfirmation) {
 				const confirmed = await dialogService.confirm({
-					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
-					primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
+					message: this.wording === ChatSessionArchiveActionWording.MarkAsDone
+						? localize('restoreSectionSessions.confirm', "Are you sure you want to restore {0} agent sessions?", context.sessions.length)
+						: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
+					primaryButton: getChatSessionArchiveActionPresentation(this.wording).unarchiveAll.title.value,
 					checkbox: {
 						label: localize('doNotAskAgain', "Do not ask me again")
 					}
@@ -335,6 +382,18 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 		for (const session of context.sessions) {
 			session.setArchived(false);
 		}
+	}
+}
+
+export class UnarchiveAgentSessionSectionAction extends BaseUnarchiveAgentSessionSectionAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+export class RestoreAgentSessionSectionAction extends BaseUnarchiveAgentSessionSectionAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
 
@@ -466,13 +525,14 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 	}
 }
 
-export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
+abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 
-	constructor() {
+	constructor(private readonly wording: ChatSessionArchiveActionWording) {
+		const action = getChatSessionArchiveActionPresentation(wording).archive;
 		super({
 			id: 'agentSession.archive',
-			title: localize2('archive', "Archive"),
-			icon: Codicon.archive,
+			title: action.title,
+			icon: action.icon,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
@@ -505,7 +565,9 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 			const chatModel = chatService.getSession(session.resource);
 			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
 				isArchiveAction: true,
-				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+				titleOverride: this.wording === ChatSessionArchiveActionWording.MarkAsDone
+					? localize('markSessionDone', "Mark chat as done with pending edits?")
+					: localize('archiveSession', "Archive chat with pending edits?"),
 				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
 			})) {
 				return;
@@ -516,13 +578,26 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 	}
 }
 
-export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
-
+export class ArchiveAgentSessionAction extends BaseArchiveAgentSessionAction {
 	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+export class MarkAgentSessionDoneAction extends BaseArchiveAgentSessionAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
+	}
+}
+
+abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
+
+	constructor(wording: ChatSessionArchiveActionWording) {
+		const action = getChatSessionArchiveActionPresentation(wording).unarchive;
 		super({
 			id: 'agentSession.unarchive',
-			title: localize2('unarchive', "Unarchive"),
-			icon: Codicon.unarchive,
+			title: action.title,
+			icon: action.icon,
 			keybinding: {
 				primary: KeyMod.Shift | KeyCode.Delete,
 				mac: {
@@ -555,6 +630,36 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 	}
 }
 
+export class UnarchiveAgentSessionAction extends BaseUnarchiveAgentSessionAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.Archive);
+	}
+}
+
+export class RestoreAgentSessionAction extends BaseUnarchiveAgentSessionAction {
+	constructor() {
+		super(ChatSessionArchiveActionWording.MarkAsDone);
+	}
+}
+
+export function getAgentSessionArchiveActionConstructors(wording: ChatSessionArchiveActionWording): readonly { new(): Action2 }[] {
+	return wording === ChatSessionArchiveActionWording.MarkAsDone
+		? [
+			MarkAllAgentSessionsDoneAction,
+			MarkAgentSessionSectionDoneAction,
+			RestoreAgentSessionSectionAction,
+			MarkAgentSessionDoneAction,
+			RestoreAgentSessionAction,
+		]
+		: [
+			ArchiveAllAgentSessionsAction,
+			ArchiveAgentSessionSectionAction,
+			UnarchiveAgentSessionSectionAction,
+			ArchiveAgentSessionAction,
+			UnarchiveAgentSessionAction,
+		];
+}
+
 export class PinAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
@@ -565,7 +670,7 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPinnedAgentSession.negate(),
 					ChatContextKeys.isArchivedAgentSession.negate()
@@ -599,7 +704,7 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPinnedAgentSession,
 					ChatContextKeys.isArchivedAgentSession.negate()
@@ -623,6 +728,16 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 	}
 }
 
+/**
+ * Matches every session type that supports renaming: local sessions and all
+ * agent-host session types (`agent-host-*` and `remote-*`), mirroring the
+ * generic `isAgentHostTarget` check used by the rename action body.
+ */
+const renameSupportedSessionTypes = ContextKeyExpr.or(
+	ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+	ChatContextKeyExprs.isAgentHostSessionItem,
+);
+
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
@@ -638,14 +753,14 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+					renameSupportedSessionTypes
 				),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 3,
-				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+				when: renameSupportedSessionTypes
 			}
 		});
 	}
@@ -658,10 +773,15 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
 		if (title) {
-			chatService.setChatSessionTitle(session.resource, title);
+			if (isAgentHostAgentSessionItem(session)) {
+				await chatSessionsService.renameChatSession(session.resource, title, CancellationToken.None);
+			} else {
+				chatService.setChatSessionTitle(session.resource, title);
+			}
 		}
 	}
 }
@@ -676,7 +796,10 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 4,
-				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+				when: ContextKeyExpr.or(
+					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+					ChatContextKeyExprs.isAgentHostSessionItem,
+				)
 			}
 		});
 	}
@@ -687,8 +810,10 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		}
 
 		const chatService = accessor.get(IChatService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		const dialogService = accessor.get(IDialogService);
 		const widgetService = accessor.get(IChatWidgetService);
+		const commandService = accessor.get(ICommandService);
 
 		const confirmed = await dialogService.confirm({
 			message: sessions.length === 1
@@ -702,13 +827,37 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			return;
 		}
 
+		const deletedSessionIds: string[] = [];
+
 		for (const session of sessions) {
+			if (isLocalAgentSessionItem(session)) {
+				// Clear chat widget before deletion: local sessions are stored in-process and removal cannot fail.
+				await widgetService.getWidgetBySessionResource(session.resource)?.clear();
 
-			// Clear chat widget
-			await widgetService.getWidgetBySessionResource(session.resource)?.clear();
+				// Remove from storage
+				await chatService.removeHistoryEntry(session.resource);
 
-			// Remove from storage
-			await chatService.removeHistoryEntry(session.resource);
+				// Track session ID for cloud cleanup
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(session.resource);
+				if (sessionId) {
+					deletedSessionIds.push(sessionId);
+				}
+			} else if (isAgentHostAgentSessionItem(session)) {
+				// Delegate to the agent host session controller, which disposes the backend session and removes
+				// the item from the sidebar. Only clear the chat widget after a successful delete so that a
+				// failure (and the resulting error dialog) leaves the user on the still-existing session.
+				try {
+					await chatSessionsService.deleteChatSessionItem(session.resource, CancellationToken.None);
+					await widgetService.getWidgetBySessionResource(session.resource)?.clear();
+				} catch (err) {
+					dialogService.error(localize('deleteSession.error', "Failed to delete chat session: {0}", toErrorMessage(err)));
+				}
+			}
+		}
+
+		// Notify extensions to clean up cloud data (best effort)
+		if (deletedSessionIds.length > 0) {
+			commandService.executeCommand('github.copilot.sessionSync.deleteSessionFromCloud', deletedSessionIds).catch(() => { /* best effort */ });
 		}
 	}
 }
@@ -891,8 +1040,13 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
-		agentSessionsControl.refresh();
+	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
+		if (control) {
+			control.refresh();
+		} else {
+			accessor.get(ICommandService).executeCommand('sessionsViewPane.refresh');
+		}
 	}
 }
 
@@ -911,8 +1065,13 @@ export class FindAgentSessionInViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
-		return agentSessionsControl.openFind();
+	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
+		if (control) {
+			return control.openFind();
+		} else {
+			return accessor.get(ICommandService).executeCommand('sessionsViewPane.find');
+		}
 	}
 }
 

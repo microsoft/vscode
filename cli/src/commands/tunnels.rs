@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use async_trait::async_trait;
 use base64::{engine::general_purpose as b64, Engine as _};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
 	net::{IpAddr, Ipv4Addr, SocketAddr},
 	str::FromStr,
+	sync::Arc,
 	time::Duration,
 };
 use sysinfo::Pid;
@@ -20,6 +20,7 @@ use tokio::{
 };
 
 use super::{
+	agent_host::ensure_supervisor_running,
 	args::{
 		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelArgs, TunnelForwardArgs,
 		TunnelRenameArgs, TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
@@ -49,6 +50,7 @@ use crate::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
+		SharedActiveAgentHost,
 	},
 	util::{
 		app_lock::AppMutex,
@@ -76,7 +78,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-fn fulfill_existing_tunnel_args(
+pub(super) fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {
@@ -118,7 +120,6 @@ impl TunnelServiceContainer {
 	}
 }
 
-#[async_trait]
 impl ServiceContainer for TunnelServiceContainer {
 	async fn run_service(
 		&mut self,
@@ -149,6 +150,28 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
 	}
 
+	// Kick off the agent host supervisor in the background. The supervisor
+	// is what lets the renderer reach the agent host via the
+	// `agentHostProxy` IPC channel on the spawned VS Code server. We do
+	// NOT await it here — `command-shell` needs to start listening
+	// immediately. `handle_serve` awaits the shared future on demand and
+	// mixes the bridge endpoint into the per-request `code_server_args`.
+	// On failure the renderer just won't see `agentHostProxy`; editing
+	// and the extension host still work.
+	let active_agent_host: SharedActiveAgentHost = {
+		let paths = ctx.paths.clone();
+		let log = ctx.log.clone();
+		async move {
+			ensure_supervisor_running(&paths, &log)
+				.await
+				.map(Arc::new)
+				.map_err(Arc::new)
+		}
+		.boxed()
+		.shared()
+	};
+	tokio::spawn(active_agent_host.clone());
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -159,6 +182,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.unwrap_or(AuthRequired::VSDA),
 		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
+		active_agent_host: Some(active_agent_host),
 	};
 
 	args.server_args.apply_to(&mut params.code_server_args);
@@ -639,7 +663,7 @@ async fn serve_with_csa(
 
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
-	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let platform = PreReqChecker::new().verify().await?;
 	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());

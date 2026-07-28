@@ -31,7 +31,7 @@ suite('AgentNetworkFilterService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(): AgentNetworkFilterService {
+	async function createService(): Promise<AgentNetworkFilterService> {
 		const service = new AgentNetworkFilterService(configService);
 		disposables.add(service);
 		return service;
@@ -46,65 +46,70 @@ suite('AgentNetworkFilterService', () => {
 		});
 	}
 
-	test('allows all domains when filter is disabled', () => {
+	test('allows all domains when filter is disabled, regardless of configured lists', async () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
-		const service = createService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.com']);
+
+		const service = await createService();
+
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), true);
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://anything.test')), true);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://blocked.com')), true);
 	});
 
-	test('denies all domains when both lists are empty', () => {
-		const service = createService();
+	test('denies all domains when both lists are empty', async () => {
+		const service = await createService();
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), false);
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://anything.test')), false);
 	});
 
-	test('blocks denied domains', () => {
+	test('blocks denied domains', async () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['evil.com']);
-		const service = createService();
+		const service = await createService();
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://evil.com')), false);
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://good.com')), true);
 	});
 
-	test('restricts to allowed domains', () => {
+	test('restricts to allowed domains', async () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
-		const service = createService();
+		const service = await createService();
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), true);
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com')), false);
 	});
 
-	test('denied takes precedence over allowed', () => {
+	test('denied takes precedence over allowed', async () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.com']);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['evil.com']);
-		const service = createService();
+		const service = await createService();
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://safe.com')), true);
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://evil.com')), false);
 	});
 
 	suite('isUriAllowed', () => {
 
-		test('allows file URIs', () => {
-			const service = createService();
+		test('allows file URIs', async () => {
+			const service = await createService();
 			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*']);
 			assert.strictEqual(service.isUriAllowed(URI.file('/tmp/test.txt')), true);
 		});
 
-		test('allows URIs without authority', () => {
-			const service = createService();
+		test('allows URIs without authority', async () => {
+			const service = await createService();
 			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*']);
 			assert.strictEqual(service.isUriAllowed(URI.from({ scheme: 'untitled', path: 'Untitled-1' })), true);
 		});
 
-		test('checks domain for http/https URIs', () => {
+		test('checks domain for http/https URIs', async () => {
 			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
-			const service = createService();
+			const service = await createService();
 			assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com/page')), true);
 			assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com/page')), false);
 		});
 	});
 
 	test('fires onDidChange when configuration changes', async () => {
-		const service = createService();
+		const service = await createService();
 		let fired = false;
 		disposables.add(service.onDidChange(() => { fired = true; }));
 
@@ -116,7 +121,7 @@ suite('AgentNetworkFilterService', () => {
 
 	test('updates filtering after configuration change', async () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
-		const service = createService();
+		const service = await createService();
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), true);
 
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);
@@ -124,4 +129,5 @@ suite('AgentNetworkFilterService', () => {
 
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), false);
 	});
+
 });

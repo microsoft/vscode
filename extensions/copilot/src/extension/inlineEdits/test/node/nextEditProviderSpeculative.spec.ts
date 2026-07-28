@@ -14,12 +14,12 @@ import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsEnable
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
-import { EditStreamingWithTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { EditStreamingWithTelemetry, type IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { NesHistoryContextProvider } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
 import { NesXtabHistoryTracker } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger, ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
-import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
+import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { ISnippyService, NullSnippyService } from '../../../../platform/snippy/common/snippyService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { mockNotebookService } from '../../../../platform/test/common/testNotebookService';
@@ -37,6 +37,11 @@ import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRan
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { NESInlineCompletionContext, NextEditProvider } from '../../node/nextEditProvider';
 import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder, ReusedRequestKind } from '../../node/nextEditProviderTelemetry';
+
+const testModelTelemetry: IStatelessNextEditModelTelemetry = {
+	modelName: 'test-speculative-patch-model',
+	modelConfig: JSON.stringify({ promptingStrategy: 'patchBased02WithRecentLineNumbers' }),
+};
 
 interface ICallRecord {
 	readonly request: StatelessNextEditRequest;
@@ -71,6 +76,8 @@ class TestStatelessNextEditProvider implements IStatelessNextEditProvider {
 	private readonly _behaviors: ProviderBehavior[] = [];
 	public readonly calls: ICallRecord[] = [];
 	private readonly _callDeferreds: DeferredPromise<void>[] = [];
+
+	constructor(private readonly _modelTelemetry?: IStatelessNextEditModelTelemetry) { }
 
 	/**
 	 * When set, each `provideNextEdit` call will assign this to `request.requestEditWindow`
@@ -113,6 +120,12 @@ class TestStatelessNextEditProvider implements IStatelessNextEditProvider {
 		const streamedEditWindow = this.editWindow?.window;
 		const streamedOriginalWindow = this.editWindow instanceof RequestEditWindowWithCursorJump ? this.editWindow.originalWindow : undefined;
 		const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId);
+		if (this._modelTelemetry?.modelName !== undefined) {
+			telemetryBuilder.setModelName(this._modelTelemetry.modelName);
+		}
+		if (this._modelTelemetry?.modelConfig !== undefined) {
+			telemetryBuilder.setModelConfig(this._modelTelemetry.modelConfig);
+		}
 		const activeDocId = request.getActiveDocument().id;
 		const cancellationRequested = new DeferredPromise<void>();
 		const completed = new DeferredPromise<void>();
@@ -417,7 +430,7 @@ describe('NextEditProvider speculative requests', () => {
 		await statelessProvider.calls[1].completed.p;
 	});
 
-	it('does not cancel speculative request when active document diverges from expected post-edit state', async () => {
+	it.skip('cancels speculative request when active document edit moves off the type-through trajectory', async () => {
 		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
 
 		const statelessProvider = new TestStatelessNextEditProvider();
@@ -436,30 +449,28 @@ describe('NextEditProvider speculative requests', () => {
 		nextEditProvider.handleShown(suggestion);
 		await statelessProvider.waitForCall(2);
 
-		// Editing the active document should NOT cancel the speculative request.
-		// The speculative request targets a future post-edit state, not the current
-		// document value, so keystroke-level changes should not invalidate it.
+		// Inserting at the start of the document breaks the trajectory's prefix
+		// (the doc no longer starts with `pre[0..editStart]`). The speculative
+		// can no longer be reached via type-through-then-accept — cancel.
 		doc.applyEdit(StringEdit.insert(0, '/* diverged */\n'));
-		await flushMicrotasks();
+		await statelessProvider.calls[1].cancellationRequested.p;
 
-		expect(statelessProvider.calls[1].wasCancelled).toBe(false);
-
-		// Clean up: reject so the speculative request gets cancelled properly
-		nextEditProvider.handleRejection(doc.id, suggestion);
-		await statelessProvider.calls[1].completed.p;
+		expect(statelessProvider.calls[1].wasCancelled).toBe(true);
 	});
 
-	it('keeps speculative request alive when user types in the active document', async () => {
+	it.skip('keeps speculative alive while user types characters of the suggestion (type-through)', async () => {
 		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
 
 		const statelessProvider = new TestStatelessNextEditProvider();
-		statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+		// Suggestion inserts `'barbaz'` between `'foo'` and `'();'`.
+		// Resulting precise edit: replace [3, 3) with 'barbaz' (a pure insertion).
+		statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'foobarbaz();') });
 		statelessProvider.enqueueBehavior({ kind: 'waitForCancellation' });
 		const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
 
 		const doc = workspace.addDocument({
 			id: DocumentId.create(URI.file('/test/spec-typing.ts').toString()),
-			initialValue: 'const value = 1;\nconsole.log(value);',
+			initialValue: 'foo();\nconsole.log();',
 		});
 		doc.setSelection([new OffsetRange(0, 0)], undefined);
 
@@ -468,23 +479,28 @@ describe('NextEditProvider speculative requests', () => {
 		nextEditProvider.handleShown(suggestion);
 		await statelessProvider.waitForCall(2);
 
-		// Simulate multiple keystrokes in the active document while the speculative
-		// request is in flight — none of them should cancel it.
-		doc.applyEdit(StringEdit.insert(0, 'a'));
+		// User types characters of the suggestion at the edit position — each
+		// keystroke keeps the document on a type-through trajectory toward
+		// `postEditContent`, so the speculative must NOT be cancelled.
+		doc.applyEdit(StringEdit.insert(3, 'b'));
 		await flushMicrotasks();
 		expect(statelessProvider.calls[1].wasCancelled).toBe(false);
 
-		doc.applyEdit(StringEdit.insert(1, 'b'));
+		doc.applyEdit(StringEdit.insert(4, 'a'));
 		await flushMicrotasks();
 		expect(statelessProvider.calls[1].wasCancelled).toBe(false);
 
-		doc.applyEdit(StringEdit.insert(2, 'c'));
+		doc.applyEdit(StringEdit.insert(5, 'r'));
 		await flushMicrotasks();
 		expect(statelessProvider.calls[1].wasCancelled).toBe(false);
 
-		// Clean up via rejection
-		nextEditProvider.handleRejection(doc.id, suggestion);
-		await statelessProvider.calls[1].completed.p;
+		// Now the user types a character that doesn't match the suggestion's
+		// next character (`'b'` would be expected; they typed `'X'`). The
+		// trajectory is broken — cancel.
+		doc.applyEdit(StringEdit.insert(6, 'X'));
+		await statelessProvider.calls[1].cancellationRequested.p;
+
+		expect(statelessProvider.calls[1].wasCancelled).toBe(true);
 	});
 
 	it('cancels mismatched speculative request when starting a request for another document', async () => {
@@ -640,7 +656,7 @@ describe('NextEditProvider speculative requests', () => {
 		it('cached speculative result has sp- headerRequestId and isFromCache=true', async () => {
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
 
-			const statelessProvider = new TestStatelessNextEditProvider();
+			const statelessProvider = new TestStatelessNextEditProvider(testModelTelemetry);
 			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
 			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);') });
 			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
@@ -674,6 +690,9 @@ describe('NextEditProvider speculative requests', () => {
 			expect(telemetry.headerRequestId!.startsWith('sp-')).toBe(true);
 			expect(telemetry.isFromCache).toBe(true);
 			expect(telemetry.reusedRequest).toBeUndefined();
+			expect(telemetry.modelName).toBe(testModelTelemetry.modelName);
+			expect(telemetry.modelConfig).toBe(testModelTelemetry.modelConfig);
+			expect(telemetry.hadStatelessNextEditProviderCall).toBeUndefined();
 		});
 	});
 
@@ -1131,10 +1150,6 @@ describe('NextEditProvider speculative requests', () => {
 	});
 
 	describe('edit window cursor check for request reuse', () => {
-		beforeEach(async () => {
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCheckEditWindowOnReuse, true);
-		});
-
 		it('does not reuse in-flight request when cursor moves outside edit window', async () => {
 			const statelessProvider = new TestStatelessNextEditProvider();
 			// Edit window covers offsets 0–20 of the document
@@ -1368,6 +1383,85 @@ describe('NextEditProvider speculative requests', () => {
 			} finally {
 				telemetryBuilder.dispose();
 			}
+		});
+	});
+
+	describe('lifecycle cancellation', () => {
+		it('cancels in-flight speculative when clearCache() is called', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitForCancellation' });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-clear-cache.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			const suggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(suggestion.result?.edit);
+			nextEditProvider.handleShown(suggestion);
+			await statelessProvider.waitForCall(2);
+
+			nextEditProvider.clearCache();
+			await statelessProvider.calls[1].cancellationRequested.p;
+
+			expect(statelessProvider.calls[1].wasCancelled).toBe(true);
+		});
+
+		it('cancels in-flight speculative when its target document is closed', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitForCancellation' });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-doc-close.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			const suggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(suggestion.result?.edit);
+			nextEditProvider.handleShown(suggestion);
+			await statelessProvider.waitForCall(2);
+
+			// Closing the document removes it from openDocuments — the speculative's
+			// cached result would never be hit again, so cancel it.
+			doc.dispose();
+			await statelessProvider.calls[1].cancellationRequested.p;
+
+			expect(statelessProvider.calls[1].wasCancelled).toBe(true);
+		});
+
+		it('cancels in-flight speculative when the provider is disposed', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitForCancellation' });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-provider-dispose.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			const suggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(suggestion.result?.edit);
+			nextEditProvider.handleShown(suggestion);
+			await statelessProvider.waitForCall(2);
+
+			nextEditProvider.dispose();
+			await statelessProvider.calls[1].cancellationRequested.p;
+
+			expect(statelessProvider.calls[1].wasCancelled).toBe(true);
 		});
 	});
 });

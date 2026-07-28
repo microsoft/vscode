@@ -115,10 +115,10 @@ export class McpSetupCommands extends Disposable {
 	};
 
 	constructor(
-		@ITelemetryService readonly telemetryService: ITelemetryService,
-		@ILogService readonly logService: ILogService,
-		@IFetcherService readonly fetcherService: IFetcherService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@IFetcherService private readonly fetcherService: IFetcherService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this._register(toDisposable(() => this.pendingSetup?.cts.dispose(true)));

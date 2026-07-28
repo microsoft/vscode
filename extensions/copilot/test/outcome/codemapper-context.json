@@ -2,83 +2,84 @@
 	{
 		"name": "codeMapper [context] [json] - make changes in package.json",
 		"requests": [
-			"2220e065be5c2c015214bbf2b5183666de4713ae8d88a04a7b8007e18d06574f"
+			"224ab1e9650961b5cfcd7a9b9e3df810d0fc9315c9a9190abf60bd92eab15254"
 		]
 	},
 	{
 		"name": "codeMapper [context] [markdown] - mixed product icons (60kb) - modify & insert",
 		"requests": [
-			"20c8c92e422af4af1bf2cbe13b240a68523b3a243e9e943c26eef933bbe89e44",
-			"4721819ade1c8aa657520055e858d8cd6f64e48d186bf9bf763883f4478bc5d3",
-			"4bbb51c6666d89457d2f22a4c8fbc6a7cc431761f60fad7cd0bccb8254831faa",
-			"b9c4dc821d485809f56f59295c7a40b112f38f0203582710983e0857cf3d0e63"
+			"95238cfe0953e79f980155a99daa2d6c1d5c4c394cfba3c18271ecb449bf616b",
+			"a8c2eea81741e9e9cc90c7fe4de1c97631bbfa24878d6a3b80b92af1a6b38aec",
+			"dd3f88f0365854387c64c0c9ae052c5dd40ccbff7d9c9fe8c1a46ca55f2cf131",
+			"ee065182b85a87f59a3a8f218dd3012ba2c3941ed8e6c2b28bb56d285d09bfd7",
+			"fa30c05936234487926b877dd7e99cb9c36d96d0f26437a5728dd549541cbfc4"
 		]
 	},
 	{
 		"name": "codeMapper [context] [markdown] - sorted product icons (60kb) - modify & insert",
 		"requests": [
-			"56b017aede5ba711cbcf177b0d08bbb832ae12f2069c482b421e63162b8a7e67",
-			"6ca24f074f112fdb72071f91ec6e8471d65151580e353b6674adee09841ad09f"
+			"117b65c5da9b2cbdf2982752b61fc3af30f6d242c8b2423eba31032a397c2560",
+			"ce5ee6f7727adfd39a7d42c9c5acb89c711a047b71468908f6a121d747818473"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - add import",
 		"requests": [
-			"002e35ab9aa44155e2f617da3bdea0e2054867740ad36cbca0b7fd7b6b039339"
+			"b1b3318717fc31fecefdf08fd83561518713cd2f2c44cb9c49cbccd738d2c215"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - add new function at location 1",
 		"requests": [
-			"1452e6c5032640967ae9837e5c1aac3a11a2fa619ef7e01dda110fac610d6eab"
+			"eb658be4e329ea04b5d23f780b59ffe58cbe2cd2514a3ba25d46c97b334ed643"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - break up function, large file",
 		"requests": [
-			"c7f96a5c7c72b7b00bcb672a0ac336a4f45c9a5bbdddf9f39148d620379e055c"
+			"017dcb3c212266d76668b271449e8cdc672695af84ce7d95cdf50276a7085f2d"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - does not delete random parts of code (big file)",
 		"requests": [
-			"7fd71f726eed38138f8ced75f74c65d7736b7fd05756c55c5314b03afab555a2"
+			"525c209233f659df856c65f7b6bed8151bf947d8c318a54d929137066839d038"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - does not remove stale imports #11766",
 		"requests": [
-			"2a838769ab5e4f073f52c7dc8884a6295c8c5a3c0522a8b7beb4d5c380c24da2"
+			"7adbfd317ee7159cb23c142d4567dcb8ce3eccf870d667a76fcca92429fbed99"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - modify function",
 		"requests": [
-			"668289030f52390e55f98cfefd4ab08b6ae87fcb427886a8f26e7ed22aa1bf04"
+			"373dff2f7e5323e159d99fd03dc242c23f4b02e4bb9b1b427a88d4168e6e488a"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - move to class",
 		"requests": [
-			"b2aa04fc97bcb1e29939090028761d5931f9ce3caf7d99da66b88d8b8e2bc063"
+			"1f7774a8969866c78b46d68cc022d5d185fc6e55f5ac9864a02d463f268a58de"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - other tests updated similarly",
 		"requests": [
-			"408482871af2bb9f28e502ee207d7c4eedd7171247fb3b8fcc679add53f1648d"
+			"e153523c0cfb664f8c4623ca1c76c497143b7ec5fbf096f6a1eb30ce0074eced"
 		]
 	},
 	{
 		"name": "codeMapper [context] [typescript] - replace statement with ident change",
 		"requests": [
-			"f26edaecfd2042095cd8d7cc4a5b5d510c19c01a47bfe189b59538eca8ea4a1a"
+			"2551595847c9b3658198caa967b1c5f261e1611e84da91bc8a699797b918b46c"
 		]
 	},
 	{
 		"name": "codeMapper [context] [yaml] - looping in short yaml file",
 		"requests": [
-			"705a2869b79aface98634f2f938d91b8f63aa53d1ab79c6aae96eae4c2b4607f"
+			"63db4efead8735cf038a214a4bf79f9b5ec76444f1b464cc75c7ac119a176775"
 		]
 	}
 ]

@@ -6,26 +6,29 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../common/changes.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
-import { ViewContainerLocation } from '../../../../workbench/common/views.js';
-import { ChangesViewPane } from './changesView.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
-import { SESSIONS_FILES_VIEW_ID } from '../../files/browser/filesView.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IChangesViewService } from '../common/changesViewService.js';
+import { Menus } from '../../../browser/menus.js';
+import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
+import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
+import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
+import { ChangesetHasOperationsContext } from './changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -50,117 +53,34 @@ class OpenChangesViewAction extends Action2 {
 
 registerAction2(OpenChangesViewAction);
 
-registerAction2(class FocusChangesViewAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.agentSessions.focusChangesView',
-			title: localize2('focusChangesView', "Focus Changes View"),
-			category: Categories.View,
-			precondition: IsSessionsWindowContext,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
-				when: IsSessionsWindowContext,
-			},
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionManagementService.activeSession.get();
-		const changes = activeSession?.changes.get();
-		if (!changes || changes.length === 0) {
-			alert(localize('focusChangesView.noChanges', "There are no changes."));
-			return;
-		}
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewsService = accessor.get(IViewsService);
-		await paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar, true);
-		const view = await viewsService.openView(CHANGES_VIEW_ID, true);
-		view?.focus();
-	}
-});
-
-registerAction2(class FocusChangesFileViewAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.agentSessions.focusChangesFileView',
-			title: localize2('focusChangesFileView', "Focus Files Explorer View"),
-			category: Categories.View,
-			precondition: IsSessionsWindowContext,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 1,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
-				when: IsSessionsWindowContext,
-			},
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewsService = accessor.get(IViewsService);
-		await paneCompositeService.openPaneComposite(SESSIONS_FILES_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar, true);
-		const view = await viewsService.openView(SESSIONS_FILES_VIEW_ID, true);
-		if (view) {
-			view.focus();
-		}
-	}
-});
-
 class ChangesViewActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.changesViewActions';
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
+		@IChangesViewService changesViewService: IChangesViewService,
 	) {
 		super();
 
 		// Bind context key: true when the active session has changes
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
-			const activeSession = sessionManagementService.activeSession.read(reader);
+			const activeSession = sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
 			const changes = activeSession.changes.read(reader);
 			return changes.length > 0;
 		}));
+
+		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {
+			return changesViewService.viewModeObs.read(reader);
+		}));
 	}
 }
 
 registerWorkbenchContribution2(ChangesViewActionsContribution.ID, ChangesViewActionsContribution, WorkbenchPhase.AfterRestored);
-
-export class ViewAllSessionChangesAction extends Action2 {
-	static readonly ID = 'chatEditing.viewAllSessionChanges';
-
-	constructor() {
-		super({
-			id: ViewAllSessionChangesAction.ID,
-			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
-			icon: Codicon.diffMultiple,
-			f1: false,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('sessions.hasGitRepository', true),
-				ChatContextKeys.hasAgentSessionChanges,
-			),
-			menu: [
-				{
-					id: MenuId.ChatEditingSessionChangesToolbar,
-					group: 'navigation',
-					order: 10,
-				}
-			],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		await view?.openChanges();
-	}
-}
-registerAction2(ViewAllSessionChangesAction);
 
 class OpenPullRequestAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openPullRequest';
@@ -171,9 +91,8 @@ class OpenPullRequestAction extends Action2 {
 			title: localize2('openPullRequest', "Open Pull Request"),
 			icon: Codicon.gitPullRequest,
 			f1: false,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: {
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 9,
 				when: ContextKeyExpr.and(
@@ -185,13 +104,13 @@ class OpenPullRequestAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
-		const sessionManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionManagementService.activeSession.get();
+		const sessionsService = accessor.get(ISessionsService);
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
 
-		const gitHubInfo = activeSession.gitHubInfo.get();
+		const gitHubInfo = activeSession.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		if (!gitHubInfo?.pullRequest?.uri) {
 			return;
 		}
@@ -201,3 +120,293 @@ class OpenPullRequestAction extends Action2 {
 }
 
 registerAction2(OpenPullRequestAction);
+
+const singlePaneChangesEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
+	SinglePaneLayoutEnabledContext
+);
+
+// Title-bar (tab-row) gate that does NOT require the editor content area to be
+// visible, so session-level title actions (e.g. Create Pull Request) stay available
+// when the editor area is closed but the docked tab bar is still shown.
+const singlePaneChangesEditorTitle = ContextKeyExpr.and(
+	singlePaneChangesEditorActive,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext
+);
+
+const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
+	singlePaneChangesEditorTitle,
+	MainEditorAreaVisibleContext
+);
+
+/**
+ * Anchor action hosting the Create Pull Request button bar ({@link ChangesActionsBar})
+ * in the single-pane editor tabs title (the editor-actions area of the docked tab bar).
+ * The custom action view item is provided by the Changes editor pane
+ * ({@link SessionChangesEditor.getActionViewItem}) when the Changes editor is active,
+ * so the anchor is gated on the same. The bar hides itself when its underlying menu has
+ * no actions.
+ */
+class ChangesHeaderActionsAction extends Action2 {
+	constructor() {
+		super({
+			id: CHANGES_HEADER_ACTIONS_ID,
+			title: localize2('changesView.headerActions', "Changes Actions"),
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorTitle,
+				group: 'navigation',
+				order: 5,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorTitle,
+					ChangesetHasOperationsContext
+				)
+			},
+		});
+	}
+	override async run(): Promise<void> { }
+}
+
+registerAction2(ChangesHeaderActionsAction);
+
+
+class SetChangesListViewModeAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
+
+	constructor() {
+		super({
+			id: SetChangesListViewModeAction.ID,
+			title: localize2('agentSessions.setChangesListViewMode', "View as List"),
+			icon: Codicon.listFlat,
+			f1: false,
+			menu: {
+				// Always in the overflow ("…") of the right header, whether the editor
+				// area is visible or collapsed (as long as the changes list is shown).
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary',
+				order: 20,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorTitle,
+					AuxiliaryBarVisibleContext,
+					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.List);
+		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.List);
+	}
+}
+
+registerAction2(SetChangesListViewModeAction);
+
+class SetChangesTreeViewModeAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.setChangesTreeViewMode';
+
+	constructor() {
+		super({
+			id: SetChangesTreeViewModeAction.ID,
+			title: localize2('agentSessions.setChangesTreeViewMode', "View as Tree"),
+			icon: Codicon.listTree,
+			f1: false,
+			menu: {
+				// Always in the overflow ("…") of the right header, whether the editor
+				// area is visible or collapsed (as long as the changes list is shown).
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary',
+				order: 20,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorTitle,
+					AuxiliaryBarVisibleContext,
+					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.Tree);
+		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.Tree);
+	}
+}
+
+registerAction2(SetChangesTreeViewModeAction);
+
+class CollapseAllSessionChangesDiffsAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.collapseAllDiffs';
+
+	constructor() {
+		super({
+			id: CollapseAllSessionChangesDiffsAction.ID,
+			title: localize2('agentSessions.collapseAllDiffs', "Collapse All Diffs"),
+			icon: Codicon.collapseAll,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: '1_diff',
+				order: 10,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorTitleVisible,
+					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SessionChangesEditor) {
+			activeEditorPane.collapseAllDiffs();
+		}
+	}
+}
+
+registerAction2(CollapseAllSessionChangesDiffsAction);
+
+class ExpandAllSessionChangesDiffsAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.expandAllDiffs';
+
+	constructor() {
+		super({
+			id: ExpandAllSessionChangesDiffsAction.ID,
+			title: localize2('agentSessions.expandAllDiffs', "Expand All Diffs"),
+			icon: Codicon.expandAll,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: '1_diff',
+				order: 10,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorActive,
+					IsAuxiliaryWindowContext.toNegated(),
+					IsTopRightEditorGroupContext,
+					MainEditorAreaVisibleContext,
+					ContextKeyExpr.has('multiDiffEditorAllCollapsed'))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SessionChangesEditor) {
+			activeEditorPane.expandAllDiffs();
+		}
+	}
+}
+
+registerAction2(ExpandAllSessionChangesDiffsAction);
+
+// The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a
+// user's keybinding for it carries over here (issue #324765). The sessions override of
+// IDiffEditorCommandsService flips the workspace `diffEditor.renderSideBySide` setting,
+// which the Changes editor observes.
+
+// Primary header button with state-specific titles: "Show Side by Side Diff" when
+// currently inline, and (checked) "Show Inline Diff" when currently side by side.
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+	command: {
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
+		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
+		icon: Codicon.diffSidebyside,
+		toggled: {
+			condition: EditorContextKeys.multiDiffEditorRenderSideBySide,
+			title: localize('showInlineDiff', "Show Inline Diff"),
+		},
+	},
+	group: '1_diff',
+	order: 20,
+	when: singlePaneChangesEditorTitleVisible
+});
+
+// Discoverable in the command palette while the Changes editor is visible.
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
+		title: localize2('toggleDiffView', "Toggle Diff View"),
+		category: localize2('changes', "Changes"),
+	},
+	when: singlePaneChangesEditorTitleVisible
+});
+
+class OpenChangesAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openChanges';
+
+	constructor() {
+		super({
+			id: OpenChangesAction.ID,
+			title: localize2('openChanges', "Open Changes"),
+			icon: Codicon.gitCompare,
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const changesViewService = accessor.get(IChangesViewService);
+
+		const sessionChanges = changesViewService.activeSessionChangesObs.get();
+
+		const changes = sessionChanges?.filter(change =>
+			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))
+		) ?? [];
+
+		await Promise.all(changes.map(change => editorService.openEditor({
+			original: { resource: change.originalUri },
+			modified: { resource: change.modifiedUri }
+		})));
+	}
+}
+
+registerAction2(OpenChangesAction);
+
+const openSingleFileDiffEnabled = ContextKeyExpr.equals(`config.${SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING}`, true);
+
+class OpenFileAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openFile';
+
+	constructor() {
+		super({
+			id: OpenFileAction.ID,
+			title: localize2('openFile', "Open File"),
+			icon: Codicon.goToFile,
+			f1: false,
+			menu: [
+				// When opening a file already shows a single file diff, the "Open
+				// Changes" alt action is redundant and is therefore omitted.
+				{
+					id: MenuId.AgentsChangeInlineToolbar,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						ChangesContextKeys.ChangeKind.isEqualTo('file'),
+						openSingleFileDiffEnabled)
+				},
+				// Default behavior: the alt action ("Open Changes") opens a diff
+				// editor for the selected change(s).
+				{
+					id: MenuId.AgentsChangeInlineToolbar,
+					group: 'navigation',
+					order: 1,
+					alt: {
+						id: OpenChangesAction.ID,
+						title: localize2('openChanges', "Open Changes"),
+						icon: Codicon.gitCompare,
+					},
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						ChangesContextKeys.ChangeKind.isEqualTo('file'),
+						openSingleFileDiffEnabled.negate())
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		await Promise.all(resources.map(resource => editorService.openEditor({ resource })));
+	}
+}
+
+registerAction2(OpenFileAction);

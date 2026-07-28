@@ -128,29 +128,29 @@ extends:
               container: centos
               arch: arm64
 
-          # Debian 10
+          # Debian 11
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: debian_10_amd64
-              displayName: Debian 10 amd64
+              name: debian_11_amd64
+              displayName: Debian 11 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: debian-10
+              container: debian-11
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: debian_10_arm32
-              displayName: Debian 10 arm32
+              name: debian_11_arm32
+              displayName: Debian 11 arm32
               poolName: 1es-azure-linux-3-arm64
-              container: debian-10
+              container: debian-11
               arch: arm
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: debian_10_arm64
-              displayName: Debian 10 arm64
+              name: debian_11_arm64
+              displayName: Debian 11 arm64
               poolName: 1es-azure-linux-3-arm64
-              container: debian-10
+              container: debian-11
               arch: arm64
 
           # Debian 12
@@ -178,38 +178,38 @@ extends:
               container: debian-12
               arch: arm64
 
-          # Fedora 36
+          # Fedora 42
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: fedora_36_amd64
-              displayName: Fedora 36 amd64
+              name: fedora_42_amd64
+              displayName: Fedora 42 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: fedora-36
+              container: fedora-42
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: fedora_36_arm64
-              displayName: Fedora 36 arm64
+              name: fedora_42_arm64
+              displayName: Fedora 42 arm64
               poolName: 1es-azure-linux-3-arm64
-              container: fedora-36
+              container: fedora-42
               arch: arm64
 
-          # Fedora 40
+          # Fedora 43
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: fedora_40_amd64
-              displayName: Fedora 40 amd64
+              name: fedora_43_amd64
+              displayName: Fedora 43 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: fedora-40
+              container: fedora-43
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: fedora_40_arm64
-              displayName: Fedora 40 arm64
+              name: fedora_43_arm64
+              displayName: Fedora 43 arm64
               poolName: 1es-azure-linux-3-arm64
-              container: fedora-40
+              container: fedora-43
               arch: arm64
 
           # openSUSE Leap 16.0

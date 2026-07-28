@@ -207,6 +207,15 @@ export interface ITunnelAgentHostService {
 	/** Remove a tunnel from the cache. */
 	removeCachedTunnel(tunnelId: string): void;
 
+	/** Whether startup/background auto-connect should skip this tunnel because the user disconnected it. */
+	isAutoConnectSuppressed(tunnelId: string): boolean;
+
+	/** Remember that the user explicitly disconnected this tunnel, so startup/background auto-connect skips it. */
+	suppressAutoConnect(tunnelId: string): void;
+
+	/** Clear a previous user-disconnect marker after the user explicitly reconnects this tunnel. */
+	clearAutoConnectSuppression(tunnelId: string): void;
+
 	/**
 	 * Determine which auth provider has an existing cached session.
 	 * When {@link silent} is true, does not prompt the user.

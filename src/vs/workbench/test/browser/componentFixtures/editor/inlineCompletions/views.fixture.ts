@@ -56,7 +56,7 @@ function renderInlineEdit(options: InlineEditOptions): void {
 		clearSuggestWidgetInlineCompletions: () => { },
 		dispose: () => { },
 		fetch: async () => true,
-		inlineCompletions: constObservable(new InlineCompletionsState([
+		inlineCompletions: constObservable(disposableStore.add(new InlineCompletionsState([
 			InlineEditItem.createForTest(
 				TextModelValueReference.snapshot(textModel),
 				new Range(
@@ -67,11 +67,11 @@ function renderInlineEdit(options: InlineEditOptions): void {
 				),
 				options.newText
 			)
-		], undefined)),
+		], undefined))),
 		loading: constObservable(false),
 		seedInlineCompletionsWithSuggestWidget: () => { },
 		seedWithCompletion: () => { },
-		suggestWidgetInlineCompletions: constObservable(InlineCompletionsState.createEmpty()),
+		suggestWidgetInlineCompletions: constObservable(disposableStore.add(InlineCompletionsState.createEmpty())),
 	});
 
 	const editorWidgetOptions: ICodeEditorWidgetOptions = {

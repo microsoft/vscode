@@ -23,7 +23,7 @@
 #   --no-kill           Don't kill processes after the test
 #   --skip-message      Only validate connection, don't send a message
 #
-# Requires: agent-browser (npm install -g agent-browser, or use npx)
+# Requires: @playwright/cli (npm install -g @playwright/cli, or use npx)
 
 set -e
 
@@ -73,7 +73,7 @@ if [ -z "$MESSAGE" ] && [ "$SKIP_MESSAGE" = false ]; then
 	MESSAGE="Hello, what can you do?"
 fi
 
-AB="npx agent-browser"
+AB="npx @playwright/cli"
 SERVER_PID=""
 USERDATA_DIR=""
 
@@ -229,7 +229,7 @@ VSCODE_SKIP_PRELAUNCH=1 ELECTRON_RUN_AS_NODE= ./scripts/code.sh \
 
 echo "Waiting for Sessions app to start..." >&2
 for i in $(seq 1 30); do
-	if $AB connect "$CDP_PORT" 2>/dev/null; then
+	if $AB attach --cdp=http://127.0.0.1:$CDP_PORT 2>/dev/null; then
 		break
 	fi
 	sleep 2
@@ -251,7 +251,7 @@ echo "=== Step 4: Validating remote agent host connection ===" >&2
 # Wait for the remote to appear as a session target
 REMOTE_FOUND=false
 for i in $(seq 1 20); do
-	SNAPSHOT=$($AB snapshot -i 2>&1 || true)
+	SNAPSHOT=$($AB snapshot 2>&1 || true)
 
 	# Look for the remote in the session target picker or any UI element
 	if echo "$SNAPSHOT" | grep -qi "Test Remote Agent\|remote.*agent"; then
@@ -302,7 +302,7 @@ echo "=== Step 5: Switching to remote session target and sending message ===" >&
 # Take a screenshot before interaction
 SCREENSHOT_DIR="/tmp/remote-agent-test-$(date +%Y-%m-%dT%H-%M-%S)"
 mkdir -p "$SCREENSHOT_DIR"
-$AB screenshot "$SCREENSHOT_DIR/01-before-interaction.png" 2>/dev/null || true
+$AB screenshot --filename="$SCREENSHOT_DIR/01-before-interaction.png" 2>/dev/null || true
 
 # Click the session target radio button for the remote agent host
 CLICK_RESULT=$($AB eval '
@@ -319,14 +319,14 @@ CLICK_RESULT=$($AB eval '
 
 if echo "$CLICK_RESULT" | grep -q "not found"; then
 	echo "ERROR: Could not find 'Test Remote Agent' radio button to click" >&2
-	$AB screenshot "$SCREENSHOT_DIR/02-click-failed.png" 2>/dev/null || true
+	$AB screenshot --filename="$SCREENSHOT_DIR/02-click-failed.png" 2>/dev/null || true
 	exit 1
 fi
 echo "Switched to remote session target" >&2
 
 sleep 1
 
-$AB screenshot "$SCREENSHOT_DIR/02-after-target-switch.png" 2>/dev/null || true
+$AB screenshot --filename="$SCREENSHOT_DIR/02-after-target-switch.png" 2>/dev/null || true
 
 # Fill in the remote folder path input (required for remote sessions)
 echo "Setting remote folder path..." >&2
@@ -352,7 +352,7 @@ else
 	echo "Remote folder path set to /tmp" >&2
 fi
 
-$AB screenshot "$SCREENSHOT_DIR/03-after-folder.png" 2>/dev/null || true
+$AB screenshot --filename="$SCREENSHOT_DIR/03-after-folder.png" 2>/dev/null || true
 
 # Type the message into the chat editor using clipboard paste for speed
 echo "Typing message: $MESSAGE" >&2
@@ -369,7 +369,7 @@ echo -n "$MESSAGE" | pbcopy
 $AB press Meta+v 2>/dev/null || true
 sleep 0.5
 
-$AB screenshot "$SCREENSHOT_DIR/04-after-type.png" 2>/dev/null || true
+$AB screenshot --filename="$SCREENSHOT_DIR/04-after-type.png" 2>/dev/null || true
 
 # Send the message via the send button or keyboard
 $AB eval '
@@ -383,7 +383,7 @@ $AB eval '
 	return "send button not found";
 })()' 2>/dev/null || true
 
-$AB screenshot "$SCREENSHOT_DIR/05-after-send.png" 2>/dev/null || true
+$AB screenshot --filename="$SCREENSHOT_DIR/05-after-send.png" 2>/dev/null || true
 
 # ---- Step 6: Wait for response ----------------------------------------------
 
@@ -415,7 +415,7 @@ for i in $(seq 1 "$RESPONSE_TIMEOUT"); do
 	fi
 done
 
-$AB screenshot "$SCREENSHOT_DIR/04-response.png" 2>/dev/null || true
+$AB screenshot --filename="$SCREENSHOT_DIR/04-response.png" 2>/dev/null || true
 
 if [ -z "$RESPONSE" ]; then
 	echo "WARNING: No response received within ${RESPONSE_TIMEOUT}s" >&2

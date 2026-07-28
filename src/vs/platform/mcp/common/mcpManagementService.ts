@@ -333,9 +333,24 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService protected readonly mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService protected readonly allowedMcpServersService: IAllowedMcpServersService,
 	) {
 		super(logService);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.updateLocal(), 50));
+	}
+
+	/**
+	 * Enforces the enterprise allow/deny policy at the point of persistence. Called by every
+	 * install path (installable and each gallery override) against the fully resolved server
+	 * configuration, so a caller that goes straight to the management API cannot bypass the
+	 * `canInstall` UI check, and a gallery entry cannot slip through if its resolved command/URL
+	 * differs from the pre-resolution metadata.
+	 */
+	protected ensureServerAllowed(server: IGalleryMcpServer | IInstallableMcpServer): void {
+		const result = this.allowedMcpServersService.isAllowed(server);
+		if (result !== true) {
+			throw new Error(result.value);
+		}
 	}
 
 	private initialize(): Promise<void> {
@@ -456,6 +471,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 
 	async install(server: IInstallableMcpServer, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
+		this.ensureServerAllowed(server);
 
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 		try {
@@ -507,9 +523,10 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
+		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
 	}
 

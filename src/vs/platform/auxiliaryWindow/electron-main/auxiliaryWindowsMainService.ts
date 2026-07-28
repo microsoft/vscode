@@ -36,6 +36,8 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
+	private readonly pendingWindowOptionsQueue: BrowserWindowConstructorOptions[] = [];
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService
@@ -92,9 +94,11 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
 		const { state, overrides } = this.computeWindowStateAndOverrides(details);
-		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
 			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
+		this.pendingWindowOptionsQueue.push(options);
+		return options;
 	}
 
 	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides } {
@@ -132,6 +136,20 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-always-on-top':
 					overrides.alwaysOnTop = true;
 					break;
+				case 'window-frameless':
+					overrides.frameless = true;
+					break;
+				case 'window-transparent':
+					overrides.transparent = true;
+					break;
+				case 'window-not-resizable':
+					overrides.notResizable = true;
+					break;
+				case 'window-background-color':
+					if (typeof value === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) {
+						overrides.backgroundColor = value;
+					}
+					break;
 			}
 		}
 
@@ -145,7 +163,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	registerWindow(webContents: WebContents): void {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents);
+		const windowOptions = this.pendingWindowOptionsQueue.shift();
+
+		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, windowOptions);
 
 		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
 		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));

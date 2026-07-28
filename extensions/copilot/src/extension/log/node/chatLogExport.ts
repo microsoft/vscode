@@ -139,7 +139,7 @@ export async function createExportedPrompt(
 				kind: 'error',
 				error: error?.toString() || 'Unknown error',
 				timestamp: new Date().toISOString()
-			} as unknown as ExportedLogEntry);
+			});
 		}
 	}
 
