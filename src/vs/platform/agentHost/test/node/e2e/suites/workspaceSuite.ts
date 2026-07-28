@@ -50,15 +50,21 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			`subscribe snapshot summary should carry the requested working directory`);
 	});
 
-	// Worktree isolation asserts on resolved `.worktrees/...` paths and a
-	// host-terminal `pwd`, which are POSIX-shaped (the fixtures were recorded on
-	// macOS); skip on Windows where the worktree paths and shell differ.
-	// `pwd` is portable here despite not being a cmd builtin: the shell turn is
-	// only reached when the provider routes commands through the host terminal
-	// tool, which on Windows is PowerShell, where `pwd` is an alias for
-	// `Get-Location`. The path assertions use `URI.fsPath`, which is
-	// platform-native, and the expected value is derived at runtime from the
-	// host's own `sessionAdded` notification rather than hardcoded.
+	// Unlike the other shell tests, the command here is deliberately left as
+	// `pwd` rather than pinned to `node -e "..."`.
+	//
+	// `pwd` is on the provider's auto-approve list as a safe read-only command,
+	// so its tool call completes without a confirmation round-trip. An arbitrary
+	// `node -e` invocation is not, and replacing the command makes the turn stop
+	// on `session/inputNeededSet` that this test's confirmation handling does not
+	// satisfy — verified by trying it on both turns.
+	//
+	// It is portable anyway: the shell turn is only reached when the provider
+	// routes commands through the host terminal tool, which on Windows is
+	// PowerShell, where `pwd` is an alias for `Get-Location`. The path
+	// assertions use `URI.fsPath`, which is platform-native, and compare against
+	// a value derived at runtime from the host's own `sessionAdded` notification
+	// rather than a hardcoded POSIX path.
 	(config.supportsWorktreeIsolation && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 

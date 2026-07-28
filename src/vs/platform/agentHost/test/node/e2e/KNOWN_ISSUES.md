@@ -44,6 +44,16 @@ Pinning uses `node -e "…"`, which is guaranteed present because the suite runs
 
 The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Pin only when steering has actually been tried and failed, and note which it was.
 
+### Pinning a command changes its permission posture
+
+Providers auto-approve a small set of safe read-only commands. `pwd` is on that list; an arbitrary `node -e "…"` is not.
+
+That matters when porting a test off a POSIX-only command, because pinning does more than change the string — it can turn a tool call that completed silently into one that raises `session/inputNeededSet` and waits. A test whose flow does not answer that confirmation then hangs until its timeout, which looks nothing like a portability failure.
+
+`worktree session uses the resolved worktree as working directory` is the case in point: replacing `pwd` with `node -e "console.log(process.cwd())"` was tried on both of its turns and stalled on confirmation each time, even though the second turn does dispatch `ChatToolCallConfirmed`. It keeps `pwd`, which is portable regardless — PowerShell defines it as an alias for `Get-Location`.
+
+Two things follow. Check whether a command you are about to pin was previously auto-approved, and prefer steering to a file tool where one exists, since that avoids the permission surface entirely.
+
 ### Temporary git repositories on Windows
 
 Two independent things made a temp directory containing a git repository undeletable on Windows, which failed suite teardown even when every test passed:
