@@ -880,7 +880,14 @@ export const enum EditorInputCapabilities {
 	 * part. This is honored unless the user has explicitly opted
 	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
-	RequiresModal = 1 << 11
+	RequiresModal = 1 << 11,
+
+	/**
+	 * Signals that the editor is exempt from the opened editors
+	 * limit (`workbench.editor.limit`): it never counts towards the
+	 * limit and is never auto-closed to satisfy it.
+	 */
+	ExcludeFromEditorLimit = 1 << 12
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

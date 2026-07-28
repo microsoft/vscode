@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -46,9 +48,15 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		this._applyBackendIcon();
 
 		container.classList.add('dictation-download-item');
-		this._register(new DictationDownloadRing(container, this._speechToTextService));
+		// The on-device backend downloads a model, so show a determinate progress
+		// ring around the download icon. The cloud backend only connects (no
+		// download), so its icon is swapped for a plain spinner instead.
+		if (this._speechToTextService.currentBackend !== 'mai') {
+			this._register(new DictationDownloadRing(container, this._speechToTextService));
+		}
 
 		// Keep the mic context menu available while the model prepares so the
 		// affordance doesn't lose Select Microphone / Disable Dictation during
@@ -60,7 +68,20 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 		));
 	}
 
+	protected override updateClass(): void {
+		super.updateClass();
+		this._applyBackendIcon();
+	}
+
+	private _applyBackendIcon(): void {
+		if (this._speechToTextService.currentBackend !== 'mai' || !this.label) {
+			return;
+		}
+		this.label.classList.remove(...ThemeIcon.asClassNameArray(Codicon.micDownloadCompact));
+		this.label.classList.add(...ThemeIcon.asClassNameArray(Codicon.loadingCompact));
+	}
+
 	protected override getHoverContents(): IManagedHoverContent {
-		return getDictationDownloadHoverContent();
+		return getDictationDownloadHoverContent(this._speechToTextService);
 	}
 }
