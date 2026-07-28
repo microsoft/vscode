@@ -11,7 +11,7 @@ import { PolicyCategory } from '../../../base/common/policy.js';
 import * as nls from '../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { ChatAIDisabledSettingId, isChatAIDisabled } from '../../chat/common/chatSettings.js';
+import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -84,7 +84,7 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 	private _readEnabled(configurationService: IConfigurationService): boolean {
 		return !this._isWebRuntime
 			&& (configurationService.getValue<boolean>(agentHostEnabledSettingId) ?? false)
-			&& !isChatAIDisabled(configurationService);
+			&& configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true;
 	}
 
 	private _updateEnabled(configurationService: IConfigurationService): void {

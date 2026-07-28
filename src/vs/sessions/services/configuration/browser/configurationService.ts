@@ -163,7 +163,8 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 		let target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
 
-		if (key === ChatAIDisabledSettingId && target === undefined) {
+		// Always update chat.disableAIFeatures at workspace scope in the agents window
+		if (key === ChatAIDisabledSettingId) {
 			target = ConfigurationTarget.WORKSPACE;
 		}
 

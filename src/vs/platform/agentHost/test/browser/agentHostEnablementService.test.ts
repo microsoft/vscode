@@ -8,7 +8,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostEnablementService } from '../../browser/agentHostEnablementService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../common/agentHostEnablementService.js';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides } from '../../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../keybinding/test/common/mockKeybindingService.js';
@@ -16,31 +16,19 @@ import { MockContextKeyService } from '../../../keybinding/test/common/mockKeybi
 class AgentHostTestConfigurationService extends TestConfigurationService {
 
 	private readonly values = new Map<string, boolean>();
-	private aiDisabledUserValue: boolean;
 
-	constructor(agentHostEnabled: boolean, aiDisabled = false, aiDisabledUserValue = aiDisabled) {
+	constructor(agentHostEnabled: boolean, aiDisabled = false) {
 		super();
 		this.values.set('chat.agentHost.enabled', agentHostEnabled);
 		this.values.set(ChatAIDisabledSettingId, aiDisabled);
-		this.aiDisabledUserValue = aiDisabledUserValue;
 	}
 
 	override getValue<T>(arg1?: string | IConfigurationOverrides): T | undefined {
 		return (typeof arg1 === 'string' ? this.values.get(arg1) : undefined) as T | undefined;
 	}
 
-	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
-		const inspected = super.inspect<T>(key, overrides);
-		return key === ChatAIDisabledSettingId
-			? { ...inspected, userValue: this.aiDisabledUserValue as T, userLocalValue: this.aiDisabledUserValue as T }
-			: inspected;
-	}
-
 	setValue(key: string, value: boolean, source: ConfigurationTarget): void {
 		this.values.set(key, value);
-		if (key === ChatAIDisabledSettingId && source === ConfigurationTarget.USER) {
-			this.aiDisabledUserValue = value;
-		}
 		const event: IConfigurationChangeEvent = {
 			source,
 			affectedKeys: new Set([key]),
@@ -54,12 +42,12 @@ class AgentHostTestConfigurationService extends TestConfigurationService {
 suite('AgentHostEnablementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(enabled: boolean, aiDisabled = false, aiDisabledUserValue = aiDisabled): {
+	function createService(enabled: boolean, aiDisabled = false): {
 		readonly service: AgentHostEnablementService;
 		readonly configurationService: AgentHostTestConfigurationService;
 		readonly contextKeyService: MockContextKeyService;
 	} {
-		const configurationService = new AgentHostTestConfigurationService(enabled, aiDisabled, aiDisabledUserValue);
+		const configurationService = new AgentHostTestConfigurationService(enabled, aiDisabled);
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const service = disposables.add(new AgentHostEnablementService(false, configurationService, contextKeyService));
@@ -79,17 +67,6 @@ suite('AgentHostEnablementService', () => {
 
 	test('is disabled when AI features are disabled', () => {
 		const { service, contextKeyService } = createService(true, true);
-		assert.deepStrictEqual({
-			enabled: service.enabled.get(),
-			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
-		}, {
-			enabled: false,
-			contextKey: false,
-		});
-	});
-
-	test('is disabled when a user opt-out is masked by a workspace override', () => {
-		const { service, contextKeyService } = createService(true, false, true);
 		assert.deepStrictEqual({
 			enabled: service.enabled.get(),
 			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
@@ -171,21 +148,4 @@ suite('AgentHostEnablementService', () => {
 		});
 	});
 
-	test('can enable after clearing a masked user opt-out', () => {
-		const { service, configurationService, contextKeyService } = createService(true, false, true);
-		const changes: boolean[] = [];
-		disposables.add(autorun(reader => changes.push(service.enabled.read(reader))));
-
-		configurationService.setValue(ChatAIDisabledSettingId, false, ConfigurationTarget.USER);
-
-		assert.deepStrictEqual({
-			enabled: service.enabled.get(),
-			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
-			changes,
-		}, {
-			enabled: true,
-			contextKey: true,
-			changes: [false, true],
-		});
-	});
 });

@@ -27,14 +27,15 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 
-import { ConfigurationTarget, IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId, isChatAIDisabled } from '../../platform/chat/common/chatSettings.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { $, append } from '../../base/browser/dom.js';
 import { Dialog, DialogContentsAlignment } from '../../base/browser/ui/dialog/dialog.js';
 import { createWorkbenchDialogOptions } from '../../workbench/browser/parts/dialogs/dialog.js';
 import { MarkdownString } from '../../base/common/htmlContent.js';
 import { localize } from '../../nls.js';
+
+const AIDisabledConfig = 'chat.disableAIFeatures';
 
 export const ISessionsSetUpService = createDecorator<ISessionsSetUpService>('sessionsSetUpService');
 
@@ -182,8 +183,8 @@ class SessionsSetUpWidget extends Disposable {
 		}));
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
-				if (isChatAIDisabled(this.configurationService)) {
+			if (e.affectsConfiguration(AIDisabledConfig)) {
+				if (this.configurationService.getValue<boolean>(AIDisabledConfig)) {
 					this._showAIDisabledDialog();
 				} else {
 					// AI features re-enabled — dismiss any AI disabled dialog
@@ -196,8 +197,9 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	private async _ensureAIFeaturesEnabled(): Promise<void> {
-		if (isChatAIDisabled(this.configurationService)) {
-			await this._showAIDisabledDialog();
+		if (this.configurationService.getValue<boolean>(AIDisabledConfig)) {
+			this.logService.info('[sessions welcome] AI features disabled, enabling');
+			await this.configurationService.updateValue(AIDisabledConfig, false);
 		}
 	}
 
@@ -237,7 +239,7 @@ class SessionsSetUpWidget extends Disposable {
 
 		if (button === 0) {
 			this.logService.info('[sessions welcome] User chose to enable AI features');
-			await this.configurationService.updateValue(ChatAIDisabledSettingId, false, ConfigurationTarget.USER);
+			await this.configurationService.updateValue(AIDisabledConfig, false);
 		}
 	}
 
