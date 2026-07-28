@@ -72,6 +72,10 @@ type ProviderBehavior =
 		startSignal: DeferredPromise<void>;
 	}
 	| {
+		kind: 'throwBeforeFirstYield';
+		error: Error;
+	}
+	| {
 		kind: 'waitForCancellation';
 	};
 
@@ -167,6 +171,12 @@ class TestStatelessNextEditProvider implements IStatelessNextEditProvider {
 				}
 				const noSuggestions = new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, streamedEditWindow);
 				return new WithStatelessProviderTelemetry(noSuggestions, telemetryBuilder.build(Result.error(noSuggestions)));
+			}
+
+			if (behavior.kind === 'throwBeforeFirstYield') {
+				// Fails the stream before anything is yielded, so `firstEdit`/`result` are only
+				// settled by `_runSpeculativeProviderCall`'s outer catch.
+				throw behavior.error;
 			}
 
 			if (behavior.kind === 'waitThenYieldEditThenNoSuggestions') {
@@ -1672,6 +1682,48 @@ describe('NextEditProvider speculative requests', () => {
 			await claimed;
 
 			expect(statelessProvider.calls[1].wasCancelled).toBe(true);
+		});
+
+		it('settles a speculative that throws before its first yield instead of hanging its joiner', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'throwBeforeFirstYield', error: new Error('provider exploded') });
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);') });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-throws-before-yield.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			const suggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(suggestion.result?.edit);
+			nextEditProvider.handleShown(suggestion);
+			await statelessProvider.waitForCall(2);
+			await statelessProvider.calls[1].completed.p;
+
+			nextEditProvider.handleAcceptance(doc.id, suggestion);
+			doc.applyEdit(suggestion.result.edit.toEdit());
+
+			// Claims the failed speculative. Before the outer catch settled `firstEdit`/`result`
+			// this awaited forever; now the failure surfaces as `NoNextEditReason.Unexpected`,
+			// which `getNextEdit` rethrows as the underlying provider error.
+			await expect(getNextEdit(nextEditProvider, doc.id)).rejects.toThrow('provider exploded');
+
+			// The claimed entry must have been released, so the next call issues a fresh request
+			// rather than reusing (or re-failing on) the dead speculative.
+			const afterFailure = await getNextEdit(nextEditProvider, doc.id);
+
+			expect({
+				providerCalls: statelessProvider.calls.length,
+				recoveredEdit: afterFailure.result?.edit?.newText,
+			}).toEqual({
+				providerCalls: 3,
+				recoveredEdit: 'console.log(value + 1);',
+			});
 		});
 	});
 });
