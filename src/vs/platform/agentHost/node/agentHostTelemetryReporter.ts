@@ -92,17 +92,63 @@ export interface IAgentHostToolInvokedReport {
 	invocationTimeMs: number;
 }
 
+type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
+
+export interface IAgentHostToolCallDetailsEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	conversationId: string;
+	requestId: string;
+	responseType: AgentHostToolCallResponseType;
+	toolCounts: string;
+	model: string | undefined;
+	numRequests: number;
+	turnIndex: number;
+	turnDuration: number;
+	messageCharLen: number | undefined;
+	availableToolCount: number;
+	totalToolCalls: number;
+	parallelToolCallRounds: number;
+	parallelToolCallsTotal: number;
+}
+
+export type IAgentHostToolCallDetailsClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool-call aggregate belongs to a subagent session.' };
+	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current chat conversation.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current turn request.' };
+	responseType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, was cancelled, or failed.' };
+	toolCounts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times each tool was requested during the turn.' };
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used for the final model call in the turn, when known.' };
+	numRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of model-call rounds in the turn.' };
+	turnIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based turn ordinal within the agent host session.' };
+	turnDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The elapsed time in milliseconds for the turn.' };
+	messageCharLen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters in the user message, when known.' };
+	availableToolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools offered to the model.' };
+	totalToolCalls: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of tool calls requested during the turn.' };
+	parallelToolCallRounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of model-call rounds containing multiple tool calls.' };
+	parallelToolCallsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tool calls belonging to parallel tool-call rounds.' };
+	owner: 'roblourens';
+	comment: 'Records aggregate information about tool calls during an agent host turn.';
+};
+
 export interface IAgentHostToolCallDetailsReport {
+	provider: string;
 	session: string;
 	turnId: string;
 	model: string | undefined;
-	responseType: string;
+	responseType: AgentHostToolCallResponseType;
 	/** Count of invocations keyed by tool name, across all rounds in the turn. */
 	toolCounts: Record<string, number>;
 	/** Names of the tools offered to the model for this turn. */
 	availableTools: readonly string[];
 	/** Number of model-call rounds in the turn, including the final tool-free response round (matches the extension's `toolCallRounds.length`). */
 	numRequests: number;
+	turnIndex: number;
+	turnDuration: number;
+	messageCharLen: number | undefined;
 	totalToolCalls: number;
 	parallelToolCallRounds: number;
 	parallelToolCallsTotal: number;
@@ -323,36 +369,51 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('conversation.messageText', properties, measurements);
 	}
 
-	/**
-	 * Mirrors the Copilot extension's restricted `toolCallDetailsExternal` / `toolCallDetailsInternal`
-	 * events (`chatParticipantTelemetry.ts` -> `sendToolCallingTelemetry`) — the per-turn tool-call
-	 * aggregate. The extension emits it once at the end of a turn's tool-calling loop; the agent host
-	 * accumulates the same counts across the turn's `assistant.message` rounds and emits on turn
-	 * completion. The tool-definition token count, per-round token/char counts, invalid-round count,
-	 * and turn index (the extension emits it only as a non-landing measurement) are not surfaced at the
-	 * AH turn boundary and are omitted. Like the extension, this fires for every turn that had tools
-	 * available — even one that made no tool calls (empty `toolCounts`) — and no-ops only when no tools
-	 * were offered.
-	 *
-	 * @param report The per-turn tool-call aggregate.
-	 */
+	/** Emits the local-compatible tool-call aggregate on standard and restricted telemetry channels. */
 	toolCallDetails(report: IAgentHostToolCallDetailsReport): void {
-		const restricted = this._restricted;
-		if (!restricted || report.availableTools.length === 0) {
+		if (report.availableTools.length === 0) {
 			return;
 		}
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const conversationId = AgentSession.id(session);
+		const toolCounts = JSON.stringify(report.toolCounts);
+		this._telemetryService.publicLog2<IAgentHostToolCallDetailsEvent, IAgentHostToolCallDetailsClassification>('toolCallDetails', {
+			provider: report.provider,
+			agentSessionId: conversationId,
+			isSubagentSession: isSubagentSession(session),
+			conversationId,
+			requestId: report.turnId,
+			responseType: report.responseType,
+			toolCounts,
+			model: report.model,
+			numRequests: report.numRequests,
+			turnIndex: report.turnIndex,
+			turnDuration: report.turnDuration,
+			messageCharLen: report.messageCharLen,
+			availableToolCount: report.availableTools.length,
+			totalToolCalls: report.totalToolCalls,
+			parallelToolCallRounds: report.parallelToolCallRounds,
+			parallelToolCallsTotal: report.parallelToolCallsTotal,
+		});
+
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
 		const properties = multiplexProperties({
-			conversationId: AgentSession.id(session),
+			conversationId,
 			requestId: report.turnId,
 			messageId: report.turnId,
 			responseType: report.responseType,
 			...(report.model ? { model: report.model } : {}),
-			toolCounts: JSON.stringify(report.toolCounts),
+			toolCounts,
 			availableTools: JSON.stringify(report.availableTools),
 		});
 		const measurements = {
 			numRequests: report.numRequests,
+			turnIndex: report.turnIndex,
+			turnDuration: report.turnDuration,
+			...(report.messageCharLen !== undefined ? { messageCharLen: report.messageCharLen } : {}),
 			availableToolCount: report.availableTools.length,
 			totalToolCalls: report.totalToolCalls,
 			parallelToolCallRounds: report.parallelToolCallRounds,

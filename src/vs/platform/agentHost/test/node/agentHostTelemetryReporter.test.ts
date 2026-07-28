@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hash } from '../../../../base/common/hash.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
@@ -30,10 +30,13 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 
 	readonly enhancedEvents: IRestrictedCall[] = [];
 	readonly internalEvents: IRestrictedCall[] = [];
+	readonly standardEvents: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
 
 	publicLog(): void { }
 	publicLogError(): void { }
-	publicLog2(): void { }
+	publicLog2(eventName: string, data?: ITelemetryData): void {
+		this.standardEvents.push({ eventName, data });
+	}
 	publicLogError2(): void { }
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
@@ -122,25 +125,70 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
-	test('toolCallDetails emits toolCallDetailsExternal + toolCallDetailsInternal aggregate whenever tools were available, and no-ops when none were', () => {
+	test('toolCallDetails emits standard and restricted aggregates whenever tools were available, and no-ops when none were', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
 		reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: [],
+			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // dropped: no tools were available
 		reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: ['grep', 'edit'],
+			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // emitted: tools available, even though no tool calls were made
 		reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'cancelled',
 			toolCounts: { grep: 2, edit: 1 }, availableTools: ['grep', 'edit'],
+			turnIndex: 3, turnDuration: 2400, messageCharLen: undefined,
 			numRequests: 2, totalToolCalls: 3, parallelToolCallRounds: 1, parallelToolCallsTotal: 2,
 		}); // emitted
+
+		assert.deepStrictEqual(service.standardEvents, [{
+			eventName: 'toolCallDetails',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				isSubagentSession: false,
+				conversationId: AgentSession.id(session),
+				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				responseType: 'success',
+				toolCounts: JSON.stringify({}),
+				model: 'gpt-x',
+				numRequests: 1,
+				turnIndex: 2,
+				turnDuration: 1200,
+				messageCharLen: 11,
+				availableToolCount: 2,
+				totalToolCalls: 0,
+				parallelToolCallRounds: 0,
+				parallelToolCallsTotal: 0,
+			},
+		}, {
+			eventName: 'toolCallDetails',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				isSubagentSession: false,
+				conversationId: AgentSession.id(session),
+				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				responseType: 'cancelled',
+				toolCounts: JSON.stringify({ grep: 2, edit: 1 }),
+				model: 'gpt-x',
+				numRequests: 2,
+				turnIndex: 3,
+				turnDuration: 2400,
+				messageCharLen: undefined,
+				availableToolCount: 2,
+				totalToolCalls: 3,
+				parallelToolCallRounds: 1,
+				parallelToolCallsTotal: 2,
+			},
+		}]);
 
 		assert.deepStrictEqual(service.enhancedEvents, [{
 			eventName: 'toolCallDetailsExternal',
@@ -159,7 +207,7 @@ suite('AgentHostTelemetryReporter', () => {
 				conversationId: AgentSession.id(session),
 				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
-				responseType: 'success',
+				responseType: 'cancelled',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({ grep: 2, edit: 1 }),
 				availableTools: JSON.stringify(['grep', 'edit']),
@@ -273,4 +321,3 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
 	});
 });
-
