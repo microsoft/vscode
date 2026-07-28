@@ -5,12 +5,16 @@
 
 import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -51,12 +55,23 @@ function createTurn(overrides?: Partial<Turn>): Turn {
 	};
 }
 
+function getSerializedTerminalData(serialized: IChatToolInvocationSerialized): IChatTerminalToolInvocationData {
+	const toolSpecificData = serialized.toolSpecificData;
+	assert.strictEqual(toolSpecificData?.kind, 'terminal');
+	assert.ok(toolSpecificData && hasKey(toolSpecificData, { commandLine: true }));
+	return toolSpecificData;
+}
+
 function message(text: string, kind = MessageKind.User): Message {
 	return { text, origin: { kind } };
 }
 
-function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
-	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), 'local');
+function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string, options?: Parameters<typeof rawToolCallStateToInvocation>[5]) {
+	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), 'local', undefined, options);
+}
+
+function toolCallStateToPreparedInvocation(tc: Parameters<typeof rawToolCallStateToPreparedInvocation>[0]) {
+	return rawToolCallStateToPreparedInvocation(tc, URI.file('/'), 'local');
 }
 
 function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInvocation>[0], tc: Parameters<typeof rawFinalizeToolInvocation>[1]) {
@@ -73,7 +88,7 @@ function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0],
  * mirrors the real handler's "use summary.model when usage hasn't reported
  * yet" behavior.
  */
-function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): Parameters<typeof rawTurnsToHistory>[4] {
+function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): TurnModelLookup {
 	const resolveRaw = (raw: string | undefined): string | undefined => raw ?? fallbackRawModelId;
 	return {
 		toLanguageModelId: (raw) => {
@@ -84,11 +99,15 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
 		},
+		toAutoModeResolution: usage => {
+			const raw = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
+			return usageInfoToAutoModeResolution(usage, raw ? displayNames[raw] : undefined);
+		},
 	};
 }
 
-function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local');
+function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4]) {
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options);
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
@@ -104,6 +123,63 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 suite('stateToProgressAdapter', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('rewriteAgentHostLinkTarget', () => {
+		test('supports absolute paths and file URIs with validated locations', () => {
+			const unwrap = (href: string) => fromAgentHostUri(URI.parse(rewriteAgentHostLinkTarget(href, 'my-host'))).toString();
+			assert.deepStrictEqual(
+				[
+					unwrap('C:\\remote\\windows.ts:42'),
+					unwrap('\\\\server\\share\\unc.ts:42'),
+					unwrap('FILE:///remote/upper.ts:42'),
+					unwrap('/remote/zero.ts:0'),
+					unwrap('/remote/zero-column.ts:42:0'),
+					unwrap('/remote/numeric-segment.ts:42:name.ts'),
+					unwrap('/remote/scientific.ts:1e2'),
+					unwrap('/remote/encoded%3A42'),
+					unwrap('/remote/encoded%3A42:10'),
+					unwrap('file:///remote/encoded%3A42'),
+					unwrap('file:///remote/encoded%3A42:10'),
+					unwrap('file:///remote/queried.ts?rev=1:42'),
+					unwrap('/remote/range.ts:42-48'),
+				],
+				[
+					URI.file('C:/remote/windows.ts').with({ fragment: 'L42' }).toString(),
+					URI.file('//server/share/unc.ts').with({ fragment: 'L42' }).toString(),
+					URI.file('/remote/upper.ts').with({ fragment: 'L42' }).toString(),
+					URI.file('/remote/zero.ts:0').toString(),
+					URI.file('/remote/zero-column.ts:42:0').toString(),
+					URI.file('/remote/numeric-segment.ts:42:name.ts').toString(),
+					URI.file('/remote/scientific.ts:1e2').toString(),
+					URI.file('/remote/encoded:42').toString(),
+					URI.file('/remote/encoded:42').with({ fragment: 'L10' }).toString(),
+					URI.file('/remote/encoded:42').toString(),
+					URI.file('/remote/encoded:42').with({ fragment: 'L10' }).toString(),
+					URI.file('/remote/queried.ts').with({ query: 'rev=1:42' }).toString(),
+					URI.file('/remote/range.ts:42-48').toString(),
+				],
+			);
+		});
+
+		test('preserves client-handled link schemes', () => {
+			assert.deepStrictEqual(
+				[
+					rewriteAgentHostLinkTarget('vscode-browser://example.com', 'my-host'),
+					rewriteAgentHostLinkTarget('copilot-skill:/plan', 'my-host'),
+					rewriteAgentHostLinkTarget('C:relative', 'my-host'),
+					rewriteAgentHostLinkTarget('git:foo', 'my-host'),
+					rewriteAgentHostLinkTarget('urn:isbn:123', 'my-host'),
+				],
+				[
+					'vscode-browser://example.com',
+					'copilot-skill:/plan',
+					'C:relative',
+					'git:foo',
+					'urn:isbn:123',
+				],
+			);
+		});
+	});
 
 	suite('turnsToHistory', () => {
 
@@ -151,7 +227,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(history[0].systemInitiatedLabel, undefined);
 		});
 
-		test('system notification response part restores as progress message', () => {
+		test('system notification response part restores as system notification', () => {
 			const turn = createTurn({
 				responseParts: [{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' }],
 			});
@@ -160,9 +236,25 @@ suite('stateToProgressAdapter', () => {
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
-			const progress = response.parts[0] as IChatProgressMessage;
-			assert.strictEqual(progress.kind, 'progressMessage');
+			const progress = response.parts[0];
+			assert.strictEqual(progress.kind, 'systemNotification');
+			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('reasoning response part restores as thinking progress carrying its id', () => {
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Let me think about this...' }],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const thinking = response.parts[0] as IChatThinkingPart;
+			assert.strictEqual(thinking.kind, 'thinking');
+			assert.strictEqual(thinking.value, 'Let me think about this...');
+			assert.strictEqual(thinking.id, 'r-1');
 		});
 
 		test('generic completed tool call in history includes input/output details', () => {
@@ -210,6 +302,48 @@ suite('stateToProgressAdapter', () => {
 			assertInputOutputDetails(details);
 			assert.strictEqual(details.isError, true);
 			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'request timed out', isText: true, mimeType: 'text/plain' }]);
+		});
+
+		test('failed MCP App tool call in history remains confirmed', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'GitHub-create_pull_request',
+						toolInput: '{"owner":"microsoft","repo":"vscode"}',
+						success: false,
+						error: { message: 'The pull request form is awaiting submission.' },
+						contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+						_meta: {
+							ui: {
+								resourceUri: 'ui://github-mcp-server/pr-write',
+								channel: 'mcp://copilot/session/GitHub',
+							},
+						},
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.deepStrictEqual({
+				isConfirmed: serialized.isConfirmed,
+				toolSpecificData: serialized.toolSpecificData,
+			}, {
+				isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: { owner: 'microsoft', repo: 'vscode' },
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/pr-write',
+						serverId: 'github-customization',
+						channel: 'mcp://copilot/session/GitHub',
+					},
+				},
+			});
 		});
 
 		test('generic completed tool call maps embedded resources and resource refs', () => {
@@ -273,6 +407,35 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
+		test('restores Auto model routing with the shared chat UI part', () => {
+			const turn = createTurn({
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: {
+						autoModeResolved: {
+							chosenModel: 'gpt-5.4-mini',
+							predictedLabel: 'no_reasoning',
+							confidence: 0.98,
+						},
+					},
+				},
+			});
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5.4-mini': 'GPT-5.4 mini' });
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts, [{
+				kind: 'autoModeResolution',
+				resolvedModel: 'gpt-5.4-mini',
+				resolvedModelName: 'GPT-5.4 mini',
+				predictedLabel: 'no_reasoning',
+				confidence: 0.98,
+			}]);
+		});
+
 		test('falls back to session-level model when turn has no usage.model', () => {
 			const turn = createTurn({ message: message('first') });
 			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'gpt-5');
@@ -314,6 +477,8 @@ suite('stateToProgressAdapter', () => {
 		test('request history includes restored model id', () => {
 			const turn = createTurn({
 				message: message('Use restored model'),
+				startedAt: '2025-07-08T22:05:21.000Z',
+				duration: 2_500,
 			});
 
 			const lookup = makeLookup('agent-host-copilot:', {}, 'gpt-5');
@@ -325,8 +490,23 @@ suite('stateToProgressAdapter', () => {
 				prompt: 'Use restored model',
 				participant: 'participant-1',
 				modelId: 'agent-host-copilot:gpt-5',
+				timestamp: 1_752_012_321_000,
 				variableData: undefined,
 			});
+			assert.deepStrictEqual(history[1].type === 'response' ? {
+				elapsedMs: history[1].elapsedMs,
+				completedAt: history[1].completedAt,
+			} : undefined, {
+				elapsedMs: 2_500,
+				completedAt: 1_752_012_323_500,
+			});
+		});
+
+		test('request history omits invalid restored timestamp', () => {
+			const turn = createTurn({ startedAt: 'invalid' });
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+
+			assert.strictEqual(history[0].type === 'request' ? history[0].timestamp : undefined, undefined);
 		});
 
 		test('terminal tool call in history has correct terminal data', () => {
@@ -356,6 +536,31 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.commandLine.original, 'echo hello');
 			assert.strictEqual(termData.terminalCommandOutput.text, 'hello');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+		});
+
+		test('terminal tool call in history carries the LM intention', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						intention: 'List files in the repo root',
+						toolInput: 'ls',
+						content: [
+							{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///intent', title: 'Terminal' },
+							{ type: ToolResultContentType.Text, text: 'a\nb' },
+						],
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; intention?: string };
+			assert.strictEqual(termData.intention, 'List files in the repo root');
 		});
 
 		test('terminal tool call in history does not set pastTenseMessage (avoids duplicate render)', () => {
@@ -435,6 +640,8 @@ suite('stateToProgressAdapter', () => {
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
 				assert.strictEqual(serialized.toolSpecificData.result, 'Agent result');
+				// The subagent chat resource is carried so the UI can offer "Open chat".
+				assert.strictEqual(serialized.toolSpecificData.chatResource, 'copilot://session/subagent/tc-1');
 			}
 		});
 
@@ -484,12 +691,13 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, 'Hello world');
 		});
 
-		test('markdown links in response content are rewritten through the agent host scheme', () => {
+		test('markdown links in response content stay raw until rendering', () => {
+			const content = 'See [local](file:///a/b.ts), [external](https://example.com) and [rel](./foo.md).';
 			const turn = createTurn({
 				responseParts: [{
 					kind: ResponsePartKind.Markdown,
 					id: 'md-links',
-					content: 'See [local](file:///a/b.ts), [content](agenthost-content:///s/x), [external](https://example.com) and [rel](./foo.md).',
+					content,
 				}],
 			});
 
@@ -498,12 +706,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 			const part = response.parts[0] as IChatMarkdownContent;
-			assert.deepStrictEqual(part.content.value,
-				'See [](vscode-agent-host://my-host/a/b.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), ' +
-				'[](vscode-agent-host://my-host/s/x?_ah%3DeyJzY2hlbWUiOiJhZ2VudGhvc3QtY29udGVudCJ9), ' +
-				'[external](https://example.com) and ' +
-				'[rel](./foo.md).'
-			);
+			assert.strictEqual(part.content.value, content);
 		});
 
 		test('markdown link syntax inside fenced code blocks is preserved verbatim', () => {
@@ -516,15 +719,7 @@ suite('stateToProgressAdapter', () => {
 				'',
 				'And then [another](file:///c.ts).',
 			].join('\n');
-			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-code', content: input }],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks(input, 'my-host');
 			assert.ok(value.includes('[](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
 			assert.ok(value.includes('[](vscode-agent-host://my-host/c.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
 			// The link inside the fenced code block must NOT be rewritten.
@@ -534,34 +729,14 @@ suite('stateToProgressAdapter', () => {
 
 		test('markdown link syntax inside inline code spans is preserved verbatim', () => {
 			const input = 'Real [one](file:///a.ts) and literal `[two](file:///b.ts)` here.';
-			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-codespan', content: input }],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks(input, 'my-host');
 			assert.strictEqual(value,
 				'Real [](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0) and literal `[two](file:///b.ts)` here.'
 			);
 		});
 
 		test('preserves label and tags vscodeLinkType=skill for SKILL.md links', () => {
-			const turn = createTurn({
-				responseParts: [{
-					kind: ResponsePartKind.Markdown,
-					id: 'md-skill',
-					content: 'Loaded [plan](file:///abs/repo/skills/plan/SKILL.md) and [other](file:///abs/repo/foo.ts).',
-				}],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks('Loaded [plan](file:///abs/repo/skills/plan/SKILL.md) and [other](file:///abs/repo/foo.ts).', 'my-host');
 			assert.strictEqual(value,
 				'Loaded [plan](vscode-agent-host://my-host/abs/repo/skills/plan/SKILL.md?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0%26vscodeLinkType%3Dskill) ' +
 				'and [](vscode-agent-host://my-host/abs/repo/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).'
@@ -569,19 +744,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('preserves alt text for image tokens', () => {
-			const turn = createTurn({
-				responseParts: [{
-					kind: ResponsePartKind.Markdown,
-					id: 'md-image',
-					content: 'See ![diagram](file:///a/b.png).',
-				}],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks('See ![diagram](file:///a/b.png).', 'my-host');
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 
@@ -681,6 +844,128 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
 		});
 
+		test('attaches automation result data to live and restored configureAutomation calls', () => {
+			const content: ToolResultContent[] = [{
+				type: ToolResultContentType.Text,
+				text: JSON.stringify({
+					status: 'created',
+					automation: { id: 'automation-1', name: 'Morning review' },
+				}),
+			}];
+			const completed = createCompletedToolCall({
+				toolCallId: 'automation-call',
+				toolName: 'configureAutomation',
+				content,
+			});
+			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+			const live = toolCallStateToInvocation(createToolCallState({
+				toolCallId: 'automation-call',
+				toolName: 'configureAutomation',
+			}));
+			finalizeToolInvocation(live, completed);
+
+			assert.deepStrictEqual({
+				restored: restored.toolSpecificData,
+				live: live.toolSpecificData,
+			}, {
+				restored: {
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				},
+				live: {
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				},
+			});
+		});
+
+		test('represents another client tool without surfacing its confirmation', () => {
+			const toolCall: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-other-client',
+				toolName: 'run_task',
+				displayName: 'Run Task',
+				invocationMessage: 'Run task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Allow Run Task?',
+				status: ToolCallStatus.PendingConfirmation,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'owner-client' },
+			};
+			let cancelledToolCallId: string | undefined;
+
+			const invocation = toolCallStateToInvocation(toolCall, undefined, {
+				currentClientId: 'viewer-client',
+				cancelOtherClientToolCall: toolCall => cancelledToolCallId = toolCall.toolCallId,
+			});
+			invocation.otherClientToolCall?.cancel();
+
+			assert.deepStrictEqual({
+				message: invocation.invocationMessage,
+				state: invocation.state.get().type,
+				hasOtherClientData: !!invocation.otherClientToolCall,
+				cancelledToolCallId,
+			}, {
+				message: 'Running Run Task on another client...',
+				state: IChatToolInvocation.StateKind.Executing,
+				hasOtherClientData: true,
+				cancelledToolCallId: 'tc-other-client',
+			});
+		});
+
+		test('creates authentication-required invocation for an MCP tool call', () => {
+			const invocation = rawToolCallStateToInvocation({
+				...createToolCallState(),
+				status: ToolCallStatus.AuthRequired,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				auth: {
+					reason: McpAuthRequiredReason.InsufficientScope,
+					oauthClient: {
+						clientId: 'configured-client-id',
+						clientSecret: 'configured-client-secret',
+					},
+					resource: {
+						resource: 'https://mcp.example.com',
+						resource_name: 'Example MCP',
+						authorization_servers: ['https://auth.example.com'],
+						scopes_supported: ['repo'],
+					},
+					requiredScopes: ['repo'],
+				},
+			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend');
+
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
+				assert.fail('Expected authentication-required state');
+			}
+			const { cancel, ...stateWithoutCancel } = state;
+			assert.strictEqual(typeof cancel, 'function');
+			assert.deepStrictEqual(stateWithoutCancel, {
+				type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: undefined },
+				parameters: undefined,
+				confirmationMessages: undefined,
+				server: {
+					id: 'frontend/mcp-1',
+					name: 'Example MCP',
+					resource: 'https://mcp.example.com',
+					oauthClient: {
+						clientId: 'configured-client-id',
+						clientSecret: 'configured-client-secret',
+					},
+					authorizationServers: ['https://auth.example.com'],
+					supportedScopes: ['repo'],
+					requiredScopes: ['repo'],
+					reason: McpAuthRequiredReason.InsufficientScope,
+				},
+			});
+			invocation.setAuthenticationResolved();
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
+		});
+
 		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({
 				toolInput: 'ls -la',
@@ -732,7 +1017,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
 			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n', 'normalizes \\n to \\r\\n for xterm');
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
 
 		test('does not render terminal pill for terminal toolKind without a command (falls back to invocationMessage)', () => {
@@ -774,11 +1059,257 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
+		test('sets MCP App toolSpecificData for running MCP tool calls', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState({
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: {
+					ui: {
+						resourceUri: 'ui://docs/app',
+						channel: 'mcp://copilot/test-session-1/docs',
+					},
+				},
+			}));
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'input',
+				rawInput: { topic: 'metadata' },
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					serverId: 'docs-customization',
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			});
+		});
+
+		test('does not set MCP App toolSpecificData for a streaming MCP tool call', () => {
+			// A `Streaming` call is created in the UI's `Executing` state before
+			// it may transition to confirmation, so the App must not mount yet.
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				status: ToolCallStatus.Streaming,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: {
+					ui: {
+						resourceUri: 'ui://docs/app',
+						channel: 'mcp://copilot/test-session-1/docs',
+					},
+				},
+			});
+
+			assert.strictEqual(invocation.toolSpecificData, undefined);
+		});
+
+		test('synthesizes subagent chatResource from the tool call id when no discovery content block is present', () => {
+			// A background subagent's `subagent_started` can arrive after its
+			// spawning tool call has already completed, so the running-only
+			// discovery content update is dropped and the child chat resource
+			// never lands on the tool call. The chat resource must still be
+			// derivable from the session + tool call id so the inline subagent
+			// pill remains linkable.
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Map aux bar + editor part creation' },
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.chatResource, buildSubagentChatUri(URI.file('/').toString(), 'tc-1'));
+			}
+		});
+
+		test('prefers the host-stamped _meta.subagentChatUri over a discovery content block resource', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentChatUri: 'ahp-chat://subagent/stamped/tc-1' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'ahp-chat://subagent/discovery/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.chatResource, 'ahp-chat://subagent/stamped/tc-1');
+			}
+		});
+
 		test('passes subAgentInvocationId to ChatToolInvocation', () => {
 			const tc = createToolCallState({});
 
 			const invocation = toolCallStateToInvocation(tc, 'parent-tc-42');
 			assert.strictEqual(invocation.subAgentInvocationId, 'parent-tc-42');
+		});
+	});
+
+	suite('addComment reference', () => {
+
+		const commentRange = { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 5 };
+
+		function addCommentInput(text: string): string {
+			return JSON.stringify({ resourceUri: 'file:///workspace/a.ts', range: commentRange, text });
+		}
+
+		function markdown(message: string | IMarkdownString | undefined): IMarkdownString {
+			assert.ok(message && typeof message !== 'string', 'expected a markdown reference');
+			return message;
+		}
+
+		test('renders tool name, truncated quoted preview and a reveal command link', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('This comment is quite long and should be truncated') });
+			const message = markdown(toolCallStateToInvocation(tc).invocationMessage);
+
+			assert.deepStrictEqual(
+				{
+					value: message.value,
+					supportThemeIcons: message.supportThemeIcons,
+					isTrusted: message.isTrusted,
+				},
+				{
+					value: `[addComment "This comment is quite long and should be…"](command:_agentFeedbackReview.revealAt?${encodeURIComponent(JSON.stringify(['file:///workspace/a.ts', commentRange]))})`,
+					supportThemeIcons: true,
+					isTrusted: { enabledCommands: ['_agentFeedbackReview.revealAt'] },
+				},
+			);
+		});
+
+		test('does not truncate a short comment', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Short note') });
+			const message = markdown(toolCallStateToInvocation(tc).invocationMessage);
+			assert.ok(message.value.includes('addComment "Short note"'), message.value);
+			assert.ok(!message.value.includes('…'), message.value);
+		});
+
+		test('sets the same reference as the past-tense message on completion', () => {
+			const running = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Short note') });
+			const invocation = toolCallStateToInvocation(running);
+			const completed = createCompletedToolCall({ toolName: 'addComment', toolInput: addCommentInput('Short note'), pastTenseMessage: 'Added comment' });
+			finalizeToolInvocation(invocation, completed);
+			assert.strictEqual(markdown(invocation.pastTenseMessage).value, markdown(invocation.invocationMessage).value);
+		});
+
+		test('falls back to the server message when the input cannot be parsed', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: 'not json' });
+			assert.strictEqual(toolCallStateToInvocation(tc).invocationMessage, 'Adding comment');
+		});
+
+		test('falls back to the server message when the range is not a valid 1-based range', () => {
+			for (const range of [
+				{ startLineNumber: 0, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				{ startLineNumber: 1, startColumn: 1.5, endLineNumber: 1, endColumn: 2 },
+				{ startLineNumber: -1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			]) {
+				const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: JSON.stringify({ resourceUri: 'file:///workspace/a.ts', range, text: 'hi' }) });
+				assert.strictEqual(toolCallStateToInvocation(tc).invocationMessage, 'Adding comment', JSON.stringify(range));
+			}
+		});
+	});
+
+	suite('streaming tool invocations (#314858)', () => {
+
+		type AnyToolCallState = Parameters<typeof rawToolCallStateToPreparedInvocation>[0];
+
+		test('toolCallStateToStreamingInvocation starts in the native Streaming state', () => {
+			const tc: AnyToolCallState = { toolCallId: 'tc-stream', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming };
+			const invocation = toolCallStateToStreamingInvocation(tc, undefined);
+			assert.strictEqual(invocation.toolCallId, 'tc-stream');
+			assert.strictEqual(invocation.toolId, 'bash');
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Streaming);
+			assert.strictEqual(IChatToolInvocation.isComplete(invocation), false);
+		});
+
+		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
+			const sessionResource = URI.parse('copilotcli:/session-1');
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-subagent',
+				toolName: 'task',
+				displayName: 'Delegate Task',
+				status: ToolCallStatus.Streaming,
+				_meta: {
+					toolKind: 'subagent',
+					subagentDescription: 'Review current branch',
+					subagentAgentName: 'code-review',
+					subagentChatUri: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+				},
+			}, undefined, sessionResource, '');
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Review current branch',
+				agentName: 'code-review',
+				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+			});
+		});
+
+		test('transitionFromStreaming with a pending terminal prepared invocation yields a single terminal confirmation card', () => {
+			// A terminal command streamed its args, then requested confirmation.
+			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-term', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming }, undefined);
+			const pending: AnyToolCallState = {
+				toolCallId: 'tc-term',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Running `rm -rf build`',
+				toolInput: 'rm -rf build',
+				status: ToolCallStatus.PendingConfirmation,
+				_meta: { toolKind: 'terminal' },
+				confirmationTitle: 'Run command?',
+			};
+
+			const prepared = toolCallStateToPreparedInvocation(pending);
+			assert.strictEqual(prepared.confirmationMessages?.title, 'Run command?');
+			assert.strictEqual(prepared.toolSpecificData?.kind, 'terminal');
+
+			streaming.transitionFromStreaming(prepared, undefined, undefined);
+			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			assert.strictEqual(streaming.toolSpecificData?.kind, 'terminal');
+		});
+
+		test('transitionFromStreaming with a non-confirmation prepared invocation goes straight to Executing', () => {
+			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-run', toolName: 'read_file', displayName: 'Read File', status: ToolCallStatus.Streaming }, undefined);
+			const running: AnyToolCallState = { toolCallId: 'tc-run', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.NotNeeded };
+
+			const prepared = toolCallStateToPreparedInvocation(running);
+			assert.strictEqual(prepared.confirmationMessages, undefined);
+
+			streaming.transitionFromStreaming(prepared, undefined, undefined);
+			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.Executing);
+		});
+
+		test('requestConfirmation re-arms confirmation from Executing (Copilot Running → PendingConfirmation)', () => {
+			// Real Copilot flow: onToolStart readies the tool (Running/Executing)
+			// before the permission callback bounces it to PendingConfirmation.
+			// requestConfirmation must move the SAME invocation back to
+			// WaitingForConfirmation so a single card spans the lifecycle.
+			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-term', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming }, undefined);
+
+			// Streaming → Running (confirmed: not-needed) → Executing.
+			const running: AnyToolCallState = { toolCallId: 'tc-term', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running command', status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'terminal' } };
+			streaming.transitionFromStreaming(toolCallStateToPreparedInvocation(running), undefined, undefined);
+			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.Executing);
+
+			// Running → PendingConfirmation via the permission callback.
+			const pending: AnyToolCallState = { toolCallId: 'tc-term', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running `rm -rf build`', toolInput: 'rm -rf build', status: ToolCallStatus.PendingConfirmation, _meta: { toolKind: 'terminal' }, confirmationTitle: 'Run command?' };
+			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending));
+			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			assert.strictEqual(streaming.toolSpecificData?.kind, 'terminal');
+		});
+
+		test('requestConfirmation no-ops on a completed invocation', () => {
+			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming }, undefined);
+			streaming.transitionFromStreaming(toolCallStateToPreparedInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.NotNeeded }), undefined, undefined);
+			streaming.didExecuteTool(undefined);
+			assert.strictEqual(IChatToolInvocation.isComplete(streaming), true);
+
+			const pending: AnyToolCallState = { toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', invocationMessage: 'confirm', status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Confirm?' };
+			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending));
+			assert.strictEqual(IChatToolInvocation.isComplete(streaming), true, 'completed invocation is not re-armed');
 		});
 	});
 
@@ -805,7 +1336,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)');
 		});
 
-		test('finalizes terminal tool with output and exit code', () => {
+		test('finalizes pty terminal tool with compatibility output and exit code', () => {
 			const tc = createToolCallState({
 				toolInput: 'echo hi',
 				status: ToolCallStatus.Running,
@@ -833,13 +1364,13 @@ suite('stateToProgressAdapter', () => {
 
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
-			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string }; terminalCommandState: { exitCode: number } };
-			assert.strictEqual(termData.terminalCommandOutput.text, 'output text');
-			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'output text');
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
-		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
+		test('normalizes plain-text line endings for the detached terminal', () => {
 			const tc = createToolCallState({
 				toolInput: 'grep -n foo',
 				status: ToolCallStatus.Running,
@@ -865,8 +1396,8 @@ suite('stateToProgressAdapter', () => {
 				],
 			});
 
-			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string } };
-			assert.strictEqual(termData.terminalCommandOutput.text, 'line1\r\nline2\r\nline3\r\n');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'line1\r\nline2\r\nline3\r\n');
 		});
 
 		test('finalizes generic tool with input/output details', () => {
@@ -1096,6 +1627,51 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits[0].beforeContentUri, undefined);
 			assert.ok(fileEdits[0].afterContentUri);
 		});
+
+		test('preserves subagent credits when finalizing', () => {
+			const tc = createToolCallState({
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.credits = 2.5;
+				invocation.toolSpecificData.isActive = true;
+			}
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'run_subagent',
+				displayName: 'Run Subagent',
+				invocationMessage: 'Running subagent...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran subagent',
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}, {
+					type: ToolResultContentType.Text,
+					text: 'Subagent result',
+				}],
+			} as ICompletedToolCall);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.deepStrictEqual({
+					credits: invocation.toolSpecificData.credits,
+					isActive: invocation.toolSpecificData.isActive,
+				}, {
+					credits: 2.5,
+					isActive: true,
+				});
+			}
+		});
 	});
 
 	suite('activeTurnToProgress', () => {
@@ -1103,6 +1679,7 @@ suite('stateToProgressAdapter', () => {
 		function createActiveTurnState(responseParts?: ActiveTurn['responseParts']): ActiveTurn {
 			return {
 				id: 'turn-active',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: message('Do things'),
 				responseParts: responseParts ?? [],
 				usage: undefined,
@@ -1135,13 +1712,14 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
 		});
 
-		test('produces progress message for system notification', () => {
+		test('produces system notification for system notification response part', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' },
 			]), undefined);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].kind, 'progressMessage');
-			assert.strictEqual((result[0] as IChatProgressMessage).content.value, 'Shell command completed');
+			assert.strictEqual(result[0].kind, 'systemNotification');
+			if (result[0].kind !== 'systemNotification') { return; }
+			assert.strictEqual(result[0].content.value, 'Shell command completed');
 		});
 
 		test('produces thinking progress for reasoning', () => {
@@ -1150,6 +1728,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
+			assert.strictEqual((result[0] as IChatThinkingPart).id, 'r-1');
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {
@@ -1198,6 +1777,61 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolCallId, 'tc-running');
 		});
 
+		test('hydrates another client tool without a confirmation invocation', () => {
+			const toolCall: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-other-client',
+				toolName: 'run_task',
+				displayName: 'Run Task',
+				invocationMessage: 'Run task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Allow Run Task?',
+				status: ToolCallStatus.PendingConfirmation,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'owner-client' },
+			};
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.ToolCall, toolCall },
+			]), undefined, {
+				currentClientId: 'viewer-client',
+				cancelOtherClientToolCall: () => { },
+			});
+			const invocation = result[0] as IChatToolInvocation;
+
+			assert.deepStrictEqual({
+				kind: invocation.kind,
+				state: invocation.state.get().type,
+				hasOtherClientData: !!invocation.otherClientToolCall,
+			}, {
+				kind: 'toolInvocation',
+				state: IChatToolInvocation.StateKind.Executing,
+				hasOtherClientData: true,
+			});
+		});
+
+		test('hydrates another client streaming tool with its cancel affordance', () => {
+			const toolCall: ToolCallResponsePart['toolCall'] = {
+				toolCallId: 'tc-other-client-streaming',
+				toolName: 'run_task',
+				displayName: 'Run Task',
+				status: ToolCallStatus.Streaming,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'owner-client' },
+			};
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.ToolCall, toolCall },
+			]), undefined, {
+				currentClientId: 'viewer-client',
+				cancelOtherClientToolCall: () => { },
+			});
+			const invocation = result[0] as IChatToolInvocation;
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				hasOtherClientData: !!invocation.otherClientToolCall,
+			}, {
+				state: IChatToolInvocation.StateKind.Executing,
+				hasOtherClientData: true,
+			});
+		});
+
 		test('creates confirmation invocations for pending tool confirmations', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{
@@ -1209,15 +1843,116 @@ suite('stateToProgressAdapter', () => {
 						invocationMessage: 'Run command',
 						status: ToolCallStatus.PendingConfirmation,
 						confirmationTitle: 'Run command',
+						riskAssessment: {
+							kind: ToolCallRiskAssessmentKind.Judge,
+							status: ToolCallRiskAssessmentStatus.Complete,
+							reason: 'The command removes a project file.',
+							safety: 0.15,
+						},
 						toolInput: 'echo hello',
 					},
 				},
 			]), undefined);
 			assert.strictEqual(result.length, 1);
 			// PendingConfirmation tools have input-style specific data (no terminal content yet)
-			const invocation = result[0] as { toolSpecificData?: { kind: string } };
+			const invocation = result[0] as IChatToolInvocation;
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'input');
+			const state = invocation.state.get();
+			assert.deepStrictEqual(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined, {
+				status: 'complete',
+				explanation: 'The command removes a project file.',
+				safety: 0.15,
+			});
+		});
+
+		test('creates loading confirmation invocations while judgement is pending', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-judging',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Run command',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Run command',
+				riskAssessment: {
+					kind: ToolCallRiskAssessmentKind.Judge,
+					status: ToolCallRiskAssessmentStatus.Loading,
+				},
+				toolInput: 'echo hello',
+			});
+			const state = invocation.state.get();
+
+			assert.deepStrictEqual(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined, {
+				status: 'loading',
+			});
+		});
+
+		test('updates a rendered confirmation when asynchronous judgement completes', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-judging',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Run command',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Run command',
+				riskAssessment: {
+					kind: ToolCallRiskAssessmentKind.Judge,
+					status: ToolCallRiskAssessmentStatus.Loading,
+				},
+				toolInput: 'echo hello',
+			});
+
+			invocation.updateConfirmationMessages({
+				title: 'Run command',
+				message: 'Run command',
+				approvalReason: {
+					status: 'complete',
+					explanation: 'This command modifies protected files.',
+					safety: 0.1,
+				},
+			});
+			const state = invocation.state.get();
+
+			assert.deepStrictEqual(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined, {
+				status: 'complete',
+				explanation: 'This command modifies protected files.',
+				safety: 0.1,
+			});
+		});
+
+		test('preserves create metadata and proposed content for pending file confirmations', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-create',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Creating package.json',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Create file?',
+				edits: {
+					items: [{
+						after: {
+							uri: 'file:///workspace/package.json',
+							content: { uri: 'pending-edit-content://session/tc-create/package.json' },
+						},
+					}],
+				},
+			});
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'modifiedFilesConfirmation',
+				options: ['Allow'],
+				modifiedFiles: [{
+					uri: URI.file('/workspace/package.json'),
+					editKind: 'create',
+					originalUri: undefined,
+					modifiedContentUri: toAgentHostUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					originalContentUri: undefined,
+					insertions: undefined,
+					deletions: undefined,
+					title: 'package.json',
+					description: '/workspace/package.json',
+				}],
+			});
 		});
 
 		test('includes all parts in correct order', () => {
@@ -1257,7 +1992,7 @@ suite('stateToProgressAdapter', () => {
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'npm test',
 				content: [
-					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal', isPty: false },
 				],
 				success: true,
 			});
@@ -1278,14 +2013,14 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandUri.toString(), 'agenthost-terminal:/abc123');
 		});
 
-		test('terminal content block skips output from text content', () => {
+		test('terminal content block skips bookkeeping text output', () => {
 			const tc = createCompletedToolCall({
 				_meta: {
 					toolKind: 'terminal',
 				},
 				toolInput: 'npm test',
 				content: [
-					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal', isPty: false },
 					{ type: ToolResultContentType.Text, text: 'text-output' },
 				],
 				success: true,
@@ -1303,8 +2038,208 @@ suite('stateToProgressAdapter', () => {
 			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandUri?: { toString(): string }; terminalCommandOutput?: { text: string } };
 			// Terminal content block URI should be set
 			assert.ok(termData.terminalCommandUri);
-			// Text content is still extracted as output
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'text-output');
+			assert.strictEqual(termData.terminalCommandOutput, undefined);
+		});
+
+		test('uses terminal completion exit code for completed SDK shell tool history', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'gti status',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'command not found\n<shellId: 104 completed with exit code 127>' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 127, preview: 'preview only\n', truncated: true } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
+			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
+			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+		});
+
+		test('preserves an explicitly empty non-PTY retained completion snapshot', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'true',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: '' } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.deepStrictEqual(termData.terminalCommandOutput, { text: '' });
+		});
+
+		test('does not store an explicitly empty PTY completion preview when isPty is omitted', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'true',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///pty-empty', title: 'Run Shell Command', result: { exitCode: 0, preview: '' } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandOutput, undefined);
+		});
+
+		test('does not use text content when a terminal block owns the output', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'ehco hi',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'bash: line 1: ehco: command not found\n<shellId: 104 completed with exit code 127>' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 127 } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandOutput, undefined);
+		});
+
+		test('reads legacy terminalComplete blocks from old persisted state', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'pwd',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/repo\n' },
+					// Removed from the protocol in AHP 0.7.0; may linger in old persisted turns.
+					{ type: 'terminalComplete', exitCode: 127, preview: 'legacy preview\n' } as unknown as ToolResultContent,
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			// The legacy block's completion data is preserved instead of
+			// degrading to the Text fallback and the tool success flag.
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'legacy preview\r\n');
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+		});
+
+		test('keeps zero terminal completion exit code as success for completed SDK shell tool history', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'pwd',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/repo\n' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0 } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+		});
+
+		test('does not fall back to tool success when terminal completion has no exit code', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'pwd',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/repo\n' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: {} },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState, undefined);
+		});
+
+		test('uses failed tool state when an output-only terminal has no shell exit', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'eci hi',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/bin/bash: eci: command not found\n' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false },
+				],
+				success: false,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.deepStrictEqual(termData.terminalCommandState, { exitCode: 1 });
 		});
 
 		test('running tool call with terminal content block sets terminalCommandUri', () => {
@@ -1358,6 +2293,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 		});
 
+		test('finalize uses terminal completion exit code over SDK tool success', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'false',
+				status: ToolCallStatus.Running,
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				invocationMessage: 'Running shell command',
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'false',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran false',
+				content: [
+					{ type: ToolResultContentType.Text, text: '' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 1 } },
+				],
+			});
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 1);
+		});
+
 	});
 
 	suite('updateRunningToolSpecificData', () => {
@@ -1401,6 +2366,123 @@ suite('stateToProgressAdapter', () => {
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(invocation.toolSpecificData.description, 'Find related files');
 			}
+			disposable.dispose();
+		});
+
+		test('preserves subagent credits when refreshing toolSpecificData from content', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate the session handler having recorded this subagent's credits.
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.credits = 1.5;
+			}
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.credits, 1.5, 'credits should survive a toolSpecificData refresh');
+			}
+		});
+
+		test('preserves subagent model name when refreshing toolSpecificData from content', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate the session handler having recorded this subagent's model.
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
+			}
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.modelName, 'Claude Sonnet 4', 'model name should survive a toolSpecificData refresh');
+			}
+		});
+
+		test('mounts MCP App toolSpecificData when a confirmed MCP tool starts running', () => {
+			// The MCP App channel is present in `_meta.ui` from the first tool
+			// state (a tool cannot start until its server is Ready), but the App
+			// is only mounted once the tool leaves confirmation and starts
+			// running.
+			const meta = {
+				ui: {
+					resourceUri: 'ui://docs/app',
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			};
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				status: ToolCallStatus.PendingConfirmation,
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: meta,
+			});
+			// Confirmation state carries the raw input but does not mount the App.
+			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'input', rawInput: { topic: 'metadata' } });
+
+			let stateChanged = false;
+			const disposable = autorun(r => {
+				invocation.state.read(r);
+				stateChanged = true;
+			});
+			stateChanged = false;
+
+			updateRunningToolSpecificData(invocation, createToolCallState({
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: meta,
+			}));
+
+			assert.strictEqual(stateChanged, true, 'state observers should be notified');
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'input',
+				rawInput: { topic: 'metadata' },
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					serverId: 'docs-customization',
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			});
 			disposable.dispose();
 		});
 
@@ -1479,6 +2561,138 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandUri, reviveUri);
 			assert.strictEqual(termData.terminalCommandId, 'cmd-id-from-revive');
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
+		});
+	});
+
+	suite('usageInfoToQuotas', () => {
+
+		test('returns undefined when no quota snapshots present', () => {
+			assert.strictEqual(usageInfoToQuotas(undefined), undefined);
+			assert.strictEqual(usageInfoToQuotas({ inputTokens: 10 }), undefined);
+			assert.strictEqual(usageInfoToQuotas({ _meta: { cost: 1 } }), undefined);
+		});
+
+		test('maps premium and chat snapshots, deriving additional usage and reset date', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							remainingPercentage: 75,
+							overage: 1.5,
+							overageAllowedWithExhaustedQuota: true,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						chat: {
+							isUnlimitedEntitlement: true,
+							entitlementRequests: -1,
+							usedRequests: 10,
+							remainingPercentage: 100,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				premiumChat: {
+					percentRemaining: 75,
+					unlimited: false,
+					entitlement: 300,
+					quotaRemaining: 225,
+					resetAt: Date.parse('2026-07-01T00:00:00.000Z'),
+				},
+				chat: {
+					percentRemaining: 100,
+					unlimited: true,
+					entitlement: undefined,
+					quotaRemaining: undefined,
+					resetAt: undefined,
+				},
+				additionalUsageEnabled: true,
+				additionalUsageCount: 1.5,
+				resetDate: '2026-07-01T00:00:00.000Z',
+			});
+		});
+
+		test('skips categories with no allocated entitlement', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 0,
+							usedRequests: 0,
+							remainingPercentage: 0,
+							overage: 0,
+							overageAllowedWithExhaustedQuota: false,
+						},
+					},
+				},
+			});
+
+			// The 0-entitlement premium snapshot is skipped, but additional-usage fields are still derived.
+			assert.deepStrictEqual(result, {
+				additionalUsageEnabled: false,
+				additionalUsageCount: 0,
+			});
+		});
+
+		test('skips a category whose remainingPercentage is missing', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						chat: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 100,
+							usedRequests: 10,
+							// remainingPercentage intentionally absent — must not masquerade as exhausted (0%).
+						},
+					},
+				},
+			});
+
+			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('formatTurnResponseDetails', () => {
+
+		const auto = { name: 'Auto' };
+
+		test('appends the billed model id when one is supplied', () => {
+			// A pick whose billed model is unregistered (e.g. "Auto" billed as "raptor-mini") shows "Auto (raptor-mini)".
+			const result = {
+				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
+				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
+			};
+
+			assert.deepStrictEqual(result, {
+				resolvedModel: 'Auto (raptor-mini)',
+				withPricing: 'Auto (raptor-mini) · 0x',
+				withCredits: 'Auto (raptor-mini) • 2 credits',
+				oneCredit: 'Auto (raptor-mini) • 1 credit',
+				noBilledModel: 'Auto',
+			});
+		});
+
+		test('uses the registered model name as-is without a billed id, undefined when unknown', () => {
+			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
+			const result = {
+				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
+			};
+
+			assert.deepStrictEqual(result, {
+				concrete: 'Claude Sonnet 4.5 · 1x',
+				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
+				unknown: undefined,
+			});
 		});
 	});
 });

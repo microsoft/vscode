@@ -94,7 +94,7 @@ jobs:
         with:
           key-prefix: node_modules-linux
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          extract: 'false'
+          lookup-only: 'true'
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -135,13 +135,17 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      - name: Verify native optional dependency binaries
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
 
   macOS:
     name: macOS
-    runs-on: macos-14-xlarge
+    runs-on: macos-26-xlarge
     env:
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
@@ -160,7 +164,7 @@ jobs:
         with:
           key-prefix: node_modules-macos
           key-args: "darwin ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          extract: 'false'
+          lookup-only: 'true'
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -190,6 +194,10 @@ jobs:
           # on macOS.
           GYP_DEFINES: "kerberos_use_rtld=false"
 
+      - name: Verify native optional dependency binaries
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
@@ -215,7 +223,7 @@ jobs:
         with:
           key-prefix: node_modules-windows
           key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          extract: 'false'
+          lookup-only: 'true'
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -245,6 +253,10 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      - name: Verify native optional dependency binaries
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
@@ -267,6 +279,7 @@ jobs:
         with:
           key-prefix: copilot-node_modules-linux
           key-args: "$(node -p process.platform) $(node -p process.arch)"
+          lookup-only: 'true'
 
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -299,6 +312,7 @@ jobs:
         with:
           key-prefix: copilot-node_modules-windows
           key-args: "$(node -p process.platform) $(node -p process.arch)"
+          lookup-only: 'true'
 
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'

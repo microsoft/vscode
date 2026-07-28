@@ -9,7 +9,7 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
 import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
@@ -45,6 +45,9 @@ export interface IAgentSubscription<T> {
 
 	/** Fires when {@link value} changes (optimistic or confirmed). */
 	readonly onDidChange: Event<T>;
+
+	/** Fires when the subscription enters an error state. */
+	readonly onDidError?: Event<Error>;
 
 	/** Fires before a server-originated action is applied to this subscription's state. */
 	readonly onWillApplyAction: Event<ActionEnvelope>;
@@ -103,6 +106,9 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
 
+	protected readonly _onDidError = this._register(new Emitter<Error>());
+	readonly onDidError: Event<Error> = this._onDidError.event;
+
 	protected readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onWillApplyAction: Event<ActionEnvelope> = this._onWillApplyAction.event;
 
@@ -144,6 +150,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 */
 	setError(error: Error): void {
 		this._error = error;
+		this._onDidError.fire(error);
 	}
 
 	/**
@@ -306,19 +313,21 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		// A rejected envelope must never mutate confirmed state — it only rolls
+		// back the originating client's matching optimistic action. Guarding all
+		// apply branches also prevents a broadcast rejection from leaking the
+		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
-				if (envelope.rejectionReason) {
-					this._pendingActions.splice(idx, 1);
-				} else {
+				if (!envelope.rejectionReason) {
 					this._confirmedApply(envelope.action);
-					this._pendingActions.splice(idx, 1);
 				}
-			} else {
+				this._pendingActions.splice(idx, 1);
+			} else if (!envelope.rejectionReason) {
 				this._confirmedApply(envelope.action);
 			}
-		} else {
+		} else if (!envelope.rejectionReason) {
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
@@ -450,19 +459,21 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		// A rejected envelope must never mutate confirmed state — it only rolls
+		// back the originating client's matching optimistic action. Guarding all
+		// apply branches also prevents a broadcast rejection from leaking the
+		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
-				if (envelope.rejectionReason) {
-					this._pendingActions.splice(idx, 1);
-				} else {
+				if (!envelope.rejectionReason) {
 					this._confirmedApply(envelope.action);
-					this._pendingActions.splice(idx, 1);
 				}
-			} else {
+				this._pendingActions.splice(idx, 1);
+			} else if (!envelope.rejectionReason) {
 				this._confirmedApply(envelope.action);
 			}
-		} else {
+		} else if (!envelope.rejectionReason) {
 			this._promotePendingTurnStartIfTerminal(envelope.action);
 			this._confirmedApply(envelope.action);
 		}
@@ -563,22 +574,38 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
  * Subscription to a changeset at an expanded changeset URI (e.g.
  * `<sessionUri>/changeset/session`).
  *
- * Server-only mutations — no write-ahead. The subscription itself does NOT
- * self-tear-down on lifecycle events; cleanup is driven externally:
- * - Workbench-side: `BaseAgentHostSessionsProvider._handleSessionRemoved`
- *   disposes the per-session subscription map, which releases this
- *   subscription's `IReference` and triggers `_releaseSubscription` on
- *   the manager.
- * - Wire layer: {@link IAgentConnection} refcounts the underlying server
- *   subscription so multiple consumers can share one wire-level subscribe.
+ * Changeset review actions are client-dispatchable, so this subscription
+ * supports write-ahead reconciliation.
  */
 export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetState> {
 
+	private readonly _pendingActions: { readonly clientSeq: number; readonly action: ClientChangesetAction }[] = [];
+	private _optimisticState: ChangesetState | undefined;
 	private readonly _changesetUri: string;
+	private readonly _seqAllocator: () => number;
 
-	constructor(changesetUri: string, clientId: string, log: (msg: string) => void) {
+	constructor(changesetUri: string, clientId: string, seqAllocator: () => number, log: (msg: string) => void) {
 		super(clientId, log);
 		this._changesetUri = changesetUri;
+		this._seqAllocator = seqAllocator;
+	}
+
+	/**
+	 * Optimistically apply a changeset action and return its client sequence.
+	 */
+	applyOptimistic(action: ClientChangesetAction): number {
+		const clientSeq = this._seqAllocator();
+		this._pendingActions.push({ clientSeq, action });
+		const base = this._optimisticState ?? this.verifiedValue;
+		if (base) {
+			this._optimisticState = changesetReducer(base, action, this._log);
+			this._onDidChange.fire(this._optimisticState);
+		}
+		return clientSeq;
+	}
+
+	protected override _getOptimisticState(): ChangesetState | undefined {
+		return this._optimisticState;
 	}
 
 	protected override _applyReducer(state: ChangesetState, action: StateAction): ChangesetState {
@@ -587,6 +614,55 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
 		return isChangesetAction(envelope.action) && envelope.channel === this._changesetUri;
+	}
+
+	protected override _onSnapshotApplied(fromSeq: number): void {
+		super._onSnapshotApplied(fromSeq);
+		this._recomputeOptimistic();
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (isOwnAction && envelope.origin) {
+			const index = this._pendingActions.findIndex(pending => pending.clientSeq === envelope.origin!.clientSeq);
+			if (index !== -1) {
+				if (!envelope.rejectionReason) {
+					this._confirmedApply(envelope.action);
+				}
+				this._pendingActions.splice(index, 1);
+			} else {
+				this._confirmedApply(envelope.action);
+			}
+		} else {
+			this._confirmedApply(envelope.action);
+		}
+		this._recomputeOptimistic();
+	}
+
+	private _confirmedApply(action: StateAction): void {
+		if (this._confirmedState) {
+			this._confirmedState = this._applyReducer(this._confirmedState, action);
+		}
+	}
+
+	private _recomputeOptimistic(): void {
+		const confirmed = this._confirmedState;
+		if (!confirmed) {
+			this._optimisticState = undefined;
+			return;
+		}
+
+		if (this._pendingActions.length === 0) {
+			this._optimisticState = undefined;
+			this._onDidChange.fire(confirmed);
+			return;
+		}
+
+		let state = confirmed;
+		for (const pending of this._pendingActions) {
+			state = changesetReducer(state, pending.action, this._log);
+		}
+		this._optimisticState = state;
+		this._onDidChange.fire(state);
 	}
 }
 
@@ -782,11 +858,16 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
 		this._inflightCreates.set(resource, promise);
+		// This branch only observes settlement to evict the inflight entry; the
+		// `createSession` caller (and the server, via logService.error) owns the
+		// result. `finally` re-raises a rejection, so without this trailing
+		// `catch` an expected create failure (e.g. AHP_AUTH_REQUIRED) would be
+		// reported a second time as an unhandled rejection.
 		void promise.finally(() => {
 			if (this._inflightCreates.get(resource) === promise) {
 				this._inflightCreates.delete(resource);
 			}
-		});
+		}).catch(() => { });
 	}
 
 	/**
@@ -908,7 +989,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
@@ -917,6 +998,11 @@ export class AgentSubscriptionManager extends Disposable {
 		} else if (isChatAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof ChatStateSubscription) {
+				return entry.sub.applyOptimistic(action);
+			}
+		} else if (isChangesetAction(action)) {
+			const entry = this._subscriptions.get(URI.parse(channel));
+			if (entry?.sub instanceof ChangesetStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		} else if (isAnnotationsAction(action)) {
@@ -1047,7 +1133,7 @@ export class AgentSubscriptionManager extends Disposable {
 			case StateComponents.Terminal:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
 			case StateComponents.Changeset:
-				return new ChangesetStateSubscription(key, this._clientId, this._log);
+				return new ChangesetStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Annotations:
 				return new AnnotationsStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Root:
@@ -1079,6 +1165,24 @@ export class AgentSubscriptionManager extends Disposable {
 		this._subscriptions.clear();
 		super.dispose();
 	}
+}
+
+/** Returns whether an action envelope targets one of the subscribed channel URIs. */
+export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvelope, subscribedUris: Iterable<string>): boolean {
+	if (isAhpRootChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	for (const uri of subscribedUris) {
+		if (uri === envelope.channel) {
+			return true;
+		}
+	}
+	return false;
 }
 
 // --- Observable Adapter ------------------------------------------------------

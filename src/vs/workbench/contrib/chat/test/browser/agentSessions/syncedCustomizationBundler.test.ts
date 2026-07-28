@@ -477,4 +477,56 @@ suite('SyncedCustomizationBundler', () => {
 		const result2 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
 		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
+
+	test('getOrigin recovers provenance of flattened files by synced URI', async () => {
+		const bundler = createBundler();
+		const extUri = await seedFile('/ext/rule.md', 'ext rule');
+		const skillMd = await seedFile('/plugins/my-skill/SKILL.md', '# skill');
+
+		await bundler.bundle([
+			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' },
+			{ uri: skillMd, type: PromptsType.skill, source: 'plugin', pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }) },
+		]);
+
+		const ruleDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.deepStrictEqual(bundler.getOrigin(ruleDest), {
+			uri: extUri,
+			source: 'extension',
+			extensionId: 'pub.ext',
+			pluginUri: undefined,
+		});
+
+		// Skills preserve their directory: skills/{skillName}/SKILL.md.
+		const skillDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/SKILL.md' });
+		assert.deepStrictEqual(bundler.getOrigin(skillDest), {
+			uri: skillMd,
+			source: 'plugin',
+			extensionId: undefined,
+			pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }),
+		});
+
+		assert.strictEqual(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/unknown.md' })), undefined);
+	});
+
+	test('getOrigin has no entry for files without a source', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/rule.md', 'rule');
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const dest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.strictEqual(bundler.getOrigin(dest), undefined);
+	});
+
+	test('getOrigin map refreshes on each bundle', async () => {
+		const bundler = createBundler();
+		const first = await seedFile('/test/first.md', 'first');
+		await bundler.bundle([{ uri: first, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.first' }]);
+		const firstDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/first.md' });
+		assert.ok(bundler.getOrigin(firstDest));
+
+		const second = await seedFile('/test/second.md', 'second');
+		await bundler.bundle([{ uri: second, type: PromptsType.instructions, source: 'plugin' }]);
+		// The previous file is no longer part of the bundle, so its origin is gone.
+		assert.strictEqual(bundler.getOrigin(firstDest), undefined);
+		assert.ok(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/second.md' })));
+	});
 });

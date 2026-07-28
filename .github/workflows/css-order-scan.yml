@@ -87,26 +87,18 @@ jobs:
           cat /tmp/serve-out.log
           exit 1
 
-      - name: Get OIDC token
-        id: oidc
-        run: |
-          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
-            | jq -r .value)
-          echo "::add-mask::$TOKEN"
-          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-
-      - name: Generate random commit SHA
-        id: random_sha
-        run: |
-          RANDOM_SHA=$(node -e "const { randomBytes } = require('node:crypto'); process.stdout.write(randomBytes(20).toString('hex'));")
-          echo "sha=$RANDOM_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Run CSS order scan
         run: |
           node test/componentFixtures/cssOrderScan.mts \
             --fixture-id-regex ".*" \
             --image-base-url "https://hediet-screenshots.azurewebsites.net/images"
+
+      - name: Generate random commit SHA
+        id: random_sha
+        run: |
+          RANDOM_SHA=$(node -e "const { randomBytes } = require('node:crypto'); process.stdout.write(randomBytes(20).toString('hex'));")
+          echo "sha=$RANDOM_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Prepare CSS order upload payload
         id: prepare_upload
@@ -188,6 +180,16 @@ jobs:
           REPORT_JSON: test/componentFixtures/.build/css-order-report/report.json
           UPLOAD_DIR: /tmp/css-order-upload
           RANDOM_SHA: ${{ steps.random_sha.outputs.sha }}
+
+      - name: Get OIDC token
+        id: oidc
+        if: steps.prepare_upload.outputs.fixture_count != '0'
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
+            | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Upload CSS order images to service
         if: steps.prepare_upload.outputs.fixture_count != '0'

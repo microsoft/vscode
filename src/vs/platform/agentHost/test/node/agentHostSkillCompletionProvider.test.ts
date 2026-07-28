@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
@@ -45,6 +46,14 @@ suite('AgentHostSkillCompletionProvider', () => {
 			enabled,
 			load: { kind: CustomizationLoadStatus.Loaded },
 			...(children ? { children: [...children] } : {}),
+		};
+	}
+
+	function syncedPlugin(name: string, children?: readonly (SkillCustomization | PromptCustomization)[]): PluginCustomization {
+		return {
+			...plugin(name, children),
+			id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+			uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
 		};
 	}
 
@@ -115,6 +124,32 @@ suite('AgentHostSkillCompletionProvider', () => {
 		}]);
 	});
 
+	test('complete skills from a synced plugin without plugin prefix', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			syncedPlugin('skills-bundle', [skill('monitor-pr', 'Use this skill when working with PRs')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result, [{
+			insertText: '/monitor-pr ',
+			rangeStart: 0,
+			rangeEnd: 1,
+			attachment: {
+				type: MessageAttachmentKind.Simple,
+				label: '/monitor-pr',
+				_meta: {
+					uri: 'file:///skills/monitor-pr/SKILL.md',
+					name: 'monitor-pr',
+					displayName: 'monitor-pr',
+					description: 'Use this skill when working with PRs',
+				},
+			},
+		}]);
+	});
+
 	test('flattens skill children in session-effective order and ignores non-skill children', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [
@@ -160,6 +195,16 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
 			{ insertText: '/skills:beta ', rangeStart: 0, rangeEnd: 9 },
 		]);
+	});
+
+	test('fuzzy matches skills by the typed slash token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('fix-ci'), skill('other')])];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/ci');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/skills:fix-ci ']);
 	});
 
 	test('filters skills by an in-message slash prefix and replaces only that token', async () => {

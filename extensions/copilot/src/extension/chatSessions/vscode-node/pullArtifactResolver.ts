@@ -30,6 +30,7 @@ export async function resolvePullArtifact(
 	octokit: IOctoKitService,
 	log: ILogService,
 	ref: PullArtifactRef,
+	repo: { readonly owner: string; readonly name: string } | undefined,
 	agentTaskSessions?: AgentTaskSession[],
 	telemetry?: ITelemetryService,
 ): Promise<PullRequestSearchItem | undefined> {
@@ -83,9 +84,9 @@ export async function resolvePullArtifact(
 	}
 	// Fallback 2: Listing the repo's open PRs and matching by databaseId or headRef. We list
 	// once and try both predicates so the round trip pays off when either signal is available.
-	if ((ref.databaseId !== undefined || ref.headRef) && ref.repo.owner && ref.repo.name) {
+	if ((ref.databaseId !== undefined || ref.headRef) && repo?.owner && repo?.name) {
 		try {
-			const prs = await octokit.getOpenPullRequestsForUser(ref.repo.owner, ref.repo.name, {});
+			const prs = await octokit.getOpenPullRequestsForUser(repo.owner, repo.name, {});
 			if (ref.databaseId !== undefined) {
 				const byId = prs.find(p => p.fullDatabaseId === ref.databaseId);
 				if (byId) {
@@ -101,7 +102,7 @@ export async function resolvePullArtifact(
 				}
 			}
 		} catch (e) {
-			log.trace(`resolvePullArtifact: getOpenPullRequestsForUser failed for ${ref.repo.owner}/${ref.repo.name}: ${e}`);
+			log.trace(`resolvePullArtifact: getOpenPullRequestsForUser failed for ${repo.owner}/${repo.name}: ${e}`);
 		}
 	}
 	reportResolved('unresolved');

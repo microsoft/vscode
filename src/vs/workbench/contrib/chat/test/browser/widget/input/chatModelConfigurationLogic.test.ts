@@ -55,8 +55,20 @@ suite('chatModelConfigurationLogic', () => {
 			assert.deepStrictEqual(resolved, { thinkingEffort: 'high' });
 		});
 
-		test('absent entry with no global value resolves to empty', () => {
-			assert.deepStrictEqual(resolveModelConfiguration(undefined, defaults, undefined), {});
+		test('absent entry with no global value resolves to the schema defaults', () => {
+			// Schema defaults must be present even when nothing is stored, so a value
+			// the user never explicitly set (e.g. a model's default contextSize) is
+			// not dropped — otherwise the request and context-usage widget fall back
+			// to the model's full native window while the picker shows the default.
+			assert.deepStrictEqual(resolveModelConfiguration(undefined, defaults, undefined), { thinkingEffort: 'medium' });
+		});
+
+		test('absent entry with a partial global value keeps untouched schema defaults', () => {
+			// Regression for the contextSize 200K-vs-full-window bug: a global config
+			// that lacks contextSize must not strip the default contextSize.
+			const partialDefaults: IStringDictionary<unknown> = { thinkingEffort: 'medium', contextSize: 200_000 };
+			const resolved = resolveModelConfiguration(undefined, partialDefaults, { thinkingEffort: 'high' });
+			assert.deepStrictEqual(resolved, { thinkingEffort: 'high', contextSize: 200_000 });
 		});
 	});
 

@@ -342,7 +342,7 @@ class ESRPReleaseService {
 		});
 
 		const response = await app.acquireTokenByClientCredential({
-			scopes: ['https://api.esrp.microsoft.com/.default']
+			scopes: ['https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com/.default']
 		});
 
 		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);

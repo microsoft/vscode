@@ -11,20 +11,24 @@
 // helpers and re-exports.
 
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import {
+	ResponsePartKind,
+	SessionStatus,
+	ToolCallStatus,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
 	ToolResultFileEditContent,
 	ChatOriginKind,
+	ChatInteractivity,
 	type ActiveTurn,
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
-	type ChatInputRequest,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
@@ -40,6 +44,7 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
+	type UsageInfo,
 	type Message,
 } from './protocol/state.js';
 
@@ -54,16 +59,17 @@ export {
 	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
 	ChatInputQuestionKind as SessionInputQuestionKind,
 	ChatInputResponseKind as SessionInputResponseKind,
+	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
-	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
@@ -77,13 +83,18 @@ export {
 	type ToolCallPendingResultConfirmationState,
 	type ToolCallResponsePart,
 	type ToolCallResult,
+	type ToolCallRiskAssessment,
+	type ToolCallRiskAssessmentCompleteState,
+	type ToolCallRiskAssessmentLoadingState,
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
 	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
+	type TerminalCommandResult,
 	type ToolResultSubagentContent,
+	type ToolResultTerminalContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,
 	type Message
@@ -96,12 +107,202 @@ export {
 export interface UsageInfoMeta {
 	/** Per-turn credit cost reported by the backend. */
 	cost?: number;
+	/** The concrete model selected by Copilot Auto and the routing explanation. */
+	autoModeResolved?: IAutoModeResolvedInfo;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
 		totalNanoAiu?: number;
 		[key: string]: unknown;
 	};
+	/**
+	 * Per-category account quota snapshots reported by the backend on the
+	 * model-call usage event, keyed by quota type (e.g. `chat`,
+	 * `premium_interactions`). Clients MAY use these to keep the account quota
+	 * UI current without a separate quota fetch.
+	 */
+	quotaSnapshots?: {
+		[quotaType: string]: {
+			readonly isUnlimitedEntitlement?: boolean;
+			readonly entitlementRequests?: number;
+			readonly usedRequests?: number;
+			readonly remainingPercentage?: number;
+			readonly overage?: number;
+			readonly overageAllowedWithExhaustedQuota?: boolean;
+			/** ISO 8601 date when the quota resets, if applicable. */
+			readonly resetDate?: string;
+		} | undefined;
+	};
+	/**
+	 * Per-source context-window attribution breakdown reported by the SDK's
+	 * `session.rpc.metadata.getContextAttribution()`. Populated asynchronously
+	 * after each usage event and piped to the context-usage widget as
+	 * `promptTokenDetails`.
+	 */
+	contextAttribution?: IContextAttributionData;
 	[key: string]: unknown;
+}
+
+export interface IAutoModeResolvedInfo {
+	readonly chosenModel: string;
+	readonly reasoningBucket?: 'low' | 'medium' | 'high';
+	readonly categoryScores?: Readonly<Record<string, number | undefined>>;
+	readonly predictedLabel?: string;
+	readonly confidence?: number;
+	readonly candidateModels?: readonly string[];
+}
+
+/**
+ * Mirrors the SDK's `SessionContextAttribution` shape — a flat list of
+ * per-source entries describing what occupies the session's context window.
+ */
+export interface IContextAttributionData {
+	readonly totalTokens: number;
+	readonly entries: readonly IContextAttributionEntry[];
+	readonly compactions: { readonly count: number };
+}
+
+export interface IContextAttributionEntry {
+	readonly kind: string;
+	readonly id: string;
+	readonly label: string;
+	readonly tokens: number;
+	readonly parentId?: string;
+	readonly attributes?: Readonly<Record<string, string | undefined>>;
+}
+
+type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
+
+function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const snapshot: Mutable<AccountQuotaSnapshot> = {};
+	if (typeof raw['isUnlimitedEntitlement'] === 'boolean') { snapshot.isUnlimitedEntitlement = raw['isUnlimitedEntitlement']; }
+	if (typeof raw['entitlementRequests'] === 'number') { snapshot.entitlementRequests = raw['entitlementRequests']; }
+	if (typeof raw['usedRequests'] === 'number') { snapshot.usedRequests = raw['usedRequests']; }
+	if (typeof raw['remainingPercentage'] === 'number') { snapshot.remainingPercentage = raw['remainingPercentage']; }
+	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
+	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
+	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
+	return snapshot;
+}
+
+/**
+ * Reads the well-known {@link UsageInfoMeta} keys from a usage report's open
+ * `_meta` bag, ignoring unrelated provider-specific keys and validating each
+ * field's type. Always read {@link UsageInfo._meta} through this helper rather
+ * than casting the bag to {@link UsageInfoMeta}, so a malformed or partial bag
+ * degrades to absent fields instead of producing values of the wrong runtime
+ * type. Returns an empty object when the bag is absent.
+ */
+export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
+	const meta = usage?._meta;
+	if (!meta) {
+		return {};
+	}
+	const result: Mutable<UsageInfoMeta> = {};
+	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
+	const autoModeResolved = readAutoModeResolvedInfo(meta['autoModeResolved']);
+	if (autoModeResolved) { result.autoModeResolved = autoModeResolved; }
+	const copilotUsage = meta['copilotUsage'];
+	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
+		const rawUsage = copilotUsage as Record<string, unknown>;
+		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
+		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
+		result.copilotUsage = usage;
+	}
+	const quotaSnapshots = meta['quotaSnapshots'];
+	if (quotaSnapshots && typeof quotaSnapshots === 'object' && !Array.isArray(quotaSnapshots)) {
+		const snapshots: Mutable<NonNullable<UsageInfoMeta['quotaSnapshots']>> = {};
+		for (const [quotaType, value] of Object.entries(quotaSnapshots as Record<string, unknown>)) {
+			snapshots[quotaType] = readAccountQuotaSnapshot(value);
+		}
+		result.quotaSnapshots = snapshots;
+	}
+	const contextAttribution = readContextAttribution(meta['contextAttribution']);
+	if (contextAttribution) {
+		result.contextAttribution = contextAttribution;
+	}
+	return result;
+}
+
+function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['chosenModel'] !== 'string') {
+		return undefined;
+	}
+	const result: Mutable<IAutoModeResolvedInfo> = { chosenModel: raw['chosenModel'] };
+	const reasoningBucket = raw['reasoningBucket'];
+	if (reasoningBucket === 'low' || reasoningBucket === 'medium' || reasoningBucket === 'high') {
+		result.reasoningBucket = reasoningBucket;
+	}
+	const categoryScores = raw['categoryScores'];
+	if (categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores)) {
+		const scores: Record<string, number> = {};
+		for (const [category, score] of Object.entries(categoryScores as Record<string, unknown>)) {
+			if (typeof score === 'number') {
+				scores[category] = score;
+			}
+		}
+		result.categoryScores = scores;
+	}
+	if (typeof raw['predictedLabel'] === 'string') { result.predictedLabel = raw['predictedLabel']; }
+	if (typeof raw['confidence'] === 'number') { result.confidence = raw['confidence']; }
+	if (Array.isArray(raw['candidateModels']) && raw['candidateModels'].every(candidate => typeof candidate === 'string')) {
+		result.candidateModels = raw['candidateModels'];
+	}
+	return result;
+}
+
+function readContextAttribution(value: unknown): IContextAttributionData | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['totalTokens'] !== 'number' || !Array.isArray(raw['entries'])) {
+		return undefined;
+	}
+	const entries: IContextAttributionEntry[] = [];
+	for (const item of raw['entries']) {
+		if (!item || typeof item !== 'object' || Array.isArray(item)) {
+			continue;
+		}
+		const entry = item as Record<string, unknown>;
+		if (typeof entry['kind'] !== 'string' || typeof entry['id'] !== 'string'
+			|| typeof entry['label'] !== 'string' || typeof entry['tokens'] !== 'number') {
+			continue;
+		}
+		entries.push({
+			kind: entry['kind'],
+			id: entry['id'],
+			label: entry['label'],
+			tokens: entry['tokens'],
+			parentId: typeof entry['parentId'] === 'string' ? entry['parentId'] : undefined,
+			attributes: entry['attributes'] && typeof entry['attributes'] === 'object' && !Array.isArray(entry['attributes'])
+				? filterStringAttributes(entry['attributes'] as Record<string, unknown>)
+				: undefined,
+		});
+	}
+	const compactionsRaw = raw['compactions'];
+	const compactions = compactionsRaw && typeof compactionsRaw === 'object' && !Array.isArray(compactionsRaw)
+		&& typeof (compactionsRaw as Record<string, unknown>)['count'] === 'number'
+		? { count: (compactionsRaw as Record<string, unknown>)['count'] as number }
+		: { count: 0 };
+	return { totalTokens: raw['totalTokens'] as number, entries, compactions };
+}
+
+function filterStringAttributes(raw: Record<string, unknown>): Record<string, string | undefined> {
+	const result: Record<string, string | undefined> = {};
+	for (const [key, value] of Object.entries(raw)) {
+		if (typeof value === 'string' || value === undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
 }
 
 export {
@@ -121,6 +322,7 @@ export {
 	type ChatInputOption,
 	type ChatInputQuestion,
 	type ChatInputRequest,
+	type InputRequestResponsePart,
 } from './protocol/state.js';
 
 // ---- File edit kind ---------------------------------------------------------
@@ -401,13 +603,28 @@ export function createRootState(): RootState {
 	};
 }
 
+/**
+ * Creates the initial flat {@link SessionState} for a session from its
+ * root-channel {@link SessionSummary} catalog entry. Session metadata
+ * ({@link SessionMetadata}) — and the shared `_meta` bag — are inlined directly
+ * onto the state.
+ */
 export function createSessionState(summary: SessionSummary): SessionState {
-	return {
-		summary,
+	const state: SessionState = {
+		provider: summary.provider,
+		title: summary.title,
+		status: summary.status,
 		lifecycle: SessionLifecycle.Creating,
+		activeClients: [],
 		chats: [],
 		defaultChat: undefined,
 	};
+	if (summary.activity !== undefined) { state.activity = summary.activity; }
+	if (summary.project !== undefined) { state.project = summary.project; }
+	if (summary.workingDirectories !== undefined) { state.workingDirectories = summary.workingDirectories; }
+	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
+	if (summary._meta !== undefined) { state._meta = summary._meta; }
+	return state;
 }
 
 /**
@@ -422,11 +639,9 @@ export function createChatState(summary: ChatSummary): ChatState {
 		status: summary.status,
 		activity: summary.activity,
 		modifiedAt: summary.modifiedAt,
-		model: summary.model,
-		agent: summary.agent,
 		origin: summary.origin,
 		interactivity: summary.interactivity,
-		workingDirectory: summary.workingDirectory,
+		workingDirectories: summary.workingDirectories,
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -435,24 +650,80 @@ export function createChatState(summary: ChatSummary): ChatState {
 /**
  * Derives the default-chat {@link ChatSummary} for a session from its
  * {@link SessionSummary}. The default chat inherits the session's title,
- * status, activity, model, agent and working directory, and is marked as a
- * {@link ChatOriginKind.User | user-originated} chat. `modifiedAt` is
- * converted from the session's epoch-millis timestamp to the ISO-8601 string
- * the chat protocol uses.
+ * status, activity and working directory, and is marked as a
+ * {@link ChatOriginKind.User | user-originated} chat. Both the session and
+ * chat `modifiedAt` are ISO-8601 strings, so it is carried over directly.
  */
 export function createDefaultChatSummary(session: SessionSummary, chatUri: ProtocolURI): ChatSummary {
 	const summary: ChatSummary = {
 		resource: chatUri,
 		title: session.title,
 		status: session.status,
-		modifiedAt: new Date(session.modifiedAt).toISOString(),
+		modifiedAt: session.modifiedAt,
 		origin: { kind: ChatOriginKind.User },
 	};
 	if (session.activity !== undefined) { summary.activity = session.activity; }
-	if (session.model !== undefined) { summary.model = session.model; }
-	if (session.agent !== undefined) { summary.agent = session.agent; }
-	if (session.workingDirectory !== undefined) { summary.workingDirectory = session.workingDirectory; }
+	// `workingDirectories` is deliberately NOT copied: per the protocol it is a
+	// per-chat SUBSET override and, when absent, the chat inherits the session's
+	// full set of working directories (see `mergeSessionWithDefaultChat`).
+	// Seeding it here would denormalize the session default onto every chat as a
+	// fake override, which then goes stale when the session's working
+	// directories are resolved later (e.g. a worktree resolved at
+	// materialization).
 	return summary;
+}
+
+/** Activity bits (0-4) of {@link SessionStatus}; the high bits carry orthogonal flags (IsRead / IsArchived). */
+const STATUS_ACTIVITY_MASK = (1 << 5) - 1;
+
+/** Whether the active turn has a `PendingConfirmation` tool call auto-approved by the session's bypass setting. */
+function hasAutoApprovedPendingConfirmation(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part =>
+		part.kind === ResponsePartKind.ToolCall
+		&& part.toolCall.status === ToolCallStatus.PendingConfirmation
+		&& readToolCallMeta(part.toolCall).autoApproveBySetting === true,
+	);
+}
+
+/** Whether the chat is genuinely blocked on user input (an open input request, an auth-required tool, or a non-auto-approved confirmation gate). */
+function chatAwaitsUserInput(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part => {
+		// An open elicitation always awaits the user until it is answered.
+		if (part.kind === ResponsePartKind.InputRequest) {
+			return part.response === undefined;
+		}
+		if (part.kind !== ResponsePartKind.ToolCall) {
+			return false;
+		}
+		const status = part.toolCall.status;
+		// Result-confirmation and auth-required gates always require the user; a
+		// parameter-confirmation gate only when it was not auto-approved.
+		if (status === ToolCallStatus.PendingResultConfirmation || status === ToolCallStatus.AuthRequired) {
+			return true;
+		}
+		return status === ToolCallStatus.PendingConfirmation
+			&& readToolCallMeta(part.toolCall).autoApproveBySetting !== true;
+	});
+}
+
+/**
+ * Projects a chat's status for session-summary aggregation, demoting an
+ * `InputNeeded` back to `InProgress` only when it is caused solely by an
+ * auto-approved confirmation — otherwise a session with bypass approvals flashes
+ * "input needed" in the sessions list while an auto-approved tool runs.
+ */
+function chatSummaryStatus(state: ChatState): SessionStatus {
+	const status = state.status;
+	if ((status & SessionStatus.InputNeeded) !== SessionStatus.InputNeeded) {
+		return status;
+	}
+	// Only demote when we can positively attribute the InputNeeded to an
+	// auto-approved confirmation with no genuine blocker present; otherwise (e.g.
+	// a restored summary whose activeTurn is not loaded) preserve the status.
+	if (hasAutoApprovedPendingConfirmation(state) && !chatAwaitsUserInput(state)) {
+		return (status & ~STATUS_ACTIVITY_MASK) | SessionStatus.InProgress;
+	}
+	return status;
 }
 
 /**
@@ -464,21 +735,52 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	const summary: ChatSummary = {
 		resource: state.resource,
 		title: state.title,
-		status: state.status,
+		status: chatSummaryStatus(state),
 		modifiedAt: state.modifiedAt,
 	};
 	if (state.activity !== undefined) { summary.activity = state.activity; }
-	if (state.model !== undefined) { summary.model = state.model; }
-	if (state.agent !== undefined) { summary.agent = state.agent; }
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
-	if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
+	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 	return summary;
 }
 
-export function createActiveTurn(id: string, message: Message): ActiveTurn {
+/**
+ * The effective interactivity of a chat given its session's archived state.
+ *
+ * `interactivity` is the general read-only mechanism (e.g. subagent worker
+ * chats are `ReadOnly`). An archived session is read-only too, so its
+ * interactive chats are downgraded to `ReadOnly`. `Hidden` chats stay hidden —
+ * archiving only downgrades `Full` chats. Absent interactivity defaults to
+ * `Full` for backward compatibility.
+ *
+ * The host uses this to enforce read-only turns off a single signal
+ * ({@link isChatReadOnly}) rather than special-casing archived; the same rule
+ * is mirrored client-side to hide the composer.
+ */
+export function effectiveChatInteractivity(interactivity: ChatInteractivity | undefined, sessionArchived: boolean): ChatInteractivity {
+	if (interactivity === ChatInteractivity.Hidden) {
+		return ChatInteractivity.Hidden;
+	}
+	if (sessionArchived) {
+		return ChatInteractivity.ReadOnly;
+	}
+	return interactivity ?? ChatInteractivity.Full;
+}
+
+/**
+ * Whether a chat rejects user-dispatched turns, given its own interactivity and
+ * its session's archived state. `true` for `ReadOnly` chats (including archived
+ * sessions' interactive chats). See {@link effectiveChatInteractivity}.
+ */
+export function isChatReadOnly(interactivity: ChatInteractivity | undefined, sessionArchived: boolean): boolean {
+	return effectiveChatInteractivity(interactivity, sessionArchived) === ChatInteractivity.ReadOnly;
+}
+
+export function createActiveTurn(id: string, message: Message, startedAt: string): ActiveTurn {
 	return {
 		id,
+		startedAt,
 		message,
 		responseParts: [],
 		usage: undefined,
@@ -539,6 +841,19 @@ export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): stri
 	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
 }
 
+const SUBAGENT_CHAT_ID = 'subagent';
+
+export function isSubagentChatUri(uri: ProtocolURI | ResourceURI): boolean {
+	const parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
+	return parsed.scheme === AHP_CHAT_SCHEME && parsed.authority === SUBAGENT_CHAT_ID;
+}
+
+export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
+	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
+	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
+	return `${AHP_CHAT_SCHEME}://${SUBAGENT_CHAT_ID}/${encoded}/${encodeURIComponent(toolCallId)}`;
+}
+
 /**
  * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
  * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
@@ -559,6 +874,14 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string;
 		return undefined;
 	}
 	try {
+		if (parsed.authority === SUBAGENT_CHAT_ID) {
+			const [sessionPart, ...toolCallIdParts] = encoded.split('/');
+			const toolCallId = toolCallIdParts.join('/');
+			if (!sessionPart || !toolCallId) {
+				return undefined;
+			}
+			return { session: decodeBase64(sessionPart).toString(), chatId: `${SUBAGENT_CHAT_ID}/${decodeURIComponent(toolCallId)}` };
+		}
 		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
 	} catch {
 		return undefined;
@@ -575,9 +898,28 @@ export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | un
 	return parseChatUri(uri)?.session;
 }
 
+export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceURI): string {
+	const session = parseDefaultChatUri(uri);
+	if (session === undefined) {
+		throw new Error(`Malformed AHP chat URI: ${typeof uri === 'string' ? uri : uri.toString()}`);
+	}
+	return session;
+}
+
 /** Returns `true` when `uri` is the default chat of its session. */
 export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+/**
+ * Resolves a feature-level `(session, chat)` pair to the single chat URI used by
+ * the agent session/chat surface. A session always owns a DEFAULT chat addressed
+ * by the session URI itself; additional (peer) chats are addressed by their own
+ * chat channel URIs. This is the one place default-chat resolution lives so
+ * agents never re-derive "is this the default chat?".
+ */
+export function resolveChatUri(session: ResourceURI, chat: ResourceURI): ResourceURI {
+	return isDefaultChatUri(chat) ? session : chat;
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */
@@ -592,39 +934,50 @@ export function isAhpChatChannel(uri: string): boolean {
 // ---- Session + default-chat composite --------------------------------------
 
 /**
- * A {@link SessionState} merged with the conversation contents of its default
- * {@link ChatState}. The protocol moved turns and pending/input state off the
- * session and onto a per-chat channel; VS Code recombines the session summary
- * with its single default chat into this composite so consumers can read
- * `turns`/`activeTurn`/pending state through one object as they did before
- * multi-chat.
+ * A single chat's effective session context: the shared {@link SessionState}
+ * (working directories, active clients, config, customizations/MCP scope, …)
+ * resolved for one chat and merged with that chat's conversation contents.
+ *
+ * The protocol moved turns and pending state off the session and onto a
+ * per-chat channel, and lets a chat override the session's working directories
+ * with a subset (e.g. {@link ChatState.workingDirectories}). This composite
+ * recombines the session with one of its chats — default or peer — so consumers
+ * read the chat's effective context and conversation through one object without
+ * walking back to the session to re-derive shared state. The
+ * {@link ISessionWithDefaultChat.workingDirectories} carry the chat's *effective*
+ * working directories (its own subset override when present, else the session's
+ * full set).
  */
 export interface ISessionWithDefaultChat extends SessionState {
-	/** Completed turns of the default chat. */
+	/** Completed turns of this chat. */
 	turns: Turn[];
-	/** Currently in-progress turn of the default chat. */
+	/** Currently in-progress turn of this chat. */
 	activeTurn?: ActiveTurn;
-	/** Steering message pending on the default chat. */
+	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on the default chat. */
+	/** Queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
-	/** Input requests outstanding on the default chat. */
-	inputRequests?: ChatInputRequest[];
+	/** Draft input of this chat. */
+	draft?: Message;
 }
 
 /**
- * Merges a {@link SessionState} with its default {@link ChatState} into an
- * {@link ISessionWithDefaultChat}. When the chat state is absent (e.g. not yet
- * hydrated) the conversation fields default to empty.
+ * Projects a {@link SessionState} and one of its {@link ChatState | chats}
+ * (default or peer) into that chat's {@link ISessionWithDefaultChat | effective
+ * session context}. Per-chat overrides (the working-directories subset) are
+ * layered over the session defaults, and the conversation fields are taken from
+ * the chat. When the chat state is absent (e.g. not yet hydrated) the
+ * conversation fields default to empty and the session defaults apply.
  */
 export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
 	return {
 		...session,
+		workingDirectories: chat?.workingDirectories ?? session.workingDirectories,
 		turns: chat?.turns ?? [],
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,
 		queuedMessages: chat?.queuedMessages,
-		inputRequests: chat?.inputRequests,
+		draft: chat?.draft,
 	};
 }
 
@@ -658,6 +1011,13 @@ export function getDefaultChat(session: SessionState): ChatSummary | undefined {
 export type SessionMeta = Record<string, unknown>;
 
 /**
+ * VS Code-side alias for the protocol's open `_meta` property bag on
+ * {@link SessionSummary}. Keys SHOULD be namespaced (e.g. `git`, `vscode.foo`)
+ * to avoid collisions; values MUST be JSON-serializable.
+ */
+export type SessionSummaryMeta = Record<string, unknown>;
+
+/**
  * Reserved key under {@link SessionMeta} for the well-known git-state
  * payload. Value at this key, when present, MUST be shaped like
  * {@link ISessionGitState}. This is a VS Code-specific convention layered
@@ -665,6 +1025,46 @@ export type SessionMeta = Record<string, unknown>;
  * not know about git state.
  */
 export const SESSION_META_GIT_KEY = 'git';
+
+/**
+ * Reserved key under {@link SessionMeta} for the well-known GitHub-state
+ * payload. Value at this key, when present, MUST be shaped like
+ * {@link ISessionGitHubState}. This is a VS Code-specific convention layered
+ * on top of the protocol's generic `_meta` bag — the protocol itself does
+ * not know about GitHub state.
+ */
+export const SESSION_META_GITHUB_KEY = 'github';
+
+export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
+
+/** Latest known prompt-cache state for the model active in an agent session. */
+export interface ISessionPromptCacheState {
+	readonly modelId: string;
+	readonly cacheExpiresAt: string;
+}
+
+/** Reads the latest known prompt-cache state from session metadata. */
+export function readSessionPromptCacheState(meta: SessionMeta | undefined): ISessionPromptCacheState | undefined {
+	const value = meta?.[SESSION_META_PROMPT_CACHE_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	return typeof raw['modelId'] === 'string' && typeof raw['cacheExpiresAt'] === 'string'
+		? { modelId: raw['modelId'], cacheExpiresAt: raw['cacheExpiresAt'] }
+		: undefined;
+}
+
+/** Returns session metadata with the prompt-cache slot updated or removed. */
+export function withSessionPromptCacheState(meta: SessionMeta | undefined, promptCache: ISessionPromptCacheState | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (promptCache) {
+		next[SESSION_META_PROMPT_CACHE_KEY] = promptCache;
+	} else {
+		delete next[SESSION_META_PROMPT_CACHE_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
 
 /**
  * Git state of a session's working directory, carried under
@@ -698,11 +1098,33 @@ export interface ISessionGitState {
 }
 
 /**
+ * GitHub state of a session, carried under {@link SessionMeta} at
+ * {@link SESSION_META_GITHUB_KEY}. Used by clients to drive GitHub-specific
+ * affordances (e.g. PR/merge buttons in the Agents app).
+ *
+ * All fields are optional — agents that do not track a particular field
+ * should omit it rather than send a placeholder, so clients can distinguish
+ * "unknown" from "known to be zero".
+ */
+export interface ISessionGitHubState {
+	/** The owner of the GitHub repository. */
+	readonly owner?: string;
+	/** The name of the GitHub repository. */
+	readonly repo?: string;
+	/** The URL of the GitHub pull request. */
+	readonly pullRequestUrl?: string;
+}
+
+/**
  * Reads the well-known git-state payload from {@link SessionMeta}, if
  * present. Returns `undefined` when the meta bag is absent or the value at
  * the git key is not a plain object (e.g. an array or a primitive).
  * Individual fields with wrong types are silently dropped so partial state
  * still propagates.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
+ * rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
  */
 export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
 	const value = meta?.[SESSION_META_GIT_KEY];
@@ -744,6 +1166,130 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 		next[SESSION_META_GIT_KEY] = gitState;
 	} else {
 		delete next[SESSION_META_GIT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reads the well-known GitHub state payload from {@link SessionSummaryMeta}, if
+ * present. Returns `undefined` when the meta bag is absent or the value at the
+ * GitHub key is not a plain object (e.g. an array or a primitive).
+ * Individual fields with wrong types are silently dropped so partial state
+ * still propagates.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
+ * value rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
+ */
+export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
+	const value = meta?.[SESSION_META_GITHUB_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const result: {
+		owner?: string;
+		repo?: string;
+		pullRequestUrl?: string;
+	} = {};
+
+	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
+	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
+	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	return result;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the GitHub-state payload set to
+ * `gitHubState`, or with the GitHub slot removed if `gitHubState` is `undefined`.
+ * Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (gitHubState !== undefined) {
+		next[SESSION_META_GITHUB_KEY] = gitHubState;
+	} else {
+		delete next[SESSION_META_GITHUB_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reserved key under {@link SessionSummaryMeta} recording how deeply a session
+ * was spawned via the `create_session` host tool (0 for a top-level, user-created
+ * session). Used to bound recursive session creation. VS Code-specific convention
+ * layered on top of the protocol's generic `_meta` bag.
+ */
+export const SESSION_META_SPAWN_DEPTH_KEY = 'agentHost/sessionSpawnDepth';
+
+/**
+ * Reads the `create_session` spawn depth from a {@link SessionSummaryMeta} bag,
+ * returning `0` when the key is absent or not a finite number.
+ */
+export function readSessionSpawnDepth(meta: SessionSummaryMeta | undefined): number {
+	const value = meta?.[SESSION_META_SPAWN_DEPTH_KEY];
+	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the `create_session` spawn depth
+ * set to `depth`, preserving any other keys in the bag.
+ */
+export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, depth: number): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
+}
+
+/**
+ * Reserved key under {@link SessionSummaryMeta} marking a session as
+ * workspace-less: a session with no workspace/folder binding (surfaced in the
+ * UI as a "Quick Chat"). Carried on the summary bag (not the full state) so
+ * clients can group/style such sessions in session lists without subscribing to
+ * full session state. VS Code-specific convention layered on the protocol's
+ * generic `_meta` bag.
+ */
+export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
+
+/**
+ * Session-database metadata key recording whether a session is workspace-less (a
+ * workspace-less chat). Owned by the AH service: `AgentService` writes it centrally at
+ * create/materialize and overlays it onto every agent's summary `_meta` in
+ * `listSessions`; agents only read it (e.g. to pick the workspace-less system prompt
+ * on resume) and never persist it themselves.
+ */
+export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
+
+/**
+ * Session-database metadata key recording whether a session is archived. Written by
+ * the AH orchestrator (`AgentSideEffects` on `SessionIsArchivedChanged`) and read by
+ * both the orchestrator (`AgentService` restore/list) and agents (e.g. `CopilotAgent`
+ * decides whether to recreate a missing worktree vs. resume read-only for history).
+ * {@link AH_META_IS_DONE_DB_KEY} is the legacy name kept for sessions persisted before
+ * the rename; readers fall back to it when {@link AH_META_IS_ARCHIVED_DB_KEY} is absent.
+ */
+export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
+
+/** Legacy metadata key for the archived flag; see {@link AH_META_IS_ARCHIVED_DB_KEY}. */
+export const AH_META_IS_DONE_DB_KEY = 'isDone';
+
+/**
+ * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
+ * `true` only when the well-known key is present and set to boolean `true`.
+ */
+export function readSessionWorkspaceless(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_WORKSPACELESS_KEY] === true;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the workspace-less marker set,
+ * or with the slot removed when `workspaceless` is `false`. Returns `undefined`
+ * if the result would be empty.
+ */
+export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, workspaceless: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (workspaceless) {
+		next[SESSION_META_WORKSPACELESS_KEY] = true;
+	} else {
+		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
@@ -803,7 +1349,8 @@ export function hostBuildInfoFromProduct(productService: IProductService): IHost
  * key is not a plain object with a string `version`. Optional fields with wrong
  * types are silently dropped.
  */
-export function readHostBuildInfo(meta: RootMeta | undefined): IHostBuildInfo | undefined {
+export function readHostBuildInfo(state: RootState | undefined): IHostBuildInfo | undefined {
+	const meta = state?._meta;
 	const value = meta?.[ROOT_META_HOST_BUILD_KEY];
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;

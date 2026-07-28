@@ -106,6 +106,134 @@ suite('rawMessagesToMessagesAPI', function () {
 		expect(toolResult!.cache_control).toBeUndefined();
 	});
 
+	test('sanitizes provider-specific tool call IDs for Anthropic', function () {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{
+						id: 'functions.read_file:0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+					{
+						id: 'call_valid-1',
+						type: 'function',
+						function: { name: 'edit_file', arguments: '{}' },
+					},
+				],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions.read_file:0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'contents' }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_valid-1',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'edited' }],
+			},
+		];
+
+		const result = rawMessagesToMessagesAPI(messages);
+		const ids: { type: 'tool_use' | 'tool_result'; id: string }[] = [];
+		for (const message of result.messages) {
+			const content = Array.isArray(message.content) ? message.content : [];
+			for (const block of content) {
+				if (block.type === 'tool_use') {
+					ids.push({ type: block.type, id: block.id });
+				}
+				if (block.type === 'tool_result') {
+					ids.push({ type: block.type, id: block.tool_use_id });
+				}
+			}
+		}
+
+		expect({
+			ids,
+			history: messages.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			ids: [
+				{ type: 'tool_use', id: 'functions_read_file_0' },
+				{ type: 'tool_use', id: 'call_valid-1' },
+				{ type: 'tool_result', id: 'functions_read_file_0' },
+				{ type: 'tool_result', id: 'call_valid-1' },
+			],
+			history: [
+				['functions.read_file:0', 'call_valid-1'],
+				'functions.read_file:0',
+				'call_valid-1',
+			],
+		});
+	});
+
+	test('allocates unique IDs when sanitized tool call IDs collide', function () {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{
+						id: 'functions.read_file:0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+					{
+						id: 'functions_read_file_0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+				],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions.read_file:0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first result' }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions_read_file_0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second result' }],
+			},
+		];
+
+		const result = rawMessagesToMessagesAPI(messages);
+		const ids: { type: 'tool_use' | 'tool_result'; id: string }[] = [];
+		for (const message of result.messages) {
+			const content = Array.isArray(message.content) ? message.content : [];
+			for (const block of content) {
+				if (block.type === 'tool_use') {
+					ids.push({ type: block.type, id: block.id });
+				}
+				if (block.type === 'tool_result') {
+					ids.push({ type: block.type, id: block.tool_use_id });
+				}
+			}
+		}
+
+		expect({
+			ids,
+			history: messages.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			ids: [
+				{ type: 'tool_use', id: 'functions_read_file_0_1' },
+				{ type: 'tool_use', id: 'functions_read_file_0' },
+				{ type: 'tool_result', id: 'functions_read_file_0_1' },
+				{ type: 'tool_result', id: 'functions_read_file_0' },
+			],
+			history: [
+				['functions.read_file:0', 'functions_read_file_0'],
+				'functions.read_file:0',
+				'functions_read_file_0',
+			],
+		});
+	});
+
 	test('converts base64 data URL image to Anthropic base64 image source', function () {
 		const base64Data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk';
 		const messages: Raw.ChatMessage[] = [
@@ -566,8 +694,12 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
+	test('matches Fable 5, Opus 4.5/4.6/4.7/4.8, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
 		expect({
+			'claude-fable-5': modelSupportsExtendedCacheTtl('claude-fable-5'),
+			'claude-opus-4.8': modelSupportsExtendedCacheTtl('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsExtendedCacheTtl('claude-opus-4-8'),
+			'claude-opus-4-8-1m': modelSupportsExtendedCacheTtl('claude-opus-4-8-1m'),
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
 			'claude-opus-4.7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4.7-1m-internal'),
@@ -583,6 +715,10 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
 			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
 		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-opus-4-8-1m': true,
 			'claude-opus-4.6-1m': true,
 			'claude-opus-4-6-1m': true,
 			'claude-opus-4.7-1m-internal': true,
@@ -617,6 +753,26 @@ suite('modelSupportsExtendedCacheTtl', function () {
 });
 
 suite('modelSupportsMemory', function () {
+	test('matches Claude id strings', function () {
+		expect({
+			'claude-fable-5': modelSupportsMemory('claude-fable-5'),
+			'claude-opus-4.7': modelSupportsMemory('claude-opus-4.7'),
+			'claude-opus-4.8': modelSupportsMemory('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsMemory('claude-opus-4-8'),
+			'claude-haiku-4-5': modelSupportsMemory('claude-haiku-4-5'),
+			'claude-opus-4-1': modelSupportsMemory('claude-opus-4-1'),
+			'gpt-5': modelSupportsMemory('gpt-5'),
+		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-haiku-4-5': true,
+			'claude-opus-4-1': true,
+			'gpt-5': false,
+		});
+	});
+
 	test('matches via endpoint.family when the model id is unknown', function () {
 		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
 		expect({

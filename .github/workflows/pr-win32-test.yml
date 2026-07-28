@@ -13,13 +13,19 @@ on:
       remote_tests:
         type: boolean
         default: false
+      unit_and_integration_tests:
+        type: boolean
+        default: true
+      smoke_tests:
+        type: boolean
+        default: true
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
@@ -120,26 +126,28 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        timeout-minutes: 15
         shell: pwsh
         run: .\scripts\test.bat --tfs "Unit Tests"
-        timeout-minutes: 15
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        timeout-minutes: 15
         shell: pwsh
         run: npm run test-node
-        timeout-minutes: 15
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        timeout-minutes: 20
         shell: pwsh
         run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        timeout-minutes: 20
 
-      - name: Build integration tests
+      - name: Compile extensions for integration tests & smoke tests
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -164,78 +172,81 @@ jobs:
             compile-extension:vscode-test-resolver `
           }
 
-      - name: Compile Copilot extension
-        shell: pwsh
-        run: npm --prefix extensions/copilot run compile
-
       - name: Diagnostics before integration test runs
+        if: ${{ inputs.unit_and_integration_tests && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
-        if: always()
 
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
-        timeout-minutes: 20
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-web-integration.bat --browser chromium
-        timeout-minutes: 20
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
+        timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-remote-integration.bat
-        timeout-minutes: 20
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Diagnostics after integration test runs
+        if: ${{ inputs.unit_and_integration_tests && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
-        if: always()
 
-      - name: Diagnostics before smoke test run
-        shell: pwsh
-        run: .\build\azure-pipelines\win32\listprocesses.bat
-        continue-on-error: true
-        if: always()
 
       - name: Compile smoke tests
+        if: ${{ inputs.smoke_tests }}
         working-directory: test/smoke
         shell: pwsh
         run: npm run compile
 
-      - name: Compile extensions for smoke tests
+      - name: Compile Copilot Chat extension for smoke tests
+        if: ${{ inputs.smoke_tests }}
+        working-directory: extensions/copilot
+        run: npm run compile
+
+      - name: Diagnostics before smoke test run
+        if: ${{ inputs.smoke_tests && always() }}
         shell: pwsh
-        run: npm run gulp compile-extension-media
+        run: .\build\azure-pipelines\win32\listprocesses.bat
+        continue-on-error: true
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --tracing
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --remote --tracing
 
       - name: Diagnostics after smoke test run
+        if: ${{ inputs.smoke_tests && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
-        if: always()
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v7

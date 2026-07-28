@@ -6,6 +6,7 @@
 import './agentFeedbackEditorInputContribution.js';
 import './agentFeedbackEditorWidgetContribution.js';
 import './agentFeedbackOverviewRulerContribution.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -17,7 +18,9 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
+import { AgentEditorCommentsProviderContribution } from './agentEditorCommentsProvider.js';
 import { AgentFeedbackPRThreadResolverContribution } from './agentFeedbackPRThreadResolver.js';
+import { AgentFeedbackPRReviewSeederContribution } from './agentFeedbackPRReviewSeeder.js';
 import { AgentFeedbackAttachmentWidget } from './agentFeedbackAttachmentWidget.js';
 import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
@@ -46,19 +49,15 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 
 		const feedbackChanged = observableFromEvent(
 			this,
-			agentFeedbackService.onDidChangeFeedback,
+			Event.any(agentFeedbackService.onDidChangeFeedback, agentFeedbackService.onDidChangeFeedbackScope),
 			e => e,
 		);
 
 		this._register(autorun(reader => {
 			feedbackChanged.read(reader);
-			const activeSession = sessionsService.activeSession.read(reader);
 			menuRegistration.clear();
-			if (!activeSession) {
-				contextKey.set(false);
-				return;
-			}
-			const feedback = agentFeedbackService.getFeedback(activeSession.resource);
+			const sessionResource = agentFeedbackService.activeFeedbackSessionResource.read(reader);
+			const feedback = agentFeedbackService.getFeedback(sessionResource);
 			const count = feedback.filter(item => item.state === AgentFeedbackState.Accepted).length;
 			contextKey.set(count > 0);
 
@@ -82,6 +81,8 @@ registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, Acti
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackPRThreadResolverContribution.ID, AgentFeedbackPRThreadResolverContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentFeedbackPRReviewSeederContribution.ID, AgentFeedbackPRReviewSeederContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentEditorCommentsProviderContribution.ID, AgentEditorCommentsProviderContribution, WorkbenchPhase.BlockRestore);
 
 registerAgentFeedbackEditorActions();
 

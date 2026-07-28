@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICopilotManagedSettingsService, collectManagedSettingsDefinitions, projectManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -72,18 +72,21 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	// Read-only — the MultiplexPolicyService owns calling updatePolicyDefinitions.
 	private readonly managedPolicyReader?: IPolicyService;
-	private readonly copilotManagedSettingsService?: ICopilotManagedSettingsService;
+	private readonly nativeManagedSettingsService?: INativeManagedSettingsService;
+	private readonly fileManagedSettingsService?: IFileManagedSettingsService;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		managedPolicyService?: IPolicyService,
-		copilotManagedSettingsService?: ICopilotManagedSettingsService,
+		nativeManagedSettingsService?: INativeManagedSettingsService,
+		fileManagedSettingsService?: IFileManagedSettingsService,
 	) {
 		super();
 
 		this.managedPolicyReader = managedPolicyService;
-		this.copilotManagedSettingsService = copilotManagedSettingsService;
+		this.nativeManagedSettingsService = nativeManagedSettingsService;
+		this.fileManagedSettingsService = fileManagedSettingsService;
 
 		this._updatePolicyDefinitions(this.policyDefinitions);
 		this._register(this.defaultAccountService.onDidChangePolicyData(() => {
@@ -99,8 +102,13 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				}
 			}));
 		}
-		if (this.copilotManagedSettingsService) {
-			this._register(this.copilotManagedSettingsService.onDidChangeManagedSettings(() => {
+		if (this.nativeManagedSettingsService) {
+			this._register(this.nativeManagedSettingsService.onDidChangeManagedSettings(() => {
+				this._updatePolicyDefinitions(this.policyDefinitions);
+			}));
+		}
+		if (this.fileManagedSettingsService) {
+			this._register(this.fileManagedSettingsService.onDidChangeManagedSettings(() => {
 				this._updatePolicyDefinitions(this.policyDefinitions);
 			}));
 		}
@@ -170,30 +178,30 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	}
 
 	private async updateCopilotManagedSettingDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData | undefined> {
-		if (!this.copilotManagedSettingsService || !hasManagedSettingsPolicyDefinitions(policyDefinitions)) {
-			return this.copilotManagedSettingsService?.managedSettings;
+		if (!this.nativeManagedSettingsService || !hasManagedSettingsDefinitions(policyDefinitions)) {
+			return this.nativeManagedSettingsService?.managedSettings;
 		}
 
-		return this.copilotManagedSettingsService.updatePolicyDefinitions(policyDefinitions);
+		return this.nativeManagedSettingsService.updatePolicyDefinitions(policyDefinitions);
 	}
 
-	private getPolicyData(managedSettings?: ManagedSettingsData): IPolicyData | undefined {
+	private getPolicyData(mdmManagedSettings?: ManagedSettingsData): IPolicyData | undefined {
 		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
-		const nativeManagedSettings = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
-		const hasNativeManagedSettings = nativeManagedSettings && Object.keys(nativeManagedSettings).length > 0;
-		if (!accountPolicyData && !hasNativeManagedSettings) {
+		const nativeManagedSettings = mdmManagedSettings ?? this.nativeManagedSettingsService?.managedSettings;
+		const fileManagedSettings = this.fileManagedSettingsService?.managedSettings;
+
+		// Per-key precedence: native MDM wins over the server-delivered channel, which in turn wins
+		// over the file-based channel — but resolved key-by-key, so a key left unset by a higher
+		// channel is still filled in by a lower one. A key locked by a higher channel cannot be
+		// overwritten. See `.github/skills/add-policy/github-managed-settings.md` for the rationale.
+		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
+		if (!accountPolicyData && pick.activeSources.length === 0) {
 			return undefined;
 		}
 
-		// Single authoritative source: server-delivered managed settings win over native MDM.
-		// See `.github/skills/add-policy/github-managed-settings.md` for the precedence rationale.
-		const serverManagedSettings = accountPolicyData?.managedSettings;
-		const hasServerManagedSettings = serverManagedSettings && Object.keys(serverManagedSettings).length > 0;
-		const winningManagedSettings = hasServerManagedSettings ? serverManagedSettings : nativeManagedSettings;
-
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
-			{ ...winningManagedSettings },
+			pick.values,
 			declaredManagedSettings,
 			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 		);
@@ -243,16 +251,6 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		return { state: AccountPolicyGateState.Satisfied, approvedOrganizations: approvedOrgs };
 	}
-}
-
-function hasManagedSettingsPolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
-	for (const policyName in policyDefinitions) {
-		const policyManagedSettings = policyDefinitions[policyName].managedSettings;
-		if (policyManagedSettings && Object.keys(policyManagedSettings).length > 0) {
-			return true;
-		}
-	}
-	return false;
 }
 
 function parseApprovedOrganizations(raw: PolicyValue | undefined): string[] {

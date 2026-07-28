@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IAhpTerminalCommandSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -35,12 +35,15 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
 	private readonly _terminalInstancesByExecutionId = new Map<string, ITerminalInstance>();
 	private readonly _terminalInstanceListenersByExecutionId = this._register(new DisposableMap<string, IDisposable>());
-	private readonly _ahpCommandSources = new Map<string, IAhpTerminalCommandSource>();
+	private readonly _ahpCommandSources = new Map<string, { source: IAhpTerminalCommandSource; promisedTerminal: Promise<ITerminalInstance> }>();
+	private readonly _outputSources = new Map<string, IChatTerminalOutputSource>();
 
 	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
 	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
 	private readonly _onDidRegisterTerminalInstanceForToolSession = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+	private readonly _onDidRegisterOutputSource = this._register(new Emitter<string>());
+	readonly onDidRegisterOutputSource: Event<string> = this._onDidRegisterOutputSource.event;
 
 	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
 	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
@@ -150,6 +153,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		if (!terminalToolSessionId) {
 			return undefined;
 		}
+		const pendingAhp = this._ahpCommandSources.get(terminalToolSessionId);
+		if (pendingAhp) {
+			// If there's an AHP terminal being created, this is async to the tool
+			// result, so wait for it to settle before continuing.
+			try {
+				return await pendingAhp.promisedTerminal;
+			} catch (error) {
+				this._logService.error(`Failed to resolve AHP terminal for tool session '${terminalToolSessionId}'`, error);
+				return undefined;
+			}
+		}
+
 		if (this._pendingRestoredMappings.has(terminalToolSessionId)) {
 			const instance = this._terminalService.instances.find(i => i.shellLaunchConfig.attachPersistentProcess?.id === this._pendingRestoredMappings.get(terminalToolSessionId));
 			if (instance) {
@@ -220,6 +235,20 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
 		return this._chatSessionResourceByTerminalInstance.get(instance);
+	}
+
+	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable {
+		this._outputSources.set(terminalToolSessionId, source);
+		this._onDidRegisterOutputSource.fire(terminalToolSessionId);
+		return toDisposable(() => {
+			if (this._outputSources.get(terminalToolSessionId) === source) {
+				this._outputSources.delete(terminalToolSessionId);
+			}
+		});
+	}
+
+	getOutputSource(terminalToolSessionId: string | undefined): IChatTerminalOutputSource | undefined {
+		return terminalToolSessionId ? this._outputSources.get(terminalToolSessionId) : undefined;
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
@@ -391,16 +420,16 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._onDidContinueInBackground.fire(terminalToolSessionId);
 	}
 
-	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable {
-		this._ahpCommandSources.set(terminalToolSessionId, source);
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable {
+		this._ahpCommandSources.set(terminalToolSessionId, { source, promisedTerminal });
 		return toDisposable(() => {
-			if (this._ahpCommandSources.get(terminalToolSessionId) === source) {
+			if (this._ahpCommandSources.get(terminalToolSessionId)?.source === source) {
 				this._ahpCommandSources.delete(terminalToolSessionId);
 			}
 		});
 	}
 
 	getAhpCommandSource(terminalToolSessionId: string): IAhpTerminalCommandSource | undefined {
-		return this._ahpCommandSources.get(terminalToolSessionId);
+		return this._ahpCommandSources.get(terminalToolSessionId)?.source;
 	}
 }

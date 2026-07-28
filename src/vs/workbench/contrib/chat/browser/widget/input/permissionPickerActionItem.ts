@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -27,6 +28,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -49,7 +51,7 @@ export interface IPermissionPickerDelegate {
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
 	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
-	 * pass `chat.agentSessions.defaultConfiguration`.
+	 * pass `chat.defaultConfiguration`.
 	 */
 	readonly defaultSettingKey?: string;
 	/**
@@ -58,6 +60,15 @@ export interface IPermissionPickerDelegate {
 	 */
 	readonly getExtensionPermissions?: () => IExtensionPermissionState | undefined;
 	readonly setExtensionPermission?: (groupId: string, item: IChatSessionProviderOptionItem) => void;
+	readonly getPermissionLevelHover?: (level: ChatPermissionLevel, meta: IPermissionLevelMeta) => string | undefined;
+	/**
+	 * Whether the experimental "Sandboxing for terminal" toggle may be shown on
+	 * the Default approvals option. The toggle is specific to the local harness
+	 * (which runs the built-in terminal tool); agent-host harnesses such as
+	 * Copilot CLI and Claude Code do not implement this and never show it.
+	 * Evaluated each time the picker opens so a harness switch is reflected.
+	 */
+	readonly isSandboxToggleApplicable?: () => boolean;
 }
 
 /** Default level set offered when a delegate does not specify {@link IPermissionPickerDelegate.availableLevels}. */
@@ -80,12 +91,22 @@ interface IPermissionLevelMeta {
 
 function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
 	switch (level) {
+		case ChatPermissionLevel.Assisted:
+			return {
+				id: 'chat.permissions.assisted',
+				label: localize('permissions.assisted', "Assisted permissions"),
+				shortLabel: localize('permissions.assisted.label', "Assisted permissions"),
+				detail: localize('permissions.assisted.subtext', "Evaluates risk before running tools"),
+				icon: ThemeIcon.fromId(Codicon.sparkle.id),
+				description: localize('permissions.assisted.description', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval."),
+				elevated: true,
+			};
 		case ChatPermissionLevel.AutoApprove:
 			return {
 				id: 'chat.permissions.autoApprove',
-				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				shortLabel: localize('permissions.autoApprove.label', "Bypass Approvals"),
-				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				label: localize('permissions.autoApprove', "Allow all"),
+				shortLabel: localize('permissions.autoApprove.label', "Allow all"),
+				detail: localize('permissions.autoApprove.subtext', "Runs tool calls without asking"),
 				icon: ThemeIcon.fromId(Codicon.warning.id),
 				description: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
 				elevated: true,
@@ -104,9 +125,9 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 		default:
 			return {
 				id: 'chat.permissions.default',
-				label: localize('permissions.default', "Default Approvals"),
-				shortLabel: localize('permissions.default.label', "Default Approvals"),
-				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				label: localize('permissions.default', "Default approvals"),
+				shortLabel: localize('permissions.default.label', "Default approvals"),
+				detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 				icon: ThemeIcon.fromId(Codicon.shield.id),
 				description: localize('permissions.default.description', "Use configured approval settings"),
 				elevated: false,
@@ -117,6 +138,10 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 /** Sanitize a free-form id segment so it is safe to embed in a stable action identifier. */
 function sanitizeIdSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function getSandboxEnabledSettingId(): AgentSandboxSettingId.AgentSandboxEnabled | AgentSandboxSettingId.AgentSandboxWindowsEnabled {
+	return isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
@@ -136,7 +161,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
@@ -171,10 +196,33 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 				const currentLevel = delegate.currentPermissionLevel.get();
 				const policyRestricted = isAutoApprovePolicyRestricted();
+				const sandboxToggleEnabled = this.isSandboxToggleAvailable();
+				const setSandboxEnabled = async (enableSandbox: boolean) => {
+					const target: AgentSandboxEnabledValue = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
+					if (this.isSandboxingEnabled() !== enableSandbox) {
+						await configurationService.updateValue(getSandboxEnabledSettingId(), target);
+					}
+				};
 				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
 				const actions: IActionWidgetDropdownAction[] = levels.map(level => {
 					const meta = getPermissionLevelMeta(level);
 					const disabledByPolicy = meta.elevated && policyRestricted;
+					const hover = disabledByPolicy
+						? localize('permissions.policyDescription', "Disabled by enterprise policy")
+						: delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
+
+					// The Default level carries an inline toggle that controls whether
+					// terminal commands run inside a sandbox. The toggle is gated behind
+					// an experimental setting.
+					const inlineToggle = sandboxToggleEnabled && level === ChatPermissionLevel.Default
+						? {
+							label: localize('permissions.default.sandbox.toggle', "Sandboxing for terminal"),
+							title: localize('permissions.default.sandbox.toggle.title', "Run terminal commands inside a sandbox that restricts file system and network access"),
+							checked: this.isSandboxingEnabled(),
+							onChange: (checked: boolean) => { void setSandboxEnabled(checked); },
+						}
+						: undefined;
+
 					return {
 						...action,
 						id: meta.id,
@@ -183,15 +231,17 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						icon: meta.icon,
 						checked: currentLevel === level,
 						enabled: !disabledByPolicy,
+						inlineToggle,
 						tooltip: disabledByPolicy ? localize('permissions.policyDisabled', "Disabled by enterprise policy") : '',
 						hover: {
-							content: disabledByPolicy
-								? localize('permissions.policyDescription', "Disabled by enterprise policy")
-								: meta.description,
+							content: hover,
 						},
 						run: async () => {
 							// Elevated levels show a one-time confirmation warning.
-							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, { defaultSettingKey: delegate.defaultSettingKey })) {
+							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, {
+								defaultSettingKey: delegate.defaultSettingKey,
+								levelLabel: meta.label,
+							})) {
 								return;
 							}
 							delegate.setPermissionLevel(level);
@@ -222,8 +272,32 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { minWidth: 255, detailItemHeight: 44 },
+			listOptions: { minWidth: 255, detailItemHeight: 44, ...pickerOptions.listOptions },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if ((e.affectsConfiguration(getSandboxEnabledSettingId()) || e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)) && this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
+	}
+
+	private isSandboxingEnabled(): boolean {
+		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue>(getSandboxEnabledSettingId());
+		return isAgentSandboxEnabledValue(value);
+	}
+
+	private isSandboxToggleSettingEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true;
+	}
+
+	/**
+	 * Whether the sandbox toggle should surface for the current harness: the
+	 * experimental setting must be on and the delegate must opt in (only the
+	 * local harness does).
+	 */
+	private isSandboxToggleAvailable(): boolean {
+		return this.isSandboxToggleSettingEnabled() && this.delegate.isSandboxToggleApplicable?.() === true;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
@@ -245,7 +319,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			const meta = getPermissionLevelMeta(level);
 			icon = meta.icon;
 			label = meta.shortLabel;
-			tooltip = meta.description;
+			tooltip = this.delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
+			if (level === ChatPermissionLevel.Default && this.isSandboxToggleAvailable() && this.isSandboxingEnabled()) {
+				label = localize('permissions.defaultSandboxed.label', "Default approvals (sandboxed)");
+			}
 		}
 
 		const labelElements = [];
@@ -253,12 +330,13 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 
 		dom.reset(element, ...labelElements);
-		element.classList.toggle('warning', !ext && level === ChatPermissionLevel.Autopilot);
+		element.classList.toggle('warning', !ext && (level === ChatPermissionLevel.Autopilot || level === ChatPermissionLevel.Assisted));
 		element.classList.toggle('info', !ext && level === ChatPermissionLevel.AutoApprove);
 
-		element.setAttribute('aria-label', localize('permissions.ariaLabel', "Permission picker, {0}", label));
-
 		this._currentTooltip = tooltip;
+		element.setAttribute('aria-label', !ext && this.delegate.getPermissionLevelHover
+			? localize('permissions.ariaLabelWithDescription', "Permission picker, {0}, {1}", label, tooltip)
+			: localize('permissions.ariaLabel', "Permission picker, {0}", label));
 		// `renderLabel` can run against a fresh element on subsequent
 		// `render()` calls (e.g. when the item moves into/out of overflow).
 		// Re-wire the hover on the new element and dispose the previous

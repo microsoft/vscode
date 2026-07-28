@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,7 +15,8 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IChatRequestVariableValue, IDynamicVariable } from '../../common/attachments/chatVariables.js';
+import { IChatRequestVariableEntry, isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableValue, IDynamicVariable, toAttachedContextDynamicVariable } from '../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
@@ -26,6 +28,17 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	public static readonly ID = 'chatDynamicVariableModel';
 
 	private _variables: IDynamicVariable[] = [];
+
+	private readonly _onDidChangeReferences = this._register(new Emitter<void>());
+	/**
+	 * Fires whenever the set of dynamic-variable references changes (added,
+	 * removed, moved, or restored). Consumers that render UI derived from the
+	 * references should listen to this instead of relying on
+	 * `onDidChangeParsedInput`, which does not fire when a reference is added
+	 * without changing the parsed request (e.g. a `/command` reference that the
+	 * parser resolves as a slash-prompt part).
+	 */
+	readonly onDidChangeReferences: Event<void> = this._onDidChangeReferences.event;
 
 	get variables(): ReadonlyArray<IDynamicVariable> {
 		return [...this._variables];
@@ -50,6 +63,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			this._subscribeToEditor();
 			this.updateDecorations();
 		}));
+		this._register(widget.input.attachmentModel.onDidChange(() => this.updateDecorations()));
 	}
 
 	private _subscribeToEditor(): void {
@@ -108,6 +122,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			if (didChange || removed.length > 0) {
 				this.widget.refreshParsedInput();
+				this._onDidChangeReferences.fire();
 			}
 
 			this.updateDecorations();
@@ -115,7 +130,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	getInputState(contrib: Record<string, unknown>): void {
-		contrib[ChatDynamicVariableModel.ID] = this.variables;
+		contrib[ChatDynamicVariableModel.ID] = [...this._variables];
 	}
 
 	setInputState(contrib: Readonly<Record<string, unknown>>): void {
@@ -141,9 +156,15 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			return;
 		}
 
+		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		if (existingAttachment) {
+			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
+		}
+
 		this._variables.push(ref);
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
+		this._onDidChangeReferences.fire();
 	}
 
 	private updateDecorations(): void {
@@ -170,6 +191,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
+		const attachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		if (attachment) {
+			return isImageVariableEntry(attachment) ? undefined : this.createAttachmentLabelHover(attachment);
+		}
+
 		const value = ref.data;
 		if (URI.isUri(value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
@@ -180,6 +206,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		} else {
 			return undefined;
 		}
+	}
+
+	private createAttachmentLabelHover(attachment: IChatRequestVariableEntry): IMarkdownString {
+		const resource = IChatRequestVariableEntry.toUri(attachment) ?? attachment.references?.find(reference => URI.isUri(reference.reference))?.reference;
+		const label = URI.isUri(resource)
+			? this.labelService.getUriLabel(resource, { relative: true })
+			: attachment.modelDescription ?? attachment.fullName ?? attachment.name;
+		return new MarkdownString().appendText(label);
 	}
 
 	/**

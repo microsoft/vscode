@@ -9,30 +9,36 @@ import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import type { SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
+import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
-/** The exposed `syncProvider` is the same instance the service uses to resolve customizations; the contribution wires it into its harness so opt-out toggles propagate. */
+/**
+ * The exposed `syncProvider` is the same instance the service uses to resolve
+ * customizations; the contribution wires it into its harness so opt-out toggles
+ * propagate. The `bundler` is exposed so the contribution can recover the
+ * original provenance of files flattened into the synthetic synced bundle (via
+ * {@link SyncedCustomizationBundler.getOrigin}).
+ */
 export interface IAgentRegistration extends IDisposable {
 	readonly syncProvider: ICustomizationSyncProvider;
+	readonly bundler: SyncedCustomizationBundler;
 }
 
 export interface IAgentHostActiveClientService {
@@ -54,37 +60,45 @@ export interface IAgentHostActiveClientService {
 
 	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]>;
 
-	readonly clientTools: IObservable<readonly ToolDefinition[]>;
+	/**
+	 * Returns the tools this client advertises to the agent host for `sessionType`.
+	 *
+	 * Chat Customizations are the source of truth: a tool is advertised only when it is an enabled
+	 * member of a tool set surfaced in the Agents window Tools section (`deprecated !== true`).
+	 * Editor-only tool sets are not created in the Agents window. Enablement is tri-state per
+	 * {@link IAgentHostToolSetEnablementService}.
+	 */
+	getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]>;
 }
 
 export class AgentHostActiveClientService extends Disposable implements IAgentHostActiveClientService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _customizationsByType: ISettableObservable<ReadonlyMap<string, IObservable<readonly ClientPluginCustomization[]>>>;
-	readonly clientTools: IObservable<readonly ToolDefinition[]>;
+
+	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
+	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
+
+	/** Cached per-`sessionType` advertised-tools observable, so callers (e.g. autoruns) reuse one stable derived. */
+	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
 
 	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
 
 		// Pass `undefined` for the model: agent-host sessions use server-side model selection.
-		const allToolsObs = toolsService.observeTools(undefined);
-		const allowlistObs = observableConfigValue<string[]>(ChatConfiguration.AgentHostClientTools, [], configurationService);
-		this.clientTools = derived(reader => {
-			const allowlist = new Set(allowlistObs.read(reader));
-			return allToolsObs.read(reader)
-				.filter(t => t.toolReferenceName !== undefined && allowlist.has(t.toolReferenceName))
-				.map(toolDataToDefinition);
-		});
+		this._allToolsObs = this._toolsService.observeTools(undefined);
+		this._allToolSetsObs = this._toolsService.toolSets;
 	}
 
 	registerForAgent(sessionType: string): IAgentRegistration {
@@ -96,7 +110,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
 			try {
-				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, bundler, sessionType);
+				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType);
 				if (seq !== updateSeq) {
 					return;
 				}
@@ -134,6 +148,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		store.add(this._setCustomizations(sessionType, customizations));
 		return {
 			syncProvider,
+			bundler,
 			dispose: () => store.dispose(),
 		};
 	}
@@ -156,13 +171,41 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	getActiveClient(sessionType: string, clientId: string): SessionActiveClient {
 		return {
 			clientId,
-			tools: [...this.clientTools.get()],
+			tools: [...this.getClientTools(sessionType).get()],
 			customizations: [...(this._customizationsByType.get().get(sessionType)?.get() ?? [])],
 		};
 	}
 
 	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]> {
 		return derived(reader => this._customizationsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOMIZATIONS);
+	}
+
+	getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
+		let obs = this._clientToolsByType.get(sessionType);
+		if (!obs) {
+			obs = derived(reader => {
+				const tools = this._allToolsObs.read(reader);
+				const toolSets = this._allToolSetsObs.read(reader);
+				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
+
+				// Collect the ids of tools that are enabled members of at least one tool set surfaced in
+				// the Agents window Tools section (non-deprecated).
+				const enabledToolIds = new Set<string>();
+				for (const ts of toolSets) {
+					if (ts.deprecated) {
+						continue;
+					}
+					for (const tool of ts.getTools(reader)) {
+						if (isToolEnabledInSet(enablement, ts.id, tool.id)) {
+							enabledToolIds.add(tool.id);
+						}
+					}
+				}
+				return tools.filter(t => enabledToolIds.has(t.id)).map(toolDataToDefinition);
+			});
+			this._clientToolsByType.set(sessionType, obs);
+		}
+		return obs;
 	}
 }
 

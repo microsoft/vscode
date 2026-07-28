@@ -110,7 +110,7 @@ export function value<T, R>(comparator?: (a: R, b: R) => boolean): TransformValu
 			// object comparison work with the data we re-hydrate from disk (e.g. if using
 			// objectsEqual, a hydrated URI is not equal to the serialized UriComponents)
 			if (!!value && typeof value === 'object') {
-				value = JSON.parse(JSON.stringify(value));
+				value = deepCloneWithFallback(value);
 			}
 
 			return value;
@@ -260,6 +260,14 @@ export function stringifyEntryWithFallback(entry: unknown): string {
 		}
 		return JSON.stringify(entry, makeTruncatingReplacer(PERSIST_ENTRY_MAX_STRING_CHARS, PERSIST_ENTRY_MAX_TOTAL_CHARS));
 	}
+}
+
+/**
+ * Deep-clones `value` through JSON with the same V8 max-string-length safety net
+ * as {@link stringifyEntryWithFallback}. Exported for testing only.
+ */
+export function deepCloneWithFallback<T>(value: T): T {
+	return JSON.parse(stringifyEntryWithFallback(value)) as T;
 }
 
 /**

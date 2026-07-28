@@ -129,4 +129,32 @@ suite('SessionEditorComments', () => {
 
 		assert.deepStrictEqual(comments.map(comment => comment.sourceId), ['feedback-accepted']);
 	});
+
+	test('hides a created PR-review mirror and shows the raw PR comment instead', () => {
+		const prState: IPRReviewState = {
+			kind: PRReviewStateKind.Loaded,
+			comments: [
+				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+			],
+		};
+		const comments = getSessionEditorComments(session, [
+			{ id: 'mirror-1', text: 'Please fix this', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'pr-thread-1', state: AgentFeedbackState.Created },
+		], prState);
+
+		assert.deepStrictEqual(comments.map(c => `${c.source}:${c.sourceId}`), ['prReview:pr-thread-1']);
+	});
+
+	test('shows an accepted PR-review mirror and hides the superseded raw PR comment', () => {
+		const prState: IPRReviewState = {
+			kind: PRReviewStateKind.Loaded,
+			comments: [
+				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+			],
+		};
+		const comments = getSessionEditorComments(session, [
+			{ id: 'mirror-1', text: 'Please fix this', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'pr-thread-1', state: AgentFeedbackState.Accepted },
+		], prState);
+
+		assert.deepStrictEqual(comments.map(c => `${c.source}:${c.sourceId}`), ['agentFeedback:mirror-1']);
+	});
 });
