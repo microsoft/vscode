@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
@@ -14,7 +15,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -22,6 +23,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
+import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -31,8 +33,11 @@ import './media/dictationOnboarding.css';
  */
 const DICTATION_INTRO_SHOWN_KEY = 'chat.dictation.introShown';
 
-/** Setting that enables Voice Mode; decides which half of the copy is shown. */
-const VOICE_MODE_ENABLED_SETTING = 'agents.voice.enabled';
+/** Opens the settings editor, filtered by the query below. */
+const OPEN_SETTINGS_COMMAND = 'workbench.action.openSettings';
+
+/** Narrows settings to dictation's own: enabled, model, showTranscript. */
+const DICTATION_SETTINGS_QUERY = 'dictation';
 
 /** The `deviceId` value that means "whatever the system is using". */
 const SYSTEM_DEFAULT_DEVICE_ID = '';
@@ -40,52 +45,35 @@ const SYSTEM_DEFAULT_DEVICE_ID = '';
 // --- Level meter ---------------------------------------------------------
 
 /**
- * Bars in the visualizer. Thin strokes rather than blocks, and enough of them
- * that the row reads as a waveform - at the ~250px the chat panel routinely
- * gives us, this lands each bar on a hairline with a hairline of air beside it.
+ * Bar metrics. Voice Mode's waveform - both the toolbar pill and its own
+ * introduction card - is a row of hairline strokes with a hairline of air
+ * beside each, so this uses the same instrument at a larger size.
  */
-const BAR_COUNT = 42;
+const BAR_WIDTH = 1;
+const BAR_GAP = 2;
+
+/** Amplitude with nothing being said: present, but clearly at rest. */
+const IDLE_GAIN = 0.55;
+
+/** Extra amplitude at peak loudness. */
+const SPEAKING_GAIN = 0.45;
+
+/** How quickly the row chases the microphone. Low and slow reads as smooth; a
+ * row that tracks every frame exactly reads as flicker rather than as level. */
+const LEVEL_EASING = 0.12;
+
+/** Opacity of the row when nothing is being said. */
+const RESTING_OPACITY = 0.35;
+
+/** Extra opacity at peak loudness, so the row brightens as the user speaks. */
+const SPEAKING_OPACITY = 0.5;
 
 /**
- * The band the bars cover, as a fraction of the spectrum. Speech fundamentals
- * and the harmonics that carry it sit under ~6kHz; mapping the full range would
- * spend three quarters of the row on frequencies a voice never reaches.
+ * Opacity when the microphone cannot be read at all. Dimmer than rest, because
+ * a row at resting strength implies a working device that simply is not hearing
+ * anything - which is the opposite of what is true.
  */
-const VOICE_SPECTRUM_FRACTION = 0.25;
-
-/**
- * Lowest bin the bars read from. Bin 0 carries the DC offset and bin 1 the
- * room rumble under the voice band; mapped straight onto the row they park the
- * first bar at full height and make a silent microphone look like a loud one.
- */
-const FIRST_VOICE_BIN = 3;
-
-/**
- * The dB window the bars are mapped across.
- *
- * `getByteFrequencyData` normalizes against these, and the Web Audio defaults
- * (-100 to -30) are far too generous for this job: near-silence still lands
- * around a third of the range, so a quiet room renders as a lively meter. Anchor
- * the floor just under a quiet room and the ceiling at conversational speech, and
- * the bars mean what they look like.
- */
-const MIN_DECIBELS = -70;
-const MAX_DECIBELS = -25;
-
-/**
- * Magnitude below which a band is treated as silence. With the window above
- * doing most of the work this only has to catch the last of the room tone.
- */
-const NOISE_FLOOR = 0.1;
-
-/**
- * Curve applied to the magnitude. Below 1 it lifts the quiet end, so normal
- * speech uses most of the row instead of the bottom third of it.
- */
-const RESPONSE_GAMMA = 0.75;
-
-/** How quickly a bar falls back after a peak. Slow enough to read as motion. */
-const BAR_DECAY = 0.22;
+const UNAVAILABLE_OPACITY = 0.2;
 
 /**
  * Shortest gap between repaints when reduced motion is on. The meter is
@@ -94,6 +82,57 @@ const BAR_DECAY = 0.22;
  * rather than stopped.
  */
 const REDUCED_MOTION_PAINT_INTERVAL_MS = 100;
+
+/**
+ * One sine component of the waveform's texture. The trace is a handful of these
+ * summed together, which is what gives it a recognisable ripple rather than a
+ * single pulsing curve.
+ */
+interface IWave {
+	readonly frequency: number;
+	readonly amplitude: number;
+	readonly speed: number;
+	readonly phase: number;
+}
+
+/**
+ * The waveform's texture. Mirrors the signatures Voice Mode's introduction uses,
+ * so the two cards read as the same instrument rather than as two features that
+ * happen to both draw bars.
+ */
+const WAVES: readonly IWave[] = [
+	{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
+	{ frequency: 1.7, amplitude: 0.26, speed: -0.31, phase: 1.1 },
+	{ frequency: 2.6, amplitude: 0.19, speed: 0.24, phase: 2.4 },
+	{ frequency: 4.1, amplitude: 0.13, speed: -0.18, phase: 0.7 },
+];
+
+/**
+ * Half-height of the row at `position` (0..1 across the strip), as a fraction of
+ * the available half-height.
+ *
+ * Each component contributes an already-positive, cusp-free curve. Summing raw
+ * sines and taking their magnitude would put a sharp corner at every zero
+ * crossing - that is what makes a waveform look like it is snapping up and down
+ * rather than flowing.
+ */
+function bandFraction(position: number, time: number): number {
+	let amplitude = 0;
+	let total = 0;
+	for (const wave of WAVES) {
+		const phase = position * wave.frequency * Math.PI * 2 + time * wave.speed + wave.phase;
+		amplitude += (0.5 + 0.5 * Math.sin(phase)) * wave.amplitude;
+		total += wave.amplitude;
+	}
+	if (total === 0) {
+		return 0;
+	}
+	// Centre-peak silhouette, matching the toolbar waveform: tallest in the
+	// middle, tapering to the ends, so the row reads as one instrument rather
+	// than a strip cut off at both edges.
+	const taper = Math.sin(Math.PI * Math.min(1, Math.max(0, position)));
+	return (amplitude / total) * (0.35 + 0.65 * taper);
+}
 
 /** Why the microphone preview is not showing a level. */
 const enum MicrophonePreviewError {
@@ -117,7 +156,7 @@ class MicrophonePreview extends Disposable {
 	private readonly session = this._register(new MutableDisposable<DisposableStore>());
 
 	private analyser: AnalyserNode | undefined;
-	private spectrum: Uint8Array<ArrayBuffer> | undefined;
+	private waveform: Uint8Array<ArrayBuffer> | undefined;
 
 	private readonly _onDidChangeError = this._register(new Emitter<MicrophonePreviewError | undefined>());
 	/** Fires with the reason no level is available, or `undefined` once one is. */
@@ -134,38 +173,22 @@ class MicrophonePreview extends Disposable {
 	}
 
 	/**
-	 * Magnitude of `bar` of `barCount` across the speech range, `0..1`. Driving
-	 * the bars from the spectrum rather than from one shared level is what makes
-	 * the row move like a voice instead of a single block pumping up and down.
+	 * Current loudness, `0..1`, or `0` when nothing is being heard. Read every
+	 * frame, so it stays allocation-free.
 	 */
-	getBandMagnitude(bar: number, barCount: number): number {
-		if (!this.analyser || !this.spectrum) {
+	getLevel(): number {
+		if (!this.analyser || !this.waveform) {
 			return 0;
 		}
-		if (bar === 0) {
-			this.analyser.getByteFrequencyData(this.spectrum);
-		}
-
-		// Bands are spaced logarithmically, the way hearing is. Spaced linearly,
-		// a voice piles into the first few bars - its fundamental and first
-		// harmonics are all in the bottom bins - and leaves the rest of the row
-		// dead no matter how loudly anyone talks.
-		const topBin = Math.max(FIRST_VOICE_BIN + 1, Math.floor(this.spectrum.length * VOICE_SPECTRUM_FRACTION));
-		const ratio = topBin / FIRST_VOICE_BIN;
-		const from = Math.floor(FIRST_VOICE_BIN * ratio ** (bar / barCount));
-		const to = Math.max(from + 1, Math.floor(FIRST_VOICE_BIN * ratio ** ((bar + 1) / barCount)));
-
+		this.analyser.getByteTimeDomainData(this.waveform);
 		let sum = 0;
-		for (let i = from; i < to && i < this.spectrum.length; i++) {
-			sum += this.spectrum[i];
+		for (const sample of this.waveform) {
+			const centered = (sample - 128) / 128;
+			sum += centered * centered;
 		}
-		const raw = sum / (to - from) / 255;
-
-		// Speech energy still falls off towards the top of the band, so a gentle
-		// tilt keeps the right-hand bars in play rather than leaving them flat.
-		const tilt = 0.85 + 0.75 * (bar / Math.max(1, barCount - 1));
-		const gated = Math.max(0, raw * tilt - NOISE_FLOOR) / (1 - NOISE_FLOOR);
-		return Math.min(1, gated ** RESPONSE_GAMMA);
+		// RMS, scaled so ordinary speech fills most of the row rather than a
+		// sliver of it.
+		return Math.min(1, Math.sqrt(sum / this.waveform.length) * 4);
 	}
 
 	/**
@@ -214,14 +237,9 @@ class MicrophonePreview extends Disposable {
 				await context.resume();
 			}
 			analyser = context.createAnalyser();
-			// Enough bins to give every one of the thin bars its own slice of the
-			// spectrum once the logarithmic mapping has spread them out.
-			analyser.fftSize = 1024;
-			analyser.minDecibels = MIN_DECIBELS;
-			analyser.maxDecibels = MAX_DECIBELS;
-			// Some smoothing in the graph itself, so the per-bar easing below only
-			// has to take the edge off rather than carry the whole illusion.
-			analyser.smoothingTimeConstant = 0.6;
+			// Time-domain only: the row's shape comes from the travelling wave,
+			// and all the analyser has to supply is how loud the room is.
+			analyser.fftSize = 256;
 			context.createMediaStreamSource(stream).connect(analyser);
 		} catch (error) {
 			store.dispose();
@@ -240,7 +258,7 @@ class MicrophonePreview extends Disposable {
 
 		this.session.value = store;
 		this.analyser = analyser;
-		this.spectrum = new Uint8Array(analyser.frequencyBinCount);
+		this.waveform = new Uint8Array(analyser.fftSize);
 		this.setError(undefined);
 	}
 
@@ -251,7 +269,7 @@ class MicrophonePreview extends Disposable {
 	 */
 	releaseMicrophone(): void {
 		this.analyser = undefined;
-		this.spectrum = undefined;
+		this.waveform = undefined;
 		this.session.clear();
 	}
 
@@ -277,39 +295,70 @@ function toPreviewError(error: unknown): MicrophonePreviewError {
 	return MicrophonePreviewError.Unavailable;
 }
 
-/** What the spectrum needs each frame, supplied by the preview. */
-interface ISpectrumSource {
-	getBandMagnitude(bar: number, barCount: number): number;
+/** What the waveform needs each frame, supplied by the preview. */
+interface IWaveformSource {
+	/** Loudness of the room, `0` when nothing is being heard. */
+	getLevel(): number;
+	/** `false` when the microphone cannot be read at all. */
+	isAvailable(): boolean;
 }
 
 /**
- * The live spectrum. Bars are driven by the microphone's own frequency content,
- * so the card answers "is this device hearing me" the way a voice UI should - by
- * moving like a voice.
+ * The live waveform: a row of hairline strokes whose shape flows and whose
+ * height follows the microphone. The card's whole job is to answer "is this
+ * device hearing me", and a trace that swells when you speak answers it before
+ * any words are read.
+ *
+ * Deliberately not a spectrum analyser. Per-band bars make neighbours jump
+ * independently, which reads as a chart; the shape here is one continuous
+ * travelling wave - the same instrument Voice Mode uses - so the row moves like
+ * a voice.
  */
-class MicrophoneSpectrum extends Disposable {
+class MicrophoneWaveform extends Disposable {
 
-	private readonly bars: HTMLElement[] = [];
-	private readonly levels: number[] = [];
+	private bars: HTMLElement[] = [];
 	private readonly animationFrame = this._register(new MutableDisposable<IDisposable>());
 
 	private running = false;
 	private lastPaint = 0;
+	private level = 0;
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly source: ISpectrumSource,
+		private readonly source: IWaveformSource,
+		observerCtor: typeof ResizeObserver | undefined,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
 		container.setAttribute('aria-hidden', 'true');
-		for (let i = 0; i < BAR_COUNT; i++) {
-			this.bars.push(dom.append(container, dom.$('span.dictation-onboarding-bar')));
-			this.levels.push(0);
-		}
 
+		// The bar count follows the measured width rather than being fixed: at a
+		// fixed count the gaps stretch or crowd as the panel resizes, and the
+		// 1px/2px rhythm the instrument is built on is the first thing lost.
+		const observer = new (observerCtor ?? dom.getWindow(container).ResizeObserver)(() => this.layout());
+		observer.observe(container);
+		this._register(toDisposable(() => observer.disconnect()));
+
+		this.layout();
 		this._register(toDisposable(() => this.stop()));
+	}
+
+	/** Rebuild the row for the current width, if the count actually changed. */
+	private layout(): void {
+		const width = this.container.clientWidth;
+		if (!width) {
+			return;
+		}
+		const count = Math.max(1, Math.floor((width + BAR_GAP) / (BAR_WIDTH + BAR_GAP)));
+		if (count === this.bars.length) {
+			return;
+		}
+		dom.clearNode(this.container);
+		this.bars = [];
+		for (let i = 0; i < count; i++) {
+			this.bars.push(dom.append(this.container, dom.$('span.dictation-onboarding-bar')));
+		}
 	}
 
 	start(): void {
@@ -322,7 +371,7 @@ class MicrophoneSpectrum extends Disposable {
 			if (!this.running) {
 				return;
 			}
-			this.update(Date.now());
+			this.update(targetWindow.performance.now());
 			this.animationFrame.value = dom.scheduleAtNextAnimationFrame(targetWindow, tick);
 		};
 		this.animationFrame.value = dom.scheduleAtNextAnimationFrame(targetWindow, tick);
@@ -333,23 +382,37 @@ class MicrophoneSpectrum extends Disposable {
 		this.animationFrame.clear();
 	}
 
-	private update(now: number): void {
+	private update(timestamp: number): void {
 		const interval = this.accessibilityService.isMotionReduced() ? REDUCED_MOTION_PAINT_INTERVAL_MS : 0;
-		if (now - this.lastPaint < interval) {
+		if (timestamp - this.lastPaint < interval) {
 			return;
 		}
-		this.lastPaint = now;
+		this.lastPaint = timestamp;
 
-		for (let i = 0; i < this.bars.length; i++) {
-			const target = this.source.getBandMagnitude(i, this.bars.length);
-			// Rise instantly, fall gently: a bar that drops as fast as it climbs
-			// reads as flicker rather than as level.
-			this.levels[i] = target > this.levels[i] ? target : this.levels[i] + (target - this.levels[i]) * BAR_DECAY;
+		// Ease towards the microphone rather than tracking it exactly: the level
+		// is what the row *means*, and a value that jumps every frame reads as
+		// flicker instead of as loudness.
+		this.level += (this.source.getLevel() - this.level) * LEVEL_EASING;
+		const gain = IDLE_GAIN + this.level * SPEAKING_GAIN;
+		const time = timestamp * 0.001;
+
+		// Brightness rides the same level as the height, so the row is quiet at
+		// rest and lifts as the user speaks - and drops below rest entirely when
+		// there is no microphone to hear. Set on the container: one style write
+		// per frame rather than one per stroke.
+		this.container.style.opacity = (this.source.isAvailable()
+			? RESTING_OPACITY + this.level * SPEAKING_OPACITY
+			: UNAVAILABLE_OPACITY).toFixed(3);
+
+		const count = this.bars.length;
+		for (let i = 0; i < count; i++) {
+			const position = count > 1 ? i / (count - 1) : 0;
 			// Scaled rather than resized: transform stays off the layout path, so
-			// a row of hairlines at 60fps never reflows the chat input. The
-			// resting scale leaves a thin line rather than nothing, so a silent
-			// microphone still reads as present.
-			this.bars[i].style.transform = `scaleY(${(0.08 + this.levels[i] * 0.92).toFixed(3)})`;
+			// a row of hairlines at 60fps never reflows the chat input. The floor
+			// leaves a thin line rather than nothing, so a silent microphone
+			// still reads as present.
+			const amount = Math.max(0.08, Math.min(1, bandFraction(position, time) * gain));
+			this.bars[i].style.transform = `scaleY(${amount.toFixed(3)})`;
 		}
 	}
 }
@@ -440,7 +503,7 @@ export class DictationOnboardingBanner extends Disposable {
 	readonly domNode = dom.$('.dictation-onboarding-banner');
 
 	private readonly preview: MicrophonePreview;
-	private readonly spectrum: MicrophoneSpectrum;
+	private readonly waveform: MicrophoneWaveform;
 	private readonly hint: HTMLElement;
 	private readonly pickerContainer: HTMLElement;
 
@@ -451,7 +514,7 @@ export class DictationOnboardingBanner extends Disposable {
 
 	constructor(
 		private readonly bannerOptions: IDictationOnboardingBannerOptions,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -475,19 +538,19 @@ export class DictationOnboardingBanner extends Disposable {
 		const header = dom.append(this.domNode, dom.$('.dictation-onboarding-header'));
 		const title = dom.append(header, dom.$('.dictation-onboarding-title'));
 		title.textContent = localize('dictation.onboarding.title', "Dictation");
-		const description = dom.append(header, dom.$('.dictation-onboarding-description'));
-		description.textContent = this.getDescription();
+		this.renderDescription(header);
 
 		// The device and its level are one group: the bars are *this* microphone's
 		// level, and separating them would leave the meter reading as decoration.
 		const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
 		this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
-		const spectrumContainer = dom.append(device, dom.$('.dictation-onboarding-spectrum'));
+		const waveformContainer = dom.append(device, dom.$('.dictation-onboarding-waveform'));
 
 		this.preview = this._register(instantiationService.createInstance(MicrophonePreview, this.domNode));
-		this.spectrum = this._register(instantiationService.createInstance(MicrophoneSpectrum, spectrumContainer, {
-			getBandMagnitude: (bar, count) => this.preview.getBandMagnitude(bar, count),
-		}));
+		this.waveform = this._register(instantiationService.createInstance(MicrophoneWaveform, waveformContainer, {
+			getLevel: () => this.preview.getLevel(),
+			isAvailable: () => this.preview.error === undefined,
+		}, undefined));
 		this._register(this.preview.onDidChangeError(() => this.updateHint()));
 
 		this.hint = dom.append(this.domNode, dom.$('.dictation-onboarding-hint'));
@@ -521,19 +584,57 @@ export class DictationOnboardingBanner extends Disposable {
 			this._register(dom.addDisposableListener(mediaDevices, 'devicechange', () => void this.refreshDevices()));
 		}
 
-		this.spectrum.start();
+		this.waveform.start();
 		void this.startPreview();
 	}
 
 	/**
-	 * What dictation is, in one line. When Voice Mode is available the sentence
-	 * also has to say what dictation is *not*, because the two share a microphone
-	 * button and are otherwise easy to confuse.
+	 * What dictation is, and that none of it is fixed. The card is shown once, so
+	 * the two things a user might want to change afterwards - whether dictation
+	 * runs at all, and how it writes what they say - have to be reachable from
+	 * here rather than left to a command nobody knows to look for.
+	 *
+	 * `[[...]]` marks the clauses that become links, so translators can keep the
+	 * sentence natural instead of having fixed phrases concatenated on.
 	 */
-	private getDescription(): string {
-		return this.configurationService.getValue<boolean>(VOICE_MODE_ENABLED_SETTING) === true
-			? localize('dictation.onboarding.descriptionWithVoiceMode', "Speak and it becomes text. Voice Mode is for conversation.")
-			: localize('dictation.onboarding.description', "Speak and it becomes text.");
+	private renderDescription(container: HTMLElement): void {
+		const description = dom.append(container, dom.$('.dictation-onboarding-description'));
+		const text = localize({
+			key: 'dictation.onboarding.description',
+			comment: ['Preserve the double square brackets: they mark the text that becomes a link. Keep both links, in this order - the first opens settings, the second opens the customization file.'],
+		}, "Speak and it becomes text. Adjust [[settings]] or [[how it's written]] any time.");
+
+		dom.append(description, renderFormattedText(text, {
+			actionHandler: {
+				// The handler is given the link's index, so the two are told apart
+				// by position - hence the ordering note to translators above.
+				callback: index => {
+					const [commandId, ...args] = index === '0'
+						? [OPEN_SETTINGS_COMMAND, { query: DICTATION_SETTINGS_QUERY }]
+						: [CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID];
+					this.commandService.executeCommand(commandId as string, ...args)
+						.catch(error => this.logService.error(`[chat-stt] failed to open dictation customization: ${error}`));
+				},
+				disposables: this._store,
+			},
+		}, dom.$('span')));
+
+		// `renderFormattedText` gives each anchor a click listener and nothing
+		// else, so make them real controls: reachable by Tab and operable by
+		// Enter or Space like any other button. The renderer owns this DOM, so a
+		// selector is the only handle on it.
+		// eslint-disable-next-line no-restricted-syntax
+		for (const link of description.querySelectorAll('a')) {
+			link.tabIndex = 0;
+			link.setAttribute('role', 'button');
+			this._register(dom.addDisposableListener(link, dom.EventType.KEY_DOWN, event => {
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+					keyboardEvent.preventDefault();
+					link.click();
+				}
+			}));
+		}
 	}
 
 	/**
@@ -690,7 +791,7 @@ export class DictationOnboardingBanner extends Disposable {
 			return;
 		}
 		this.finished = true;
-		this.spectrum.stop();
+		this.waveform.stop();
 		this.preview.releaseMicrophone();
 
 		this.domNode.classList.remove('has-error');
@@ -709,7 +810,7 @@ export class DictationOnboardingBanner extends Disposable {
 			return;
 		}
 		this.finished = true;
-		this.spectrum.stop();
+		this.waveform.stop();
 		this.preview.releaseMicrophone();
 		this.bannerOptions.onCancel();
 	}

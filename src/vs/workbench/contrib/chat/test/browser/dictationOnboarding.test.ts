@@ -8,6 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { buildMicrophoneOptions, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
 
@@ -35,8 +36,13 @@ suite('Dictation onboarding', () => {
 		return { root, container };
 	}
 
-	function createService(store: Pick<DisposableStore, 'add'>): DictationOnboardingService {
+	function createService(store: Pick<DisposableStore, 'add'>, executed?: string[]): DictationOnboardingService {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		if (executed) {
+			instantiationService.stub(ICommandService, {
+				executeCommand: async (id: string) => { executed.push(id); },
+			} as unknown as ICommandService);
+		}
 		return store.add(instantiationService.createInstance(DictationOnboardingService));
 	}
 
@@ -163,6 +169,30 @@ suite('Dictation onboarding', () => {
 				second: second.container.classList.contains('has-dictation-onboarding'),
 			},
 			{ first: false, second: true });
+	});
+
+	test('offers a way to change the settings and how dictation writes', () => {
+		const executed: string[] = [];
+		const service = createService(disposables, executed);
+		const host = createHost(disposables);
+		disposables.add(service.registerHost(host.container, host.root));
+
+		service.show();
+		const links = host.container.querySelectorAll<HTMLAnchorElement>('.dictation-onboarding-description a');
+		links.forEach(link => link.click());
+
+		assert.deepStrictEqual(
+			{
+				count: links.length,
+				// Every link has to be reachable without a mouse, not just the first.
+				keyboardReachable: Array.from(links).every(link => link.tabIndex === 0),
+				executed,
+			},
+			{
+				count: 2,
+				keyboardReachable: true,
+				executed: ['workbench.action.openSettings', 'workbench.action.chat.configureDictationInstructions'],
+			});
 	});
 
 	test('disposing the host it is docked to takes the card down with it', () => {
