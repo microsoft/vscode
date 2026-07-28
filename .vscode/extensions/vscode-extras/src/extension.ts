@@ -10,12 +10,22 @@ export class Extension extends vscode.Disposable {
 	private readonly _output: vscode.LogOutputChannel;
 	private _npmFeature: NpmUpToDateFeature | undefined;
 
-	constructor(_context: vscode.ExtensionContext) {
+	constructor(context: vscode.ExtensionContext) {
 		const disposables: vscode.Disposable[] = [];
 		super(() => disposables.forEach(d => d.dispose()));
 
 		this._output = vscode.window.createOutputChannel('VS Code Extras', { log: true });
 		disposables.push(this._output);
+
+		
+		this._output.info('The VS Code Extras extension has been successfully started and is active!');
+
+		
+		disposables.push(
+			vscode.commands.registerCommand('vscode-extras.sayHello', () => {
+				vscode.window.showInformationMessage('Hey friend! VS Code Extras is online..');
+			})
+		);
 
 		this._updateNpmFeature();
 
