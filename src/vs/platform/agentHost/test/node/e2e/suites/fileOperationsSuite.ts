@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -221,9 +221,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-git-'));
 		tempDirs.push(workspace);
-		execSync('git init', { cwd: workspace });
-		execSync('git config user.name "Agent Host Test"', { cwd: workspace });
-		execSync('git config user.email "agent-host-test@example.com"', { cwd: workspace });
+		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'tracked.txt'), 'initial');
 		execSync('git add tracked.txt && git commit -m "initial"', { cwd: workspace });
 		writeFileSync(join(workspace, 'tracked.txt'), 'modified');
