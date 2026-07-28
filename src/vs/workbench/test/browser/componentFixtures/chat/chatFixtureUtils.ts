@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -54,6 +54,7 @@ import { IChatContextPickService } from '../../../../contrib/chat/browser/attach
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
@@ -190,6 +191,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override disposeRequest() { }
 		override acceptResponse() { }
 		override acceptElicitation() { }
+	}());
+	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
+		override registerHost() { return Disposable.None; }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly isExtensionDevelopment = false;
