@@ -1390,30 +1390,6 @@ configurationRegistry.registerConfiguration({
 				}
 			}
 		},
-		[AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains]: {
-			type: 'array',
-			items: { type: 'string' },
-			deprecated: true,
-			markdownDeprecationMessage: nls.localize('agentSandbox.allowedNetworkDomains.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``),
-		},
-		[AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains]: {
-			type: 'array',
-			items: { type: 'string' },
-			deprecated: true,
-			markdownDeprecationMessage: nls.localize('agentSandbox.deniedNetworkDomains.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
-		},
-		[AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains]: {
-			type: 'array',
-			items: { type: 'string' },
-			deprecated: true,
-			markdownDeprecationMessage: nls.localize('agentSandbox.allowedNetworkDomains2.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``),
-		},
-		[AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains]: {
-			type: 'array',
-			items: { type: 'string' },
-			deprecated: true,
-			markdownDeprecationMessage: nls.localize('agentSandbox.deniedNetworkDomains2.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
-		},
 		[ChatConfiguration.DefaultNewSessionMode]: {
 			type: 'string',
 			description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
@@ -2270,50 +2246,6 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			['chat.plugins.paths', { value: undefined }],
 			[ChatConfiguration.PluginLocations, { value }]
 		])
-	},
-	{
-		key: AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains,
-		migrateFn: (value, accessor) => {
-			const pairs: ConfigurationKeyValuePairs = [];
-			pairs.push([AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains, { value: undefined }]);
-			if (value !== undefined && accessor(AgentNetworkDomainSettingId.AllowedNetworkDomains) === undefined) {
-				pairs.push([AgentNetworkDomainSettingId.AllowedNetworkDomains, { value }]);
-			}
-			return pairs;
-		}
-	},
-	{
-		key: AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains,
-		migrateFn: (value, accessor) => {
-			const pairs: ConfigurationKeyValuePairs = [];
-			pairs.push([AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains, { value: undefined }]);
-			if (value !== undefined && accessor(AgentNetworkDomainSettingId.DeniedNetworkDomains) === undefined) {
-				pairs.push([AgentNetworkDomainSettingId.DeniedNetworkDomains, { value }]);
-			}
-			return pairs;
-		}
-	},
-	{
-		key: AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains,
-		migrateFn: (value, accessor) => {
-			const pairs: ConfigurationKeyValuePairs = [];
-			pairs.push([AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains, { value: undefined }]);
-			if (value !== undefined && accessor(AgentNetworkDomainSettingId.AllowedNetworkDomains) === undefined) {
-				pairs.push([AgentNetworkDomainSettingId.AllowedNetworkDomains, { value }]);
-			}
-			return pairs;
-		}
-	},
-	{
-		key: AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains,
-		migrateFn: (value, accessor) => {
-			const pairs: ConfigurationKeyValuePairs = [];
-			pairs.push([AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains, { value: undefined }]);
-			if (value !== undefined && accessor(AgentNetworkDomainSettingId.DeniedNetworkDomains) === undefined) {
-				pairs.push([AgentNetworkDomainSettingId.DeniedNetworkDomains, { value }]);
-			}
-			return pairs;
-		}
 	},
 	{
 		// The on-device dictation runtime moved to Foundry Local; the old
