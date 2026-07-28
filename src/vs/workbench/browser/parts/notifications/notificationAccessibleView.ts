@@ -16,6 +16,7 @@ import { IListService, WorkbenchList } from '../../../../platform/list/browser/l
 import { getNotificationFromContext } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
+import { withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 
 export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
@@ -56,10 +57,10 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 			function getContentForNotification(): string | undefined {
 				const notification = getNotificationFromContext(listService);
 				const message = notification?.message.original.toString();
-				if (!notification) {
+				if (!notification || !message) {
 					return;
 				}
-				return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
+				return withSeverityPrefix(notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : message, notification.severity);
 			}
 			const content = getContentForNotification();
 			if (!content) {

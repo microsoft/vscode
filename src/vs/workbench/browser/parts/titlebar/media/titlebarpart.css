@@ -7,6 +7,7 @@
 .monaco-workbench .part.titlebar {
 	display: flex;
 	flex-direction: row;
+	box-shadow: var(--vscode-shadow-md);
 }
 
 .monaco-workbench.mac .part.titlebar {
@@ -71,14 +72,14 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left {
+.monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-left {
 	order: 0;
 	width: 20%;
 	flex-grow: 2;
 	justify-content: flex-start;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center {
+.monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-center {
 	order: 1;
 	width: 60%;
 	max-width: fit-content;
@@ -88,7 +89,7 @@
 	justify-content: center;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right {
+.monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-right {
 	order: 2;
 	width: 20%;
 	min-width: min-content;
@@ -96,7 +97,19 @@
 	justify-content: flex-end;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container:not(.has-center) > .titlebar-left {
+	flex: 1 1 0%;
+	min-width: 0;
+}
 
+.monaco-workbench .part.titlebar > .titlebar-container:not(.has-center) > .titlebar-center {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container:not(.has-center) > .titlebar-right {
+	flex: 0 0 auto;
+	padding-left: 16px; /* ensure there is some space between title and controls */
+}
 
 /* Window title text */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title {
@@ -134,6 +147,10 @@
 	visibility: hidden;
 }
 
+.monaco-workbench .part.titlebar.inactive > * {
+	opacity: 0.6;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label,
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.monaco-dropdown-with-primary .action-label {
 	color: var(--vscode-titleBar-activeForeground);
@@ -156,10 +173,7 @@
 	border: 1px solid var(--vscode-commandCenter-border);
 	overflow: hidden;
 	margin: 0 6px;
-	border-top-left-radius: 6px;
-	border-bottom-left-radius: 6px;
-	border-top-right-radius: 6px;
-	border-bottom-right-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	height: 22px;
 	width: 38vw;
 	max-width: 600px;
@@ -187,6 +201,25 @@
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick .search-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+/* Compact mode: left-aligned label, no icon, full width */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick.compact-mode {
+	margin: auto auto auto 0;
+	padding-left: 8px;
+	flex: 1;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:has(.compact-mode) > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	margin: 0;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:has(.compact-mode) > .monaco-toolbar {
+	flex: 1;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:has(.compact-mode) > .monaco-toolbar > .monaco-action-bar {
+	width: 100%;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.multiple {
@@ -229,6 +262,21 @@
 .monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container,
 .monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .monaco-toolbar .dropdown-action-container {
 	zoom: var(--zoom-factor); /* helps to position the menu properly when counter zooming */
+}
+
+/* Resizer */
+.monaco-workbench.windows .part.titlebar > .titlebar-container > .resizer,
+.monaco-workbench.linux .part.titlebar > .titlebar-container > .resizer {
+	-webkit-app-region: no-drag;
+	position: absolute;
+	top: 0;
+	width: 100%;
+	height: 4px;
+}
+
+.monaco-workbench.windows.fullscreen .part.titlebar > .titlebar-container > .resizer,
+.monaco-workbench.linux.fullscreen .part.titlebar > .titlebar-container > .resizer {
+	display: none;
 }
 
 /* App Icon */
@@ -311,6 +359,58 @@
 
 .monaco-workbench:not(.web).mac .part.titlebar .window-controls-container {
 	width: 70px;
+}
+
+/* Window Control Icons */
+.monaco-workbench .part.titlebar .window-controls-container > .window-icon {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 100%;
+	width: 46px;
+	font-size: 16px;
+	color: var(--vscode-titleBar-activeForeground);
+}
+
+.monaco-workbench .part.titlebar.inactive .window-controls-container > .window-icon {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .part.titlebar .window-controls-container > .window-icon::before {
+	height: 16px;
+	line-height: 16px;
+}
+
+.monaco-workbench .part.titlebar .window-controls-container > .window-icon:hover {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.monaco-workbench .part.titlebar.light .window-controls-container > .window-icon:hover {
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.monaco-workbench .part.titlebar .window-controls-container > .window-icon.window-close:hover {
+	background-color: rgba(232, 17, 35, 0.9);
+}
+
+.monaco-workbench .part.titlebar .window-controls-container .window-icon.window-close:hover {
+	color: white;
+}
+
+/* Center-Adjacent Toolbar (e.g., update indicator) */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container {
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+	margin-right: auto;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions {
+	display: none;
+}
+
+/* Hidden when the title bar is too narrow to fit it without pushing the window controls off-screen (#303222). */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.overflowing {
+	display: none;
 }
 
 /* Action Tool Bar Controls */

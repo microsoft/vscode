@@ -20,7 +20,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		private readonly user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, unknown>[],
 		private rootElement: T,
 		options: IIndexTreeOptions<T, TFilterData> = {}
 	) {

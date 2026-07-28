@@ -12,7 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { readTrustedDomains, TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, TRUSTED_DOMAINS_STORAGE_KEY } from './trustedDomains.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const TRUSTED_DOMAINS_SCHEMA = 'trustedDomains';
@@ -109,7 +109,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_PRE) === -1 ||
 			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_AFTER) === -1 ||
 			trustedDomainsContent.indexOf(configuring ?? '') === -1 ||
-			[...defaultTrustedDomains, ...trustedDomains].some(d => !assertIsDefined(trustedDomainsContent).includes(d))
+			[...defaultTrustedDomains, ...trustedDomains].some(d => !assertReturnsDefined(trustedDomainsContent).includes(d))
 		) {
 			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains, configuring);
 		}

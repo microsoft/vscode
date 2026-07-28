@@ -26,7 +26,7 @@ export interface IUserDataSyncAccountService {
 
 export class UserDataSyncAccountService extends Disposable implements IUserDataSyncAccountService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _account: IUserDataSyncAccount | undefined;
 	get account(): IUserDataSyncAccount | undefined { return this._account; }

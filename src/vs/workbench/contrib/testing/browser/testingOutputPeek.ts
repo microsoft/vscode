@@ -111,16 +111,14 @@ function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMes
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
 
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
+	public static readonly ID = 'workbench.contrib.testing.peekOpener';
+
 	declare _serviceBrand: undefined;
 
 	private lastUri?: TestUriWithDocument;
 
 	/** @inheritdoc */
-	public readonly historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.PROFILE,
-		target: StorageTarget.USER,
-	}, this.storageService), false));
+	public readonly historyVisible: MutableObservableValue<boolean>;
 
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
@@ -128,13 +126,18 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@ITestService private readonly testService: ITestService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
+		this.historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'testHistoryVisibleInPeek',
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.USER,
+		}, storageService), false));
 	}
 
 	/** @inheritdoc */
@@ -305,6 +308,13 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 				const visibleEditors = this.editorService.visibleTextEditorControls;
 				const editorUris = new Set(visibleEditors.filter(isCodeEditor).map(e => e.getModel()?.uri.toString()));
 				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
+					return;
+				}
+				// Also check that the message location itself is in a visible
+				// document. The message may point to a different file (e.g. a
+				// utility) than where the test is defined, and opening a non-
+				// visible file just to show a peek would be disruptive.
+				if (!editorUris.has(candidate.location.uri.toString())) {
 					return;
 				}
 				break; //continue
@@ -479,7 +489,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		if (!this.peek.get()) {
 			const peek = this.instantiationService.createInstance(TestResultsPeek, this.editor);
 			this.peek.set(peek, undefined);
-			peek.onDidClose(() => {
+			Event.once(peek.onDidClose)(() => {
 				this.visible.set(false);
 				this.peek.set(undefined, undefined);
 			});

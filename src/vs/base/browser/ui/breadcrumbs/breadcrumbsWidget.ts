@@ -32,7 +32,7 @@ export interface IBreadcrumbsItemEvent {
 	type: 'select' | 'focus';
 	item: BreadcrumbsItem;
 	node: HTMLElement;
-	payload: any;
+	payload: unknown;
 }
 
 export class BreadcrumbsWidget {
@@ -65,6 +65,7 @@ export class BreadcrumbsWidget {
 	constructor(
 		container: HTMLElement,
 		horizontalScrollbarSize: number,
+		horizontalScrollbarVisibility: ScrollbarVisibility = ScrollbarVisibility.Auto,
 		separatorIcon: ThemeIcon,
 		styles: IBreadcrumbsWidgetStyles
 	) {
@@ -74,7 +75,7 @@ export class BreadcrumbsWidget {
 		this._domNode.setAttribute('role', 'list');
 		this._scrollable = new DomScrollableElement(this._domNode, {
 			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Auto,
+			horizontal: horizontalScrollbarVisibility,
 			horizontalScrollbarSize,
 			useShadows: false,
 			scrollYToX: true
@@ -99,6 +100,12 @@ export class BreadcrumbsWidget {
 		});
 	}
 
+	setHorizontalScrollbarVisibility(visibility: ScrollbarVisibility) {
+		this._scrollable.updateOptions({
+			horizontal: visibility
+		});
+	}
+
 	dispose(): void {
 		this._disposables.dispose();
 		this._pendingLayout?.dispose();
@@ -107,6 +114,8 @@ export class BreadcrumbsWidget {
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
 		this._domNode.remove();
+		dispose(this._items);
+		this._items.length = 0;
 		this._nodes.length = 0;
 		this._freeNodes.length = 0;
 	}
@@ -149,7 +158,7 @@ export class BreadcrumbsWidget {
 	private _style(styleElement: HTMLStyleElement, style: IBreadcrumbsWidgetStyles): void {
 		let content = '';
 		if (style.breadcrumbsBackground) {
-			content += `.monaco-breadcrumbs { background-color: ${style.breadcrumbsBackground}}`;
+			content += `.monaco-breadcrumbs { background-color: ${style.breadcrumbsBackground}}\n`;
 		}
 		if (style.breadcrumbsForeground) {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item { color: ${style.breadcrumbsForeground}}\n`;
@@ -161,9 +170,9 @@ export class BreadcrumbsWidget {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { color: ${style.breadcrumbsFocusAndSelectionForeground}}\n`;
 		}
 		if (style.breadcrumbsHoverForeground) {
-			content += `.monaco-breadcrumbs:not(.disabled	) .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
+			content += `.monaco-breadcrumbs:not(.disabled) .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
 		}
-		styleElement.innerText = content;
+		styleElement.textContent = content;
 	}
 
 	setEnabled(value: boolean) {
@@ -332,7 +341,7 @@ export class BreadcrumbsWidget {
 		try {
 			item.render(container);
 		} catch (err) {
-			container.innerText = '<<RENDER ERROR>>';
+			container.textContent = '<<RENDER ERROR>>';
 			console.error(err);
 		}
 		container.tabIndex = -1;

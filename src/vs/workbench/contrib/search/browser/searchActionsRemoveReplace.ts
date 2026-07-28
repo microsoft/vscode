@@ -6,7 +6,7 @@
 import { ITreeNavigator } from '../../../../base/browser/ui/tree/tree.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { getSelectionKeyboardEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchRemoveIcon, searchReplaceIcon } from './searchIcons.js';
@@ -24,6 +24,7 @@ import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from '
 import { equals } from '../../../../base/common/arrays.js';
 import { arrayContainsElementOrParent, RenderableMatch, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
+import { AITextSearchHeadingImpl } from './AISearch/aiSearchModel.js';
 
 
 //#region Interfaces
@@ -128,7 +129,8 @@ registerAction2(class RemoveAction extends Action2 {
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
-				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement);
+				// Ignore error if there are no elements left
+				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement).catch(() => { });
 			}
 
 			if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
@@ -261,6 +263,7 @@ async function performReplace(accessor: ServicesAccessor,
 	context: ISearchActionContext | undefined) {
 	const configurationService = accessor.get(IConfigurationService);
 	const viewsService = accessor.get(IViewsService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const viewlet: SearchView | undefined = getSearchView(viewsService);
 	const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
@@ -281,7 +284,7 @@ async function performReplace(accessor: ServicesAccessor,
 	if (elementsToReplace.length === 0) {
 		return;
 	}
-	let nextFocusElement;
+	let nextFocusElement: RenderableMatch | undefined;
 	if (focusElement) {
 		nextFocusElement = await getElementToFocusAfterRemoved(viewer, focusElement, elementsToReplace);
 	}
@@ -305,11 +308,11 @@ async function performReplace(accessor: ServicesAccessor,
 			viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 
 			if (isSearchTreeMatch(nextFocusElement)) {
-				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof MatchInNotebook) {
+				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search?.useReplacePreview;
+				if (!useReplacePreview || instantiationService.invokeFunction(accessor => hasToOpenFile(accessor, nextFocusElement!)) || nextFocusElement instanceof MatchInNotebook) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
-					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);
+					instantiationService.invokeFunction(accessor => accessor.get(IReplaceService)).openReplacePreview(nextFocusElement, true);
 				}
 			} else if (isSearchTreeFileMatch(nextFocusElement)) {
 				viewlet?.open(nextFocusElement, true);
@@ -375,10 +378,18 @@ export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibl
 		while (!!navigator.next() && (!isSearchTreeFolderMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
 	} else if (isSearchTreeFileMatch(element)) {
 		while (!!navigator.next() && (!isSearchTreeFileMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+			// Never expand AI search results by default
+			if (navigator.current() instanceof AITextSearchHeadingImpl) {
+				return navigator.current();
+			}
 			await viewer.expand(navigator.current());
 		}
 	} else {
 		while (navigator.next() && (!isSearchTreeMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+			// Never expand AI search results by default
+			if (navigator.current() instanceof AITextSearchHeadingImpl) {
+				return navigator.current();
+			}
 			await viewer.expand(navigator.current());
 		}
 	}
@@ -415,4 +426,3 @@ export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsync
 }
 
 //#endregion
-

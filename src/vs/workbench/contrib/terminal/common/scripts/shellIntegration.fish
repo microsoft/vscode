@@ -21,6 +21,19 @@ and ! set --query VSCODE_SHELL_INTEGRATION
 or exit
 
 set --global VSCODE_SHELL_INTEGRATION 1
+set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
+set -e VSCODE_SHELL_ENV_REPORTING
+
+# Prevent AI-executed commands from polluting shell history
+if test "$VSCODE_PREVENT_SHELL_HISTORY" = "1"
+	set -g fish_private_mode 1
+	set -e VSCODE_PREVENT_SHELL_HISTORY
+end
+
+set -g envVarsToReport
+if test -n "$__vscode_shell_env_reporting"
+	set envVarsToReport (string split "," "$__vscode_shell_env_reporting")
+end
 
 # Apply any explicit path prefix (see #99878)
 # On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
@@ -32,6 +45,9 @@ set -e VSCODE_PATH_PREFIX
 
 set -g vsc_env_keys
 set -g vsc_env_values
+
+# Tracks if the shell has been initialized, this prevents
+set -g vsc_initialized 0
 
 set -g __vsc_applied_env_vars 0
 function __vsc_apply_env_vars
@@ -66,6 +82,25 @@ function __vsc_apply_env_vars
 	end
 end
 
+# Register Python shell activate hooks
+# Prevent multiple activation with guard
+if not set -q VSCODE_PYTHON_AUTOACTIVATE_GUARD
+	set -gx VSCODE_PYTHON_AUTOACTIVATE_GUARD 1
+	if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
+		# Fish does not crash on eval failure, so don't need negation.
+		eval $VSCODE_PYTHON_FISH_ACTIVATE
+		set __vsc_activation_status $status
+
+		if test $__vsc_activation_status -ne 0
+			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python fish activation failed with exit code %d \x1b[0m \n' "$__vsc_activation_status"
+		end
+	end
+	# Remove any leftover Python activation env vars.
+	for var in (set -n | string match -r '^VSCODE_PYTHON_.*_ACTIVATE$')
+		set -eg $var
+	end
+end
+
 # Handle the shell integration nonce
 if set -q VSCODE_NONCE
 	set -l __vsc_nonce $VSCODE_NONCE
@@ -92,10 +127,7 @@ end
 # Backslashes are doubled and non-alphanumeric characters are hex encoded.
 function __vsc_escape_value
 	# Escape backslashes and semi-colons
-	echo $argv \
-	| string replace --all '\\' '\\\\' \
-	| string replace --all ';' '\\x3b' \
-	;
+	echo $argv | string replace --all '\\' '\\\\' | string replace --all ';' '\\x3b'
 end
 
 # Sent right after an interactive command has finished executing.
@@ -107,6 +139,11 @@ end
 # Sent when a command line is cleared or reset, but no command was run.
 # Marks the cleared line with neither success nor failure.
 function __vsc_cmd_clear --on-event fish_cancel
+	if test $vsc_initialized -eq 0;
+		return
+	end
+	__vsc_esc E "" $__vsc_nonce
+	__vsc_esc C
 	__vsc_esc D
 end
 
@@ -149,14 +186,21 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
-function __vsc_update_env --on-event fish_prompt
-	__vsc_esc EnvSingleStart 1
-	for line in (env)
-		set myVar (echo $line | awk -F= '{print $1}')
-		set myVal (echo $line | awk -F= '{print $2}')
-		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
+if test -n "$__vscode_shell_env_reporting"
+	function __vsc_update_env --on-event fish_prompt
+		if test (count $envVarsToReport) -gt 0
+			__vsc_esc EnvSingleStart 1
+
+			for key in $envVarsToReport
+				if set -q $key
+					set -l value $$key
+					__vsc_esc EnvSingleEntry $key (__vsc_escape_value "$value")
+				end
+			end
+
+			__vsc_esc EnvSingleEnd
+		end
 	end
-	__vsc_esc EnvSingleEnd
 end
 
 # Sent at the start of the prompt.
@@ -166,6 +210,7 @@ function __vsc_fish_prompt_start
 	# evaluated
 	__vsc_apply_env_vars
 	__vsc_esc A
+	set -g vsc_initialized 1
 end
 
 # Sent at the end of the prompt.
@@ -203,4 +248,13 @@ function __init_vscode_shell_integration
 		end
 	end
 end
+
+# Report prompt type
+if set -q POSH_SESSION_ID
+	__vsc_esc P PromptType=oh-my-posh
+end
+
+# Report this shell supports rich command detection
+__vsc_esc P HasRichCommandDetection=True
+
 __preserve_fish_prompt

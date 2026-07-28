@@ -11,10 +11,25 @@ import protocol from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { raceTimeout } from '../utils/async';
+import { readUnifiedConfig } from '../utils/configuration';
 import FileConfigurationManager from './fileConfigurationManager';
-import { conditionalRegistration, requireGlobalConfiguration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
+import { conditionalRegistration, requireGlobalUnifiedConfig, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 class CopyMetadata {
+
+	static parse(data: string): CopyMetadata | undefined {
+		try {
+
+			const parsedData = JSON.parse(data);
+			const resource = vscode.Uri.parse(parsedData.resource);
+			const ranges = parsedData.ranges.map((range: any) => new vscode.Range(range.start, range.end));
+			const copyOperation = parsedData.copyOperation ? Promise.resolve(parsedData.copyOperation) : undefined;
+			return new CopyMetadata(resource, ranges, copyOperation);
+		} catch (error) {
+			return undefined;
+		}
+	}
+
 	constructor(
 		public readonly resource: vscode.Uri,
 		public readonly ranges: readonly vscode.Range[],
@@ -61,7 +76,7 @@ class TsPendingPasteEdit extends TsPasteEdit {
 	}
 }
 
-const enabledSettingId = 'updateImportsOnPaste.enabled';
+const enabledSettingId = 'updateImportsOnPaste.enabled' as const;
 
 class DocumentPasteProvider implements vscode.DocumentPasteEditProvider<TsPasteEdit> {
 
@@ -213,12 +228,19 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider<TsPasteE
 			return undefined;
 		}
 
-		return metadata instanceof CopyMetadata ? metadata : undefined;
+		if (metadata instanceof CopyMetadata) {
+			return metadata;
+		}
+
+		if (typeof metadata === 'string') {
+			return CopyMetadata.parse(metadata);
+		}
+
+		return undefined;
 	}
 
 	private isEnabled(document: vscode.TextDocument) {
-		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		return config.get(enabledSettingId, true);
+		return readUnifiedConfig<boolean>(enabledSettingId, true, { scope: document, fallbackSection: this._modeId });
 	}
 }
 
@@ -226,7 +248,7 @@ export function register(selector: DocumentSelector, language: LanguageDescripti
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
 		requireMinVersion(client, API.v570),
-		requireGlobalConfiguration(language.id, enabledSettingId),
+		requireGlobalUnifiedConfig(enabledSettingId, { fallbackSection: language.id }),
 	], () => {
 		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client, fileConfigurationManager), {
 			providedPasteEditKinds: [DocumentPasteProvider.kind],

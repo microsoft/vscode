@@ -8,11 +8,11 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
 import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel, ITextFileEditorModelSaveEvent } from '../../common/textfiles.js';
 import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from '../../../../test/browser/workbenchTestServices.js';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager.js';
 import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from '../../../../../platform/files/common/files.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { assertIsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { SaveReason, SaveSourceRegistry } from '../../../../common/editor.js';
@@ -318,7 +318,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isResolved()); // model got resolved due to decoding
 	});
 
-	test('setEncoding - decode dirty file saves first', async function () {
+	test('setEncoding - decode dirty file throws', async function () {
 		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
 		accessor.workingCopyService.testUnregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
 
@@ -327,9 +327,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
 		assert.strictEqual(model.isDirty(), true);
 
-		await model.setEncoding('utf16', EncodingMode.Decode);
-
-		assert.strictEqual(model.isDirty(), false);
+		assertThrowsAsync(() => model.setEncoding('utf16', EncodingMode.Decode));
 	});
 
 	test('encoding updates with language based configuration', async function () {
@@ -611,7 +609,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		await model.resolve();
 
-		const stat = assertIsDefined(getLastResolvedFileStat(model));
+		const stat = assertReturnsDefined(getLastResolvedFileStat(model));
 		accessor.textFileService.setReadStreamErrorOnce(new NotModifiedSinceFileOperationError('error', { ...stat, mtime: stat.mtime - 1, readonly: !stat.readonly, locked: !stat.locked }));
 
 		await model.resolve();
@@ -641,8 +639,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		model1.updateTextEditorModel(createTextBufferFactory('foo'));
 
-		const m1Mtime = assertIsDefined(getLastResolvedFileStat(model1)).mtime;
-		const m2Mtime = assertIsDefined(getLastResolvedFileStat(model2)).mtime;
+		const m1Mtime = assertReturnsDefined(getLastResolvedFileStat(model1)).mtime;
+		const m2Mtime = assertReturnsDefined(getLastResolvedFileStat(model2)).mtime;
 		assert.ok(m1Mtime > 0);
 		assert.ok(m2Mtime > 0);
 
@@ -662,12 +660,12 @@ suite('Files - TextFileEditorModel', () => {
 			// web tests does not ensure timeouts are respected at all, so we cannot
 			// really assert the mtime to be different, only that it is equal or greater.
 			// https://github.com/microsoft/vscode/issues/161886
-			assert.ok(assertIsDefined(getLastResolvedFileStat(model1)).mtime >= m1Mtime);
-			assert.ok(assertIsDefined(getLastResolvedFileStat(model2)).mtime >= m2Mtime);
+			assert.ok(assertReturnsDefined(getLastResolvedFileStat(model1)).mtime >= m1Mtime);
+			assert.ok(assertReturnsDefined(getLastResolvedFileStat(model2)).mtime >= m2Mtime);
 		} else {
 			// on desktop we want to assert this condition more strictly though
-			assert.ok(assertIsDefined(getLastResolvedFileStat(model1)).mtime > m1Mtime);
-			assert.ok(assertIsDefined(getLastResolvedFileStat(model2)).mtime > m2Mtime);
+			assert.ok(assertReturnsDefined(getLastResolvedFileStat(model1)).mtime > m1Mtime);
+			assert.ok(assertReturnsDefined(getLastResolvedFileStat(model2)).mtime > m2Mtime);
 		}
 	});
 

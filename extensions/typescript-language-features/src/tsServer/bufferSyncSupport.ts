@@ -10,6 +10,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { inMemoryResourcePrefix } from '../typescriptServiceClient';
 import { coalesce } from '../utils/arrays';
+import { ResourceUnifiedConfigValue } from '../utils/configuration';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
@@ -161,14 +162,14 @@ class SyncedBuffer {
 	private state = BufferState.Initial;
 
 	constructor(
-		private readonly document: vscode.TextDocument,
+		public readonly document: vscode.TextDocument,
 		public readonly filepath: string,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly synchronizer: BufferSynchronizer,
 	) { }
 
 	public open(): void {
-		const args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs & { plugins?: string[] } = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 			projectRootPath: this.getProjectRootPath(this.document.uri),
@@ -183,7 +184,7 @@ class SyncedBuffer {
 			.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 		if (tsPluginsForDocument.length) {
-			(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
+			args.plugins = tsPluginsForDocument.map(plugin => plugin.name);
 		}
 
 		this.synchronizer.open(this.resource, args);
@@ -191,7 +192,20 @@ class SyncedBuffer {
 	}
 
 	private getProjectRootPath(resource: vscode.Uri): string | undefined {
-		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		let workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+
+		// If we didn't find a real workspace, we still want to try sending along a workspace folder
+		// to prevent TS from loading projects from outside of any workspace.
+		// Just pick the highest level one on the same FS even though the file is outside of it
+		if (!workspaceRoot && vscode.workspace.workspaceFolders) {
+			for (const root of Array.from(vscode.workspace.workspaceFolders).sort((a, b) => a.uri.path.length - b.uri.path.length)) {
+				if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
+					workspaceRoot = root.uri;
+					break;
+				}
+			}
+		}
+
 		if (workspaceRoot) {
 			const tsRoot = this.client.toTsFilePath(workspaceRoot);
 			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
@@ -336,15 +350,15 @@ class GetErrRequest {
 		}
 	}
 
-	private areProjectDiagnosticsEnabled() {
+	private areProjectDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
 	}
 
-	private areRegionDiagnosticsEnabled() {
-		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
+	private areRegionDiagnosticsEnabled(): boolean {
+		return this.client.apiVersion.gte(API.v560);
 	}
 
-	public cancel(): any {
+	public cancel(): void {
 		if (!this._done) {
 			this._token.cancel();
 		}
@@ -449,9 +463,6 @@ export default class BufferSyncSupport extends Disposable {
 
 	private readonly client: ITypeScriptServiceClient;
 
-	private _validateJavaScript = true;
-	private _validateTypeScript = true;
-
 	private readonly modeIds: Set<string>;
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
@@ -459,6 +470,8 @@ export default class BufferSyncSupport extends Disposable {
 	private pendingGetErr: GetErrRequest | undefined;
 	private listening: boolean = false;
 	private readonly synchronizer: BufferSynchronizer;
+
+	private readonly _validate: ResourceUnifiedConfigValue<boolean>;
 
 	private readonly _tabResources: TabResourceTracker;
 
@@ -470,6 +483,8 @@ export default class BufferSyncSupport extends Disposable {
 		super();
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
+
+		this._validate = this._register(new ResourceUnifiedConfigValue<boolean>('validate.enabled', true, { fallbackSubSectionNameOverride: 'validate.enable' }));
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
@@ -500,8 +515,7 @@ export default class BufferSyncSupport extends Disposable {
 			}
 		}));
 
-		this.updateConfiguration();
-		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
+		this._register(this._validate.onDidChange(() => this.requestAllDiagnostics()));
 	}
 
 	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
@@ -743,14 +757,6 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingDiagnostics.clear();
 	}
 
-	private updateConfiguration() {
-		const jsConfig = vscode.workspace.getConfiguration('javascript', null);
-		const tsConfig = vscode.workspace.getConfiguration('typescript', null);
-
-		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
-		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
-	}
-
 	private shouldValidate(buffer: SyncedBuffer): boolean {
 		if (fileSchemes.isOfScheme(buffer.resource, fileSchemes.chatCodeBlock)) {
 			return false;
@@ -760,15 +766,6 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 
-		switch (buffer.languageId) {
-			case languageModeIds.javascript:
-			case languageModeIds.javascriptreact:
-				return this._validateJavaScript;
-
-			case languageModeIds.typescript:
-			case languageModeIds.typescriptreact:
-			default:
-				return this._validateTypeScript;
-		}
+		return this._validate.getValue(buffer.document);
 	}
 }

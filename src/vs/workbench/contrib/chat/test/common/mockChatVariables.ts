@@ -3,25 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { IChatRequestVariableData, IChatRequestVariableEntry } from '../../common/chatModel.js';
-import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatVariablesService, IDynamicVariable } from '../../common/attachments/chatVariables.js';
+import { ToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
 
-	getDynamicVariables(sessionId: string): readonly IDynamicVariable[] {
-		return [];
+	private _dynamicVariables = new ResourceMap<readonly IDynamicVariable[]>();
+	private _selectedToolAndToolSets = new ResourceMap<ToolAndToolSetEnablementMap>();
+
+	getDynamicVariables(sessionResource: URI): readonly IDynamicVariable[] {
+		return this._dynamicVariables.get(sessionResource) ?? [];
 	}
 
-	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableData {
-		return {
-			variables: []
-		};
+	getSelectedToolAndToolSets(sessionResource: URI): ToolAndToolSetEnablementMap {
+		return this._selectedToolAndToolSets.get(sessionResource) ?? ToolAndToolSetEnablementMap.fromEntries([]);
 	}
 
-	attachContext(name: string, value: unknown, location: ChatAgentLocation): void {
-		throw new Error('Method not implemented.');
+	setDynamicVariables(sessionResource: URI, variables: readonly IDynamicVariable[]): void {
+		this._dynamicVariables.set(sessionResource, variables);
+	}
+
+	setSelectedToolAndToolSets(sessionResource: URI, tools: ToolAndToolSetEnablementMap): void {
+		this._selectedToolAndToolSets.set(sessionResource, tools);
 	}
 }

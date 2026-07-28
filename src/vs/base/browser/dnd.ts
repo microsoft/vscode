@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getWindow } from './dom.js';
+import { addDisposableListener } from './dom.js';
 import { Disposable } from '../common/lifecycle.js';
 import { Mimes } from '../common/mime.js';
 
@@ -12,7 +12,7 @@ import { Mimes } from '../common/mime.js';
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
 export class DelayedDragHandler extends Disposable {
-	private timeout: any;
+	private timeout: Timeout | undefined = undefined;
 
 	constructor(container: HTMLElement, callback: () => void) {
 		super();
@@ -24,7 +24,7 @@ export class DelayedDragHandler extends Disposable {
 				this.timeout = setTimeout(() => {
 					callback();
 
-					this.timeout = null;
+					this.timeout = undefined;
 				}, 800);
 			}
 		}));
@@ -39,7 +39,7 @@ export class DelayedDragHandler extends Disposable {
 	private clearDragTimeout(): void {
 		if (this.timeout) {
 			clearTimeout(this.timeout);
-			this.timeout = null;
+			this.timeout = undefined;
 		}
 	}
 
@@ -80,29 +80,6 @@ export const DataTransfers = {
 	 */
 	INTERNAL_URI_LIST: 'application/vnd.code.uri-list',
 };
-
-export function applyDragImage(event: DragEvent, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
-	const dragImage = document.createElement('div');
-	dragImage.className = clazz;
-	dragImage.textContent = label;
-
-	if (foregroundColor) {
-		dragImage.style.color = foregroundColor;
-	}
-
-	if (backgroundColor) {
-		dragImage.style.background = backgroundColor;
-	}
-
-	if (event.dataTransfer) {
-		const ownerDocument = getWindow(event).document;
-		ownerDocument.body.appendChild(dragImage);
-		event.dataTransfer.setDragImage(dragImage, -10, -10);
-
-		// Removes the element when the DND operation is done
-		setTimeout(() => dragImage.remove(), 0);
-	}
-}
 
 export interface IDragAndDropData {
 	update(dataTransfer: DataTransfer): void;

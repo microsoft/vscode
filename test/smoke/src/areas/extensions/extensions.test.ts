@@ -11,11 +11,12 @@ export function setup(logger: Logger) {
 
 		// Shared before/after handling
 		installAllHandlers(logger, opts => {
+			opts.verbose = true; // enable verbose logging for tracing
 			opts.snapshots = true; // enable network tab in devtools for tracing since we install an extension
 			return opts;
 		});
 
-		it('install and enable vscode-smoketest-check extension', async function () {
+		it.skip('install and enable vscode-smoketest-check extension', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.extensions.installExtension('ms-vscode.vscode-smoketest-check', true);

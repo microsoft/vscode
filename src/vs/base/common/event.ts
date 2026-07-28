@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise } from './async.js';
 import { CancellationToken } from './cancellation.js';
 import { diffSets } from './collections.js';
 import { onUnexpectedError } from './errors.js';
@@ -10,6 +11,7 @@ import { createSingleCallFunction } from './functional.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 import { LinkedList } from './linkedList.js';
 import { IObservable, IObservableWithChange, IObserver } from './observable.js';
+import { env } from './process.js';
 import { StopWatch } from './stopwatch.js';
 import { MicrotaskDelay } from './symbols.js';
 
@@ -29,6 +31,14 @@ const _enableDisposeWithListenerWarning = false
 const _enableSnapshotPotentialLeakWarning = false
 	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
 	;
+
+
+const _bufferLeakWarnCountThreshold = 100;
+const _bufferLeakWarnTimeThreshold = 60_000; // 1 minute
+
+function _isBufferLeakWarningEnabled(): boolean {
+	return !!env['VSCODE_DEV'];
+}
 
 /**
  * An event with zero or one parameters that can be subscribed to. The event is a function itself.
@@ -69,10 +79,13 @@ export namespace Event {
 	 * returned event causes this utility to leak a listener on the original event.
 	 *
 	 * @param event The event source for the new event.
+	 * @param flushOnListenerRemove Whether to fire all debounced events when a listener is removed. If this is not
+	 * specified, some events could go missing. Use this if it's important that all events are processed, even if the
+	 * listener gets disposed before the debounced event fires.
 	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
-	export function defer(event: Event<unknown>, disposable?: DisposableStore): Event<void> {
-		return debounce<unknown, void>(event, () => void 0, 0, undefined, true, undefined, disposable);
+	export function defer(event: Event<unknown>, flushOnListenerRemove?: boolean, disposable?: DisposableStore): Event<void> {
+		return debounce<unknown, void>(event, () => void 0, 0, undefined, flushOnListenerRemove ?? true, undefined, disposable);
 	}
 
 	/**
@@ -256,7 +269,7 @@ export namespace Event {
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = false, flushOnListenerRemove = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
 		let subscription: IDisposable;
 		let output: O | undefined = undefined;
-		let handle: any = undefined;
+		let handle: Timeout | undefined | null = undefined;
 		let numDebouncedCalls = 0;
 		let doFire: (() => void) | undefined;
 
@@ -283,11 +296,13 @@ export namespace Event {
 					};
 
 					if (typeof delay === 'number') {
-						clearTimeout(handle);
+						if (handle) {
+							clearTimeout(handle);
+						}
 						handle = setTimeout(doFire, delay);
 					} else {
 						if (handle === undefined) {
-							handle = 0;
+							handle = null;
 							queueMicrotask(doFire);
 						}
 					}
@@ -321,15 +336,105 @@ export namespace Event {
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param delay The number of milliseconds to debounce.
+	 * @param flushOnListenerRemove Whether to fire all debounced events when a listener is removed. If this is not
+	 * specified, some events could go missing. Use this if it's important that all events are processed, even if the
+	 * listener gets disposed before the debounced event fires.
+	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
-	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+	export function accumulate<T>(event: Event<T>, delay: number | typeof MicrotaskDelay = 0, flushOnListenerRemove?: boolean, disposable?: DisposableStore): Event<T[]> {
 		return Event.debounce<T, T[]>(event, (last, e) => {
 			if (!last) {
 				return [e];
 			}
 			last.push(e);
 			return last;
-		}, delay, undefined, true, undefined, disposable);
+		}, delay, undefined, flushOnListenerRemove ?? true, undefined, disposable);
+	}
+
+	/**
+	 * Throttles an event, ensuring the event is fired at most once during the specified delay period.
+	 * Unlike debounce, throttle will fire immediately on the leading edge and/or after the delay on the trailing edge.
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param merge An accumulator function that merges events if multiple occur during the throttle period.
+	 * @param delay The number of milliseconds to throttle.
+	 * @param leading Whether to fire on the leading edge (immediately on first event).
+	 * @param trailing Whether to fire on the trailing edge (after delay with the last value).
+	 * @param leakWarningThreshold See {@link EmitterOptions.leakWarningThreshold}.
+	 * @param disposable A disposable store to register the throttle emitter to.
+	 */
+	export function throttle<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number | typeof MicrotaskDelay, leading?: boolean, trailing?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
+	export function throttle<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number | typeof MicrotaskDelay, leading?: boolean, trailing?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
+	export function throttle<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = true, trailing = true, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
+		let subscription: IDisposable;
+		let output: O | undefined = undefined;
+		let handle: Timeout | undefined = undefined;
+		let numThrottledCalls = 0;
+
+		const options: EmitterOptions | undefined = {
+			leakWarningThreshold,
+			onWillAddFirstListener() {
+				subscription = event(cur => {
+					numThrottledCalls++;
+					output = merge(output, cur);
+
+					// If not currently throttling, fire immediately if leading is enabled
+					if (handle === undefined) {
+						if (leading) {
+							emitter.fire(output);
+							output = undefined;
+							numThrottledCalls = 0;
+						}
+
+						// Set up the throttle period
+						if (typeof delay === 'number') {
+							handle = setTimeout(() => {
+								// Fire on trailing edge if there were calls during throttle period
+								if (trailing && numThrottledCalls > 0) {
+									emitter.fire(output!);
+								}
+								output = undefined;
+								handle = undefined;
+								numThrottledCalls = 0;
+							}, delay);
+						} else {
+							// Use a special marker to indicate microtask is pending
+							handle = 0 as unknown as Timeout;
+							queueMicrotask(() => {
+								// Fire on trailing edge if there were calls during throttle period
+								if (trailing && numThrottledCalls > 0) {
+									emitter.fire(output!);
+								}
+								output = undefined;
+								handle = undefined;
+								numThrottledCalls = 0;
+							});
+						}
+					}
+					// If already throttling, just accumulate the value for trailing edge
+				});
+			},
+			onDidRemoveLastListener() {
+				subscription.dispose();
+			}
+		};
+
+		if (!disposable) {
+			_addLeakageTraceLogic(options);
+		}
+
+		const emitter = new Emitter<O>(options);
+
+		disposable?.add(emitter);
+
+		return emitter.event;
 	}
 
 	/**
@@ -394,6 +499,7 @@ export namespace Event {
 	 * returned event causes this utility to leak a listener on the original event.
 	 *
 	 * @param event The event source for the new event.
+	 * @param debugName A name for this buffer, used in leak detection warnings.
 	 * @param flushAfterTimeout Determines whether to flush the buffer after a timeout immediately or after a
 	 * `setTimeout` when the first event listener is added.
 	 * @param _buffer Internal: A source event array used for tests.
@@ -403,15 +509,46 @@ export namespace Event {
 	 * // Start accumulating events, when the first listener is attached, flush
 	 * // the event after a timeout such that multiple listeners attached before
 	 * // the timeout would receive the event
-	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
+	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, 'onInstallExtension', true);
 	 * ```
 	 */
-	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
+	export function buffer<T>(event: Event<T>, debugName: string, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
+
+		// Dev-only leak detection: track when buffer was created and warn
+		// if events accumulate without ever being consumed.
+		let bufferLeakWarningData: { stack: Stacktrace; timerId: ReturnType<typeof setTimeout>; warned: boolean } | undefined;
+		if (_isBufferLeakWarningEnabled()) {
+			bufferLeakWarningData = {
+				stack: Stacktrace.create(),
+				timerId: setTimeout(() => {
+					if (buffer && buffer.length > 0 && bufferLeakWarningData && !bufferLeakWarningData.warned) {
+						bufferLeakWarningData.warned = true;
+						console.warn(`[Event.buffer][${debugName}] potential LEAK detected: ${buffer.length} events buffered for ${_bufferLeakWarnTimeThreshold / 1000}s without being consumed. Buffered here:`);
+						bufferLeakWarningData.stack.print();
+					}
+				}, _bufferLeakWarnTimeThreshold),
+				warned: false
+			};
+			if (disposable) {
+				disposable.add(toDisposable(() => clearTimeout(bufferLeakWarningData!.timerId)));
+			}
+		}
+
+		const clearLeakWarningTimer = () => {
+			if (bufferLeakWarningData) {
+				clearTimeout(bufferLeakWarningData.timerId);
+			}
+		};
 
 		let listener: IDisposable | null = event(e => {
 			if (buffer) {
 				buffer.push(e);
+				if (_isBufferLeakWarningEnabled() && bufferLeakWarningData && !bufferLeakWarningData.warned && buffer.length >= _bufferLeakWarnCountThreshold) {
+					bufferLeakWarningData.warned = true;
+					console.warn(`[Event.buffer][${debugName}] potential LEAK detected: ${buffer.length} events buffered without being consumed. Buffered here:`);
+					bufferLeakWarningData.stack.print();
+				}
 			} else {
 				emitter.fire(e);
 			}
@@ -424,6 +561,7 @@ export namespace Event {
 		const flush = () => {
 			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
+			clearLeakWarningTimer();
 		};
 
 		const emitter = new Emitter<T>({
@@ -451,6 +589,7 @@ export namespace Event {
 					listener.dispose();
 				}
 				listener = null;
+				clearLeakWarningTimer();
 			}
 		});
 
@@ -568,7 +707,7 @@ export namespace Event {
 	 * Creates an {@link Event} from a node event emitter.
 	 */
 	export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
+		const fn = (...args: unknown[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.on(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
 		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });
@@ -585,7 +724,7 @@ export namespace Event {
 	 * Creates an {@link Event} from a DOM event emitter.
 	 */
 	export function fromDOMEventEmitter<T>(emitter: DOMEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
+		const fn = (...args: unknown[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeEventListener(eventName, fn);
 		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });
@@ -596,26 +735,25 @@ export namespace Event {
 	/**
 	 * Creates a promise out of an event, using the {@link Event.once} helper.
 	 */
-	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): Promise<T> {
-		return new Promise(resolve => once(event)(resolve, null, disposables));
-	}
+	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): CancelablePromise<T> {
+		let cancelRef: () => void;
+		let listener: IDisposable;
+		const promise = new Promise((resolve) => {
+			listener = once(event)(resolve);
+			addToDisposables(listener, disposables);
 
-	/**
-	 * Creates an event out of a promise that fires once when the promise is
-	 * resolved with the result of the promise or `undefined`.
-	 */
-	export function fromPromise<T>(promise: Promise<T>): Event<T | undefined> {
-		const result = new Emitter<T | undefined>();
+			// not resolved, matching the behavior of a normal disposal
+			cancelRef = () => {
+				disposeAndRemove(listener, disposables);
+			};
+		}) as CancelablePromise<T>;
+		promise.cancel = cancelRef!;
 
-		promise.then(res => {
-			result.fire(res);
-		}, () => {
-			result.fire(undefined);
-		}).finally(() => {
-			result.dispose();
-		});
+		if (disposables) {
+			promise.finally(() => disposeAndRemove(listener, disposables));
+		}
 
-		return result.event;
+		return promise;
 	}
 
 	/**
@@ -753,11 +891,7 @@ export namespace Event {
 				}
 			};
 
-			if (disposables instanceof DisposableStore) {
-				disposables.add(disposable);
-			} else if (Array.isArray(disposables)) {
-				disposables.push(disposable);
-			}
+			addToDisposables(disposable, disposables);
 
 			return disposable;
 		};
@@ -797,6 +931,11 @@ export interface EmitterOptions {
 	 * @see setGlobalLeakWarningThreshold
 	 */
 	leakWarningThreshold?: number;
+	/**
+	 * Human-readable name for the emitter, included in leak warning error
+	 * messages to help identify which emitter is leaking in telemetry.
+	 */
+	leakWarningName?: string;
 	/**
 	 * Pass in a delivery queue, which is useful for ensuring
 	 * in order event delivery across multiple emitters.
@@ -891,11 +1030,13 @@ class LeakageMonitor {
 			this._warnCountdown = threshold * 0.5;
 
 			const [topStack, topCount] = this.getMostFrequentStack()!;
+			const emitterName = /^[0-9a-f]+$/i.test(this.name) ? undefined : this.name;
 			const message = `[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`;
 			console.warn(message);
-			console.warn(topStack!);
+			console.warn(topStack);
 
-			const error = new ListenerLeakError(message, topStack);
+			const kind = topCount / listenerCount > 0.3 ? 'dominated' : 'popular';
+			const error = new ListenerLeakError(kind, message, topStack, listenerCount, emitterName);
 			this._errorHandler(error);
 		}
 
@@ -937,20 +1078,38 @@ class Stacktrace {
 
 // error that is logged when going over the configured listener threshold
 export class ListenerLeakError extends Error {
-	constructor(message: string, stack: string) {
-		super(message);
+	readonly kind: string;
+	readonly listenerCount: number;
+	/**
+	 * The detailed message including listener count and most frequent stack.
+	 * Available locally for debugging but intentionally not used as the error
+	 * `message`. When `emitterName` is provided, errors group by emitter name
+	 * and kind in telemetry; otherwise they group by kind alone.
+	 */
+	readonly details: string;
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string, listenerCount: number, emitterName?: string) {
+		super(emitterName
+			? `[${emitterName}] potential listener LEAK detected, ${kind}`
+			: `potential listener LEAK detected, ${kind}`);
 		this.name = 'ListenerLeakError';
+		this.kind = kind;
+		this.listenerCount = listenerCount;
+		this.details = details;
 		this.stack = stack;
+	}
+
+	static is(err: unknown): err is ListenerLeakError {
+		return err instanceof ListenerLeakError
+			|| (err instanceof Error && typeof (err as Error & { kind: unknown; listenerCount: unknown }).kind === 'string' && typeof (err as Error & { kind: unknown; listenerCount: unknown }).listenerCount === 'number');
 	}
 }
 
 // SEVERE error that is logged when having gone way over the configured listener
 // threshold so that the emitter refuses to accept more listeners
-export class ListenerRefusalError extends Error {
-	constructor(message: string, stack: string) {
-		super(message);
+export class ListenerRefusalError extends ListenerLeakError {
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string, listenerCount: number, emitterName?: string) {
+		super(kind, details, stack, listenerCount, emitterName);
 		this.name = 'ListenerRefusalError';
-		this.stack = stack;
 	}
 }
 
@@ -1037,7 +1196,7 @@ export class Emitter<T> {
 	constructor(options?: EmitterOptions) {
 		this._options = options;
 		this._leakageMon = (_globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold)
-			? new LeakageMonitor(options?.onListenerError ?? onUnexpectedError, this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold) :
+			? new LeakageMonitor(options?.onListenerError ?? onUnexpectedError, this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold, this._options?.leakWarningName) :
 			undefined;
 		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
 		this._deliveryQueue = this._options?.deliveryQueue as EventDeliveryQueuePrivate | undefined;
@@ -1087,7 +1246,8 @@ export class Emitter<T> {
 				console.warn(message);
 
 				const tuple = this._leakageMon.getMostFrequentStack() ?? ['UNKNOWN stack', -1];
-				const error = new ListenerRefusalError(`${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
+				const kind = tuple[1] / this._size > 0.3 ? 'dominated' : 'popular';
+				const error = new ListenerRefusalError(kind, `${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0], this._size, this._options?.leakWarningName);
 				const errorHandler = this._options?.onListenerError || onUnexpectedError;
 				errorHandler(error);
 
@@ -1136,11 +1296,7 @@ export class Emitter<T> {
 				removeMonitor?.();
 				this._removeListener(contained);
 			});
-			if (disposables instanceof DisposableStore) {
-				disposables.add(result);
-			} else if (Array.isArray(disposables)) {
-				disposables.push(result);
-			}
+			addToDisposables(result, disposables);
 
 			return result;
 		};
@@ -1412,7 +1568,7 @@ export class PauseableEmitter<T> extends Emitter<T> {
 export class DebounceEmitter<T> extends PauseableEmitter<T> {
 
 	private readonly _delay: number;
-	private _handle: any | undefined;
+	private _handle: Timeout | undefined;
 
 	constructor(options: EmitterOptions & { merge: (input: T[]) => T; delay?: number }) {
 		super(options);
@@ -1784,4 +1940,25 @@ export function trackSetChanges<T>(getData: () => ReadonlySet<T>, onDidChangeDat
 	}));
 	store.add(map);
 	return store;
+}
+
+
+function addToDisposables(result: IDisposable, disposables: DisposableStore | IDisposable[] | undefined) {
+	if (disposables instanceof DisposableStore) {
+		disposables.add(result);
+	} else if (Array.isArray(disposables)) {
+		disposables.push(result);
+	}
+}
+
+function disposeAndRemove(result: IDisposable, disposables: DisposableStore | IDisposable[] | undefined) {
+	if (disposables instanceof DisposableStore) {
+		disposables.delete(result);
+	} else if (Array.isArray(disposables)) {
+		const index = disposables.indexOf(result);
+		if (index !== -1) {
+			disposables.splice(index, 1);
+		}
+	}
+	result.dispose();
 }

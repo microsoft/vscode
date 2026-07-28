@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ListProjection } from '../../../browser/explorerProjections/listProjection.js';
 import { TestId } from '../../../common/testId.js';
@@ -12,11 +12,13 @@ import { TestResultItemChange } from '../../../common/testResult.js';
 import { TestDiffOpType, TestItemExpandState } from '../../../common/testTypes.js';
 import { TestTreeTestHarness } from '../testObjectTree.js';
 import { TestTestItem } from '../../common/testStubs.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ITestResultService } from '../../../common/testResultService.js';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	let harness: TestTreeTestHarness<ListProjection>;
 	let onTestChanged: Emitter<TestResultItemChange>;
-	let resultsService: any;
+	let resultsService: ITestResultService;
 
 	teardown(() => {
 		harness.dispose();
@@ -26,13 +28,13 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	setup(() => {
 		onTestChanged = new Emitter();
-		resultsService = {
-			onResultsChanged: () => undefined,
+		resultsService = upcastPartial<ITestResultService>({
+			onResultsChanged: Event.None,
 			onTestChanged: onTestChanged.event,
-			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
-		};
+			getStateById: () => undefined,
+		});
 
-		harness = new TestTreeTestHarness(l => new ListProjection({}, l, resultsService as any));
+		harness = new TestTreeTestHarness(l => new ListProjection({}, l, resultsService));
 	});
 
 	test('renders initial tree', () => {

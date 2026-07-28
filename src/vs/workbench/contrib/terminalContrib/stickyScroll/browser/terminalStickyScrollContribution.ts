@@ -31,6 +31,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private readonly _enableListeners = this._register(new MutableDisposable());
 	private readonly _disableListeners = this._register(new MutableDisposable());
+	private readonly _richCommandDetectionListeners = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -94,6 +95,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 	}
 
 	private _tryEnable(): void {
+		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (this._shouldBeEnabled()) {
 			const xtermCtorEventually = TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
 			this._overlay.value = this._instantiationService.createInstance(
@@ -101,20 +103,30 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 				this._ctx.instance,
 				this._xterm!,
 				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._ctx.instance.targetRef),
-				this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)!,
+				capability!,
 				xtermCtorEventually
 			);
+			this._richCommandDetectionListeners.clear();
+		} else if (capability && !capability.hasRichCommandDetection) {
+			this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
+				this._refreshState();
+			});
+		} else {
+			// No or Rich shell integration does not need listener
+			this._richCommandDetectionListeners.clear();
 		}
 	}
 
 	private _tryDisable(): void {
 		if (!this._shouldBeEnabled()) {
 			this._overlay.clear();
+			this._richCommandDetectionListeners.clear();
 		}
 	}
 
 	private _shouldBeEnabled(): boolean {
 		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
-		return !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && this._xterm?.raw?.element);
+		const result = !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && capability.hasRichCommandDetection && this._xterm?.raw?.element);
+		return result;
 	}
 }

@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { IActiveCodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -239,7 +240,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
 					"Running '{0}' Formatter ([configure]({1})).",
 					provider.displayName || provider.extensionId && provider.extensionId.value || '???',
-					'command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D'
+					createCommandUri('workbench.action.openSettings', 'editor.formatOnSave').toString(),
 				)
 			});
 		});
@@ -395,7 +396,7 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
 						"Getting code actions from {0} ([configure]({1})).",
 						[...this._names].map(name => `'${name}'`).join(', '),
-						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
+						createCommandUri('workbench.action.openSettings', 'editor.codeActionsOnSave').toString()
 					)
 				});
 			}

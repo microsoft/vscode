@@ -44,4 +44,8 @@ export class Lazy<T> {
 	 * Get the wrapped value without forcing evaluation.
 	 */
 	get rawValue(): T | undefined { return this._value; }
+
+	map<R>(fn: (value: T) => R): Lazy<R> {
+		return new Lazy(() => fn(this.value));
+	}
 }

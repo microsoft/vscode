@@ -111,6 +111,45 @@ export class NotebookOverviewRuler extends Themable {
 
 				currentFrom += cellHeight;
 			}
+
+			const overviewRulerDecorations = viewModel.getOverviewRulerDecorations();
+
+			for (let i = 0; i < overviewRulerDecorations.length; i++) {
+				const decoration = overviewRulerDecorations[i];
+				if (!decoration.options.overviewRuler) {
+					continue;
+				}
+				const viewZoneInfo = this.notebookEditor.getViewZoneLayoutInfo(decoration.viewZoneId);
+
+				if (!viewZoneInfo) {
+					continue;
+				}
+
+				const fillStyle = this.getColor(decoration.options.overviewRuler.color) ?? '#000000';
+				let x = 0;
+				switch (decoration.options.overviewRuler.position) {
+					case NotebookOverviewRulerLane.Left:
+						x = 0;
+						break;
+					case NotebookOverviewRulerLane.Center:
+						x = laneWidth;
+						break;
+					case NotebookOverviewRulerLane.Right:
+						x = laneWidth * 2;
+						break;
+					default:
+						break;
+				}
+
+				const width = decoration.options.overviewRuler.position === NotebookOverviewRulerLane.Full ? laneWidth * 3 : laneWidth;
+
+				ctx.fillStyle = fillStyle;
+
+				const viewZoneHeight = (viewZoneInfo.height / scrollHeight) * ratio * height;
+				const viewZoneTop = (viewZoneInfo.top / scrollHeight) * ratio * height;
+
+				ctx.fillRect(x, viewZoneTop, width, viewZoneHeight);
+			}
 		}
 	}
 }

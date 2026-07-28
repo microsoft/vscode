@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GraphemeIterator, forAnsiStringParts, removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
@@ -25,7 +25,7 @@ const enum Classes {
 }
 
 export const renderTestMessageAsText = (tm: string | IMarkdownString) =>
-	typeof tm === 'string' ? removeAnsiEscapeCodes(tm) : renderStringAsPlaintext(tm);
+	typeof tm === 'string' ? removeAnsiEscapeCodes(tm) : renderAsPlaintext(tm);
 
 
 /**

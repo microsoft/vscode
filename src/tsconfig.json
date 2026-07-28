@@ -8,6 +8,7 @@
 		"allowJs": true,
 		"resolveJsonModule": true,
 		"isolatedModules": false,
+		"skipLibCheck": true,
 		"outDir": "../out/vs",
 		"types": [
 			"@webgpu/types",
@@ -31,5 +32,8 @@
 		"./vs/**/*.ts",
 		"./vscode-dts/vscode.proposed.*.d.ts",
 		"./vscode-dts/vscode.d.ts"
+	],
+	"exclude": [
+		"vs/workbench/contrib/webview/browser/pre/service-worker.js"
 	]
 }

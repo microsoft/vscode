@@ -36,7 +36,7 @@ class NullBackupStoreService implements IUserDataSyncLocalStoreService {
 }
 
 class NullEnablementService implements IUserDataSyncEnablementService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onDidChangeEnablement = new Emitter<boolean>();
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
@@ -48,6 +48,7 @@ class NullEnablementService implements IUserDataSyncEnablementService {
 	canToggleEnablement(): boolean { return true; }
 	setEnablement(_enabled: boolean): void { }
 	isResourceEnabled(_resource: SyncResource): boolean { return true; }
+	isResourceEnablementConfigured(_resource: SyncResource): boolean { return false; }
 	setResourceEnablement(_resource: SyncResource, _enabled: boolean): void { }
 	getResourceSyncStateVersion(_resource: SyncResource): string | undefined { return undefined; }
 

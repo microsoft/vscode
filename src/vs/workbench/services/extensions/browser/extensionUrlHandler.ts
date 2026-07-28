@@ -26,6 +26,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -140,13 +141,14 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), { trusted: true });
 		}
 
+		const cache = ExtensionUrlBootstrapHandler.cache;
+		const drainTimeout = setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
+
 		this.disposable = combinedDisposable(
 			urlService.registerHandler(this),
-			interval
+			interval,
+			toDisposable(() => clearTimeout(drainTimeout))
 		);
-
-		const cache = ExtensionUrlBootstrapHandler.cache;
-		setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -181,7 +183,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const trusted = options?.trusted
-			|| this.productService.trustedExtensionProtocolHandlers?.includes(extensionId)
+			|| this.productService.trustedExtensionProtocolHandlers?.some(value => equalsIgnoreCase(value, extensionId))
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
@@ -270,7 +272,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					reason: `${localize('installDetail', "This extension wants to open a URI:")}\n${uri.toString()}`,
 					action: localize('openUri', "Open URI")
 				},
-				enable: true
+				enable: true,
+				installPreReleaseVersion: this.productService.quality !== 'stable'
 			});
 		} catch (error) {
 			if (!isCancellationError(error)) {

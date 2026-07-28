@@ -14,7 +14,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { searchMatchComparer } from './searchCompare.js';
-import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
+import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class CopyMatchCommandAction extends Action2 {
@@ -94,8 +94,37 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 
 	}
 
+	override async run(accessor: ServicesAccessor, match: RenderableMatch | undefined): Promise<any> {
+		await copyAllCommand(accessor, match);
+	}
+});
+
+registerAction2(class GetSearchResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.GetSearchResultsActionId,
+			title: nls.localize2('getSearchResultsLabel', "Get Search Results"),
+			category,
+			f1: false
+		});
+	}
+
 	override async run(accessor: ServicesAccessor): Promise<any> {
-		await copyAllCommand(accessor);
+		const viewsService = accessor.get(IViewsService);
+		const labelService = accessor.get(ILabelService);
+
+		const searchView = getSearchView(viewsService);
+		if (searchView) {
+			const root = searchView.searchResult;
+			const textSearchResult = allFolderMatchesToString(root.folderMatches(), labelService);
+			const aiSearchResult = allFolderMatchesToString(root.folderMatches(true), labelService);
+
+			const text = `${textSearchResult}${lineDelimiter}${lineDelimiter}${aiSearchResult}`;
+
+			return text;
+		}
+
+		return undefined;
 	}
 });
 
@@ -148,7 +177,7 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 	}
 }
 
-async function copyAllCommand(accessor: ServicesAccessor) {
+async function copyAllCommand(accessor: ServicesAccessor, match: RenderableMatch | undefined | null) {
 	const viewsService = accessor.get(IViewsService);
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
@@ -156,8 +185,13 @@ async function copyAllCommand(accessor: ServicesAccessor) {
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const root = searchView.searchResult;
+		const isAISearchElement = isAISearchResult(match);
 
-		const text = allFolderMatchesToString(root.folderMatches(), labelService);
+		if (!match) {
+			match = getSelectedRow(accessor);
+		}
+
+		const text = allFolderMatchesToString(root.folderMatches(isAISearchElement), labelService);
 		await clipboardService.writeText(text);
 	}
 }
@@ -243,6 +277,30 @@ function getSelectedRow(accessor: ServicesAccessor): RenderableMatch | undefined
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
 	return searchView?.getControl().getSelection()[0];
+}
+
+function isAISearchResult(element: RenderableMatch | undefined | null): boolean {
+	if (!element) {
+		return false;
+	}
+
+	if (isSearchTreeMatch(element)) {
+		return element.parent().parent().isAIContributed();
+	}
+
+	if (isSearchTreeFileMatch(element)) {
+		return element.parent().isAIContributed();
+	}
+
+	if (isSearchTreeFolderMatch(element)) {
+		return element.isAIContributed();
+	}
+
+	if (isTextSearchHeading(element)) {
+		return element.isAIContributed;
+	}
+
+	return false;
 }
 
 //#endregion

@@ -8,7 +8,7 @@ import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { IDisposable, DisposableStore, Disposable, DisposableMap, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
 import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
@@ -88,15 +88,15 @@ export interface IPaneCompositeBarOptions {
 export class PaneCompositeBar extends Disposable {
 
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());
-	private readonly location: ViewContainerLocation;
 
 	private readonly compositeBar: CompositeBar;
 	readonly dndHandler: ICompositeDragAndDrop;
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction }>();
+	private readonly compositeActions = this._register(new DisposableMap<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction; dispose: () => void }>());
 
 	private hasExtensionsRegistered: boolean = false;
 
 	constructor(
+		private readonly location: ViewContainerLocation,
 		protected readonly options: IPaneCompositeBarOptions,
 		protected readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
@@ -110,9 +110,6 @@ export class PaneCompositeBar extends Disposable {
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-		this.location = paneCompositePart.partId === Parts.PANEL_PART
-			? ViewContainerLocation.Panel : paneCompositePart.partId === Parts.AUXILIARYBAR_PART
-				? ViewContainerLocation.AuxiliaryBar : ViewContainerLocation.Sidebar;
 
 		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.location, this.options.orientation,
 			async (id: string, focus?: boolean) => { return await this.paneCompositePart.openPaneComposite(id, focus) ?? null; },
@@ -219,6 +216,7 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private registerListeners(): void {
+
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
@@ -312,22 +310,25 @@ export class PaneCompositeBar extends Disposable {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewContainer = this.getViewContainer(compositeId);
+			let activityAction: ViewContainerActivityAction;
+			let pinnedAction: ToggleCompositePinnedAction;
+			let badgeAction: ToggleCompositeBadgeAction;
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				compositeActions = {
-					activityAction: this._register(this.instantiationService.createInstance(ViewContainerActivityAction, this.toCompositeBarActionItemFrom(viewContainerModel), this.part, this.paneCompositePart)),
-					pinnedAction: this._register(new ToggleCompositePinnedAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar)),
-					badgeAction: this._register(new ToggleCompositeBadgeAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar))
-				};
+				const actionItem = this.toCompositeBarActionItemFrom(viewContainerModel);
+				activityAction = this.instantiationService.createInstance(ViewContainerActivityAction, actionItem, this.part, this.paneCompositePart);
+				pinnedAction = new ToggleCompositePinnedAction(actionItem, this.compositeBar);
+				badgeAction = new ToggleCompositeBadgeAction(actionItem, this.compositeBar);
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
-				compositeActions = {
-					activityAction: this._register(this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined), this.part, this.paneCompositePart)),
-					pinnedAction: this._register(new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)),
-					badgeAction: this._register(new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar))
-				};
+				const actionItem = this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined);
+				activityAction = this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, actionItem, this.part, this.paneCompositePart);
+				pinnedAction = new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar);
+				badgeAction = new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar);
 			}
 
+			const disposable = combinedDisposable(activityAction, pinnedAction, badgeAction);
+			compositeActions = { activityAction, pinnedAction, badgeAction, dispose: () => disposable.dispose() };
 			this.compositeActions.set(compositeId, compositeActions);
 		}
 
@@ -401,9 +402,9 @@ export class PaneCompositeBar extends Disposable {
 				classNames = [iconId, 'uri-icon'];
 				createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
-				mask-size: ${this.options.iconSize}px;
+				mask-size: var(--activity-bar-icon-size, ${this.options.iconSize}px);
 				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-				-webkit-mask-size: ${this.options.iconSize}px;
+				-webkit-mask-size: var(--activity-bar-icon-size, ${this.options.iconSize}px);
 				mask-origin: padding;
 				-webkit-mask-origin: padding;
 			`);
@@ -469,9 +470,7 @@ export class PaneCompositeBar extends Disposable {
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
-			compositeActions.activityAction.dispose();
-			compositeActions.pinnedAction.dispose();
-			this.compositeActions.delete(compositeId);
+			this.compositeActions.deleteAndDispose(compositeId);
 		}
 	}
 
@@ -480,9 +479,7 @@ export class PaneCompositeBar extends Disposable {
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
-			compositeActions.activityAction.dispose();
-			compositeActions.pinnedAction.dispose();
-			this.compositeActions.delete(compositeId);
+			this.compositeActions.deleteAndDispose(compositeId);
 		}
 	}
 

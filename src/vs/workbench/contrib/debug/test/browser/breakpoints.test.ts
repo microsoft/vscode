@@ -216,16 +216,16 @@ suite('Debug - Breakpoints', () => {
 	test('exception breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
-		model.setExceptionBreakpointsForSession("session-id-1", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
+		model.setExceptionBreakpointsForSession('session-id-1', [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
 		assert.strictEqual(eventCount, 1);
-		let exceptionBreakpoints = model.getExceptionBreakpointsForSession("session-id-1");
+		let exceptionBreakpoints = model.getExceptionBreakpointsForSession('session-id-1');
 		assert.strictEqual(exceptionBreakpoints.length, 1);
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
 
-		model.setExceptionBreakpointsForSession("session-id-2", [{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.setExceptionBreakpointsForSession('session-id-2', [{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
 		assert.strictEqual(eventCount, 2);
-		exceptionBreakpoints = model.getExceptionBreakpointsForSession("session-id-2");
+		exceptionBreakpoints = model.getExceptionBreakpointsForSession('session-id-2');
 		assert.strictEqual(exceptionBreakpoints.length, 2);
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
@@ -233,9 +233,9 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(exceptionBreakpoints[1].label, 'CAUGHT');
 		assert.strictEqual(exceptionBreakpoints[1].enabled, false);
 
-		model.setExceptionBreakpointsForSession("session-id-3", [{ filter: 'all', label: 'ALL' }]);
+		model.setExceptionBreakpointsForSession('session-id-3', [{ filter: 'all', label: 'ALL' }]);
 		assert.strictEqual(eventCount, 3);
-		assert.strictEqual(model.getExceptionBreakpointsForSession("session-id-3").length, 1);
+		assert.strictEqual(model.getExceptionBreakpointsForSession('session-id-3').length, 1);
 		exceptionBreakpoints = model.getExceptionBreakpoints();
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
@@ -250,17 +250,17 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
-		model.setExceptionBreakpointsForSession("session-id-4", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }, { filter: 'caught', label: 'CAUGHT' }]);
-		model.setExceptionBreakpointFallbackSession("session-id-4");
+		model.setExceptionBreakpointsForSession('session-id-4', [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.setExceptionBreakpointFallbackSession('session-id-4');
 		assert.strictEqual(eventCount, 1);
-		let exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession("session-id-4");
+		let exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession('session-id-4');
 		assert.strictEqual(exceptionBreakpointsForSession.length, 2);
 		assert.strictEqual(exceptionBreakpointsForSession[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpointsForSession[1].filter, 'caught');
 
-		model.setExceptionBreakpointsForSession("session-id-5", [{ filter: 'all', label: 'ALL' }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.setExceptionBreakpointsForSession('session-id-5', [{ filter: 'all', label: 'ALL' }, { filter: 'caught', label: 'CAUGHT' }]);
 		assert.strictEqual(eventCount, 2);
-		exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession("session-id-5");
+		exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession('session-id-5');
 		let exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
 		assert.strictEqual(exceptionBreakpointsForSession.length, 2);
 		assert.strictEqual(exceptionBreakpointsForSession[0].filter, 'caught');
@@ -269,14 +269,14 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'caught');
 
-		model.removeExceptionBreakpointsForSession("session-id-4");
+		model.removeExceptionBreakpointsForSession('session-id-4');
 		assert.strictEqual(eventCount, 2);
 		exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
 		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
 		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'caught');
 
-		model.setExceptionBreakpointFallbackSession("session-id-5");
+		model.setExceptionBreakpointFallbackSession('session-id-5');
 		assert.strictEqual(eventCount, 2);
 		exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
 		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
@@ -447,6 +447,7 @@ suite('Debug - Breakpoints', () => {
 	test('updates when storage changes', () => {
 		const storage1 = disposables.add(new TestStorageService());
 		const debugStorage1 = disposables.add(new MockDebugStorage(storage1));
+		// eslint-disable-next-line local/code-no-any-casts
 		const model1 = disposables.add(new DebugModel(debugStorage1, <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
 
 		// 1. create breakpoints in the first model
@@ -462,6 +463,7 @@ suite('Debug - Breakpoints', () => {
 
 		// 2. hydrate a new model and ensure external breakpoints get applied
 		const storage2 = disposables.add(new TestStorageService());
+		// eslint-disable-next-line local/code-no-any-casts
 		const model2 = disposables.add(new DebugModel(disposables.add(new MockDebugStorage(storage2)), <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
 		storage2.store('debug.breakpoint', stored, StorageScope.WORKSPACE, StorageTarget.USER, /* external= */ true);
 		assert.deepStrictEqual(model2.getBreakpoints().map(b => b.getId()), model1.getBreakpoints().map(b => b.getId()));

@@ -7,7 +7,7 @@ import { reverseOrder, compareBy, numberComparator } from '../../../../base/comm
 import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from '../../../../base/common/observable.js';
 import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
 import { DisposableCancellationTokenSource } from '../../../browser/widget/diffEditor/utils.js';
-import { LineRange } from '../../../common/core/lineRange.js';
+import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IOutlineModelService, OutlineModel } from '../../documentSymbols/browser/outlineModel.js';
@@ -53,6 +53,17 @@ class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBread
 		const symbols = m.asListOfDocumentSymbols()
 			.filter(s => startRange.contains(s.range.startLineNumber) && !startRange.contains(s.range.endLineNumber));
 		symbols.sort(reverseOrder(compareBy(s => s.range.endLineNumber - s.range.startLineNumber, numberComparator)));
+		return symbols.map(s => ({ name: s.name, kind: s.kind, startLineNumber: s.range.startLineNumber }));
+	}
+
+	public getAt(lineNumber: number, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[] {
+		const m = this._currentModel.read(reader);
+		if (!m) { return []; }
+		const symbols = m.asListOfDocumentSymbols()
+			.filter(s => new LineRange(s.range.startLineNumber, s.range.endLineNumber).contains(lineNumber));
+		if (symbols.length === 0) { return []; }
+		symbols.sort(reverseOrder(compareBy(s => s.range.endLineNumber - s.range.startLineNumber, numberComparator)));
+
 		return symbols.map(s => ({ name: s.name, kind: s.kind, startLineNumber: s.range.startLineNumber }));
 	}
 }

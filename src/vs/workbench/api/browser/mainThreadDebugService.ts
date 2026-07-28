@@ -347,7 +347,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		session?.setName(name);
 	}
 
-	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
+	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: unknown): Promise<unknown> {
 		const session = this.debugService.getModel().getSession(sessionId, true);
 		if (session) {
 			return session.customRequest(request, args).then(response => {
@@ -422,7 +422,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined;
 	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined {
 		if (session) {
-			const sessionID = <DebugSessionUUID>session.getId();
+			const sessionID = session.getId();
 			if (this._extHostKnownSessions.has(sessionID)) {
 				return sessionID;
 			} else {

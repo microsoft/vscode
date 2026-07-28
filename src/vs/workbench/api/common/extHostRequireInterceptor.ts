@@ -27,7 +27,7 @@ interface IAlternativeModuleProvider {
 	alternativeModuleName(name: string): string | undefined;
 }
 
-interface INodeModuleFactory extends Partial<IAlternativeModuleProvider> {
+export interface INodeModuleFactory extends Partial<IAlternativeModuleProvider> {
 	readonly nodeModuleName: string | string[];
 	load(request: string, parent: URI, original: LoadFunction): any;
 }
@@ -95,7 +95,8 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 	 * renamed without breaking extensions. In the form "original -> new name".
 	 */
 	private static readonly aliased: ReadonlyMap<string, string> = new Map([
-		['vscode-ripgrep', '@vscode/ripgrep'],
+		['vscode-ripgrep', '@vscode/ripgrep-universal'],
+		['@vscode/ripgrep', '@vscode/ripgrep-universal'],
 		['vscode-windows-registry', '@vscode/windows-registry'],
 	]);
 

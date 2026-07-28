@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
-import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent, IEditorControl } from '../../../common/editor.js';
+import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent, IEditorControl, ITextResourceDiffEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
@@ -16,7 +16,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { SideBySideEditor as SideBySideEditorPane } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions, IEditorGroupsContainer } from '../common/editorGroupsService.js';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from '../common/editorService.js';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult, IVisibleEditorsChangeEvent } from '../common/editorService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, IDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
@@ -45,7 +45,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidActiveEditorChange = this._register(new Emitter<void>());
 	readonly onDidActiveEditorChange = this._onDidActiveEditorChange.event;
 
-	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
+	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<IVisibleEditorsChangeEvent>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
 	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorsChangeEvent>());
@@ -90,8 +90,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.registerListeners();
 	}
 
-	createScoped(editorGroupsContainer: IEditorGroupsContainer | 'main', disposables: DisposableStore): IEditorService {
-		return disposables.add(new EditorService(editorGroupsContainer === 'main' ? this.editorGroupService.mainPart : editorGroupsContainer, this.editorGroupService, this.instantiationService, this.fileService, this.configurationService, this.contextService, this.uriIdentityService, this.editorResolverService, this.workspaceTrustRequestService, this.hostService, this.textEditorService));
+	createScoped(editorGroupsContainer: IEditorGroupsContainer, disposables: DisposableStore): IEditorService {
+		return disposables.add(new EditorService(editorGroupsContainer, this.editorGroupService, this.instantiationService, this.fileService, this.configurationService, this.contextService, this.uriIdentityService, this.editorResolverService, this.workspaceTrustRequestService, this.hostService, this.textEditorService));
 	}
 
 	private registerListeners(): void {
@@ -135,7 +135,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Fire initial set of editor events if there is an active editor
 		if (this.activeEditor) {
 			this.doHandleActiveEditorChangeEvent();
-			this._onDidVisibleEditorsChange.fire();
+			this._onDidVisibleEditorsChange.fire({ isExplicit: false });
 		}
 	}
 
@@ -168,9 +168,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this._onDidEditorsChange.fire({ groupId: group.id, event: e });
 		}));
 
-		groupDisposables.add(group.onDidActiveEditorChange(() => {
+		groupDisposables.add(group.onDidActiveEditorChange(e => {
 			this.handleActiveEditorChange(group);
-			this._onDidVisibleEditorsChange.fire();
+			this._onDidVisibleEditorsChange.fire({ isExplicit: e.isExplicit !== false /* treat undefined as explicit */ });
 		}));
 
 		groupDisposables.add(group.onWillOpenEditor(e => {
@@ -316,7 +316,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private closeOnFileDelete: boolean = false;
+	private closeOnFileDelete = false;
 
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 		if (e && !e.affectsConfiguration('workbench.editor.closeOnFileDelete')) {
@@ -530,6 +530,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined>;
 	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined> {
@@ -576,6 +577,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (activation) {
 				options = { ...options, activation };
 			}
+		}
+
+		// Modal group: override `preserveFocus` to move focus into the modal because there is nothing to preserve if this is the first modal editor
+		if (
+			options?.preserveFocus &&
+			this.editorGroupService.activeModalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id) &&
+			this.editorGroupService.activeModalEditorPart.count === 1 &&
+			this.editorGroupService.activeModalEditorPart.groups[0].isEmpty
+		) {
+			options = { ...options, preserveFocus: false };
 		}
 
 		return group.openEditor(typedEditor, options);
@@ -634,6 +645,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				} else {
 					([group] = findGroupResult);
 				}
+			}
+
+			// Modal group: override `preserveFocus` to move focus into the modal there is nothing to preserve if this is the first modal editor
+			if (
+				typedEditor.options?.preserveFocus &&
+				this.editorGroupService.activeModalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id) &&
+				this.editorGroupService.activeModalEditorPart.count === 1 &&
+				this.editorGroupService.activeModalEditorPart.groups[0].isEmpty
+			) {
+				typedEditor = { ...typedEditor, options: { ...typedEditor.options, preserveFocus: false } };
 			}
 
 			// Update map of groups to editors
@@ -860,7 +881,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		else {
 			const result: IEditorIdentifier[] = [];
 
-			for (const group of this.editorGroupsContainer.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			for (const group of this.editorGroupsContainer.getGroups(options?.order === EditorsOrder.SEQUENTIAL ? GroupsOrder.GRID_APPEARANCE : GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 				const editors: EditorInput[] = [];
 
 				// Resource provided: result is an array

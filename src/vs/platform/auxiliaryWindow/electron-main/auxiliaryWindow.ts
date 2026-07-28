@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
-import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -20,7 +20,7 @@ export interface IAuxiliaryWindow extends IBaseWindow {
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
-	readonly id = this.webContents.id;
+	readonly id: number;
 	parentId = -1;
 
 	override get win() {
@@ -35,6 +35,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	constructor(
 		private readonly webContents: WebContents,
+		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -42,6 +43,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super(configurationService, stateService, environmentMainService, logService);
+
+		this.id = this.webContents.id;
 
 		// Try to claim window
 		this.tryClaimWindow();
@@ -52,22 +55,24 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			return; // already disposed
 		}
 
-		this.doTryClaimWindow(options);
+		const effectiveOptions = options ?? this.windowOptions;
 
-		if (options && !this.stateApplied) {
+		this.doTryClaimWindow(effectiveOptions);
+
+		if (effectiveOptions && !this.stateApplied) {
 			this.stateApplied = true;
 
 			this.applyState({
-				x: options.x,
-				y: options.y,
-				width: options.width,
-				height: options.height,
+				x: effectiveOptions.x,
+				y: effectiveOptions.y,
+				width: effectiveOptions.width,
+				height: effectiveOptions.height,
 				// We currently do not support restoring fullscreen state for auxiliary
 				// windows because we do not get hold of the original `features` string
 				// that contains that info in `window-fullscreen`. However, we can
 				// probe the `options.show` value for whether the window should be maximized
 				// or not because we never show maximized windows initially to reduce flicker.
-				mode: options.show === false ? WindowMode.Maximized : WindowMode.Normal
+				mode: effectiveOptions.show === false ? WindowMode.Maximized : WindowMode.Normal
 			});
 		}
 	}
@@ -92,6 +97,16 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 			// Lifecycle
 			this.lifecycleMainService.registerAuxWindow(this);
+
+			// Hide macOS traffic light buttons for frameless windows
+			if (isMacintosh && options?.frame === false) {
+				window.setWindowButtonVisibility(false);
+			}
+
+			// Disable resizing for non-resizable windows
+			if (options?.resizable === false) {
+				window.setResizable(false);
+			}
 		}
 	}
 

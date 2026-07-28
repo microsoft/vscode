@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
+import electron, { Display, Rectangle } from 'electron';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
@@ -17,7 +17,7 @@ import { ServicesAccessor, createDecorator } from '../../instantiation/common/in
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -39,12 +39,13 @@ export interface IWindowsMainService {
 	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
-
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToOpeningWindow(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource): Promise<ICodeWindow[]>;
+
+	sendToFocused(channel: string, ...args: unknown[]): void;
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void;
 
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
@@ -122,6 +123,12 @@ export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
+	alwaysOnTop?: boolean;
+	frameless?: boolean;
+	transparent?: boolean;
+	notResizable?: boolean;
+	noBackgroundThrottling?: boolean;
+	backgroundColor?: string;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -132,7 +139,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor?: boolean | string } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -159,10 +166,26 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		experimentalDarkMode: true
 	};
 
+	if (isWindows) {
+		let borderSetting = windowSettings?.border || 'default';
+		if (borderSetting === 'system') {
+			borderSetting = 'default';
+		}
+		if (borderSetting !== 'default') {
+			if (borderSetting === 'off') {
+				options.accentColor = false;
+			} else if (typeof borderSetting === 'string') {
+				options.accentColor = borderSetting;
+			}
+		}
+	}
+
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
-	} else if (isWindows && !environmentMainService.isBuilt) {
-		options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+	} else if (isWindows) {
+		if (!environmentMainService.isBuilt) {
+			options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+		}
 	}
 
 	if (isMacintosh) {
@@ -181,7 +204,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
 	if (useNativeTabs) {
-		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
+		options.tabbingIdentifier = productService.nameShort; // this opts in to native macOS tabs
 	}
 
 	const hideNativeTitleBar = !hasNativeTitlebar(configurationService, overrides?.forceNativeTitlebar ? TitlebarStyle.NATIVE : undefined);
@@ -192,22 +215,56 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 
 		if (useWindowControlsOverlay(configurationService)) {
+			if (isMacintosh) {
+				options.titleBarOverlay = true;
+			} else {
 
-			// This logic will not perfectly guess the right colors
-			// to use on initialization, but prefer to keep things
-			// simple as it is temporary and not noticeable
-			// On macOS, only the presence of `titleBarOverlay` is
-			// considered, the properties are ignored.
+				// This logic will not perfectly guess the right colors
+				// to use on initialization, but prefer to keep things
+				// simple as it is temporary and not noticeable
 
-			const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
-			const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
+				const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+				const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
-			options.titleBarOverlay = {
-				height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
-				color: titleBarColor,
-				symbolColor
-			};
+				options.titleBarOverlay = {
+					height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
+					color: titleBarColor,
+					symbolColor
+				};
+			}
 		}
+	}
+
+	if (overrides?.alwaysOnTop) {
+		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.frameless) {
+		options.frame = false;
+		options.titleBarStyle = undefined;
+		options.titleBarOverlay = undefined;
+		options.minWidth = undefined;
+		options.minHeight = undefined;
+	}
+
+	if (overrides?.backgroundColor) {
+		options.backgroundColor = overrides.backgroundColor;
+	}
+
+	if (overrides?.transparent) {
+		options.transparent = true;
+		options.backgroundColor = undefined!; // transparent requires no background color
+	}
+
+	if (overrides?.notResizable) {
+		options.resizable = false;
+	}
+
+	if (overrides?.noBackgroundThrottling) {
+		options.webPreferences = {
+			...options.webPreferences,
+			backgroundThrottling: false,
+		};
 	}
 
 	return options;
@@ -343,20 +400,34 @@ export namespace WindowStateValidator {
 			logService.error('window#validateWindowState: error finding display for window state', error);
 		}
 
-		if (
-			display &&														// we have a display matching the desired bounds
-			displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
+		if (display && validateWindowStateOnDisplay(state, display)) {
 			return state;
 		}
 
 		logService.trace('window#validateWindowState: state is outside of the multi-monitor working area');
 
 		return undefined;
+	}
+
+	export function validateWindowStateOnDisplay(state: IWindowState, display: Display): state is Rectangle {
+		if (
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number' ||
+			state.width <= 0 || state.height <= 0
+		) {
+			return false;
+		}
+
+		const displayWorkingArea = getWorkingArea(display);
+		return Boolean(
+			displayWorkingArea &&											// we have valid working area bounds
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
+		);
 	}
 
 	function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
@@ -376,4 +447,15 @@ export namespace WindowStateValidator {
 
 		return undefined;
 	}
+}
+
+/**
+ * We have some components like `NativeWebContentExtractorService` that create offscreen windows
+ * to extract content from web pages. These windows are not visible to the user and are not
+ * considered part of the main application window. This function filters out those offscreen
+ * windows from the list of all windows.
+ * @returns An array of all BrowserWindow instances that are not offscreen.
+ */
+export function getAllWindowsExcludingOffscreen() {
+	return electron.BrowserWindow.getAllWindows().filter(win => !win.webContents.isOffscreen());
 }

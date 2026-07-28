@@ -19,7 +19,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 export interface IOptions {
 	placeholder?: string;
@@ -142,7 +141,7 @@ export class PatternInputWidget extends Widget {
 		this.domNode.classList.add('monaco-findInput');
 		const history = options.history || [];
 
-		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = this._register(new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: options.placeholder,
 			showPlaceholderOnFocus: options.showPlaceholderOnFocus,
 			tooltip: options.tooltip,
@@ -153,7 +152,7 @@ export class PatternInputWidget extends Widget {
 			history: new Set(history),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			inputBoxStyles: options.inputBoxStyles
-		}, this.contextKeyService);
+		}, this.contextKeyService));
 		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
 
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
@@ -188,6 +187,9 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	private _onChangeSearchInEditorsBoxEmitter = this._register(new Emitter<void>());
 	onChangeSearchInEditorsBox = this._onChangeSearchInEditorsBoxEmitter.event;
 
+	private _onChangeSearchInChangedFilesBoxEmitter = this._register(new Emitter<void>());
+	onChangeSearchInChangedFilesBox = this._onChangeSearchInChangedFilesBoxEmitter.event;
+
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -197,10 +199,12 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	}
 
 	private useSearchInEditorsBox!: Toggle;
+	private useSearchInChangedFilesBox!: Toggle;
 
 	override dispose(): void {
 		super.dispose();
 		this.useSearchInEditorsBox.dispose();
+		this.useSearchInChangedFilesBox.dispose();
 	}
 
 	onlySearchInOpenEditors(): boolean {
@@ -212,24 +216,63 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		this._onChangeSearchInEditorsBoxEmitter.fire();
 	}
 
+	onlySearchInChangedFiles(): boolean {
+		return this.useSearchInChangedFilesBox.checked;
+	}
+
+	setOnlySearchInChangedFiles(value: boolean) {
+		this.useSearchInChangedFilesBox.checked = value;
+		this._onChangeSearchInChangedFilesBoxEmitter.fire();
+	}
+
+	setOnlySearchInChangedFilesEnabled(enabled: boolean) {
+		if (enabled) {
+			this.useSearchInChangedFilesBox.enable();
+		} else {
+			this.useSearchInChangedFilesBox.checked = false;
+			this.useSearchInChangedFilesBox.disable();
+		}
+	}
+
 	protected override getSubcontrolsWidth(): number {
-		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
+		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width() + this.useSearchInChangedFilesBox.width();
 	}
 
 	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
+		this.useSearchInChangedFilesBox = this._register(new Toggle({
+			icon: Codicon.editCode,
+			title: nls.localize('onlySearchInChangedFiles', "Search only in Changed Files (Source Control)"),
+			isChecked: false,
+			...defaultToggleStyles
+		}));
+		this.useSearchInChangedFilesBox.disable();
+		this._register(this.useSearchInChangedFilesBox.onChange(viaKeyboard => {
+			if (this.useSearchInChangedFilesBox.checked) {
+				this.useSearchInEditorsBox.checked = false;
+			}
+			this._onChangeSearchInChangedFilesBoxEmitter.fire();
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+		}));
+
 		this.useSearchInEditorsBox = this._register(new Toggle({
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
-			hoverDelegate: getDefaultHoverDelegate('element'),
 			...defaultToggleStyles
 		}));
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
+			if (this.useSearchInEditorsBox.checked) {
+				this.useSearchInChangedFilesBox.checked = false;
+			}
 			this._onChangeSearchInEditorsBoxEmitter.fire();
 			if (!viaKeyboard) {
 				this.inputBox.focus();
 			}
 		}));
+
+		controlsDiv.appendChild(this.useSearchInChangedFilesBox.domNode);
 		controlsDiv.appendChild(this.useSearchInEditorsBox.domNode);
 		super.renderSubcontrols(controlsDiv);
 	}
@@ -274,7 +317,6 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
-			hoverDelegate: getDefaultHoverDelegate('element'),
 			...defaultToggleStyles
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {

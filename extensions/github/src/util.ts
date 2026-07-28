@@ -4,17 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Repository } from './typings/git';
+import type { Repository } from './typings/git.d.ts';
 
 export class DisposableStore {
 
 	private disposables = new Set<vscode.Disposable>();
+	private isDisposed = false;
 
 	add(disposable: vscode.Disposable): void {
+		if (this.isDisposed) {
+			// The store was already disposed, so nothing would ever dispose this.
+			disposable.dispose();
+			return;
+		}
+
 		this.disposables.add(disposable);
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
+
 		for (const disposable of this.disposables) {
 			disposable.dispose();
 		}
@@ -24,23 +33,14 @@ export class DisposableStore {
 }
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
-
+	return (_target: any, key: string, descriptor: PropertyDescriptor): void => {
 		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
+			descriptor.value = decorator(descriptor.value, key);
 		} else if (typeof descriptor.get === 'function') {
-			fnKey = 'get';
-			fn = descriptor.get;
-		}
-
-		if (!fn || !fnKey) {
+			descriptor.get = decorator(descriptor.get, key) as () => any;
+		} else {
 			throw new Error('not supported');
 		}
-
-		descriptor[fnKey] = decorator(fn, key);
 	};
 }
 
@@ -86,7 +86,7 @@ export function repositoryHasGitHubRemote(repository: Repository) {
 	return !!repository.state.remotes.find(remote => remote.fetchUrl ? getRepositoryFromUrl(remote.fetchUrl) : undefined);
 }
 
-export function getRepositoryDefaultRemoteUrl(repository: Repository): string | undefined {
+export function getRepositoryDefaultRemoteUrl(repository: Repository, order: string[]): string | undefined {
 	const remotes = repository.state.remotes
 		.filter(remote => remote.fetchUrl && getRepositoryFromUrl(remote.fetchUrl));
 
@@ -94,15 +94,20 @@ export function getRepositoryDefaultRemoteUrl(repository: Repository): string | 
 		return undefined;
 	}
 
-	// upstream -> origin -> first
-	const remote = remotes.find(remote => remote.name === 'upstream')
-		?? remotes.find(remote => remote.name === 'origin')
-		?? remotes[0];
+	for (const name of order) {
+		const remote = remotes
+			.find(remote => remote.name === name);
 
-	return remote.fetchUrl;
+		if (remote) {
+			return remote.fetchUrl;
+		}
+	}
+
+	// Fallback to first remote
+	return remotes[0].fetchUrl;
 }
 
-export function getRepositoryDefaultRemote(repository: Repository): { owner: string; repo: string } | undefined {
-	const fetchUrl = getRepositoryDefaultRemoteUrl(repository);
+export function getRepositoryDefaultRemote(repository: Repository, order: string[]): { owner: string; repo: string } | undefined {
+	const fetchUrl = getRepositoryDefaultRemoteUrl(repository, order);
 	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
 }

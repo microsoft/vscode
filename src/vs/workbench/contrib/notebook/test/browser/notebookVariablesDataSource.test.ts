@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { AsyncIterableObject, AsyncIterableSource } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -29,21 +29,19 @@ suite('NotebookVariableDataSource', () => {
 			kind: 'named' | 'indexed',
 			start: number,
 			token: CancellationToken
-		): AsyncIterableObject<VariablesResult> {
+		): AsyncIterableProducer<VariablesResult> {
 			provideVariablesCalled = true;
-			const source = new AsyncIterableSource<VariablesResult>();
-			for (let i = 0; i < results.length; i++) {
-				if (token.isCancellationRequested) {
-					break;
+			return new AsyncIterableProducer<VariablesResult>((emitter) => {
+				for (let i = 0; i < results.length; i++) {
+					if (token.isCancellationRequested) {
+						break;
+					}
+					if (results[i].action) {
+						results[i].action!();
+					}
+					emitter.emitOne(results[i]);
 				}
-				if (results[i].action) {
-					results[i].action!();
-				}
-				source.emitOne(results[i]);
-			}
-
-			setTimeout(() => source.resolve(), 0);
-			return source.asyncIterable;
+			});
 		}
 	};
 
