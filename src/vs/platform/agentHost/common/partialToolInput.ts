@@ -5,8 +5,6 @@
 
 import { parse } from '../../../base/common/json.js';
 
-// Streaming input can contain large file contents. Basic display details are
-// expected near the start, so cap and cache the prefix used for tolerant parsing.
 const MAX_PARTIAL_TOOL_INPUT_PARSE_LENGTH = 4 * 1024;
 
 let lastParsedInput: string | undefined;

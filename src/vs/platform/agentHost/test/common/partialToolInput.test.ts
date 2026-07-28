@@ -40,7 +40,7 @@ suite('PartialToolInput', () => {
 		});
 	});
 
-	test('bounds display parsing', () => {
+	test('bounds generic display parsing', () => {
 		const raw = `{"command":"npm test","content":"${'x'.repeat(70 * 1024)}"}`;
 		const parsed = parsePartialToolInputForDisplay(raw);
 		assert.deepStrictEqual({

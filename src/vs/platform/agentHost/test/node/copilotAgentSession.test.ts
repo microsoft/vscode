@@ -3144,6 +3144,7 @@ suite('CopilotAgentSession', () => {
 				toolName: 'bash',
 				inputDelta: 'test","description":"Run',
 			});
+			await timeout(60);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-stream',
 				toolName: 'bash',
@@ -3164,9 +3165,77 @@ suite('CopilotAgentSession', () => {
 				ready: ready && { toolCallId: ready.toolCallId, toolInput: ready.toolInput, intention: ready.intention },
 			}, {
 				starts: [{ toolCallId: 'tc-stream', toolName: 'bash' }],
-				deltas: [{ content: '{"command":"npm test","description":"Run', hasInvocationMessage: true, toolArguments: undefined }],
+				deltas: [{ content: '', hasInvocationMessage: true, toolArguments: undefined }],
 				ready: { toolCallId: 'tc-stream', toolInput: 'npm test', intention: 'Run all tests' },
 			});
+		});
+
+		test('edit tool deltas progressively refine file and line-count details', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-edit-stream',
+				toolName: 'edit',
+				inputDelta: '{"path":"/repo/file.ts","old_str":"one\\ntwo"',
+			});
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-edit-stream',
+				toolName: 'edit',
+				inputDelta: ',"new_str":"one\\nupdated\\nthree"',
+			});
+			await timeout(60);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-edit-stream',
+				toolName: 'edit',
+				arguments: {
+					path: '/repo/file.ts',
+					old_str: 'one\ntwo',
+					new_str: 'one\nupdated\nthree',
+				},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const actions = getActions(signals);
+			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction[];
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
+			assert.deepStrictEqual({
+				deltas: deltas.flatMap(action => {
+					const message = action.invocationMessage;
+					const text = typeof message === 'string' ? message : message?.markdown;
+					return text ? [text] : [];
+				}),
+				ready: typeof ready?.invocationMessage === 'string' ? ready.invocationMessage : ready?.invocationMessage.markdown,
+			}, {
+				deltas: [
+					'Replacing 2 lines in [file.ts](file:///repo/file.ts)',
+					'Replacing 2 lines with 3 lines in [file.ts](file:///repo/file.ts)',
+				],
+				ready: 'Editing [file.ts](file:///repo/file.ts)',
+			});
+		});
+
+		test('raw apply_patch deltas stream line counts and resolved files', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables, {
+				workingDirectory: URI.file('/workspace'),
+			});
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-patch-stream',
+				toolName: 'apply_patch',
+				inputDelta: [
+					'*** Begin Patch',
+					'*** Update File: src/file.ts',
+					'@@',
+					'-old',
+					'+new',
+					'*** End Patch',
+				].join('\n'),
+			});
+			await timeout(60);
+
+			const delta = getActions(signals).find(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction | undefined;
+			const message = delta?.invocationMessage;
+			assert.strictEqual(
+				typeof message === 'string' ? message : message?.markdown,
+				'Generating patch (6 lines) in [file.ts](file:///workspace/src/file.ts)',
+			);
 		});
 
 		test('MCP tool deltas stream before final contributor metadata arrives', async () => {
@@ -3184,6 +3253,7 @@ suite('CopilotAgentSession', () => {
 				toolName: 'mcp_tool',
 				inputDelta: '{"topic":"metadata"}',
 			});
+			await timeout(60);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-stream-mcp',
 				toolName: 'mcp_tool',
@@ -3198,12 +3268,15 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				startCount: starts.length,
 				startContributor: starts[0]?.contributor,
-				deltas: deltas.map(action => action.content),
+				deltas: deltas.map(action => ({
+					content: action.content,
+					hasInvocationMessage: action.invocationMessage !== undefined,
+				})),
 				readyContributor: ready?.contributor,
 			}, {
 				startCount: 1,
 				startContributor: undefined,
-				deltas: ['{"topic":"metadata"}'],
+				deltas: [{ content: '', hasInvocationMessage: true }],
 				readyContributor: {
 					kind: ToolCallContributorKind.MCP,
 					customizationId: 'mcp-top-level:copilot:test-session-1:docs',

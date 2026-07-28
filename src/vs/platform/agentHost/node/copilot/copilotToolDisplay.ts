@@ -8,11 +8,13 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
+import { parse } from '../../../../base/common/json.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
+import { splitLines } from '../../../../base/common/strings.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 // =============================================================================
@@ -102,6 +104,24 @@ interface ICopilotShellToolArgs {
 /** Parameters for file tools (`view`, `edit`, `create`). */
 interface ICopilotFileToolArgs {
 	path: string;
+}
+
+interface ICopilotEditToolArgs extends ICopilotFileToolArgs {
+	old_str?: string;
+	new_str?: string;
+}
+
+interface ICopilotCreateToolArgs extends ICopilotFileToolArgs {
+	file_text?: string;
+}
+
+interface ICopilotInsertToolArgs extends ICopilotFileToolArgs {
+	insert_line?: number;
+	new_str?: string;
+}
+
+interface ICopilotStrReplaceEditorToolArgs extends ICopilotEditToolArgs, ICopilotCreateToolArgs, ICopilotInsertToolArgs {
+	command?: string;
 }
 
 /**
@@ -521,6 +541,20 @@ function md(value: string): StringOrMarkdown {
 	return { markdown: value };
 }
 
+type ToolPathResolver = (path: string) => string;
+
+const identityPathResolver: ToolPathResolver = path => path;
+
+export function parseCopilotStreamingToolInput(raw: string): unknown {
+	const parsed: unknown = parse(raw);
+	if (parsed === undefined || parsed === null) {
+		return raw;
+	}
+	return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+		? { ...parsed }
+		: parsed;
+}
+
 export function getToolDisplayName(toolName: string): string {
 	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
 	if (serverDisplay !== undefined) {
@@ -584,7 +618,7 @@ export function getToolDisplayName(toolName: string): string {
 	}
 }
 
-export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined): StringOrMarkdown {
+export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
 	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -615,8 +649,8 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	switch (toolName) {
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
-			if (args?.path) {
-				const link = formatPathAsMarkdownLink(args.path);
+			if (typeof args?.path === 'string' && args.path) {
+				const link = formatPathAsMarkdownLink(resolvePath(args.path));
 				const range = formatViewRange(args.view_range);
 				if (range) {
 					if (range.endLine === -1) {
@@ -631,19 +665,42 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.view', "Reading file");
 		}
-		case CopilotToolName.Edit: {
+		case CopilotToolName.Edit:
+		case CopilotToolName.StrReplace: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.path) {
-				return md(localize('toolInvoke.editFile', "Editing {0}", formatPathAsMarkdownLink(args.path)));
+			if (typeof args?.path === 'string' && args.path) {
+				return md(localize('toolInvoke.editFile', "Editing {0}", formatPathAsMarkdownLink(resolvePath(args.path))));
 			}
 			return localize('toolInvoke.edit', "Editing file");
 		}
+		case CopilotToolName.Insert: {
+			const args = parameters as ICopilotFileToolArgs | undefined;
+			if (typeof args?.path === 'string' && args.path) {
+				return md(localize('toolInvoke.insertFile', "Inserting text in {0}", formatPathAsMarkdownLink(resolvePath(args.path))));
+			}
+			return localize('toolInvoke.insert', "Inserting text");
+		}
 		case CopilotToolName.Create: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.path) {
-				return md(localize('toolInvoke.createFile', "Creating {0}", formatPathAsMarkdownLink(args.path)));
+			if (typeof args?.path === 'string' && args.path) {
+				return md(localize('toolInvoke.createFile', "Creating {0}", formatPathAsMarkdownLink(resolvePath(args.path))));
 			}
 			return localize('toolInvoke.create', "Creating file");
+		}
+		case CopilotToolName.StrReplaceEditor: {
+			const command = (parameters as ICopilotStrReplaceEditorToolArgs | undefined)?.command;
+			switch (command) {
+				case 'view':
+					return getInvocationMessage(CopilotToolName.View, displayName, parameters, resolvePath);
+				case 'create':
+					return getInvocationMessage(CopilotToolName.Create, displayName, parameters, resolvePath);
+				case 'insert':
+					return getInvocationMessage(CopilotToolName.Insert, displayName, parameters, resolvePath);
+				case 'edit':
+				case 'str_replace':
+				default:
+					return getInvocationMessage(CopilotToolName.Edit, displayName, parameters, resolvePath);
+			}
 		}
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
@@ -668,7 +725,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		}
 		case CopilotToolName.ApplyPatch:
 		case CopilotToolName.GitApplyPatch: {
-			const files = getEditFilePaths(parameters);
+			const files = getEditFilePaths(parameters).map(resolvePath);
 			if (files.length === 1) {
 				return md(localize('toolInvoke.patchFile', "Editing {0}", formatPathAsMarkdownLink(files[0])));
 			}
@@ -704,7 +761,154 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string): StringOrMarkdown {
+function lineCount(value: unknown): number | undefined {
+	return typeof value === 'string' ? splitLines(value).length : undefined;
+}
+
+function getStreamingReplaceMessage(parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver): StringOrMarkdown {
+	const args = parameters as ICopilotEditToolArgs | undefined;
+	const oldLineCount = lineCount(args?.old_str);
+	const newLineCount = lineCount(args?.new_str);
+	const file = typeof args?.path === 'string' && args.path ? formatPathAsMarkdownLink(resolvePath(args.path)) : undefined;
+	if (oldLineCount !== undefined && newLineCount !== undefined) {
+		if (file) {
+			if (oldLineCount === 1 && newLineCount === 1) {
+				return md(localize('toolStream.replaceOneLineWithOneLineInFile', "Replacing 1 line with 1 line in {0}", file));
+			}
+			if (oldLineCount === 1) {
+				return md(localize('toolStream.replaceOneLineWithLinesInFile', "Replacing 1 line with {0} lines in {1}", newLineCount, file));
+			}
+			if (newLineCount === 1) {
+				return md(localize('toolStream.replaceLinesWithOneLineInFile', "Replacing {0} lines with 1 line in {1}", oldLineCount, file));
+			}
+			return md(localize('toolStream.replaceLinesWithLinesInFile', "Replacing {0} lines with {1} lines in {2}", oldLineCount, newLineCount, file));
+		}
+		if (oldLineCount === 1 && newLineCount === 1) {
+			return localize('toolStream.replaceOneLineWithOneLine', "Replacing 1 line with 1 line");
+		}
+		if (oldLineCount === 1) {
+			return localize('toolStream.replaceOneLineWithLines', "Replacing 1 line with {0} lines", newLineCount);
+		}
+		if (newLineCount === 1) {
+			return localize('toolStream.replaceLinesWithOneLine', "Replacing {0} lines with 1 line", oldLineCount);
+		}
+		return localize('toolStream.replaceLinesWithLines', "Replacing {0} lines with {1} lines", oldLineCount, newLineCount);
+	}
+	if (oldLineCount !== undefined) {
+		if (file) {
+			return oldLineCount === 1
+				? md(localize('toolStream.replaceOneLineInFile', "Replacing 1 line in {0}", file))
+				: md(localize('toolStream.replaceLinesInFile', "Replacing {0} lines in {1}", oldLineCount, file));
+		}
+		return oldLineCount === 1
+			? localize('toolStream.replaceOneLine', "Replacing 1 line")
+			: localize('toolStream.replaceLines', "Replacing {0} lines", oldLineCount);
+	}
+	return file
+		? md(localize('toolStream.editFile', "Editing {0}", file))
+		: localize('toolStream.edit', "Editing file");
+}
+
+function getStreamingCreateMessage(parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver): StringOrMarkdown {
+	const args = parameters as ICopilotCreateToolArgs | undefined;
+	const lines = lineCount(args?.file_text);
+	const file = typeof args?.path === 'string' && args.path ? formatPathAsMarkdownLink(resolvePath(args.path)) : undefined;
+	if (lines !== undefined) {
+		if (file) {
+			return lines === 1
+				? md(localize('toolStream.createOneLineInFile', "Creating {0} (1 line)", file))
+				: md(localize('toolStream.createLinesInFile', "Creating {0} ({1} lines)", file, lines));
+		}
+		return lines === 1
+			? localize('toolStream.createOneLine', "Creating file (1 line)")
+			: localize('toolStream.createLines', "Creating file ({0} lines)", lines);
+	}
+	return file
+		? md(localize('toolStream.createFile', "Creating {0}", file))
+		: localize('toolStream.create', "Creating file");
+}
+
+function getStreamingInsertMessage(parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver): StringOrMarkdown {
+	const args = parameters as ICopilotInsertToolArgs | undefined;
+	const lines = lineCount(args?.new_str);
+	const file = typeof args?.path === 'string' && args.path ? formatPathAsMarkdownLink(resolvePath(args.path)) : undefined;
+	if (lines !== undefined) {
+		if (file) {
+			return lines === 1
+				? md(localize('toolStream.insertOneLineInFile', "Inserting 1 line in {0}", file))
+				: md(localize('toolStream.insertLinesInFile', "Inserting {0} lines in {1}", lines, file));
+		}
+		return lines === 1
+			? localize('toolStream.insertOneLine', "Inserting 1 line")
+			: localize('toolStream.insertLines', "Inserting {0} lines", lines);
+	}
+	return file
+		? md(localize('toolStream.insertInFile', "Inserting text in {0}", file))
+		: localize('toolStream.insert', "Inserting text");
+}
+
+function getStreamingPatchMessage(parameters: unknown, resolvePath: ToolPathResolver): StringOrMarkdown {
+	const args = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
+		? parameters as ICopilotApplyPatchToolArgs
+		: undefined;
+	const patch = typeof parameters === 'string' ? parameters : args?.input ?? args?.patch;
+	const lines = lineCount(patch);
+	const files = getEditFilePaths(parameters).map(resolvePath);
+	const fileList = files.length > 0 ? files.map(formatPathAsMarkdownLink).join(', ') : undefined;
+	if (lines !== undefined) {
+		if (fileList) {
+			return lines === 1
+				? md(localize('toolStream.patchOneLineInFiles', "Generating patch (1 line) in {0}", fileList))
+				: md(localize('toolStream.patchLinesInFiles', "Generating patch ({0} lines) in {1}", lines, fileList));
+		}
+		return lines === 1
+			? localize('toolStream.patchOneLine', "Generating patch (1 line)")
+			: localize('toolStream.patchLines', "Generating patch ({0} lines)", lines);
+	}
+	return fileList
+		? md(localize('toolStream.patchFiles', "Generating patch in {0}", fileList))
+		: localize('toolStream.patch', "Generating patch");
+}
+
+/**
+ * Returns the progressively refined message shown while Copilot generates tool input.
+ */
+export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
+	const objectParameters = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
+		? parameters as Record<string, unknown>
+		: undefined;
+	switch (toolName) {
+		case CopilotToolName.Edit:
+		case CopilotToolName.StrReplace:
+			return getStreamingReplaceMessage(objectParameters, resolvePath);
+		case CopilotToolName.Create:
+			return getStreamingCreateMessage(objectParameters, resolvePath);
+		case CopilotToolName.Insert:
+			return getStreamingInsertMessage(objectParameters, resolvePath);
+		case CopilotToolName.StrReplaceEditor: {
+			const command = (objectParameters as ICopilotStrReplaceEditorToolArgs | undefined)?.command;
+			switch (command) {
+				case 'view':
+					return getInvocationMessage(CopilotToolName.View, displayName, objectParameters, resolvePath);
+				case 'create':
+					return getStreamingCreateMessage(objectParameters, resolvePath);
+				case 'insert':
+					return getStreamingInsertMessage(objectParameters, resolvePath);
+				case 'edit':
+				case 'str_replace':
+				default:
+					return getStreamingReplaceMessage(objectParameters, resolvePath);
+			}
+		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch:
+			return getStreamingPatchMessage(parameters, resolvePath);
+		default:
+			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath);
+	}
+}
+
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -739,8 +943,8 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 	switch (toolName) {
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
-			if (args?.path) {
-				const link = formatPathAsMarkdownLink(args.path);
+			if (typeof args?.path === 'string' && args.path) {
+				const link = formatPathAsMarkdownLink(resolvePath(args.path));
 				const range = formatViewRange(args.view_range);
 				if (range) {
 					if (range.endLine === -1) {
@@ -755,19 +959,42 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.view', "Read file");
 		}
-		case CopilotToolName.Edit: {
+		case CopilotToolName.Edit:
+		case CopilotToolName.StrReplace: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.path) {
-				return md(localize('toolComplete.editFile', "Edited {0}", formatPathAsMarkdownLink(args.path)));
+			if (typeof args?.path === 'string' && args.path) {
+				return md(localize('toolComplete.editFile', "Edited {0}", formatPathAsMarkdownLink(resolvePath(args.path))));
 			}
 			return localize('toolComplete.edit', "Edited file");
 		}
+		case CopilotToolName.Insert: {
+			const args = parameters as ICopilotFileToolArgs | undefined;
+			if (typeof args?.path === 'string' && args.path) {
+				return md(localize('toolComplete.insertFile', "Inserted text in {0}", formatPathAsMarkdownLink(resolvePath(args.path))));
+			}
+			return localize('toolComplete.insert', "Inserted text");
+		}
 		case CopilotToolName.Create: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.path) {
-				return md(localize('toolComplete.createFile', "Created {0}", formatPathAsMarkdownLink(args.path)));
+			if (typeof args?.path === 'string' && args.path) {
+				return md(localize('toolComplete.createFile', "Created {0}", formatPathAsMarkdownLink(resolvePath(args.path))));
 			}
 			return localize('toolComplete.create', "Created file");
+		}
+		case CopilotToolName.StrReplaceEditor: {
+			const command = (parameters as ICopilotStrReplaceEditorToolArgs | undefined)?.command;
+			switch (command) {
+				case 'view':
+					return getPastTenseMessage(CopilotToolName.View, displayName, parameters, success, resultText, resolvePath);
+				case 'create':
+					return getPastTenseMessage(CopilotToolName.Create, displayName, parameters, success, resultText, resolvePath);
+				case 'insert':
+					return getPastTenseMessage(CopilotToolName.Insert, displayName, parameters, success, resultText, resolvePath);
+				case 'edit':
+				case 'str_replace':
+				default:
+					return getPastTenseMessage(CopilotToolName.Edit, displayName, parameters, success, resultText, resolvePath);
+			}
 		}
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
@@ -792,7 +1019,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		}
 		case CopilotToolName.ApplyPatch:
 		case CopilotToolName.GitApplyPatch: {
-			const files = getEditFilePaths(parameters);
+			const files = getEditFilePaths(parameters).map(resolvePath);
 			if (files.length === 1) {
 				return md(localize('toolComplete.patchFile', "Edited {0}", formatPathAsMarkdownLink(files[0])));
 			}

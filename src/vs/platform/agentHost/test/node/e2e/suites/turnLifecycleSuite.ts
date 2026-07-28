@@ -80,9 +80,10 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
 		if (config.provider === 'copilotcli') {
 			const toolDeltas = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'));
-			assert.ok(toolDeltas.length > 0, 'expected Copilot shell arguments to stream before the tool was ready');
-			const delta = getActionEnvelope(toolDeltas[0]).action as { content?: string };
-			assert.ok(delta.content, 'expected the streamed tool-call delta to contain partial input');
+			assert.ok(toolDeltas.length > 0, 'expected Copilot tool progress before the tool was ready');
+			const delta = getActionEnvelope(toolDeltas[0]).action as { content?: string; invocationMessage?: unknown };
+			assert.ok(delta.invocationMessage, 'expected Copilot to stream an invocation message');
+			assert.strictEqual(delta.content, '', 'Copilot should keep partial tool input in the agent host');
 		}
 
 		// Drain the post-tool continuation to `turnComplete` so the turn ends

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, CurrentToolMetadata, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
-import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
+import { raceCancellation, RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import { Disposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { safeStringify } from '../../../../base/common/objects.js';
@@ -53,14 +53,13 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { parsePartialToolInputForDisplay } from '../../common/partialToolInput.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
@@ -119,6 +118,7 @@ interface ICopilotStreamingToolCall {
 	toolName: string | undefined;
 	parentToolCallId: string | undefined;
 	started: boolean;
+	displayedInputLength: number;
 }
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
@@ -562,6 +562,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
+	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	/**
 	 * Maps a subagent's stable `agentId` to its parent tool call id. Completion
 	 * ends the current subagent turn, but steering can start another turn with
@@ -1036,6 +1037,57 @@ export class CopilotAgentSession extends Disposable {
 		};
 	}
 
+	private _getStreamingToolCallDisplay(toolName: string, input: string) {
+		const partialInput = parseCopilotStreamingToolInput(input);
+		const parameters = partialInput !== null && typeof partialInput === 'object' && !Array.isArray(partialInput)
+			? partialInput as Record<string, unknown>
+			: undefined;
+		return {
+			parameters,
+			meta: this._createToolCallMeta(toolName, parameters),
+			invocationMessage: getStreamingInvocationMessage(toolName, getToolDisplayName(toolName), partialInput, path => this._resolveEditFilePath(path)),
+		};
+	}
+
+	private _emitStreamingToolCallDisplay(toolCallId: string, streaming: ICopilotStreamingToolCall): void {
+		if (!streaming.toolName) {
+			return;
+		}
+		const display = this._getStreamingToolCallDisplay(streaming.toolName, streaming.input);
+		streaming.displayedInputLength = streaming.input.length;
+		this._emitAction({
+			type: ActionType.ChatToolCallDelta,
+			turnId: this._turnId,
+			toolCallId,
+			content: '',
+			invocationMessage: display.invocationMessage,
+			_meta: toToolCallMeta(display.meta),
+		}, streaming.parentToolCallId);
+	}
+
+	private _scheduleStreamingToolCallDisplay(toolCallId: string): void {
+		let scheduler = this._streamingToolDisplaySchedulers.get(toolCallId);
+		if (!scheduler) {
+			scheduler = new RunOnceScheduler(() => {
+				const streaming = this._streamingToolCalls.get(toolCallId);
+				if (!streaming?.started || !streaming.toolName) {
+					return;
+				}
+				const minimumGrowth = Math.max(16, Math.ceil(streaming.displayedInputLength / 4));
+				const hasMeaningfulGrowth = streaming.displayedInputLength === 0
+					|| streaming.input.length - streaming.displayedInputLength >= minimumGrowth;
+				if (!hasMeaningfulGrowth) {
+					return;
+				}
+				this._emitStreamingToolCallDisplay(toolCallId, streaming);
+			}, 50);
+			this._streamingToolDisplaySchedulers.set(toolCallId, scheduler);
+		}
+		if (!scheduler.isScheduled()) {
+			scheduler.schedule();
+		}
+	}
+
 	private _beginToolCallRound(parentToolCallId: string | undefined): void {
 		const scope = parentToolCallId ?? '';
 		this._currentTurn?.markdownPartIds.delete(scope);
@@ -1049,6 +1101,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
 		this._streamingToolCalls.clear();
+		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
 	}
 
@@ -1091,6 +1144,7 @@ export class CopilotAgentSession extends Disposable {
 	private _clearActiveTurn(): void {
 		this._currentTurn = undefined;
 		this._streamingToolCalls.clear();
+		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		try {
 			this._onTurnEnded();
 		} catch (err) {
@@ -1325,7 +1379,7 @@ export class CopilotAgentSession extends Disposable {
 			toolCallId,
 			...(tracked.contributor ? { contributor: tracked.contributor } : {}),
 			...(tracked.intention !== undefined ? { intention: tracked.intention } : {}),
-			invocationMessage: getInvocationMessage(tracked.toolName, tracked.displayName, tracked.parameters),
+			invocationMessage: getInvocationMessage(tracked.toolName, tracked.displayName, tracked.parameters, path => this._resolveEditFilePath(path)),
 			toolInput: getToolInputString(tracked.toolName, tracked.parameters, tracked.parameters ? tryStringify(tracked.parameters) : undefined),
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			_meta: toToolCallMeta({ ...(tracked.meta ?? {}), toolSearchCandidates: candidates }),
@@ -2363,7 +2417,7 @@ export class CopilotAgentSession extends Disposable {
 							toolCallId,
 							toolName: request.toolName,
 							displayName,
-							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters),
+							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters, path => this._resolveEditFilePath(path)),
 							toolInput: getToolInputString(request.toolName, parameters, tryStringify(parameters)),
 							riskAssessment: autoApproval?.reason
 								? {
@@ -3412,6 +3466,7 @@ export class CopilotAgentSession extends Disposable {
 				toolName: undefined,
 				parentToolCallId: undefined,
 				started: false,
+				displayedInputLength: 0,
 			};
 			streaming.input += e.data.inputDelta;
 			if (e.data.toolName) {
@@ -3431,10 +3486,6 @@ export class CopilotAgentSession extends Disposable {
 				streaming.parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			}
 
-			const wasStarted = streaming.started;
-			const partialInput = parsePartialToolInputForDisplay(streaming.input);
-			const displayName = getToolDisplayName(toolName);
-			const meta = this._createToolCallMeta(toolName, partialInput);
 			if (!streaming.started) {
 				streaming.started = true;
 				this._emitAction({
@@ -3442,24 +3493,19 @@ export class CopilotAgentSession extends Disposable {
 					turnId: this._turnId,
 					toolCallId: e.data.toolCallId,
 					toolName,
-					displayName,
-					intention: getShellIntention(toolName, partialInput),
+					displayName: getToolDisplayName(toolName),
 					contributor: this._getToolCallContributor(toolName, undefined),
-					_meta: toToolCallMeta(meta),
+					_meta: toToolCallMeta(this._createToolCallMeta(toolName, undefined)),
 				}, streaming.parentToolCallId);
+				this._emitStreamingToolCallDisplay(e.data.toolCallId, streaming);
+				return;
 			}
-			this._emitAction({
-				type: ActionType.ChatToolCallDelta,
-				turnId: this._turnId,
-				toolCallId: e.data.toolCallId,
-				content: wasStarted ? e.data.inputDelta : streaming.input,
-				invocationMessage: getInvocationMessage(toolName, displayName, partialInput),
-				_meta: toToolCallMeta(meta),
-			}, streaming.parentToolCallId);
+			this._scheduleStreamingToolCallDisplay(e.data.toolCallId);
 		}));
 
 		this._register(wrapper.onToolStart(e => {
 			if (isHiddenTool(e.data.toolName)) {
+				this._streamingToolDisplaySchedulers.deleteAndDispose(e.data.toolCallId);
 				this._streamingToolCalls.delete(e.data.toolCallId);
 				this._logService.trace(`[Copilot:${sessionId}] Tool started (hidden): ${e.data.toolName}`);
 				return;
@@ -3478,6 +3524,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
 			const streamed = this._streamingToolCalls.get(e.data.toolCallId);
+			this._streamingToolDisplaySchedulers.deleteAndDispose(e.data.toolCallId);
+			if (streamed?.started && streamed.displayedInputLength < streamed.input.length) {
+				this._emitStreamingToolCallDisplay(e.data.toolCallId, streamed);
+			}
 			this._streamingToolCalls.delete(e.data.toolCallId);
 			if (streamed?.toolName && streamed.toolName !== e.data.toolName) {
 				this._logService.warn(`[Copilot:${sessionId}] Tool call ${e.data.toolCallId} started as ${e.data.toolName} after streaming as ${streamed.toolName}`);
@@ -3562,7 +3612,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					...(contributor ? { contributor } : {}),
 					...(intention !== undefined ? { intention } : {}),
-					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
+					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveEditFilePath(path)),
 					toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 					_meta: toToolCallMeta(meta),
@@ -3599,7 +3649,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId: e.data.toolCallId,
 				...(contributor ? { contributor } : {}),
 				...(intention !== undefined ? { intention } : {}),
-				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
+				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveEditFilePath(path)),
 				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
@@ -3696,7 +3746,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId: e.data.toolCallId,
 				result: {
 					success: e.data.success,
-					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined),
+					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path)),
 					content: content.length > 0 ? content : undefined,
 					error: e.data.error,
 				},

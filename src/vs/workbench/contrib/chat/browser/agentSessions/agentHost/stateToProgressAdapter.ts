@@ -2266,7 +2266,7 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 }
 
 function getStreamingToolInputForDisplay(tc: ToolCallState): unknown | undefined {
-	if (tc.status !== ToolCallStatus.Streaming || tc.partialInput === undefined) {
+	if (tc.status !== ToolCallStatus.Streaming || !tc.partialInput) {
 		return undefined;
 	}
 	return parsePartialToolInputForDisplay(tc.partialInput) ?? tc.partialInput;
