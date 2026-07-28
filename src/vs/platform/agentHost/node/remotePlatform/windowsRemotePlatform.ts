@@ -233,7 +233,12 @@ export class WindowsRemotePlatform implements IRemotePlatform {
 	}
 
 	buildLaunchCommand(spec: IRemoteLaunchSpec): string {
-		const args = spec.args.map(escapePSSingleQuoted).join(' ');
+		// A remote path already carries its own quoting and must reach
+		// PowerShell unquoted so `$env:USERPROFILE` expands; only literals
+		// are escaped.
+		const args = spec.args
+			.map(a => typeof a === 'string' ? escapePSSingleQuoted(a) : a.path)
+			.join(' ');
 		const payload = [
 			`Write-Output "VSCODE_PID=$PID"`,
 			`& ${spec.executable}${args ? ` ${args}` : ''}`,

@@ -336,7 +336,7 @@ function startRemoteAgentHost(
 			? platform.buildRawLaunchCommand(commandOverride)
 			: platform.buildLaunchCommand({
 				executable: _asRemotePath(cliBin!),
-				args: ['--cli-data-dir', cliDataDir!, 'agent', 'host', '--port', '0'],
+				args: ['--cli-data-dir', { path: _asRemotePath(cliDataDir!) }, 'agent', 'host', '--port', '0'],
 			});
 		logService.info(`${LOG_PREFIX} Starting remote agent host: ${cmd}`);
 

@@ -365,6 +365,37 @@ async function createCliZip(dir: string): Promise<Buffer> {
 		});
 	});
 
+	test('a remote path argument reaches the launched program expanded', async () => {
+		// The data dir is a shell expression (`"$env:USERPROFILE\..."`), not a
+		// literal. Quoting it would hand the CLI the unexpanded text and it
+		// would try to create a directory called `$env:USERPROFILE\...`.
+		const platform = windowsPlatform();
+		const observed: Record<string, unknown> = {};
+
+		for (const mode of MODES) {
+			const home = homeFor(mode);
+			seedInstallRoot(home);
+			fs.copyFileSync(join(SYSTEM32, 'cmd.exe'), cliFilePath(home, commitExeName(COMMIT)));
+			const executable = platform.cliBin(SDF, QUALITY, COMMIT);
+
+			const result = await spawnWire(platform.buildLaunchCommand({
+				executable,
+				args: ['/c', 'echo', { path: platform.cliDataDir(SDF) }],
+			}), mode, home);
+
+			const echoed = result.stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean).pop() ?? '';
+			observed[mode] = {
+				expanded: echoed === join(home, SDF, 'cli'),
+				leakedExpression: echoed.includes('$env:USERPROFILE'),
+			};
+		}
+
+		assert.deepStrictEqual(observed, {
+			direct: { expanded: true, leakedExpression: false },
+			cmd: { expanded: true, leakedExpression: false },
+		});
+	});
+
 	test('the detection payload reports win32 and a supported architecture', async () => {
 		const observed: Record<string, unknown> = {};
 

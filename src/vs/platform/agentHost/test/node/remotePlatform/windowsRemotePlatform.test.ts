@@ -277,17 +277,21 @@ suite('WindowsRemotePlatform', () => {
 
 	suite('launch commands', () => {
 
-		test('buildLaunchCommand invokes the exe with single-quoted args and exits with LASTEXITCODE', () => {
+		test('buildLaunchCommand quotes literals but leaves a remote path expandable', () => {
 			const p = windowsPlatform();
 			const exe = p.cliBin(sdf, quality, commit);
 			const cmd = p.buildLaunchCommand({
 				executable: exe,
-				args: ['--cli-data-dir', p.cliDataDir(sdf), 'agent', 'host', '--port', '0\'trick'],
+				args: ['--cli-data-dir', { path: p.cliDataDir(sdf) }, 'agent', 'host', '--port', '0\'trick'],
 			});
 			const payload = decodePayload(cmd);
 			assertEnvelope(payload);
 			assert.ok(payload.includes(`Write-Output "VSCODE_PID=$PID"`));
-			assert.ok(payload.includes(`& ${exe} '--cli-data-dir' '"$env:USERPROFILE\\${sdf}\\cli"' 'agent' 'host' '--port' '0''trick'`));
+			// The data dir must arrive as a double-quoted PowerShell string so
+			// `$env:USERPROFILE` expands. Single-quoting it would pass the
+			// literal text through and the CLI would try to create a directory
+			// named `$env:USERPROFILE\...`.
+			assert.ok(payload.includes(`& ${exe} '--cli-data-dir' "$env:USERPROFILE\\${sdf}\\cli" 'agent' 'host' '--port' '0''trick'`), payload);
 			assert.ok(payload.trimEnd().endsWith(`exit $LASTEXITCODE`));
 		});
 

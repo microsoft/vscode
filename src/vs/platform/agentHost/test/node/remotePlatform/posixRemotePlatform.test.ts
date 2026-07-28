@@ -330,7 +330,7 @@ suite('PosixRemotePlatform', () => {
 			const dataDir = p.cliDataDir(sdf);
 			const cmd = p.buildLaunchCommand({
 				executable,
-				args: ['--cli-data-dir', dataDir, 'agent', 'host', '--port', '0'],
+				args: ['--cli-data-dir', { path: dataDir }, 'agent', 'host', '--port', '0'],
 			});
 			assert.strictEqual(
 				cmd,

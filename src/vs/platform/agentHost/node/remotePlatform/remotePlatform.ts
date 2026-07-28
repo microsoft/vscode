@@ -43,13 +43,24 @@ export function _asRemotePath(value: string): RemotePath {
  * A launch target. Structured rather than a command string because
  * PowerShell's `&` does not split an executable-plus-arguments string and
  * `Invoke-Expression` would reintroduce injection. `executable` is an
- * absolute remote path; `args` are logical, already-parsed arguments and the
- * platform quotes them when rendering.
+ * absolute remote path; `args` are logical, already-parsed arguments.
  */
 export interface IRemoteLaunchSpec {
 	readonly executable: RemotePath;
-	readonly args: readonly string[];
+	readonly args: readonly LaunchArg[];
 }
+
+/**
+ * A single launch argument: either a literal value the platform quotes, or a
+ * {@link RemotePath} the platform emits as-is.
+ *
+ * The distinction is load-bearing. A remote path is a shell *expression* —
+ * `~/...` on POSIX, `"$env:USERPROFILE\..."` on Windows — that only resolves
+ * because the remote shell expands it. Quoting one as a literal ships the
+ * unexpanded text to the CLI, which then tries to create a directory called
+ * `$env:USERPROFILE\...`.
+ */
+export type LaunchArg = string | { readonly path: RemotePath };
 
 /**
  * Per-OS strategy for the remote operations the SSH agent-host transport

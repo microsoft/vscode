@@ -161,7 +161,11 @@ export class PosixRemotePlatform implements IRemotePlatform {
 	}
 
 	buildLaunchCommand(spec: IRemoteLaunchSpec): string {
-		const inner = `echo VSCODE_PID=$$ && exec ${spec.executable} ${spec.args.join(' ')}`;
+		// Both literals and remote paths go in verbatim: the whole command is
+		// escaped once as the argument to `bash -l -c`, and a path's `~` has
+		// to reach the login shell unquoted to expand.
+		const args = spec.args.map(a => typeof a === 'string' ? a : a.path).join(' ');
+		const inner = `echo VSCODE_PID=$$ && exec ${spec.executable} ${args}`;
 		return `bash -l -c ${shellEscape(inner)}`;
 	}
 
