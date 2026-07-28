@@ -42,17 +42,29 @@ This document tracks the issue reporter changes on `agents/fix-issue-reporter-bu
 - Replaced the three-step wizard with one scrollable form that shows issue metadata, description, attachments, similar issues, and diagnostic controls together.
 - Added GitHub/GitHub Pull Requests-inspired cards, hierarchy, spacing, and a persistent **Preview on GitHub** action.
 - Keeps attachments in a dedicated row instead of inserting generated media markup into the description editor.
-- Adds **Write** and **Preview** modes backed by VS Code's Markdown renderer.
+- Uses an embedded Monaco Markdown editor in **Write** mode and VS Code's Markdown renderer in **Preview** mode.
 - Defaults the target to **Agents Window** when opened from the Agents window and to **Code - OSS Dev** in the Editor window.
 - Supports narrow editor groups without horizontal overflow.
 
-The experimental WYSIWYG Markdown editor is currently implemented as a custom-editor webview owned by the built-in Markdown extension. It is not exposed as an embeddable workbench control, and this branch intentionally adds no new dependency. The issue reporter therefore uses the native textarea plus rendered Markdown preview for now. A future integration should expose the experimental editor through a reusable workbench API rather than duplicating or importing its extension-private implementation.
+The experimental WYSIWYG Markdown editor is currently implemented as a custom-editor webview owned by the built-in Markdown extension. It is not exposed as an embeddable workbench control, and this branch intentionally adds no new dependency. A future iteration can evaluate moving the entire issue reporter into a built-in extension so it can reuse extension-owned Markdown UI cleanly. **Revisit this option before opening a draft pull request.**
+
+### AI-assisted issue quality review
+
+- Adds a **Review quality** action beside the description's Write/Preview controls.
+- Reviews the current title and description with the existing Copilot utility language model; no new dependency is added.
+- Requests structured, high-signal feedback about clarity, completeness, reproducibility, and actionability.
+- Anchors description findings to exact source excerpts and renders them as native Monaco squiggles with hover details.
+- Shows title findings with warning or information styling and lists all findings in an accessible review panel.
+- Provides **Show in text** for every finding and **Apply suggestion** only for safe, uniquely anchored localized replacements.
+- Clears stale diagnostics when the draft changes and ignores model responses for an older title or description.
+- Cancels reviews after 30 seconds so a provider failure cannot leave the action spinning indefinitely.
+- Treats issue content and model output as untrusted input and never applies a replacement when its excerpt cannot be matched uniquely.
 
 ## Validation Completed
 
 - `npm run typecheck-client`
 - Full `npm run compile`
-- Focused `IssueReporterOverlay` browser tests: 7 passing
+- Focused `IssueReporterOverlay` browser tests: 8 passing
 - Repository pre-commit hygiene checks
 - Editor and Agents window smoke testing for attachments and recording using the launch workflow
 - Screenshot inspection of attachment, recording, and Screencast Mode behavior
@@ -60,6 +72,11 @@ The experimental WYSIWYG Markdown editor is currently implemented as a custom-ed
 - Verified all three sections render simultaneously in both products
 - Verified Markdown preview renders headings, lists, bold text, and blockquotes
 - Verified the issue reporter content width equals its scroll width in both products, with no horizontal overflow
+- Verified the embedded Monaco Markdown editor, placeholder, Write/Preview toggle, and Agents Window default in isolated Editor and Agents launches.
+- Completed a live issue-quality review in the Agents window: four diagnostics rendered, warning/information squiggles appeared, hover text included the suggested replacement, and a localized fix updated only its anchored text before clearing stale diagnostics.
+- Verified the review button enters and exits its loading state and remains usable after completion.
+
+The Editor-window source launch verified the same Monaco UI and review loading path, but its cloned Copilot extension failed independently with `items is not iterable` before returning a model response. The focused browser test covers rendering and applying diagnostics in that surface, while the live language-model response was verified end-to-end in the Agents window. The signed Exploration build should repeat the review once to rule out source-profile authentication differences.
 
 The source-build checks cannot validate final macOS TCC identity because Code OSS launched from sources may inherit permission from its launcher or use a development code identity. The signed Exploration build remains required for the screen-recording registration checks below.
 
@@ -106,3 +123,16 @@ Use the final signed/notarized macOS ARM64 Exploration artifact, not an artifact
 5. Verify the attachments row remains separate from the description and accepts capture, paste, and drag-and-drop input.
 6. Expand and collapse supporting diagnostic sections and verify their include/exclude controls still affect the generated issue body.
 7. Click **Preview on GitHub** with missing required fields and verify validation points to the correct controls on the same page.
+
+### AI-assisted issue quality review
+
+1. Enter a vague title and an incomplete description, then click **Review quality**.
+2. Verify the button shows a loading state and returns to its normal state when the review completes.
+3. Verify description findings appear as warning or information squiggles in Monaco.
+4. Hover each squiggle and verify its message and optional replacement are readable.
+5. Use **Show in text** for title and description findings and verify the corresponding text is selected and focused.
+6. Apply a localized suggestion and verify only the anchored text changes, diagnostics clear, and a refresh message appears.
+7. Edit the title or description after a review and verify stale diagnostics disappear.
+8. Start a review, edit the draft before it finishes, and verify the stale response is not displayed.
+9. Switch to **Preview** and back to **Write**, verifying Markdown rendering, Monaco state, diagnostics, and focus remain correct.
+10. Repeat the workflow in both the Editor window and Agents window.

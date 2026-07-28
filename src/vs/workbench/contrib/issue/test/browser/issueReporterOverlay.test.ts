@@ -150,6 +150,54 @@ suite('IssueReporterOverlay', () => {
 		});
 	});
 
+	test('reviews issue quality and applies a localized suggestion', () => {
+		const container = document.createElement('div');
+		const overlay = createOverlay(container);
+		overlay.show();
+
+		const textarea = container.querySelector<HTMLTextAreaElement>('.wizard-textarea');
+		const reviewButton = container.querySelector<HTMLElement>('.issue-reporter-quality-review-button');
+		assert.ok(textarea);
+		assert.ok(reviewButton);
+		textarea.value = 'It does a bad thing.';
+		textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
+
+		let request: { title: string; description: string } | undefined;
+		store.add(overlay.onDidRequestIssueQualityReview(event => request = event));
+		reviewButton.click();
+		overlay.setIssueQualityReview({
+			summary: 'The report needs one clearer phrase.',
+			diagnostics: [{
+				target: 'description',
+				severity: 'warning',
+				message: 'Describe the observable behavior instead of calling it bad.',
+				start: 10,
+				end: 13,
+				replacement: 'unexpected',
+			}],
+		});
+
+		const applyButton = Array.from(container.querySelectorAll<HTMLElement>('.issue-reporter-quality-actions .monaco-button'))
+			.find(button => button.textContent?.includes('Apply suggestion'));
+		assert.ok(applyButton);
+		applyButton.click();
+
+		assert.deepStrictEqual({
+			request,
+			description: textarea.value,
+			status: container.querySelector('.issue-reporter-quality-status')?.textContent,
+			diagnosticCount: container.querySelectorAll('.issue-reporter-quality-diagnostic').length,
+		}, {
+			request: {
+				title: '',
+				description: 'It does a bad thing.',
+			},
+			description: 'It does a unexpected thing.',
+			status: 'Suggestion applied. Review the issue again to refresh diagnostics.',
+			diagnosticCount: 0,
+		});
+	});
+
 	test('accepts pasted image and video attachments on the attachments step', () => {
 		const container = document.createElement('div');
 		const overlay = createOverlay(container);

@@ -1944,6 +1944,20 @@ extension field is hidden (no fixed-width placeholder needed). */
 	gap: 12px;
 }
 
+.issue-reporter-wizard .issue-reporter-description-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-review-button.monaco-button {
+	width: auto;
+	padding: 4px 10px;
+	font-size: 12px;
+}
+
 .issue-reporter-wizard .issue-reporter-markdown-modes {
 	display: flex;
 	align-items: center;
@@ -1983,6 +1997,55 @@ extension field is hidden (no fixed-width placeholder needed). */
 	font-family: var(--monaco-monospace-font, monospace);
 }
 
+.issue-reporter-wizard .issue-reporter-description-editor {
+	height: 220px;
+	min-height: 220px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, #555);
+	border-radius: 6px;
+	overflow: hidden;
+	background: var(--vscode-input-background);
+}
+
+.issue-reporter-wizard .issue-reporter-description-editor:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+.issue-reporter-wizard .issue-reporter-description-editor.invalid-input {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100);
+	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1));
+}
+
+.issue-reporter-wizard .issue-reporter-description-editor .monaco-editor,
+.issue-reporter-wizard .issue-reporter-description-editor .monaco-editor-background,
+.issue-reporter-wizard .issue-reporter-description-editor .margin {
+	background: var(--vscode-input-background);
+}
+
+.issue-reporter-wizard .issue-reporter-description-editor.hidden {
+	display: none;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-squiggle-warning {
+	text-decoration: underline wavy var(--vscode-editorWarning-foreground);
+	text-decoration-skip-ink: none;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-squiggle-info {
+	text-decoration: underline wavy var(--vscode-editorInfo-foreground);
+	text-decoration-skip-ink: none;
+}
+
+.issue-reporter-wizard .wizard-title-field .monaco-inputbox.issue-reporter-quality-title-warning,
+.issue-reporter-wizard .wizard-title-field .monaco-inputbox.issue-reporter-quality-title-warning .input {
+	border-color: var(--vscode-editorWarning-foreground) !important;
+}
+
+.issue-reporter-wizard .wizard-title-field .monaco-inputbox.issue-reporter-quality-title-info,
+.issue-reporter-wizard .wizard-title-field .monaco-inputbox.issue-reporter-quality-title-info .input {
+	border-color: var(--vscode-editorInfo-foreground) !important;
+}
+
 .issue-reporter-wizard .issue-reporter-markdown-preview {
 	min-height: 220px;
 	padding: 12px 16px;
@@ -1998,6 +2061,86 @@ extension field is hidden (no fixed-width placeholder needed). */
 .issue-reporter-wizard .issue-reporter-markdown-preview.hidden,
 .issue-reporter-wizard .wizard-textarea.hidden {
 	display: none;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-results {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid var(--vscode-panel-border, var(--vscode-input-border));
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+}
+
+.issue-reporter-wizard .issue-reporter-quality-results.hidden {
+	display: none;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-header,
+.issue-reporter-wizard .issue-reporter-quality-heading,
+.issue-reporter-wizard .issue-reporter-quality-diagnostic-header,
+.issue-reporter-wizard .issue-reporter-quality-actions {
+	display: flex;
+	align-items: center;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-heading {
+	gap: 6px;
+	font-weight: 600;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-summary {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-diagnostic {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	padding: 10px 12px;
+	border-left: 3px solid var(--vscode-editorInfo-foreground);
+	border-radius: 4px;
+	background: var(--vscode-editorWidget-background);
+}
+
+.issue-reporter-wizard .issue-reporter-quality-diagnostic.severity-warning {
+	border-left-color: var(--vscode-editorWarning-foreground);
+}
+
+.issue-reporter-wizard .issue-reporter-quality-diagnostic-header {
+	gap: 8px;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-target {
+	font-weight: 600;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-severity {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-message {
+	line-height: 1.45;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-actions {
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-actions .monaco-button {
+	width: auto;
+	padding: 3px 9px;
+	font-size: 12px;
+}
+
+.issue-reporter-wizard .issue-reporter-quality-status {
+	color: var(--vscode-descriptionForeground);
 }
 
 .issue-reporter-wizard .wizard-screenshots {

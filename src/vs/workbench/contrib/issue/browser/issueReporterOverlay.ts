@@ -20,7 +20,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -54,6 +54,86 @@ export interface IScreenshot {
 export interface IRequestedIssueAttachment {
 	readonly files: readonly File[];
 	readonly source: 'attachments' | 'description';
+}
+
+export type IssueQualityDiagnosticTarget = 'title' | 'description';
+export type IssueQualityDiagnosticSeverity = 'warning' | 'info';
+
+export interface IIssueQualityDiagnostic {
+	readonly target: IssueQualityDiagnosticTarget;
+	readonly severity: IssueQualityDiagnosticSeverity;
+	readonly message: string;
+	readonly start: number;
+	readonly end: number;
+	readonly replacement?: string;
+}
+
+export interface IIssueQualityReviewResult {
+	readonly summary: string;
+	readonly diagnostics: readonly IIssueQualityDiagnostic[];
+}
+
+export interface IIssueReporterDescriptionDiagnostic {
+	readonly severity: IssueQualityDiagnosticSeverity;
+	readonly message: string;
+	readonly start: number;
+	readonly end: number;
+	readonly replacement?: string;
+}
+
+export interface IIssueReporterDescriptionEditorOptions {
+	readonly initialValue: string;
+	readonly ariaLabel: string;
+	readonly placeholder: string;
+	readonly onDidChange: () => void;
+	readonly onDidPaste: (event: ClipboardEvent) => void;
+}
+
+export interface IIssueReporterDescriptionEditor extends IDisposable {
+	readonly element: HTMLElement;
+	getValue(): string;
+	setValue(value: string): void;
+	focus(): void;
+	setVisible(visible: boolean): void;
+	setInvalid(invalid: boolean): void;
+	setDiagnostics(diagnostics: readonly IIssueReporterDescriptionDiagnostic[]): void;
+	applyEdit(start: number, end: number, replacement: string): void;
+	reveal(start: number, end: number): void;
+}
+
+export type IssueReporterDescriptionEditorFactory = (parent: HTMLElement, options: IIssueReporterDescriptionEditorOptions) => IIssueReporterDescriptionEditor;
+
+class TextareaIssueReporterDescriptionEditor implements IIssueReporterDescriptionEditor {
+
+	readonly element: HTMLTextAreaElement;
+	private readonly disposables = new DisposableStore();
+
+	constructor(parent: HTMLElement, options: IIssueReporterDescriptionEditorOptions) {
+		this.element = append(parent, $('textarea.wizard-textarea')) as HTMLTextAreaElement;
+		this.element.placeholder = options.placeholder;
+		this.element.setAttribute('aria-label', options.ariaLabel);
+		this.element.rows = 6;
+		this.element.value = options.initialValue;
+		this.disposables.add(addDisposableListener(this.element, EventType.INPUT, options.onDidChange));
+		this.disposables.add(addDisposableListener(this.element, EventType.PASTE, options.onDidPaste));
+	}
+
+	getValue(): string { return this.element.value; }
+	setValue(value: string): void { this.element.value = value; }
+	focus(): void { this.element.focus(); }
+	setVisible(visible: boolean): void { this.element.classList.toggle('hidden', !visible); }
+	setInvalid(invalid: boolean): void { this.element.classList.toggle('invalid-input', invalid); }
+	setDiagnostics(): void { }
+	applyEdit(start: number, end: number, replacement: string): void {
+		this.element.setRangeText(replacement, start, end, 'end');
+		this.element.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		this.element.focus();
+	}
+	reveal(start: number, end: number): void {
+		this.element.setSelectionRange(start, end);
+		this.element.focus();
+	}
+	dispose(): void { this.disposables.dispose(); }
 }
 
 export class IssueReporterOverlay {
@@ -105,7 +185,7 @@ export class IssueReporterOverlay {
 	private similarIssuesHandle: ReturnType<typeof setTimeout> | undefined;
 	private typeButtonGroup!: HTMLElement;
 	private typeError!: HTMLElement;
-	private descriptionTextarea!: HTMLTextAreaElement;
+	private descriptionEditor!: IIssueReporterDescriptionEditor;
 	private descriptionPreview!: HTMLElement;
 	private descriptionGuidance!: HTMLElement;
 	private descriptionError!: HTMLElement;
@@ -114,6 +194,11 @@ export class IssueReporterOverlay {
 	private generateTitleBtn!: Button;
 	private readonly _onDidRequestGenerateTitle = new Emitter<string>();
 	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
+	private readonly _onDidRequestIssueQualityReview = new Emitter<{ title: string; description: string }>();
+	readonly onDidRequestIssueQualityReview: Event<{ title: string; description: string }> = this._onDidRequestIssueQualityReview.event;
+	private reviewIssueQualityBtn!: Button;
+	private issueQualityResults!: HTMLElement;
+	private issueQualityReview: IIssueQualityReviewResult | undefined;
 
 	// Attachments
 	private screenshotContainer!: HTMLElement;
@@ -130,6 +215,7 @@ export class IssueReporterOverlay {
 	private readonly similarIssuesDisposables = new DisposableStore();
 	private readonly descriptionGuidanceDisposables = new DisposableStore();
 	private readonly descriptionPreviewDisposables = new DisposableStore();
+	private readonly issueQualityRenderDisposables = new DisposableStore();
 	private includeSystemInfo = true;
 	private includeProcessInfo = true;
 	private includeWorkspaceInfo = true;
@@ -165,6 +251,7 @@ export class IssueReporterOverlay {
 		private readonly refreshPerformanceInfo?: () => Promise<void>,
 		/** Returns the user's currently-bound keybinding for the given command id, or undefined when unbound. */
 		private readonly resolveKeybinding?: (commandId: string) => ResolvedKeybinding | undefined,
+		private readonly descriptionEditorFactory?: IssueReporterDescriptionEditorFactory,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
@@ -632,7 +719,7 @@ export class IssueReporterOverlay {
 		aiBtn.element.title = localize('generateTitle', "Generate title from description");
 		aiBtn.enabled = !!this.data.issueBody?.trim();
 		this.disposables.add(aiBtn.onDidClick(() => {
-			const desc = this.descriptionTextarea.value.trim();
+			const desc = this.descriptionEditor.getValue().trim();
 			if (desc && !aiBtn.element.classList.contains('loading')) {
 				// Lock width to prevent layout shift during loading
 				aiBtn.element.style.minWidth = `${aiBtn.element.offsetWidth}px`;
@@ -656,7 +743,9 @@ export class IssueReporterOverlay {
 			if (this.titleInput.value.trim()) {
 				this.setFieldError(this.titleInput.element, this.titleError, false);
 			}
+			this.clearIssueQualityReview();
 			this.searchSimilarIssues();
+			this.updateIssueQualityButtonState();
 		}));
 		this.titleError = this.createFieldError(titleGroup, localize('titleRequired', "Enter a title to continue."));
 
@@ -666,7 +755,25 @@ export class IssueReporterOverlay {
 		const descLabel = append(descriptionHeader, $('label.wizard-field-label'));
 		descLabel.textContent = localize('description', "Description");
 		this.appendRequiredMarker(descLabel);
-		const modeToggle = append(descriptionHeader, $('div.issue-reporter-markdown-modes'));
+		const descriptionActions = append(descriptionHeader, $('div.issue-reporter-description-actions'));
+		this.reviewIssueQualityBtn = this.disposables.add(new Button(descriptionActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.reviewIssueQualityBtn.label = `$(sparkle) ${localize('reviewIssueQuality', "Review quality")}`;
+		this.reviewIssueQualityBtn.element.classList.add('issue-reporter-quality-review-button');
+		this.reviewIssueQualityBtn.element.title = localize('reviewIssueQualityTitle', "Review the title and description for clarity and completeness");
+		this.disposables.add(this.reviewIssueQualityBtn.onDidClick(() => {
+			const title = this.titleInput.value.trim();
+			const description = this.descriptionEditor.getValue().trim();
+			if ((!title && !description) || this.reviewIssueQualityBtn.element.classList.contains('loading')) {
+				return;
+			}
+			this.reviewIssueQualityBtn.element.style.minWidth = `${this.reviewIssueQualityBtn.element.offsetWidth}px`;
+			this.reviewIssueQualityBtn.element.classList.add('loading');
+			this.reviewIssueQualityBtn.label = `$(loading~spin) ${localize('reviewingIssueQuality', "Reviewing...")}`;
+			this.reviewIssueQualityBtn.enabled = false;
+			this._onDidRequestIssueQualityReview.fire({ title, description });
+		}));
+
+		const modeToggle = append(descriptionActions, $('div.issue-reporter-markdown-modes'));
 		const writeButton = append(modeToggle, $('button.issue-reporter-markdown-mode.selected')) as HTMLButtonElement;
 		writeButton.type = 'button';
 		writeButton.textContent = localize('write', "Write");
@@ -677,48 +784,43 @@ export class IssueReporterOverlay {
 		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
 		this.updateDescriptionGuidance();
 
-		this.descriptionTextarea = append(descriptionGroup, $('textarea.wizard-textarea')) as HTMLTextAreaElement;
-		this.descriptionTextarea.placeholder = localize('descriptionPlaceholder', "Describe the issue in detail...");
-		this.descriptionTextarea.rows = 6;
-		if (this.data.issueBody) {
-			this.descriptionTextarea.value = this.data.issueBody;
-		}
-		const autoGrowTextarea = () => {
-			this.descriptionTextarea.style.height = '0';
-			const newHeight = Math.max(this.descriptionTextarea.scrollHeight, 120);
-			this.descriptionTextarea.style.height = `${newHeight}px`;
-		};
-		autoGrowTextarea();
-		this.disposables.add(addDisposableListener(this.descriptionTextarea, EventType.INPUT, () => {
-			if (this.descriptionTextarea.value.trim()) {
-				this.setFieldError(this.descriptionTextarea, this.descriptionError, false);
-			}
-			autoGrowTextarea();
-			this.searchSimilarIssues();
-			this.updateGenerateTitleButtonState();
-		}));
-		this.disposables.add(addDisposableListener(this.descriptionTextarea, EventType.PASTE, (event: ClipboardEvent) => {
-			const files = this.getSupportedMediaFiles(event.clipboardData?.files);
-			if (files.length === 0) {
-				return;
-			}
-			event.preventDefault();
-			this.requestAddAttachments(files, 'description');
+		const createDescriptionEditor = this.descriptionEditorFactory ?? ((parent, options) => new TextareaIssueReporterDescriptionEditor(parent, options));
+		this.descriptionEditor = this.disposables.add(createDescriptionEditor(descriptionGroup, {
+			initialValue: this.data.issueBody ?? '',
+			ariaLabel: localize('description', "Description"),
+			placeholder: localize('descriptionPlaceholder', "Describe the issue in detail..."),
+			onDidChange: () => {
+				if (this.descriptionEditor.getValue().trim()) {
+					this.setFieldError(this.descriptionEditor.element, this.descriptionError, false);
+				}
+				this.clearIssueQualityReview();
+				this.searchSimilarIssues();
+				this.updateGenerateTitleButtonState();
+				this.updateIssueQualityButtonState();
+			},
+			onDidPaste: event => {
+				const files = this.getSupportedMediaFiles(event.clipboardData?.files);
+				if (files.length === 0) {
+					return;
+				}
+				event.preventDefault();
+				this.requestAddAttachments(files, 'description');
+			},
 		}));
 		this.descriptionPreview = append(descriptionGroup, $('div.issue-reporter-markdown-preview.hidden'));
 		this.descriptionPreview.setAttribute('aria-live', 'polite');
 		const setPreviewMode = (preview: boolean) => {
 			writeButton.classList.toggle('selected', !preview);
 			previewButton.classList.toggle('selected', preview);
-			this.descriptionTextarea.classList.toggle('hidden', preview);
+			this.descriptionEditor.setVisible(!preview);
 			this.descriptionPreview.classList.toggle('hidden', !preview);
 			if (!preview) {
-				this.descriptionTextarea.focus();
+				this.descriptionEditor.focus();
 				return;
 			}
 			this.descriptionPreviewDisposables.clear();
 			clearNode(this.descriptionPreview);
-			const description = this.descriptionTextarea.value.trim();
+			const description = this.descriptionEditor.getValue().trim();
 			if (!description) {
 				this.descriptionPreview.textContent = localize('nothingToPreview', "Nothing to preview yet.");
 				return;
@@ -734,6 +836,9 @@ export class IssueReporterOverlay {
 		this.disposables.add(addDisposableListener(writeButton, EventType.CLICK, () => setPreviewMode(false)));
 		this.disposables.add(addDisposableListener(previewButton, EventType.CLICK, () => setPreviewMode(true)));
 		this.descriptionError = this.createFieldError(descriptionGroup, localize('descriptionRequired', "Enter a description to continue."));
+		this.issueQualityResults = append(descriptionGroup, $('div.issue-reporter-quality-results.hidden'));
+		this.issueQualityResults.setAttribute('aria-live', 'polite');
+		this.updateIssueQualityButtonState();
 
 		this.updateIssueSourceFlags();
 		this.updateTargetStatus();
@@ -1009,10 +1114,11 @@ export class IssueReporterOverlay {
 		if (issueData.issueTitle && !this.titleInput.value.trim()) {
 			this.titleInput.value = issueData.issueTitle;
 		}
-		if (issueData.issueBody && !this.descriptionTextarea.value.includes(issueData.issueBody)) {
-			this.descriptionTextarea.value = this.descriptionTextarea.value
-				? `${this.descriptionTextarea.value}\n${issueData.issueBody}`
-				: issueData.issueBody;
+		const currentDescription = this.descriptionEditor.getValue();
+		if (issueData.issueBody && !currentDescription.includes(issueData.issueBody)) {
+			this.descriptionEditor.setValue(currentDescription
+				? `${currentDescription}\n${issueData.issueBody}`
+				: issueData.issueBody);
 		}
 		if (issueData.data) {
 			extension.extensionData = issueData.data;
@@ -1151,7 +1257,7 @@ export class IssueReporterOverlay {
 				const repo = marketplaceIssueUrl && this.parseGitHubUrl(marketplaceIssueUrl);
 				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
 			} else {
-				results = await this.searchVSCodeSimilarIssues(title, this.descriptionTextarea.value.trim());
+				results = await this.searchVSCodeSimilarIssues(title, this.descriptionEditor.getValue().trim());
 			}
 			if (request === this.similarIssuesRequest) {
 				this.renderSimilarIssues(results);
@@ -1276,7 +1382,7 @@ export class IssueReporterOverlay {
 	}
 
 	private hasDescriptionContent(): boolean {
-		return !!this.descriptionTextarea.value.trim();
+		return !!this.descriptionEditor.getValue().trim();
 	}
 
 	private updateGenerateTitleButtonState(): void {
@@ -1326,7 +1432,7 @@ export class IssueReporterOverlay {
 		this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
 		this.setFieldError(this.extensionField, this.extensionError, !hasExtension || !hasExtensionIssueUrl);
 		this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
-		this.setFieldError(this.descriptionTextarea, this.descriptionError, !hasDescription);
+		this.setFieldError(this.descriptionEditor.element, this.descriptionError, !hasDescription);
 		this.setFieldError(this.titleInput.element, this.titleError, !title);
 
 		if (!hasIssueSource || !hasExtension || !hasExtensionIssueUrl || !hasIssueType || !hasDescription || !title) {
@@ -1337,7 +1443,7 @@ export class IssueReporterOverlay {
 			} else if (!hasIssueType) {
 				this.issueTypeButtons[0]?.element.focus();
 			} else if (!hasDescription) {
-				this.descriptionTextarea.focus();
+				this.descriptionEditor.focus();
 			} else {
 				this.titleInput.focus();
 			}
@@ -1349,7 +1455,7 @@ export class IssueReporterOverlay {
 		}
 
 		this.updateIssueSourceFlags();
-		this.model.update({ issueDescription: this.descriptionTextarea.value.trim() });
+		this.model.update({ issueDescription: this.descriptionEditor.getValue().trim() });
 		this.submit();
 	}
 
@@ -1755,7 +1861,7 @@ export class IssueReporterOverlay {
 			return;
 		}
 
-		const description = this.descriptionTextarea.value.trim();
+		const description = this.descriptionEditor.getValue().trim();
 		this.updateIssueSourceFlags();
 		this.model.update({ issueDescription: description, issueTitle: title, ...(this.selectedIssueType !== undefined ? { issueType: this.selectedIssueType } : {}) });
 
@@ -2071,7 +2177,7 @@ export class IssueReporterOverlay {
 	}
 
 	private buildIssueBody(): string {
-		const description = this.descriptionTextarea.value.trim();
+		const description = this.descriptionEditor.getValue().trim();
 		this.model.update({
 			issueDescription: description,
 			issueType: this.selectedIssueType ?? IssueType.Bug,
@@ -2357,7 +2463,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	private getDraftKey(): string {
 		return JSON.stringify({
 			title: this.titleInput.value.trim(),
-			description: this.descriptionTextarea.value.trim(),
+			description: this.descriptionEditor.getValue().trim(),
 			issueType: this.selectedIssueType,
 			issueSource: this.selectedIssueSource,
 			extensionId: this.selectedExtension?.id,
@@ -2386,6 +2492,125 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.generateTitleBtn.element.classList.remove('loading');
 		this.generateTitleBtn.element.style.minWidth = '';
 		this.generateTitleBtn.enabled = this.hasDescriptionContent();
+	}
+
+	isIssueQualityReviewCurrent(title: string, description: string): boolean {
+		return this.titleInput.value.trim() === title && this.descriptionEditor.getValue().trim() === description;
+	}
+
+	setIssueQualityReview(result: IIssueQualityReviewResult): void {
+		this.issueQualityReview = result;
+		this.resetIssueQualityButton();
+		this.descriptionEditor.setDiagnostics(result.diagnostics
+			.filter((diagnostic): diagnostic is IIssueQualityDiagnostic & { target: 'description' } => diagnostic.target === 'description')
+			.map(diagnostic => ({
+				severity: diagnostic.severity,
+				message: diagnostic.message,
+				start: diagnostic.start,
+				end: diagnostic.end,
+				replacement: diagnostic.replacement,
+			})));
+
+		const titleDiagnostics = result.diagnostics.filter(diagnostic => diagnostic.target === 'title');
+		this.titleInput.element.classList.toggle('issue-reporter-quality-title-warning', titleDiagnostics.some(diagnostic => diagnostic.severity === 'warning'));
+		this.titleInput.element.classList.toggle('issue-reporter-quality-title-info', titleDiagnostics.length > 0 && titleDiagnostics.every(diagnostic => diagnostic.severity === 'info'));
+		this.titleInput.element.title = titleDiagnostics.map(diagnostic => diagnostic.message).join('\n');
+		this.renderIssueQualityReview();
+	}
+
+	resetIssueQualityButton(): void {
+		this.reviewIssueQualityBtn.label = `$(sparkle) ${localize('reviewIssueQuality', "Review quality")}`;
+		this.reviewIssueQualityBtn.element.classList.remove('loading');
+		this.reviewIssueQualityBtn.element.style.minWidth = '';
+		this.updateIssueQualityButtonState();
+	}
+
+	private updateIssueQualityButtonState(): void {
+		if (!this.reviewIssueQualityBtn || this.reviewIssueQualityBtn.element.classList.contains('loading')) {
+			return;
+		}
+		this.reviewIssueQualityBtn.enabled = !!(this.titleInput?.value.trim() || this.descriptionEditor?.getValue().trim());
+	}
+
+	private clearIssueQualityReview(): void {
+		if (!this.issueQualityReview && !this.issueQualityResults) {
+			return;
+		}
+		this.issueQualityReview = undefined;
+		this.issueQualityRenderDisposables.clear();
+		this.descriptionEditor?.setDiagnostics([]);
+		this.titleInput?.element.classList.remove('issue-reporter-quality-title-warning', 'issue-reporter-quality-title-info');
+		if (this.titleInput) {
+			this.titleInput.element.title = '';
+		}
+		if (this.issueQualityResults) {
+			clearNode(this.issueQualityResults);
+			this.issueQualityResults.classList.add('hidden');
+		}
+	}
+
+	private renderIssueQualityReview(): void {
+		const review = this.issueQualityReview;
+		if (!review) {
+			return;
+		}
+		this.issueQualityRenderDisposables.clear();
+		clearNode(this.issueQualityResults);
+		this.issueQualityResults.classList.remove('hidden');
+
+		const header = append(this.issueQualityResults, $('div.issue-reporter-quality-header'));
+		const heading = append(header, $('div.issue-reporter-quality-heading'));
+		heading.appendChild(renderIcon(review.diagnostics.length === 0 ? Codicon.pass : Codicon.lightbulb));
+		append(heading, $('span')).textContent = review.diagnostics.length === 0
+			? localize('issueQualityLooksGood', "Issue quality looks good")
+			: localize('issueQualitySuggestions', "Issue quality suggestions");
+		const summary = append(this.issueQualityResults, $('p.issue-reporter-quality-summary'));
+		summary.textContent = review.summary;
+
+		for (const diagnostic of review.diagnostics) {
+			const card = append(this.issueQualityResults, $('div.issue-reporter-quality-diagnostic'));
+			card.classList.add(`severity-${diagnostic.severity}`);
+			const cardHeader = append(card, $('div.issue-reporter-quality-diagnostic-header'));
+			const target = append(cardHeader, $('span.issue-reporter-quality-target'));
+			target.textContent = diagnostic.target === 'title' ? localize('issueTitle', "Title") : localize('description', "Description");
+			const severity = append(cardHeader, $('span.issue-reporter-quality-severity'));
+			severity.textContent = diagnostic.severity === 'warning' ? localize('warning', "Warning") : localize('information', "Suggestion");
+			append(card, $('div.issue-reporter-quality-message')).textContent = diagnostic.message;
+
+			const actions = append(card, $('div.issue-reporter-quality-actions'));
+			const revealButton = this.issueQualityRenderDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+			revealButton.label = localize('showInDescription', "Show in text");
+			this.issueQualityRenderDisposables.add(revealButton.onDidClick(() => {
+				if (diagnostic.target === 'description') {
+					this.descriptionEditor.reveal(diagnostic.start, diagnostic.end);
+				} else {
+					this.titleInput.focus();
+					this.titleInput.inputElement.setSelectionRange(diagnostic.start, diagnostic.end);
+				}
+			}));
+
+			if (diagnostic.replacement !== undefined) {
+				const applyButton = this.issueQualityRenderDisposables.add(new Button(actions, { ...defaultButtonStyles }));
+				applyButton.label = localize('applySuggestion', "Apply suggestion");
+				this.issueQualityRenderDisposables.add(applyButton.onDidClick(() => {
+					if (diagnostic.target === 'description') {
+						this.descriptionEditor.applyEdit(diagnostic.start, diagnostic.end, diagnostic.replacement!);
+					} else {
+						const title = this.titleInput.value;
+						this.titleInput.value = `${title.slice(0, diagnostic.start)}${diagnostic.replacement}${title.slice(diagnostic.end)}`;
+						this.titleInput.focus();
+					}
+					this.showIssueQualityStatus(localize('issueQualitySuggestionApplied', "Suggestion applied. Review the issue again to refresh diagnostics."));
+				}));
+			}
+		}
+	}
+
+	private showIssueQualityStatus(message: string): void {
+		this.clearIssueQualityReview();
+		this.issueQualityResults.classList.remove('hidden');
+		const status = append(this.issueQualityResults, $('div.issue-reporter-quality-status'));
+		status.textContent = message;
 	}
 
 	/** Show a "Close" button next to the submit button after successful submission */
@@ -2514,6 +2739,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.similarIssuesDisposables.dispose();
 		this.descriptionGuidanceDisposables.dispose();
 		this.descriptionPreviewDisposables.dispose();
+		this.issueQualityRenderDisposables.dispose();
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();
@@ -2524,5 +2750,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this._onDidRequestOpenScreenshot.dispose();
 		this._onDidChangeAttachments.dispose();
 		this._onDidRequestGenerateTitle.dispose();
+		this._onDidRequestIssueQualityReview.dispose();
 	}
 }
