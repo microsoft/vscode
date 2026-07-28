@@ -540,9 +540,20 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState));
+
+		const imageElements = this._register(new MutableDisposable<IDisposable>());
+		const renderImageElements = (buffer: Uint8Array) => {
+			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState);
+			// createImageElements resets the label; restore the deletion hint after each render.
+			this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+		};
+		renderImageElements(imageData ?? new Uint8Array());
+
+		// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
+		if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
+			void this.loadImageBytes(resource, renderImageElements);
+		}
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
-		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
 		const canOpenCarousel = !!imageData && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
@@ -558,6 +569,20 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
 		}
+	}
+
+	private async loadImageBytes(resource: URI, render: (buffer: Uint8Array) => void): Promise<void> {
+		let content: VSBuffer;
+		try {
+			content = (await this.fileService.readFile(resource)).value;
+		} catch {
+			// The file may no longer exist; keep the icon fallback that is already rendered.
+			return;
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		render(content.buffer);
 	}
 
 	private async openInCarousel(id: string, name: string, data: Uint8Array | undefined, referenceUri: URI | undefined, preferCurrentInput: boolean | undefined): Promise<void> {
@@ -736,6 +761,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
 		}
 	}
+
+	// Remove old DOM so the widget can safely re-render after hydrated bytes load.
+	disposable.add(toDisposable(() => {
+		currentPill.remove();
+		textLabel.remove();
+	}));
+
 	return disposable;
 }
 
