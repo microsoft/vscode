@@ -56,6 +56,20 @@ suite('ChatDragAndDrop - resolveChatReferenceDropEntry', () => {
 			undefined
 		);
 	});
+
+	test('a malformed payload yields no entry rather than throwing', () => {
+		// `URI.parse` throws on an illegal scheme even in its non-strict mode, and
+		// the `dataTransfer` payload is ultimately untrusted.
+		const malformed = 'sch eme:/nope';
+		assert.deepStrictEqual(
+			{
+				badClientResource: resolveChatReferenceDropEntry({ ...data, clientResource: malformed }, ownClientResource),
+				badChatResource: resolveChatReferenceDropEntry({ ...data, chatResource: malformed }, ownClientResource),
+				badOwnResource: resolveChatReferenceDropEntry(data, malformed),
+			},
+			{ badClientResource: undefined, badChatResource: undefined, badOwnResource: undefined }
+		);
+	});
 });
 
 suite('ChatDragAndDrop - isSelfChatReferenceDrop', () => {
@@ -112,5 +126,9 @@ suite('ChatDragAndDrop - isCrossAgentHostChatReferenceDrop', () => {
 
 	test('two different remote authorities are cross-host', () => {
 		assert.strictEqual(isCrossAgentHostChatReferenceDrop(remoteOtherHost, remoteSessionA), true);
+	});
+
+	test('a malformed resource fails closed as cross-host', () => {
+		assert.strictEqual(isCrossAgentHostChatReferenceDrop('sch eme:/nope', localSessionA), true);
 	});
 });

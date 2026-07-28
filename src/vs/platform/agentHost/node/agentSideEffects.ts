@@ -1661,11 +1661,11 @@ export class AgentSideEffects extends Disposable {
 			}
 			// An `agent-host-session://` link that identifies the referenced chat.
 			// The default chat is addressed by its session (no chat id); peer chats
-			// carry their chat id so the link opens that specific chat.
+			// carry their chat id so the link opens that specific chat. A resource
+			// that cannot be mapped to a link yields a pointer that names the chat
+			// by its raw resource instead — a bad reference must never fail the
+			// user's turn.
 			const openLink = buildOpenSessionLinkForChatResource(attachment.resource);
-			if (openLink === undefined) {
-				throw new Error(`Chat attachment resource cannot be resolved to an open-session link: ${attachment.resource}`);
-			}
 			// A cross-session reference may point at a chat this host never
 			// subscribed to; restoring it can throw when no provider owns it or
 			// the backend no longer has it. A stale reference must not fail the

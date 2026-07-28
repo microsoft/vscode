@@ -9,6 +9,23 @@ import { ChatReferenceTransferData } from '../../../../../platform/dnd/browser/d
 import { createChatReferenceVariableEntry, IChatRequestChatReferenceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 /**
+ * Parses a drag-payload resource, returning `undefined` when it is malformed.
+ *
+ * The `dataTransfer` payload is JSON supplied by whatever initiated the drag, so
+ * it is ultimately untrusted: `URI.parse` throws on some malformed input (an
+ * illegal scheme, or a path that conflicts with an authority) even in its
+ * non-strict mode. These guards run from `dragover`, where an exception would
+ * break drop feedback for *every* drag type, so parse defensively.
+ */
+function tryParseUri(value: string): URI | undefined {
+	try {
+		return URI.parse(value);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * Whether a dragged chat reference points at the drop target's *own* chat, i.e.
  * a chat dropped onto its own input. The comparison is on the sessions-window
  * **client** chat resources (opaque identity, never parsed by this layer), so a
@@ -17,11 +34,19 @@ import { createChatReferenceVariableEntry, IChatRequestChatReferenceVariableEntr
  * no-op, so the caller suppresses the drop overlay entirely rather than showing
  * a "looks droppable but isn't" hint.
  *
+ * Fails closed: a resource that cannot be parsed is reported as a
+ * self-reference, so a malformed payload is never droppable.
+ *
  * @param droppedClientResource The dragged chat's client resource (`IChat.resource`).
  * @param ownClientResource The drop-target chat's client resource (its session resource).
  */
 export function isSelfChatReferenceDrop(droppedClientResource: string, ownClientResource: string): boolean {
-	return isEqual(URI.parse(droppedClientResource), URI.parse(ownClientResource));
+	const dropped = tryParseUri(droppedClientResource);
+	const own = tryParseUri(ownClientResource);
+	if (!dropped || !own) {
+		return true;
+	}
+	return isEqual(dropped, own);
 }
 
 /**
@@ -37,12 +62,18 @@ export function isSelfChatReferenceDrop(droppedClientResource: string, ownClient
  * session and chat within a host — are never parsed. A cross-host drag is a
  * no-op, so the caller suppresses the drop overlay entirely.
  *
+ * Fails closed: a resource that cannot be parsed is reported as cross-host, so a
+ * malformed payload is never droppable.
+ *
  * @param droppedClientResource The dragged chat's client resource (`IChat.resource`).
  * @param ownClientResource The drop-target chat's client resource (its session resource).
  */
 export function isCrossAgentHostChatReferenceDrop(droppedClientResource: string, ownClientResource: string): boolean {
-	const dropped = URI.parse(droppedClientResource);
-	const own = URI.parse(ownClientResource);
+	const dropped = tryParseUri(droppedClientResource);
+	const own = tryParseUri(ownClientResource);
+	if (!dropped || !own) {
+		return true;
+	}
 	return dropped.scheme !== own.scheme || dropped.authority !== own.authority;
 }
 
@@ -55,9 +86,10 @@ export function isCrossAgentHostChatReferenceDrop(droppedClientResource: string,
  * makes it a plain attachment rather than an inline `#chat:` token.
  *
  * Returns `undefined` when a guard rejects the drop: the drop target must be an
- * agent-host chat (`ownClientResource` is `undefined` otherwise), and a
+ * agent-host chat (`ownClientResource` is `undefined` otherwise), a
  * self-reference (dropped onto its own input) or a cross-agent-host reference is
- * a no-op. The client resources are compared by identity only.
+ * a no-op, and a malformed payload resource is never droppable. The client
+ * resources are compared by identity only.
  *
  * @param data The dragged chat-reference payload (opaque `chatResource`, client `clientResource`, and `title`).
  * @param ownClientResource The drop-target chat's client resource, or `undefined` when the target is not an agent-host chat.
@@ -70,5 +102,9 @@ export function resolveChatReferenceDropEntry(data: ChatReferenceTransferData, o
 		|| isCrossAgentHostChatReferenceDrop(data.clientResource, ownClientResource)) {
 		return undefined;
 	}
-	return createChatReferenceVariableEntry(URI.parse(data.chatResource), undefined, data.title);
+	const chatResource = tryParseUri(data.chatResource);
+	if (!chatResource) {
+		return undefined;
+	}
+	return createChatReferenceVariableEntry(chatResource, undefined, data.title);
 }

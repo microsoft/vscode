@@ -75,15 +75,21 @@ function truncateFront(text: string, maxChars: number): string {
  * tail excerpt of the bounded transcript, and tells the model it can call the
  * `get_session_context` server tool with that link to read the full transcript.
  *
+ * {@link openLink} is `undefined` when the referenced chat's resource cannot be
+ * mapped to an open-session link. The pointer then identifies the chat by its
+ * raw resource and omits the tool hint (the tool addresses chats by link), so a
+ * malformed reference still carries its excerpt instead of failing the turn.
+ *
  * The text is intentionally hard-coded English (like Claude's
  * `<system-reminder>` text): it is consumed by the model, not shown in the UI,
  * so it must not be localized.
  */
-function buildChatAttachmentPointer(label: string, openLink: string, transcript: string): string {
-	const intro =
-		`The user referenced another chat, "${label}". ` +
+function buildChatAttachmentPointer(label: string, resource: string, openLink: string | undefined, transcript: string): string {
+	const intro = openLink
+		? `The user referenced another chat, "${label}". ` +
 		`That chat is identified by the link ${openLink}. ` +
-		`To read its full transcript, call the ${SessionServerToolName.GetSessionContext} server tool with its "session" argument set to that link.`;
+		`To read its full transcript, call the ${SessionServerToolName.GetSessionContext} server tool with its "session" argument set to that link.`
+		: `The user referenced another chat, "${label}", identified by ${resource}.`;
 
 	if (!transcript) {
 		return `${intro}\n\nThe referenced chat has no transcript content up to the selected turn.`;
@@ -114,10 +120,10 @@ function buildChatAttachmentPointer(label: string, openLink: string, transcript:
  * The resolution is non-recursive: it renders {@link sourceTurns} directly and
  * never re-resolves chat attachments found within them.
  */
-export function resolveChatAttachment(attachment: MessageChatAttachment, sourceTurns: readonly Turn[], openLink: string): SimpleMessageAttachment {
+export function resolveChatAttachment(attachment: MessageChatAttachment, sourceTurns: readonly Turn[], openLink: string | undefined): SimpleMessageAttachment {
 	const bounded = boundChatTranscriptTurns(sourceTurns, attachment.endTurn);
 	const transcript = formatChatTranscript(bounded);
-	const modelRepresentation = buildChatAttachmentPointer(attachment.label, openLink, transcript);
+	const modelRepresentation = buildChatAttachmentPointer(attachment.label, attachment.resource.toString(), openLink, transcript);
 	return {
 		type: MessageAttachmentKind.Simple,
 		label: attachment.label,

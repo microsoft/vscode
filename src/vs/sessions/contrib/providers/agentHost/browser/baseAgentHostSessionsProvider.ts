@@ -3054,7 +3054,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const backendResource = chatId
 			? state.chats.find(c => parseChatUri(c.resource)?.chatId === chatId)?.resource
 			: (state.defaultChat ?? state.chats.find(c => isDefaultChatUri(c.resource))?.resource);
-		return backendResource ? URI.parse(backendResource.toString()) : undefined;
+		if (!backendResource) {
+			return undefined;
+		}
+		// The resource is host-supplied and only parsed here to hand back a URI;
+		// a malformed one must not break the drag gesture that asks for it.
+		try {
+			return URI.parse(backendResource.toString());
+		} catch {
+			return undefined;
+		}
 	}
 
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
