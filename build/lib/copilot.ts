@@ -285,11 +285,12 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
 
 	// The SDK JavaScript shipped inside the built-in extension and the native
 	// `runtime.node` it loads MUST be the same @github/copilot version: the JS
-	// calls native functions the binary may not export (e.g. a canary that
+	// calls native functions the binary may not export (e.g. a newer CLI that
 	// removed one), which throws at load. Source the native from a platform
 	// package matching the EXTENSION's version rather than whatever app-root
-	// currently has — the canary integration build freezes the extension while
-	// bumping app-root, so those can diverge.
+	// currently has — the extension is intentionally pinned to a fixed CLI
+	// version for the extension host while the agent host (app-root) keeps
+	// updating, so the two versions diverge by design.
 	const extVersion = readCopilotPackageVersion(copilotBase);
 	const { dir: platformPackageDir, cleanup } = resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch, extVersion, appNodeModulesDir, options);
 	try {
@@ -324,10 +325,11 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
  * matches `extVersion`, so the native copied into the built-in extension always
  * matches the extension's own SDK JavaScript.
  *
- * Prefers the app-root package when it already matches (the normal build — no
- * extra work), and otherwise fetches the exact extension version into a temp
- * dir (the canary integration build, where app-root is bumped but the extension
- * is frozen, so the two diverge).
+ * Prefers the app-root package when it already matches (no extra work), and
+ * otherwise fetches the exact extension version into a temp dir. The extension
+ * is pinned to a fixed CLI version for the extension host while the agent host
+ * (app-root) keeps updating, so app-root will normally NOT match and the fetch
+ * is the expected path once the two versions diverge.
  */
 function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch: string, extVersion: string, appNodeModulesDir: string, options: EnsureNpmPackageOptions): { dir: string; cleanup: () => void } {
 	const noop = () => { };

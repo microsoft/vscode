@@ -211,19 +211,19 @@ suite('copilot', () => {
 		}
 	});
 
-	test('materializes a version-matched native when app-root diverges from the frozen extension (canary build)', () => {
-		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-canary-test-'));
+	test('materializes a version-matched native when app-root diverges from the pinned extension', () => {
+		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-pinned-test-'));
 		try {
 			const builtInCopilotExtensionDir = path.join(repoRoot, 'extensions', 'copilot');
 			const extensionCopilotDir = path.join(builtInCopilotExtensionDir, 'node_modules', '@github', 'copilot');
 			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
 			const platformPackageDir = path.join(appNodeModulesDir, '@github', 'copilot-win32-x64');
 
-			// Extension frozen at 1.0.73.
+			// Extension pinned at 1.0.73.
 			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk'), { recursive: true });
 			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
 
-			// App-root bumped to a canary — its (mismatched) native must NOT be used.
+			// App-root updated ahead of the pinned extension — its (mismatched) native must NOT be used.
 			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64'), { recursive: true });
 			fs.writeFileSync(path.join(platformPackageDir, 'package.json'), JSON.stringify({ version: '9.9.9-canary' }));
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'runtime.node'), 'CANARY-NATIVE');
