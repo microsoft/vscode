@@ -19,14 +19,14 @@ exchanges:
         - role: assistant
           content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
-          content: 'Run the shell command: pwd'
+          content: 'Run exactly this shell command, with no modifications: `node -e "console.log(process.cwd())"`'
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: ${shell}
           input:
-            command: pwd
+            command: node -e "console.log(process.cwd())"
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -37,13 +37,13 @@ exchanges:
         - role: assistant
           content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
-          content: 'Run the shell command: pwd'
+          content: 'Run exactly this shell command, with no modifications: `node -e "console.log(process.cwd())"`'
         - role: assistant
           content:
             - type: tool_use
               name: bash
               input:
-                command: pwd
+                command: node -e "console.log(process.cwd())"
         - role: user
           content:
             - type: tool_result
