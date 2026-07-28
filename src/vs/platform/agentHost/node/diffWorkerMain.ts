@@ -26,7 +26,43 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 		added += change.modified.length;
 	}
 
-	return { added, removed };
+	const originalLineStarts = getLineStarts(originalText);
+	const modifiedLineStarts = getLineStarts(modifiedText);
+	const changes = result.changes.flatMap(change => {
+		const rangeMappings = change.innerChanges ?? [change.toRangeMapping2(originalLines, modifiedLines)];
+		return rangeMappings.map(mapping => ({
+			startOffset: getOffset(mapping.originalRange, originalLineStarts, false),
+			endOffsetExclusive: getOffset(mapping.originalRange, originalLineStarts, true),
+			newText: modifiedText.substring(
+				getOffset(mapping.modifiedRange, modifiedLineStarts, false),
+				getOffset(mapping.modifiedRange, modifiedLineStarts, true),
+			),
+		}));
+	});
+	return { added, removed, changes };
+}
+
+function getLineStarts(content: string): number[] {
+	const result = [0];
+	for (let index = 0; index < content.length; index++) {
+		const charCode = content.charCodeAt(index);
+		if (charCode === 13) {
+			if (content.charCodeAt(index + 1) === 10) {
+				index++;
+			}
+			result.push(index + 1);
+		} else if (charCode === 10) {
+			result.push(index + 1);
+		}
+	}
+	return result;
+}
+
+function getOffset(range: { readonly startLineNumber: number; readonly startColumn: number; readonly endLineNumber: number; readonly endColumn: number }, lineStarts: readonly number[], end: boolean): number {
+	const lineNumber = end ? range.endLineNumber : range.startLineNumber;
+	const column = end ? range.endColumn : range.startColumn;
+	const lineStart = lineStarts[Math.min(lineNumber - 1, lineStarts.length - 1)];
+	return lineStart + column - 1;
 }
 
 function main() {
@@ -51,4 +87,6 @@ function main() {
 	});
 }
 
-main();
+if (parentPort) {
+	main();
+}

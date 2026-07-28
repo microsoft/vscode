@@ -387,6 +387,12 @@ export function migrateLegacyAutopilotConfig<T extends Record<string, unknown> |
  */
 export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 
+/** Whether Agent Host edit attribution telemetry is enabled. */
+export const AgentHostEditTelemetryEnabledConfigKey = 'editTelemetryEnabled';
+
+/** VS Code setting forwarded into {@link AgentHostEditTelemetryEnabledConfigKey}. */
+export const EDIT_TELEMETRY_ENABLED_SETTING_ID = 'telemetry.editStats.enabled';
+
 /** Legacy Copilot Chat debug switch that disables `request.repoInfo` collection. */
 export const AgentHostDisableRepoInfoTelemetryConfigKey = 'disableRepoInfoTelemetry';
 
@@ -681,6 +687,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.telemetryLevel.description', "Most restrictive telemetry level requested by connected clients."),
 		enum: [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.CRASH, TelemetryConfiguration.OFF],
 		default: TelemetryConfiguration.ON,
+	}),
+	[AgentHostEditTelemetryEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.editTelemetryEnabled.title', "Edit Telemetry"),
+		description: localize('agentHost.config.editTelemetryEnabled.description', "Whether edit attribution telemetry is enabled for Agent Host sessions."),
+		default: true,
 	}),
 	[AgentHostSessionSyncEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

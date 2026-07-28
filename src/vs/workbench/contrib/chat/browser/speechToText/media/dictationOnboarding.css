@@ -1,0 +1,303 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The dictation introduction card.
+ *
+ * One layout at every width - a vertical stack - because the chat panel is
+ * routinely ~250px and a card that re-tiers as it narrows never settles into a
+ * rhythm.
+ *
+ * The card carries four tiers, and only one of them leads: the spectrum. The
+ * copy names the feature and gets out of the way, the picker is quiet until you
+ * reach for it, and the hint is the smallest type in the card.
+ *
+ * Spacing rhythm, all on the 8px scale:
+ *   16px  card padding
+ *   12px  between tiers
+ *    4px  between a title and its sentence
+ */
+
+/* The host is a peer directly above the chat input, and stays out of the layout
+ * entirely until the card is attached. */
+.dictation-onboarding-container {
+	display: none;
+}
+
+.dictation-onboarding-container.has-dictation-onboarding {
+	display: block;
+	/* Tuck the squared-off bottom edge behind the rounded top of the chat input
+	 * so the two surfaces read as one stack with no visible seam. */
+	margin-bottom: -10px;
+	padding-bottom: 10px;
+}
+
+.dictation-onboarding-banner {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-xSmall) var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-agentsChatInput-background, var(--vscode-input-background));
+	color: var(--vscode-foreground);
+}
+
+/* --- Copy --- */
+
+.dictation-onboarding-header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	/* Clear of the pinned close button. */
+	padding-right: var(--vscode-spacing-size240);
+}
+
+.dictation-onboarding-title {
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* One sentence, demoted: it explains the feature once and then supports. */
+.dictation-onboarding-description {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+}
+
+/*
+ * The two ways out of the card - what dictation does, and how it writes - are
+ * the only actions in this tier, so they have to look like actions. Inherit the
+ * quiet type role and lift only the colour, so the sentence still reads as a
+ * sentence rather than as a row of buttons.
+ */
+.dictation-onboarding-description a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.dictation-onboarding-description a:hover,
+.dictation-onboarding-description a:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.dictation-onboarding-description a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+/* --- Device --- */
+
+/*
+ * The picker and the spectrum are one group - the bars are *this* device's
+ * level. Stacked tight together so they read as a single control with its own
+ * readout rather than as two unrelated rows.
+ */
+.dictation-onboarding-device {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+/* --- Microphone picker --- */
+
+/*
+ * A real control, and it has to look like one: this is the only thing on the
+ * card you can act on, and a borderless row of text gave no sign it could be
+ * opened at all. It carries the standard dropdown surface so it reads the same
+ * as every other select in the product.
+ */
+.dictation-onboarding-picker {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	box-sizing: border-box;
+	min-width: 0;
+	height: var(--vscode-spacing-size280);
+	padding: 0 var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-dropdown-background, var(--vscode-input-background));
+	transition: border-color 100ms ease-out;
+}
+
+.dictation-onboarding-picker:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.dictation-onboarding-picker:focus-within {
+	border-color: var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.monaco-workbench .dictation-onboarding-picker-icon.codicon[class*='codicon-'] {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: 1;
+	color: var(--vscode-descriptionForeground);
+}
+
+/*
+ * The select itself stays transparent so the housing above draws the surface -
+ * one border, not two. It is still a real select: the dropdown, the keyboard
+ * handling and the screen-reader semantics are untouched.
+ */
+.dictation-onboarding-picker .monaco-select-box {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-label2);
+	text-overflow: ellipsis;
+}
+
+/* The housing already shows focus; a second ring inside it is noise. */
+.dictation-onboarding-picker .monaco-select-box:focus {
+	outline: none;
+}
+
+/* A lone microphone is stated rather than offered. */
+.dictation-onboarding-picker-label {
+	overflow: hidden;
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* --- Waveform --- */
+
+/*
+ * The hero, and the same instrument Voice Mode uses: a row of hairline strokes
+ * whose shape flows and whose height follows the microphone. The card's whole
+ * job is to answer "is this device hearing me", and a trace that swells when you
+ * speak answers it before any words are read.
+ */
+.dictation-onboarding-waveform {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: var(--vscode-spacing-size280);
+	padding: 0 var(--vscode-spacing-size60);
+	/* Quiet at rest and brightening as the level rises, so the row lifts with the
+	 * voice rather than sitting at full strength in silence. The animation owns
+	 * the exact value, since it also has to drop the row when there is no
+	 * microphone to hear at all. */
+	opacity: 0.35;
+	/* Eases into the card's edges rather than being sliced off at them. */
+	mask-image: linear-gradient(to right, transparent, rgba(0, 0, 0, 1) 8%, rgba(0, 0, 0, 1) 92%, transparent);
+}
+
+/*
+ * Strokes, not shapes - the same 1px hairline the Voice Mode waveform uses, so
+ * the two read as one instrument at different sizes.
+ *
+ * `currentColor` is the whole colour story: the card owns the tier and every
+ * theme override works for free. Voice Mode's canvas has to read and cache the
+ * computed `color` to reach the same place; drawing in the DOM gets it free.
+ */
+.dictation-onboarding-bar {
+	flex: 0 0 auto;
+	width: 1px;
+	height: 100%;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: currentColor;
+	/* Scaled from the middle, so the row grows symmetrically about its centre
+	 * line the way a waveform does. Transform only - never height - so a row of
+	 * hairlines at 60fps never reflows the chat input beneath it. */
+	transform: scaleY(0.08);
+	transform-origin: center;
+	will-change: transform;
+}
+
+/*
+ * The hand-off. The row settles rather than freezing mid-motion, which is what
+ * makes the card leaving read as a step instead of a cut.
+ */
+.dictation-onboarding-banner.handing-off .dictation-onboarding-bar {
+	transition: transform 350ms ease-out;
+}
+
+/* --- Hint --- */
+
+/*
+ * Silent unless it has something to say. At rest the waveform is the
+ * instruction; the hint is reserved for a microphone that cannot be read and
+ * for the hand-off, where a line of text is the only thing that explains why
+ * the card is leaving.
+ */
+.dictation-onboarding-hint {
+	font-size: var(--vscode-fontSize-label3);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+/* Takes no room at all when empty, so the card does not carry a blank tier. */
+.dictation-onboarding-hint:empty {
+	display: none;
+}
+
+.dictation-onboarding-banner.has-error .dictation-onboarding-hint {
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+}
+
+/* --- Confirm --- */
+
+/*
+ * A check, not a cross: leaving this card starts dictating, so the control is
+ * a confirmation rather than an abandonment.
+ *
+ * Pinned to the corner and out of the content flow, so it never competes with
+ * the picker for room and never moves as the card re-flows. Always available: a
+ * disabled dismiss would trap someone inside the card.
+ */
+.dictation-onboarding-close {
+	position: absolute;
+	top: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	transition: background-color 100ms ease-out;
+}
+
+.dictation-onboarding-close:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.dictation-onboarding-close:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/*
+ * `.monaco-workbench .codicon` sets colour and size directly on the glyph, so
+ * without out-ranking it this renders as a dark 16px icon rather than a compact
+ * one inheriting the button's foreground.
+ */
+.monaco-workbench .dictation-onboarding-close .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize);
+	line-height: 1;
+	color: inherit;
+}
