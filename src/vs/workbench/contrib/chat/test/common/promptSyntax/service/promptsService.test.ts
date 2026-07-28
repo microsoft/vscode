@@ -294,6 +294,36 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('dictation instructions', () => {
+		test('combines user and trusted workspace dictation.md files separately from voice.md', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/dictation.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/dictation.md', contents: ['Spell the product name as Contoso DB.'] },
+				{ path: '/home/user/.copilot/voice.md', contents: ['Keep spoken responses concise.'] },
+			]);
+
+			const instructions = await service.getDictationInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.\n\nSpell the product name as Contoso DB.');
+		});
+
+		test('excludes workspace dictation.md when the workspace is untrusted', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await workspaceTrustService.setWorkspaceTrust(false);
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/dictation.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/dictation.md', contents: ['Untrusted workspace guidance.'] },
+			]);
+
+			const instructions = await service.getDictationInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.');
+		});
+	});
+
 	suite('parse', () => {
 		test('explicit', async function () {
 			const rootFolderName = 'resolves-nested-file-references';

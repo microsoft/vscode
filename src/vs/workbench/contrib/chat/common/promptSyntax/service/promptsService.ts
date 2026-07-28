@@ -719,6 +719,12 @@ export interface IPromptsService extends IDisposable {
 	getVoiceInstructions(token: CancellationToken): Promise<string | undefined>;
 
 	/**
+	 * Gets the combined dictation customization from `~/.copilot/dictation.md`
+	 * and each trusted workspace's `.github/dictation.md`.
+	 */
+	getDictationInstructions(token: CancellationToken): Promise<string | undefined>;
+
+	/**
 	 * For a chat mode file URI, return the name of the agent file that it should use.
 	 * @param oldURI
 	 */
