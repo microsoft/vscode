@@ -17,10 +17,10 @@ import { watchFileContents } from '../../platform/files/node/watcher/nodejs/node
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { buildHelpMessage, buildStdinMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from '../../platform/environment/node/argv.js';
 import { addArg, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { combineUriFlags } from './cliArgs.js';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import product from '../../platform/product/common/product.js';
-import { resolveSiblingWindowsExePath } from '../../platform/native/node/siblingApp.js';
 import { CancellationTokenSource } from '../../base/common/cancellation.js';
 import { isUNC, randomPath } from '../../base/common/extpath.js';
 import { Utils } from '../../platform/profiling/common/profiling.js';
@@ -493,18 +493,13 @@ export async function main(argv: string[]): Promise<void> {
 				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
 
-			// Figure out the app to launch: with --agents we try to launch the embedded app on Windows
-			let execToLaunch = process.execPath;
-			if (isWindows && args.agents) {
-				const siblingExe = resolveSiblingWindowsExePath(product);
-				if (siblingExe) {
-					execToLaunch = siblingExe;
-					argv = argv.filter(arg => arg !== '--agents');
-				}
-			}
+			// On Windows, Chromium filters standalone URL-like argv tokens (containing "://")
+			// before main.js runs, so rewrite `--folder-uri <uri>` / `--file-uri <uri>` to
+			// `--flag=value` form. See https://github.com/microsoft/vscode/issues/209072.
+			const spawnArgs = isWindows ? combineUriFlags(argv.slice(2)) : argv.slice(2);
 
 			// We spawn the resolved executable directly
-			child = spawn(execToLaunch, argv.slice(2), options);
+			child = spawn(process.execPath, spawnArgs, options);
 		} else {
 			// On macOS, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
@@ -518,14 +513,7 @@ export async function main(argv: string[]): Promise<void> {
 			//    This way, Mac does not automatically try to foreground the new instance, which causes
 			//    focusing issues when the new instance only sends data to a previous instance and then closes.
 			const spawnArgs = ['-n', '-g'];
-
-			// Figure out the app to launch: with --agents we try to launch the embedded app
-			if (args.agents && product.darwinSiblingBundleIdentifier) {
-				spawnArgs.push('-b', product.darwinSiblingBundleIdentifier);
-				argv = argv.filter(arg => arg !== '--agents');
-			} else {
-				spawnArgs.push('-a', process.execPath); // -a opens the given application.
-			}
+			spawnArgs.push('-a', process.execPath); // -a opens the given application.
 
 			if (args.verbose || args.status) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)

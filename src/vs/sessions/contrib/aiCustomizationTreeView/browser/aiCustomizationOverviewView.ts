@@ -24,12 +24,16 @@ import { IPromptsService } from '../../../../workbench/contrib/chat/common/promp
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 const $ = DOM.$;
 
@@ -57,6 +61,7 @@ export class AICustomizationOverviewView extends ViewPane {
 	private sectionsContainer!: HTMLElement;
 	private readonly sections: ISectionSummary[] = [];
 	private readonly countElements = new Map<AICustomizationManagementSection, HTMLElement>();
+	private readonly sectionElements = new Map<AICustomizationManagementSection, HTMLElement>();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -75,6 +80,9 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAutomationService private readonly automationService: IAutomationService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -83,9 +91,44 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Agents, label: localize('agents', "Agents"), icon: agentIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Skills, label: localize('skills', "Skills"), icon: skillIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Instructions, label: localize('instructions', "Instructions"), icon: instructionsIcon, count: 0 },
+		);
+		// Only show the tile when the setting is on (mirrors the management editor gate).
+		if (this._isAutomationsEnabled()) {
+			this.sections.push({ id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 });
+		}
+		this.sections.push(
 			{ id: AICustomizationManagementSection.McpServers, label: localize('mcpServers', "MCP Servers"), icon: mcpServerIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Plugins, label: localize('plugins', "Plugins"), icon: pluginIcon, count: 0 },
+			{ id: AICustomizationManagementSection.Tools, label: localize('tools', "Tools"), icon: toolsIcon, count: 0 },
 		);
+
+		// Re-render when the user toggles `chat.automations.enabled`,
+		// so the tile appears/disappears live without a reload.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)) {
+				return;
+			}
+			const present = this.sections.some(s => s.id === AICustomizationManagementSection.Automations);
+			const desired = this._isAutomationsEnabled();
+			if (present === desired) {
+				return;
+			}
+			if (desired) {
+				// Insert before McpServers to preserve the original order.
+				const mcpIdx = this.sections.findIndex(s => s.id === AICustomizationManagementSection.McpServers);
+				const insertAt = mcpIdx === -1 ? this.sections.length : mcpIdx;
+				this.sections.splice(insertAt, 0, { id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 });
+			} else {
+				const idx = this.sections.findIndex(s => s.id === AICustomizationManagementSection.Automations);
+				if (idx !== -1) {
+					this.sections.splice(idx, 1);
+				}
+			}
+			if (this.sectionsContainer) {
+				this.renderSections();
+				void this.loadCounts();
+			}
+		}));
 
 		// Listen to changes
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.loadCounts()));
@@ -117,12 +160,14 @@ export class AICustomizationOverviewView extends ViewPane {
 	private renderSections(): void {
 		DOM.clearNode(this.sectionsContainer);
 		this.countElements.clear();
+		this.sectionElements.clear();
 
 		for (const section of this.sections) {
 			const sectionElement = DOM.append(this.sectionsContainer, $('.overview-section'));
 			sectionElement.tabIndex = 0;
 			sectionElement.setAttribute('role', 'button');
-			sectionElement.setAttribute('aria-label', `${section.label}: ${section.count} items`);
+			sectionElement.setAttribute('aria-label', this.getSectionAriaLabel(section));
+			this.sectionElements.set(section.id, sectionElement);
 
 			const iconElement = DOM.append(sectionElement, $('.section-icon'));
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(section.icon));
@@ -212,7 +257,36 @@ export class AICustomizationOverviewView extends ViewPane {
 			}));
 		}
 
+		// Update tools count reactively
+		const toolsSection = this.sections.find(s => s.id === AICustomizationManagementSection.Tools);
+		if (toolsSection) {
+			this._register(autorun(reader => {
+				const state = this.toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
+				const toolSets = this.languageModelToolsService.toolSets.read(reader);
+				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader);
+				this.updateCountElements();
+			}));
+		}
+
+		// Update automation count reactively (no-ops when tile is hidden).
+		this._register(autorun(reader => {
+			const automations = this.automationService.automations.read(reader);
+			const automationSection = this.sections.find(s => s.id === AICustomizationManagementSection.Automations);
+			if (automationSection) {
+				automationSection.count = automations.length;
+				this.updateCountElements();
+			}
+		}));
+
 		this.updateCountElements();
+	}
+
+	private _isAutomationsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	}
+
+	private getSectionAriaLabel(section: ISectionSummary): string {
+		return localize('overviewSectionAriaLabelWithCount', "{0}, {1} items", section.label, section.count);
 	}
 
 	private updateCountElements(): void {
@@ -220,6 +294,10 @@ export class AICustomizationOverviewView extends ViewPane {
 			const countElement = this.countElements.get(section.id);
 			if (countElement) {
 				countElement.textContent = `${section.count}`;
+			}
+			const sectionElement = this.sectionElements.get(section.id);
+			if (sectionElement) {
+				sectionElement.setAttribute('aria-label', this.getSectionAriaLabel(section));
 			}
 		}
 	}

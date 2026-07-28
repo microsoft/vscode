@@ -189,7 +189,10 @@ export class ChatDebugLogsView extends Disposable {
 			getAriaLabel: (e: IChatDebugEvent) => {
 				switch (e.kind) {
 					case 'toolCall': return localize('chatDebug.aria.toolCall', "Tool call: {0}{1}", e.toolName, e.result ? ` (${e.result})` : '');
-					case 'modelTurn': return localize('chatDebug.aria.modelTurn', "Model turn: {0}{1}", e.model ?? localize('chatDebug.aria.model', "model"), e.totalTokens ? localize('chatDebug.aria.tokenCount', " {0} tokens", e.totalTokens) : '');
+					case 'modelTurn': return localize('chatDebug.aria.modelTurn', "Model turn: {0}{1}{2}",
+						e.model ?? localize('chatDebug.aria.model', "model"),
+						e.totalTokens !== undefined ? localize('chatDebug.aria.tokenCount', " {0} tokens", e.totalTokens) : '',
+						e.cachedTokens !== undefined ? localize('chatDebug.aria.cachedTokens', " {0} cached", e.cachedTokens) : '');
 					case 'generic': return `${e.category ? e.category + ': ' : ''}${e.name}: ${e.details ?? ''}`;
 					case 'subagentInvocation': return localize('chatDebug.aria.subagent', "Subagent: {0}{1}", e.agentName, e.description ? ` - ${e.description}` : '');
 					case 'userMessage': return localize('chatDebug.aria.userMessage', "User message: {0}", e.message);
@@ -479,7 +482,14 @@ export class ChatDebugLogsView extends Disposable {
 			if (!this.currentSessionResource || sessionResource.toString() === this.currentSessionResource.toString()) {
 				this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
 				this.filterDirty = true;
-				this.refreshList();
+				// Coalesce with the re-added events that follow in the same
+				// invokeProviders() pass instead of refreshing synchronously:
+				// a synchronous refresh here would momentarily collapse the
+				// list to the (near-empty) core-only set before the provider
+				// events are re-added, causing a visible flicker. Deferring
+				// lets the debounced refresh rebuild the list once with the
+				// full set.
+				this.scheduleRefresh();
 			}
 		});
 

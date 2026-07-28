@@ -83,7 +83,7 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 
 		// Write to cache file and return URI
 		const fileUri = await this.writeCacheFile(content);
-		return [{ uri: fileUri }];
+		return [{ uri: fileUri, sessionTypes: ['local'] }];
 	}
 
 	private async writeCacheFile(content: string): Promise<vscode.Uri> {

@@ -13,6 +13,10 @@ import { ChatToolCalls } from '../panel/toolCalling';
 
 export interface ExecutionSubagentPromptProps extends GenericBasePromptElementProps {
 	readonly maxExecutionTurns: number;
+	/** True if a previous {@link ToolName.CoreRunInTerminal} call timed out or was
+	 * invoked in async/background mode; the model is told to stop calling tools
+	 * and emit its `<final_answer>`. */
+	readonly hasBackgroundCommand?: boolean;
 }
 
 /**
@@ -81,6 +85,11 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 				{isLastTurn && (
 					<UserMessage priority={900}>
 						OK, your allotted iterations are finished. Show the &lt;final_answer&gt;.
+					</UserMessage>
+				)}
+				{!isLastTurn && this.props.hasBackgroundCommand && (
+					<UserMessage priority={900}>
+						One or more commands are running in the background. You do not have the ability to monitor them. Show the &lt;final_answer&gt;.
 					</UserMessage>
 				)}
 			</>

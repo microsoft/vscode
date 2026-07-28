@@ -16,17 +16,18 @@ import { ITestingServicesAccessor } from '../../../../platform/test/node/service
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatSessionStatus, MarkdownString, ThemeIcon } from '../../../../vscodeTypes';
+import { ChatSessionStatus, ChatResponseCommandButtonPart, MarkdownString, ThemeIcon } from '../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { MockChatResponseStream, TestChatRequest } from '../../../test/node/testHelpers';
 import { ClaudeFolderInfo } from '../../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../../claude/common/claudeSessionUri';
+import { IClaudeAgentSdkLoaderService } from '../../claude/common/claudeAgentSdkLoaderService';
 import type { ClaudeAgentManager } from '../../claude/node/claudeCodeAgent';
 import { IClaudeCodeSdkService } from '../../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../../claude/node/claudeModelId';
@@ -46,11 +47,20 @@ let lastForkHandler: ((sessionResource: vscode.Uri, request: vscode.ChatRequestT
 // Expose the most recently registered getChatSessionInputState handler so tests can invoke it.
 let lastGetChatSessionInputState: vscode.ChatSessionControllerGetInputState | undefined;
 
+// Emitter that backs vscode.extensions.onDidChange for tests that exercise SDK install flows.
+let extensionsDidChangeEmitter: Emitter<void>;
+
 // Patch vscode shim with missing namespaces before any production code imports it.
 beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).commands = {
 		registerCommand: vi.fn().mockReturnValue({ dispose: () => { } }),
 		executeCommand: vi.fn().mockResolvedValue(undefined),
+	};
+	extensionsDidChangeEmitter = new Emitter<void>();
+	(vscodeShim as Record<string, unknown>).extensions = {
+		getExtension: vi.fn().mockReturnValue(undefined),
+		onDidChange: extensionsDidChangeEmitter.event,
+		all: [],
 	};
 	(vscodeShim as Record<string, unknown>).chat = {
 		createChatSessionItemController: () => {
@@ -237,6 +247,7 @@ function createProviderWithServices(
 	mocks: ReturnType<typeof createDefaultMocks>,
 	agentManager?: ClaudeAgentManager,
 	workspaceServiceOverride?: TestWorkspaceService,
+	sdkLoaderOverride?: IClaudeAgentSdkLoaderService,
 ): { provider: ClaudeChatSessionContentProvider; accessor: ITestingServicesAccessor } {
 	const serviceCollection = store.add(createExtensionUnitTestingServices(store));
 
@@ -265,6 +276,13 @@ function createProviderWithServices(
 	serviceCollection.define(IClaudeWorkspaceFolderService, {
 		_serviceBrand: undefined,
 		getWorkspaceChanges: vi.fn().mockResolvedValue([]),
+	});
+
+	serviceCollection.define(IClaudeAgentSdkLoaderService, sdkLoaderOverride ?? {
+		_serviceBrand: undefined,
+		isAvailable: true,
+		install: vi.fn().mockResolvedValue(true),
+		load: vi.fn().mockResolvedValue({}),
 	});
 
 	const accessor = serviceCollection.createTestingAccessor();
@@ -937,7 +955,7 @@ describe('ChatSessionContentProvider', () => {
 		let handlerProvider: ClaudeChatSessionContentProvider;
 		let handlerAccessor: ITestingServicesAccessor;
 
-		function createChatContext(sessionId: string): vscode.ChatContext {
+		function createChatContext(sessionId: string, options?: { folderPath?: string; allFolderPaths?: string[] }): vscode.ChatContext {
 			return {
 				history: [],
 				yieldRequested: false,
@@ -947,7 +965,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
+					inputState: { groups: buildInputStateGroups(options), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -980,6 +998,49 @@ describe('ChatSessionContentProvider', () => {
 			expect(setModelSpy).toHaveBeenCalledWith('session-1', parseClaudeModelId('claude-3-5-sonnet-20241022'));
 		});
 
+		it('rejects an untrusted folder before invoking the agent manager', async () => {
+			const mocks = createDefaultMocks();
+			const workspaceService = new TestWorkspaceService([workspaceFolderUri]);
+			vi.spyOn(workspaceService, 'isResourceTrusted').mockResolvedValue(false);
+			const untrustedAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, untrustedAgentManager, workspaceService);
+			seedSessionItem('session-untrusted');
+
+			const result = await provider.createHandler()(
+				createTestRequest('hello'),
+				createChatContext('session-untrusted'),
+				new MockChatResponseStream(),
+				CancellationToken.None,
+			);
+
+			expect(result).toEqual({ errorDetails: { message: `Workspace '${workspaceFolderUri.fsPath}' is not trusted` } });
+			expect(vi.mocked(untrustedAgentManager.handleRequest)).not.toHaveBeenCalled();
+		});
+
+		it('rejects an untrusted additional directory before invoking the agent manager', async () => {
+			const primaryFolder = URI.file('/primary');
+			const additionalFolder = URI.file('/additional');
+			const mocks = createDefaultMocks();
+			const workspaceService = new TestWorkspaceService([primaryFolder, additionalFolder]);
+			vi.spyOn(workspaceService, 'isResourceTrusted').mockImplementation(async resource => resource.fsPath !== additionalFolder.fsPath);
+			const untrustedAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [primaryFolder, additionalFolder], mocks, untrustedAgentManager, workspaceService);
+			seedSessionItem('session-additional-untrusted');
+
+			const result = await provider.createHandler()(
+				createTestRequest('hello'),
+				createChatContext('session-additional-untrusted', {
+					folderPath: primaryFolder.fsPath,
+					allFolderPaths: [primaryFolder.fsPath, additionalFolder.fsPath],
+				}),
+				new MockChatResponseStream(),
+				CancellationToken.None,
+			);
+
+			expect(result).toEqual({ errorDetails: { message: `Workspace '${additionalFolder.fsPath}' is not trusted` } });
+			expect(vi.mocked(untrustedAgentManager.handleRequest)).not.toHaveBeenCalled();
+		});
+
 		it('short-circuits before session resolution when slash command is handled', async () => {
 			const slashCommandService = handlerAccessor.get(IClaudeSlashCommandService);
 			vi.mocked(slashCommandService.tryHandleCommand).mockResolvedValue({
@@ -996,6 +1057,88 @@ describe('ChatSessionContentProvider', () => {
 			// Slash command handled → no agent call
 			expect(vi.mocked(mockAgentManager.handleRequest)).not.toHaveBeenCalled();
 			expect(result).toEqual({ metadata: { command: '/test' } });
+		});
+
+		it('streams "Installing..." then "Done" and proceeds when the SDK loader installs successfully', async () => {
+			const installMock = vi.fn().mockResolvedValue(true);
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				isAvailable: false,
+				install: installMock,
+				load: vi.fn().mockResolvedValue({}),
+			};
+			const mocks = createDefaultMocks();
+			const altAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, altAgentManager, undefined, loaderStub);
+
+			seedSessionItem('session-install');
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream();
+
+			const result = await handler(createTestRequest('hello'), createChatContext('session-install'), stream, CancellationToken.None);
+
+			expect(installMock).toHaveBeenCalledOnce();
+			expect(stream.output.some(s => s.includes('Installing'))).toBe(true);
+			expect(stream.output.some(s => s.includes('Done'))).toBe(true);
+			expect(vi.mocked(altAgentManager.handleRequest)).toHaveBeenCalledOnce();
+			expect(result).not.toHaveProperty('errorDetails');
+		});
+
+		it('emits an install button and errorDetails when the SDK loader install fails, skipping the agent', async () => {
+			const parts: vscode.ExtendedChatResponsePart[] = [];
+			const installMock = vi.fn().mockResolvedValue(false);
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				isAvailable: false,
+				install: installMock,
+				load: vi.fn().mockResolvedValue({}),
+			};
+			const mocks = createDefaultMocks();
+			const altAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, altAgentManager, undefined, loaderStub);
+
+			seedSessionItem('session-install-fail');
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream(part => parts.push(part));
+
+			const result = await handler(createTestRequest('hello'), createChatContext('session-install-fail'), stream, CancellationToken.None);
+
+			expect(installMock).toHaveBeenCalledOnce();
+			expect(vi.mocked(altAgentManager.handleRequest)).not.toHaveBeenCalled();
+			expect((result as vscode.ChatResult).errorDetails?.message).toContain('Failed to install');
+			const buttonPart = parts.find(p => p instanceof ChatResponseCommandButtonPart) as ChatResponseCommandButtonPart | undefined;
+			expect(buttonPart?.value.command).toBe('workbench.extensions.installExtension');
+			expect(buttonPart?.value.arguments).toEqual(['ms-vscode.vscode-claude-sdk']);
+		});
+
+		it('returns empty result (no error, no button) when install resolves false after cancellation', async () => {
+			const parts: vscode.ExtendedChatResponsePart[] = [];
+			const cts = new CancellationTokenSource();
+			store.add(cts);
+			const installMock = vi.fn().mockImplementation(async (token: CancellationToken) => {
+				return !token.isCancellationRequested;
+			});
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				isAvailable: false,
+				install: installMock,
+				load: vi.fn().mockResolvedValue({}),
+			};
+			const mocks = createDefaultMocks();
+			const altAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, altAgentManager, undefined, loaderStub);
+
+			seedSessionItem('session-install-cancel');
+			cts.cancel();
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream(part => parts.push(part));
+
+			const result = await handler(createTestRequest('hello'), createChatContext('session-install-cancel'), stream, cts.token);
+
+			expect(installMock).toHaveBeenCalledOnce();
+			expect(vi.mocked(altAgentManager.handleRequest)).not.toHaveBeenCalled();
+			expect((result as vscode.ChatResult).errorDetails).toBeUndefined();
+			expect(parts.find(p => p instanceof ChatResponseCommandButtonPart)).toBeUndefined();
 		});
 	});
 
@@ -1321,7 +1464,7 @@ describe('ClaudeChatSessionItemController', () => {
 		return lastCreatedItemsMap.get(ClaudeSessionUri.forSessionId(sessionId).toString());
 	}
 
-	function createController(workspaceFolders: URI[], gitService?: IGitService): ClaudeChatSessionItemController {
+	function createController(workspaceFolders: URI[], gitService?: IGitService, sdkLoaderOverride?: IClaudeAgentSdkLoaderService): ClaudeChatSessionItemController {
 		const serviceCollection = store.add(createExtensionUnitTestingServices());
 		const workspaceService = new TestWorkspaceService(workspaceFolders);
 		serviceCollection.set(IWorkspaceService, workspaceService);
@@ -1343,6 +1486,12 @@ describe('ClaudeChatSessionItemController', () => {
 		serviceCollection.define(IClaudeWorkspaceFolderService, {
 			_serviceBrand: undefined,
 			getWorkspaceChanges: vi.fn().mockResolvedValue([]),
+		});
+		serviceCollection.define(IClaudeAgentSdkLoaderService, sdkLoaderOverride ?? {
+			_serviceBrand: undefined,
+			isAvailable: true,
+			install: vi.fn().mockResolvedValue(true),
+			load: vi.fn().mockResolvedValue({}),
 		});
 		const accessor = serviceCollection.createTestingAccessor();
 		lastControllerAccessor = accessor;
@@ -2244,6 +2393,52 @@ describe('ClaudeChatSessionItemController', () => {
 
 			const resource = ClaudeSessionUri.forSessionId(sessionId);
 			await findCommandHandler('github.copilot.claude.sessions.initializeRepository')(resource);
+		});
+	});
+
+	// #endregion
+
+	// #region SDK install listener
+
+	describe('SDK install listener', () => {
+		it('does not refresh items when the SDK is already available and onDidChange fires', () => {
+			controller = createController([URI.file('/project')], undefined, {
+				_serviceBrand: undefined,
+				isAvailable: true,
+				install: vi.fn(),
+				load: vi.fn(),
+			});
+			vi.mocked(mockSessionService.getAllSessions).mockClear();
+			extensionsDidChangeEmitter.fire();
+			expect(vi.mocked(mockSessionService.getAllSessions)).not.toHaveBeenCalled();
+		});
+
+		it('registers a listener when the SDK is missing and refreshes items once it becomes available', async () => {
+			let available = false;
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				get isAvailable() { return available; },
+				install: vi.fn(),
+				load: vi.fn(),
+			};
+			controller = createController([URI.file('/project')], undefined, loaderStub);
+
+			vi.mocked(mockSessionService.getAllSessions).mockClear();
+
+			extensionsDidChangeEmitter.fire();
+			await Promise.resolve();
+			expect(vi.mocked(mockSessionService.getAllSessions)).not.toHaveBeenCalled();
+
+			available = true;
+			extensionsDidChangeEmitter.fire();
+			await Promise.resolve();
+			await Promise.resolve();
+			expect(vi.mocked(mockSessionService.getAllSessions)).toHaveBeenCalled();
+
+			vi.mocked(mockSessionService.getAllSessions).mockClear();
+			extensionsDidChangeEmitter.fire();
+			await Promise.resolve();
+			expect(vi.mocked(mockSessionService.getAllSessions)).not.toHaveBeenCalled();
 		});
 	});
 

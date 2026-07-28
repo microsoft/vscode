@@ -7,12 +7,15 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
+import '../common/agentHostStarter.config.contribution.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -67,10 +70,51 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		const env: Record<string, string> = {
 			...shellEnv as Record<string, string>,
+			// Announce that everything spawned below this process is driven by
+			// VS Code's agent, so `gh` inherits it. Set after the inherited
+			// env so it wins.
+			[AiAgentEnvVar]: AiAgentEnvValue,
 			VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 		};
+
+		// Forward the Claude/Codex SDK overrides + codex home/args from
+		// workbench settings to the agent host process. Parent env wins on
+		// collision — see `buildAgentSdkEnv` for the precedence rule.
+		const sdkEnv = buildAgentSdkEnv({
+			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
+			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
+			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
+			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
+			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
+			byokModelsEnabled: this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId),
+		}, process.env);
+		Object.assign(env, sdkEnv);
+
+		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
+		// the agent host process. Any value already present on `process.env` wins
+		// for user settings, while enterprise policy values win over inherited env —
+		// see `buildAgentHostOTelEnv`.
+		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
+		const otelEnv = buildAgentHostOTelEnv({
+			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
+			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
+		}, process.env, {
+			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
+			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
+			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
+			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
+		});
+		Object.assign(env, otelEnv);
 
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {
@@ -88,9 +132,18 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 		}
 
+		const args = [
+			'--type=agentHost',
+			'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
+			'--user-data-dir', this._environmentService.userDataPath,
+		];
+		if (this._environmentService.disableTelemetry) {
+			args.push('--disable-telemetry');
+		}
+
 		const opts: IIPCOptions = {
 			serverName: 'Agent Host',
-			args: ['--type=agentHost', '--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath],
+			args,
 			env,
 		};
 

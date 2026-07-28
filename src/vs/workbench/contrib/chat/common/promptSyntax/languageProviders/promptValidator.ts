@@ -29,6 +29,14 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
+export const enum PromptValidatorMarkerCode {
+	MissingGithubMcpServer = 'promptValidator.missingGithubMcpServer',
+	MissingPlaywrightMcpServer = 'promptValidator.missingPlaywrightMcpServer',
+	UnknownExtensionReference = 'promptValidator.unknownExtensionReference',
+	UnknownMcpServerReference = 'promptValidator.unknownMcpServerReference',
+	UnknownExtensionOrMcpServerReference = 'promptValidator.unknownExtensionOrMcpServerReference'
+}
+
 export class PromptValidator {
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -200,7 +208,17 @@ export class PromptValidator {
 							}
 						}
 					} else {
-						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+						const missingGithubServerMarker = this.getMissingGithubMcpServerMarker(variable.name, variable.range);
+						if (missingGithubServerMarker) {
+							report(missingGithubServerMarker);
+						} else {
+							const missingPlaywrightServerMarker = this.getMissingPlaywrightMcpServerMarker(variable.name, variable.range);
+							if (missingPlaywrightServerMarker) {
+								report(missingPlaywrightServerMarker);
+							} else {
+								report(this.getUnknownToolMarker(variable.name, variable.range, true));
+							}
+						}
 					}
 				} else if (headerToolsMap) {
 					const tool = this.languageModelToolsService.getToolByFullReferenceName(variable.name);
@@ -227,7 +245,7 @@ export class PromptValidator {
 		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
-				const agent = this.validateAgent(attributes, report);
+				const agent = await this.validateAgent(attributes, report);
 				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, target, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
@@ -441,7 +459,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
+	private async validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
 		const agentAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent);
 		const modeAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.mode);
 		if (modeAttribute) {
@@ -465,11 +483,11 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.attributeMustBeNonEmpty', "The '{0}' attribute must be a non-empty string.", attribute.key), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
-		return this.validateAgentValue(attribute.value, report);
+		return await this.validateAgentValue(attribute.value, report);
 	}
 
-	private validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): IChatMode | undefined {
-		const agents = this.chatModeService.getModes();
+	private async validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
+		const agents = await this.chatModeService.getLocalModes();
 		const availableAgents = [];
 
 		// Check if agent exists in builtin or custom agents
@@ -527,12 +545,113 @@ export class PromptValidator {
 								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", item.value, newNames), item.range, MarkerSeverity.Info, [MarkerTag.Deprecated]));
 							}
 						} else {
-							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}' will be ignored.", item.value), item.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+							const missingGithubServerMarker = this.getMissingGithubMcpServerMarker(item.value, item.range);
+							if (missingGithubServerMarker) {
+								report(missingGithubServerMarker);
+							} else {
+								const missingPlaywrightServerMarker = this.getMissingPlaywrightMcpServerMarker(item.value, item.range);
+								if (missingPlaywrightServerMarker) {
+									report(missingPlaywrightServerMarker);
+								} else {
+									report(this.getUnknownToolMarker(item.value, item.range, false));
+								}
+							}
 						}
 					}
 				}
 			}
 		}
+	}
+
+	private getUnknownToolMarker(toolReferenceName: string, range: Range, isVariableReference: boolean): IMarkerData {
+		const splitBySlash = toolReferenceName.split('/');
+		const slashCount = splitBySlash.length - 1;
+		const hasExtensionLikeName = splitBySlash[0].includes('.');
+		if (slashCount >= 2) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownMcpServerReference',
+					"Unknown tool '{0}'. It is likely to be a missing MCP server, please ensure it is installed and enabled.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownMcpServerReference
+			);
+		}
+		if (hasExtensionLikeName) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownExtensionReference',
+					"Unknown extension tool '{0}'. It is likely to be a missing extension, please ensure it is installed and enabled.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionReference
+			);
+		}
+		if (isVariableReference) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownVariableReference',
+					"Unknown tool or toolset '{0}'.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
+			);
+		} else {
+			return toMarker(
+				localize(
+					'promptValidator.unknownToolReference',
+					"Unknown tool '{0}' will be ignored.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
+			);
+		}
+	}
+
+	private getMissingGithubMcpServerMarker(toolReferenceName: string, range: Range): IMarkerData | undefined {
+		if (toolReferenceName !== 'github/*') {
+			return undefined;
+		}
+		return toMarker(
+			localize(
+				'promptValidator.missingGithubMcpServer',
+				"Tool alias '{0}' requires the GitHub MCP server. Enable the built-in server with setting 'github.copilot.chat.githubMcpServer.enabled' or install extension 'io.github.github/github-mcp-server' from Extensions (`@mcp github`).",
+				toolReferenceName
+			),
+			range,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary],
+			PromptValidatorMarkerCode.MissingGithubMcpServer
+		);
+	}
+
+	private getMissingPlaywrightMcpServerMarker(toolReferenceName: string, range: Range): IMarkerData | undefined {
+		if (toolReferenceName !== 'playwright/*') {
+			return undefined;
+		}
+		return toMarker(
+			localize(
+				'promptValidator.missingPlaywrightMcpServer',
+				"Tool alias '{0}' requires the Playwright MCP server. Install it from Extensions (`@mcp playwright`).",
+				toolReferenceName
+			),
+			range,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary],
+			PromptValidatorMarkerCode.MissingPlaywrightMcpServer
+		);
 	}
 
 	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
@@ -1223,6 +1342,6 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 	return Target.Undefined;
 }
 
-function toMarker(message: string, range: Range, severity = MarkerSeverity.Error, tags?: MarkerTag[]): IMarkerData {
-	return { severity, message, ...(tags ? { tags } : {}), ...range };
+function toMarker(message: string, range: Range, severity = MarkerSeverity.Error, tags?: MarkerTag[], code?: string): IMarkerData {
+	return { severity, message, ...(tags ? { tags } : {}), ...(code ? { code } : {}), ...range };
 }

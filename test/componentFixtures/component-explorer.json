@@ -20,7 +20,7 @@
 		"cmd": "npm run serve-out-rspack",
 		"cwd": "../../",
 		"wait": {
-			"stderr": "Loopback: http://localhost:(?<port>\\d+)/,"
+			"stdout": "http://localhost:(?<port>\\d+)/"
 		},
 		"url": "http://localhost:${var:port}"
 	}

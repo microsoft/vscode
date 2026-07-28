@@ -20,14 +20,14 @@ import { ILogService } from '../../log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
-import { ChatCompletion, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
+import { APIErrorResponse, ChatCompletion, FilterReason, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
 import { sendEngineMessagesTelemetry, sendResponsesApiCompactionTelemetry } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isResponsesApiToolSearchEnabled } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -45,14 +45,18 @@ export function getResponsesApiCompactionThreshold(configService: IConfiguration
 		: 50000;
 }
 
+export function getVerbosityForModelSyncBasedOnExp(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
+	return getVerbosityForModelSync(endpoint, configService.getExperimentBasedConfig(ConfigKey.EnableGpt56Verbosity, expService));
+}
+
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
-	const verbosity = getVerbosityForModelSync(endpoint);
+	const verbosity = getVerbosityForModelSyncBasedOnExp(configService, expService, endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
-	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options, model);
 	// When WebSocket is in use, always defer to the WebSocket marker (which may be
 	// undefined if the connection is new or the summary state changed). Never fall
 	// back to the HTTP marker lookup in that case.
@@ -63,11 +67,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	// (excluded from the request entirely). Uses OpenAI's client-executed tool search protocol: we add
 	// { type: 'tool_search', execution: 'client' }. The model emits tool_search_call, which we handle via
 	// our ToolSearchTool embeddings search, then round-trip as tool_search_output in the next request.
-	const toolSearchEnabled = isResponsesApiToolSearchEnabled(endpoint, configService, expService);
+	const toolSearchEnabled = !!endpoint.supportsToolSearch
+		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
 	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
 	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
-	const toolSearchInRequest = !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
-	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && toolSearchInRequest;
+	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
 	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;
 
 	type ResponsesFunctionTool = OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool;
@@ -123,6 +127,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
+	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
 
 	const body: IEndpointBody = {
 		model,
@@ -130,6 +135,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
+			supportsCacheBreakpoints: promptCacheBreakpointsEnabled && modelSupportCacheBreakPoints(endpoint),
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -155,14 +161,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
 		'disabled';
-	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
-	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
-	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
 	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
-	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
+	const summary: string | undefined = undefined;
 	if (effort || summary) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
@@ -256,6 +259,7 @@ interface ToolSearchLoadedTool {
 	description: string;
 	defer_loading: true;
 	parameters: object;
+	strict: false;
 }
 
 interface LatestCompactionOutput {
@@ -281,29 +285,31 @@ interface ResponseStreamEventWithResponseOutput {
 	};
 }
 
-function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, modelId: string): string | undefined {
 	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
 		return undefined;
 	}
 	const wsManager = accessor.get(IChatWebSocketManager);
+	const connectionKey = { conversationId: options.conversationId, modelId, connectionId: options.webSocketConnectionId };
 	// If client-side summarization state changed since the stateful marker
 	// was stored (new summary, or rollback removing a summary), the server's
 	// state no longer matches. Skip the marker so the full history is sent.
-	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(connectionKey);
 	if (options.summarizedAtRoundId !== connSummarizedAt) {
 		return undefined;
 	}
-	return wsManager.getStatefulMarker(options.conversationId);
+	return wsManager.getStatefulMarker(connectionKey);
 }
 
 interface RawMessagesToResponseAPIOptions {
 	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
 	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
 	readonly modeChanged?: boolean;
+	readonly supportsCacheBreakpoints?: boolean;
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
-	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -330,6 +336,32 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		markerIndex = undefined;
 	}
 
+	const toolSearchCallIds = new Set<string>();
+	const toolSearchLoadedTools = new Set<string>();
+	// Only pre-scan when history will be sliced (matches the slicing block below);
+	// otherwise the serialization loop visits each tool_search_call before its
+	// result and populates these sets in order on its own.
+	const willSliceHistory = markerIndex !== undefined || latestCompactionMessageIndex !== undefined;
+	if (willSliceHistory) {
+		for (const message of messages) {
+			if (message.role === Raw.ChatRole.Assistant && message.toolCalls) {
+				for (const toolCall of message.toolCalls) {
+					if (toolCall.function.name === CUSTOM_TOOL_SEARCH_NAME) {
+						toolSearchCallIds.add(toolCall.id);
+					}
+				}
+			} else if (message.role === Raw.ChatRole.Tool && message.toolCallId && toolSearchCallIds.has(message.toolCallId) && toolsMap) {
+				const resultText = message.content
+					.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
+					.map(c => c.text)
+					.join('');
+				for (const t of buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch)) {
+					toolSearchLoadedTools.add(t.name);
+				}
+			}
+		}
+	}
+
 	if (markerIndex !== undefined) {
 		// Requests that resume from previous_response_id send only post-marker history,
 		// but they still need the latest compaction item even when that item predates
@@ -346,13 +378,9 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		messages = messages.slice(latestCompactionMessageIndex);
 	}
 
-	// Track which call_ids are tool_search_calls (from client-executed tool search)
-	const toolSearchCallIds = new Set<string>();
-	// Track tool names loaded via tool_search_output — these need a namespace field on function_call
-	const toolSearchLoadedTools = new Set<string>();
-
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
 	for (const message of messages) {
+		const inputStartIndex = input.length;
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
@@ -424,21 +452,38 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 								detail: c.imageUrl.detail || 'auto',
 								image_url: c.imageUrl.url,
 							}));
+						const asFiles = message.content
+							.filter((c): c is RawDocumentContentPart => c.type === Raw.ChatCompletionContentPartKind.Document)
+							.map(rawDocumentToResponsesInputFile)
+							.filter(isDefined);
 
 						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+						}
+						if (asFiles.length) {
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
+		}
+
+		if (supportsCacheBreakpoints && input.length > inputStartIndex && hasCacheBreakpoint(message)) {
+			// Attach the prompt-cache marker to the last item this message produced, scanning back past
+			// reasoning/compaction items that cannot carry it.
+			for (let inputIndex = input.length - 1; inputIndex >= inputStartIndex; inputIndex--) {
+				if (tryApplyPromptCacheBreakpoint(input[inputIndex])) {
+					break;
+				}
+			}
 		}
 	}
 
@@ -464,6 +509,7 @@ function buildToolSearchOutputTools(resultText: string, toolsMap: Map<string, Op
 				description: tool.function.description || '',
 				defer_loading: true as const,
 				parameters: tool.function.parameters || { type: 'object', properties: {} },
+				strict: false as const,
 			};
 		});
 }
@@ -497,12 +543,28 @@ function getLatestCompactionMessageIndex(messages: readonly Raw.ChatMessage[]): 
 	return undefined;
 }
 
+type RawDocumentContentPart = Extract<Raw.ChatCompletionContentPart, { type: Raw.ChatCompletionContentPartKind.Document }>;
+
+function rawDocumentToResponsesInputFile(part: RawDocumentContentPart): OpenAI.Responses.ResponseInputFile | undefined {
+	if (part.documentData.mediaType !== 'application/pdf') {
+		return undefined;
+	}
+
+	return {
+		type: 'input_file',
+		filename: 'document.pdf',
+		file_data: `data:${part.documentData.mediaType};base64,${part.documentData.data}`,
+	};
+}
+
 function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseInputContent | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			return { type: 'input_text', text: part.text };
 		case Raw.ChatCompletionContentPartKind.Image:
 			return { type: 'input_image', detail: part.imageUrl.detail || 'auto', image_url: part.imageUrl.url };
+		case Raw.ChatCompletionContentPartKind.Document:
+			return rawDocumentToResponsesInputFile(part);
 		case Raw.ChatCompletionContentPartKind.Opaque: {
 			const maybeCast = part.value as OpenAI.Responses.ResponseInputContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
@@ -521,11 +583,77 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 	}
 }
 
+interface ResponsesPromptCacheBreakpoint {
+	readonly mode: 'explicit';
+}
+
+const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
+
+/**
+ * Whether a raw message carries one or more prompt-cache breakpoints. The Responses content
+ * converters drop `CacheBreakpoint` parts, so we detect them at the message level and later attach
+ * `prompt_cache_breakpoint` to the appropriate Responses input item/content block.
+ */
+function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
+	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
+}
+
+/**
+ * Attaches a prompt-cache marker (`prompt_cache_breakpoint: { mode: 'explicit' }`) to a single
+ * Responses API input item.
+ *
+ * Items that carry a non-empty `content` array (user/system/assistant messages) receive the marker
+ * on their last content block. Items without a content array (`function_call`,
+ * `function_call_output`, `tool_search_*`) receive the marker at the item level. Returns whether a
+ * marker was applied.
+ */
+function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem): boolean {
+	const content = (item as { content?: unknown }).content;
+	if (Array.isArray(content)) {
+		const lastContentBlock = content.at(-1) as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint } | undefined;
+		if (!lastContentBlock) {
+			return false;
+		}
+
+		lastContentBlock.prompt_cache_breakpoint = promptCacheBreakpoint;
+		return true;
+	}
+
+	const itemType = (item as { type?: string }).type;
+	if (
+		itemType === 'function_call'
+		|| itemType === 'function_call_output'
+		|| itemType === 'tool_search_call'
+		|| itemType === 'tool_search_output'
+	) {
+		(item as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint }).prompt_cache_breakpoint = promptCacheBreakpoint;
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * The Responses API rejects the entire request with
+ * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
+ * when a reasoning item is round-tripped with an id it did not issue. Reasoning items
+ * produced by the Responses API always carry an id beginning with `rs`. Thinking blocks
+ * that originated from a different API (e.g. the Anthropic Messages API, whose accumulator
+ * generates `thinking_<index>` ids) can leak into a Responses request — most notably via the
+ * `vscode.lm` access path, which has no model gate — and their `encrypted_content` is not a
+ * valid Responses reasoning blob anyway. Such foreign reasoning items must be dropped, not sent.
+ */
+function isResponsesReasoningId(id: string | undefined): boolean {
+	return typeof id === 'string' && id.startsWith('rs');
+}
+
 function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const thinkingData = rawPartAsThinkingData(part);
-			if (thinkingData) {
+			// Only round-trip genuine Responses API reasoning items. A foreign id (or a thinking
+			// block with no encrypted payload) would otherwise 400 the whole request.
+			if (thinkingData && thinkingData.encrypted && isResponsesReasoningId(thinkingData.id)) {
 				return {
 					type: 'reasoning',
 					id: thinkingData.id,
@@ -821,6 +949,11 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`SSE: ${ev.data}`);
+				if (ev.data === '[DONE]') {
+					// Some OpenAI-compatible gateways (e.g. LiteLLM) emit the chat-completions
+					// `[DONE]` sentinel at the end of a Responses stream. Ignore it.
+					return;
+				}
 				const parsedData = JSON.parse(ev.data);
 				const responseStreamEvent: OpenAI.Responses.ResponseStreamEvent = { type: ev.type, ...parsedData };
 				dumper.logEvent(responseStreamEvent);
@@ -863,6 +996,108 @@ export function sendCompletionOutputTelemetry(telemetryService: ITelemetryServic
 
 interface CapiResponsesTextDeltaEvent extends Omit<OpenAI.Responses.ResponseTextDeltaEvent, 'logprobs'> {
 	logprobs: Array<OpenAI.Responses.ResponseTextDeltaEvent.Logprob> | undefined;
+}
+
+interface CapiResponseCompletedEvent extends OpenAI.Responses.ResponseCompletedEvent {
+	copilot_usage?: {
+		total_nano_aiu: number;
+	};
+}
+
+/**
+ * Terminal Responses-API events (`response.completed`, `response.incomplete`,
+ * `response.failed`). CAPI extends the standard payload with a `content_filters`
+ * array that carries the actual block reason when a response is cut short by a
+ * content filter. The OpenAI types don't include this field, so we narrow with
+ * a local interface.
+ *
+ * Two shapes are observed on the wire and we handle both:
+ *  - `content_filter_results` is the per-category structured map defined by the
+ *    Azure REST spec ({@link https://learn.microsoft.com/azure/ai-services/openai/concepts/content-filter | docs});
+ *    e.g. `{ hate: { filtered: true, severity: 'high' }, protected_material_text: { filtered: true } }`.
+ *  - `content_filter_raw` is a CAPI-internal/legacy passthrough that carries the
+ *    raw RAI rule decisions (`{ action: 'BLOCK', label: 'TextCopyright', result: true }`)
+ *    and is not in the Azure spec. It's currently what production emits, so we
+ *    match it first and only fall back to the structured map.
+ */
+interface CapiResponseTerminalEvent {
+	response: OpenAI.Responses.Response & {
+		content_filters?: CapiContentFilterEntry[] | null;
+	};
+}
+
+interface CapiContentFilterEntry {
+	source_type?: 'prompt' | 'completion' | string;
+	blocked?: boolean;
+	content_filter_raw?: Array<{ action?: string; label?: string; result?: unknown }>;
+	content_filter_results?: Record<string, { filtered?: boolean; severity?: string; detected?: boolean } | undefined>;
+}
+
+/**
+ * Map CAPI's `content_filters` (sent on a terminal Responses event when a
+ * response is blocked) to a {@link FilterReason}. Returns `undefined` if no
+ * reason can be deduced; the caller defaults to {@link FilterReason.Copyright}.
+ */
+function extractFilterReasonFromContentFilters(filters: CapiContentFilterEntry[] | null | undefined): FilterReason | undefined {
+	if (!filters) {
+		return undefined;
+	}
+	// Prefer a completion-side block; if none, fall back to a prompt-side block.
+	const blocked = filters.filter(f => f.blocked);
+	const completion = blocked.find(f => f.source_type === 'completion') ?? blocked[0];
+	if (!completion) {
+		return undefined;
+	}
+	// Look for a definitive BLOCK action in content_filter_raw. The label
+	// `TextCopyright` maps to our Copyright filter; the multi-severity labels
+	// map to hate/self-harm/sexual/violence.
+	const blockingRule = completion.content_filter_raw?.find(r => r.action === 'BLOCK' && r.result === true);
+	const label = blockingRule?.label?.toLowerCase() ?? '';
+	if (label.includes('copyright')) {
+		return FilterReason.Copyright;
+	}
+	if (label.includes('selfharm') || label.includes('self_harm')) {
+		return FilterReason.SelfHarm;
+	}
+	if (label.includes('sexual')) {
+		return FilterReason.Sexual;
+	}
+	if (label.includes('violence')) {
+		return FilterReason.Violence;
+	}
+	if (label.includes('hate')) {
+		return FilterReason.Hate;
+	}
+	// Fall back to the Azure-spec'd per-category result map (`AzureContentFilterResultsForResponsesAPI`).
+	const results = completion.content_filter_results ?? {};
+	if (results.hate?.filtered) { return FilterReason.Hate; }
+	if (results.self_harm?.filtered) { return FilterReason.SelfHarm; }
+	if (results.sexual?.filtered) { return FilterReason.Sexual; }
+	if (results.violence?.filtered) { return FilterReason.Violence; }
+	if (results.protected_material_text?.filtered || results.protected_material_code?.filtered) {
+		return FilterReason.Copyright;
+	}
+	if (completion.source_type === 'prompt') {
+		return FilterReason.Prompt;
+	}
+	return undefined;
+}
+
+/**
+ * Map a Responses-API `response.error` (string-coded per the OpenAI SDK) onto
+ * our {@link APIErrorResponse} shape (numeric `code`). We can't preserve the
+ * string code in `code`, so we stash it in `metadata.code` for BYOK diagnostics
+ * (which `JSON.stringify` the whole struct).
+ */
+function mapResponsesApiError(err: OpenAI.Responses.ResponseError | null | undefined): APIErrorResponse | undefined {
+	if (!err) {
+		return undefined;
+	}
+	return {
+		code: 0,
+		message: err.message ?? '',
+		metadata: { code: err.code },
+	};
 }
 
 export class OpenAIResponsesProcessor {
@@ -944,7 +1179,16 @@ export class OpenAIResponsesProcessor {
 
 		switch (chunk.type) {
 			case 'error':
-				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				// Surface the error as a progress delta, but also produce a terminal
+				// completion so the request resolves to a meaningful server error
+				// instead of collapsing into the generic "Response contained no
+				// choices" fallback when the stream ends without a terminal event.
+				onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				return this.buildTerminalCompletion(
+					{ output: [] } as unknown as CapiResponseTerminalEvent['response'],
+					FinishedCompletionReason.ServerError,
+					{ error: mapResponsesApiError({ code: chunk.code, message: chunk.message } as OpenAI.Responses.ResponseError) }
+				);
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
 				// When text arrives from a new output item, emit a paragraph
@@ -1061,7 +1305,8 @@ export class OpenAIResponsesProcessor {
 					}
 				});
 			case 'response.completed': {
-				const normalizedOutput = keepLatestCompactionOutput(chunk.response.output, this.latestCompactionOutputIndex);
+				const capiChunk = chunk as CapiResponseCompletedEvent;
+				const normalizedOutput = keepLatestCompactionOutput(capiChunk.response.output, this.latestCompactionOutputIndex);
 				const latestCompactionOutput = getLatestCompactionOutput(normalizedOutput, this.latestCompactionOutputIndex);
 				const latestCompactionItem = latestCompactionOutput?.item;
 				const previousCompactionItem = this.latestCompactionItem;
@@ -1124,13 +1369,14 @@ export class OpenAIResponsesProcessor {
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,
 						total_tokens: chunk.response.usage?.total_tokens ?? 0,
 						prompt_tokens_details: {
-							cached_tokens: chunk.response.usage?.input_tokens_details.cached_tokens ?? 0,
+							cached_tokens: chunk.response.usage?.input_tokens_details?.cached_tokens ?? 0,
 						},
 						completion_tokens_details: {
-							reasoning_tokens: chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0,
+							reasoning_tokens: chunk.response.usage?.output_tokens_details?.reasoning_tokens ?? 0,
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
+						copilot_usage: capiChunk.copilot_usage?.total_nano_aiu !== undefined ? capiChunk.copilot_usage : undefined,
 					},
 					finishReason: FinishedCompletionReason.Stop,
 					message: {
@@ -1145,7 +1391,88 @@ export class OpenAIResponsesProcessor {
 					}
 				};
 			}
+			case 'response.incomplete': {
+				const incomplete = chunk.response as CapiResponseTerminalEvent['response'];
+				const reason = incomplete.incomplete_details?.reason;
+				let finishReason: FinishedCompletionReason;
+				let filterReason: FilterReason | undefined;
+				if (reason === 'max_output_tokens') {
+					finishReason = FinishedCompletionReason.Length;
+				} else if (reason === 'content_filter') {
+					finishReason = FinishedCompletionReason.ContentFilter;
+					filterReason = extractFilterReasonFromContentFilters(incomplete.content_filters);
+				} else {
+					// Unknown incomplete reason — treat as a server-side stream termination so the
+					// caller surfaces a "request failed" message instead of the generic flake.
+					finishReason = FinishedCompletionReason.ServerError;
+				}
+				return this.buildTerminalCompletion(incomplete, finishReason, {
+					filterReason,
+					error: mapResponsesApiError(incomplete.error),
+				});
+			}
+			case 'response.failed': {
+				const failed = chunk.response as CapiResponseTerminalEvent['response'];
+				return this.buildTerminalCompletion(failed, FinishedCompletionReason.ServerError, {
+					error: mapResponsesApiError(failed.error),
+				});
+			}
 		}
+	}
+
+	/**
+	 * Build a {@link ChatCompletion} for a terminal Responses API event other than
+	 * `response.completed` (i.e. `response.incomplete` or `response.failed`). The
+	 * resulting completion is fed into the same downstream switch as a normal
+	 * completion so callers can map it to the appropriate user-facing error.
+	 */
+	private buildTerminalCompletion(
+		response: CapiResponseTerminalEvent['response'],
+		finishReason: FinishedCompletionReason,
+		opts: { filterReason?: FilterReason; error?: APIErrorResponse } = {}
+	): ChatCompletion {
+		const output = response.output ?? [];
+		return {
+			blockFinished: true,
+			choiceIndex: 0,
+			model: response.model,
+			tokens: [],
+			telemetryData: this.telemetryData,
+			requestId: {
+				headerRequestId: this.requestId,
+				gitHubRequestId: this.ghRequestId,
+				completionId: response.id,
+				created: response.created_at,
+				deploymentId: '',
+				serverExperiments: this.serverExperiments,
+			},
+			usage: response.usage ? {
+				prompt_tokens: response.usage.input_tokens ?? 0,
+				completion_tokens: response.usage.output_tokens ?? 0,
+				total_tokens: response.usage.total_tokens ?? 0,
+				prompt_tokens_details: {
+					cached_tokens: response.usage.input_tokens_details?.cached_tokens ?? 0,
+				},
+				completion_tokens_details: {
+					reasoning_tokens: response.usage.output_tokens_details?.reasoning_tokens ?? 0,
+					accepted_prediction_tokens: 0,
+					rejected_prediction_tokens: 0,
+				},
+			} : undefined,
+			finishReason,
+			filterReason: opts.filterReason,
+			error: opts.error,
+			message: {
+				role: Raw.ChatRole.Assistant,
+				content: output.map((item): Raw.ChatCompletionContentPart | undefined => {
+					if (item.type === 'message') {
+						return { type: Raw.ChatCompletionContentPartKind.Text, text: item.content.map(c => c.type === 'output_text' ? c.text : c.refusal).join('') };
+					} else if (item.type === 'image_generation_call' && item.result) {
+						return { type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: item.result } };
+					}
+				}).filter(isDefined),
+			},
+		};
 	}
 }
 

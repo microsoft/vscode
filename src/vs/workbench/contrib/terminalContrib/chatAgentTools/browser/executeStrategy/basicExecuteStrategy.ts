@@ -126,9 +126,15 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// command's finished event before our new command has even started —
 			// causing the new command to be reported as having instantly exited
 			// 130 and cascading to every subsequent command on the same terminal.
-			const staleExecutingCommand = this._commandDetection.executingCommandObject;
-			const onCommandFinishedFiltered = staleExecutingCommand
-				? Event.filter(this._commandDetection.onCommandFinished, e => e !== staleExecutingCommand, store)
+			//
+			// Compare by marker identity rather than command object identity
+			// because `executingCommandObject` creates a new wrapper each call
+			// via `promoteToFullCommand()`, while `onCommandFinished` creates
+			// another. Both share the same xterm `IMarker` from
+			// `commandStartMarker`.
+			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			const onCommandFinishedFiltered = staleMarker
+				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
 				: this._commandDetection.onCommandFinished;
 
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService);
@@ -262,6 +268,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			}
 			if (output === undefined) {
 				try {
+					const startMarkerDisposed = this._startMarker.value?.line === -1;
 					output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 					this._log('Fetched output via markers');
 
@@ -269,6 +276,11 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 					// prompt lines. Strip them to isolate the actual command output.
 					if (output !== undefined) {
 						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+					}
+
+					if (startMarkerDisposed) {
+						this._log('Start marker was disposed (output exceeded scrollback), output may be truncated from the beginning');
+						additionalInformationLines.push('Output exceeded terminal scrollback; beginning of output was lost');
 					}
 				} catch {
 					this._log('Failed to fetch output via markers');
