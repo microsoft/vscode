@@ -466,7 +466,7 @@ function createWebSocketRelay(
 }
 
 function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitized {
-	const { password: _p, privateKeyPath: _k, ...sanitized } = config;
+	const { password: _p, privateKeyPath: _k, agentSocket: _a, ...sanitized } = config;
 	return sanitized;
 }
 
@@ -868,7 +868,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, agentSocket?: string): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost}`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
@@ -893,6 +893,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			sshConfigHost,
 			remoteAgentHostCommand,
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
+			agentSocket,
 		}, /* replaceRelay */ true);
 	}
 
@@ -1256,18 +1257,18 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	protected _getAgentSocket(config: ISSHAgentHostConfig): string | undefined {
 		if (config.identityAgent !== undefined) {
-			return this._resolveIdentityAgent(config.identityAgent);
+			return this._resolveIdentityAgent(config.identityAgent, config.agentSocket);
 		}
-		return this._isAgentAvailable();
+		return config.agentSocket ?? this._isAgentAvailable();
 	}
 
-	private _resolveIdentityAgent(identityAgent: string): string | undefined {
+	private _resolveIdentityAgent(identityAgent: string, agentSocket: string | undefined): string | undefined {
 		const trimmed = identityAgent.trim();
 		if (!trimmed || trimmed.toLowerCase() === 'none') {
 			return undefined;
 		}
 		if (trimmed === 'SSH_AUTH_SOCK') {
-			return this._isAgentAvailable();
+			return agentSocket ?? this._isAgentAvailable();
 		}
 		if (trimmed.startsWith('$')) {
 			const envMatch = /^\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)\}$|^\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)$/.exec(trimmed);

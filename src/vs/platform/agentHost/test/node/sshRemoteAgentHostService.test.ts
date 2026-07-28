@@ -188,6 +188,35 @@ class KeyboardInteractiveMockSSHClient {
 	}
 }
 
+class AgentForwardingMockSSHClient {
+	connectConfig: ConnectConfig | undefined;
+	private readonly _readyListeners: Array<() => void> = [];
+
+	on(event: 'ready' | 'close', listener: () => void): this;
+	on(event: 'error', listener: (err: Error) => void): this;
+	on(event: string, listener: ((err: Error) => void) | (() => void)): this {
+		if (event === 'ready') {
+			this._readyListeners.push(listener as () => void);
+		}
+		return this;
+	}
+
+	removeListener(_event: string, _listener: (...args: never[]) => void): this {
+		return this;
+	}
+
+	connect(config: ConnectConfig): void {
+		this.connectConfig = config;
+		queueMicrotask(() => {
+			for (const listener of this._readyListeners) {
+				listener();
+			}
+		});
+	}
+
+	end(): void { }
+}
+
 function makeConfig(overrides?: Partial<ISSHAgentHostConfig>): ISSHAgentHostConfig {
 	return {
 		host: '10.0.0.1',
@@ -371,6 +400,22 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 	}
 }
 
+class AgentForwardingConnectTestService extends SSHRemoteAgentHostMainService {
+	readonly client = new AgentForwardingMockSSHClient();
+
+	protected override async _createSSHClient() {
+		return this.client as never;
+	}
+
+	protected override async _buildAuthAttempts(): Promise<SSHAuthAttempt[]> {
+		return [];
+	}
+
+	connectSSHForTest(config: ISSHAgentHostConfig) {
+		return this._connectSSH(config, 'ssh:test-host');
+	}
+}
+
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	const disposables = new DisposableStore();
@@ -404,10 +449,11 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
-		const config = makeConfig({ sshConfigHost: 'myalias' });
+		const config = makeConfig({ sshConfigHost: 'myalias', agentSocket: '/tmp/shell-agent.sock' });
 		const result1 = await service.connect(config);
 		assert.strictEqual(result1.connectionId, 'ssh:myalias');
 		assert.strictEqual(result1.sshConfigHost, 'myalias');
+		assert.strictEqual(Object.keys(result1.config).includes('agentSocket'), false);
 		assert.strictEqual(service.startCalled, 1);
 		assert.strictEqual(service.relayCalled, 1);
 
@@ -975,6 +1021,30 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	});
 
+	test('agent forwarding uses the renderer-resolved SSH agent socket', async () => {
+		const forwardingService = disposables.add(new AgentForwardingConnectTestService(
+			new NullLogService(),
+			{
+				_serviceBrand: undefined,
+				quality,
+				dataFolderName,
+			} as IProductService,
+		));
+
+		await forwardingService.connectSSHForTest(makeConfig({
+			agentForward: true,
+			agentSocket: '/tmp/shell-agent.sock',
+		}));
+
+		assert.deepStrictEqual({
+			agent: forwardingService.client.connectConfig?.agent,
+			agentForward: forwardingService.client.connectConfig?.agentForward,
+		}, {
+			agent: '/tmp/shell-agent.sock',
+			agentForward: true,
+		});
+	});
+
 	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
 		let finished: readonly string[] | undefined;
 		let cancelled = false;
@@ -1478,6 +1548,19 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		]);
 	});
 
+	test('Agent + renderer-resolved SSH_AUTH_SOCK uses it instead of the shared-process environment', async () => {
+		service.agentSock = '/tmp/shared-process-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			agentSocket: '/tmp/shell-agent.sock',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/shell-agent.sock' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
 	test('Agent + IdentityAgent uses configured agent endpoint before default keys', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -1495,15 +1578,16 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 	});
 
 	test('Agent + IdentityAgent SSH_AUTH_SOCK uses the default agent endpoint', async () => {
-		service.agentSock = '/tmp/ssh-agent.sock';
+		service.agentSock = '/tmp/shared-process-agent.sock';
 
 		const attempts = await service.testBuildAuthAttempts(makeConfig({
 			authMethod: SSHAuthMethod.Agent,
 			identityAgent: 'SSH_AUTH_SOCK',
+			agentSocket: '/tmp/shell-agent.sock',
 		}));
 
 		assert.deepStrictEqual(attempts, [
-			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'agent', username: 'testuser', agent: '/tmp/shell-agent.sock' },
 			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
 	});
