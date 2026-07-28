@@ -3004,7 +3004,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* The pill header already spaces its children with `gap`, so the label's own
 	margin-right (needed in the standalone checkpoint summary) is redundant here
 	and leaves unwanted trailing space. */
-.interactive-session .chat-turn-pills-part .chat-file-changes-label {
+.interactive-session .chat-turn-pills-part .checkpoint-file-changes-summary-header .chat-file-changes-label {
 	margin-right: 0;
 }
 
