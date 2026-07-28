@@ -87,7 +87,7 @@ import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -4044,7 +4044,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
-		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
@@ -4067,7 +4067,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				session: requestedSession,
 				model,
 				provider: this._config.provider,
-				workingDirectory,
+				workingDirectories,
 				fork,
 				config,
 				importConversation,
@@ -4086,7 +4086,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						session: requestedSession,
 						model,
 						provider: this._config.provider,
-						workingDirectory,
+						workingDirectories,
 						fork,
 						config,
 						importConversation,
@@ -4412,6 +4412,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	private _resolveRequestedWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
+		const primary = this._resolveRequestedWorkingDirectory(sessionResource);
+		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._getRootState(), this._config.provider);
 	}
 
 	/**
