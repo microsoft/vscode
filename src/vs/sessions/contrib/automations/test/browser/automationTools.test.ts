@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -11,14 +12,20 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationTarget, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId } from '../../browser/automationTools.js';
+import { AutomationService } from '../../browser/automationService.js';
+import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId, RunAutomationTool, RunAutomationToolId } from '../../browser/automationTools.js';
+import { AUTOMATION_STORAGE_KEY, IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../../common/automationStorageService.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const SESSION_RESOURCE = URI.parse('agent-session://local/session');
@@ -52,6 +59,7 @@ function createAutomation(overrides?: Partial<IAutomation>): IAutomation {
 
 class FakeAutomationService extends mock<IAutomationService>() {
 	override readonly automations = observableValue<readonly IAutomation[]>(this, []);
+	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
 	readonly created: ICreateAutomationOptions[] = [];
 	readonly updated: Array<{ readonly id: string; readonly patch: IUpdateAutomationOptions }> = [];
 	readonly deleted: string[] = [];
@@ -63,6 +71,18 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 	override getAutomation(id: string): IAutomation | undefined {
 		return this.automations.get().find(automation => automation.id === id);
+	}
+
+	override runsFor(automationId: string) {
+		return constObservable(this.runs.get().filter(run => run.automationId === automationId));
+	}
+
+	override getActiveRunFor(automationId: string): IAutomationRun | undefined {
+		return this.runs.get().find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running'));
+	}
+
+	addRun(run: IAutomationRun): void {
+		this.runs.set([run, ...this.runs.get()], undefined);
 	}
 
 	override async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
@@ -108,6 +128,100 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	}
 }
 
+class RecordingAutomationRunner extends mock<IAutomationRunner>() {
+	readonly calls: Array<{
+		readonly automationId: string;
+		readonly trigger: AutomationRunTrigger;
+		readonly leaderWindowId: number;
+		readonly cancelled: boolean;
+	}> = [];
+	readonly tokens: CancellationToken[] = [];
+	whenDispatched: Promise<void> = Promise.resolve();
+	whenCompleted: Promise<void> = Promise.resolve();
+	runStatus: IAutomationRun['status'] = 'running';
+	/** When set, dispatch reports this outcome instead of starting a session. */
+	notStarted: (IAutomationRunDispatch & { kind: 'notStarted' }) | undefined;
+
+	constructor(private readonly automationService: FakeAutomationService) {
+		super();
+	}
+
+	override runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token: CancellationToken = CancellationToken.None): IAutomationRunOperation {
+		this.calls.push({
+			automationId: automation.id,
+			trigger,
+			leaderWindowId,
+			cancelled: token.isCancellationRequested,
+		});
+		this.tokens.push(token);
+		const whenDispatched = this.whenDispatched.then<IAutomationRunDispatch>(() => {
+			// Mirrors the real runner: the atomic claim decides who gets to dispatch.
+			const activeRun = this.automationService.getActiveRunFor(automation.id);
+			if (activeRun) {
+				return { kind: 'alreadyRunning', activeRun };
+			}
+			if (this.notStarted) {
+				return this.notStarted;
+			}
+			const sessionResource = SESSION_RESOURCE.toString();
+			const run: IAutomationRun = {
+				id: 'run-1',
+				automationId: automation.id,
+				status: this.runStatus,
+				trigger,
+				sessionResource,
+				startedAt: NOW,
+				leaderWindowId,
+			};
+			this.automationService.addRun(run);
+			return { kind: 'started', run, sessionResource };
+		});
+		return {
+			whenDispatched,
+			whenCompleted: Promise.all([whenDispatched, this.whenCompleted]).then(() => undefined),
+		};
+	}
+}
+
+class ControllableAutomationStorageService implements IAutomationStorageService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly readStarted = new DeferredPromise<void>();
+	readBarrier: DeferredPromise<void> | undefined;
+	beforeCompareAndSwap: (() => void) | undefined;
+	nextConflictValue: string | undefined;
+	compareAndSwapCalls = 0;
+
+	constructor(private currentValue: string | undefined) { }
+
+	get value(): string | undefined {
+		return this.currentValue;
+	}
+
+	async read(): Promise<string | undefined> {
+		await this.readStarted.complete();
+		await this.readBarrier?.p;
+		return this.currentValue;
+	}
+
+	async compareAndSwap(expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+		this.compareAndSwapCalls++;
+		this.beforeCompareAndSwap?.();
+		if (this.nextConflictValue !== undefined) {
+			const currentValue = this.nextConflictValue;
+			this.nextConflictValue = undefined;
+			this.currentValue = currentValue;
+			return { swapped: false, currentValue };
+		}
+		if (this.currentValue !== expectedValue) {
+			return { swapped: false, currentValue: this.currentValue };
+		}
+		this.currentValue = newValue;
+		return { swapped: true, currentValue: newValue };
+	}
+}
+
 function editableAutomationKey(automation: IAutomation): string {
 	return JSON.stringify({
 		name: automation.name,
@@ -120,6 +234,20 @@ function editableAutomationKey(automation: IAutomation): string {
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel,
 		enabled: automation.enabled,
+	});
+}
+
+function serializeAutomationLedger(automations: readonly IAutomation[], revision = 1): string {
+	return JSON.stringify({
+		schemaVersion: 3,
+		revision,
+		automations: automations.map(automation => ({
+			...automation,
+			target: automation.target.kind === 'workspace'
+				? { ...automation.target, folderUri: automation.target.folderUri.toJSON() }
+				: automation.target,
+		})),
+		runs: [],
 	});
 }
 
@@ -201,11 +329,24 @@ function getText(result: IToolResult): string {
 }
 
 suite('AutomationTools', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createStorageBackedService(raw: string | undefined, automationStorageService: IAutomationStorageService): AutomationService {
+		const storageService = teardown.add(new InMemoryStorageService());
+		if (raw !== undefined) {
+			storageService.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		return teardown.add(new AutomationService(storageService, new NullLogService(), NullTelemetryService, automationStorageService));
+	}
 
 	test('tool data is gated by AI and Automations context keys', () => {
 		const automationService = new FakeAutomationService();
 		const configurationService = createConfigurationService();
+		const runData = new RunAutomationTool(
+			automationService,
+			new RecordingAutomationRunner(automationService),
+			configurationService,
+		).getToolData();
 		const listData = new ListAutomationsTool(automationService, configurationService).getToolData();
 		const deleteData = new DeleteAutomationTool(automationService, configurationService).getToolData();
 		const configureData = new ConfigureAutomationTool(
@@ -215,7 +356,7 @@ suite('AutomationTools', () => {
 		).getToolData();
 
 		const serialize = (tool: typeof listData) => tool.when?.serialize() ?? '';
-		assert.deepStrictEqual([listData, configureData, deleteData].map(tool => ({
+		assert.deepStrictEqual([listData, configureData, runData, deleteData].map(tool => ({
 			id: tool.id,
 			referenceName: tool.toolReferenceName,
 			aiEnabledGate: serialize(tool).includes(ChatContextKeys.enabled.key),
@@ -232,6 +373,13 @@ suite('AutomationTools', () => {
 			{
 				id: ConfigureAutomationToolId,
 				referenceName: 'configureAutomation',
+				aiEnabledGate: true,
+				automationsEnabledGate: true,
+				runsInWorkspace: false,
+			},
+			{
+				id: RunAutomationToolId,
+				referenceName: 'runAutomation',
 				aiEnabledGate: true,
 				automationsEnabledGate: true,
 				runsInWorkspace: false,
@@ -274,6 +422,114 @@ suite('AutomationTools', () => {
 				lastRunAt: null,
 				nextRunAt: '2026-01-02T09:00:00.000Z',
 			}],
+		});
+	});
+
+	test('runAutomation confirms and starts a manual run', async () => {
+		const automation = createAutomation();
+		const automationService = new FakeAutomationService([automation]);
+		const runner = new RecordingAutomationRunner(automationService);
+		const tool = new RunAutomationTool(automationService, runner, createConfigurationService());
+		const parameters = { automationId: automation.id };
+		const invocationCancellation = new CancellationTokenSource();
+
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'call-1',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		const message = prepared.confirmationMessages?.message;
+		const result = await invoke(tool, parameters, SESSION_RESOURCE, invocationCancellation.token);
+		invocationCancellation.cancel();
+		const runTokenCancelledAfterDispatch = runner.tokens[0]?.isCancellationRequested;
+		invocationCancellation.dispose();
+
+		assert.deepStrictEqual({
+			confirmationTitle: prepared.confirmationMessages?.title,
+			confirmationMessage: typeof message === 'string' ? message : message?.value,
+			calls: runner.calls,
+			runTokenCancelledAfterDispatch,
+			result: JSON.parse(getText(result)),
+		}, {
+			confirmationTitle: 'Run Automation?',
+			confirmationMessage: 'Run **Daily review** (`automation-1`) now? This starts a new agent session using the automation\'s configured prompt and permissions.',
+			calls: [{
+				automationId: 'automation-1',
+				trigger: 'manual',
+				leaderWindowId: 0,
+				cancelled: false,
+			}],
+			runTokenCancelledAfterDispatch: false,
+			result: {
+				status: 'started',
+				automation: { id: 'automation-1', name: 'Daily review' },
+				run: {
+					id: 'run-1',
+					status: 'running',
+					sessionResource: SESSION_RESOURCE.toString(),
+				},
+			},
+		});
+	});
+
+	test('runAutomation reports the active run when the runner declines to claim it', async () => {
+		const automation = createAutomation();
+		const automationService = new FakeAutomationService([automation]);
+		automationService.addRun({
+			id: 'active-run',
+			automationId: automation.id,
+			status: 'running',
+			trigger: 'manual',
+			sessionResource: SESSION_RESOURCE.toString(),
+			startedAt: NOW,
+			leaderWindowId: 0,
+		});
+		const runner = new RecordingAutomationRunner(automationService);
+		const tool = new RunAutomationTool(automationService, runner, createConfigurationService());
+		const parameters = { automationId: automation.id };
+
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'call-1',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		const result = await invoke(tool, parameters);
+
+		assert.deepStrictEqual({
+			confirmation: prepared.confirmationMessages,
+			// The runner owns the claim, so the tool still dispatches and lets it decline.
+			runsCreated: automationService.runs.get().length,
+			result: JSON.parse(getText(result)),
+		}, {
+			confirmation: undefined,
+			runsCreated: 1,
+			result: {
+				status: 'already_running',
+				automation: { id: 'automation-1', name: 'Daily review' },
+				run: {
+					id: 'active-run',
+					status: 'running',
+					sessionResource: SESSION_RESOURCE.toString(),
+				},
+			},
+		});
+	});
+
+	test('runAutomation reports when dispatch does not start a run', async () => {
+		const automation = createAutomation();
+		const automationService = new FakeAutomationService([automation]);
+		const runner = new RecordingAutomationRunner(automationService);
+		runner.notStarted = { kind: 'notStarted', reason: 'targetUnavailable' };
+		const tool = new RunAutomationTool(automationService, runner, createConfigurationService());
+
+		const result = await invoke(tool, { automationId: automation.id });
+
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			calls: runner.calls.length,
+		}, {
+			error: 'Automation "automation-1" did not start. Its configured agent is unavailable.',
+			calls: 1,
 		});
 	});
 
@@ -714,6 +970,132 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation cancellation during an authoritative read makes no changes', async () => {
+		const automationStorageService = new ControllableAutomationStorageService(undefined);
+		const readBarrier = new DeferredPromise<void>();
+		automationStorageService.readBarrier = readBarrier;
+		const automationService = createStorageBackedService(undefined, automationStorageService);
+		const tokenSource = teardown.add(new CancellationTokenSource());
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
+			createConfigurationService(),
+		);
+
+		const resultPromise = invoke(tool, {
+			name: 'Cancelled',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+		}, SESSION_RESOURCE, tokenSource.token);
+		await automationStorageService.readStarted.p;
+		tokenSource.cancel();
+		await readBarrier.complete();
+		const result = await resultPromise;
+
+		assert.deepStrictEqual({
+			result: JSON.parse(getText(result)),
+			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
+			automations: automationService.automations.get(),
+		}, {
+			result: {
+				status: 'cancelled',
+				message: 'The automation change was cancelled. No changes were made.',
+			},
+			compareAndSwapCalls: 0,
+			automations: [],
+		});
+	});
+
+	test('deleteAutomation cancellation during an authoritative read makes no changes', async () => {
+		const automation = createAutomation();
+		const raw = serializeAutomationLedger([automation]);
+		const automationStorageService = new ControllableAutomationStorageService(raw);
+		const readBarrier = new DeferredPromise<void>();
+		automationStorageService.readBarrier = readBarrier;
+		const automationService = createStorageBackedService(raw, automationStorageService);
+		const tokenSource = teardown.add(new CancellationTokenSource());
+		const tool = new DeleteAutomationTool(automationService, createConfigurationService());
+
+		const resultPromise = invoke(tool, { automationId: automation.id }, SESSION_RESOURCE, tokenSource.token, 'delete');
+		await automationStorageService.readStarted.p;
+		tokenSource.cancel();
+		await readBarrier.complete();
+		const result = await resultPromise;
+
+		assert.deepStrictEqual({
+			result: JSON.parse(getText(result)),
+			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
+			automationIds: automationService.automations.get().map(candidate => candidate.id),
+		}, {
+			result: {
+				status: 'cancelled',
+				message: 'The automation was not deleted.',
+			},
+			compareAndSwapCalls: 0,
+			automationIds: [automation.id],
+		});
+	});
+
+	test('configureAutomation disablement during a CAS conflict stops before retrying', async () => {
+		const automation = createAutomation();
+		const raw = serializeAutomationLedger([automation]);
+		const automationStorageService = new ControllableAutomationStorageService(raw);
+		automationStorageService.nextConflictValue = serializeAutomationLedger([automation], 2);
+		const configurationService = createConfigurationService();
+		automationStorageService.beforeCompareAndSwap = () => configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
+		const automationService = createStorageBackedService(raw, automationStorageService);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			configurationService,
+		);
+
+		const result = await invoke(tool, { automationId: automation.id, name: 'Must not commit' });
+
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
+			automationName: automationService.getAutomation(automation.id)?.name,
+		}, {
+			error: 'Automations are disabled.',
+			compareAndSwapCalls: 1,
+			automationName: automation.name,
+		});
+	});
+
+	test('configureAutomation reports success when cancellation crosses a committed CAS boundary', async () => {
+		const automationStorageService = new ControllableAutomationStorageService(undefined);
+		const tokenSource = teardown.add(new CancellationTokenSource());
+		automationStorageService.beforeCompareAndSwap = () => tokenSource.cancel();
+		const automationService = createStorageBackedService(undefined, automationStorageService);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
+			createConfigurationService(),
+		);
+
+		const result = await invoke(tool, {
+			name: 'Committed',
+			prompt: 'Save once CAS starts',
+			schedule: { interval: 'manual' },
+		}, SESSION_RESOURCE, tokenSource.token);
+		const persisted = JSON.parse(automationStorageService.value!);
+
+		assert.deepStrictEqual({
+			status: JSON.parse(getText(result)).status,
+			cancelled: tokenSource.token.isCancellationRequested,
+			compareAndSwapCalls: automationStorageService.compareAndSwapCalls,
+			inMemoryNames: automationService.automations.get().map(automation => automation.name),
+			persistedNames: persisted.automations.map((automation: { name: string }) => automation.name),
+		}, {
+			status: 'created',
+			cancelled: true,
+			compareAndSwapCalls: 1,
+			inMemoryNames: ['Committed'],
+			persistedNames: ['Committed'],
+		});
+	});
+
 	test('configureAutomation rejects stale IDs and malformed targets', async () => {
 		const tool = new ConfigureAutomationTool(
 			new FakeAutomationService(),
@@ -743,9 +1125,10 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('disabled Automations cannot be listed, configured, or deleted', async () => {
+	test('disabled Automations cannot be listed, configured, run, or deleted', async () => {
 		const automationService = new FakeAutomationService([createAutomation()]);
 		const configurationService = createConfigurationService(false);
+		const runner = new RecordingAutomationRunner(automationService);
 		const listResult = await invoke(new ListAutomationsTool(automationService, configurationService), {});
 		const configureResult = await invoke(new ConfigureAutomationTool(
 			automationService,
@@ -756,6 +1139,10 @@ suite('AutomationTools', () => {
 			prompt: 'Do not save',
 			schedule: { interval: 'manual' },
 		});
+		const runResult = await invoke(
+			new RunAutomationTool(automationService, runner, configurationService),
+			{ automationId: 'automation-1' },
+		);
 		const deleteResult = await invoke(
 			new DeleteAutomationTool(automationService, configurationService),
 			{ automationId: 'automation-1' },
@@ -767,12 +1154,16 @@ suite('AutomationTools', () => {
 		assert.deepStrictEqual({
 			listError: listResult.toolResultError,
 			configureError: configureResult.toolResultError,
+			runError: runResult.toolResultError,
 			deleteError: deleteResult.toolResultError,
+			runCalls: runner.calls,
 			deleted: automationService.deleted,
 		}, {
 			listError: 'Automations are disabled.',
 			configureError: 'Automations are disabled.',
+			runError: 'Automations are disabled.',
 			deleteError: 'Automations are disabled.',
+			runCalls: [],
 			deleted: [],
 		});
 	});

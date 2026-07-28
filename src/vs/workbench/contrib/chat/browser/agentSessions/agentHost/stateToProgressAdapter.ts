@@ -18,7 +18,7 @@ import { getToolKind } from '../../../../../../platform/agentHost/common/state/s
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostElementAttachmentDisplayKind } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
+import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
@@ -34,7 +34,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -885,9 +885,25 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 	if (aggregatedFeedback) {
 		variables.push(aggregatedFeedback);
 	}
+	const consumedAttachments = new Set<MessageAttachment>();
 	for (const a of attachments) {
-		if (isAgentFeedbackAnnotationsAttachment(a)) {
+		if (isAgentFeedbackAnnotationsAttachment(a) || consumedAttachments.has(a)) {
 			continue; // handled by the aggregation above
+		}
+		const element = restoreElementVariableEntry(a, a.type === MessageAttachmentKind.Simple ? a.modelRepresentation : undefined);
+		if (element) {
+			const correlationId = getElementAttachmentCorrelationId(a);
+			const imageAttachment = correlationId
+				? attachments.find(candidate => candidate.displayKind === 'image' && getElementAttachmentCorrelationId(candidate) === correlationId)
+				: undefined;
+			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, connectionAuthority) : undefined;
+			if (imageAttachment && image?.kind === 'image') {
+				consumedAttachments.add(imageAttachment);
+			}
+			variables.push(image?.kind === 'image'
+				? { ...element, imageData: image.value instanceof Uint8Array || URI.isUri(image.value) ? image.value : undefined, imageMimeType: image.mimeType }
+				: element);
+			continue;
 		}
 		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
 		if (v) {
@@ -1047,10 +1063,6 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			_meta: attachment._meta,
 		};
 	}
-	const element = restoreElementVariableEntry(attachment, modelRepresentation);
-	if (element) {
-		return element;
-	}
 	if (attachment.type === MessageAttachmentKind.Simple) {
 		const sessionReferenceEntry = restoreSessionReferenceVariableEntryFromAttachment(attachment);
 		if (sessionReferenceEntry) {
@@ -1075,7 +1087,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	};
 }
 
-function restoreElementVariableEntry(attachment: MessageAttachment, modelRepresentation: string | undefined): IChatRequestVariableEntry | undefined {
+function restoreElementVariableEntry(attachment: MessageAttachment, modelRepresentation: string | undefined): IElementVariableEntry | undefined {
 	if (attachment.displayKind !== AgentHostElementAttachmentDisplayKind || modelRepresentation === undefined) {
 		return undefined;
 	}
@@ -1194,11 +1206,12 @@ function getTerminalOutput(tc: ToolCallState) {
 	// Prefer the structured terminal snapshot. Text content is a compatibility
 	// fallback for older/restored results and can include legacy bookkeeping.
 	let text = terminalResult?.preview;
+	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
 		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	}
-	if (text === undefined || (!text && terminalResult?.truncated !== true)) {
+	if (text === undefined || (!text && !hasRetainedNonPtySnapshot && terminalResult?.truncated !== true)) {
 		return undefined;
 	}
 

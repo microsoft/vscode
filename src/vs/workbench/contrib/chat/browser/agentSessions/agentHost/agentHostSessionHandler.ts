@@ -28,7 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostElementAttachmentDisplayKind } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
+import { AgentHostElementAttachmentDisplayKind, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -64,6 +64,7 @@ import {
 	isImageVariableEntry,
 	type IAgentFeedbackVariableEntry,
 	type IChatRequestVariableEntry,
+	type IElementVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
@@ -2797,9 +2798,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
 
 			if ((status === ToolCallStatus.Completed || status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
-				// Revive terminal before finalizing — handles the case where
-				// Running was skipped (e.g. throttling) and terminal content
-				// only appears at Completed time.
+				// Detach live non-PTY output before completion synchronously rebuilds the terminal subpart.
 				this._ensureLeftStreaming(invocation, tc, opts);
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, outputTerminalAttachment);
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
@@ -3430,10 +3429,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Detects terminal content in a tool call and creates a local terminal
-	 * instance backed by the agent host connection. Updates the invocation's
-	 * `toolSpecificData` to `kind: 'terminal'` and clears
-	 * `HiddenAfterComplete` so the terminal UI stays visible.
+	 * Synchronizes PTY and non-PTY terminal content, including the live-to-retained output handoff, and updates invocation metadata.
 	 */
 	private _reviveTerminalIfNeeded(
 		invocation: ChatToolInvocation,
@@ -3457,11 +3453,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
 		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
-		const hasStaticNonPtyResult = tc.status === ToolCallStatus.Completed
+		const hasRetainedNonPtySnapshot = tc.status === ToolCallStatus.Completed
 			&& !isPty
 			&& terminalContent.result?.exitCode !== undefined
 			&& terminalContent.result.preview !== undefined;
-		if (!isPty && !hasStaticNonPtyResult && outputTerminalAttachment.sessionId !== sessionId) {
+		if (hasRetainedNonPtySnapshot) {
+			outputTerminalAttachment.disposable.clear();
+			outputTerminalAttachment.sessionId = undefined;
+		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
 			outputTerminalAttachment.disposable.value = this._agentHostTerminalService.attachOutputTerminal(this._config.connection, terminalCommandUri, sessionId);
 			outputTerminalAttachment.sessionId = sessionId;
 		}
@@ -4658,7 +4657,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			);
 		}
 		if (v.kind === 'element') {
-			return this._toSimpleAttachment(v.name, v.value, v._meta, AgentHostElementAttachmentDisplayKind, referenceRange);
+			const correlationId = generateUuid();
+			const metadata = { ...v._meta, ...toElementAttachmentMeta(correlationId) };
+			const elementAttachment = this._toSimpleAttachment(v.name, v.value, metadata, AgentHostElementAttachmentDisplayKind, referenceRange);
+			const imageAttachment = this._toElementImageAttachment(v, sessionResource, metadata);
+			return imageAttachment ? [elementAttachment, imageAttachment] : elementAttachment;
 		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
@@ -4680,6 +4683,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
+		}
+		return undefined;
+	}
+
+	private _toElementImageAttachment(v: IElementVariableEntry, sessionResource: URI, metadata: Record<string, unknown>): MessageAttachment | undefined {
+		if (v.imageData instanceof Uint8Array) {
+			return {
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: `${v.name} screenshot`,
+				displayKind: 'image',
+				data: encodeBase64(VSBuffer.wrap(v.imageData)),
+				contentType: v.imageMimeType ?? 'image/png',
+				_meta: metadata,
+			};
+		}
+		if (URI.isUri(v.imageData)) {
+			return this._toResourceAttachment(v.imageData, `${v.name} screenshot`, 'image', sessionResource, metadata);
 		}
 		return undefined;
 	}

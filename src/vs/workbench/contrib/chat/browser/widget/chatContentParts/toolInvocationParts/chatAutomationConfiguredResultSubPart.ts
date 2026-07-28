@@ -42,11 +42,11 @@ export class ChatAutomationConfiguredResultSubPart extends BaseChatToolInvocatio
 		const button = this._register(new Button(this.domNode, {
 			...defaultButtonStyles,
 			secondary: true,
-			supportIcons: true,
 			title: localize('automationConfigured.open', "Open automation {0}", data.automationName),
 		}));
 		button.element.classList.add('chat-open-session-button');
-		button.label = `$(${Codicon.watch.id}) ${label}`;
+		button.label = label;
+		button.icon = Codicon.watch;
 		this._register(button.onDidClick(() => this.commandService.executeCommand(
 			AICustomizationManagementCommands.OpenEditor,
 			AICustomizationManagementSection.Automations,

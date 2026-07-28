@@ -13,6 +13,7 @@ import { makeMcpServerCustomization, parseAgentFile, toParsedAgent, type IParsed
 import { CustomizationType, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type PluginCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
+import { isHostInjectedMcpServerName } from '../claudeMcpServerNames.js';
 import { deriveMcpState } from './scan/claudeMcpScan.js';
 import { claudeMemoryFiles } from './scan/claudeRuleScan.js';
 import type { IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
@@ -409,6 +410,19 @@ export function buildDiscoveredCustomizations(
 	}
 	for (const [name, sdkServer] of mcpByName) {
 		if (seenMcp.has(name) || pluginMcpNames.has(name)) {
+			continue;
+		}
+		// The agent host injects its own in-process MCP servers (the client-tool
+		// and server-tool bridges) into `Options.mcpServers`, and the SDK reports
+		// them here alongside real ones. They are internal plumbing with no
+		// definition the user can act on, so an SDK-only entry under one of those
+		// names is ours: surfacing it would show a phantom customization AND feed
+		// its name into the session's MCP enablement reconciliation, which then
+		// tries to toggle a server the CLI has no configuration for
+		// (`Server not found: <name>`). A server the disk scan did define under
+		// the same name is matched above and kept, so a user-configured server is
+		// never hidden by this.
+		if (isHostInjectedMcpServerName(name)) {
 			continue;
 		}
 		servers.push({ ...makeMcpServerCustomization(nonEditableUri('mcp', name), name), state: deriveMcpState(sdkServer.status) });
