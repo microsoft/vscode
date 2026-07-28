@@ -129,7 +129,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	//#region IView
 
-	private get preferredHeight(): number {
+	private get statusbarHeight(): number {
 		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled()
 			? StatusbarPart.FLOATING_ITEM_HEIGHT + StatusbarPart.FLOATING_VERTICAL_PADDING
 			: StatusbarPart.HEIGHT;
@@ -137,8 +137,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return this.preferredHeight; }
-	get maximumHeight(): number { return this.preferredHeight; }
+	get minimumHeight(): number { return this.statusbarHeight; }
+	get maximumHeight(): number { return this.statusbarHeight; }
 
 	//#endregion
 
