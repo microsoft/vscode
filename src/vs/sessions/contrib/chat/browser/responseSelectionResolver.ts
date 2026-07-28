@@ -10,6 +10,8 @@ import { IChatResponseViewModel, isResponseVM } from '../../../../workbench/cont
 export interface IResolvedResponseSelection {
 	readonly response: IChatResponseViewModel;
 	readonly text: string;
+	/** Snapshot of the selected range, used to position and re-paint the affordance after the native selection is gone. */
+	readonly range: Range;
 }
 
 /** Ancestor of a valid selection endpoint: rendered assistant markdown. */
@@ -30,6 +32,42 @@ function isAssistantMarkdownEndpoint(node: Node, widgetDomNode: HTMLElement): bo
 }
 
 /**
+ * Returns the first and last text nodes that actually contribute characters to
+ * `range`. Browsers routinely park a selection boundary at offset 0 of the node
+ * *following* the selected text — notably a triple-click, which selects a whole
+ * line and ends at the start of the next block, landing outside the response's
+ * markdown when the line is the last one — so the raw anchor/focus nodes are
+ * not usable endpoints on their own.
+ */
+function contributingTextEndpoints(range: Range): { first: Text; last: Text } | undefined {
+	const container = range.commonAncestorContainer;
+	const scope = container.nodeType === Node.TEXT_NODE ? container.parentNode : container;
+	const doc = scope?.ownerDocument;
+	if (!scope || !doc) {
+		return undefined;
+	}
+
+	const walker = doc.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+	let first: Text | undefined;
+	let last: Text | undefined;
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		const text = node as Text;
+		if (!range.intersectsNode(text)) {
+			continue;
+		}
+		const start = text === range.startContainer ? range.startOffset : 0;
+		const end = text === range.endContainer ? range.endOffset : text.data.length;
+		if (!text.data.slice(start, end).trim()) {
+			continue;
+		}
+		first ??= text;
+		last = text;
+	}
+
+	return first && last ? { first, last } : undefined;
+}
+
+/**
  * Resolves the widget's current native DOM selection to the single assistant
  * response it lies entirely within, scoped to rendered markdown only (embedded
  * code editors and tool-invocation UI are excluded). Returns `undefined` for an
@@ -38,28 +76,30 @@ function isAssistantMarkdownEndpoint(node: Node, widgetDomNode: HTMLElement): bo
  */
 export function resolveResponseSelection(widget: IChatWidget): IResolvedResponseSelection | undefined {
 	const nativeSelection = dom.getWindow(widget.domNode).getSelection();
-	const text = nativeSelection?.toString();
-	if (!nativeSelection || nativeSelection.isCollapsed || !text?.trim()) {
+	if (!nativeSelection || nativeSelection.isCollapsed || !nativeSelection.rangeCount || !nativeSelection.toString().trim()) {
 		return undefined;
 	}
 
-	const { anchorNode, focusNode } = nativeSelection;
-	if (!anchorNode || !focusNode
-		|| !isAssistantMarkdownEndpoint(anchorNode, widget.domNode)
-		|| !isAssistantMarkdownEndpoint(focusNode, widget.domNode)) {
+	const range = nativeSelection.getRangeAt(0);
+	const endpoints = contributingTextEndpoints(range);
+	if (!endpoints
+		|| !isAssistantMarkdownEndpoint(endpoints.first, widget.domNode)
+		|| !isAssistantMarkdownEndpoint(endpoints.last, widget.domNode)) {
 		return undefined;
 	}
 
-	const anchorElement = closestElement(anchorNode);
-	const focusElement = closestElement(focusNode);
-	if (!anchorElement || !focusElement) {
+	const firstElement = closestElement(endpoints.first);
+	const lastElement = closestElement(endpoints.last);
+	if (!firstElement || !lastElement) {
 		return undefined;
 	}
-	const anchorItem = widget.getElementFromNode(anchorElement);
-	const focusItem = widget.getElementFromNode(focusElement);
-	if (!anchorItem || anchorItem !== focusItem || !isResponseVM(anchorItem)) {
+	const firstItem = widget.getElementFromNode(firstElement);
+	const lastItem = widget.getElementFromNode(lastElement);
+	if (!firstItem || firstItem !== lastItem || !isResponseVM(firstItem)) {
 		return undefined;
 	}
 
-	return { response: anchorItem, text };
+	// Trailing newlines are an artifact of how browsers extend line selections
+	// past the block they belong to; they add nothing to the quoted snippet.
+	return { response: firstItem, text: nativeSelection.toString().trim(), range: range.cloneRange() };
 }
