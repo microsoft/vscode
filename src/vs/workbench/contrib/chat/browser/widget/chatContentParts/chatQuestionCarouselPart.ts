@@ -22,7 +22,7 @@ import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
-import { getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
+import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -387,7 +387,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.focus();
 		const question = this.carousel.questions[this._currentIndex];
 		if (question) {
-			const questionText = question.message ?? question.title;
+			const questionText = getDisplayedQuestionText(question);
 			const messageContent = this.getQuestionText(questionText);
 			const questionCount = this.carousel.questions.length;
 			const alertMessage = questionCount === 1
@@ -621,7 +621,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		const questionText = question.message ?? question.title;
+		const questionText = getDisplayedQuestionText(question);
 		const messageContent = this.getQuestionText(questionText);
 		const questionCount = this.carousel.questions.length;
 
@@ -709,7 +709,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		// Render unified question title (message ?? title)
 		const headerRow = dom.$('.chat-question-header-row');
 		const titleRow = dom.$('.chat-question-title-row');
 
@@ -722,7 +721,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			headerRow.appendChild(carouselMessage);
 		}
 
-		const questionText = question.message ?? question.title;
+		const questionText = getDisplayedQuestionText(question);
 		if (questionText) {
 			const title = dom.$('.chat-question-title');
 			const messageContent = this.getQuestionText(questionText);
@@ -1585,7 +1584,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const summaryItem = dom.$('.chat-question-summary-item');
 
 			const questionRow = dom.$('div.chat-question-summary-label');
-			const questionText = question.message ?? question.title;
+			const questionText = getDisplayedQuestionText(question);
 			let labelText = typeof questionText === 'string' ? questionText : questionText.value;
 			labelText = labelText.replace(/[:\s]+$/, '');
 			questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', labelText);

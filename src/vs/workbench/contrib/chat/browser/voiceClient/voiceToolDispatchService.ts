@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatElicitationRequest, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/chatService/chatQuestionCarouselHelpers.js';
+import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/voiceClient/voiceQuestionAnswers.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -343,12 +343,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		return { ok: false, reason: 'unsupported' };
 	}
 
-	/**
-	 * Resolve a coding session id to its chat model, loading it if necessary.
-	 *
-	 * Deliberately returns `undefined` rather than falling back to the focused
-	 * session: see `respondToSession`.
-	 */
+	/** Resolve a coding session id to its chat model, never falling back to the focused session. */
 	private async _resolveModelForResponse(codingSessionId: string): Promise<{ model: IChatModel; dispose(): void } | undefined> {
 		if (!codingSessionId) {
 			return undefined;

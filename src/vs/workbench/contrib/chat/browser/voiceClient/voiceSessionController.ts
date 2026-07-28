@@ -29,7 +29,7 @@ import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference, IChatQuestionCarousel, IChatConfirmation, IChatElicitationRequest, ElicitationState } from '../../common/chatService/chatService.js';
-import { getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
+import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatModel } from '../../common/model/chatModel.js';
@@ -5605,7 +5605,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					questions: carousel.questions.map((question): IVoicePendingQuestion => ({
 						id: question.id,
 						type: question.type,
-						title: question.title ?? '',
+						// The same text the widget shows, so voice reads the question
+						// rather than its header.
+						title: this._plainText(getDisplayedQuestionText(question)),
 						required: question.required === true,
 						allow_freeform: question.allowFreeformInput === true,
 						// The ordinal the user hears has to be the one they see, so

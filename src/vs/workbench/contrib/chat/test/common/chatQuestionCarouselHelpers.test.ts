@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatQuestion } from '../../common/chatService/chatService.js';
 import {
+	getDisplayedQuestionText,
 	getOptionsWithDefaultsFirst,
-	resolveQuestionAnswers,
 } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 
 suite('ChatQuestionCarouselHelpers', () => {
@@ -80,142 +81,21 @@ suite('ChatQuestionCarouselHelpers', () => {
 		});
 	});
 
-	suite('resolveQuestionAnswers', () => {
-		test('maps an exact single-select value', () => {
-			assert.deepStrictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'q_single', value: 'eastus' }]),
-				{ q_single: { selectedValue: 'eastus' } },
-			);
-		});
-
-		test('maps exact multi-select values with freeform', () => {
-			assert.deepStrictEqual(
-				resolveQuestionAnswers(
-					[multi],
-					[{ question_id: 'q_multi', values: ['billing', 'auth'], freeform: 'telemetry' }],
-				),
-				{ q_multi: { selectedValues: ['billing', 'auth'], freeformValue: 'telemetry' } },
-			);
-		});
-
-		test('maps a text answer', () => {
-			assert.deepStrictEqual(
-				resolveQuestionAnswers([text], [{ question_id: 'q_text', freeform: 'ship it' }]),
-				{ q_text: 'ship it' },
-			);
-		});
-
-		test('maps a freeform fallback on a select', () => {
-			assert.deepStrictEqual(
-				resolveQuestionAnswers(
-					[{ ...single, allowFreeformInput: true }],
-					[{ question_id: 'q_single', freeform: 'Central US' }],
-				),
-				{ q_single: { freeformValue: 'Central US' } },
-			);
-		});
-
-		test('maps several questions at once', () => {
-			assert.deepStrictEqual(
-				resolveQuestionAnswers(
-					[single, text],
-					[
-						{ question_id: 'q_single', value: 'westus' },
-						{ question_id: 'q_text', freeform: 'no' },
-					],
-				),
-				{ q_single: { selectedValue: 'westus' }, q_text: 'no' },
-			);
-		});
-
-		// A value that is not in the schema means the backend resolved against a
-		// stale mirror. Answering the form with a guess is strictly worse than
-		// reporting the failure, so one bad entry rejects the whole set.
-		test('rejects a value that is a label rather than an option value', () => {
+	suite('getDisplayedQuestionText', () => {
+		test('prefers message, which is where the built-in tool puts the question', () => {
 			assert.strictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'q_single', value: 'West US' }]),
-				undefined,
+				getDisplayedQuestionText({ ...single, message: 'Which region should this deploy to?' }),
+				'Which region should this deploy to?',
 			);
 		});
 
-		test('rejects a value that is an option id rather than an option value', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'q_single', value: 'o1' }]),
-				undefined,
-			);
+		test('falls back to title when there is no message', () => {
+			assert.strictEqual(getDisplayedQuestionText(single), 'Which region?');
 		});
 
-		test('rejects an unknown question id', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'nope', value: 'westus' }]),
-				undefined,
-			);
-		});
-
-		test('rejects the whole set when one multi-select value is unknown', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([multi], [{ question_id: 'q_multi', values: ['auth', 'nope'] }]),
-				undefined,
-			);
-		});
-
-		test('rejects freeform on a question that forbids it', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'q_single', freeform: 'Central US' }]),
-				undefined,
-			);
-		});
-
-		test('rejects an empty answer list', () => {
-			assert.strictEqual(resolveQuestionAnswers([single], []), undefined);
-		});
-
-		test('rejects an answer that carries nothing', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'q_single' }]),
-				undefined,
-			);
-		});
-
-		test('rejects whitespace-only freeform on a text question', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([text], [{ question_id: 'q_text', freeform: '   ' }]),
-				undefined,
-			);
-		});
-
-		test('rejects a selection on a text question', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([text], [{ question_id: 'q_text', value: 'anything' }]),
-				undefined,
-			);
-		});
-
-		test('rejects a multi-select shape on a single-select question', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'q_single', values: ['westus'] }]),
-				undefined,
-			);
-		});
-
-		test('rejects a single-select shape on a multi-select question', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers([multi], [{ question_id: 'q_multi', value: 'auth' }]),
-				undefined,
-			);
-		});
-
-		test('rejects two answers to the same question', () => {
-			assert.strictEqual(
-				resolveQuestionAnswers(
-					[single],
-					[
-						{ question_id: 'q_single', value: 'westus' },
-						{ question_id: 'q_single', value: 'eastus' },
-					],
-				),
-				undefined,
-			);
+		test('passes a markdown message through untouched', () => {
+			const message = { value: '**Which** region?' } as IMarkdownString;
+			assert.strictEqual(getDisplayedQuestionText({ ...single, message }), message);
 		});
 	});
 });
