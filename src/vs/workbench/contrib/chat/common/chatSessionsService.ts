@@ -372,6 +372,12 @@ export function isAgentHostTarget(target: string): boolean {
  */
 export const localChatSessionType = SessionType.Local;
 
+export interface IChatSessionPeer {
+	readonly resource: URI;
+	readonly title: string;
+	readonly isReadOnly: boolean;
+}
+
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
@@ -387,6 +393,7 @@ export interface IChatSession extends IDisposable {
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly isReadOnly?: IObservable<boolean>;
+	readonly peerChats?: IObservable<readonly IChatSessionPeer[]>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
 	/**

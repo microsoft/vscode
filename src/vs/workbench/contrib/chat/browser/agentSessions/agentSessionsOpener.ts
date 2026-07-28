@@ -30,6 +30,7 @@ export interface ISessionOpenerParticipant {
 
 export interface ISessionOpenOptions {
 	readonly sideBySide?: boolean;
+	readonly forceEditor?: boolean;
 	readonly editorOptions?: IEditorOptions;
 }
 
@@ -59,6 +60,8 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
 		if (!participant.handleOpenSessionResource) {
@@ -77,7 +80,14 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 
 	const session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource));
 	if (!session) {
-		throw new Error(`Chat session not found: ${resource.toString()}`);
+		await chatSessionsService.activateChatSessionItemProvider(getChatSessionType(resource));
+		if (!(await chatSessionsService.canResolveChatSession(getChatSessionType(resource)))) {
+			throw new Error(`Chat session not found: ${resource.toString()}`);
+		}
+		return chatWidgetService.openSession(resource, openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP, {
+			...openOptions?.editorOptions,
+			revealIfOpened: true,
+		});
 	}
 
 	return instantiationService.invokeFunction(openSession, session, openOptions);
@@ -127,7 +137,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-		if (openOptions?.sideBySide) {
+		if (openOptions?.sideBySide || openOptions?.forceEditor) {
 			target = ACTIVE_GROUP;
 		} else {
 			target = ChatViewPaneTarget;

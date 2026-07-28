@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/openSubagentChat.css';
+import '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/media/openSubagentChat.css';
 import { $, addDisposableListener, EventType, WindowIntervalTimer } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
@@ -203,7 +203,7 @@ registerAction2(OpenSubagentChatAction);
 
 /**
  * Renders the "Open Subagent" pill as a standalone chip (styled like the chat
- * file/diff pill). See SESSIONS.md and `./media/openSubagentChat.css` for details.
+ * file/diff pill). See SESSIONS.md and the shared Agent Host `openSubagentChat.css` for details.
  */
 export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
