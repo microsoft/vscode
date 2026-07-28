@@ -10,7 +10,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatElicitationRequest, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { ChatSendResult, ElicitationState, IChatConfirmation, IChatElicitationRequest, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
@@ -18,6 +18,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { derivePendingId, IVoiceDispatchResult, IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IChatWidgetService } from '../chat.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -90,6 +91,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) { }
 
 	setDelegate(delegate: IVoiceToolDispatchDelegate): void {
@@ -255,15 +257,31 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			return { ok: false, reason: 'unsupported' };
 		}
 		const responseType = (response as Record<string, unknown>)['type'];
-		if (responseType !== 'approve' && responseType !== 'reject' && responseType !== 'answer') {
+		if (responseType !== 'approve' && responseType !== 'reject' && responseType !== 'answer' && responseType !== 'skip') {
 			return { ok: false, reason: 'unsupported' };
 		}
 
-		const model = await this._resolveModelForResponse(argString('coding_session_id'));
-		if (!model) {
+		const resolved = await this._resolveModelForResponse(argString('coding_session_id'));
+		if (!resolved) {
 			return { ok: false, reason: 'no_session' };
 		}
+		// A freshly loaded session holds its only reference here, so everything
+		// that reads the model — including the awaited confirmation send — has to
+		// happen before it is released.
+		try {
+			return await this._applyResponse(resolved.model, args, argString, responseType, response as Record<string, unknown>);
+		} finally {
+			resolved.dispose();
+		}
+	}
 
+	private async _applyResponse(
+		model: IChatModel,
+		args: Record<string, unknown>,
+		argString: (key: string) => string,
+		responseType: 'approve' | 'reject' | 'answer' | 'skip',
+		response: Record<string, unknown>,
+	): Promise<IVoiceDispatchResult> {
 		const requestId = argString('request_id');
 		const pendingId = argString('pending_id');
 		const request = model.getRequests().find(candidate => candidate.id === requestId);
@@ -278,13 +296,13 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		const part = parts[index];
 
 		if (part.kind === 'questionCarousel') {
-			if (responseType !== 'answer') {
+			if (responseType !== 'answer' && responseType !== 'skip') {
 				return { ok: false, reason: 'unsupported' };
 			}
-			return this._answerCarousel(request.id, part as IChatQuestionCarousel, response as Record<string, unknown>);
+			return this._answerCarousel(request.id, part as IChatQuestionCarousel, response, responseType === 'skip');
 		}
 
-		if (responseType === 'answer') {
+		if (responseType === 'answer' || responseType === 'skip') {
 			return { ok: false, reason: 'unsupported' };
 		}
 		const approve = responseType === 'approve';
@@ -326,7 +344,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 * Deliberately returns `undefined` rather than falling back to the focused
 	 * session: see `respondToSession`.
 	 */
-	private async _resolveModelForResponse(codingSessionId: string): Promise<IChatModel | undefined> {
+	private async _resolveModelForResponse(codingSessionId: string): Promise<{ model: IChatModel; dispose(): void } | undefined> {
 		if (!codingSessionId) {
 			return undefined;
 		}
@@ -335,12 +353,12 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		if (agentSession) {
 			const loaded = this.chatService.getSession(agentSession.resource);
 			if (loaded) {
-				return loaded;
+				return { model: loaded, dispose: () => { } };
 			}
 		}
 		for (const chatModel of this.chatService.chatModels.get()) {
 			if (chatModel.sessionResource.toString() === codingSessionId) {
-				return chatModel;
+				return { model: chatModel, dispose: () => { } };
 			}
 		}
 		if (!agentSession) {
@@ -355,24 +373,45 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			return undefined;
 		}
 		const model = this.chatService.getSession(agentSession.resource);
-		ref.dispose();
-		return model;
+		if (!model) {
+			ref.dispose();
+			return undefined;
+		}
+		// This reference is the only thing keeping the just-loaded session alive;
+		// releasing it here would let the model be disposed out from under the
+		// caller, potentially mid-`sendRequest`.
+		return { model, dispose: () => ref.dispose() };
 	}
 
-	/** Fill in a question carousel exactly as the widget's own submit path does. */
+	/**
+	 * Fill in a question carousel exactly as the widget's own submit path does.
+	 *
+	 * A `skip` carries whatever the user answered before saying "skip", which on
+	 * an untouched form is nothing at all. That empty case is why skipping is its
+	 * own response type: an `answer` with zero answers is indistinguishable from
+	 * a backend that resolved nothing, and is correctly refused below.
+	 */
 	private _answerCarousel(
 		requestId: string,
 		carousel: IChatQuestionCarousel,
 		response: Record<string, unknown>,
+		skip: boolean,
 	): IVoiceDispatchResult {
 		if (carousel.isUsed || carousel.answeredExternally) {
 			return { ok: false, reason: 'stale_pending' };
 		}
+		if (skip && !carousel.allowSkip) {
+			return { ok: false, reason: 'stale_pending' };
+		}
 		const raw = response['answers'];
-		const answers = Array.isArray(raw)
-			? resolveQuestionAnswers(carousel.questions, raw as IBackendQuestionAnswer[])
-			: undefined;
-		if (!answers) {
+		const rawAnswers = Array.isArray(raw) ? (raw as IBackendQuestionAnswer[]) : [];
+		let answers: IChatQuestionAnswers | undefined;
+		if (rawAnswers.length > 0) {
+			answers = resolveQuestionAnswers(carousel.questions, rawAnswers);
+			if (!answers) {
+				return { ok: false, reason: 'invalid_answer' };
+			}
+		} else if (!skip) {
 			return { ok: false, reason: 'invalid_answer' };
 		}
 		// `dismiss` also completes the deferred promise an agent-hosted carousel
@@ -385,6 +424,11 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		}
 		if (carousel.resolveId) {
 			this.chatService.notifyQuestionCarouselAnswer(requestId, carousel.resolveId, answers);
+		} else if (!(carousel instanceof ChatQuestionCarouselData)) {
+			// Nothing was actually resolved: no deferred completion and no id to
+			// notify. Reporting success here would have the assistant claim an
+			// answer landed when the form is still on screen.
+			return { ok: false, reason: 'unsupported' };
 		}
 		return { ok: true };
 	}
@@ -393,10 +437,19 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 * Accept or dismiss a confirmation part.
 	 *
 	 * A confirmation is resolved by sending a follow-up request carrying its
-	 * data, not by mutating the part, so this mirrors the widget's button
-	 * handler. It cannot reach the chat widget's model/mode selection from here
-	 * and uses the service's own agent-mode options, the same ones every other
-	 * voice-originated request in this file uses.
+	 * data, not by mutating the part, so this mirrors the widget's button handler
+	 * in `chatConfirmationContentPart` — including its model, mode, location and
+	 * tool selection, which are properties of the session the user is looking at
+	 * rather than of the voice channel. Answering a confirmation raised in Plan
+	 * or Ask mode by silently continuing in Agent mode would grant the follow-up
+	 * turn permissions the user never chose. When the session has no open widget
+	 * there is no selection to mirror, and the service's own agent-mode options
+	 * are the fallback.
+	 *
+	 * `isUsed` is set before the send rather than after so a second response —
+	 * another voice turn, or a widget click landing mid-flight — cannot submit a
+	 * contradictory answer to the same confirmation. It is restored if the send
+	 * does not go through.
 	 */
 	private async _answerConfirmation(
 		model: IChatModel,
@@ -411,8 +464,9 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		const label = approve
 			? (buttons?.[0] ?? localize('agentsVoice.confirmation.accept', "Accept"))
 			: (buttons?.[1] ?? localize('agentsVoice.confirmation.dismiss', "Dismiss"));
+		const widget = this.chatWidgetService.getWidgetBySessionResource(model.sessionResource);
 		const options: IChatSendRequestOptions = {
-			...this._agentModeOptions,
+			...(widget ? {} : this._agentModeOptions),
 			...(approve
 				? { acceptedConfirmationData: [confirmation.data] }
 				: { rejectedConfirmationData: [confirmation.data] }),
@@ -420,11 +474,18 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			agentId: request.response?.agent?.id,
 			slashCommand: request.response?.slashCommand?.name,
 		};
-		const result = await this.chatService.sendRequest(model.sessionResource, `${label}: "${confirmation.title}"`, options);
-		if (!ChatSendResult.isSent(result)) {
-			return { ok: false, reason: 'stale_pending' };
+		if (widget) {
+			Object.assign(options, widget.getSelectedModelRequestOptions());
+			options.modeInfo = widget.input.currentModeInfo;
+			options.location = widget.location;
+			Object.assign(options, widget.getModeRequestOptions());
 		}
 		confirmation.isUsed = true;
+		const result = await this.chatService.sendRequest(model.sessionResource, `${label}: "${confirmation.title}"`, options);
+		if (!ChatSendResult.isSent(result)) {
+			confirmation.isUsed = false;
+			return { ok: false, reason: 'stale_pending' };
+		}
 		return { ok: true };
 	}
 
