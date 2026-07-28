@@ -115,7 +115,7 @@ export interface IObservableWithChange<T, TChange = unknown> {
 export interface IObserver {
 	/**
 	 * Signals that the given observable might have changed and a transaction potentially modifying that observable started.
-	 * Every call of this method must be eventually accompanied with the corresponding {@link IObserver.endUpdate} call.
+	 * Every call to this method must eventually be accompanied by a corresponding {@link IObserver.endUpdate} call.
 	 *
 	 * Implementations must not get/read the value of other observables, as they might not have received this event yet!
 	 * The method {@link IObservable.reportChanges} can be used to force the observable to report the changes.
