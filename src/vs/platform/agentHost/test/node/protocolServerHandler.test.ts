@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -26,6 +26,8 @@ import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHos
 import { agentsWindowAgentHostClientInfo, type AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
+import { IAgentHostVoiceWebSocket } from '../../node/agentHostVoiceRelay.js';
+import type * as wsTypes from 'ws';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -75,9 +77,59 @@ class MockProtocolServer implements IProtocolServer {
 
 class CountingLogService extends NullLogService {
 	errorCount = 0;
+	readonly warnings: string[] = [];
 
 	override error(_message: string, ..._args: unknown[]): void {
 		this.errorCount++;
+	}
+
+	override warn(message: string, ..._args: unknown[]): void {
+		this.warnings.push(message);
+	}
+}
+
+class MockVoiceWebSocket implements IAgentHostVoiceWebSocket {
+	readyState = 0;
+	readonly sent: string[] = [];
+
+	private _onOpen: (() => void) | undefined;
+	private _onMessage: ((data: wsTypes.RawData) => void) | undefined;
+	private _onClose: ((code: number, reason: Buffer) => void) | undefined;
+
+	onOpen(listener: () => void) {
+		this._onOpen = listener;
+		return toDisposable(() => this._onOpen = undefined);
+	}
+
+	onMessage(listener: (data: wsTypes.RawData) => void) {
+		this._onMessage = listener;
+		return toDisposable(() => this._onMessage = undefined);
+	}
+
+	onClose(listener: (code: number, reason: Buffer) => void) {
+		this._onClose = listener;
+		return toDisposable(() => this._onClose = undefined);
+	}
+
+	onError(_listener: (error: Error) => void) {
+		return toDisposable(() => { });
+	}
+
+	send(data: string): void {
+		this.sent.push(data);
+	}
+
+	close(): void {
+		this.readyState = 3;
+	}
+
+	fireOpen(): void {
+		this.readyState = 1;
+		this._onOpen?.();
+	}
+
+	fireMessage(message: string): void {
+		this._onMessage?.(Buffer.from(message));
 	}
 }
 
@@ -92,6 +144,7 @@ class MockAgentService implements IAgentService {
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	shutdownCalls = 0;
+	authToken: string | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -159,7 +212,7 @@ class MockAgentService implements IAgentService {
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
-	getAuthToken(): string | undefined { return undefined; }
+	getAuthToken(): string | undefined { return this.authToken; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
 		this.browsedUris.push(uri);
@@ -454,6 +507,113 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 11, result: null },
 			shutdownCalls: 1,
 		});
+	});
+
+	test('relays Voice messages through the authenticated Agent Host connection', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		const voiceSocket = new MockVoiceWebSocket();
+		let voiceUrl = '';
+		agentService.authToken = 'host-token';
+		localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{
+				defaultDirectory: URI.file('/home/testuser').toString(),
+				voiceWsUrl: 'wss://voice.test/realtime/voice',
+				voiceWebSocketFactory: async url => {
+					voiceUrl = url;
+					return voiceSocket;
+				},
+			},
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'voice-client',
+		}));
+		transport.sent.length = 0;
+
+		const connectResponse = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, '_vscodeVoiceConnect', { connectionId: 'voice-1' }));
+		await Promise.resolve();
+		voiceSocket.fireOpen();
+		await connectResponse;
+		assert.doesNotThrow(() => transport.simulateMessage(notification('_vscodeVoiceSend', {
+			connectionId: 'voice-1',
+			message: 'x'.repeat(8 * 1024 * 1024 + 1),
+		})));
+		transport.simulateMessage(notification('_vscodeVoiceSend', { connectionId: 'voice-1', message: 'client-message' }));
+		voiceSocket.fireMessage('server-message');
+
+		assert.deepStrictEqual({
+			voiceUrl,
+			backendMessages: voiceSocket.sent,
+			clientMessages: transport.sent.filter(message => isJsonRpcNotification(message)),
+			warnings: logService.warnings,
+		}, {
+			voiceUrl: 'wss://voice.test/realtime/voice?token=host-token',
+			backendMessages: ['client-message'],
+			clientMessages: [{
+				jsonrpc: '2.0',
+				method: '_vscodeVoiceMessage',
+				params: { connectionId: 'voice-1', message: 'server-message' },
+			}],
+			warnings: ['[ProtocolServer] Dropping invalid Voice message: Voice message exceeds the relay size limit.'],
+		});
+	});
+
+	test('a stale Voice disconnect does not dispose a replacement relay', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		const firstSocket = new MockVoiceWebSocket();
+		const secondSocket = new MockVoiceWebSocket();
+		const sockets = [firstSocket, secondSocket];
+		agentService.authToken = 'host-token';
+		localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{
+				defaultDirectory: URI.file('/home/testuser').toString(),
+				voiceWsUrl: 'wss://voice.test/realtime/voice',
+				voiceWebSocketFactory: async () => {
+					const socket = sockets.shift();
+					if (!socket) {
+						throw new Error('Unexpected Voice socket');
+					}
+					return socket;
+				},
+			},
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'voice-client',
+		}));
+
+		transport.simulateMessage(request(2, '_vscodeVoiceConnect', { connectionId: 'voice-old' }));
+		await Promise.resolve();
+		const replacementResponse = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, '_vscodeVoiceConnect', { connectionId: 'voice-new' }));
+		await Promise.resolve();
+		secondSocket.fireOpen();
+		await replacementResponse;
+
+		const staleDisconnectResponse = waitForResponse(transport, 4);
+		transport.simulateMessage(request(4, '_vscodeVoiceDisconnect', { connectionId: 'voice-old' }));
+		await staleDisconnectResponse;
+		transport.simulateMessage(notification('_vscodeVoiceSend', { connectionId: 'voice-new', message: 'still-connected' }));
+
+		assert.strictEqual(firstSocket.readyState, 3);
+		assert.deepStrictEqual(secondSocket.sent, ['still-connected']);
 	});
 
 	test('extension methods can be disabled', () => {

@@ -5,11 +5,15 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isAgentHostVoiceMessageWithinLimit, isAgentHostVoiceRelay, type IAgentHostVoiceCloseEvent, type IAgentHostVoiceRelay } from '../../../../../platform/agentHost/common/agentHostVoiceRelay.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import {
 	IVoiceClientService,
 	IVoicePriorTimelineEntry,
@@ -62,10 +66,125 @@ function asTranscriptionRevision(value: unknown): number | undefined {
 	return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
+interface IVoiceWebSocket {
+	readonly readyState: number;
+	onopen: (() => void) | null;
+	onmessage: ((message: string) => void) | null;
+	onerror: (() => void) | null;
+	onclose: ((event: IVoiceWebSocketCloseEvent) => void) | null;
+	connect(): Promise<void>;
+	send(data: string): void;
+	close(code?: number, reason?: string): void;
+}
+
+interface IVoiceWebSocketCloseEvent extends IAgentHostVoiceCloseEvent {
+	readonly wasClean: boolean;
+}
+
+class BrowserVoiceWebSocket implements IVoiceWebSocket {
+	onopen: (() => void) | null = null;
+	onmessage: ((message: string) => void) | null = null;
+	onerror: (() => void) | null = null;
+	onclose: ((event: IVoiceWebSocketCloseEvent) => void) | null = null;
+
+	constructor(private readonly _socket: WebSocket) {
+		this._socket.onopen = () => this.onopen?.();
+		this._socket.onmessage = event => {
+			if (typeof event.data === 'string') {
+				this.onmessage?.(event.data);
+			}
+		};
+		this._socket.onerror = () => this.onerror?.();
+		this._socket.onclose = event => this.onclose?.({ code: event.code, reason: event.reason, wasClean: event.wasClean });
+	}
+
+	get readyState(): number {
+		return this._socket.readyState;
+	}
+
+	async connect(): Promise<void> { }
+
+	send(data: string): void {
+		this._socket.send(data);
+	}
+
+	close(code?: number, reason?: string): void {
+		this._socket.close(code, reason);
+	}
+}
+
+export class AgentHostVoiceWebSocket extends Disposable implements IVoiceWebSocket {
+	onopen: (() => void) | null = null;
+	onmessage: ((message: string) => void) | null = null;
+	onerror: (() => void) | null = null;
+	onclose: ((event: IVoiceWebSocketCloseEvent) => void) | null = null;
+
+	private _readyState = WebSocket.CONNECTING;
+	private _generation = 0;
+
+	constructor(
+		private readonly _relay: IAgentHostVoiceRelay,
+	) {
+		super();
+		this._register(this._relay.onDidReceiveVoiceMessage(message => this.onmessage?.(message)));
+		this._register(this._relay.onDidCloseVoiceConnection(event => {
+			this._readyState = WebSocket.CLOSED;
+			this.onclose?.({ ...event, wasClean: event.code === 1000 || event.code === 1001 });
+		}));
+	}
+
+	get readyState(): number {
+		return this._readyState;
+	}
+
+	async connect(): Promise<void> {
+		const generation = ++this._generation;
+		try {
+			await this._relay.connectVoice();
+		} catch (error) {
+			if (generation !== this._generation) {
+				throw new CancellationError();
+			}
+			throw error;
+		}
+		if (generation !== this._generation || this._readyState >= WebSocket.CLOSING) {
+			await this._relay.disconnectVoice().catch(() => { /* best effort stale relay cleanup */ });
+			throw new CancellationError();
+		}
+		this._readyState = WebSocket.OPEN;
+		this.onopen?.();
+	}
+
+	send(data: string): void {
+		if (this._readyState === WebSocket.OPEN) {
+			if (!isAgentHostVoiceMessageWithinLimit(data)) {
+				throw new Error('Voice message exceeds the 8 MiB UTF-8 payload limit.');
+			}
+			this._relay.sendVoiceMessage(data);
+		}
+	}
+
+	close(code = 1000, reason = ''): void {
+		if (this._readyState >= WebSocket.CLOSING) {
+			return;
+		}
+		this._generation++;
+		this._readyState = WebSocket.CLOSING;
+		void this._relay.disconnectVoice().catch(() => { /* connection is already closing */ });
+		this._readyState = WebSocket.CLOSED;
+		this.onclose?.({ code, reason, wasClean: code === 1000 || code === 1001 });
+	}
+
+	override dispose(): void {
+		this.close();
+		super.dispose();
+	}
+}
+
 export class VoiceClientService extends Disposable implements IVoiceClientService {
 	declare readonly _serviceBrand: undefined;
 
-	private _ws: WebSocket | undefined;
+	private _ws: IVoiceWebSocket | undefined;
 	private _reconnectAttempts = 0;
 	private _reconnectStartedAt: number | undefined;
 	private _reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -147,9 +266,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _authToken: string | undefined;
 
 	constructor(
+		private readonly _useAgentHostRelay: boolean = isWeb,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 
@@ -171,6 +292,16 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (e.affectsConfiguration('agents.voice.language')) {
 				this._sendSetLanguage();
 			}
+		}));
+		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
+			if (!this._useAgentHostRelay || this._reconnectStartedAt === undefined || this._ws || !this._window) {
+				return;
+			}
+			if (this._reconnectTimer) {
+				clearTimeout(this._reconnectTimer);
+				this._reconnectTimer = undefined;
+			}
+			this._connectWebSocket();
 		}));
 	}
 
@@ -296,6 +427,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._window = window;
 		this._authToken = authToken;
 		this._reconnectAttempts = 0;
+		this._reconnectStartedAt = this._useAgentHostRelay ? Date.now() : undefined;
 		this._connectWebSocket();
 	}
 
@@ -305,15 +437,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			return;
 		}
 
-		const baseUrl = this._getWsUrl();
-		if (!baseUrl) {
-			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
+		const ws = this._createWebSocket(win);
+		if (!ws) {
+			if (this._reconnectStartedAt !== undefined) {
+				this._scheduleReconnect('Agent Host unavailable');
+			}
 			return;
 		}
-		const url = this._authToken
-			? `${baseUrl}?token=${encodeURIComponent(this._authToken)}`
-			: baseUrl;
-		const ws = new win.WebSocket(url);
 		this._ws = ws;
 		this._sessionStartedOnSocket = false;
 
@@ -330,7 +460,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 		};
 
-		ws.onmessage = (evt: MessageEvent) => {
+		ws.onmessage = data => {
 			let msg: {
 				type: string;
 				session_id?: string;
@@ -354,7 +484,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				disposition?: string;
 			};
 			try {
-				msg = JSON.parse(evt.data as string);
+				msg = JSON.parse(data);
 			} catch {
 				return;
 			}
@@ -461,7 +591,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._onError.fire('WebSocket error');
 		};
 
-		ws.onclose = (evt: CloseEvent) => {
+		ws.onclose = evt => {
 			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
 				if (evt.code === 1000 || evt.code === 1001) {
@@ -482,7 +612,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					return;
 				}
 
-				if (!this._reconnectStartedAt) {
+				if (this._reconnectStartedAt === undefined) {
 					this._reconnectStartedAt = Date.now();
 				}
 
@@ -493,18 +623,79 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					return;
 				}
 
-				this._reconnectAttempts++;
 				this._setConnected(false);
 				this._stopPing();
 				this._ws = undefined;
+				if (ws instanceof Disposable) {
+					ws.dispose();
+				}
 
-				const delay = this._reconnectAttempts <= FAST_RETRY_COUNT
-					? FAST_RETRY_DELAY_MS
-					: SLOW_RETRY_DELAY_MS;
-				this._logService.warn(`[voice] ws closed abnormally (code=${evt.code} reason=${evt.reason || 'none'} wasClean=${evt.wasClean}); reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
-				this._reconnectTimer = setTimeout(() => this._connectWebSocket(), delay);
+				this._scheduleReconnect(`WebSocket closed abnormally (code=${evt.code} reason=${evt.reason || 'none'} wasClean=${evt.wasClean})`);
 			}
 		};
+
+		void ws.connect().catch(error => {
+			if (this._ws !== ws) {
+				return;
+			}
+			this._logService.error('[voice] Failed to connect', error);
+			this._onError.fire(error instanceof Error ? error.message : String(error));
+			ws.onclose?.({ code: 1011, reason: 'Voice connection failed', wasClean: false });
+		});
+	}
+
+	private _createWebSocket(win: Window & typeof globalThis): IVoiceWebSocket | undefined {
+		if (this._useAgentHostRelay) {
+			for (const info of this._remoteAgentHostService.connections) {
+				if (!RemoteAgentHostConnectionStatus.isConnected(info.status)) {
+					continue;
+				}
+				if (this._remoteAgentHostService.getEntryByAddress(info.address)?.connection.type !== RemoteAgentHostEntryType.Tunnel) {
+					continue;
+				}
+				const connection = this._remoteAgentHostService.getConnection(info.address);
+				if (connection && isAgentHostVoiceRelay(connection)) {
+					return new AgentHostVoiceWebSocket(connection);
+				}
+			}
+			this._logService.error('[voice] No connected Agent Host is available for the web Voice relay');
+			return undefined;
+		}
+
+		const baseUrl = this._getWsUrl();
+		if (!baseUrl) {
+			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
+			return undefined;
+		}
+		const url = new URL(baseUrl);
+		if (this._authToken) {
+			url.searchParams.set('token', this._authToken);
+		}
+		return new BrowserVoiceWebSocket(new win.WebSocket(url.toString()));
+	}
+
+	private _scheduleReconnect(reason: string): void {
+		if (!this._window || this._reconnectStartedAt === undefined) {
+			return;
+		}
+		const elapsed = Date.now() - this._reconnectStartedAt;
+		if (elapsed >= MAX_RECONNECT_DURATION_MS) {
+			this._logService.warn('[voice] reconnect timeout after 30 minutes, giving up');
+			this._cleanup();
+			return;
+		}
+		this._reconnectAttempts++;
+		const delay = this._reconnectAttempts <= FAST_RETRY_COUNT
+			? FAST_RETRY_DELAY_MS
+			: SLOW_RETRY_DELAY_MS;
+		this._logService.warn(`[voice] ${reason}; reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
+		if (this._reconnectTimer) {
+			clearTimeout(this._reconnectTimer);
+		}
+		this._reconnectTimer = setTimeout(() => {
+			this._reconnectTimer = undefined;
+			this._connectWebSocket();
+		}, delay);
 	}
 
 	disconnect(): void {
@@ -526,7 +717,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._contextSendTimer = undefined;
 		}
 		this._pendingContext = undefined;
+		const ws = this._ws;
 		this._ws = undefined;
+		if (ws instanceof Disposable) {
+			ws.dispose();
+		}
 		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;

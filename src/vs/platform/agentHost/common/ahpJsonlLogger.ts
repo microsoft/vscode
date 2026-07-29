@@ -94,7 +94,7 @@ export class AhpJsonlLogger extends Disposable {
 			transport: this._options.transport,
 			...(typeof byteLength === 'number' ? { byteLength } : {}),
 		};
-		const entry = { ...message, _ahpLog: meta };
+		const entry = { ...sanitizeVoiceRelayMessage(message), _ahpLog: meta };
 		// Fast path: serialize once. The vast majority of messages are small, so
 		// we only pay a single stringify and use its length to decide whether the
 		// rare oversized-message path below is needed.
@@ -105,6 +105,27 @@ export class AhpJsonlLogger extends Disposable {
 			// line valid JSONL instead of writing/holding the full multi-MB payload.
 			meta.truncated = true;
 			body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
+		}
+
+		function sanitizeVoiceRelayMessage(message: object): object {
+			const candidate = message as { method?: unknown; params?: unknown };
+			if (candidate.method !== '_vscodeVoiceSend' && candidate.method !== '_vscodeVoiceMessage') {
+				return message;
+			}
+			if (!candidate.params || typeof candidate.params !== 'object') {
+				return message;
+			}
+			const params = candidate.params as { message?: unknown };
+			if (typeof params.message !== 'string') {
+				return message;
+			}
+			return {
+				...message,
+				params: {
+					...params,
+					message: `<redacted voice payload: ${VSBuffer.fromString(params.message).byteLength} bytes>`,
+				},
+			};
 		}
 		const line = `${body}\n`;
 		this._pending.push(VSBuffer.fromString(line));

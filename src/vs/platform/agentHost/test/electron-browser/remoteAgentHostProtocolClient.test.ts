@@ -15,6 +15,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
+import { AGENT_HOST_VOICE_MAX_MESSAGE_BYTES } from '../../common/agentHostVoiceRelay.js';
 import { AgentHostPermissionMode, AgentHostResourcePermissionError, IAgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
@@ -259,6 +260,16 @@ suite('RemoteAgentHostProtocolClient', () => {
 			id: 1,
 			method: 'resourceList',
 			params: { channel: 'ahp-root://', uri: URI.file('/workspace').toString() },
+		});
+
+		test('rejects oversized UTF-8 Voice messages before AHP serialization', () => {
+			const { client, transport } = createClient();
+
+			assert.throws(
+				() => client.sendVoiceMessage('😀'.repeat(AGENT_HOST_VOICE_MAX_MESSAGE_BYTES / 4 + 1)),
+				/Voice message exceeds the 8 MiB UTF-8 payload limit/,
+			);
+			assert.deepStrictEqual(transport.sentMessages, []);
 		});
 
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [] } });

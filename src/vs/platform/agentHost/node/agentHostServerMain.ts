@@ -400,6 +400,7 @@ async function main(): Promise<void> {
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
+			voiceWsUrl: productService.voiceWsUrl,
 		},
 		clientFileSystemProvider,
 		logService,

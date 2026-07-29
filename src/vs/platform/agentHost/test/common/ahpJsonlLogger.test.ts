@@ -113,6 +113,29 @@ suite('AhpJsonlLogger', () => {
 		}
 	});
 
+	test('redacts relayed Voice payloads', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/voice-logs'), connectionId: 'voice', transport: 'websocket' },
+			fileService,
+			new NullLogService(),
+		));
+
+		const voicePayload = '{"type":"ptt_audio_chunk","audio":"secret-audio"}';
+		logger.log({
+			jsonrpc: '2.0',
+			method: '_vscodeVoiceSend',
+			params: { message: voicePayload },
+		}, 'c2s');
+		await logger.flush();
+
+		const entry = JSON.parse((await fileService.readFile(logger.resource)).value.toString());
+		assert.deepStrictEqual(entry.params, {
+			message: `<redacted voice payload: ${getAhpLogByteLength(voicePayload)} bytes>`,
+		});
+	});
+
 	test('rotates JSONL files and keeps bounded history', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));

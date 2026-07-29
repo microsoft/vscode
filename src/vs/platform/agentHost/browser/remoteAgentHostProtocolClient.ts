@@ -27,7 +27,7 @@ import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRe
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type JsonRpcNotification, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
@@ -45,6 +45,7 @@ import { dirname } from '../../../base/common/resources.js';
 import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
+import { IAgentHostVoiceCloseEvent, IAgentHostVoiceRelay, isAgentHostVoiceMessageWithinLimit } from '../common/agentHostVoiceRelay.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -99,6 +100,8 @@ interface IRemoteAgentHostExtensionCommandMap {
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
+	'_vscodeVoiceConnect': { params: { connectionId: string }; result: void };
+	'_vscodeVoiceDisconnect': { params: { connectionId: string }; result: void };
 }
 
 interface IPendingRequest {
@@ -170,7 +173,7 @@ type ClientState =
  * Implements {@link IAgentConnection} so consumers can program against
  * a single interface regardless of whether the agent host is local or remote.
  */
-export class RemoteAgentHostProtocolClient extends Disposable implements IAgentConnection {
+export class RemoteAgentHostProtocolClient extends Disposable implements IAgentConnection, IAgentHostVoiceRelay {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -200,6 +203,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
+
+	private readonly _onDidReceiveVoiceMessage = this._register(new Emitter<string>());
+	readonly onDidReceiveVoiceMessage = this._onDidReceiveVoiceMessage.event;
+
+	private readonly _onDidCloseVoiceConnection = this._register(new Emitter<IAgentHostVoiceCloseEvent>());
+	readonly onDidCloseVoiceConnection = this._onDidCloseVoiceConnection.event;
+
+	private _voiceConnected = false;
+	private _voiceConnectionId: string | undefined;
 
 	/**
 	 * Fires for every `otlp/exportLogs` notification the host sends on a
@@ -998,6 +1010,44 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._sendExtensionRequest('diagnosticsFetch', { url });
 	}
 
+	async connectVoice(): Promise<void> {
+		const connectionId = generateUuid();
+		this._voiceConnectionId = connectionId;
+		this._voiceConnected = false;
+		try {
+			await this._sendExtensionRequest('_vscodeVoiceConnect', { connectionId });
+		} catch (error) {
+			if (this._voiceConnectionId === connectionId) {
+				this._voiceConnectionId = undefined;
+			}
+			throw error;
+		}
+		if (this._voiceConnectionId !== connectionId) {
+			await this._sendExtensionRequest('_vscodeVoiceDisconnect', { connectionId }).catch(() => { /* best effort stale relay cleanup */ });
+			throw new CancellationError();
+		}
+		this._voiceConnected = true;
+	}
+
+	sendVoiceMessage(message: string): void {
+		if (!isAgentHostVoiceMessageWithinLimit(message)) {
+			throw new Error('Voice message exceeds the 8 MiB UTF-8 payload limit.');
+		}
+		if (this._voiceConnected) {
+			this._sendExtensionNotification('_vscodeVoiceSend', { connectionId: this._voiceConnectionId, message });
+		}
+	}
+
+	async disconnectVoice(): Promise<void> {
+		const connectionId = this._voiceConnectionId;
+		this._voiceConnectionId = undefined;
+		this._voiceConnected = false;
+		if (!connectionId) {
+			return;
+		}
+		await this._sendExtensionRequest('_vscodeVoiceDisconnect', { connectionId });
+	}
+
 	/**
 	 * Dispose a session on the remote agent host.
 	 */
@@ -1251,6 +1301,31 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
 			}
 		} else if (isJsonRpcNotification(msg)) {
+			const extensionMethod = msg.method as string;
+			if (extensionMethod === '_vscodeVoiceMessage') {
+				const params = msg.params && typeof msg.params === 'object'
+					? msg.params as { connectionId?: unknown; message?: unknown }
+					: undefined;
+				if (params?.connectionId === this._voiceConnectionId && typeof params.message === 'string') {
+					this._onDidReceiveVoiceMessage.fire(params.message);
+				}
+				return;
+			}
+			if (extensionMethod === '_vscodeVoiceClose') {
+				const params = msg.params && typeof msg.params === 'object'
+					? msg.params as { connectionId?: unknown; code?: unknown; reason?: unknown }
+					: undefined;
+				if (params?.connectionId !== this._voiceConnectionId) {
+					return;
+				}
+				this._voiceConnectionId = undefined;
+				this._voiceConnected = false;
+				this._onDidCloseVoiceConnection.fire({
+					code: typeof params?.code === 'number' ? params.code : 1006,
+					reason: typeof params?.reason === 'string' ? params.reason : '',
+				});
+				return;
+			}
 			switch (msg.method) {
 				case 'action': {
 					// Protocol envelope → VS Code envelope (superset of action types)
@@ -1300,6 +1375,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _handleClose(error: ProtocolError): void {
 		if (this._state.kind === AgentHostClientState.Closed) {
 			return;
+		}
+		if (this._voiceConnectionId) {
+			this._voiceConnectionId = undefined;
+			this._voiceConnected = false;
+			this._onDidCloseVoiceConnection.fire({ code: 1012, reason: 'Agent Host connection closed' });
 		}
 		// Stop the liveness timers so they don't keep ticking on a dead
 		// connection (the client may outlive the close, waiting to be replaced).
@@ -1489,6 +1569,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/** Send a JSON-RPC request for a VS Code extension method (not in the protocol spec). */
 	private _sendExtensionRequest<M extends keyof IRemoteAgentHostExtensionCommandMap>(method: M, params?: IRemoteAgentHostExtensionCommandMap[M]['params']): Promise<IRemoteAgentHostExtensionCommandMap[M]['result']> {
 		return this._dispatchRequest<IRemoteAgentHostExtensionCommandMap[M]['result']>(method, params);
+	}
+
+	private _sendExtensionNotification(method: string, params: object): void {
+		if (this._state.kind !== AgentHostClientState.Connected) {
+			return;
+		}
+		const message: JsonRpcNotification = { jsonrpc: '2.0', method, params };
+		this._transport.send(message);
 	}
 
 	private _updateTelemetryLevel(): void {

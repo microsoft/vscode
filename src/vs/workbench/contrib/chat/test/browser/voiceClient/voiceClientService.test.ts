@@ -5,13 +5,17 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
+import { NullRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AGENT_HOST_VOICE_MAX_MESSAGE_BYTES, IAgentHostVoiceCloseEvent, IAgentHostVoiceRelay } from '../../../../../../platform/agentHost/common/agentHostVoiceRelay.js';
+import { AgentHostVoiceWebSocket, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
@@ -34,6 +38,38 @@ class TestWebSocket {
 
 	send(data: string): void {
 		this.sent.push(JSON.parse(data) as Record<string, unknown>);
+	}
+}
+
+class TestAgentHostVoiceRelay extends Disposable implements IAgentHostVoiceRelay {
+	private readonly _onDidReceiveVoiceMessage = this._register(new Emitter<string>());
+	readonly onDidReceiveVoiceMessage = this._onDidReceiveVoiceMessage.event;
+
+	private readonly _onDidCloseVoiceConnection = this._register(new Emitter<IAgentHostVoiceCloseEvent>());
+	readonly onDidCloseVoiceConnection = this._onDidCloseVoiceConnection.event;
+
+	readonly sent: string[] = [];
+	connectCalls = 0;
+	disconnectCalls = 0;
+
+	async connectVoice(): Promise<void> {
+		this.connectCalls++;
+	}
+
+	sendVoiceMessage(message: string): void {
+		this.sent.push(message);
+	}
+
+	async disconnectVoice(): Promise<void> {
+		this.disconnectCalls++;
+	}
+
+	fireMessage(message: string): void {
+		this._onDidReceiveVoiceMessage.fire(message);
+	}
+
+	fireClose(event: IAgentHostVoiceCloseEvent): void {
+		this._onDidCloseVoiceConnection.fire(event);
 	}
 }
 
@@ -78,9 +114,11 @@ suite('VoiceClientService', () => {
 	function createService(configuration: Record<string, unknown> = {}): { service: VoiceClientService; configurationService: TestConfigurationService } {
 		const configurationService = new TestConfigurationService(configuration);
 		const service = store.add(new VoiceClientService(
+			false,
 			configurationService,
 			new NullLogService(),
 			productService,
+			new NullRemoteAgentHostService(),
 		));
 		return { service, configurationService };
 	}
@@ -125,6 +163,158 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
+	test('adapts the Agent Host voice relay to the websocket contract', async () => {
+		const relay = store.add(new TestAgentHostVoiceRelay());
+		const webSocket = store.add(new AgentHostVoiceWebSocket(relay));
+		const events: string[] = [];
+		webSocket.onopen = () => events.push('open');
+		webSocket.onmessage = message => events.push(message);
+		webSocket.onclose = event => events.push(`close:${event.code}:${event.reason}`);
+
+		await webSocket.connect();
+		webSocket.send('client-message');
+		relay.fireMessage('server-message');
+		relay.fireClose({ code: 4008, reason: 'replaced' });
+
+		assert.deepStrictEqual({
+			sent: relay.sent,
+			events,
+		}, {
+			sent: ['client-message'],
+			events: ['open', 'server-message', 'close:4008:replaced'],
+		});
+	});
+
+	test('does not open an Agent Host voice socket after disconnect during connect', async () => {
+		let completeConnect: (() => void) | undefined;
+		const relay = store.add(new TestAgentHostVoiceRelay());
+		relay.connectVoice = () => new Promise<void>(resolve => completeConnect = resolve);
+		const webSocket = store.add(new AgentHostVoiceWebSocket(relay));
+		let opened = false;
+		webSocket.onopen = () => opened = true;
+
+		const connecting = webSocket.connect();
+		webSocket.close();
+		completeConnect?.();
+		await assert.rejects(connecting);
+
+		assert.strictEqual(opened, false);
+		assert.strictEqual(webSocket.readyState, WebSocket.CLOSED);
+		assert.ok(relay.disconnectCalls >= 1);
+	});
+
+	test('preserves an abnormal local close for reconnect handling', async () => {
+		const relay = store.add(new TestAgentHostVoiceRelay());
+		const webSocket = store.add(new AgentHostVoiceWebSocket(relay));
+		let closeEvent: IAgentHostVoiceCloseEvent & { wasClean: boolean } | undefined;
+		webSocket.onclose = event => closeEvent = event;
+
+		await webSocket.connect();
+		webSocket.close(4000, 'pong timeout');
+
+		assert.deepStrictEqual(closeEvent, { code: 4000, reason: 'pong timeout', wasClean: false });
+		assert.strictEqual(relay.disconnectCalls, 1);
+	});
+
+	test('rejects oversized UTF-8 messages before sending to the Agent Host', async () => {
+		const relay = store.add(new TestAgentHostVoiceRelay());
+		const webSocket = store.add(new AgentHostVoiceWebSocket(relay));
+		await webSocket.connect();
+
+		assert.throws(
+			() => webSocket.send('😀'.repeat(AGENT_HOST_VOICE_MAX_MESSAGE_BYTES / 4 + 1)),
+			/Voice message exceeds the 8 MiB UTF-8 payload limit/,
+		);
+		assert.deepStrictEqual(relay.sent, []);
+	});
+
+	test('reconnects after an abnormal local close when the Agent Host tunnel returns', async () => {
+		const connectionChanges = store.add(new Emitter<void>());
+		const firstRelay = store.add(new TestAgentHostVoiceRelay());
+		const recoveredRelay = store.add(new TestAgentHostVoiceRelay());
+		const remoteService = new NullRemoteAgentHostService();
+		let available = true;
+		let activeRelay = firstRelay;
+		Object.defineProperties(remoteService, {
+			onDidChangeConnections: { value: connectionChanges.event },
+			connections: {
+				get: () => available ? [{
+					address: 'tunnel:test',
+					name: 'test',
+					clientId: 'test-client',
+					status: RemoteAgentHostConnectionStatus.connected,
+				}] : [],
+			},
+		});
+		remoteService.getEntryByAddress = () => ({
+			name: 'test',
+			connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'test', clusterId: 'test' },
+		});
+		remoteService.getConnection = () => activeRelay as never;
+		const service = store.add(new VoiceClientService(
+			true,
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+			remoteService,
+		));
+
+		await service.connect(createTestWindow());
+		await Promise.resolve();
+		assert.strictEqual(firstRelay.connectCalls, 1);
+
+		available = false;
+		const internalService = service as unknown as { _ws?: { close(code?: number, reason?: string): void } };
+		internalService._ws?.close(4000, 'pong timeout');
+		connectionChanges.fire();
+		activeRelay = recoveredRelay;
+		available = true;
+		connectionChanges.fire();
+		await Promise.resolve();
+
+		assert.strictEqual(recoveredRelay.connectCalls, 1);
+		assert.strictEqual(service.isConnected, true);
+	});
+
+	test('connects when an initially unavailable Agent Host tunnel becomes ready', async () => {
+		const connectionChanges = store.add(new Emitter<void>());
+		const relay = store.add(new TestAgentHostVoiceRelay());
+		const remoteService = new NullRemoteAgentHostService();
+		let available = false;
+		Object.defineProperties(remoteService, {
+			onDidChangeConnections: { value: connectionChanges.event },
+			connections: {
+				get: () => available ? [{
+					address: 'tunnel:test',
+					name: 'test',
+					clientId: 'test-client',
+					status: RemoteAgentHostConnectionStatus.connected,
+				}] : [],
+			},
+		});
+		remoteService.getEntryByAddress = () => ({
+			name: 'test',
+			connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'test', clusterId: 'test' },
+		});
+		remoteService.getConnection = () => relay as never;
+		const service = store.add(new VoiceClientService(
+			true,
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+			remoteService,
+		));
+
+		await service.connect(createTestWindow());
+		assert.strictEqual(relay.connectCalls, 0);
+		available = true;
+		connectionChanges.fire();
+		await Promise.resolve();
+
+		assert.strictEqual(relay.connectCalls, 1);
+		assert.strictEqual(service.isConnected, true);
+	});
+
 	test('preserves the backend turn ID when audio has a narration ID', async () => {
 		const { service } = createService();
 		const events: IVoiceAudioResponse[] = [];
@@ -164,9 +354,11 @@ suite('VoiceClientService', () => {
 			voiceWsUrl: 'ws://voice.test/realtime/voice',
 		};
 		const service = store.add(new VoiceClientService(
+			false,
 			new TestConfigurationService(),
 			new NullLogService(),
 			productService,
+			new NullRemoteAgentHostService(),
 		));
 		const events: IVoiceTranscription[] = [];
 		store.add(service.onTranscription(event => events.push(event)));
@@ -203,9 +395,11 @@ suite('VoiceClientService', () => {
 			voiceWsUrl: 'ws://voice.test/realtime/voice',
 		};
 		const service = store.add(new VoiceClientService(
+			false,
 			new TestConfigurationService(),
 			new NullLogService(),
 			productService,
+			new NullRemoteAgentHostService(),
 		));
 		const events: IVoiceTranscription[] = [];
 		store.add(service.onTranscription(event => events.push(event)));

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
@@ -12,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -57,6 +58,7 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
+import { AgentHostVoiceRelay, type VoiceWebSocketFactory } from './agentHostVoiceRelay.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -114,6 +116,14 @@ function shouldLogFailedRequest(method: string, params: unknown, err: unknown): 
 /** True when `value` is a non-null params object (as opposed to an array or primitive). */
 function isParamsObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readVoiceConnectionId(params: unknown): string | undefined {
+	if (!isParamsObject(params)) {
+		return undefined;
+	}
+	const connectionId = params['connectionId'];
+	return typeof connectionId === 'string' && connectionId.length > 0 ? connectionId : undefined;
 }
 
 /**
@@ -323,6 +333,10 @@ export interface IProtocolServerConfig {
 	 * rejected.
 	 */
 	readonly otlpLogEmitter?: OtlpLogEmitter;
+	/** Product-configured Voice backend endpoint used by the VS Code voice relay. */
+	readonly voiceWsUrl?: string;
+	/** Test seam for the host-side Voice WebSocket. */
+	readonly voiceWebSocketFactory?: VoiceWebSocketFactory;
 }
 
 /**
@@ -340,6 +354,8 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private readonly _clients = new Map<string, IClientRecord>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
+	private readonly _voiceRelays = new Map<string, { readonly connectionId: string; readonly relay: AgentHostVoiceRelay }>();
+	private readonly _voiceRelayDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -457,6 +473,20 @@ export class ProtocolServerHandler extends Disposable {
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
+				if ((msg.method as string) === '_vscodeVoiceSend') {
+					if (client && msg.params && typeof msg.params === 'object') {
+						const params = msg.params as { connectionId?: unknown; message?: unknown };
+						const entry = this._voiceRelays.get(client.clientId);
+						if (entry?.connectionId === params.connectionId && typeof params.message === 'string') {
+							try {
+								entry.relay.send(params.message);
+							} catch (error) {
+								this._logService.warn(`[ProtocolServer] Dropping invalid Voice message: ${error instanceof Error ? error.message : String(error)}`);
+							}
+						}
+					}
+					return;
+				}
 				// Notification — fire-and-forget
 				switch (msg.method) {
 					case 'unsubscribe':
@@ -517,6 +547,7 @@ export class ProtocolServerHandler extends Disposable {
 					this._releaseClientSubscriptions(client, record);
 					this._rejectPendingReverseRequestsForConnection(client);
 					if (record.connections.length === 0) {
+						this._disposeVoiceRelay(client.clientId);
 						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
 						this._clients.set(client.clientId, { state: 'grace', clientInfo: record.clientInfo, lastSeenAt: Date.now(), disconnectTimeouts: new DisposableMap() });
 						this._handleClientDisconnected(client.clientId);
@@ -1433,7 +1464,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		// VS Code extension methods (not in the typed protocol maps yet)
-		const extensionResult = this._handleExtensionRequest(method, params);
+		const extensionResult = this._handleExtensionRequest(client, method, params);
 		if (extensionResult) {
 			extensionResult.then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
@@ -1473,7 +1504,7 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;
 		}
@@ -1487,9 +1518,84 @@ export class ProtocolServerHandler extends Disposable {
 				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
+			case '_vscodeVoiceConnect':
+				return this._connectVoiceRelay(client, params);
+			case '_vscodeVoiceDisconnect': {
+				const connectionId = readVoiceConnectionId(params);
+				if (this._voiceRelays.get(client.clientId)?.connectionId === connectionId) {
+					this._disposeVoiceRelay(client.clientId);
+				}
+				return Promise.resolve();
+			}
 			default:
 				return undefined;
 		}
+	}
+
+	private async _connectVoiceRelay(client: IConnectedClient, params: unknown): Promise<void> {
+		const connectionId = readVoiceConnectionId(params);
+		if (!connectionId) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Voice connectionId is required.');
+		}
+		const backendUrl = this._config.voiceWsUrl;
+		if (!backendUrl) {
+			throw new Error('No Voice backend WebSocket URL is configured on the Agent Host.');
+		}
+		const authToken = this._agentService.getAuthToken({
+			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+			scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+		});
+		if (!authToken) {
+			throw new Error('The Agent Host is not authenticated for Voice Mode.');
+		}
+
+		this._disposeVoiceRelay(client.clientId);
+		const relay = new AgentHostVoiceRelay(backendUrl, this._config.voiceWebSocketFactory);
+		const entry = { connectionId, relay };
+		this._voiceRelays.set(client.clientId, entry);
+		const relayDisposables = new DisposableStore();
+		relayDisposables.add(relay);
+		relayDisposables.add(relay.onDidReceiveMessage(message => {
+			const activeClient = this._getActiveClient(client.clientId);
+			activeClient?.transport.send({
+				jsonrpc: '2.0',
+				method: '_vscodeVoiceMessage',
+				params: { connectionId, message },
+			});
+		}));
+		relayDisposables.add(relay.onDidClose(event => {
+			if (this._voiceRelays.get(client.clientId) !== entry) {
+				return;
+			}
+			const activeClient = this._getActiveClient(client.clientId);
+			activeClient?.transport.send({
+				jsonrpc: '2.0',
+				method: '_vscodeVoiceClose',
+				params: { connectionId, ...event },
+			});
+			this._disposeVoiceRelay(client.clientId);
+		}));
+		this._voiceRelayDisposables.set(client.clientId, relayDisposables);
+
+		try {
+			await relay.connect(authToken);
+			if (this._voiceRelays.get(client.clientId) !== entry) {
+				relay.disconnect();
+				throw new CancellationError();
+			}
+		} catch (error) {
+			if (this._voiceRelays.get(client.clientId) === entry) {
+				this._disposeVoiceRelay(client.clientId);
+			} else {
+				relay.dispose();
+			}
+			throw error;
+		}
+	}
+
+	private _disposeVoiceRelay(clientId: string): void {
+		this._voiceRelays.delete(clientId);
+		this._voiceRelayDisposables.deleteAndDispose(clientId);
 	}
 
 	// ---- Broadcasting -------------------------------------------------------
