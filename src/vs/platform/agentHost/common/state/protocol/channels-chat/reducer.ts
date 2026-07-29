@@ -33,7 +33,11 @@ function tcBaseWithMeta(tc: ToolCallState, meta: Record<string, unknown> | undef
 	};
 }
 
-function refineToolCallContributor(current: ToolCallContributor | undefined, next: ToolCallContributor | undefined, log?: (msg: string) => void): ToolCallContributor | undefined {
+function refineToolCallContributor(
+	current: ToolCallContributor | undefined,
+	next: ToolCallContributor | undefined,
+	log?: (msg: string) => void,
+): ToolCallContributor | undefined {
 	if (!next) {
 		return current;
 	}
