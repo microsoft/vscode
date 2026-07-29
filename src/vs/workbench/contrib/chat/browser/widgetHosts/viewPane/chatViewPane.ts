@@ -78,6 +78,7 @@ import { IVoiceSessionController } from '../../voiceClient/voiceSessionControlle
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
 import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
+import { observeChatWidgetHasInputContent } from '../../voiceClient/voiceInputContent.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -566,6 +567,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// follow an untitled "New Chat" session before any dictation starts.
 		let listeningSession: URI | undefined;
 		let ownerSession: URI | undefined;
+		// Keep the input open when the user already has typed text or attachments,
+		// so voice mode doesn't cover the prompt with the transcript overlay.
+		const hasInputContent = observeChatWidgetHasInputContent(this, this._widget);
 		this._register(autorun(reader => {
 			// Dev/preview: when a walkthrough is simulating, drive the overlay hint from the
 			// simulated state + version so each design shows its own instruction.
@@ -655,6 +659,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const effectiveOwner = targetSession ?? ownerSession;
 			voiceUiOwner = effectiveOwner;
 			if (effectiveOwner && currentSession && !isEqual(effectiveOwner, currentSession)) {
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				return;
+			}
+
+			// The user has already typed a prompt or attached context: keep the
+			// input open so it stays visible/editable. The glow still signals the
+			// voice state, so we don't cover the prompt/attachments.
+			if (hasInputContent.read(reader)) {
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				return;

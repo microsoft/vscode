@@ -34,6 +34,14 @@ export interface IVoiceInputDecorationsOptions {
 	readonly isActive: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
 	readonly getCurrentResource: () => URI | undefined;
+	/**
+	 * True when the input already has user content (typed text or attachments).
+	 * While true the transcript overlay is suppressed so the user can still see
+	 * and edit their prompt; the audio-reactive glow keeps signalling the voice
+	 * state. When empty (the default), the overlay shows the "Listening..."
+	 * placeholder and transcript as usual.
+	 */
+	readonly hasInputContent?: IObservable<boolean>;
 }
 
 /**
@@ -127,6 +135,15 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		// Render transcripts only on the active backend target.
 		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
 		if (!connected || !active || targetedElsewhere) {
+			transcriptOverlayNode.style.display = 'none';
+			transcriptOverlayNode.classList.remove('has-transcript');
+			return;
+		}
+
+		// The user has already typed a prompt or attached context: keep the input
+		// open so it stays visible and editable. The glow still signals the voice
+		// state, so we don't cover the prompt/attachments with the overlay.
+		if (options.hasInputContent?.read(reader)) {
 			transcriptOverlayNode.style.display = 'none';
 			transcriptOverlayNode.classList.remove('has-transcript');
 			return;

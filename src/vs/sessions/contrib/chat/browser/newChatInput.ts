@@ -9,7 +9,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -332,6 +332,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _sessionModelSelectionModel: SessionModelSelectionModel;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
+	/**
+	 * True when the composer has user content (typed text or attachments). Voice
+	 * mode reads this to keep the input open instead of covering it with the
+	 * transcript overlay. Assigned once the editor exists (during render).
+	 */
+	private _hasInputContent: IObservable<boolean> | undefined;
 
 	// Input state
 	private _draftState: IDraftState | undefined = {
@@ -483,6 +489,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
+		// Tracks typed text and attachments together so voice mode can keep the
+		// input visible when the user already has a prompt or attached context.
+		this._hasInputContent = observableFromEvent(this,
+			Event.any(this._editor.onDidChangeModelContent, this._contextAttachments.onDidChangeContext),
+			() => this._editor.getValue().trim().length > 0 || this._contextAttachments.attachments.length > 0
+		);
 		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined), inputHasContent, this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
@@ -1213,6 +1225,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** See {@link INewChatVoiceComposer.routesWhileSessionActive}. */
 	get routesWhileSessionActive(): boolean {
 		return this.options.voiceRoutesWhileSessionActive === true;
+	}
+
+	/** See {@link INewChatVoiceComposer.hasInputContent}. */
+	get hasInputContent(): IObservable<boolean> | undefined {
+		return this._hasInputContent;
 	}
 
 	prefillInput(text: string): void {

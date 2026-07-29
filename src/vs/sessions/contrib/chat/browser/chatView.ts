@@ -38,6 +38,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
+import { observeChatWidgetHasInputContent } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputContent.js';
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -391,6 +392,7 @@ export class ChatView extends AbstractChatView {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,
 			getCurrentResource: () => this._currentChatResource,
+			hasInputContent: observeChatWidgetHasInputContent(this, this._widget),
 		}));
 	}
 
