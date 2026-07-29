@@ -471,14 +471,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._modelPrepareCts = cts;
 		this._modelPromise = (async () => {
 			try {
-				// Report `Loading` (not `Downloading`) while the runtime, SDK and
-				// manager are prepared and the catalog is queried: at this point we
-				// do not yet know whether the model is already cached on disk.
-				// Emitting `Downloading` here would flash "Downloading model" on
-				// every fresh service instance — i.e. once per window/workspace —
-				// even when the model files already exist in the shared on-disk
-				// cache and nothing is actually fetched. The `Downloading` status
-				// is only emitted below, once we determine the model is not cached.
+				// The model cache state is unknown until the catalog is queried.
 				this._setStatus({ state: LocalTranscriptionModelState.Loading });
 
 				// Ensure the Foundry Local native runtime (N-API addon + core
