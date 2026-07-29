@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IObservableSignal, IReader, ISettableObservable, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
-import { MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
-import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
-import { ChatTreeItem } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
-import { IChatEditingService, IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { isRequestVM, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import { localize } from '../../../../../nls.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, IObservableSignal, IReader, ISettableObservable, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { ChatWidget } from '../widget/chatWidget.js';
+import { ChatTreeItem } from '../chat.js';
+import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
+import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
+import { isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
 /** Aggregated diff stats for the edits a prompt (or bucket) produced. */
@@ -395,7 +395,9 @@ export class PromptTimelineModel extends Disposable {
 
 		// The active prompt is the last request whose top edge is at or above the
 		// viewport top. Positions come from the list's layout height model, so
-		// off-screen prompts resolve correctly (not just rendered ones).
+		// off-screen prompts resolve correctly (not just rendered ones). Rows are
+		// ordered, so the search stops at the first request below the viewport top
+		// instead of walking the whole (potentially long) transcript on every scroll.
 		const scrollTop = this.widget.scrollTop;
 		const threshold = 24;
 		let activeRequestId: string | undefined;
@@ -404,11 +406,15 @@ export class PromptTimelineModel extends Disposable {
 		for (const item of items) {
 			if (isRequestVM(item)) {
 				const top = this.widget.getElementTop(item);
-				if (top !== undefined && top <= scrollTop + threshold) {
-					activeRequestId = item.id;
-					activeTimestamp = item.timestamp;
-					activeTop = top;
+				if (top === undefined) {
+					continue;
 				}
+				if (top > scrollTop + threshold) {
+					break;
+				}
+				activeRequestId = item.id;
+				activeTimestamp = item.timestamp;
+				activeTop = top;
 			}
 		}
 
