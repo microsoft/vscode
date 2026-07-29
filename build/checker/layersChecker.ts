@@ -6,7 +6,7 @@
 import { API, SymbolFlags, type Checker, type Project, type Symbol as TypeScriptSymbol } from '@typescript/native/unstable/sync';
 import type { Identifier, Node, SourceFile } from '@typescript/native/unstable/ast';
 import { isExportSpecifier, isIdentifier, isImportSpecifier, isPropertyAccessExpression } from '@typescript/native/unstable/ast/is';
-import { join, relative } from 'path';
+import { dirname, isAbsolute, join, relative, resolve } from 'path';
 import minimatch from 'minimatch';
 
 //
@@ -196,7 +196,8 @@ function findDisallowedType(checker: Checker, symbol: TypeScriptSymbol, disallow
 }
 
 export function getRule(fileName: string, rootPath: string, rules: readonly IRule[]): IRule | undefined {
-	const relativeFileName = relative(rootPath, fileName).replaceAll('\\', '/');
+	const absoluteFileName = isAbsolute(fileName) ? fileName : resolve(rootPath, fileName);
+	const relativeFileName = relative(rootPath, absoluteFileName).replaceAll('\\', '/');
 	return rules.find(rule => minimatch(relativeFileName, rule.target));
 }
 
@@ -204,14 +205,15 @@ export function checkProject(project: Project, rootPath: string, rules: readonly
 	const violations: ILayerViolation[] = [];
 
 	for (const fileName of project.program.getSourceFileNames()) {
-		const rule = getRule(fileName, rootPath, rules);
+		const absoluteFileName = isAbsolute(fileName) ? fileName : resolve(rootPath, fileName);
+		const rule = getRule(absoluteFileName, rootPath, rules);
 		if (!rule || rule.skip || !rule.disallowedTypes?.length) {
 			continue;
 		}
 
-		const sourceFile = project.program.getSourceFile(fileName);
+		const sourceFile = project.program.getSourceFile(absoluteFileName);
 		if (!sourceFile) {
-			throw new Error(`Native TypeScript did not return source file '${fileName}'.`);
+			throw new Error(`Native TypeScript did not return source file '${absoluteFileName}'.`);
 		}
 
 		try {
@@ -251,8 +253,23 @@ export function checkLayerViolations(tsconfigPath: string, rootPath: string, rul
 	}
 }
 
-export function runLayerChecker(tsconfigPath: string, rootPath: string, rules: readonly IRule[]): number {
-	const violations = checkLayerViolations(tsconfigPath, rootPath, rules);
+export function runLayerChecker(tsconfigPath: string, rules: readonly IRule[]): number;
+export function runLayerChecker(tsconfigPath: string, rootPath: string, rules: readonly IRule[]): number;
+export function runLayerChecker(tsconfigPath: string, rootPathOrRules: string | readonly IRule[], rules?: readonly IRule[]): number {
+	let rootPath: string;
+	let resolvedRules: readonly IRule[];
+	if (typeof rootPathOrRules === 'string') {
+		if (!rules) {
+			throw new Error('Layer checker rules are required when providing a root path.');
+		}
+		rootPath = rootPathOrRules;
+		resolvedRules = rules;
+	} else {
+		rootPath = dirname(tsconfigPath);
+		resolvedRules = rootPathOrRules;
+	}
+
+	const violations = checkLayerViolations(tsconfigPath, rootPath, resolvedRules);
 
 	for (const violation of violations) {
 		console.log(`[build/checker/layersChecker.ts]: Reference to type '${violation.type}' violates layer '${violation.target}' (${violation.fileName}:${violation.line}:${violation.character}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);

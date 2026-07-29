@@ -15,7 +15,7 @@ suite('layersChecker', () => {
 	let tsconfigPath: string;
 
 	const rules: IRule[] = [
-		{ target: '**/test/**', skip: true },
+		{ target: '**/skipped/**', skip: true },
 		{ target: '**/browser/**', disallowedTypes: ['ForbiddenService'] },
 	];
 
@@ -41,12 +41,15 @@ suite('layersChecker', () => {
 	test('matches rules relative to a hidden parent path', () => {
 		const fileName = join(rootPath, 'vs', 'feature', 'browser', 'feature.ts');
 
-		assert.strictEqual(getRule(fileName, rootPath, rules), rules[1]);
+		assert.deepStrictEqual([
+			getRule(fileName, rootPath, rules),
+			getRule('vs/feature/browser/feature.ts', rootPath, rules),
+		], [rules[1], rules[1]]);
 	});
 
-	test('excludes skipped root files from the program', () => {
+	test('skips files matched by skip rules', () => {
 		writeForbiddenService();
-		writeSource('vs/feature/test/feature.test.ts', `
+		writeSource('vs/feature/skipped/feature.ts', `
 			import { ForbiddenService } from '../../platform/common/service.js';
 			export const service: ForbiddenService | undefined = undefined;
 		`);

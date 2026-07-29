@@ -1,8 +1,9 @@
 {
 	"extends": "../../src/tsconfig.json",
 	"exclude": [
+		// Keep exclusions from src/tsconfig.json because inherited exclusions are replaced.
+		"../../src/vs/workbench/contrib/webview/browser/pre/service-worker.js",
 		"../../src/**/test/**",
-		"../../src/**/fixtures/**",
-		"../../src/vs/workbench/contrib/webview/browser/pre/service-worker.js"
+		"../../src/**/fixtures/**"
 	]
 }
