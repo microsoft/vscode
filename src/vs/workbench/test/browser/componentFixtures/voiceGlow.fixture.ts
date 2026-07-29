@@ -265,22 +265,21 @@ function makeResizable(cells: readonly IResizableCell[], container: HTMLElement,
 /**
  * Render one treatment cycled through all four states (with the per-state color).
  *
- * `live` runs the effect exactly as production does — entrance fade-in plus the
- * shared rAF breathing loop — so the motion can be judged in the explorer. The
- * screenshot variants stay frozen so CI captures a deterministic frame.
+ * In the explorer the effect runs exactly as production does — entrance fade-in
+ * plus the shared rAF breathing loop. For screenshot capture it is pinned to a
+ * settled frame so CI stays deterministic.
  */
 interface FlowOptions {
 	readonly title: string;
 	readonly treatment: Treatment;
-	readonly live?: boolean;
 	readonly layout?: MockInputLayout;
 }
 
 function renderTreatmentFlow(ctx: ComponentFixtureContext, options: FlowOptions): void {
-	const { container, disposableStore } = ctx;
-	const { title, treatment, live = false, layout = 'tall' } = options;
+	const { container, disposableStore, isInteractive } = ctx;
+	const { title, treatment, layout = 'tall' } = options;
 	container.style.cssText = 'padding:36px 44px;display:flex;flex-direction:column;gap:30px;align-items:flex-start;';
-	if (live) {
+	if (isInteractive) {
 		enableAnimations(container);
 	}
 
@@ -313,8 +312,8 @@ function renderTreatmentFlow(ctx: ComponentFixtureContext, options: FlowOptions)
 				theme: beamTheme,
 				borderRadius: INPUT_RADIUS,
 				hueBaseDeg: state.tone.hueBaseDeg ?? themeHue,
-				startVisible: !live,
-				staticPreview: !live,
+				startVisible: !isInteractive,
+				staticPreview: !isInteractive,
 			});
 		};
 		reapplyBeam();
@@ -329,9 +328,11 @@ function renderTreatmentFlow(ctx: ComponentFixtureContext, options: FlowOptions)
  * real-time timer, so the full state flow can be compared treatment by treatment.
  */
 function renderAllTreatmentsCycling(ctx: ComponentFixtureContext, layout: MockInputLayout): void {
-	const { container, disposableStore } = ctx;
+	const { container, disposableStore, isInteractive } = ctx;
 	container.style.cssText = 'padding:36px 44px;display:flex;flex-direction:column;gap:26px;align-items:flex-start;';
-	enableAnimations(container);
+	if (isInteractive) {
+		enableAnimations(container);
+	}
 
 	const heading = $('div');
 	heading.style.cssText = 'font-size:13px;font-weight:600;font-family:var(--vscode-font-family);color:var(--vscode-foreground);';
@@ -366,6 +367,8 @@ function renderAllTreatmentsCycling(ctx: ComponentFixtureContext, layout: MockIn
 			theme: beamTheme,
 			borderRadius: INPUT_RADIUS,
 			hueBaseDeg: state.tone.hueBaseDeg ?? themeHue,
+			startVisible: !isInteractive,
+			staticPreview: !isInteractive,
 		});
 	};
 
@@ -379,26 +382,21 @@ function renderAllTreatmentsCycling(ctx: ComponentFixtureContext, layout: MockIn
 	};
 
 	advance();
-	disposableStore.add(disposableWindowInterval(getWindow(container), advance, STATE_CYCLE_MS));
+	// Only cycle while someone is watching; a screenshot captures the first state.
+	if (isInteractive) {
+		disposableStore.add(disposableWindowInterval(getWindow(container), advance, STATE_CYCLE_MS));
+	}
 	makeResizable(rows.map(row => ({ box: row.box, wrapper: row.wrapper, reapplyBeam: () => applyRow(row) })), container, disposableStore);
 }
 
-/** The four treatments as one page, in a given layout — static and live side by side. */
+/** The four treatments as one page, in a given layout. */
 function defineTreatmentPage(layout: MockInputLayout) {
 	const suffix = layout === 'wide' ? ' — wide' : '';
-	const page = (name: string, title: string, treatment: Treatment) => ({
-		[name]: defineComponentFixture({
+	const page = (name: string, title: string, treatment: Treatment) =>
+		defineComponentFixture({
 			labels: { kind: 'screenshot' as const },
 			render: (ctx: ComponentFixtureContext) => renderTreatmentFlow(ctx, { title: title + suffix, treatment, layout }),
-		}),
-		// Live counterpart: breathing/fading like production so the motion (not
-		// just a frozen frame) can be reviewed. Runs on the real clock.
-		[`${name}Live`]: defineComponentFixture({
-			labels: { kind: 'animated' as const },
-			virtualTime: { enabled: false },
-			render: (ctx: ComponentFixtureContext) => renderTreatmentFlow(ctx, { title: `${title}${suffix} — live`, treatment, live: true, layout }),
-		}),
-	});
+		});
 
 	return {
 		// Every treatment at once, cycling through the states — the page for
@@ -408,10 +406,10 @@ function defineTreatmentPage(layout: MockInputLayout) {
 			virtualTime: { enabled: false },
 			render: (ctx: ComponentFixtureContext) => renderAllTreatmentsCycling(ctx, layout),
 		}),
-		...page('Edge', 'Grouped rim (edge)', TREATMENTS.Edge),
-		...page('Bloom', 'Outside bloom', TREATMENTS.Bloom),
-		...page('Rotate', 'Traveling beam (rotate)', TREATMENTS.Rotate),
-		...page('RotateOutside', 'Traveling beam, outside glow (rotate-outside)', TREATMENTS.RotateOutside),
+		Edge: page('Edge', 'Grouped rim (edge)', TREATMENTS.Edge),
+		Bloom: page('Bloom', 'Outside bloom', TREATMENTS.Bloom),
+		Rotate: page('Rotate', 'Traveling beam (rotate)', TREATMENTS.Rotate),
+		RotateOutside: page('RotateOutside', 'Traveling beam, outside glow (rotate-outside)', TREATMENTS.RotateOutside),
 	};
 }
 
