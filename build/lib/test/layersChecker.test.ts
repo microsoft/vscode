@@ -8,7 +8,7 @@ import { afterEach, beforeEach, suite, test } from 'node:test';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join } from 'path';
-import { checkProgram, createProgram, getRule, type ILayerViolation, type IRule } from '../../checker/layersChecker.ts';
+import { checkLayerViolations, getRule, type ILayerViolation, type IRule } from '../../checker/layersChecker.ts';
 
 suite('layersChecker', () => {
 	let rootPath: string;
@@ -30,6 +30,7 @@ suite('layersChecker', () => {
 				skipLibCheck: true,
 			},
 			include: ['**/*.ts'],
+			exclude: ['**/test/**'],
 		}));
 	});
 
@@ -44,12 +45,13 @@ suite('layersChecker', () => {
 	});
 
 	test('excludes skipped root files from the program', () => {
-		writeSource('vs/feature/browser/feature.ts', 'export const value = 1;');
-		const skippedFile = writeSource('vs/feature/test/feature.test.ts', 'export const value = 1;');
+		writeForbiddenService();
+		writeSource('vs/feature/test/feature.test.ts', `
+			import { ForbiddenService } from '../../platform/common/service.js';
+			export const service: ForbiddenService | undefined = undefined;
+		`);
 
-		const program = createProgram(tsconfigPath, rules);
-
-		assert.strictEqual(program.getRootFileNames().includes(skippedFile), false);
+		assert.deepStrictEqual(getViolations(), []);
 	});
 
 	test('detects aliased forbidden types', () => {
@@ -93,8 +95,7 @@ suite('layersChecker', () => {
 	}
 
 	function getViolations(): Pick<ILayerViolation, 'type' | 'fileName' | 'line' | 'character'>[] {
-		const program = createProgram(tsconfigPath, rules);
-		return checkProgram(program, rootPath, rules).map(violation => ({
+		return checkLayerViolations(tsconfigPath, rootPath, rules).map(violation => ({
 			type: violation.type,
 			fileName: violation.fileName.slice(rootPath.length + 1).replaceAll('\\', '/'),
 			line: violation.line,

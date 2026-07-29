@@ -1,0 +1,8 @@
+{
+	"extends": "../../src/tsconfig.json",
+	"exclude": [
+		"../../src/**/test/**",
+		"../../src/**/fixtures/**",
+		"../../src/vs/workbench/contrib/webview/browser/pre/service-worker.js"
+	]
+}

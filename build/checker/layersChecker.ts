@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ts from 'typescript';
-import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname, join, relative } from 'path';
+import { API, SymbolFlags, type Checker, type Project, type Symbol as TypeScriptSymbol } from '@typescript/native/unstable/sync';
+import type { Identifier, Node, SourceFile } from '@typescript/native/unstable/ast';
+import { isExportSpecifier, isIdentifier, isImportSpecifier, isPropertyAccessExpression } from '@typescript/native/unstable/ast/is';
+import { join, relative } from 'path';
 import minimatch from 'minimatch';
 
 //
@@ -98,7 +99,9 @@ export const RULES: IRule[] = [
 	}
 ];
 
-const TS_CONFIG_PATH = join(import.meta.dirname, '../../', 'src', 'tsconfig.json');
+const TS_CONFIG_PATH = join(import.meta.dirname, 'tsconfig.semantic.json');
+const SOURCE_ROOT = join(import.meta.dirname, '../../src');
+const GO_MEMORY_LIMIT = '3GiB';
 
 export interface IRule {
 	target: string;
@@ -114,42 +117,30 @@ export interface ILayerViolation {
 	character: number;
 }
 
-function checkFile(checker: ts.TypeChecker, sourceFile: ts.SourceFile, rule: IRule, violations: ILayerViolation[]): void {
+function checkFile(checker: Checker, sourceFile: SourceFile, rule: IRule): ILayerViolation[] {
 	if (!rule.disallowedTypes?.length) {
-		return;
+		return [];
 	}
 
 	const disallowedTypes = new Set(rule.disallowedTypes);
 	const candidateNames = new Set(disallowedTypes);
+	const candidates: Identifier[] = [];
 
 	collectAliases(sourceFile);
-	checkNode(sourceFile);
+	collectCandidates(sourceFile);
 
-	function collectAliases(node: ts.Node): void {
-		if ((ts.isImportSpecifier(node) || ts.isExportSpecifier(node)) && disallowedTypes.has((node.propertyName ?? node.name).text)) {
-			candidateNames.add(node.name.text);
-		}
+	const symbols = checker.getSymbolAtLocation(candidates);
+	const violations: ILayerViolation[] = [];
 
-		ts.forEachChild(node, collectAliases);
-	}
-
-	function checkNode(node: ts.Node): void {
-		if (!ts.isIdentifier(node)) {
-			return ts.forEachChild(node, checkNode); // recurse down
-		}
-
-		if (!candidateNames.has(node.text) && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) {
-			return;
-		}
-
-		const symbol = checker.getSymbolAtLocation(node);
-
+	for (let index = 0; index < symbols.length; index++) {
+		const symbol = symbols[index];
 		if (!symbol) {
-			return;
+			continue;
 		}
 
 		const type = findDisallowedType(checker, symbol, disallowedTypes);
 		if (type) {
+			const node = candidates[index];
 			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
 			violations.push({
 				type,
@@ -160,38 +151,45 @@ function checkFile(checker: ts.TypeChecker, sourceFile: ts.SourceFile, rule: IRu
 			});
 		}
 	}
+
+	return violations;
+
+	function collectAliases(node: Node): void {
+		if ((isImportSpecifier(node) || isExportSpecifier(node)) && isIdentifier(node.name)) {
+			const importedName = node.propertyName ?? node.name;
+			if (isIdentifier(importedName) && disallowedTypes.has(importedName.text)) {
+				candidateNames.add(node.name.text);
+			}
+		}
+
+		node.forEachChild(collectAliases);
+	}
+
+	function collectCandidates(node: Node): void {
+		if (!isIdentifier(node)) {
+			return node.forEachChild(collectCandidates);
+		}
+
+		if (candidateNames.has(node.text) || (isPropertyAccessExpression(node.parent) && node.parent.name === node)) {
+			candidates.push(node);
+		}
+	}
 }
 
-function findDisallowedType(checker: ts.TypeChecker, symbol: ts.Symbol, disallowedTypes: Set<string>): string | undefined {
-	const seen = new Set<ts.Symbol>();
-	let current: ts.Symbol | undefined = symbol;
+function findDisallowedType(checker: Checker, symbol: TypeScriptSymbol, disallowedTypes: Set<string>): string | undefined {
+	const seen = new Set<TypeScriptSymbol>();
+	let current: TypeScriptSymbol | undefined = symbol;
 
 	while (current && !seen.has(current)) {
 		seen.add(current);
 
-		const name = current.getName();
-		if (disallowedTypes.has(name)) {
-			return name;
+		if (disallowedTypes.has(current.name)) {
+			return current.name;
 		}
 
-		if (current.flags & ts.SymbolFlags.Alias) {
-			current = checker.getAliasedSymbol(current);
-		} else {
-			current = getContainingSymbol(checker, current);
-		}
-	}
-
-	return undefined;
-}
-
-function getContainingSymbol(checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol | undefined {
-	for (const declaration of symbol.declarations ?? []) {
-		const container = declaration.parent;
-		if (ts.isClassDeclaration(container) || ts.isClassExpression(container) || ts.isInterfaceDeclaration(container) || ts.isEnumDeclaration(container) || ts.isModuleDeclaration(container)) {
-			if (container.name) {
-				return checker.getSymbolAtLocation(container.name);
-			}
-		}
+		current = current.flags & SymbolFlags.Alias
+			? checker.getAliasedSymbol(current)
+			: current.getParent();
 	}
 
 	return undefined;
@@ -202,37 +200,59 @@ export function getRule(fileName: string, rootPath: string, rules: readonly IRul
 	return rules.find(rule => minimatch(relativeFileName, rule.target));
 }
 
-export function createProgram(tsconfigPath: string, rules: readonly IRule[]): ts.Program {
-	const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-
-	const configHostParser: ts.ParseConfigHost = { fileExists: existsSync, readDirectory: ts.sys.readDirectory, readFile: file => readFileSync(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
-	const rootPath = resolve(dirname(tsconfigPath));
-	const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, rootPath, { noEmit: true });
-	const rootFileNames = tsConfigParsed.fileNames.filter(fileName => !getRule(fileName, rootPath, rules)?.skip);
-
-	const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
-
-	return ts.createProgram(rootFileNames, tsConfigParsed.options, compilerHost);
-}
-
-export function checkProgram(program: ts.Program, rootPath: string, rules: readonly IRule[]): ILayerViolation[] {
-	const checker = program.getTypeChecker();
+export function checkProject(project: Project, rootPath: string, rules: readonly IRule[], clearSourceFileCache: () => void): ILayerViolation[] {
 	const violations: ILayerViolation[] = [];
 
-	for (const sourceFile of program.getSourceFiles()) {
-		const rule = getRule(sourceFile.fileName, rootPath, rules);
-		if (rule && !rule.skip) {
-			checkFile(checker, sourceFile, rule, violations);
+	for (const fileName of project.program.getSourceFileNames()) {
+		const rule = getRule(fileName, rootPath, rules);
+		if (!rule || rule.skip || !rule.disallowedTypes?.length) {
+			continue;
+		}
+
+		const sourceFile = project.program.getSourceFile(fileName);
+		if (!sourceFile) {
+			throw new Error(`Native TypeScript did not return source file '${fileName}'.`);
+		}
+
+		try {
+			violations.push(...checkFile(project.checker, sourceFile, rule));
+		} finally {
+			clearSourceFileCache();
 		}
 	}
 
 	return violations;
 }
 
-export function runLayerChecker(tsconfigPath: string, rules: readonly IRule[]): number {
-	const rootPath = resolve(dirname(tsconfigPath));
-	const program = createProgram(tsconfigPath, rules);
-	const violations = checkProgram(program, rootPath, rules);
+export function checkLayerViolations(tsconfigPath: string, rootPath: string, rules: readonly IRule[]): ILayerViolation[] {
+	const previousGoMemoryLimit = process.env.GOMEMLIMIT;
+	process.env.GOMEMLIMIT ??= GO_MEMORY_LIMIT;
+
+	const api = new API({ cwd: rootPath });
+	try {
+		const snapshot = api.updateSnapshot({ openProjects: [tsconfigPath] });
+		try {
+			const project = snapshot.getProject(tsconfigPath);
+			if (!project) {
+				throw new Error(`Native TypeScript did not open project '${tsconfigPath}'.`);
+			}
+
+			return checkProject(project, rootPath, rules, () => api.clearSourceFileCache());
+		} finally {
+			snapshot.dispose();
+		}
+	} finally {
+		api.close();
+		if (previousGoMemoryLimit === undefined) {
+			delete process.env.GOMEMLIMIT;
+		} else {
+			process.env.GOMEMLIMIT = previousGoMemoryLimit;
+		}
+	}
+}
+
+export function runLayerChecker(tsconfigPath: string, rootPath: string, rules: readonly IRule[]): number {
+	const violations = checkLayerViolations(tsconfigPath, rootPath, rules);
 
 	for (const violation of violations) {
 		console.log(`[build/checker/layersChecker.ts]: Reference to type '${violation.type}' violates layer '${violation.target}' (${violation.fileName}:${violation.line}:${violation.character}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
@@ -242,5 +262,5 @@ export function runLayerChecker(tsconfigPath: string, rules: readonly IRule[]): 
 }
 
 if (import.meta.main) {
-	process.exitCode = runLayerChecker(TS_CONFIG_PATH, RULES) ? 1 : 0;
+	process.exitCode = runLayerChecker(TS_CONFIG_PATH, SOURCE_ROOT, RULES) ? 1 : 0;
 }
