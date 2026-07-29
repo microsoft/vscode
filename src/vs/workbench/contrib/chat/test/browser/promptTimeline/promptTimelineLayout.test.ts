@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { spaceMarkCenters } from '../../browser/promptTimelineLayout.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { spaceMarkCenters } from '../../../browser/promptTimeline/promptTimelineLayout.js';
 
 suite('spaceMarkCenters', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

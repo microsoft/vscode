@@ -16,6 +16,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -251,6 +252,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				toolbarOptions: { primaryGroup: () => true },
 			}));
 			this._register(this._openChatToolbar.onDidChangeMenuItems(() => this._trackOpenChatActions()));
+			this._register(this.actionViewItemService.onDidChange(menuId => {
+				if (menuId === MenuId.ChatSubagentContent) {
+					this._trackOpenChatActions();
+				}
+			}));
 			this._trackOpenChatActions();
 		}
 		this._updateOpenChatToolbarContext();
@@ -328,6 +334,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
 		const { description, isDefaultDescription, agentName, prompt, modelName, credits } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);

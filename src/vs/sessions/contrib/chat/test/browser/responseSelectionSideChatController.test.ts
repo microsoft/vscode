@@ -49,6 +49,11 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const markdown = doc.createElement('div');
 		markdown.classList.add('chat-markdown-part');
+		// Positioned so the selection's real client rects (the controller
+		// measures the range itself) land at known coordinates.
+		markdown.style.position = 'absolute';
+		markdown.style.top = '0px';
+		markdown.style.left = '0px';
 		const textNode = doc.createTextNode('hello world');
 		markdown.appendChild(textNode);
 		widgetDomNode.appendChild(markdown);
@@ -68,27 +73,28 @@ suite('ResponseSelectionSideChatController', () => {
 		const originalGetSelection = targetWindow.getSelection.bind(targetWindow);
 		const mutableWindow = targetWindow as typeof targetWindow & { getSelection: () => Selection | null };
 		let selectionText = '';
-		let rangeRect: Partial<DOMRect> = { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
-		mutableWindow.getSelection = () => ({
+		const range = doc.createRange();
+		range.setStart(textNode, 0);
+		range.setEnd(textNode, textNode.data.length);
+		mutableWindow.getSelection = () => upcastPartial<Selection>({
 			toString: () => selectionText,
 			isCollapsed: selectionText.length === 0,
 			anchorNode: textNode,
 			focusNode: textNode,
 			rangeCount: 1,
-			getRangeAt: () => ({
-				getBoundingClientRect: () => rangeRect as DOMRect,
-			}),
-		} as unknown as Selection);
+			getRangeAt: () => range,
+		});
 		store.add(toDisposable(() => { mutableWindow.getSelection = originalGetSelection; }));
 
-		const setSelection = (text: string, rect?: Partial<DOMRect>) => {
+		const setSelection = (text: string, selectionTop?: number) => {
 			selectionText = text;
-			if (rect) {
-				rangeRect = rect;
+			if (selectionTop !== undefined) {
+				markdown.style.top = `${selectionTop}px`;
 			}
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
 		const setContainerRect = (rect: Partial<DOMRect>) => { containerRect = rect; };
+		const highlightedRanges = () => targetWindow.CSS.highlights?.get('chat-response-selection')?.size ?? 0;
 
 		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
 		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/source') });
@@ -123,7 +129,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
 		controller.setChat(chat);
 
-		return { controller, setSelection, setContainerRect, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService };
+		return { controller, setSelection, setContainerRect, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges };
 	}
 
 	function inputDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
@@ -249,11 +255,39 @@ suite('ResponseSelectionSideChatController', () => {
 		// A container far shorter than any realistic widget height forces the
 		// vertical clamp to floor the overlay at the top.
 		setContainerRect({ top: 0, left: 0, width: 600, height: 20 });
-		setSelection('hello world', { top: 10, bottom: 15, left: 0, right: 10, width: 10, height: 5 });
+		setSelection('hello world', 10);
 
 		const style = inputDomNode(controller).style;
 		assert.notStrictEqual(style.display, 'none');
 		assert.strictEqual(parseFloat(style.top), 0);
+	});
+
+	test('paints the captured selection with a custom highlight once the native selection is gone', () => {
+		const { controller, setSelection, highlightedRanges } = setup();
+		setSelection('hello world');
+		assert.strictEqual(highlightedRanges(), 0, 'the browser still paints the live native selection');
+
+		// Focusing the textarea collapses the native selection; the highlight
+		// takes over so the user can still see what they selected.
+		inputTextArea(controller).focus();
+		setSelection('');
+		assert.strictEqual(highlightedRanges(), 1);
+
+		inputTextArea(controller).blur();
+		setSelection('');
+		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+		assert.strictEqual(highlightedRanges(), 0, 'dismissing must clear the highlight');
+	});
+
+	test('clears the highlight when the controller is disposed', () => {
+		const { controller, setSelection, highlightedRanges } = setup();
+		setSelection('hello world');
+		inputTextArea(controller).focus();
+		setSelection('');
+		assert.strictEqual(highlightedRanges(), 1);
+
+		controller.dispose();
+		assert.strictEqual(highlightedRanges(), 0);
 	});
 
 	test('stays visible with a busy state while the request is pending, then clears once it settles', async () => {

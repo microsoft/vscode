@@ -71,8 +71,6 @@ export interface IChatWidgetFixtureOptions {
 	readonly height?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
-	/** Chat list rendering style. Defaults to compact for existing fixtures. */
-	readonly renderStyle?: 'default' | 'compact' | 'minimal';
 	/** Whether to populate the response footer with an action. */
 	readonly responseFooterAction?: boolean;
 	/** Whether to show request and response timing details. */
@@ -332,7 +330,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
 	}
 
-	const renderStyle = options.renderStyle === 'default' ? undefined : options.renderStyle ?? 'compact';
 	const inputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -378,7 +375,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		{
 			currentChatMode: () => ChatModeKind.Agent,
 			defaultElementHeight: 120,
-			renderStyle,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground: 'var(--vscode-editor-background)',
@@ -466,24 +462,22 @@ const LAST_RESPONSE_HOVER: IFixtureMessage[] = [
 	{
 		user: 'Summarize the changes',
 		assistant: [
-			{ kind: 'markdown', text: 'The response content ends here. The remaining row height is reserved space.' },
+			{ kind: 'markdown', text: 'The response content ends here.' },
 		],
 		details: 'Claude Opus 4.8 - 2 credits',
 	},
 ];
 
-async function renderLastResponseHover(context: ComponentFixtureContext, target: 'content' | 'reserved-space'): Promise<void> {
+async function renderLastResponseHover(context: ComponentFixtureContext): Promise<void> {
 	await renderChatWidget(context, {
 		messages: LAST_RESPONSE_HOVER,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 	});
 
 	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
-	const hoverTarget = target === 'content' ? response?.querySelector<HTMLElement>(':scope > .value') : response;
-	hoverTarget?.dispatchEvent(new MouseEvent('mouseenter'));
+	response?.querySelector<HTMLElement>(':scope > .value')?.dispatchEvent(new MouseEvent('mouseenter'));
 }
 
 const KEYBOARD_FOCUS: IFixtureMessage[] = [
@@ -508,7 +502,6 @@ async function renderKeyboardFocus(context: ComponentFixtureContext, target: 're
 		messages: KEYBOARD_FOCUS,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 		verbose: target === 'request-timestamp',
 	});
@@ -647,7 +640,6 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		}],
 		width: 720,
 		height: 600,
-		renderStyle: 'default',
 		hostLayoutMode,
 		onRendered: value => handle = value,
 	});
@@ -776,8 +768,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
-	LastResponseContentHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'content') }),
-	LastResponseReservedSpaceHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'reserved-space') }),
+	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),
 	ResponseActionKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'response-action') }),
 	RequestTimestampKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'request-timestamp') }),
 });
