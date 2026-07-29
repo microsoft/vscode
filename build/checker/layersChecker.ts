@@ -192,6 +192,10 @@ function collectMemberReferences(sourceFile: SourceFile, memberNames: ReadonlySe
 	return identifiers;
 }
 
+function isSymbol(symbol: Symbol | undefined): symbol is Symbol {
+	return !!symbol;
+}
+
 async function getSymbols(checker: Checker, nodes: readonly Node[]): Promise<(Symbol | undefined)[]> {
 	const symbols: (Symbol | undefined)[] = [];
 
@@ -272,7 +276,7 @@ async function resolveRemainingTypes(program: Program, checker: Checker, fileNam
 		}
 
 		const symbols = await getSymbols(checker, nodes);
-		await addDisallowedSymbols(checker, symbols.filter(symbol => !!symbol), disallowedTypes, disallowed);
+		await addDisallowedSymbols(checker, symbols.filter(isSymbol), disallowedTypes, disallowed);
 
 		for (const type of disallowed.resolvedTypes) {
 			remaining.delete(type);
@@ -284,20 +288,28 @@ async function resolveRemainingTypes(program: Program, checker: Checker, fileNam
 	}
 }
 
-function toViolations(candidates: readonly ICandidate[], symbols: readonly (Symbol | undefined)[], disallowed: IDisallowedSymbols): ILayerViolation[] {	const violations: ILayerViolation[] = [];
+function toViolations(candidates: readonly ICandidate[], symbols: readonly (Symbol | undefined)[], disallowed: IDisallowedSymbols): ILayerViolation[] {
+	const violations: ILayerViolation[] = [];
 
 	for (let i = 0; i < candidates.length; i++) {
 		const candidate = candidates[i];
 		const symbol = symbols[i];
-		if (!symbol) {
+		const disallowedTypes = candidate.rule.disallowedTypes;
+		if (!symbol || !disallowedTypes?.length) {
 			continue;
 		}
 
-		// A symbol matches when it is (or aliases) a disallowed type or one of
-		// its members. The name check also catches aliases the compiler could
-		// not resolve, where the reference is still spelled out in the source.
-		const type = candidate.rule.disallowedTypes?.includes(symbol.name) ? symbol.name : disallowed.symbolIds.get(symbol.id);
-		if (type && candidate.rule.disallowedTypes?.includes(type)) {
+		// The name check catches references the compiler could not resolve to a
+		// declaration, where the disallowed type is still spelled out in the source.
+		if (disallowedTypes.includes(symbol.name)) {
+			violations.push(toViolation(candidate, symbol.name));
+			continue;
+		}
+
+		// Otherwise the symbol matches if it is (or aliases) a disallowed type or
+		// one of its members.
+		const type = disallowed.symbolIds.get(symbol.id);
+		if (type && disallowedTypes.includes(type)) {
 			violations.push(toViolation(candidate, type));
 		}
 	}
@@ -323,9 +335,10 @@ export async function checkProject(project: Project, fileNames: readonly string[
 		}
 	}
 
-	// Pass 1: identifiers that name a disallowed type. Files that a rule exempts
-	// are deliberately visited too, because that is where the disallowed types
-	// are usually declared and where their members are read from.
+	// Pass 1: identifiers that name a disallowed type. Files matched by a rule
+	// that disallows nothing are visited too, because that is where those types
+	// are declared and where their members are read from. Files that are skipped
+	// or match no rule at all are left to resolveRemainingTypes below.
 	const disallowedTypes = new Set(rules.flatMap(rule => rule.disallowedTypes ?? []));
 	const namedCandidates: ICandidate[] = [];
 	for (const { sourceFile, rule } of sourceFiles) {
@@ -336,7 +349,7 @@ export async function checkProject(project: Project, fileNames: readonly string[
 
 	const disallowed: IDisallowedSymbols = { symbolIds: new Map(), memberNames: new Set(), resolvedTypes: new Set() };
 	const namedSymbols = await getSymbols(checker, namedCandidates.map(candidate => candidate.node));
-	await addDisallowedSymbols(checker, namedSymbols.filter(symbol => !!symbol), disallowedTypes, disallowed);
+	await addDisallowedSymbols(checker, namedSymbols.filter(isSymbol), disallowedTypes, disallowed);
 	await resolveRemainingTypes(program, checker, otherFileNames, disallowedTypes, disallowed);
 
 	// Pass 2: property accesses that may resolve to a member of a disallowed type.
