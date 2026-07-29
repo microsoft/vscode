@@ -9,6 +9,8 @@ import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { buildMicrophoneOptions, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
 
@@ -26,6 +28,19 @@ function device(kind: MediaDeviceKind, deviceId: string, label: string): MediaDe
 suite('Dictation onboarding', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	interface ITelemetryEvent { readonly name: string; readonly data: unknown }
+
+	class TestTelemetryService extends NullTelemetryServiceShape {
+		constructor(private readonly events: ITelemetryEvent[]) {
+			super();
+		}
+
+		override publicLog2(eventName?: string, data?: unknown): void {
+			if (eventName) {
+				this.events.push({ name: eventName, data });
+			}
+		}
+	}
 
 	function createHost(store: Pick<DisposableStore, 'add'>): { root: HTMLElement; container: HTMLElement } {
 		const root = dom.$('div');
@@ -36,13 +51,14 @@ suite('Dictation onboarding', () => {
 		return { root, container };
 	}
 
-	function createService(store: Pick<DisposableStore, 'add'>, executed?: string[]): DictationOnboardingService {
+	function createService(store: Pick<DisposableStore, 'add'>, executed?: string[], telemetryEvents: ITelemetryEvent[] = []): DictationOnboardingService {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		if (executed) {
 			instantiationService.stub(ICommandService, {
 				executeCommand: async (id: string) => { executed.push(id); },
 			} as unknown as ICommandService);
 		}
+		instantiationService.stub(ITelemetryService, new TestTelemetryService(telemetryEvents));
 		return store.add(instantiationService.createInstance(DictationOnboardingService));
 	}
 
@@ -79,7 +95,8 @@ suite('Dictation onboarding', () => {
 	});
 
 	test('takes over the first dictation, then never returns', async () => {
-		const service = createService(disposables);
+		const telemetryEvents: ITelemetryEvent[] = [];
+		const service = createService(disposables, undefined, telemetryEvents);
 		const host = createHost(disposables);
 		disposables.add(service.registerHost(host.container, host.root));
 
@@ -103,12 +120,17 @@ suite('Dictation onboarding', () => {
 				dictationsAfterHandoff: dictations,
 				visibleAfterHandoff: host.container.classList.contains('has-dictation-onboarding'),
 				tookOverAgain,
+				telemetryEvents,
 			},
 			{
 				tookOver: true, shown: true, dictationsWhileOpen: 0, dictationsBeforeHandoff: 0,
 				dictationsAfterHandoff: 1,
 				visibleAfterHandoff: false,
 				tookOverAgain: false,
+				telemetryEvents: [
+					{ name: 'dictationOnboarding.action', data: { action: 'shown', source: 'automatic' } },
+					{ name: 'dictationOnboarding.action', data: { action: 'startDictation', source: 'automatic' } },
+				],
 			});
 	});
 
@@ -173,7 +195,8 @@ suite('Dictation onboarding', () => {
 
 	test('offers a way to change the settings and how dictation writes', () => {
 		const executed: string[] = [];
-		const service = createService(disposables, executed);
+		const telemetryEvents: ITelemetryEvent[] = [];
+		const service = createService(disposables, executed, telemetryEvents);
 		const host = createHost(disposables);
 		disposables.add(service.registerHost(host.container, host.root));
 
@@ -187,11 +210,17 @@ suite('Dictation onboarding', () => {
 				// Every link has to be reachable without a mouse, not just the first.
 				keyboardReachable: Array.from(links).every(link => link.tabIndex === 0),
 				executed,
+				telemetryEvents,
 			},
 			{
 				count: 2,
 				keyboardReachable: true,
 				executed: ['workbench.action.openSettings', 'workbench.action.chat.configureDictationInstructions'],
+				telemetryEvents: [
+					{ name: 'dictationOnboarding.action', data: { action: 'shown', source: 'manual' } },
+					{ name: 'dictationOnboarding.action', data: { action: 'openSettings', source: 'manual' } },
+					{ name: 'dictationOnboarding.action', data: { action: 'openInstructions', source: 'manual' } },
+				],
 			});
 	});
 

@@ -15,3 +15,4 @@ export const agentsVoiceSpeakingBackground = registerColor('agentsVoice.speaking
 	{ dark: '#a371f714', light: '#8250df14', hcDark: '#d2a8ff14', hcLight: '#6639ba14' },
 	localize('agentsVoice.speakingBackground', "Background color for the speaking voice state row highlight")
 );
+
