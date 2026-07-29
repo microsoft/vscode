@@ -1393,14 +1393,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			// text on a mid-stream failure, which could replace the complete raw
 			// transcript with a truncated one. Any error here falls through to the
 			// catch and yields `undefined` (raw-transcript fallback).
-			//
-			// The whole consumption is raced against the cancellation token so a
-			// hung or half-open network request — one that never yields another
-			// chunk, errors, or completes — cannot wedge the wait past the
-			// timeout. Without the race, cancellation is only observed between
-			// stream chunks and `response.result` is awaited unconditionally, so a
-			// stalled request would block `stopAndTranscribe` (and the user's
-			// tap-to-stop) forever, leaving dictation stuck and unresponsive.
+			// Bound response consumption so cancellation can release a stalled stream or result wait.
 			let cleaned = '';
 			const consumed = await raceCancellation((async () => {
 				for await (const part of response.stream) {
