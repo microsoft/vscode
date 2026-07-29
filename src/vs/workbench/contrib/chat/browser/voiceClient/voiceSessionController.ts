@@ -5,11 +5,11 @@
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceNarrationAck, IVoiceNarrationSignal } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -27,7 +27,10 @@ import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
-import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference, IChatQuestionCarousel } from '../../common/chatService/chatService.js';
+import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
+import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -37,6 +40,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -46,6 +50,8 @@ import {
 	VoiceToolApprovalClassification, VoiceToolApprovalEvent,
 	VoiceReconnectClassification, VoiceReconnectEvent,
 	VoiceLatencyClassification, VoiceLatencyEvent,
+	VoiceNarrationDeferredClassification, VoiceNarrationDeferredEvent,
+	VoiceNarrationDroppedClassification, VoiceNarrationDroppedEvent,
 } from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
@@ -62,6 +68,17 @@ interface IDeferredChunk {
 interface IDeferredFlushResult {
 	/** True when at least one buffered response was played. */
 	readonly flushed: boolean;
+	/** True when a held deliberate press kept the buffer intact instead of
+	 *  playing it. The buffered reply is still pending and plays on release, so
+	 *  the caller must not re-issue a fresh narration for that SAME reply (see
+	 *  `retainedTranscript`). Absent for the ordinary nothing-to-flush cases,
+	 *  where narration should proceed normally. */
+	readonly retained?: boolean;
+	/** Normalized final transcript of the most recent buffered reply held back
+	 *  by a `retained` flush. Lets the caller suppress only a duplicate
+	 *  re-narrate of that exact reply, never an unrelated confirmation or a
+	 *  newer, different response. Undefined when the buffer had no transcript. */
+	readonly retainedTranscript?: string;
 	/** Normalized final transcript of every response played, in order. Lets the
 	 *  caller mark _lastNarratedText ONLY for text that was actually just read. */
 	readonly finalTranscripts: readonly string[];
@@ -71,14 +88,17 @@ interface IDeferredFlushResult {
  *  not shown. `finalized` is set once the response's final chunk has arrived. */
 interface IDeferredResponse {
 	readonly responseId?: string;
+	readonly turnId?: string;
 	finalized: boolean;
 	readonly chunks: IDeferredChunk[];
 }
 
 interface IPendingSolicitedNarration {
 	readonly sessionId: string;
-	readonly kind: 'response' | 'confirmation';
+	readonly kind: VoiceNarrationKind;
 	readonly text: string;
+	/** The form this narration speaks, when it has one. Identifies the occurrence for dedup; see `_narratableIdentity`. */
+	readonly pending?: { pendingId: string };
 	readonly audioStartTimer: ReturnType<typeof setTimeout>;
 	hasReceivedAudio: boolean;
 }
@@ -101,6 +121,14 @@ export interface ITranscriptTurn {
 	readonly isPartial: boolean;
 }
 
+type TranscriptionTurnPhase = 'active' | 'pending' | 'final';
+
+interface ITranscriptionTurnState {
+	readonly turnId: string;
+	highestRevision: number | undefined;
+	phase: TranscriptionTurnPhase;
+}
+
 export interface IVoiceSessionController {
 	readonly _serviceBrand: undefined;
 
@@ -116,10 +144,10 @@ export interface IVoiceSessionController {
 	readonly targetSession: IObservable<URI | undefined>;
 
 	connect(window: Window & typeof globalThis): Promise<void>;
-	disconnect(): void;
+	disconnect(source?: 'explicit' | 'internal'): void;
 
-	pttDown(): void;
-	pttUp(): void;
+	pttDown(source?: 'explicit' | 'auto' | 'connect', forceNewTurn?: boolean): void;
+	pttUp(source?: 'explicit' | 'internal', forceFinish?: boolean): void;
 
 	/**
 	 * Stop the current recording / auto-listen loop without disconnecting.
@@ -129,7 +157,18 @@ export interface IVoiceSessionController {
 	 * stays connected so the user can resume via the Voice Mode button
 	 * without a new handshake. Use `disconnect()` to fully end the session.
 	 */
-	stopListening(): void;
+	stopListening(source?: 'explicit' | 'internal'): void;
+
+	/**
+	 * Hold hands-free auto-listen off until released.
+	 *
+	 * Unlike {@link stopListening}, this is safe to call *before* the session is
+	 * connected: it survives the connect handshake, so a caller that needs the
+	 * microphone to stay shut while the user reads or decides something can take
+	 * the hold at `connect()` time rather than racing `session_init`. Releasing
+	 * enters listening immediately if hands-free would have done so.
+	 */
+	setAutoListenHeld(held: boolean): void;
 
 	/**
 	 * Stop the current recording WITHOUT finalizing the turn: any in-flight
@@ -236,18 +275,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _pendingToolConfirmations = observableValue<readonly IPendingToolConfirmation[]>(this, []);
 	readonly pendingToolConfirmations: IObservable<readonly IPendingToolConfirmation[]> = this._pendingToolConfirmations;
 
+	/**
+	 * Session resources whose pending confirmations were dropped at a terminal
+	 * teardown (disconnect/fatal). The always-on tracker excludes them so it
+	 * can't repopulate {@link _pendingToolConfirmations} from the still-pending
+	 * old session before the next {@link connect}, which clears this set.
+	 */
+	private readonly _suppressedConfirmationSessions = observableValue<ReadonlySet<string>>(this, new Set());
+
 	private readonly _targetSession = observableValue<URI | undefined>(this, undefined);
 	readonly targetSession: IObservable<URI | undefined> = this._targetSession;
 
 	// --- Internal state ---
 	private _pttHeld = false;
-	private _pttToggleMode = false;
 	/**
-	 * True from the backend's `speech_started` until the utterance is finalized
-	 * (final transcription / turn ended). Marks a genuinely in-progress user turn
-	 * even before any transcription text has arrived.
+	 * Whether the current held turn's `ptt_start` was passive (a hands-free
+	 * open mic: auto-listen or barge-in). A passive turn tells the backend not
+	 * to latch `user_is_speaking`; a deliberate press (non-passive) does latch.
+	 * Read by {@link _prepareForPlayback} to decide whether aborting the held
+	 * turn (which sends no `ptt_end`) is safe. Only meaningful while `_pttHeld`.
 	 */
-	private _userSpeechActive = false;
+	private _pttCurrentTurnPassive = false;
+	private _pttToggleMode = false;
 	/**
 	 * True while a passive hands-free barge-in listen is streaming during the
 	 * assistant's playback (opened by `_startBargeInListen`). It is NOT toggle
@@ -259,6 +308,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** When true, the auto-listen loop is suppressed (user pressed Stop
 	 *  Recording). Cleared on the next explicit `pttDown` or on connect. */
 	private _autoListenSuppressed = false;
+	/**
+	 * Auto-listen hold taken by UI that must not be talked over (see
+	 * {@link setAutoListenHeld}). Deliberately separate from
+	 * `_autoListenSuppressed`, which pttDown, playback prep and disconnect all
+	 * clear as part of normal turn-taking - a hold has to outlive all of that.
+	 */
+	private _autoListenHeld = false;
 	/** Timestamp (ms) until which an incoming `send_to_chat` is dropped after a
 	 *  discarded turn, so buffered speech from a focus-change discard can't be
 	 *  misrouted to the newly focused session. Cleared on the next `pttDown`. */
@@ -275,6 +331,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  enter listening once the backend acks the session. */
 	private _enterListenOnSessionInit = false;
 	private _pttCurrentTurnId = '';
+	private _transcriptionTurnState: ITranscriptionTurnState | undefined;
 	private _window: (Window & typeof globalThis) | undefined;
 	private readonly _voiceEventDisposables = this._register(new DisposableStore());
 	private readonly _voiceAutorunDisposable = this._register(new MutableDisposable());
@@ -310,8 +367,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _awaitingReplyForSession: string | undefined;
 	private _awaitingReplyWatchdog: ReturnType<typeof setTimeout> | undefined;
-	/** Tracks whether the initial listen cue has been played after connecting. */
-	private _hasPlayedInitialListenCue = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; responseId?: string; finalized: boolean; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -337,6 +392,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// transcript on every chunk, so a late chunk from the old turn would have
 	// incorrectly cleared the flag.
 	private _suppressIncomingAudio = false;
+	/** Turn/response ids whose playback was cancelled by barge-in. */
+	private readonly _interruptedAudioIds = new Set<string>();
 
 	// --- Deferred responses for non-focused sessions ---
 	/**
@@ -386,6 +443,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** Sessions currently showing a pending-response indicator because they are
 	 *  awaiting confirmation while unfocused (client-driven, no audio needed). */
 	private readonly _confirmationPendingSessions = new Set<string>();
+	/** Narration ids of confirmation prompts whose confirmation was resolved
+	 *  (e.g. the user pressed Allow) before the narration finished. Any
+	 *  `audio_response` chunks echoing one of these ids are dropped so a
+	 *  just-answered approval is never read aloud. Bounded, and an id is
+	 *  removed once its final chunk arrives. */
+	private readonly _cancelledPendingNarrationIds = new Set<string>();
 	/** Sessions showing a pending-response indicator because a reply COMPLETED
 	 *  while they were unfocused (client-driven, mirrors the confirmation
 	 *  indicator). Maps to the response summary to narrate when the session is
@@ -458,7 +521,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _replaySourceNode: AudioBufferSourceNode | undefined;
 
 	// --- Session state tracking for explicit change notifications ---
-	private readonly _prevSessionStates = new Map<string, { state: string; detail: string; lastResponseSummary: string }>();
+	private readonly _prevSessionStates = new Map<string, { state: string; detail: string; pendingId: string; lastResponseSummary: string }>();
 
 	// Sessions the user explicitly cancelled from VS Code UI. We swallow the
 	// NEXT state change for each (typically the chat model going `idle`) so the
@@ -492,7 +555,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * also records the burst's baseline (``fromState``/``fromDetail``) so a wobble
 	 * that returns to its starting state is recognized as net-zero.
 	 */
-	private readonly _pendingStateChanges = new Map<string, { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string; fromState: string; fromDetail: string; fromResponseSummary: string }>();
+	private readonly _pendingStateChanges = new Map<string, { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string; fromState: string; fromDetail: string; fromResponseSummary: string; pendingId: string; fromPendingId: string }>();
 	private _stateChangeEmitTimer: ReturnType<typeof setTimeout> | undefined;
 	private static readonly _STATE_CHANGE_SETTLE_MS = 120;
 
@@ -551,7 +614,29 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * {@link _narrate}). Replayed once on the next `session_init` so a reply or
 	 * confirmation that landed during a disconnect is still spoken on reconnect.
 	 */
-	private readonly _pendingNarrationRetries = new Map<string, { kind: 'response' | 'confirmation'; text: string }>();
+	private readonly _pendingNarrationRetries = new Map<string, VoiceNarrationKind>();
+
+	/**
+	 * Replay a narration that could not be sent while the socket was down.
+	 *
+	 * Re-derives the item from the session as it is *now*, because a form or
+	 * confirmation can be answered, dismissed or replaced during a disconnect.
+	 * Mirrors {@link _retryDeferredNarration} on the busy path.
+	 */
+	private _replayPendingNarrationRetry(sessionId: string, queuedKind: VoiceNarrationKind): boolean {
+		let resource: URI | undefined;
+		try {
+			resource = URI.parse(sessionId);
+		} catch {
+			resource = undefined;
+		}
+		const narratable = resource ? this._currentNarratable(resource) : undefined;
+		if (!narratable || narratable.kind !== queuedKind) {
+			this.logService.trace(`[voice] queued narration for ${sessionId.slice(-32)} no longer warranted after reconnect; dropping`);
+			return false;
+		}
+		return this._narrate(sessionId, narratable.kind, narratable.text, undefined, narratable.pending);
+	}
 
 	/**
 	 * Narrations we requested (got a `narration_id` back) but whose audio has not
@@ -569,13 +654,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Narrations the backend bounced (`narration_ack` `busy`) or cancelled
 	 * (`narration_interrupted`), awaiting retry. Keyed by canonical session key,
-	 * latest-wins (at most one pending per session). Retry is driven by the
-	 * `narration_unblocked` nudge, which the server sends only once the playback
-	 * guard clears — safe in push-to-talk and hands-free, never interrupting a
-	 * live press. See `_retryDeferredNarration` for the revalidation on retry.
-	 * Cleared on a new turn (`thinking`) or teardown.
+	 * latest-wins (at most one pending per session). Retried on the
+	 * `narration_unblocked` nudge and replayed on `session_init`/`session_resumed`,
+	 * since a dropped socket loses any in-flight nudge. See
+	 * `_retryDeferredNarration`. Cleared on a new turn (`thinking`) or teardown.
 	 */
-	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string }>();
+	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: VoiceNarrationKind; text: string; reuseNarrationId: boolean; pending?: { pendingId: string } }>();
 
 	/**
 	 * The confirmation detail text last actually HEARD (final audio arrived) per
@@ -589,7 +673,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * `waiting_for_confirmation` (in the autorun) so a genuinely new confirmation -
 	 * even with identical text - narrates again.
 	 */
-	private readonly _narratedConfirmation = new Map<string, string>();
+	private readonly _narratedPending = new Map<string, string>();
 
 	// --- Telemetry tracking ---
 	private _telemetrySessionIndex = 0;
@@ -647,6 +731,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -718,6 +803,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const agentSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 			const toolConfirmations: IPendingToolConfirmation[] = [];
 			const processedResources = new Set<string>();
+			// Sessions suppressed by a terminal teardown until the next connect()
+			// (see _suppressPendingConfirmationsUntilConnect). Read reactively so
+			// clearing the set on reconnect re-fires this tracker.
+			const suppressedSessions = this._suppressedConfirmationSessions.read(reader);
 
 			// Collect chat models from agent sessions
 			const modelsToCheck: { model: IChatModel; resource: URI; label: string }[] = [];
@@ -743,6 +832,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 
 			for (const { model, resource, label } of modelsToCheck) {
+				if (suppressedSessions.has(resource.toString())) { continue; }
 				const lastReq = model.lastRequestObs.read(reader);
 				if (lastReq?.response) {
 					const pending = lastReq.response.isPendingConfirmation.read(reader);
@@ -849,6 +939,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._window = window;
 		this._onFocusedSessionChanged();
 		this._fatalDisconnect = false;
+		// A fresh connection re-enables confirmation tracking for any sessions
+		// suppressed by the previous terminal teardown.
+		this._suppressedConfirmationSessions.set(new Set(), undefined);
 		this._isConnecting.set(true, undefined);
 		this._statusText.set('Connecting...', undefined);
 		this._voiceState.set('idle', undefined);
@@ -916,9 +1009,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		this._voiceEventDisposables.clear();
 
+		// Multi-window hands-free: abort any open passive turn when this window
+		// loses OS focus so the background window stops recording, and re-arm
+		// listening when it gains focus so only the focused window listens (#8507).
+		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'blur', () => this._onWindowBlur()));
+		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'focus', () => this._onWindowFocus()));
+
 		// Streaming PTT: send start/chunks/end as they arrive
-		this._voiceEventDisposables.add(this.micCaptureService.onPttStart(() => {
-			this.voiceClientService.sendPttStart(this._pttCurrentTurnId);
+		this._voiceEventDisposables.add(this.micCaptureService.onPttStart((passive) => {
+			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, passive);
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttAudioChunk(b64 => {
 			this.voiceClientService.sendPttAudioChunk(b64);
@@ -998,7 +1097,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// its timeout) so clicking the session again re-requests immediately.
 				const pending = this._pendingSolicitedNarrations.get(finishedResponseId);
 				if (pending) {
-					this._clearPendingSolicitedNarration(finishedResponseId, pending);
+					this._deferInterruptedNarration(finishedResponseId, pending);
 				}
 			}
 
@@ -1060,12 +1159,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.telemetryService.publicLog2<VoiceSessionStartedEvent, VoiceSessionStartedClassification>('voiceSessionStarted', { sessionIndex: this._telemetrySessionIndex });
 				}
 				this._telemetryLastConnectMs = now;
+				const voiceInstructions = await this.promptsService.getVoiceInstructions(CancellationToken.None);
+				if (
+					connectAttemptGeneration !== this._connectAttemptGeneration ||
+					!this.voiceClientService.isConnected ||
+					(!this._isConnecting.get() && !this._isReconnecting.get())
+				) {
+					return;
+				}
 				if (isResuming) {
-					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId());
+					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId(), voiceInstructions);
 				} else {
 					const priorTimeline = this._pendingPriorTimeline;
 					this._pendingPriorTimeline = [];
-					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline);
+					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline, undefined, voiceInstructions);
 				}
 
 				// On a reconnect cycle, refresh the mic stream: the old MediaStream
@@ -1099,7 +1206,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								: s.status === AgentSessionStatus.Completed ? 'idle'
 									: 'unknown');
 					if (currentState !== 'unknown') {
-						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '', lastResponseSummary: info?.last_response_summary ?? '' });
+						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '', pendingId: currentState === 'waiting_for_confirmation' ? this._pendingIdFor(s.resource.toString()) : '', lastResponseSummary: info?.last_response_summary ?? '' });
 					}
 				}
 				// Also seed regular chat sessions so the autorun doesn't trigger false transitions
@@ -1109,7 +1216,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (chatModel.getRequests().length === 0) { continue; }
 					const info = this._getAgentStateInfo(chatModel);
 					if (info.state !== 'unknown') {
-						this._prevSessionStates.set(key, { state: info.state, detail: info.detail ?? '', lastResponseSummary: info.last_response_summary ?? '' });
+						this._prevSessionStates.set(key, { state: info.state, detail: info.detail ?? '', pendingId: info.state === 'waiting_for_confirmation' ? this._pendingIdFor(key) : '', lastResponseSummary: info.last_response_summary ?? '' });
 					}
 				}
 
@@ -1124,7 +1231,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const autorunDisposable = autorun(reader => {
 					const agentSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 					let needsRecheck = false;
-					const stateChanges: { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string; fromState: string; fromDetail: string; fromResponseSummary: string }[] = [];
+					const stateChanges: { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string; fromState: string; fromDetail: string; fromResponseSummary: string; pendingId: string; fromPendingId: string }[] = [];
 					const waitingForConfirmationSessions: { sessionId: string; label: string; detail?: string; transition: boolean }[] = [];
 					const processedResources = new Set<string>();
 
@@ -1174,7 +1281,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						const prev = this._prevSessionStates.get(sessionId);
 						const normalizedSummary = lastResponseSummary ?? '';
 						const isStateTransition = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-						const isDetailTransition = !isStateTransition && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+						// `detail` is prose - for a question form it is just the titles, so
+						// a second form asking the same things looks identical. The pending
+						// id names the occurrence, and is what makes replacing one form
+						// with another a transition worth narrating.
+						const pendingId = currentState === 'waiting_for_confirmation' ? this._pendingIdFor(sessionId) : '';
+						const isDetailTransition = !isStateTransition && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 						// A completed reply's summary often lands AFTER the idle
 						// transition (or updates while still idle); the model stays
 						// idle so no state transition fires. Detect the summary
@@ -1208,7 +1320,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								clearTimeout(cancelExpiry);
 								this._userCancelledSessions.delete(sessionId);
 							} else {
-								stateChanges.push({ sessionId, currentState, label, detail, lastResponseSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromResponseSummary: prev?.lastResponseSummary ?? '' });
+								stateChanges.push({ sessionId, currentState, label, detail, lastResponseSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId, fromPendingId: prev?.pendingId ?? '' });
 							}
 						}
 						if (currentState !== 'unknown') {
@@ -1216,12 +1328,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							// so a model unload→reload can't manufacture an ''→old-summary
 							// "transition" that looks like a fresh reply.
 							const rememberedSummary = normalizedSummary || this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
-							this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', lastResponseSummary: rememberedSummary });
+							this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', pendingId, lastResponseSummary: rememberedSummary });
 							// Leaving waiting_for_confirmation releases the per-occurrence
 							// narration marker, so the next confirmation - even with
 							// identical text - is narrated afresh on focus.
 							if (currentState !== 'waiting_for_confirmation') {
-								this._narratedConfirmation.delete(this._sessionKey(sessionId));
+								this._narratedPending.delete(this._sessionKey(sessionId));
+								// The confirmation was just answered (Allow/Deny/auto):
+								// stop reading the now-stale approval request aloud.
+								if (prev?.state === 'waiting_for_confirmation') {
+									this._stopPendingNarration(sessionId);
+								}
+							} else if (prev !== undefined && pendingId !== prev.pendingId) {
+								// One pending item replaced another without the session ever
+								// leaving waiting_for_confirmation. That is a new occurrence:
+								// release the heard marker so it narrates, and stop speaking
+								// the one it replaced.
+								this._narratedPending.delete(this._sessionKey(sessionId));
+								this._stopPendingNarration(sessionId);
 							}
 						}
 
@@ -1260,6 +1384,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								this._sessionsAwaitingResponseSummary.add(sessionId);
 							}
 
+							// Leaving waiting_for_confirmation for an unloaded remote
+							// session: stop the now-stale approval narration and release
+							// the per-occurrence marker HERE, before the idle branch's
+							// early-exit `continue`s below, which would otherwise skip it
+							// and let the resolved approval keep playing.
+							if (prev?.state === 'waiting_for_confirmation' && currentState !== 'waiting_for_confirmation' && currentState !== 'unknown') {
+								this._narratedPending.delete(this._sessionKey(sessionId));
+								this._stopPendingNarration(sessionId);
+							}
+
 							// Remote/Copilot sessions don't keep their model resident, so a
 							// coarse ``idle`` transition would carry no last_response_summary
 							// and the backend would narrate an empty completion. If we
@@ -1276,9 +1410,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								}
 								this._sessionsAwaitingResponseSummary.delete(sessionId);
 								if (!this._userCancelledSessions.has(sessionId)) {
-									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromResponseSummary: prev?.lastResponseSummary ?? '' });
+									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
 								}
-								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', lastResponseSummary: cachedSummary ?? '' });
+								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', pendingId: '', lastResponseSummary: cachedSummary ?? '' });
 								continue;
 							}
 
@@ -1288,18 +1422,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 									clearTimeout(cancelExpiry);
 									this._userCancelledSessions.delete(sessionId);
 								} else {
-									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromResponseSummary: prev?.lastResponseSummary ?? '' });
+									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
 								}
 							}
 							if (currentState !== 'unknown') {
 								// Preserve a known summary rather than clobbering with ''
 								// (a later reload of the same summary must not look new).
 								const rememberedSummary = this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
-								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', lastResponseSummary: rememberedSummary });
+								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', pendingId: '', lastResponseSummary: rememberedSummary });
 								// Mirror the resident path: drop the confirmation-occurrence
 								// marker once this session is no longer awaiting confirmation.
 								if (currentState !== 'waiting_for_confirmation') {
-									this._narratedConfirmation.delete(this._sessionKey(sessionId));
+									this._narratedPending.delete(this._sessionKey(sessionId));
+									// The waiting→non-waiting confirmation stop already ran
+									// above (before the idle early-exits), so it isn't
+									// repeated here.
 								}
 							}
 							if (currentState === 'waiting_for_confirmation') {
@@ -1341,7 +1478,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						for (const change of stateChanges) {
 							const existing = this._pendingStateChanges.get(change.sessionId);
 							this._pendingStateChanges.set(change.sessionId, existing
-								? { ...change, fromState: existing.fromState, fromDetail: existing.fromDetail, fromResponseSummary: existing.fromResponseSummary }
+								? { ...change, fromState: existing.fromState, fromDetail: existing.fromDetail, fromResponseSummary: existing.fromResponseSummary, fromPendingId: existing.fromPendingId }
 								: change);
 						}
 						this._scheduleStateChangeEmit();
@@ -1391,23 +1528,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
 
-				// Enter listening as soon as a fresh session is ready. Starting
-				// voice mode always begins the first turn listening, regardless
-				// of `handsFree` (which only controls whether we RE-listen after
-				// the assistant speaks). We wait for the backend `session_init`
-				// ack (see onSessionInit below) rather than acting here, because
-				// the mic/handshake isn't settled yet at connection time.
-				// Previously this was deferred until a welcome greeting finished
-				// playing, but the greeting was removed. A short fallback timer
-				// covers backends that don't emit `session_init`.
-				this._enterListenOnSessionInit = !isResuming;
+				// Wait for the backend session ack before opening the hands-free mic.
+				this._enterListenOnSessionInit = this._shouldEnterListenOnSessionInit(isResuming);
 				this.logService.trace(`[voice] connected: isResuming=${isResuming} handsFree=${this._isHandsFreeEnabled()} armListen=${this._enterListenOnSessionInit}`);
 				if (this._enterListenOnSessionInit) {
 					this._voiceEventDisposables.add(disposableTimeout(() => {
 						if (this._enterListenOnSessionInit && this._isConnected.get()) {
 							this.logService.trace('[voice] session_init not seen within 750ms; entering listening via fallback');
 							this._enterListenOnSessionInit = false;
-							this._enterAutoListen();
+							this._enterAutoListen('connect');
 						}
 					}, 750));
 				}
@@ -1436,7 +1565,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// point at which the mic/handshake is settled and a turn will stick,
 		// so enter hands-free listening here (armed in the connect handler).
 		this._voiceEventDisposables.add(this.voiceClientService.onSessionInit(() => {
-			this.logService.trace(`[voice] session_init received; armListen=${this._enterListenOnSessionInit} pendingRetries=${this._pendingNarrationRetries.size}`);
+			this.logService.trace(`[voice] session_init received; armListen=${this._enterListenOnSessionInit} pendingRetries=${this._pendingNarrationRetries.size} deferredNarrations=${this._deferredNarrations.size}`);
 			// Replay any narration that was dropped because the socket was closed
 			// (see _narrate). Do this BEFORE entering listening: a real pending
 			// narration should play now (its playback drives re-listen) rather
@@ -1447,28 +1576,35 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (this._pendingNarrationRetries.size > 0) {
 				const retries = [...this._pendingNarrationRetries.entries()];
 				this._pendingNarrationRetries.clear();
-				for (const [sessionId, item] of retries) {
-					narrated = this._narrate(sessionId, item.kind, item.text) || narrated;
+				for (const [sessionId, kind] of retries) {
+					narrated = this._replayPendingNarrationRetry(sessionId, kind) || narrated;
+				}
+			}
+			// The `narration_unblocked` nudge was lost with the dropped socket, so
+			// also replay anything still deferred; `_retryDeferredNarration`
+			// revalidates and reuses the id so already-spoken items aren't re-synthesised.
+			if (this._deferredNarrations.size > 0) {
+				const deferredKeys = [...this._deferredNarrations.keys()];
+				for (const sessionKey of deferredKeys) {
+					narrated = this._retryDeferredNarration(sessionKey) || narrated;
 				}
 			}
 			if (this._enterListenOnSessionInit && !narrated) {
 				this._enterListenOnSessionInit = false;
-				this._enterAutoListen();
+				this._enterAutoListen('connect');
 			} else if (narrated) {
 				this._enterListenOnSessionInit = false;
 			}
 		}));
 
-		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(() => {
-			this._interruptAssistantPlayback();
-		}));
+		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(e => this._handleBargeIn(e)));
 
 		// NACK + client-revalidation protocol for client-driven narration.
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationAck(e => {
 			this._handleNarrationAck(e);
 		}));
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationUnblocked(e => {
-			this._retryDeferredNarration(this._sessionKey(e.codingSessionId));
+			this._retryDeferredNarration(this._sessionKey(e.codingSessionId), e.narrationId || undefined);
 		}));
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationInterrupted(e => {
 			this._handleNarrationInterrupted(e);
@@ -1478,13 +1614,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
 			this._clearAutoListenTimer();
-			this._userSpeechActive = true;
-			this.ttsPlaybackService.stopPlayback();
-			this._audioQueue.length = 0;
-			this._currentPlaybackSessionId = null;
-			this._currentPlaybackResponseId = undefined;
-			this._isProcessingQueue = false;
-			this._suppressIncomingAudio = true;
+			this._interruptAssistantPlayback();
 			this._startUserTurn();
 		}));
 
@@ -1492,13 +1622,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Treat it like a local ptt_end — stop capture, move to processing — but
 		// do NOT send our own ptt_end. Guard against double-ending: ignore if we
 		// already released locally, or if the id is for a different turn.
-		this._voiceEventDisposables.add(this.voiceClientService.onTurnAutoEnded(e => {
-			if (!this._pttHeld) { return; }
-			if (e.turnId && e.turnId !== this._pttCurrentTurnId) { return; }
-			this._userSpeechActive = false;
-			this._pttToggleMode = false;
-			this._finishPtt('auto');
-		}));
+		this._voiceEventDisposables.add(this.voiceClientService.onTurnAutoEnded(e => this._handleTurnAutoEnded(e)));
 
 		// Transcription — mutate the current user turn at the tail of the buffer.
 		// We DO NOT send the transcript to chat here. The backend voice LLM
@@ -1507,28 +1631,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// (→ replies in speech, nothing sent to chat). Sending directly on
 		// transcription would bypass that routing decision and leak chit-chat
 		// utterances into the active chat session.
-		this._voiceEventDisposables.add(this.voiceClientService.onTranscription(e => {
-			// Track time-to-first-transcription for latency telemetry
-			if (!this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs) {
-				this._telemetryFirstTranscriptionMs = Date.now();
-			}
-
-			const text = e.text;
-
-			this._updateUserTurn(text, e.committed ?? '', e.status === 'partial');
-			if (e.status !== 'partial') {
-				this._userSpeechActive = false;
-				if (!this._pttHeld) {
-					this._voiceState.set('processing', undefined);
-					this._statusText.set('Processing...', undefined);
-				}
-				// Persist the user's final transcript (local-only, no backend coordination).
-				this._persistTurn('user', text);
-			}
-		}));
+		this._voiceEventDisposables.add(this.voiceClientService.onTranscription(e => this._handleTranscription(e)));
 
 		// Audio response → fade transcript, queue for sequential playback
 		this._voiceEventDisposables.add(this.voiceClientService.onAudioResponse(e => {
+			if (this._isInterruptedAudio(e)) {
+				return;
+			}
 			// Latency telemetry: first audio chunk marks end of turn
 			if (e.isFirstChunk && this._telemetryPttUpMs) {
 				const ttft = this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs
@@ -1547,6 +1656,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// (otherwise it is stranded and never read). Untagged / non-agent-host
 			// ids pass through unchanged.
 			const codingSessionId = this._canonicalSessionId(e.codingSessionId);
+			// A confirmation was resolved (e.g. the user pressed Allow) while its
+			// narration was still being requested/streamed: drop the now-stale
+			// approval narration so it isn't read aloud after the fact. Matched
+			// by narration id, so the agent's real reply (a different id) is
+			// unaffected. Clear the id once its final chunk has passed.
+			if (e.responseId !== undefined && this._cancelledPendingNarrationIds.has(e.responseId)) {
+				if (e.isFinal) {
+					this._cancelledPendingNarrationIds.delete(e.responseId);
+				}
+				return;
+			}
 			if (e.audio) {
 				this._markSolicitedNarrationAudioStarted(e.responseId);
 			}
@@ -1570,7 +1690,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// (matched by content). Drop it so the user never hears it twice.
 				this.logService.trace(`[voice] dropping re-narration for session=${codingSessionId} responseId=${e.responseId?.slice(0, 8) ?? '<none>'} isFirstChunk=${e.isFirstChunk} isFinal=${e.isFinal}`);
 			} else if (defer) {
-				this._deferResponse(codingSessionId!, e.audio, e.isFirstChunk, e.isFinal, e.transcript, e.responseId);
+				this._deferResponse(codingSessionId!, e.audio, e.isFirstChunk, e.isFinal, e.transcript, e.responseId, e.turnId);
 			} else {
 				// A fresh reply is about to play live for this session. Anything
 				// still buffered for it (earlier background updates the user never
@@ -1635,7 +1755,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const allowedTools = [
 				'send_to_chat',
 				'get_session_info', 'get_session_changes', 'get_session_thread',
-				'approve_confirmation', 'reject_confirmation',
+				'respond_to_session',
 				'auto_approve_session', 'revoke_auto_approve',
 				'focus_session',
 			];
@@ -1690,43 +1810,55 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
-				// Telemetry: tool approval/rejection via voice
-				if (e.name === 'approve_confirmation' || e.name === 'reject_confirmation') {
-					this.telemetryService.publicLog2<VoiceToolApprovalEvent, VoiceToolApprovalClassification>('voiceToolApproval', {
-						toolName: e.name,
-						approved: e.name === 'approve_confirmation',
-					});
-				}
 				// Exit listening mode so the response audio isn't suppressed.
 				if (this._pttHeld) {
 					this._finishPtt();
 				}
 				this._suppressIncomingAudio = false;
 				this._setAwaitingReply();
-				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
-					// Approve/reject outcomes are surfaced for diagnosis, but the
-					// backend contract for these has always been a bare 'ok' ack;
-					// preserve that so only the diagnostic changes, not behavior.
-					if (e.name === 'approve_confirmation' || e.name === 'reject_confirmation') {
-						this.logService.trace(`[voice] ${e.name} dispatch result=${result} coding_session_id=${typeof e.args?.['coding_session_id'] === 'string' ? String(e.args['coding_session_id']).slice(-32) : '<none>'}`);
-						this.voiceClientService.sendToolResult(e.callId, 'ok');
-					} else {
-						this.voiceClientService.sendToolResult(e.callId, result);
-					}
+				const settle = (): void => {
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
 					this._sendContext();
+				};
+				if (e.name === 'respond_to_session') {
+					// The one tool whose result the backend acts on: it speaks an
+					// acknowledgement only for an outcome it has observed, so this
+					// must report what actually happened rather than a blanket 'ok'.
+					const response = e.args?.['response'];
+					const responseType = response && typeof response === 'object' && !Array.isArray(response)
+						? (response as Record<string, unknown>)['type']
+						: undefined;
+					this.voiceToolDispatchService.respondToSession(e).then(result => {
+						this.logService.trace(`[voice] respond_to_session type=${String(responseType)} ok=${result.ok} reason=${result.reason ?? '<none>'} coding_session_id=${typeof e.args?.['coding_session_id'] === 'string' ? String(e.args['coding_session_id']).slice(-32) : '<none>'}`);
+						if (responseType === 'approve' || responseType === 'reject') {
+							this.telemetryService.publicLog2<VoiceToolApprovalEvent, VoiceToolApprovalClassification>('voiceToolApproval', {
+								toolName: e.name,
+								approved: responseType === 'approve',
+							});
+						}
+						this.voiceClientService.sendToolResult(e.callId, result);
+						settle();
+					}, err => {
+						this.logService.error(`[voice] respond_to_session dispatch failed`, err);
+						this.voiceClientService.sendToolResult(e.callId, { ok: false, reason: 'unsupported' });
+						settle();
+					});
+					return;
+				}
+				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
+					this.voiceClientService.sendToolResult(e.callId, result);
+					settle();
 				}, err => {
 					// Always answer, even on failure, so the backend isn't left waiting on this callId.
 					this.logService.error(`[voice] tool ${e.name} dispatch failed`, err);
 					this.voiceClientService.sendToolResult(e.callId, 'error');
-					this._voiceState.set('idle', undefined);
-					this._statusText.set('Hold to speak...', undefined);
-					this._sendContext();
+					settle();
 				});
 			} else {
-				// Unknown / disallowed tool — return noop result so the
-				// backend doesn't block waiting for us.
+				// Unknown / disallowed tool: answer so the backend isn't left
+				// blocked. This is deliberately not evidence of anything: the
+				// backend must not read a bare 'ok' as "the thing happened".
 				this.voiceClientService.sendToolResult(e.callId, 'ok');
 			}
 		}));
@@ -1772,8 +1904,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, VoiceSessionController._CONNECT_TIMEOUT_MS);
 	}
 
-	disconnect(): void {
+	/**
+	 * Exclude the currently-pending confirmation sessions from the always-on
+	 * tracker until the next {@link connect}, so a terminal teardown's cleared
+	 * snapshot can't be repopulated from the still-pending old session.
+	 */
+	private _suppressPendingConfirmationsUntilConnect(): void {
+		const suppressed = new Set(this._suppressedConfirmationSessions.get());
+		for (const tc of this._pendingToolConfirmations.get()) {
+			suppressed.add(tc.sessionResource.toString());
+		}
+		this._suppressedConfirmationSessions.set(suppressed, undefined);
+	}
+
+	disconnect(source: 'explicit' | 'internal' = 'internal'): void {
 		this._connectAttemptGeneration++;
+		const shouldPlayStoppedSignal = source === 'explicit' && (this._isConnecting.get() || this._isConnected.get() || this._isReconnecting.get());
+		const shouldPlayRecordingStoppedSignal = source === 'explicit' && this._pttHeld;
 
 		// Telemetry: session ended
 		if (this._telemetrySessionStart) {
@@ -1795,8 +1942,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.micCaptureService.stopCapture();
 		this.voiceClientService.disconnect();
 		this._pttHeld = false;
-		this._userSpeechActive = false;
 		this._pttToggleMode = false;
+		this._pttCurrentTurnId = '';
+		this._resetTranscriptionTurn();
 		this._bargeInListenActive = false;
 		this._isConnected.set(false, undefined);
 		this._voiceState.set('idle', undefined);
@@ -1806,17 +1954,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._clearAwaitingReply();
 		this._autoListenSuppressed = false;
 		this._enterListenOnSessionInit = false;
-		this._hasPlayedInitialListenCue = false;
 		this._replyPlayedSinceSend = false;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
 		this._currentPlaybackResponseId = undefined;
 		this._isProcessingQueue = false;
 		this._suppressIncomingAudio = false;
+		this._interruptedAudioIds.clear();
 		this._clearDeferredResponses();
 		this._uiResourceByBackendId.clear();
 		this._liveReplyKeys.clear();
 		this._lastShownSessionId = undefined;
+		// Terminal disconnect: drop the routing target and pending-confirmation
+		// snapshot (and suppress the tracker) so a later reconnect can't re-pin
+		// voice to the old session or repopulate its stale confirmation.
+		this._targetSession.set(undefined, undefined);
+		this._suppressPendingConfirmationsUntilConnect();
+		this._pendingToolConfirmations.set([], undefined);
 		// Terminal disconnect: drop embedder-driven active-session state too, so a
 		// later reconnect starts from focus-based detection until the embedder
 		// re-asserts the active session (rather than pinning a stale one and
@@ -1826,6 +1980,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._recentlyReadResponse.clear();
 		this._droppingRenarration.clear();
 		this._solicitedNarrationIds.clear();
+		this._cancelledPendingNarrationIds.clear();
 		this._lastHeardTranscriptById.clear();
 		this._awaitingReplyForSession = undefined;
 		this._prevSessionStates.clear();
@@ -1848,12 +2003,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._pendingSolicitedNarrations.clear();
 		this._deferredNarrations.clear();
-		this._narratedConfirmation.clear();
+		this._narratedPending.clear();
 		this._userLogin = undefined;
 		this._lastPersistedTurnId = undefined;
 		this._pendingPriorTimeline = [];
 		this._stopReplay();
 		this._sessionAudioCache.clear();
+		if (shouldPlayRecordingStoppedSignal) {
+			this._playRecordingStoppedSignal(true);
+		}
+		if (shouldPlayStoppedSignal) {
+			void this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceModeStopped, {
+				source: 'voiceMode.disconnect',
+				userGesture: true,
+			});
+		}
 	}
 
 	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
@@ -1918,7 +2082,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.closeContext();
 		this.micCaptureService.stopCapture();
 		this._pttHeld = false;
-		this._userSpeechActive = false;
 		this._pttToggleMode = false;
 		// No reconnect is coming and a later connect() does not reset narration
 		// bookkeeping, so clear the deferred/in-flight narration state and its
@@ -1930,9 +2093,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._pendingSolicitedNarrations.clear();
 		this._solicitedNarrationIds.clear();
+		this._cancelledPendingNarrationIds.clear();
 		this._pendingNarrationRetries.clear();
 		this._deferredNarrations.clear();
-		this._narratedConfirmation.clear();
+		this._narratedPending.clear();
+		// Terminal disconnect (no reconnect): drop the routing target and
+		// pending-confirmation snapshot, and suppress the tracker so connect()
+		// isn't re-pinned to this evicted session (see disconnect()).
+		this._targetSession.set(undefined, undefined);
+		this._suppressPendingConfirmationsUntilConnect();
+		this._pendingToolConfirmations.set([], undefined);
 		transaction(tx => {
 			this._isConnecting.set(false, tx);
 			this._isReconnecting.set(false, tx);
@@ -1960,22 +2130,165 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.closeContext();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
+		this._pttCurrentTurnId = '';
+		this._resetTranscriptionTurn();
 		this._isConnected.set(false, undefined);
 		this._isReconnecting.set(true, undefined);
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Reconnecting...', undefined);
 	}
 
-	pttDown(): void {
+	private _beginTranscriptionTurn(turnId: string): void {
+		this._transcriptionTurnState = {
+			turnId,
+			highestRevision: undefined,
+			phase: 'active',
+		};
+	}
+
+	private _markTranscriptionTurnPending(): void {
+		if (this._transcriptionTurnState?.turnId === this._pttCurrentTurnId && this._transcriptionTurnState.phase === 'active') {
+			this._transcriptionTurnState.phase = 'pending';
+		}
+	}
+
+	private _resetTranscriptionTurn(): void {
+		this._transcriptionTurnState = undefined;
+	}
+
+	private _handleTurnAutoEnded(event: IVoiceTurnAutoEnded): void {
+		if (!this._pttHeld) {
+			return;
+		}
+		if (event.turnId && event.turnId !== this._pttCurrentTurnId) {
+			return;
+		}
+		this._pttToggleMode = false;
+		this._finishPtt('auto');
+	}
+
+	private _handleBargeIn(event: IVoiceBargeIn): void {
+		if (event.turnId) {
+			if (this._transcriptionTurnState?.turnId !== event.turnId) {
+				this._beginTranscriptionTurn(event.turnId);
+			}
+		} else {
+			this._resetTranscriptionTurn();
+		}
+		this._startUserTurn();
+		this._rememberInterruptedAudioId(event.interruptedTurnId);
+		this._dropInterruptedDeferredAudio();
+		this._interruptAssistantPlayback();
+	}
+
+	private _rememberInterruptedPlaybackIds(): void {
+		this._rememberInterruptedAudioId(this._currentPlaybackResponseId);
+		for (const queued of this._audioQueue) {
+			this._rememberInterruptedAudioId(queued.responseId);
+		}
+	}
+
+	private _rememberInterruptedAudioId(id: string | undefined): void {
+		if (!id) {
+			return;
+		}
+		this._interruptedAudioIds.delete(id);
+		if (this._interruptedAudioIds.size >= 64) {
+			const oldest = this._interruptedAudioIds.values().next().value;
+			if (oldest !== undefined) {
+				this._interruptedAudioIds.delete(oldest);
+			}
+		}
+		this._interruptedAudioIds.add(id);
+		this._responseRoutes.delete(id);
+	}
+
+	private _isInterruptedAudio(event: IVoiceAudioResponse): boolean {
+		return (event.turnId !== undefined && this._interruptedAudioIds.has(event.turnId))
+			|| (event.responseId !== undefined && this._interruptedAudioIds.has(event.responseId));
+	}
+
+	private _dropInterruptedDeferredAudio(): void {
+		for (const [key, responses] of this._deferredResponses) {
+			const kept = responses.filter(response => {
+				const interrupted = (response.turnId !== undefined && this._interruptedAudioIds.has(response.turnId))
+					|| (response.responseId !== undefined && this._interruptedAudioIds.has(response.responseId));
+				if (interrupted && response.responseId) {
+					this._responseRoutes.delete(response.responseId);
+				}
+				return !interrupted;
+			});
+			if (kept.length === responses.length) {
+				continue;
+			}
+			if (kept.length === 0) {
+				this._deferredResponses.delete(key);
+			} else {
+				this._deferredResponses.set(key, kept);
+			}
+			this._maybeHideIndicator(key);
+		}
+	}
+
+	private _handleTranscription(event: IVoiceTranscription): void {
+		const state = this._transcriptionTurnState;
+		if (event.turnId) {
+			if (!state || state.turnId !== event.turnId || state.phase === 'final') {
+				return;
+			}
+			if (event.revision !== undefined) {
+				if (state.highestRevision !== undefined && event.revision <= state.highestRevision) {
+					return;
+				}
+				state.highestRevision = event.revision;
+			}
+		}
+
+		if (!this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs) {
+			this._telemetryFirstTranscriptionMs = Date.now();
+		}
+
+		const isPartial = event.status === 'partial';
+		// Live (word-by-word) transcripts are opt-in: when disabled, we don't
+		// render the interim streaming text as the user speaks and only act on
+		// the final transcript, so the user still sees what they said once the
+		// utterance settles.
+		if (isPartial && !this._isLiveTranscriptEnabled()) {
+			return;
+		}
+		this._updateUserTurn(event.text, event.committed ?? '', isPartial);
+		if (isPartial) {
+			return;
+		}
+
+		if (!this._pttHeld) {
+			this._voiceState.set('processing', undefined);
+			this._statusText.set('Processing...', undefined);
+		}
+		this._persistTurn('user', event.text);
+		if (event.turnId && state) {
+			state.phase = 'final';
+		}
+	}
+
+	pttDown(source: 'explicit' | 'auto' | 'connect' = 'explicit', forceNewTurn = false): void {
 		if (!this._isConnected.get()) { this.logService.trace('[voice] pttDown ignored: not connected'); return; }
+
+		// A press is passive when the mic opened without a deliberate user gesture
+		// (auto-listen re-arm or connect). Passive turns tell the backend not to
+		// latch `user_is_speaking`, so a client-driven narration isn't stranded.
+		const passive = source !== 'explicit';
 
 		// A fresh user press starts a new turn — no longer suppress send_to_chat
 		// from a previously discarded turn, nor pin it to a prior session.
 		this._suppressSendToChatUntil = 0;
 		this._setPinnedSubmitSession(undefined);
 
-		// Toggle mode: second tap finishes recording
-		if (this._pttToggleMode) {
+		// Toggle mode: second tap finishes recording. A forced new turn (e.g.
+		// hold-to-talk press) cancels any pending toggle mode and records fresh.
+		if (forceNewTurn) {
+			this._pttToggleMode = false;
+		} else if (this._pttToggleMode) {
 			this.logService.trace('[voice] pttDown: toggle-mode second tap -> finishing turn');
 			this._pttToggleMode = false;
 			this._finishPtt();
@@ -1984,19 +2297,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Promote a passive barge-in listen into a user-driven interrupt. The
 		// mic is already streaming this turn to the backend (ptt_start already
-		// sent), so we keep the SAME turn — do NOT re-acquire the mic or send a
-		// second ptt_start — and apply the interrupt side effects. Releasing the
-		// button afterwards goes through the normal `pttUp()` path.
+		// sent), so we keep the same turn (no re-acquiring the mic and no second
+		// ptt_start) and apply the interrupt side effects. Releasing the button
+		// afterwards goes through the normal `pttUp()` path.
 		if (this._bargeInListenActive) {
 			this.logService.trace('[voice] pttDown: promoting passive barge-in listen to user interrupt');
 			this._bargeInListenActive = false;
+			// A promoted press is a deliberate interrupt, so it latches the backend
+			// like a fresh press: clear the passive flag (kept consistent with the
+			// fresh-press path below) so playback prep preserves this held press
+			// instead of tearing down the user's active speech turn for narration.
+			this._pttCurrentTurnPassive = false;
 			this._autoListenSuppressed = false;
 			this._pttWaitingForPlayback = false;
 			// Re-anchor hold timing to the real press so pttUp's tap/hold split works.
 			this._telemetryPttDownMs = Date.now();
 			this._telemetryFirstTranscriptionMs = undefined;
 			this._telemetryTurnCount++;
-			this._telemetryTtsInterrupted = this.ttsPlaybackService.isPlaying;
+			this._rememberInterruptedPlaybackIds();
+			this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
 			if (this._delayedMicStopTimer) {
 				clearTimeout(this._delayedMicStopTimer);
 				this._delayedMicStopTimer = undefined;
@@ -2010,11 +2329,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.ttsPlaybackService.stopPlayback();
 			this._voiceState.set('listening', undefined);
 			this._statusText.set('Listening...', undefined);
+			if (source !== 'auto') {
+				this._playListeningStartedSignal(source);
+			}
 			if (!this._pttMaxDurationTimer) {
 				this._pttMaxDurationTimer = setTimeout(() => {
 					if (this._pttHeld) {
 						this._statusText.set('Max duration reached', undefined);
-						this.pttUp();
+						this.pttUp('internal');
 					}
 				}, VoiceSessionController._PTT_MAX_DURATION_MS);
 			}
@@ -2023,14 +2345,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (this._pttHeld) { this.logService.trace('[voice] pttDown ignored: already held'); return; }
 		this._pttHeld = true;
+		this._pttCurrentTurnPassive = passive;
 		this._autoListenSuppressed = false;
 		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
+		this._beginTranscriptionTurn(this._pttCurrentTurnId);
 		this._pttWaitingForPlayback = false;
 		this._telemetryPttDownMs = Date.now();
 		this._telemetryFirstTranscriptionMs = undefined;
 		this._telemetryTurnCount++;
-		this._telemetryTtsInterrupted = this.ttsPlaybackService.isPlaying;
+		this._rememberInterruptedPlaybackIds();
+		this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
 		if (this._delayedMicStopTimer) {
 			clearTimeout(this._delayedMicStopTimer);
 			this._delayedMicStopTimer = undefined;
@@ -2059,7 +2384,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.micCaptureService.suppressUntil(0);
 		// Lazily acquire the mic — fire-and-forget. The mic service handles
 		// the case where the user releases before acquisition completes.
-		this.micCaptureService.pttDown(this._pttCurrentTurnId).catch((err) => {
+		this.micCaptureService.pttDown(this._pttCurrentTurnId, passive).catch((err) => {
 			this.logService.warn('[voice] mic acquisition failed on pttDown; disconnecting', err);
 			this._pttHeld = false;
 			this._statusText.set('Microphone denied', undefined);
@@ -2076,39 +2401,57 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
-		// Audible cue: for non-screen-reader users, only play on the first
-		// listen after connecting. For screen reader users, play every time.
-		if (this._isHandsFreeEnabled()) {
-			if (!this._hasPlayedInitialListenCue) {
-				this._hasPlayedInitialListenCue = true;
-				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
-			} else if (this.accessibilityService.isScreenReaderOptimized()) {
-				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
-			}
+		if (source !== 'auto') {
+			this._playListeningStartedSignal(source);
 		}
 
 		this._pttMaxDurationTimer = setTimeout(() => {
 			if (this._pttHeld) {
 				this._statusText.set('Max duration reached', undefined);
-				this.pttUp();
+				this.pttUp('internal');
 			}
 		}, VoiceSessionController._PTT_MAX_DURATION_MS);
 	}
 
-	pttUp(): void {
+	pttUp(source: 'explicit' | 'internal' = 'explicit', forceFinish = false): void {
 		if (!this._pttHeld) { return; }
 
 		// Short tap: enter toggle mode — keep recording until next tap
-		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
-		if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
-			this._pttToggleMode = true;
-			return;
+		if (!forceFinish) {
+			const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
+			if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
+				this._pttToggleMode = true;
+				return;
+			}
 		}
 
-		this._finishPtt();
+		this._finishPtt('local', source);
 	}
 
-	stopListening(): void {
+	setAutoListenHeld(held: boolean): void {
+		if (this._autoListenHeld === held) {
+			return;
+		}
+		this._autoListenHeld = held;
+		this.logService.trace(`[voice] setAutoListenHeld: ${held}`);
+		if (held) {
+			// The session may already have opened the mic before the hold was
+			// taken, so close it rather than only blocking the next turn.
+			this._clearAutoListenTimer();
+			if (this._isConnected.get() && this._pttHeld) {
+				this._finishPtt('local', 'internal');
+			}
+			return;
+		}
+		// Released: hands-free resumes where it left off. `_enterAutoListen`
+		// re-checks connection, playback and focus, so this is safe whether or
+		// not the session ever finished connecting while the hold was in place.
+		if (this._isConnected.get() && this._isHandsFreeEnabled()) {
+			this._enterAutoListen('connect');
+		}
+	}
+
+	stopListening(source: 'explicit' | 'internal' = 'explicit'): void {
 		// Stop the current recording / auto-listen loop WITHOUT tearing down
 		// the WebSocket. Any in-flight press is finished through the normal
 		// `ptt_end` path so the backend finalizes the turn; the auto-listen
@@ -2120,7 +2463,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._pttToggleMode = false;
 		this._clearAutoListenTimer();
 		if (this._pttHeld) {
-			this._finishPtt('local');
+			this._finishPtt('local', source);
 		} else {
 			this._voiceState.set('idle', undefined);
 			this._statusText.set('Tap to start', undefined);
@@ -2158,7 +2501,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._clearAutoListenTimer();
 		this._setPinnedSubmitSession(session);
 		if (this._pttHeld) {
-			this._finishPtt('local');
+			this._finishPtt('local', 'internal');
 		} else {
 			// The backend already auto-ended the turn (VAD) and a `send_to_chat`
 			// is in flight; the pin routes it. Reflect the pending submission.
@@ -2196,22 +2539,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * tap / keyword) — the mic drains its tail and the ``onPttEnd`` → ``ptt_end``
 	 * path fires. It is ``'auto'`` when the backend ended the turn itself
 	 * (``turn_auto_ended``): the mic is aborted with no drain and NO ``ptt_end``
-	 * is sent for the turn. ``'immediate'`` is for a known-silent passive turn:
-	 * abort with no drain and send ``ptt_end`` synchronously so the backend
-	 * clears its ``user_is_speaking`` latch before the next frame. ``'discard'``
+	 * is sent for the turn. ``'discard'``
 	 * throws the press away on a focus change: like ``'auto'`` the mic is aborted
 	 * with NO ``ptt_end`` (so the backend never finalizes it into a
 	 * `send_to_chat`), but the state settles to ``idle`` rather than
 	 * ``processing`` since nothing is being sent.
 	 */
-	private _finishPtt(reason: 'local' | 'auto' | 'immediate' | 'discard' = 'local'): void {
+	private _finishPtt(reason: 'local' | 'auto' | 'discard' = 'local', source: 'explicit' | 'internal' = 'explicit'): void {
 		// End toggle (hands-free) mode on every turn-ending path — even when not held — so an out-of-band finish can't leave a stale toggle that self-kills the next auto-listen.
 		this._pttToggleMode = false;
 		this._bargeInListenActive = false;
 		if (!this._pttHeld) { return; }
 		this._clearAutoListenTimer();
 		this._pttHeld = false;
-		this._userSpeechActive = false;
 		// End toggle (hands-free) mode on every turn-ending path, so an out-of-band finish can't leave a stale toggle that self-kills the next auto-listen.
 		this._pttToggleMode = false;
 		this._telemetryPttUpMs = Date.now();
@@ -2226,15 +2566,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._replyPlayedSinceSend = false;
 		this._clearAwaitingReply();
 		this._suppressIncomingAudio = false;
+		this._markTranscriptionTurnPending();
 		if (reason === 'auto' || reason === 'discard') {
 			// Backend already ended the turn, or we're discarding it — stop
 			// capturing without draining more audio and without emitting our
 			// own ptt_end.
 			this.micCaptureService.abortPtt();
-		} else if (reason === 'immediate') {
-			// Silent passive turn: stop now (no drain) and send ptt_end synchronously so a following narration request isn't NACK'd `busy: user_speaking`.
-			this.micCaptureService.abortPtt();
-			this.voiceClientService.sendPttEnd();
 		} else {
 			this.micCaptureService.pttUp();
 		}
@@ -2243,9 +2580,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._voiceState.set('idle', undefined);
 			this._statusText.set('Tap to start', undefined);
 		}
-		if (this.accessibilityService.isScreenReaderOptimized()) {
-			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
+		if (reason === 'local' && source === 'explicit') {
+			this._playRecordingStoppedSignal(true);
+		} else if (this.accessibilityService.isScreenReaderOptimized()) {
+			this._playRecordingStoppedSignal(false);
 		}
+	}
+
+	private _playRecordingStoppedSignal(userGesture: boolean): void {
+		void this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped, {
+			source: userGesture ? 'voiceMode.explicitListeningStopped' : 'voiceMode.listeningStopped',
+			userGesture,
+		});
 	}
 
 	markUserCancelled(sessionId: string): void {
@@ -2281,10 +2627,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _isHandsFreeEnabled(): boolean {
-		// Default-off: hands-free auto-listen is opt-in, so only an explicit
-		// `true` enables it. An unresolved/undefined value resolves to the
-		// `handsFree` default (`false`) and stays disabled.
+		// Hands-free auto-listen is on by default; an unresolved/undefined value
+		// resolves to the `handsFree` default (`true`). Only an explicit `false`
+		// disables it.
 		return this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+	}
+
+	private _shouldEnterListenOnSessionInit(isResuming: boolean): boolean {
+		return !isResuming && this._isHandsFreeEnabled();
+	}
+
+	private _isLiveTranscriptEnabled(): boolean {
+		// Default-off: live word-by-word transcripts are opt-in, so only an
+		// explicit `true` enables the interim rendering. An unresolved/undefined
+		// value resolves to the `liveTranscript` default (`false`).
+		return this.configurationService.getValue<boolean>('agents.voice.liveTranscript') === true;
 	}
 
 	/**
@@ -2323,11 +2680,53 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return text;
 	}
 
+	/**
+	 * Whether this controller's window currently has OS focus. In multi-window
+	 * setups (e.g. an editor window + the agents window) each window has its own
+	 * controller/WebSocket, so without this gate every open window would re-arm
+	 * hands-free auto-listen and reply simultaneously. Only the focused window
+	 * should keep listening (#8507).
+	 */
+	private _isWindowFocused(): boolean {
+		try {
+			return this._window?.document.hasFocus() ?? false;
+		} catch {
+			return false;
+		}
+	}
+
+	/** Called when this controller's window loses OS focus. Aborts any open
+	 *  passive turn so the background window stops recording while the newly
+	 *  focused window can take over hands-free listening (#8507). */
+	private _onWindowBlur(): void {
+		if (this._pttHeld && this._pttCurrentTurnPassive) {
+			this.logService.trace('[voice] window blur: aborting passive turn (multi-window hands-free #8507)');
+			this._finishPtt('discard', 'internal');
+		}
+	}
+
+	/** Called when this controller's window gains OS focus. Re-arms hands-free
+	 *  auto-listen so the focused window is always the one that listens (#8507). */
+	private _onWindowFocus(): void {
+		if (this._isHandsFreeEnabled()) {
+			this.logService.trace('[voice] window focus: re-arming hands-free auto-listen (multi-window #8507)');
+			this._enterAutoListen();
+		}
+	}
+
 	/** Re-enter listening via synthetic short tap. */
-	private _enterAutoListen(): void {
+	private _enterAutoListen(source: 'auto' | 'connect' = 'auto'): void {
 		this._clearAutoListenTimer();
-		if (this._autoListenSuppressed || !this._isConnected.get() || this._pttHeld) {
-			this.logService.trace(`[voice] _enterAutoListen skipped: suppressed=${this._autoListenSuppressed} connected=${this._isConnected.get()} pttHeld=${this._pttHeld}`);
+		if (this._autoListenHeld || this._autoListenSuppressed || !this._isConnected.get() || this._pttHeld) {
+			this.logService.trace(`[voice] _enterAutoListen skipped: held=${this._autoListenHeld} suppressed=${this._autoListenSuppressed} connected=${this._isConnected.get()} pttHeld=${this._pttHeld}`);
+			return;
+		}
+		// In multi-window hands-free, only the focused window keeps auto-listening
+		// so two windows don't both listen and reply at once (#8507). The 'connect'
+		// source is a user gesture in the connecting (focused) window, so it isn't
+		// gated here.
+		if (source === 'auto' && !this._isWindowFocused()) {
+			this.logService.trace('[voice] _enterAutoListen skipped: window not focused (multi-window hands-free)');
 			return;
 		}
 		// Don't enter listening if audio is still playing or queued.
@@ -2336,8 +2735,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return;
 		}
 		this.logService.trace('[voice] _enterAutoListen entering listening');
-		this.pttDown();
-		this.pttUp();
+		this.pttDown(source);
+		this.pttUp('internal');
+	}
+
+	private _playListeningStartedSignal(source: 'explicit' | 'connect'): void {
+		if (source === 'connect') {
+			void this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceModeStarted, {
+				source: 'voiceMode.connectListeningStarted',
+				userGesture: true,
+			});
+			return;
+		}
+
+		void this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted, {
+			source: 'voiceMode.explicitListeningStarted',
+			userGesture: true,
+		});
 	}
 
 	/**
@@ -2357,12 +2771,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * already held.
 	 */
 	private _startBargeInListen(): void {
-		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenSuppressed || !this._window) {
+		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenHeld || this._autoListenSuppressed || !this._window) {
+			return;
+		}
+		// Only barge-in listen in the focused window so background windows don't
+		// also open a mic during playback (#8507).
+		if (!this._isWindowFocused()) {
 			return;
 		}
 		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
 		this._pttHeld = true;
+		this._pttCurrentTurnPassive = true;
 		// Track this as a passive barge-in listen (NOT toggle mode) so an
 		// explicit `pttDown()` promotes it into a user-driven interrupt instead
 		// of the toggle branch finishing it. The turn stays open on its own —
@@ -2377,7 +2797,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._telemetryPttDownMs = Date.now();
 		this.micCaptureService.isMuted = false;
 		this.micCaptureService.suppressUntil(0);
-		this.micCaptureService.pttDown(this._pttCurrentTurnId).catch(err => {
+		this.micCaptureService.pttDown(this._pttCurrentTurnId, /* passive */ true).catch(err => {
 			this.logService.warn('[voice] barge-in listen failed to start', err);
 			this._pttHeld = false;
 			this._bargeInListenActive = false;
@@ -2432,8 +2852,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	/**
 	 * Send transcription text to the target session or active chat.
-	 * If a target session is selected, sends directly via chatService.
-	 * Otherwise sends to whatever is currently active via the view pane command.
 	 */
 	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		// A focus-change submit pins routing to the session the user was
@@ -2559,7 +2977,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
 		// and includes last_response_summary in the patch.
-		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '', lastResponseSummary: '' });
+		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '', pendingId: '', lastResponseSummary: '' });
 		this._sendContext();
 
 		const disposables = new DisposableStore();
@@ -2584,7 +3002,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (response.isComplete || response.isCanceled) {
 				// Notify the voice backend of the state transition so it can
 				// narrate the response for this non-focused session.
-				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '', lastResponseSummary: '' });
+				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '', pendingId: '', lastResponseSummary: '' });
 				this._sendContext();
 				this.voiceClientService.flushSessionContext();
 				disposables.dispose();
@@ -2646,16 +3064,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		const updated: ITranscriptTurn = { speaker: 'user', text, committed, isPartial };
 		this._transcriptTurns.set([...cur.slice(0, -1), updated], undefined);
-	}
-
-	/** Whether the user is mid-utterance: VAD speech is active, or the transcript tail is a non-empty partial user turn. */
-	private _isActivelyDictating(): boolean {
-		if (this._userSpeechActive) {
-			return true;
-		}
-		const turns = this._transcriptTurns.get();
-		const last = turns[turns.length - 1];
-		return !!last && last.speaker === 'user' && last.isPartial && last.text.trim().length > 0;
 	}
 
 	/**
@@ -2738,7 +3146,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *
 	 *   send_to_chat(text="Open a new terminal and cd into the current directory.")
 	 *   new_sessions(sessions=[{"text": "Refactor upload service"}])
-	 *   approve_confirmation(...)
+	 *   respond_to_session(...)
 	 */
 	private _renderToolCallSummary(name: string, args: Record<string, unknown> | undefined): string {
 		if (!args || Object.keys(args).length === 0) {
@@ -2912,7 +3320,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		rekeyMap(this._lastResponseSummaryById);
 		rekeyMap(this._pendingNarrationRetries);
 		rekeyMap(this._deferredNarrations);
-		rekeyMap(this._narratedConfirmation);
+		rekeyMap(this._narratedPending);
 		rekeySet(this._confirmationPendingSessions);
 		rekeySet(this._liveReplyKeys);
 		rekeySet(this._sessionsAwaitingResponseSummary);
@@ -3071,6 +3479,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Never initialize this from flushResult.flushed - partial/other buffered
 		// audio must not be taken as "this session's reply was read".
 		let handledResponse = pendingSummaryFlushed;
+		// Push this session's context and clear the debounce before narrating. The
+		// backend validates a narration request against its mirror of the session
+		// context, so on the focus path (where the session may never have been
+		// sent at all) narrating first asks it to speak something it has not yet
+		// been told exists.
+		this._sendContext();
+		this.voiceClientService.flushSessionContext();
 		if (narratable) {
 			const wasJustPlayed = narratable.kind === 'response'
 				&& flushResult.finalTranscripts.includes(this._normalizeTranscript(narratable.text));
@@ -3084,13 +3499,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// responses on focus are narrated exactly like confirmations.
 				const alreadyNarrated = narratable.kind === 'response'
 					&& this._getLastNarratedText(key) === narratable.text;
-				// A still-pending confirmation we already spoke must not be
-				// re-narrated on a mere refocus. _narratedConfirmation records the
-				// text only once its audio finalized, so a confirmation that was
+				// A still-pending confirmation or question we already spoke must not
+				// be re-narrated on a mere refocus. _narratedPending records
+				// the text only once its audio finalized, so one that was
 				// deferred/dropped (never heard) still retries here, while one the
 				// user already heard stays silent until it changes or resolves.
-				const confirmationAlreadyHeard = narratable.kind === 'confirmation'
-					&& this._narratedConfirmation.get(sessionKey) === narratable.text;
+				const pendingAlreadyHeard = narratable.kind !== 'response'
+					&& this._narratedPending.get(sessionKey) === this._narratableIdentity(narratable);
 				// Only narrate a response on focus when it's a completion recorded
 				// THIS run - i.e. the session owns a pending-response summary, set on
 				// the observed idle transition in _handleNarratableStateChange. A
@@ -3101,15 +3516,27 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// pending-summary token is the per-turn freshness signal (the same one
 				// that drives the unread-reply indicator), so focus narrates exactly
 				// the replies that show as unread. Confirmations are exempt: they are
-				// current actionable state, deduped separately by _narratedConfirmation.
+				// current actionable state, deduped separately by _narratedPending.
 				const staleResponse = narratable.kind === 'response'
 					&& !this._pendingResponseSummaries.has(sessionKey);
-				if (confirmationAlreadyHeard) {
-					this.logService.trace(`[voice] activate skip: confirmation already heard for ${key.slice(-32)}`);
+				// A held deliberate press kept THIS reply buffered (see
+				// _flushDeferredResponse), so it will play on release. Re-issuing
+				// it now would be NACK'd busy, deferred, and then double up with
+				// that buffer. Suppress only that exact duplicate: an unrelated
+				// confirmation or a newer, different response for the session must
+				// still narrate (the buffer holds a different, older reply).
+				const bufferRetainedUnderPress = flushResult.retained === true
+					&& narratable.kind === 'response'
+					&& !!flushResult.retainedTranscript
+					&& this._normalizeTranscript(narratable.text) === flushResult.retainedTranscript;
+				if (pendingAlreadyHeard) {
+					this.logService.trace(`[voice] activate skip: ${narratable.kind} already heard for ${key.slice(-32)}`);
 				} else if (staleResponse) {
 					this.logService.trace(`[voice] activate skip: stale response (no pending summary) for ${key.slice(-32)}`);
+				} else if (bufferRetainedUnderPress) {
+					this.logService.trace(`[voice] activate skip: buffered reply retained under held press for ${key.slice(-32)}`);
 				} else {
-					this._narrate(key, narratable.kind, narratable.text);
+					this._narrate(key, narratable.kind, narratable.text, undefined, narratable.pending);
 				}
 				if (narratable.kind === 'response') {
 					// A request being SENT is not the reply being heard: keep the
@@ -3131,12 +3558,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (handledResponse) {
 			this._clearPendingResponse(sessionKey);
 		}
-		this._sendContext();
-		this.voiceClientService.flushSessionContext();
 	}
 
 	/** Ask the backend to narrate a session's pending item, de-duped by the exact text last spoken for it ({@link _lastNarratedText}) and by any in-flight request for the same text ({@link _pendingSolicitedNarrations}); the single narration trigger for both live and on-focus paths. Returns `true` when a request was actually SENT - NOT that the reply was heard (the audio may still be dropped/deferred/never arrive). The reply is marked narrated and its pending indicator cleared only once its audio finalizes (see {@link _markNarrationHeard}). */
-	private _narrate(sessionId: string, kind: 'response' | 'confirmation', text: string, reuseId?: string): boolean {
+	private _narrate(sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, pending?: { pendingId: string }): boolean {
 		if (!text) {
 			return false;
 		}
@@ -3148,34 +3573,36 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (kind === 'response' && this._getLastNarratedText(sessionId) === text) {
 			return false;
 		}
-		// A request for this exact text+kind is already in flight (its audio hasn't
-		// finalized yet); don't re-request or we'd narrate it twice. Match on kind
-		// too so an in-flight response can't suppress a same-text confirmation.
+		// A request for this exact occurrence+kind is already in flight (its audio
+		// hasn't finalized yet); don't re-request or we'd narrate it twice. Match on
+		// kind too so an in-flight response can't suppress a same-text confirmation,
+		// and on the pending id so a *different* form that happens to render the
+		// same prompt is not mistaken for the one already in flight.
 		const sessionKey = this._sessionKey(sessionId);
+		const identity = this._narratableIdentity({ text, pending });
 		for (const s of this._pendingSolicitedNarrations.values()) {
-			if (s.kind === kind && s.text === text && this._sessionKey(s.sessionId) === sessionKey) {
+			if (s.kind === kind && this._narratableIdentity(s) === identity && this._sessionKey(s.sessionId) === sessionKey) {
 				return false;
 			}
 		}
 		this.logService.trace(`[voice] narrate kind=${kind} id=${sessionId.slice(-32)}`);
-		// A silent hands-free auto-listen/barge-in turn keeps the backend's `user_is_speaking` latch set, which NACKs the narration request `busy: user_speaking`; end it first (real `ptt_end`) so the request is accepted. Skip while the user is genuinely mid-utterance (defer instead) or when the socket is closed (retry below).
-		const endPassiveTurnFirst = this._pttHeld && !this._isActivelyDictating() && this.voiceClientService.canRequestNarration;
-		if (endPassiveTurnFirst) {
-			this._prepareForPlayback(true);
-		}
-		const narrationId = this.voiceClientService.requestNarration(sessionId, kind, text, reuseId);
+		const narrationId = this.voiceClientService.requestNarration(sessionId, kind, text, reuseId, pending);
 		if (!narrationId) {
 			// Socket was closed, so nothing was sent: don't touch playback/listening
 			// state (that would tear down a freshly-entered listen on connect).
 			// Remember the item so the next session_init replays it after resume;
 			// leaving the dedup unset lets a later focus/state event retry too.
-			this._pendingNarrationRetries.set(sessionId, { kind, text });
+			this._pendingNarrationRetries.set(sessionId, kind);
 			return false;
 		}
-		if (!endPassiveTurnFirst) {
-			// Narration audio is inbound: leave listening/auto-listen so the echoed audio isn't suppressed or captured as the user's turn.
-			this._prepareForPlayback();
-		}
+		// The narration audio is now inbound. Get out of listening/auto-listen so
+		// the echoed audio isn't suppressed (or captured as the user's own turn)
+		// while PTT/mic capture is active. Done here so every narration path
+		// (live, on-focus, on-reconnect retry) is prepared, not just focus - but
+		// only once a request is actually in flight. A held deliberate press
+		// leaves the slot untouched (see _prepareForPlayback); its narration is
+		// NACK'd busy and retried on release, so the ignored return is expected.
+		this._prepareForPlayback();
 		this._pendingNarrationRetries.delete(sessionId);
 		// This newer request supersedes any older busy/interrupted entry deferred
 		// for this session (latest-wins per session). Without this, a later
@@ -3208,6 +3635,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			sessionId,
 			kind,
 			text,
+			pending,
 			audioStartTimer,
 			hasReceivedAudio: false,
 		});
@@ -3298,9 +3726,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// Confirmation heard: mark THIS occurrence spoken so a mere refocus
 			// while it is still pending doesn't re-narrate it (see
 			// _activateShownSession). Cleared when the session leaves
-			// waiting_for_confirmation (autorun), so a genuinely new confirmation -
-			// even with identical text - narrates again.
-			this._narratedConfirmation.set(sessionKey, solicited.text);
+			// waiting_for_confirmation (autorun) or when the pending item changes
+			// underneath it, so a genuinely new confirmation - even with identical
+			// text - narrates again.
+			this._narratedPending.set(sessionKey, this._narratableIdentity(solicited));
 			this.logService.trace(`[voice] confirmation heard for ${sessionKey.slice(-32)}; marking occurrence spoken`);
 		}
 	}
@@ -3328,6 +3757,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (e.disposition === 'invalid') {
 			this.logService.trace(`[voice] narration_ack invalid id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; dropping`);
 			this._clearDeferred(key);
+			if (solicited) {
+				this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: solicited.kind, reason: 'invalid' });
+			}
 			return;
 		}
 		// busy: defer for a revalidated retry once the guard clears.
@@ -3335,7 +3767,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const text = solicited?.text;
 		if (kind && text) {
 			this.logService.trace(`[voice] narration_ack busy id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; deferring`);
-			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text });
+			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text, reuseNarrationId: true, pending: solicited?.pending });
+			this.telemetryService.publicLog2<VoiceNarrationDeferredEvent, VoiceNarrationDeferredClassification>('voiceNarrationDeferred', { kind, reason: 'busy' });
 		}
 	}
 
@@ -3346,31 +3779,45 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * once the barge-in turn ends).
 	 */
 	private _handleNarrationInterrupted(e: IVoiceNarrationSignal): void {
-		const key = this._sessionKey(e.codingSessionId);
 		const solicited = this._pendingSolicitedNarrations.get(e.narrationId);
 		if (solicited) {
-			this._clearPendingSolicitedNarration(e.narrationId, solicited);
-		}
-		this._solicitedNarrationIds.delete(e.narrationId);
-		if (solicited) {
+			this._deferInterruptedNarration(e.narrationId, solicited);
 			this.logService.trace(`[voice] narration_interrupted id=${e.narrationId.slice(0, 8)}; deferring for revalidation`);
-			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind: solicited.kind, text: solicited.text });
+			this.telemetryService.publicLog2<VoiceNarrationDeferredEvent, VoiceNarrationDeferredClassification>('voiceNarrationDeferred', { kind: solicited.kind, reason: 'interrupted' });
+		} else {
+			this._solicitedNarrationIds.delete(e.narrationId);
 		}
+	}
+
+	private _deferInterruptedNarration(narrationId: string, solicited: IPendingSolicitedNarration): void {
+		this._clearPendingSolicitedNarration(narrationId, solicited);
+		this._solicitedNarrationIds.delete(narrationId);
+		this._deferredNarrations.set(this._sessionKey(solicited.sessionId), {
+			narrationId,
+			kind: solicited.kind,
+			text: solicited.text,
+			reuseNarrationId: false,
+			pending: solicited.pending,
+		});
 	}
 
 	/**
 	 * The `narration_unblocked` nudge fired for a deferred narration. Revalidate
 	 * against the current session state and only re-request if it is still
-	 * warranted, reusing the same id when the text is unchanged (so the backend
-	 * dedups a lost ack) and minting a fresh one when the text changed. If it is
-	 * no longer warranted (resolved, or a different kind), drop it without
-	 * speaking.
+	 * warranted, reusing the same id for a busy retry when the text is unchanged
+	 * (so the backend dedups a lost ack), but minting a fresh id after an
+	 * interruption because the old id is tombstoned for late-audio suppression.
+	 * If it is no longer warranted (resolved, or a different kind), drop it.
 	 */
-	private _retryDeferredNarration(sessionKey: string): void {
+	private _retryDeferredNarration(sessionKey: string, unblockedNarrationId?: string): boolean {
 		const deferred = this._deferredNarrations.get(sessionKey);
 		if (!deferred) {
 			this.logService.trace(`[voice] narration_unblocked for ${sessionKey.slice(-32)} but nothing deferred; nothing to retry`);
-			return;
+			return false;
+		}
+		if (unblockedNarrationId && deferred.narrationId !== unblockedNarrationId) {
+			this.logService.trace(`[voice] narration_unblocked id=${unblockedNarrationId.slice(0, 8)} for ${sessionKey.slice(-32)} does not match currently deferred id=${deferred.narrationId.slice(0, 8)}; a newer entry superseded it, skipping`);
+			return false;
 		}
 		let resource: URI | undefined;
 		try {
@@ -3382,7 +3829,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!narratable || narratable.kind !== deferred.kind) {
 			this.logService.trace(`[voice] deferred narration for ${sessionKey.slice(-32)} no longer warranted; dropping`);
 			this._clearDeferred(sessionKey);
-			return;
+			this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: deferred.kind, reason: 'stale' });
+			return false;
 		}
 		// The session may no longer be the one shown (the user switched away while
 		// the backend was busy). Speaking now would play this session's item over
@@ -3392,12 +3840,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._shouldDeferForSession(sessionKey)) {
 			this.logService.trace(`[voice] deferred narration for ${sessionKey.slice(-32)} no longer shown; dropping`);
 			this._clearDeferred(sessionKey);
-			return;
+			this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: deferred.kind, reason: 'session_changed' });
+			return false;
 		}
-		const reuseId = narratable.text === deferred.text ? deferred.narrationId : undefined;
+		// Reuse the id only for the same *occurrence*, so the backend dedups a lost
+		// ack rather than being handed an id that now names a different form. An
+		// interrupted narration never reuses: its id is tombstoned.
+		const reuseId = deferred.reuseNarrationId && this._narratableIdentity(narratable) === this._narratableIdentity(deferred) ? deferred.narrationId : undefined;
 		this.logService.trace(`[voice] retrying deferred narration for ${sessionKey.slice(-32)} reuse=${!!reuseId}`);
 		this._clearDeferred(sessionKey);
-		this._narrate(sessionKey, narratable.kind, narratable.text, reuseId);
+		return this._narrate(sessionKey, narratable.kind, narratable.text, reuseId, narratable.pending);
 	}
 
 	/** Drop a deferred narration. */
@@ -3406,9 +3858,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/** The pending item a session would narrate now (waiting confirmation prompt or completed reply summary), from the resident model or cached summary/status; returns undefined (kicking off a load) if a confirmation's detail isn't ready. */
-	private _currentNarratable(resource: URI): { kind: 'response' | 'confirmation'; text: string } | undefined {
+	private _currentNarratable(resource: URI): { kind: VoiceNarrationKind; text: string; pending?: { pendingId: string } } | undefined {
 		const model = this.chatService.getSession(resource);
 		if (model) {
+			// A question form is narrated from the structured payload, not from
+			// `agent_state_detail`: that string is just the question titles, so the
+			// user would hear what they are being asked without hearing the options
+			// they are meant to pick from.
+			const question = this._questionNarratable(model);
+			if (question) {
+				return question;
+			}
 			const info = this._getAgentStateInfo(model);
 			if (info.state === 'waiting_for_confirmation' && info.detail) {
 				return { kind: 'confirmation', text: info.detail };
@@ -3439,6 +3899,55 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return undefined;
 		}
 		return undefined;
+	}
+
+	/**
+	 * The id of the pending item a session is showing right now, or `''`.
+	 *
+	 * Used as a per-occurrence fingerprint in state-transition detection: the
+	 * prose `detail` two forms produce can be identical, so without this,
+	 * replacing one form with another inside `waiting_for_confirmation` looks
+	 * like no change at all and is never narrated.
+	 */
+	private _pendingIdFor(sessionId: string): string {
+		// Only meaningful while a session is showing a pending item; callers skip
+		// it otherwise rather than walk a settled response's parts for nothing.
+		const model = this._modelForSession(sessionId);
+		return (model ? this._buildPendingPayload(model)?.pending_id : undefined) ?? '';
+	}
+
+	/**
+	 * The identity of one *occurrence* of a narratable item, for dedup.
+	 *
+	 * Two forms can ask the same questions and two tools can raise the same
+	 * prompt, so keying "already heard" on text alone swallows the second one.
+	 * Text is only a fallback for narratables with no structured pending.
+	 */
+	private _narratableIdentity(narratable: { text: string; pending?: { pendingId: string } }): string {
+		return narratable.pending ? `#${narratable.pending.pendingId}` : narratable.text;
+	}
+
+	/**
+	 * The spoken form of a session's pending question form, if it has one.
+	 *
+	 * This asks for *the form*, not a particular question in it: the backend owns
+	 * the draft of answers so far, so only it knows which question the form is
+	 * waiting on. Naming one here would leave a partially answered form silent,
+	 * since the client only ever sees question 1. The text is used during the
+	 * debounce window before the backend's mirror catches up, which is by
+	 * definition first sighting.
+	 */
+	private _questionNarratable(model: IChatModel | undefined | null): { kind: VoiceNarrationKind; text: string; pending: { pendingId: string } } | undefined {
+		const pending = model ? this._buildPendingPayload(model) : undefined;
+		const question = pending?.type === 'questions' ? pending.questions?.[0] : undefined;
+		if (!pending || !question) {
+			return undefined;
+		}
+		return {
+			kind: 'question',
+			text: formatQuestionPrompt(question, pending.allow_skip === true),
+			pending: { pendingId: pending.pending_id },
+		};
 	}
 
 	/**
@@ -3668,7 +4177,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._shouldDeferForSession(sessionId);
 	}
 
-	private _deferResponse(sessionId: string, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string): void {
+	private _deferResponse(sessionId: string, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, turnId?: string): void {
 		const key = this._sessionKey(sessionId);
 		let responses = this._deferredResponses.get(key);
 		if (!responses) {
@@ -3688,7 +4197,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				: [...responses].reverse().find(r => !r.finalized);
 		}
 		if (!response) {
-			response = { responseId, finalized: false, chunks: [] };
+			response = { responseId, turnId, finalized: false, chunks: [] };
 			responses.push(response);
 			this._markPendingResponse(key, true);
 			this.logService.trace(`[voice] deferring response for unfocused session=${key} (buffered=${responses.length}); showing pending indicator`);
@@ -3737,11 +4246,33 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const responses = this._deferredResponses.get(key);
-		this._deferredResponses.delete(key);
-		this._maybeHideIndicator(key);
 		if (!responses || responses.length === 0) {
+			this._deferredResponses.delete(key);
+			this._maybeHideIndicator(key);
 			return { flushed: false, finalTranscripts: [] };
 		}
+
+		// Exit any active listening / auto-listen and ready the playback slot so
+		// the buffered chunks can play. If a held deliberate (non-passive) press
+		// is preserved, the slot can't be claimed without stranding the backend
+		// latch, so leave the responses buffered and report `retained` so the
+		// caller skips issuing a fresh narration for this same reply. The buffer
+		// re-flushes once the press releases, either via the periodic safety-net
+		// (_checkSessionStateChanges) or a later focus. Nothing is consumed here,
+		// so the deferred entry and its indicator stay intact.
+		if (!this._prepareForPlayback()) {
+			this.logService.trace(`[voice] deferred flush for session=${key} deferred: held deliberate press preserved, keeping ${responses.length} buffered response(s)`);
+			// Report the most recent buffered reply's transcript so the caller
+			// suppresses only a duplicate re-narrate of that exact reply, not an
+			// unrelated confirmation or a newer, different response for the session.
+			const retainedFinals = responses
+				.map(r => this._normalizeTranscript([...r.chunks].reverse().find(c => c.transcript)?.transcript ?? ''))
+				.filter(t => !!t);
+			return { flushed: false, retained: true, retainedTranscript: retainedFinals[retainedFinals.length - 1], finalTranscripts: [] };
+		}
+
+		this._deferredResponses.delete(key);
+		this._maybeHideIndicator(key);
 		const totalChunks = responses.reduce((n, r) => n + r.chunks.length, 0);
 		this.logService.trace(`[voice] flushing ${responses.length} buffered response(s) (${totalChunks} chunk(s)) for now-focused session=${key}`);
 		// Promote any still-open (not-yet-finalized) response's route from
@@ -3762,7 +4293,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			.filter(t => !!t);
 		// Record that we just replayed this session's buffered reply, so a backend
 		// re-narration (same text) arriving shortly after is dropped rather than
-		// double-read. The LAST response is the most recent - the one the backend
+		// double-read. The last response is the most recent - the one the backend
 		// would re-narrate on activation - so dedupe against its final transcript.
 		const flushedTranscript = finalTranscripts[finalTranscripts.length - 1];
 		if (flushedTranscript) {
@@ -3770,17 +4301,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._lastHeardTranscriptById.set(key, flushedTranscript);
 		}
 
-		// Exit any active listening / auto-listen and reset the playback slot so
-		// the buffered chunks can play (see _prepareForPlayback).
-		this._prepareForPlayback();
-
 		// Play every buffered response for this session, in the order they arrived.
 		for (const r of responses) {
 			for (const chunk of r.chunks) {
 				this._enqueueAudio(key, chunk.audio, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, r.responseId);
 			}
 		}
-		// NOTE: do NOT mark these narrations heard here - enqueuing is not playing.
+		// Do not mark these narrations heard here - enqueuing is not playing.
 		// The audio may still be dropped by a later activation / PTT / queue reset
 		// / interruption before it plays. It is marked heard from onPlaybackStopped
 		// (or the speech-disabled branch of _playChunk), keyed by responseId, only
@@ -3792,18 +4319,37 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Get the controller out of listening/auto-listen and ready the playback slot
 	 * so an about-to-arrive (or just-buffered) narration actually plays instead of
-	 * being suppressed. Used before flushing a deferred response AND before
+	 * being suppressed. Used before flushing a deferred response and before
 	 * narrating a freshly-shown session's pending item (e.g. a confirmation, which
 	 * carries no buffered audio and so never hits the flush path) - otherwise the
 	 * controller can sit in listening and the echoed audio is dropped, leaving the
 	 * user staring at a focused session that never speaks.
+	 *
+	 * Returns `true` when the playback slot is ready (no press held, or a passive
+	 * open-mic turn was torn down), and `false` when it deliberately preserved a
+	 * held non-passive press. A `false` return tells the flush caller to leave its
+	 * buffered audio deferred rather than play it over the user's live press.
 	 */
-	private _prepareForPlayback(endOpenTurn = false): void {
+	private _prepareForPlayback(): boolean {
 		this._clearAutoListenTimer();
 		this._autoListenSuppressed = false;
+		// A held deliberate press (non-passive) latched the backend's
+		// `user_is_speaking`, so its narration request was NACK'd `busy` and
+		// deferred: it will not play now. Leave the press fully intact. Aborting
+		// it here sends no `ptt_end` and would strand the latch; its natural
+		// release sends `ptt_end`, clearing the guard and driving the
+		// `narration_unblocked` retry. Only a passive open-mic turn (auto-listen
+		// or barge-in), which never latched, is safe to abort here to free the
+		// mic for the incoming narration audio.
+		if (this._pttHeld && !this._pttCurrentTurnPassive) {
+			return false;
+		}
 		if (this._pttHeld) {
-			// `endOpenTurn` sends a real `ptt_end` (backend clears its latch) vs. a local-only abort.
-			this._finishPtt(endOpenTurn ? 'immediate' : 'auto');
+			// A local-only abort ('auto', no `ptt_end`): a passive turn never
+			// latched `user_is_speaking`, so there's nothing to force-clear.
+			// 'internal' marks this as a non-user-gesture stop so it doesn't emit
+			// the explicit listening-stopped signal.
+			this._finishPtt('auto', 'internal');
 		}
 		this._pttToggleMode = false;
 		this._pttHeld = false;
@@ -3811,13 +4357,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Reset the playback slot when nothing is actually playing so `_enqueueAudio`
 		// can claim it and drive the state machine to 'speaking'. A prior generic
 		// response leaves the slot `undefined` (not `null`), which skips the
-		// fast-path, so an explicit reset is required. Do NOT wipe `_audioQueue`:
+		// fast-path, so an explicit reset is required. Do not wipe `_audioQueue`:
 		// valid audio can be pending during the ~500ms post-playback re-process gap
 		// (isPlaying is false but the queue is non-empty), and clearing it here
 		// would silently drop those responses.
 		if (!this.ttsPlaybackService.isPlaying && this._currentPlaybackSessionId !== null) {
 			this._currentPlaybackSessionId = null;
 		}
+		return true;
 	}
 
 	/**
@@ -3993,6 +4540,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// --- Audio FIFO queue ---
 
 	private _interruptAssistantPlayback(): void {
+		this._rememberInterruptedPlaybackIds();
 		this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
@@ -4003,6 +4551,87 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// (e.g. nothing was playing), so a later stray stop can't consume a stale id.
 		this._currentPlaybackResponseId = undefined;
 		this.voicePlaybackService.notifyPlaybackEnd(undefined);
+	}
+
+	/**
+	 * Stop reading an actionable pending request aloud once it has been resolved
+	 * (e.g. the user pressed Allow, or answered the form with the mouse, before
+	 * the narration finished). Cancels the session's in-flight
+	 * confirmation/question narration(s): drops their queued audio, remembers
+	 * their ids so trailing / not-yet arrived chunks are swallowed in the
+	 * `audio_response` handler, and cuts off playback if one of them is what is
+	 * currently speaking. The agent's subsequent real reply uses a different
+	 * narration id and is unaffected.
+	 *
+	 * Responses are deliberately exempt: a completed reply stays worth hearing
+	 * after the thing it describes has been dealt with, whereas a prompt for an
+	 * action that has already been taken is only confusing.
+	 */
+	private _stopPendingNarration(sessionId: string): void {
+		const sessionKey = this._sessionKey(sessionId);
+		// Collect the narration ids of this session's actionable narrations that
+		// are still in flight (requested/queued/playing but not finished).
+		const cancelledIds = new Set<string>();
+		for (const [narrationId, pending] of this._pendingSolicitedNarrations) {
+			if (pending.kind !== 'response' && this._sessionKey(pending.sessionId) === sessionKey) {
+				cancelledIds.add(narrationId);
+				this._clearPendingSolicitedNarration(narrationId, pending);
+			}
+		}
+		if (cancelledIds.size === 0) {
+			return;
+		}
+		// Drop any not-yet-played chunks of those narrations from the queue.
+		for (let i = this._audioQueue.length - 1; i >= 0; i--) {
+			const responseId = this._audioQueue[i].responseId;
+			if (responseId !== undefined && cancelledIds.has(responseId)) {
+				this._audioQueue.splice(i, 1);
+			}
+		}
+		// Remember the ids so trailing chunks (or a narration whose audio has
+		// not started arriving yet) are swallowed in the audio_response handler.
+		// Bound the set so ids that never yield audio can't leak across a long
+		// session.
+		for (const id of cancelledIds) {
+			if (this._cancelledPendingNarrationIds.size >= 64) {
+				const oldest = this._cancelledPendingNarrationIds.values().next().value;
+				if (oldest !== undefined) {
+					this._cancelledPendingNarrationIds.delete(oldest);
+				}
+			}
+			this._cancelledPendingNarrationIds.add(id);
+		}
+		// A confirmation narration may already have been buffered for an
+		// unfocused session (in _deferredResponses); the queue splice above and
+		// the audio_response drop only guard the LIVE queue, so purge those
+		// deferred buffers too or the resolved approval replays on next focus.
+		for (const [key, responses] of this._deferredResponses) {
+			const kept = responses.filter(r => r.responseId === undefined || !cancelledIds.has(r.responseId));
+			if (kept.length === responses.length) {
+				continue;
+			}
+			if (kept.length === 0) {
+				this._deferredResponses.delete(key);
+			} else {
+				this._deferredResponses.set(key, kept);
+			}
+			// The buffered confirmation may have been the indicator's only owner.
+			this._maybeHideIndicator(key);
+		}
+		// Retire the per-response route for each cancelled id: the audio_response
+		// handler returns early for these (before its normal end-of-stream
+		// cleanup), so their _responseRoutes entries would otherwise leak.
+		for (const id of cancelledIds) {
+			this._responseRoutes.delete(id);
+		}
+		// If one of the cancelled narrations is what's currently playing, cut it
+		// off. Mark it interrupted first so onPlaybackStopped doesn't treat it as
+		// "heard"; that handler then resets the slot, drains the queue and
+		// restores idle / hands-free listening.
+		if (this._currentPlaybackResponseId !== undefined && cancelledIds.has(this._currentPlaybackResponseId)) {
+			this._telemetryTtsInterrupted = true;
+			this.ttsPlaybackService.stopPlayback();
+		}
 	}
 
 	private _enqueueAudio(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string): void {
@@ -4283,8 +4912,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._clearPendingResponse(sessionKey);
 			}
 		} else if (currentState === 'waiting_for_confirmation' && detail) {
-			this._narrate(sessionId, 'confirmation', detail);
+			// `detail` is the prose flattening, which for a question form is just
+			// the question titles; the options the user has to choose between are
+			// not in it, so hearing it leaves them with nothing to say back. Use
+			// the structured rendering whenever the model is resident enough to
+			// produce one; a remote session with no loaded model still gets the
+			// prose, which is what it got before.
+			const question = this._questionNarratable(this._modelForSession(sessionId));
+			if (question) {
+				this._narrate(sessionId, question.kind, question.text, undefined, question.pending);
+			} else {
+				this._narrate(sessionId, 'confirmation', detail);
+			}
 		}
+	}
+
+	/** The resident chat model for a session id, or `undefined` when it isn't loaded (or the id isn't a URI). */
+	private _modelForSession(sessionId: string): IChatModel | undefined {
+		let resource: URI;
+		try {
+			resource = URI.parse(sessionId);
+		} catch {
+			return undefined;
+		}
+		return this.chatService.getSession(resource);
 	}
 
 	/**
@@ -4312,7 +4963,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const detail = change.detail ?? '';
 			const summary = change.lastResponseSummary ?? '';
 			const stateChanged = change.fromState !== change.currentState;
-			const detailOnly = !stateChanged && change.currentState === 'waiting_for_confirmation' && change.fromDetail !== detail;
+			// Same pendingId test as the per-session path: two forms asking the same
+			// things have identical detail, so only the id distinguishes them.
+			const detailOnly = !stateChanged && change.currentState === 'waiting_for_confirmation'
+				&& (change.fromDetail !== detail || change.fromPendingId !== change.pendingId);
 			// A summary that appeared/changed while the session stayed idle is a
 			// real narratable change even though the coarse state didn't move.
 			const responseSummaryOnly = !stateChanged && change.currentState === 'idle' && !!summary && change.fromResponseSummary !== summary;
@@ -4326,17 +4980,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._sendContext();
 			return;
 		}
-		// Speak the settled item for the shown session; a background session's item
-		// waits until the user focuses it. Both this coalesced path and the direct
-		// _checkSessionStateChanges path feed this, so remote/unloaded sessions
-		// surfaced only by the latter are covered too.
-		const shownNow = this._shownSessionId();
-		for (const { change } of netChanges) {
-			this._handleNarratableStateChange(change.sessionId, change.currentState, change.detail, change.lastResponseSummary, shownNow);
-		}
-		// For detail-only transitions (same agent_state but different confirmation
-		// content), invalidate the cache so _sendDelta treats the session as new
-		// and includes agent_state + agent_state_detail together.
+		// The backend validates a narration request against its mirror of the
+		// session context, and that mirror is debounced 500ms. Narrating first
+		// would ask it to speak a form it has not been told about yet, so the
+		// context that justifies the narration goes out, and past the debounce,
+		// before the narration is requested.
+		//
+		// For detail-only transitions (same agent_state but different pending
+		// content), invalidate the cache first so _sendDelta treats the session as
+		// new and includes agent_state + agent_state_detail together.
 		for (const { change, detailOnly } of netChanges) {
 			if (detailOnly) {
 				this.voiceClientService.invalidateSessionCache(change.sessionId);
@@ -4345,6 +4997,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._sendContext();
 		this.logService.trace(`[voice] emitting ${netChanges.length} settled stateChange(s): ${netChanges.map(({ change, detailOnly }) => `${change.label}:${change.currentState}${detailOnly ? ' (detail-only)' : ''}`).join(', ')}`);
 		this.voiceClientService.flushSessionContext();
+		// Speak the settled item for the shown session; a background session's item
+		// waits until the user focuses it. Both this coalesced path and the direct
+		// _checkSessionStateChanges path feed this, so remote/unloaded sessions
+		// surfaced only by the latter are covered too.
+		const shownNow = this._shownSessionId();
+		for (const { change } of netChanges) {
+			this._handleNarratableStateChange(change.sessionId, change.currentState, change.detail, change.lastResponseSummary, shownNow);
+		}
 		for (const { change } of netChanges) {
 			// Persist as a coding_event in the local timeline so
 			// "session X went from thinking → waiting_for_confirmation"
@@ -4459,7 +5119,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 			const prev = this._prevSessionStates.get(sessionId);
 			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+			const pendingId = currentState === 'waiting_for_confirmation' ? this._pendingIdFor(sessionId) : '';
+			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 
 			// Arm the awaiting-summary marker on a genuine new turn so this run's
 			// completion is later recognized as new (see autorun for rationale).
@@ -4509,7 +5170,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Preserve a known summary rather than clobbering with '' so a
 				// model unload→reload can't manufacture a fresh-reply transition.
 				const rememberedSummary = normalizedSummary || this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
-				this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', lastResponseSummary: rememberedSummary });
+				this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', pendingId, lastResponseSummary: rememberedSummary });
 			}
 			if (currentState === 'waiting_for_confirmation') {
 				waitingSessionIds.add(sessionId);
@@ -4529,7 +5190,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 			const prev = this._prevSessionStates.get(key);
 			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+			const pendingId = currentState === 'waiting_for_confirmation' ? this._pendingIdFor(key) : '';
+			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 
 			// Arm the awaiting-summary marker on a genuine new turn.
 			if (isStateChange && currentState === 'thinking' && !this._eagerModelLoading.has(key)) {
@@ -4552,7 +5214,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			if (currentState !== 'unknown') {
 				const rememberedSummary = normalizedSummary || this._lastResponseSummaryById.get(key) || prev?.lastResponseSummary || '';
-				this._prevSessionStates.set(key, { state: currentState, detail: detail ?? '', lastResponseSummary: rememberedSummary });
+				this._prevSessionStates.set(key, { state: currentState, detail: detail ?? '', pendingId, lastResponseSummary: rememberedSummary });
 			}
 			if (currentState === 'waiting_for_confirmation') {
 				waitingSessionIds.add(key);
@@ -4564,6 +5226,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// via onDidChangeSessions or the periodic poll rather than the autorun).
 		this._reconcileConfirmationIndicators(waitingSessionIds);
 
+		if (stateChanges.length > 0) {
+			this.logService.trace(`[voice] onDidChangeSessions detected ${stateChanges.length} state change(s): ${stateChanges.map(c => `${c.label}: ${c.currentState}`).join(', ')}`);
+			// Flush the context before narrating; see `_activateShownSession`.
+			this._sendContext();
+			this.voiceClientService.flushSessionContext();
+		}
+
 		// Speak the settled item for the shown session; completions surfaced ONLY
 		// here (e.g. remote/unloaded sessions) are covered too. Background sessions
 		// are spoken on focus.
@@ -4573,10 +5242,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		if (stateChanges.length > 0) {
-			this.logService.trace(`[voice] onDidChangeSessions detected ${stateChanges.length} state change(s): ${stateChanges.map(c => `${c.label}: ${c.currentState}`).join(', ')}`);
-			// Push fresh context + flush the debounce so the backend picks up the transition without a 500ms wait; this only updates tracked state (narration is requested via _handleNarratableStateChange above).
-			this._sendContext();
-			this.voiceClientService.flushSessionContext();
 			for (const change of stateChanges) {
 				this._persistEntry(
 					'coding_event',
@@ -4689,12 +5354,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				? { state: 'thinking', hideConfirmationDetail: true }
 				: this._reportedAgentState(heldState, isActive);
 			const shipSummary = heldState === stateInfo.state ? stateInfo.last_response_summary : undefined;
+			// `pending` ships even when the detail is held back: it is what makes a
+			// form answerable, and withholding it would leave a form the user can
+			// see with no way to answer it by voice.
+			const pending = this._buildPendingPayload(model);
 			return {
 				id: s.resource.toString(),
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(shipSummary ? { last_response_summary: shipSummary } : {}),
+				...(pending ? { pending } : {}),
 			};
 		});
 
@@ -4713,12 +5383,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			const isActive = key === targetSessionId;
 			const scoped = this._reportedAgentState(stateInfo.state, isActive);
+			const pending = this._buildPendingPayload(chatModel);
 			sessionList.push({
 				id: key,
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
+				...(pending ? { pending } : {}),
 			});
 		}
 
@@ -4884,6 +5556,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const lastRequest = model.getRequests().at(-1);
+
+		// Do not narrate partial work after the user cancels a turn.
+		if (lastRequest?.response?.isCanceled) {
+			return { state: 'idle' };
+		}
+
 		const pendingConfirmation = lastRequest?.response?.isPendingConfirmation.get();
 		if (pendingConfirmation) {
 			// Scan ALL response parts to find the most recent pending item.
@@ -4977,8 +5655,89 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return { state: 'thinking' };
 		}
 
-		const responseText = lastRequest?.response?.response.getMarkdown().trim() ?? '';
+		const responseText = [
+			lastRequest?.response?.response.getMarkdown().trim(),
+			lastRequest?.response?.result?.errorDetails?.message.trim(),
+		].filter(value => !!value).join('\n\n');
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
+	}
+
+	/**
+	 * Describe what a session is waiting on, structurally.
+	 *
+	 * `_getAgentStateInfo` flattens the same state into `agent_state_detail`,
+	 * which is fine to *say* but cannot be *acted on*: a form becomes
+	 * `questions: <titles>`, losing the options, their values and the ids. This
+	 * returns what the backend needs to route an answer back to the exact part.
+	 *
+	 * Scans newest-first and returns the first still-open part, so an
+	 * already-answered earlier form can't shadow the live one. Plan review is
+	 * deliberately not typed here; it stays on the legacy string path.
+	 */
+	private _buildPendingPayload(model: IChatModel | undefined | null): IVoiceSessionPending | undefined {
+		const lastRequest = model?.getRequests().at(-1);
+		const parts = lastRequest?.response?.response.value;
+		if (!lastRequest || !parts) {
+			return undefined;
+		}
+
+		for (let index = parts.length - 1; index >= 0; index--) {
+			const part = parts[index];
+			// Minted lazily: an id is issued only once the part is confirmed to be
+			// a live pending request, so a part the backend can never answer never
+			// gets an identity that a stale id could collide with.
+			const routing = () => ({ pending_id: derivePendingId(lastRequest.id, part), request_id: lastRequest.id });
+
+			if (part.kind === 'questionCarousel') {
+				const carousel = part as IChatQuestionCarousel;
+				if (carousel.isUsed || carousel.answeredExternally || carousel.questions.length === 0) {
+					continue;
+				}
+				return {
+					type: 'questions',
+					...routing(),
+					allow_skip: carousel.allowSkip === true,
+					...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
+					questions: carousel.questions.map((question): IVoicePendingQuestion => ({
+						id: question.id,
+						type: question.type,
+						// The same text the widget shows, so voice reads the question
+						// rather than its header.
+						title: this._plainText(getDisplayedQuestionText(question)),
+						allow_freeform: question.allowFreeformInput !== false,
+						// The ordinal the user hears has to be the one they see, so the
+						// list is in the same order the widget renders, and both sides
+						// number it by position.
+						options: getOptionsWithDefaultsFirst(question).map(({ option }) => ({
+							label: option.label,
+							value: option.value,
+						})),
+					})),
+				};
+			}
+
+			if (part.kind === 'toolInvocation') {
+				const state = (part as IChatToolInvocation).state.get();
+				if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					continue;
+				}
+				const message = this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
+				return {
+					type: 'approval',
+					...routing(),
+					...(message ? { message } : {}),
+				};
+			}
+		}
+
+		return undefined;
+	}
+
+	private _plainText(value: string | IMarkdownString | undefined): string {
+		if (!value) {
+			return '';
+		}
+		return typeof value === 'string' ? value : value.value;
 	}
 
 	private _classifyPendingType(response: { response: { value: readonly { kind: string }[] } }): 'approval' | 'input' {

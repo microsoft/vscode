@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $ } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, ContextView, ContextViewDOMPosition, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
+import { $, getWindow } from '../../../../browser/dom.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, ContextView, ContextViewDOMPosition, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ContextView', () => {
@@ -93,6 +93,35 @@ suite('ContextView', () => {
 
 		contextView.dispose();
 		assert.strictEqual(disposeCount, 1);
+		container.remove();
+	});
+
+	test('menu motion does not retain a containing block for submenus (#326248)', () => {
+		const container = $('.container');
+		container.classList.add('style-override', 'monaco-enable-motion');
+		document.body.appendChild(container);
+
+		const surface = $('.monaco-scrollable-element');
+		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
+		contextView.show({
+			getAnchor: () => ({ x: 0, y: 0 }),
+			render: view => {
+				view.appendChild(surface);
+				return null;
+			}
+		});
+		contextView.getViewElement().classList.add(CONTEXT_VIEW_MENU_MOTION_CLASS);
+
+		const style = getWindow(surface).getComputedStyle(surface);
+		assert.deepStrictEqual({
+			animationFillMode: style.animationFillMode,
+			willChange: style.willChange
+		}, {
+			animationFillMode: 'backwards',
+			willChange: 'opacity'
+		});
+
+		contextView.dispose();
 		container.remove();
 	});
 });

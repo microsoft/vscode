@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Audio-reactive glow shown inside the dictation mic button while listening (see
+	dictationMicGlow.ts). Decorative and never interactive. Motion is gated on
+	`monaco-enable-motion`; with reduced motion the glow still shows, the
+	animation loop simply never starts. */
+.dictation-mic-active {
+	position: relative;
+	--dictation-mic-level: 0;
+}
+
+/* Keep the mic glyph above the glow so the icon stays crisp. */
+.dictation-mic-active > * {
+	position: relative;
+	z-index: 1;
+}
+
+/* Audio-reactive inner glow matching Voice Mode's listening glow style (inner border + inset wash). */
+.dictation-mic-active::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	border-radius: var(--dictation-mic-glow-radius, var(--vscode-cornerRadius-small));
+	background: color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 12%, transparent);
+	box-shadow:
+		inset 0 0 0 1px color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) calc(30% + var(--dictation-mic-level) * 30%), transparent),
+		inset 0 0 calc(3px + var(--dictation-mic-level) * 6px) color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) calc(10% + var(--dictation-mic-level) * 20%), transparent);
+	opacity: calc(0.5 + var(--dictation-mic-level) * 0.5);
+	transition: opacity 260ms ease-out, box-shadow 320ms ease-out;
+	will-change: opacity, box-shadow;
+}
+
+/* Recording has stopped and the final transcript is landing. */
+.dictation-mic-active.dictation-mic-settling::after {
+	opacity: 0.2;
+}
+
+/* Keeps the button from ever being completely still during a pause in speech. */
+.monaco-workbench.monaco-enable-motion .dictation-mic-active:not(.dictation-mic-settling)::after {
+	animation: dictation-mic-breathe 5.5s ease-in-out infinite;
+}
+
+@keyframes dictation-mic-breathe {
+	0%, 100% { filter: brightness(0.9); }
+	50% { filter: brightness(1.14); }
+}
+
+/* The segmented voice-input pill's cell is rounded as a pill when expanded. */
+.chat-voice-input-mode-cell.dictation {
+	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
+}
+
+/* High-contrast themes replace the soft glow with a solid outline, which must
+	stay fully opaque to keep its contrast at low levels. */
+.hc-black .dictation-mic-active::after,
+.hc-light .dictation-mic-active::after {
+	opacity: 1;
+	background: none;
+	box-shadow: none;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}

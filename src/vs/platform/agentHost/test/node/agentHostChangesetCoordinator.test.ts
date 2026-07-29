@@ -42,7 +42,7 @@ suite('ChangesetSessionCoordinator', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		}, { emitNotification });
 		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
@@ -148,7 +148,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, rootLookups: environment.gitService.rootLookupCalls }, { acquisitions: [], rootLookups: [] });
 
 		const summary = environment.stateManager.getSessionSummary(session)!;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectories: ['file:///repo/worktree'] });
 		environment.coordinator.onSessionMaterialized(session);
 		await environment.monitor.waitForAcquisitions(1);
 
@@ -170,7 +170,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 
 		const summary = environment.stateManager.getSessionSummary(session)!;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectories: ['file:///repo/worktree'] });
 		environment.coordinator.onSessionMaterialized(session);
 		await tick();
 

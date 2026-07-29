@@ -13,7 +13,8 @@
  * the inner layout stays in sync with this CSS. The margin and the 1px border
  * must match `FLOATING_PANEL_MARGIN` and the border inset used there. The outermost
  * card on a window edge gets a doubled outer gutter (`.floating-part-outer-*`).
- * Colors mirror the agents window (`agentsPanel.*` tokens).
+ * Colors come from the generic `surface.*` tokens (shared with the agent
+ * sessions window).
  *
  * Uses `--vscode-spacing-size40` (4px); keep this in sync with
  * `FLOATING_PANEL_MARGIN` in code.
@@ -22,19 +23,19 @@
 .monaco-workbench.floating-panels .part.sidebar,
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
+	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-agentsPanel-background) !important;
-	color: var(--vscode-agentsPanel-foreground);
+	background-color: var(--vscode-surface-background) !important;
+	color: var(--vscode-surface-foreground);
 }
 
 /* Keep the panel surface aligned with the panel theme background in light theme. */
 .monaco-workbench.floating-panels .part.panel {
 	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
+	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-panel-background) !important;
-	color: var(--vscode-agentsPanel-foreground);
+	color: var(--vscode-surface-foreground);
 }
 
 .monaco-workbench.floating-panels .part.editor > .content {
@@ -167,6 +168,10 @@
 	margin-right: var(--vscode-spacing-size40);
 }
 
+.monaco-workbench.floating-panels .activitybar.compact > .content > .composite-bar {
+	margin-top: var(--vscode-spacing-size20);
+}
+
 /* At the default (non-compact) size, separate the activity bar items with a 4px gap
  * so they read as distinct floating targets. Compact keeps the tighter default stack. */
 .monaco-workbench.floating-panels .part.activitybar:not(.compact) > .content .monaco-action-bar .action-item + .action-item {
@@ -196,19 +201,18 @@
 	padding-bottom: calc(var(--vscode-spacing-size40) + var(--vscode-strokeThickness)); /* offset for the border-bottom of the status bar */
 }
 
-/* With a compact activity bar the horizontal inset is tightened to match. The
- * `compact` class lives on the activity bar element, so `:has()` lets the status
- * bar (a sibling part) react without any code-side class plumbing. */
-.monaco-workbench.floating-panels:has(.part.activitybar.compact) .part.statusbar {
+/* With a compact activity bar the horizontal inset is tightened to match.
+ * `activitybar-compact` is mirrored onto the workbench root by activitybarPart.ts;
+ * the `:not` keeps a hidden compact bar resolving to the hidden inset below. */
+.monaco-workbench.floating-panels.activitybar-compact:not(.noactivitybar) .part.statusbar {
 	padding-left: var(--vscode-spacing-size20);
 	padding-right: var(--vscode-spacing-size20);
 }
 
-/* When the activity bar is hidden its grid cell loses the `visible` class the
- * split view toggles. With no bar to align to, fall back to the standard 4px
- * inset. This has higher specificity than the compact rule above, so a hidden
- * compact bar still resolves to 4px. */
-.monaco-workbench.floating-panels:has(.split-view-view:not(.visible) .part.activitybar) .part.statusbar {
+/* When the activity bar is hidden (`noactivitybar`, toggled by layout.ts like
+ * the other part visibility classes) there is no bar to align to, so fall back
+ * to the standard 4px inset. */
+.monaco-workbench.floating-panels.noactivitybar .part.statusbar {
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }

@@ -34,7 +34,7 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
-import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, type McpOAuthClient } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 export interface IChatRequest {
 	message: string;
@@ -257,6 +257,12 @@ export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
 	shimmer?: boolean;
+	/**
+	 * Stable identity for a progress message that is updated over time. When
+	 * set, a later message with the same id replaces this one instead of being
+	 * appended, so live progress doesn't stack up rows.
+	 */
+	id?: string;
 }
 
 export interface IChatSystemNotificationPart {
@@ -625,10 +631,14 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
+	/** False for output-only data that must not create a workbench terminal instance. */
+	isPty?: boolean;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
+	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
@@ -754,7 +764,7 @@ export interface IChatToolInvocationOtherClientData {
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
@@ -1042,7 +1052,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfiguredData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1087,6 +1097,10 @@ export interface IChatSubagentToolInvocationData {
 	result?: string;
 	modelName?: string;
 	credits?: number;
+	/** Millisecond timestamp when the subagent's first turn started. */
+	startedAt?: number;
+	/** Final elapsed duration in milliseconds. Set when the subagent stops. */
+	duration?: number;
 	/**
 	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
 	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open
@@ -1153,6 +1167,28 @@ export interface IChatSessionCreatedData {
 	readonly label: string;
 	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
 	readonly isChat?: boolean;
+}
+
+/**
+ * Tool-specific data for a completed automation create or update. The stable
+ * automation ID lets the renderer open the Automations editor at the affected
+ * entry without relying on model-authored prose.
+ */
+export interface IChatAutomationConfiguredData {
+	readonly kind: 'automationConfigured';
+	readonly automationId: string;
+	readonly automationName: string;
+	readonly operation: 'created' | 'updated';
+}
+
+/**
+ * Transient preparation data used to guard an automation update across the
+ * confirmation boundary. It is omitted from serialized chat invocations.
+ */
+export interface IChatAutomationConfigurationData {
+	readonly kind: 'automationConfiguration';
+	readonly expectedAutomationId: string;
+	readonly expectedEditableState: string;
 }
 
 export interface IChatModifiedFilesConfirmationData {
@@ -1254,6 +1290,7 @@ export interface IChatMcpAuthenticationRequiredServer {
 	readonly id: string;
 	readonly name: string;
 	readonly resource: string;
+	readonly oauthClient?: McpOAuthClient;
 	readonly authorizationServers?: readonly string[];
 	readonly supportedScopes?: readonly string[];
 	readonly requiredScopes?: readonly string[];
@@ -1666,6 +1703,8 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
+	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
+	readonly newSessionResource?: URI;
 }
 
 export interface ChatSendResultSent {
@@ -1733,6 +1772,20 @@ export const enum ChatRequestQueueKind {
 	Queued = 'queued',
 	/** Request is queued and signals the active request to yield */
 	Steering = 'steering'
+}
+
+/**
+ * A queued or steering message that was authored outside of this client, e.g.
+ * by another window connected to the same server-managed session.
+ */
+export interface IRemotePendingRequest {
+	/** Stable id of the message, as known by the server. */
+	readonly id: string;
+	readonly kind: ChatRequestQueueKind;
+	/** The raw message text. */
+	readonly message: string;
+	readonly variableData?: IChatRequestVariableData;
+	readonly timestamp?: number;
 }
 
 export interface IChatSendRequestOptions {
@@ -1906,6 +1959,11 @@ export interface IChatService {
 	 * Adding new requests should go through sendRequest with the queue option.
 	 */
 	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void;
+	/**
+	 * Atomically reconciles the pending queue with messages authored by another client.
+	 * Preserves remote ids and existing matching requests, and no-ops when already equal.
+	 */
+	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[]): void;
 	/**
 	 * Ensures pending requests for the session are processing. If restoring from
 	 * storage or after an error, pending requests may be present without an

@@ -42,6 +42,7 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 **`CopilotCLISession`** — For local `file://` workspaces:
 - Implements `ISession` plus provider-specific observable fields (`permissionLevel`, `branchObservable`, `isolationModeObservable`)
 - Performs async git repository resolution during construction (sets `loading` to true until resolved)
+- Exposes `hasGitRepository` as an observable that becomes true only when the repository has a HEAD commit, so scoped session context keys hide worktree/branch controls for non-Git and empty repositories
 - Configuration methods: `setIsolationMode()`, `setBranch()`, `setModelId()`, `setMode()`, `setPermissionLevel()`, `setModeById()`
 - Tracks selected options via `Map<string, IChatSessionProviderOptionItem>` and syncs to `IChatSessionsService`
 - Uses `IGitService` to open the repository and resolve branch information
@@ -65,6 +66,9 @@ Adapts an existing `IAgentSession` from the chat layer into the `ISession` facad
 - Constructs with initial values from the agent session's metadata and timing
 - `update(session)` performs a batched observable transaction to update all reactive properties
 - Extracts workspace info, changes, description, and GitHub info from session metadata
+- Treats a cloud provider's `pullRequestUrl` as authoritative for owner, repository, and PR number (including URL-only metadata), and falls back to resolving the PR from `owner`/`name`/`branch` when the URL is absent
+- PR-less task cards must carry `diffRefs.headRef` into their session metadata as `branch`; repository-only metadata cannot drive the branch fallback
+- Uses the shared GitHub PR model, background polling contribution, and persistent icon cache for github.com; provider-reported GitHub Enterprise links retain their provider state icon but skip the public `api.github.com` polling path
 - Maps `ChatSessionStatus` → `SessionStatus`
 - Handles both CLI and Cloud session metadata formats for repository resolution
 
@@ -82,7 +86,7 @@ The provider exposes two entry points on `ISessionsProvider`:
 
 - **`createNewChat(sessionId, prompt?)`** — Creates the backend chat model and returns the resulting `IChat`. The management service uses the returned `chat.resource` to open the widget *before* sending. For new sessions the provider also swaps the session's `mainChat` observable with the committed chat so the cached `ISession` reflects the real backend resource.
 - **`sendRequest(sessionId, chatResource, options)`** — Sends a request for a chat that was already created via `createNewChat`. Internally it dispatches between:
-  - `_sendFirstChat()` when the session is the current new session — resolves mode/permission/send options, calls `IChatService.sendRequest`, adds the temp session to the cache, fires `onDidChangeSessions`, waits for commit (untitled → real URI for CLI sessions), and then fires `onDidReplaceSession` with the committed session.
+  - `_sendFirstChat()` when the session is the current new session — resolves mode/permission/send options, calls `IChatService.sendRequest`, adds the temp session to the cache, fires `onDidChangeSessions`, waits for commit (untitled → real URI), and then fires `onDidReplaceSession` with the committed session. CLI and cloud sessions both commit from an untitled URI to a real resource: CLI to an SDK session id, cloud to a `/task/<id>` resource. Cloud uses *deferred* commit detection — its commit is delayed behind a confirmation round-trip and network delegation, so `_waitForCommittedSession` skips the response-completion race (which fires early at the confirmation turn) and waits on `onDidCommitSession` with a longer timeout.
   - `_sendExistingChat()` when the session already has committed chats — sends to the existing chat resource.
 
 For multi-chat sessions (`capabilities.supportsMultipleChats === true`), `createNewChat()` on an existing session calls `_createNewSubsequentChat()`, which creates a fresh `CopilotCLISession` linked to the parent via the `parentSessionId` option, registers it in `_currentNewSession`, and returns its `IChat`. A subsequent `sendRequest(sessionId, chat.resource, options)` then routes through `_sendFirstChat`.
@@ -132,6 +136,8 @@ Each picker action uses a `when` clause to show only for the correct session typ
 | `IsActiveSessionCopilotChatCLI` | Copilot CLI sessions |
 | `IsActiveSessionCopilotChatCloud` | Copilot Cloud sessions |
 | `IsActiveSessionCopilotChatClaudeCode` | Claude sessions |
+
+Repository controls additionally require `SessionHasGitRepositoryContext`. The provider publishes usable Git availability through `ISession.hasGitRepository`, and `setSessionContextKeys` binds that observable into each session view's scoped context-key service. Menu visibility therefore follows the toolbar's own `ISessionContext`, not the window's globally active session.
 
 These are composed from `SessionTypeContext` (the session type ID) and `SessionProviderIdContext` (the provider ID).
 

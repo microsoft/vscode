@@ -32,7 +32,7 @@ export interface ISdkMcpServer {
  * owns — the high-frequency `state`/`channel` pair. Consumers overlay
  * these onto their published customizations (keyed by customization id)
  * so a wholesale customization republish preserves live MCP status
- * rather than resetting it to the `Starting` default baked into
+ * rather than resetting it to the `Stopped` default baked into
  * `makeMcpServerCustomization`.
  */
 export type IMcpServerRuntimeState = Pick<McpServerCustomization, 'state' | 'channel'>;

@@ -20,12 +20,14 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
 import { isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -175,7 +177,7 @@ suite('ChatToolProgressSubPart', () => {
 		disposables.dispose();
 	});
 
-	function renderToolInvocation(toolInvocation: IChatToolInvocation, renderer = mockMarkdownRenderer): ChatToolInvocationPart {
+	function renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, renderer = mockMarkdownRenderer): ChatToolInvocationPart {
 		return disposables.add(new ChatToolInvocationPart(
 			toolInvocation,
 			createRenderContext(),
@@ -196,6 +198,57 @@ suite('ChatToolProgressSubPart', () => {
 		));
 	}
 
+	test('does not retain an ordinary tool part when it becomes a parent subagent', () => {
+		const invocation = createToolInvocation();
+		const part = renderToolInvocation(invocation);
+		(invocation as { toolSpecificData: IChatToolInvocation['toolSpecificData'] }).toolSpecificData = { kind: 'subagent' };
+
+		assert.strictEqual(part.hasSameContent(invocation, [], {} as never), false);
+	});
+
+	test('confirmation carousel reports the active subagent and invokes its reference action', () => {
+		const createPendingInvocation = (toolCallId: string): IChatToolInvocation => ({
+			...createToolInvocation(),
+			toolCallId,
+			state: observableValue<IChatToolInvocation.State>(`state-${toolCallId}`, {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: undefined,
+				confirmationMessages: { title: 'Run command?', message: 'Run command?' },
+				confirm: () => { },
+			}),
+		});
+		const createExternalPart = () => {
+			const domNode = mainWindow.document.createElement('div');
+			domNode.className = 'chat-tool-invocation-part';
+			return {
+				domNode,
+				addDisposable: (disposable: { dispose(): void }) => disposables.add(disposable),
+			} as unknown as ChatToolInvocationPart;
+		};
+		const revealed: string[] = [];
+		const active: Array<string | undefined> = [];
+		const carousel = disposables.add(new ChatToolConfirmationCarouselPart(() => {
+			throw new Error('External tool parts should be reused');
+		}, []));
+		disposables.add(carousel.onDidChangeActiveSubagent(id => active.push(id)));
+		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'one', id => revealed.push(id), 'Open one Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'two', id => revealed.push(id), 'Open two Chat', createExternalPart());
+
+		carousel.activateFirstToolForSubagent('subagent-two');
+		const agentLabel = carousel.domNode.querySelector<HTMLButtonElement>('.chat-tool-carousel-agent-label');
+		agentLabel?.click();
+
+		assert.deepStrictEqual({
+			active,
+			revealed,
+			label: agentLabel?.title,
+		}, {
+			active: ['subagent-one', 'subagent-two'],
+			revealed: ['subagent-two'],
+			label: 'Open two Chat',
+		});
+	});
+
 	test('detects MCP tool invocations for live and serialized rows', () => {
 		const mcpSource: ToolDataSourceType = {
 			type: 'mcp',
@@ -213,6 +266,72 @@ suite('ChatToolProgressSubPart', () => {
 		];
 
 		assert.deepStrictEqual(cases, [true, true, false]);
+	});
+
+	test('renders the automation result subpart for configured automation data', () => {
+		const invocation: IChatToolInvocationSerialized = {
+			...createSerializedToolInvocation({ isComplete: true }),
+			toolSpecificData: {
+				kind: 'automationConfigured',
+				automationId: 'automation-1',
+				automationName: 'Morning review',
+				operation: 'created',
+			},
+		};
+		const createInstanceStub = sinon.stub(instantiationService, 'createInstance').callsFake((_ctor, ...args) => {
+			return new TestToolInvocationSubPart(args[0] as IChatToolInvocation, {
+				kind: 'terminal',
+				commandLine: { original: '' },
+				language: 'shellscript',
+			});
+		});
+		disposables.add(toDisposable(() => createInstanceStub.restore()));
+
+		renderToolInvocation(invocation);
+
+		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
+	});
+
+	test('renders codicon syntax in an automation name as literal text', () => {
+		const render = (automationName: string) => {
+			const part = disposables.add(instantiationService.createInstance(
+				ChatAutomationConfiguredResultSubPart,
+				createSerializedToolInvocation({ isComplete: true }),
+				{ kind: 'automationConfigured', automationId: 'automation-1', automationName, operation: 'created' } satisfies IChatAutomationConfiguredData,
+				createRenderContext(),
+				mockMarkdownRenderer,
+			));
+			const button = part.domNode.querySelector<HTMLElement>('.chat-open-session-button');
+			return {
+				text: button?.textContent,
+				ariaLabel: button?.getAttribute('aria-label'),
+				tabIndex: button?.tabIndex,
+				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				// `codicon-*` on the root would restyle the label text.
+				rootCarriesCodiconClass: button?.classList.contains('codicon'),
+				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
+					.flatMap(el => [...el.classList]).filter(c => c.startsWith('codicon-')),
+			};
+		};
+
+		assert.deepStrictEqual([render('$(error)'), render('a \\$(error) b')], [
+			{
+				text: 'Created an automation: $(error)',
+				ariaLabel: 'Open automation $(error)',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+			{
+				text: 'Created an automation: a \\$(error) b',
+				ariaLabel: 'Open automation a \\$(error) b',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+		]);
 	});
 
 	test('rerenders when terminal metadata changes without changing data kind', () => {

@@ -64,15 +64,14 @@ export interface ICopilotUtilityChatMessage {
  * service forwards the messages and returns the assistant text.
  *
  * `temperature` defaults to `0.1` (matching the Copilot Chat extension's
- * default `IConversationOptions.temperature`). All other parameters
- * (`top_p`, model family) are fixed defaults inside the service — callers
- * should not need to tune them for utility flows. `max_tokens` is left
- * unset so CAPI applies its per-model default, matching what the
- * extension's `copilot-utility-small` endpoint sends today.
+ * default `IConversationOptions.temperature`). `top_p` and the model family
+ * are fixed defaults inside the service. Callers may set `maxTokens` when
+ * their utility flow has a naturally bounded output.
  */
 export interface ICopilotUtilityChatCompletionRequest {
 	readonly messages: readonly ICopilotUtilityChatMessage[];
 	readonly temperature?: number;
+	readonly maxTokens?: number;
 }
 
 /**
@@ -83,6 +82,7 @@ export interface ICopilotUtilityChatCompletionRequest {
  */
 interface ICopilotUserResponse {
 	readonly login?: string;
+	readonly copilotignore_enabled?: boolean;
 	readonly endpoints?: {
 		readonly api?: string;
 		readonly telemetry?: string;
@@ -101,6 +101,7 @@ interface ICachedClient {
 	readonly telemetryEndpoint?: string;
 	/** The CAPI `endpoints.api` base URL discovered (or overridden) for this token, if any. */
 	readonly apiEndpoint?: string;
+	readonly copilotIgnoreEnabled?: boolean;
 }
 
 /**
@@ -434,6 +435,8 @@ export interface IRestrictedTelemetryContext {
 	readonly userName?: string;
 	/** Whether the token identifies a VS Code team member. */
 	readonly isVscodeTeamMember?: boolean;
+	/** Whether content exclusion is enabled; undefined when discovery could not determine it. */
+	readonly copilotIgnoreEnabled?: boolean;
 }
 
 export interface ICopilotApiService {
@@ -700,6 +703,7 @@ export class CopilotApiService implements ICopilotApiService {
 			stream: false,
 			temperature: request.temperature ?? UTILITY_DEFAULT_TEMPERATURE,
 			top_p: UTILITY_DEFAULT_TOP_P,
+			max_tokens: request.maxTokens,
 		});
 
 		const response = await capiClient.makeRequest<Response>(
@@ -906,6 +910,7 @@ export class CopilotApiService implements ICopilotApiService {
 			isInternal: token.isInternal,
 			userName: client.login,
 			isVscodeTeamMember: token.isVscodeTeamMember,
+			copilotIgnoreEnabled: client.copilotIgnoreEnabled,
 		};
 	}
 
@@ -1015,6 +1020,7 @@ export class CopilotApiService implements ICopilotApiService {
 			login: envelope.login,
 			telemetryEndpoint: envelope.endpoints?.telemetry,
 			apiEndpoint: envelope.endpoints?.api,
+			copilotIgnoreEnabled: envelope.copilotignore_enabled,
 		};
 	}
 

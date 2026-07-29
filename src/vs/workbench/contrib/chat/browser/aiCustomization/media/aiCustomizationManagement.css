@@ -237,6 +237,11 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .contributed-section-container {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
 .ai-customization-management-editor .section-back-arrow-button {
 	flex-shrink: 0;
 	align-self: flex-start;
@@ -875,11 +880,18 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .prompt-migration-list-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
 .ai-customization-management-editor .prompt-migration-list {
+	position: absolute;
+	inset: 0;
 	display: flex;
 	flex-direction: column;
-	flex: 1;
-	overflow: auto;
+	overflow: hidden;
 	padding-bottom: 6px;
 }
 
@@ -897,12 +909,38 @@
 	margin-bottom: 2px;
 }
 
-.ai-customization-management-editor .prompt-migration-group-header:hover {
-	background-color: transparent;
+.ai-customization-management-editor .prompt-migration-group-header:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
 }
 
 .ai-customization-management-editor .prompt-migration-group-checkbox {
 	margin-right: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle:focus {
+	outline: none;
+}
+
+.ai-customization-management-editor .prompt-migration-group-items {
+	display: flex;
+	flex-direction: column;
 }
 
 .ai-customization-management-editor .prompt-migration-item {
@@ -920,6 +958,30 @@
 
 .ai-customization-management-editor .prompt-migration-item .item-left {
 	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .prompt-migration-empty {
@@ -1409,13 +1471,14 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	min-height: 0;
 	overflow: hidden;
 }
 
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 /* MCP Empty State */
@@ -1534,9 +1597,10 @@
 	align-items: center;
 	padding: 6px 8px 6px 30px;
 	cursor: pointer;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
 	gap: 10px;
+	box-sizing: border-box;
 }
 
 .mcp-server-item:not(.has-detail):not(.builtin) {
@@ -1581,37 +1645,58 @@
 	line-height: 14px;
 }
 
+.mcp-server-item .mcp-server-actions {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.mcp-server-item .mcp-server-sign-in.monaco-button {
+	min-width: 0;
+	min-height: var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-agents-fontSize-label1);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .mcp-server-item .mcp-server-status {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label2);
-	padding: 2px 8px;
-	border-radius: 4px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.mcp-server-item .mcp-server-status-action.monaco-button {
+	min-width: var(--vscode-spacing-size240);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size40);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+}
+
+.mcp-server-item .mcp-server-status-action.monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .mcp-server-item .mcp-server-status.running {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-charts-green);
 }
 
 .mcp-server-item .mcp-server-status.starting {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
 .mcp-server-item .mcp-server-status.auth-required {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
 .mcp-server-item .mcp-server-status.error {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 50%, transparent);
-	color: var(--vscode-editor-background);
-}
-
-.mcp-server-item .mcp-server-status.stopped {
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
 }
 
 .mcp-server-item.disabled {
@@ -1619,8 +1704,7 @@
 }
 
 .mcp-server-item .mcp-server-status.disabled {
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-disabledForeground);
 }
 
 /* Button group for Add Server + Browse Marketplace */
@@ -1986,6 +2070,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automations-list-widget .automations-empty-state .automations-empty-cta {
 	margin-top: 16px;
 	min-width: 160px;
+	max-width: 320px;
 	align-self: center;
 }
 
@@ -2925,7 +3010,6 @@ pane is first mounted. View switches inside the modal are not animated. */
 	min-width: 0;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip,
 .automation-form-prompt-host .automation-form-branch-slot {
 	display: inline-flex;
 	align-items: center;
@@ -2941,32 +3025,24 @@ pane is first mounted. View switches inside the modal are not animated. */
 	touch-action: manipulation;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip > .codicon,
 .automation-form-prompt-host .automation-form-branch-slot > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-icon-foreground);
 	flex-shrink: 0;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip,
 .automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled) {
 	cursor: pointer;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip:not(.automation-form-isolation-chip-disabled):hover,
 .automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
 .automation-form-prompt-host .automation-form-branch-slot:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.automation-form-prompt-host .automation-form-isolation-chip-disabled {
-	cursor: default;
 }
 
 .automation-form-prompt-host .automation-form-branch-slot.branch-picker-disabled,
@@ -2975,7 +3051,6 @@ pane is first mounted. View switches inside the modal are not animated. */
 	color: var(--vscode-descriptionForeground);
 }
 
-.automation-form-prompt-host .automation-form-isolation-label,
 .automation-form-prompt-host .automation-form-branch-name {
 	font-size: var(--vscode-agents-fontSize-label2);
 }
@@ -2990,7 +3065,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 /* Mirror the new-session `|` divider between repo-config chips:
  * `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)` paints
  * a 1px-wide bar in the gap to the chip's left. */
-.automation-form-prompt-host .automation-form-isolation-group > .automation-form-branch-picker-slot {
+.automation-form-prompt-host .automation-form-isolation-group .automation-form-branch-picker-slot {
 	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
 }
 
@@ -3029,9 +3104,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	font-style: italic;
 }
 
-.hc-black .automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
 .hc-black .automation-form-prompt-host .automation-form-branch-slot:focus-visible,
-.hc-light .automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
 .hc-light .automation-form-prompt-host .automation-form-branch-slot:focus-visible {
 	outline-color: var(--vscode-contrastActiveBorder);
 }

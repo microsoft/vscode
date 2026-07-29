@@ -962,6 +962,14 @@ export class Response extends AbstractResponse implements IDisposable {
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
 			this._handleExternalToolInvocationUpdate(progress);
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'progressMessage' && progress.id !== undefined) {
+			const idx = this._responseParts.findIndex(p => p.kind === 'progressMessage' && p.id === progress.id);
+			if (idx === -1) {
+				this._responseParts.push(progress);
+			} else {
+				this._responseParts[idx] = progress;
+			}
+			this._contentChanged(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._contentChanged(quiet);
@@ -1143,6 +1151,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _vote?: ChatAgentVoteDirection;
 	private _result?: IChatAgentResult;
 	private readonly _usageObs = observableValue<IChatUsage | undefined>(this, undefined);
+	private _parentUsage: IChatUsage | undefined;
+	private readonly _subagentCopilotCredits = new Map<string, number>();
 	private readonly _completionTokenCountObs = observableValue<number | undefined>(this, undefined);
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
@@ -1504,13 +1514,40 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setUsage(usage: IChatUsage): void {
+		this._parentUsage = usage;
+		this._setUsage(this._withSubagentCopilotCredits(usage), true);
+	}
+
+	setSubagentCopilotCredits(subagentCallId: string, copilotCredits: number): void {
+		const currentCredits = this._subagentCopilotCredits.get(subagentCallId);
+		if (!Number.isFinite(copilotCredits) || copilotCredits < 0 || (currentCredits !== undefined && copilotCredits <= currentCredits)) {
+			return;
+		}
+		this._subagentCopilotCredits.set(subagentCallId, copilotCredits);
+		const usage = this._parentUsage ?? { kind: 'usage', promptTokens: 0, completionTokens: 0 };
+		this._setUsage(this._withSubagentCopilotCredits(usage), false);
+	}
+
+	private _withSubagentCopilotCredits(usage: IChatUsage): IChatUsage {
+		let subagentCopilotCredits = 0;
+		for (const credits of this._subagentCopilotCredits.values()) {
+			subagentCopilotCredits += credits;
+		}
+		return subagentCopilotCredits === 0
+			? usage
+			: { ...usage, copilotCredits: (usage.copilotCredits ?? 0) + subagentCopilotCredits };
+	}
+
+	private _setUsage(usage: IChatUsage, countCompletionTokens: boolean): void {
 		if (this.isSameUsage(usage)) {
 			return;
 		}
 
 		this._usageObs.set(usage, undefined);
-		const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
-		this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
+		if (countCompletionTokens) {
+			const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
+			this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
+		}
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
@@ -1686,6 +1723,7 @@ export interface IChatModel extends IDisposable {
 	readonly hasActiveRequest: IObservable<boolean>;
 	/** Provides session information when a request needs user interaction to continue */
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
+	readonly isReadOnly: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	readonly checkpoint: IChatRequestModel | undefined;
@@ -1939,6 +1977,11 @@ export interface IInputModel {
 	toJSON(): ISerializableChatModelInputState | undefined;
 }
 
+export const enum ChatInputStateOrigin {
+	/** Pushed in by a draft sync from another client. Not a local user edit. */
+	Remote = 'remote',
+}
+
 /**
  * Represents the current state of the chat input that hasn't been sent yet.
  * This is the "draft" state that should be preserved across sessions.
@@ -1973,6 +2016,13 @@ export interface IChatModelInputState {
 
 	/** Current permission level for tool auto-approval */
 	permissionLevel?: ChatPermissionLevel;
+
+	/**
+	 * Where this state came from, when it was not authored by the local user.
+	 * Absent means a local user edit. Lets consumers that sync input state
+	 * elsewhere recognize their own writes instead of treating them as edits.
+	 */
+	origin?: ChatInputStateOrigin;
 
 	/** Contributed stored state */
 	contrib: Record<string, unknown>;
@@ -2011,6 +2061,25 @@ export interface ISerializableChatModelInputState {
  */
 interface ILegacySerializableChatModelInputState extends ISerializableChatModelInputState {
 	modelConfiguration?: IStringDictionary<unknown>;
+}
+
+/**
+ * Revives persisted or transferred input state into its live shape, including the legacy model configuration fallback.
+ */
+export function reviveSerializableInputState(state: ISerializableChatModelInputState): IChatModelInputState {
+	return {
+		attachments: (state.attachments ?? []).map(IChatRequestVariableEntry.fromExport),
+		mode: state.mode,
+		selectedModel: state.selectedModel && {
+			identifier: state.selectedModel.identifier,
+			metadata: state.selectedModel.metadata
+		},
+		modelConfiguration: state.selectedModel ? (state.selectedModel.modelConfiguration ?? (state as ILegacySerializableChatModelInputState).modelConfiguration) : undefined,
+		contrib: state.contrib,
+		inputText: state.inputText,
+		selections: state.selections,
+		permissionLevel: state.permissionLevel,
+	};
 }
 
 /**
@@ -2198,7 +2267,8 @@ class InputModel implements IInputModel {
 			selections: [],
 			contrib: {},
 			...current,
-			...state
+			...state,
+			origin: state.origin
 		}, undefined);
 	}
 
@@ -2293,6 +2363,18 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 		this._pendingRequests.length = 0;
 		this._pendingRequests.push(...newPending);
+		this._onDidChangePendingRequests.fire();
+	}
+
+	/**
+	 * @internal Used by ChatService to atomically replace the pending request queue.
+	 */
+	replacePendingRequests(requests: readonly IChatPendingRequest[]): void {
+		if (this._pendingRequests.length === requests.length && requests.every((request, index) => this._pendingRequests[index] === request)) {
+			return;
+		}
+		this._pendingRequests.length = 0;
+		this._pendingRequests.push(...requests);
 		this._onDidChangePendingRequests.fire();
 	}
 
@@ -2392,6 +2474,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly requestInProgress: IObservable<boolean>;
 	readonly hasActiveRequest: IObservable<boolean>;
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
+	readonly isReadOnly: IObservable<boolean>;
 
 	/** Input model for managing input state */
 	readonly inputModel: InputModel;
@@ -2497,7 +2580,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean> },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -2538,19 +2621,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		// Initialize input model from serialized data (undefined for new chats)
 		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
-		this.inputModel = new InputModel(serializedInputState && {
-			attachments: (serializedInputState.attachments ?? []).map(IChatRequestVariableEntry.fromExport),
-			mode: serializedInputState.mode,
-			selectedModel: serializedInputState.selectedModel && {
-				identifier: serializedInputState.selectedModel.identifier,
-				metadata: serializedInputState.selectedModel.metadata
-			},
-			modelConfiguration: serializedInputState.selectedModel ? (serializedInputState.selectedModel.modelConfiguration ?? (serializedInputState as ILegacySerializableChatModelInputState).modelConfiguration) : undefined,
-			contrib: serializedInputState.contrib,
-			inputText: serializedInputState.inputText,
-			selections: serializedInputState.selections,
-			permissionLevel: serializedInputState.permissionLevel,
-		}, this.logService, this._sessionId);
+		this.inputModel = new InputModel(serializedInputState && reviveSerializableInputState(serializedInputState), this.logService, this._sessionId);
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
@@ -2567,6 +2638,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 
 		this._canUseTools = initialModelProps.canUseTools;
+		this.isReadOnly = initialModelProps.isReadOnly ?? constObservable(false);
 
 		this.lastRequestObs = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
 
@@ -2749,11 +2821,11 @@ export class ChatModel extends Disposable implements IChatModel {
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-			if (typeof raw.completionTokens === 'number') {
+			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number') {
 				request.response.setUsage({
 					kind: 'usage',
 					promptTokens: raw.promptTokens ?? 0,
-					completionTokens: raw.completionTokens,
+					completionTokens: raw.completionTokens ?? 0,
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
 					copilotCredits: raw.copilotCredits,

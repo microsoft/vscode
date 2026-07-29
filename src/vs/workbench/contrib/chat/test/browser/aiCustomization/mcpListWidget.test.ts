@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DisposableStore, isDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -15,10 +17,13 @@ import { IAgentHostCustomizationService } from '../../../browser/agentSessions/a
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import {
 	AgentHostMcpServer,
+	authenticateMcpServer,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
 	getLocalMcpServerEnablementActions,
+	getMcpServerOutputHandler,
 	getSessionEnablementAction,
+	registerMcpInlineButtonAction,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
@@ -28,7 +33,6 @@ function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): Age
 		enabled: true,
 		status: McpServerStatus.Ready,
 		state: { kind: McpServerStatus.Ready },
-		logOutputChannelId: undefined,
 		setEnabled: () => { },
 		start: () => { },
 		stop: () => { },
@@ -158,6 +162,98 @@ suite('mcpListWidget', () => {
 				'(separator)',
 				'Server Options',
 			]);
+		});
+	});
+
+	suite('inline actions', () => {
+		test('authentication receives the active session and server without opening the row', () => {
+			const sessionResource = URI.parse('vscode-agent-session:///session-1');
+			const calls: [URI, string][] = [];
+			const service = {
+				authenticateMcpServer: (resource: URI, serverId: string) => {
+					calls.push([resource, serverId]);
+					return Promise.resolve(true);
+				},
+			} as IAgentHostCustomizationService;
+			const row = document.createElement('div');
+			let rowPointerDowns = 0;
+			let rowClicks = 0;
+			disposables.add(DOM.addDisposableGenericMouseDownListener(row, () => rowPointerDowns++));
+			disposables.add(DOM.addDisposableListener(row, DOM.EventType.CLICK, () => rowClicks++));
+			const button = disposables.add(new Button(row, unthemedButtonStyles));
+			registerMcpInlineButtonAction(disposables, button, async () => {
+				await authenticateMcpServer(service, sessionResource, 'server-1');
+			});
+
+			button.element.dispatchEvent(new MouseEvent(DOM.EventType.MOUSE_DOWN, { bubbles: true }));
+			button.element.click();
+
+			assert.deepStrictEqual({
+				calls,
+				rowPointerDowns,
+				rowClicks,
+			}, {
+				calls: [[sessionResource, 'server-1']],
+				rowPointerDowns: 0,
+				rowClicks: 0,
+			});
+		});
+
+		test('active-session error registers the channel, closes the editor, then opens output', async () => {
+			const shownChannels: string[] = [];
+			let localOutputCount = 0;
+			const actions: string[] = [];
+			const outputHandler = getMcpServerOutputHandler(
+				{
+					showChannel: async channelId => {
+						actions.push('show-output');
+						shownChannels.push(channelId);
+					}
+				},
+				{ showOutput: async () => { localOutputCount++; } },
+				createAgentHostServer({ logOutputChannelId: 'agent-host-output' }),
+				async () => {
+					actions.push('close-editor');
+				},
+				async beforeShow => {
+					actions.push('register-agent-host-output');
+					await beforeShow?.();
+					actions.push('show-agent-host-output');
+				},
+			);
+			assert.ok(outputHandler);
+
+			await outputHandler();
+
+			assert.deepStrictEqual({
+				shownChannels,
+				localOutputCount,
+				actions,
+			}, {
+				shownChannels: [],
+				localOutputCount: 0,
+				actions: ['register-agent-host-output', 'close-editor', 'show-agent-host-output'],
+			});
+		});
+
+		test('local error opens local output when no agent-host output exists', async () => {
+			const shownChannels: string[] = [];
+			let localOutputCount = 0;
+			const outputHandler = getMcpServerOutputHandler(
+				{ showChannel: async channelId => { shownChannels.push(channelId); } },
+				{ showOutput: async () => { localOutputCount++; } },
+				undefined,
+			);
+
+			await outputHandler?.();
+
+			assert.deepStrictEqual({
+				shownChannels,
+				localOutputCount,
+			}, {
+				shownChannels: [],
+				localOutputCount: 1,
+			});
 		});
 	});
 });

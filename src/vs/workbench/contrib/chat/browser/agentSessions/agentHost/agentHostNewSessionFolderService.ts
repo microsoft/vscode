@@ -11,9 +11,34 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostNewSessionFolderService = createDecorator<IAgentHostNewSessionFolderService>('agentHostNewSessionFolderService');
+
+/**
+ * Computes the ordered working-directory set for a new agent-host session:
+ * `[primary, …otherWorkspaceFolders]`, with the primary at index 0. The other
+ * workspace folders are included only when the primary is itself a workspace
+ * folder and `provider` advertises the `multipleWorkingDirectories` capability
+ * in `rootState`; otherwise (single-folder workspace, a standalone primary,
+ * unadvertised capability, or an unavailable root state) just `[primary]` is
+ * returned. Support is opt-in per the {@link AgentCapabilities} convention, and
+ * the node-side guard remains the authoritative backstop. Returns `undefined`
+ * when no primary was chosen.
+ */
+export function computeWorkingDirectories(primary: URI | undefined, workspaceFolders: readonly URI[], rootState: RootState | Error | undefined, provider: string): readonly URI[] | undefined {
+	if (!primary) {
+		return undefined;
+	}
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	const supportsMultiple = !!agent?.capabilities?.multipleWorkingDirectories;
+	if (!supportsMultiple || !workspaceFolders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, primary))) {
+		return [primary];
+	}
+	const rest = workspaceFolders.filter(folder => !extUriBiasedIgnorePathCase.isEqual(folder, primary));
+	return [primary, ...rest];
+}
 
 /**
  * Per-window store of the working directory a user picked for a not-yet-started

@@ -600,6 +600,12 @@ export function shouldAutomaticallyRetryAllowNetworkInSandboxed(options: IAutoma
 	});
 }
 
+
+
+export function outputLooksBubblewrapHostRestricted(output: string): boolean {
+	return /bwrap:\s*No permissions to create new namespace/i.test(output.replace(/\s+/g, ' '));
+}
+
 /**
  * Interface for accessing a running terminal execution.
  * Used by tools that need to await or interact with background terminal commands.
@@ -991,12 +997,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
 			: undefined;
+		const canInstallMissingDependencies = !!missingDependencies && sandboxPrereqs.canInstallMissingDependencies === true;
 		const sandboxRemediations = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && sandboxPrereqs.remediations?.length
 			? [...sandboxPrereqs.remediations]
 			: undefined;
 		const sandboxPrerequisiteFailure = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && !sandboxRemediations
 			? localize('runInTerminal.bubblewrap.unusable', "Bubblewrap is installed but cannot create the required sandbox namespace on this system. The command was not executed.")
-			: undefined;
+			: missingDependencies && !canInstallMissingDependencies
+				? localize('runInTerminal.missingDeps.unsupportedInstaller', "The following dependencies required for sandboxed execution are not installed: {0}. Install them using your system package manager, then run the command again.", missingDependencies.join(', '))
+				: undefined;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -1093,7 +1102,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let sandboxPrerequisiteConfirmation: IToolConfirmationMessages | undefined = undefined;
 		// If sandbox dependencies are missing, show a confirmation asking the user to install them.
 		// This is handled before the tool is invoked so the model never sees the dependency error.
-		if (missingDependencies) {
+		if (missingDependencies && canInstallMissingDependencies) {
 			const depsList = missingDependencies.join(', ');
 			sandboxPrerequisiteConfirmation = {
 				title: localize('runInTerminal.missingDeps.title', "Missing Sandbox Dependencies"),
@@ -1106,17 +1115,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					{ id: 'install', label: localize('runInTerminal.missingDeps.install', "Install"), kind: ConfirmationOptionKind.Approve },
 					{ id: 'cancel', label: localize('runInTerminal.missingDeps.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny },
 				],
-			};
-		} else if (sandboxRemediations) {
-			const customOptions = [];
-			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction)) {
-				customOptions.push({ id: TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction, label: localize('runInTerminal.bubblewrap.applyFix', "Apply Fix and Retry"), kind: ConfirmationOptionKind.Approve });
-			}
-			customOptions.push({ id: 'cancel', label: localize('runInTerminal.bubblewrap.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny });
-			sandboxPrerequisiteConfirmation = {
-				title: localize('runInTerminal.bubblewrap.title', "Repair Bubblewrap Sandbox"),
-				message: new MarkdownString(localize('runInTerminal.bubblewrap.message', "Bubblewrap cannot create the sandbox environment.")),
-				customOptions,
 			};
 		}
 
@@ -1845,8 +1843,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}],
 					};
 				}
-				// Installation and verification succeeded — fall through to execute the original command.
-				this._logService.info('RunInTerminalTool: Sandbox dependency installation succeeded, proceeding with command execution');
+				this._logService.info('RunInTerminalTool: Sandbox dependency installation succeeded');
+				return {
+					content: [{
+						kind: 'text',
+						value: localize(
+							'runInTerminal.missingDeps.installed',
+							"Sandbox dependencies were installed successfully. If the issue persists, reload the window and try running the command again."
+						),
+					}],
+				};
 			} else {
 				// User chose to cancel — do not run the command
 				this._logService.info('RunInTerminalTool: User cancelled sandbox dependency installation');
@@ -1863,31 +1869,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		if (toolSpecificData.sandboxRemediations?.length) {
-			const selectedRemediation = invocation.selectedCustomButton as TerminalSandboxPreCheckRemediation | undefined;
-			if (!selectedRemediation || !toolSpecificData.sandboxRemediations.includes(selectedRemediation)) {
-				return {
-					content: [{ kind: 'text', value: localize('runInTerminal.bubblewrap.cancelled', "Bubblewrap sandbox repair was cancelled by the user.") }],
-				};
-			}
+			const selectedRemediation = toolSpecificData.sandboxRemediations[0] as TerminalSandboxPreCheckRemediation;
 			const { exitCode } = await this._terminalSandboxService.runSandboxRemediation(selectedRemediation, invocation.context.sessionResource, token, sandboxPrerequisiteTerminalOptions);
 			if (exitCode !== 0) {
-				return {
-					content: [{
-						kind: 'text', value: exitCode === undefined
-							? localize('runInTerminal.bubblewrap.repairUnknown', "Could not determine whether the bubblewrap repair succeeded. The command was not executed.")
-							: localize('runInTerminal.bubblewrap.repairFailed', "Bubblewrap repair failed (exit code {0}). The command was not executed.", exitCode)
-					}],
-				};
+				return this._getBubblewrapUnsupportedResult();
 			}
 			const refreshedPrereqs = await this._terminalSandboxService.checkForSandboxingPrereqs(true, sandboxPrecheckInputs);
 			if (refreshedPrereqs.failedCheck !== undefined) {
-				return {
-					content: [{
-						kind: 'text', value: localize('runInTerminal.bubblewrap.stillUnavailable', "Bubblewrap still cannot create the required sandbox namespace after remediation. The command was not executed.")
-					}],
-				};
+				return this._getBubblewrapUnsupportedResult();
 			}
-			this._logService.info('RunInTerminalTool: Bubblewrap remediation succeeded, proceeding with command execution');
+			this._logService.info('RunInTerminalTool: Bubblewrap remediation and capability recheck succeeded, proceeding with command execution');
 		}
 
 		const executionOptions = this._resolveExecutionOptions(args);
@@ -2425,6 +2416,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return altBufferResult;
 		}
 
+		if (didSandboxWrapCommand && outputLooksBubblewrapHostRestricted(terminalResult)) {
+			return this._getBubblewrapHostRestrictedResult();
+		}
+
 		const shouldAutoRetryUnsandboxed = shouldAutomaticallyRetryUnsandboxed({
 			allowUnsandboxedCommands,
 			didSandboxWrapCommand,
@@ -2560,6 +2555,39 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				},
 				...imageContent,
 			]
+		};
+	}
+
+	private _getBubblewrapUnsupportedResult(): IToolResult {
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
+		const message = localize(
+			'runInTerminal.bubblewrap.unsupportedEnvironment',
+			"Sandboxing is not supported in this environment. To disable sandboxing, set `{0}` to `off`. The command was not executed.",
+			settingId,
+		);
+		const settingsCommandArgs = encodeURIComponent(JSON.stringify([`@id:${settingId}`]));
+		const toolResultMessage = new MarkdownString(localize(
+			'runInTerminal.bubblewrap.unsupportedEnvironmentWithSettingsLink',
+			"Sandboxing is not supported in this environment. [Open the `{0}` setting](command:workbench.action.openSettings?{1} \"Open Settings\") and set it to `off`. The command was not executed.",
+			settingId,
+			settingsCommandArgs,
+		), { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } });
+		return {
+			content: [{ kind: 'text', value: message }],
+			toolResultMessage,
+		};
+	}
+
+	private _getBubblewrapHostRestrictedResult(): IToolResult {
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
+		const message = localize(
+			'runInTerminal.bubblewrap.hostRestriction',
+			"Sandbox creation failed due to host restrictions. Sandboxing can be disabled by setting `{0}` to `off`.",
+			settingId,
+		);
+		return {
+			content: [{ kind: 'text', value: message }],
+			toolResultMessage: message,
 		};
 	}
 

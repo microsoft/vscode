@@ -14,11 +14,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
 
 export interface IVoiceInputDecorationsServices {
 	readonly voiceSessionController: IVoiceSessionController;
@@ -26,7 +25,6 @@ export interface IVoiceInputDecorationsServices {
 	readonly micCaptureService: IMicCaptureService;
 	readonly configurationService: IConfigurationService;
 	readonly keybindingService: IKeybindingService;
-	readonly accessibilityService: IAccessibilityService;
 }
 
 export interface IVoiceInputDecorationsOptions {
@@ -36,6 +34,13 @@ export interface IVoiceInputDecorationsOptions {
 	readonly isActive: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
 	readonly getCurrentResource: () => URI | undefined;
+	/**
+	 * The single chat input voice mode is bound to. Only the surface whose
+	 * {@link getCurrentResource} matches this renders the glow/transcript, so
+	 * voice is active in exactly one input at a time even when several sessions
+	 * are visible.
+	 */
+	readonly currentVoiceInputResource: IObservable<URI | undefined>;
 }
 
 /**
@@ -45,8 +50,8 @@ export interface IVoiceInputDecorationsOptions {
  * Decorations show only while this surface is active and voice targets it.
  */
 export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServices, options: IVoiceInputDecorationsOptions): IDisposable {
-	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService, accessibilityService } = services;
-	const { inputContainer: inputContainerEl, isActive, getCurrentResource } = options;
+	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService } = services;
+	const { inputContainer: inputContainerEl, isActive, getCurrentResource, currentVoiceInputResource } = options;
 
 	const store = new DisposableStore();
 
@@ -77,9 +82,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			const analyser = ttsPlaybackService.analyserNode
 				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
 				?? null;
-			const intensity = voiceState === 'idle'
-				? readIdleVoiceGlowIntensity(win.performance.now(), accessibilityService.isMotionReduced())
-				: readVoiceGlowIntensity(analyser, glowDataArrayRef);
+			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 			const transcriptHidden = configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
 			const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
@@ -88,7 +91,6 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			inputContainerEl.classList.add('voice-active');
 			inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
 			inputContainerEl.classList.toggle('voice-speaking', voiceState === 'speaking');
-			inputContainerEl.classList.toggle('voice-idle', voiceState === 'idle');
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -99,18 +101,19 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		}
 		inputContainerEl.style.borderColor = '';
 		inputContainerEl.style.boxShadow = '';
-		inputContainerEl.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
+		inputContainerEl.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
 	};
 
 	store.add(autorun(reader => {
 		const connected = voiceSessionController.isConnected.read(reader);
 		const voiceState = voiceSessionController.voiceState.read(reader);
 		const active = isActive.read(reader);
-		const targetSession = voiceSessionController.targetSession.read(reader);
+		const owner = currentVoiceInputResource.read(reader);
 		const current = getCurrentResource();
-		// Glow only the active slot targeted by the backend.
-		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
-		if (connected && active && !targetedElsewhere && (voiceState === 'idle' || voiceState === 'listening' || voiceState === 'speaking')) {
+		// Glow only the single input voice is bound to, so at most one surface
+		// glows even when several sessions are visible.
+		const isOwner = !!current && !!owner && isEqual(current, owner);
+		if (connected && active && isOwner && isGlowingVoiceState(voiceState)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -123,15 +126,15 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const turns = voiceSessionController.transcriptTurns.read(reader);
 		const connected = voiceSessionController.isConnected.read(reader);
 		const voiceState = voiceSessionController.voiceState.read(reader);
-		const targetSession = voiceSessionController.targetSession.read(reader);
 		const active = isActive.read(reader);
+		const owner = currentVoiceInputResource.read(reader);
 		const showTranscript = configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
 		const current = getCurrentResource();
 		const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
-		// Render transcripts only on the active backend target.
-		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
-		if (!connected || !active || targetedElsewhere) {
+		// Render transcripts only on the single input voice is bound to.
+		const isOwner = !!current && !!owner && isEqual(current, owner);
+		if (!connected || !active || !isOwner) {
 			transcriptOverlayNode.style.display = 'none';
 			transcriptOverlayNode.classList.remove('has-transcript');
 			return;
@@ -158,7 +161,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
-					? localize('voiceMode.bargeInHint', "Press {0} to barge in", kbLabel)
+					? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
 					: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
 				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
