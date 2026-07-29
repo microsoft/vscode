@@ -15,6 +15,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
+const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
 const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
 const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
@@ -425,6 +426,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (!title || title.includes('can\'t assist with that')) {
 			return undefined;
 		}
+		title = title.slice(0, MAX_TITLE_LENGTH + MAX_TRAILING_HAN_SUFFIX_CODE_UNITS);
 		return this._stripUnexpectedTrailingHanSuffix(title, promptContent).slice(0, MAX_TITLE_LENGTH);
 	}
 

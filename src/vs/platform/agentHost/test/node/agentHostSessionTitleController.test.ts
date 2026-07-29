@@ -122,11 +122,13 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('seedTitleFromFirstMessage strips an unexpected trailing Han suffix from a Latin title', async () => {
+		const titlePrefixAtLimit = 'A'.repeat(199);
 		const cases = [
 			{ response: 'Fix chat title\u7f16\u7801', expected: 'Fix chat title' },
 			{ response: 'Fix chat title \u7f16\u7801\u95ee', expected: 'Fix chat title' },
+			{ response: `${titlePrefixAtLimit}\u7f16\u7801`, expected: titlePrefixAtLimit },
 		];
-		const titles: string[] = [];
+		const titles: { title: string; persistedTitle: string | undefined }[] = [];
 
 		for (const testCase of cases) {
 			const copilotApiService = new TestCopilotApiService();
@@ -134,11 +136,17 @@ suite('AgentHostSessionTitleController', () => {
 			const { controller, stateManager, session, db } = setup(copilotApiService);
 
 			controller.seedTitleFromFirstMessage(session.toString(), 'Fix chat title generation');
-			await waitForCondition(async () => await db.getMetadata('customTitle') === testCase.expected, 'cleaned title should be persisted');
-			titles.push(stateManager.getSessionState(session.toString())?.title ?? '');
+			await waitForCondition(async () => {
+				return stateManager.getSessionState(session.toString())?.title === testCase.expected
+					&& await db.getMetadata('customTitle') === testCase.expected;
+			}, 'cleaned title should be applied and persisted');
+			titles.push({
+				title: stateManager.getSessionState(session.toString())?.title ?? '',
+				persistedTitle: await db.getMetadata('customTitle'),
+			});
 		}
 
-		assert.deepStrictEqual(titles, cases.map(testCase => testCase.expected));
+		assert.deepStrictEqual(titles, cases.map(testCase => ({ title: testCase.expected, persistedTitle: testCase.expected })));
 	});
 
 	test('seedTitleFromFirstMessage preserves intentional or ambiguous Han suffixes', async () => {
@@ -149,7 +157,7 @@ suite('AgentHostSessionTitleController', () => {
 			{ prompt: 'Fix chat title generation', response: '\u4fee\u590d\u6807\u9898' },
 			{ prompt: 'Fix chat title generation', response: 'Code \u041e\u0448\u0438\u0431\u043a\u0430\u7f16\u7801' },
 		];
-		const titles: string[] = [];
+		const titles: { title: string; persistedTitle: string | undefined }[] = [];
 
 		for (const testCase of cases) {
 			const copilotApiService = new TestCopilotApiService();
@@ -157,11 +165,17 @@ suite('AgentHostSessionTitleController', () => {
 			const { controller, stateManager, session, db } = setup(copilotApiService);
 
 			controller.seedTitleFromFirstMessage(session.toString(), testCase.prompt);
-			await waitForCondition(async () => await db.getMetadata('customTitle') === testCase.response, 'unchanged title should be persisted');
-			titles.push(stateManager.getSessionState(session.toString())?.title ?? '');
+			await waitForCondition(async () => {
+				return stateManager.getSessionState(session.toString())?.title === testCase.response
+					&& await db.getMetadata('customTitle') === testCase.response;
+			}, 'unchanged title should be applied and persisted');
+			titles.push({
+				title: stateManager.getSessionState(session.toString())?.title ?? '',
+				persistedTitle: await db.getMetadata('customTitle'),
+			});
 		}
 
-		assert.deepStrictEqual(titles, cases.map(testCase => testCase.response));
+		assert.deepStrictEqual(titles, cases.map(testCase => ({ title: testCase.response, persistedTitle: testCase.response })));
 	});
 
 	test('seedTitleFromFirstMessage does not clobber a changed title', async () => {
