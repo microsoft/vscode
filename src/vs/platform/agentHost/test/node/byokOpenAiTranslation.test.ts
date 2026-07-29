@@ -64,6 +64,44 @@ suite('byokOpenAiTranslation', () => {
 			}), OpenAiTranslationError);
 		});
 
+		test('maps a custom assistant tool call with freeform input', () => {
+			const result = openAiRequestToBridge('acme', {
+				model: 'm',
+				messages: [
+					{
+						role: 'assistant',
+						content: '',
+						tool_calls: [{ id: 'call_1', type: 'custom', custom: { name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' } }],
+					},
+				],
+			});
+
+			assert.deepStrictEqual(result.messages, [{
+				role: 'assistant',
+				content: '',
+				toolCalls: [{ id: 'call_1', name: 'apply_patch', argumentsJson: '{"input":"*** Begin Patch\\n*** End Patch"}' }],
+				toolCallId: undefined,
+			}]);
+		});
+
+		test('throws when a custom assistant tool call is missing its name', () => {
+			assert.throws(() => openAiRequestToBridge('acme', {
+				model: 'm',
+				messages: [{ role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'custom', custom: { input: 'patch' } }] }],
+			}), OpenAiTranslationError);
+		});
+
+		test('treats an omitted tool call type as a function call', () => {
+			const result = openAiRequestToBridge('acme', {
+				model: 'm',
+				messages: [{ role: 'assistant', content: '', tool_calls: [{ id: 'call_1', function: { name: 'getWeather', arguments: '{}' } }] }],
+			});
+
+			assert.deepStrictEqual(result.messages[0].toolCalls, [
+				{ id: 'call_1', name: 'getWeather', argumentsJson: '{}' },
+			]);
+		});
+
 		test('omits tools and options when absent', () => {
 			const result = openAiRequestToBridge('acme', { model: 'm', messages: [{ role: 'user', content: 'hello' }] });
 			assert.strictEqual(result.tools, undefined);

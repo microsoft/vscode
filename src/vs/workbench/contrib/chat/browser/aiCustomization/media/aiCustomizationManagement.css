@@ -2070,6 +2070,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automations-list-widget .automations-empty-state .automations-empty-cta {
 	margin-top: 16px;
 	min-width: 160px;
+	max-width: 320px;
 	align-self: center;
 }
 

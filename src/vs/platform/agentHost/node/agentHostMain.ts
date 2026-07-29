@@ -17,6 +17,7 @@ import * as os from 'os';
 import * as inspector from 'inspector';
 import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -72,7 +73,9 @@ import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } f
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
@@ -216,6 +219,9 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
+		const editAttributionService = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+		diServices.set(IAgentEditAttributionService, editAttributionService);
+		agentService.setEditAttributionService(editAttributionService);
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
@@ -277,6 +283,15 @@ async function startAgentHost(): Promise<void> {
 		logService.error('Failed to create AgentService', err);
 		throw err;
 	}
+
+	// Keep every provider's model catalog fresh. Provider-owned refresh
+	// triggers (authentication, transport flips, client restarts) are all
+	// edge-based, so this periodic tick is the only thing that notices a model
+	// added service-side while the host stays up. Owned here, at process
+	// lifetime, rather than inside `AgentHostService`: a service that arms a
+	// recurring timer in its constructor is one that no faked-timer unit test
+	// can ever drain.
+	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, MODEL_REFRESH_INTERVAL_MS));
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package

@@ -16,6 +16,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
@@ -26,6 +27,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { IDictationOnboardingService } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
@@ -44,6 +46,21 @@ export interface IDictationShortcutContext {
 	readonly speechService: IChatSpeechToTextService;
 	readonly keybindingService: IKeybindingService;
 	readonly logService: ILogService;
+	/**
+	 * Supplied by chat inputs only. The first dictation started from one is
+	 * handed to the introduction card so the microphone can be chosen and
+	 * checked before anything is transcribed; editor and terminal dictation have
+	 * nowhere to dock the card and dictate straight away.
+	 */
+	readonly onboardingService?: IDictationOnboardingService;
+}
+
+/** Resolves a toggle invocation against the current dictation lifecycle. */
+export function getDictationShortcutOperation(dictating: boolean, state: ChatSpeechToTextState, preparingModel: boolean): 'start' | 'stop' | 'cancel' | undefined {
+	if (dictating) {
+		return preparingModel ? 'cancel' : 'stop';
+	}
+	return state === ChatSpeechToTextState.Idle ? 'start' : undefined;
 }
 
 /**
@@ -59,18 +76,26 @@ export interface IDictationShortcutContext {
 export async function runDictationShortcut(context: IDictationShortcutContext, commandId: string, editor: ICodeEditor): Promise<void> {
 	const { speechService, keybindingService, logService } = context;
 
-	// A second invocation while dictating always stops (toggles off). This is the
-	// tap-again-to-stop path and also how the toolbar stop button behaves.
-	if (isDictating()) {
-		await stopDictation();
-		return;
-	}
-
-	if (speechService.state !== ChatSpeechToTextState.Idle) {
-		return;
+	switch (getDictationShortcutOperation(isDictating(), speechService.state, speechService.isPreparingModel)) {
+		case 'cancel':
+			cancelDictation();
+			return;
+		case 'stop':
+			await stopDictation();
+			return;
+		case undefined:
+			return;
 	}
 
 	const window = getWindow(editor.getDomNode()) ?? getActiveWindow();
+
+	// First run: let the introduction card take this dictation over so the user
+	// can confirm the microphone is the right one and is actually being heard.
+	// Nothing is recorded until they confirm the card, which is what starts the
+	// dictation this press asked for.
+	if (context.onboardingService?.showIfNeeded(() => void startDictation(speechService, editor, window, logService))) {
+		return;
+	}
 
 	// Attempt to detect a held keybinding. Returns `undefined` when not invoked
 	// through a held key (e.g. the toolbar mic or the command palette), which
@@ -148,6 +173,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			speechService: accessor.get(IChatSpeechToTextService),
 			keybindingService: accessor.get(IKeybindingService),
 			logService: accessor.get(ILogService),
+			onboardingService: accessor.get(IDictationOnboardingService),
 		}, ToggleChatSpeechToTextAction.ID, widget.inputEditor);
 	}
 }
@@ -164,7 +190,7 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			title: localize2('chat.speechToText.preparing', "Preparing Speech to Text Model…"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			icon: Codicon.cloudDownload,
+			icon: Codicon.micDownloadCompact,
 			precondition: ChatSpeechToTextPreparing,
 			menu: [{
 				id: MenuId.ChatExecute,
@@ -192,7 +218,7 @@ export class ChatSpeechToTextConnectingAction extends Action2 {
 			title: localize2('chat.speechToText.connecting', "Connecting to Speech to Text…"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			icon: Codicon.loading,
+			icon: Codicon.loadingCompact,
 			precondition: ChatSpeechToTextPreparing,
 			menu: [{
 				id: MenuId.ChatExecute,
@@ -326,6 +352,31 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 	}
 }
 
+class ShowChatSpeechToTextIntroductionAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.showSpeechToTextIntroduction';
+
+	constructor() {
+		super({
+			id: ShowChatSpeechToTextIntroductionAction.ID,
+			title: localize2('chat.speechToText.showIntroduction', "Dictate: Show Introduction"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatSpeechToTextConfigured,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const onboardingService = accessor.get(IDictationOnboardingService);
+		if (onboardingService.show()) {
+			return;
+		}
+
+		// The card docks to a chat input, so there is nothing to show it in when
+		// no chat is open. Say so rather than appearing to do nothing.
+		accessor.get(INotificationService).info(localize('chatStt.introductionNeedsChat', "Open a chat to see the dictation introduction."));
+	}
+}
+
 class CancelChatSpeechToTextAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.cancelSpeechToText';
 
@@ -363,6 +414,7 @@ export function registerChatSpeechToTextActions(): DisposableStore {
 	store.add(registerAction2(ChatSpeechToTextConnectingAction));
 	store.add(registerAction2(HoldToSpeechToTextAction));
 	store.add(registerAction2(CancelChatSpeechToTextAction));
+	store.add(registerAction2(ShowChatSpeechToTextIntroductionAction));
 	store.add(registerAction2(SelectSpeechToTextMicrophoneAction));
 	return store;
 }

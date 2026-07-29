@@ -17,7 +17,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, IReader, autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -39,7 +39,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -79,6 +79,10 @@ import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../ba
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { createSessionArchiveAnimation, type ISessionArchiveAnimation } from './sessionArchiveAnimation.js';
 
 const $ = DOM.$;
 
@@ -101,6 +105,11 @@ export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
+
+/** Whether an inline archive action should animate instead of running immediately. */
+export function shouldAnimateArchiveAction(actionId: string, sessionCount: number, motionReduced: boolean): boolean {
+	return actionId === ARCHIVE_SESSION_COMMAND_ID && sessionCount === 1 && !motionReduced;
+}
 
 //#region Types
 
@@ -319,6 +328,8 @@ interface ISessionItemTemplate {
 	readonly statusContext: IContextKey<SessionStatus>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	sessionResource: string | undefined;
+	archiveAnimation: ISessionArchiveAnimation | undefined;
 }
 
 /** Payload emitted when the user approves a session's pending action. */
@@ -376,6 +387,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _onDidApproveSession = new Emitter<IApprovedSession>();
 	/** Fires when the user approves a session's pending action via its "Allow" button. */
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
+
+	private readonly _templatesBySession = new Map<string, ISessionItemTemplate>();
 
 	constructor(
 		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean> },
@@ -465,7 +478,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, disposables, elementDisposables, sessionResource: undefined, archiveAnimation: undefined };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -477,6 +490,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	}
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
+		this.bindTemplateToSession(template, element);
 		template.elementDisposables.clear();
 
 		// TEMPORARY (#320480): trigger lazy resolve of expensive session
@@ -609,10 +623,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// Type icon (folder/worktree/cloud) — regular sessions only. Quick
 			// chats show their chat icon on the status icon instead (see above).
 			if (sessionStatus !== SessionStatus.InProgress) {
-				const isWorkspaceSession = workspace &&
-					workspace.folders.length > 0 &&
-					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const icon = workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
+				const kind = getSessionWorkspaceKind(workspace, element.worktreePending?.read(reader));
+				const icon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -858,13 +870,68 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		return workspace.label;
 	}
 
+	startArchiveAnimation(session: ISession, overlayHost: HTMLElement): ISessionArchiveAnimation | undefined {
+		const template = this._templatesBySession.get(session.resource.toString());
+		if (!template || !template.titleToolbar || template.container.ownerDocument.visibilityState === 'hidden' || template.archiveAnimation) {
+			return undefined;
+		}
+		const toolbarBounds = template.titleToolbar.getElement().getBoundingClientRect();
+		let itemOffset = 0;
+		let archiveActionBounds: { left: number; top: number; width: number; height: number } | undefined;
+		for (let index = 0; index < template.titleToolbar.getItemsLength(); index++) {
+			const itemWidth = template.titleToolbar.getItemWidth(index);
+			if (template.titleToolbar.getItemAction(index)?.id === ARCHIVE_SESSION_COMMAND_ID) {
+				archiveActionBounds = {
+					left: toolbarBounds.left + itemOffset,
+					top: toolbarBounds.top,
+					width: itemWidth,
+					height: toolbarBounds.height,
+				};
+				break;
+			}
+			itemOffset += itemWidth;
+		}
+		if (!archiveActionBounds) {
+			return undefined;
+		}
+		template.archiveAnimation = createSessionArchiveAnimation(template.container, archiveActionBounds, overlayHost);
+		return template.archiveAnimation;
+	}
 
+	clearArchiveAnimation(session: ISession, animation: ISessionArchiveAnimation): void {
+		const template = this._templatesBySession.get(session.resource.toString());
+		if (template?.archiveAnimation === animation) {
+			template.archiveAnimation = undefined;
+		}
+		animation.dispose();
+	}
+
+	private bindTemplateToSession(template: ISessionItemTemplate, session: ISession): void {
+		const sessionResource = session.resource.toString();
+		if (template.sessionResource === sessionResource) {
+			return;
+		}
+		this.unbindTemplate(template);
+		template.sessionResource = sessionResource;
+		this._templatesBySession.set(sessionResource, template);
+	}
+
+	private unbindTemplate(template: ISessionItemTemplate): void {
+		if (template.sessionResource && this._templatesBySession.get(template.sessionResource) === template) {
+			this._templatesBySession.delete(template.sessionResource);
+		}
+		template.sessionResource = undefined;
+		template.archiveAnimation?.dispose();
+		template.archiveAnimation = undefined;
+	}
 
 	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+		this.unbindTemplate(template);
 		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(template: ISessionItemTemplate): void {
+		this.unbindTemplate(template);
 		template.disposables.dispose();
 	}
 }
@@ -1230,7 +1297,7 @@ class SessionsAccessibilityProvider {
 		return localize('sessionsList', "Sessions");
 	}
 
-	getAriaLabel(element: SessionListItem): string | null {
+	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
 		if (isSessionGroupItem(element)) {
 			return `${element.group.name}, ${element.sessions.length}`;
 		}
@@ -1254,9 +1321,13 @@ class SessionsAccessibilityProvider {
 				? localize('sessionPlaceholderAria', "{0}. {1}", element.label, element.hover)
 				: element.label;
 		}
-		const title = element.title.get();
-		const updated = fromNow(element.updatedAt.get(), true);
-		return localize('sessionItemAria', "{0}, updated {1}", title, updated);
+		return derived(this, reader => {
+			const title = element.title.read(reader);
+			const updated = fromNow(element.updatedAt.read(reader), true);
+			return element.worktreePending?.read(reader)
+				? localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated)
+				: localize('sessionItemAria', "{0}, updated {1}", title, updated);
+		});
 	}
 }
 
@@ -1718,8 +1789,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _editingGroupId: string | undefined;
 	private _groupRenderer!: SessionGroupRenderer;
 	private _sectionRenderer!: SessionSectionRenderer;
+	private _sessionRenderer!: SessionItemRenderer;
 	private _sessionsProvidersService!: ISessionsProvidersService;
 	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
+	private readonly _archiveActionsInProgress = new Set<string>();
 
 	/**
 	 * Snapshot of the currently-rendered reorderable top-level headers (groups
@@ -1755,6 +1828,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 	) {
 		super();
 
@@ -1808,8 +1883,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
-		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => s.isRead.get(), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarMenuId: SessionItemToolbarMenuId },
+		const sessionRenderer = this._sessionRenderer = new SessionItemRenderer(
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => s.isRead.get(), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarMenuId: SessionItemToolbarMenuId, handleToolbarAction: (action, session) => this.handleToolbarAction(action, session) },
 			approvalModel,
 			undefined,
 			instantiationService,
@@ -2764,6 +2839,38 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private getMultiSelectedSessions(session: ISession): ISession[] {
 		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && isSessionItem(s));
 		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
+	}
+
+	private async handleToolbarAction(action: IAction, session: ISession): Promise<boolean> {
+		const sessions = this.getMultiSelectedSessions(session);
+		if (!shouldAnimateArchiveAction(action.id, sessions.length, this.accessibilityService.isMotionReduced())) {
+			return false;
+		}
+
+		const sessionResources = sessions.map(session => session.resource.toString());
+		if (sessionResources.some(resource => this._archiveActionsInProgress.has(resource))) {
+			return true;
+		}
+
+		const overlayHost = this.layoutService.getContainer(DOM.getWindow(this.listContainer));
+		const animation = this._sessionRenderer.startArchiveAnimation(session, overlayHost);
+		if (!animation) {
+			return false;
+		}
+
+		for (const resource of sessionResources) {
+			this._archiveActionsInProgress.add(resource);
+		}
+		try {
+			await animation.finished;
+			await action.run(sessions);
+			return true;
+		} finally {
+			this._sessionRenderer.clearArchiveAnimation(session, animation);
+			for (const resource of sessionResources) {
+				this._archiveActionsInProgress.delete(resource);
+			}
+		}
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {

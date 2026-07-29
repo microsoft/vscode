@@ -11,7 +11,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService } from '../../browser/automationService.js';
-import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, AutomationTarget, AutomationWorkspaceIsolation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { createAutomationService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -24,9 +24,35 @@ function dailySchedule(hour = 9, minute = 0): IAutomationSchedule {
 	return { interval: 'daily', scheduleHour: hour, scheduleMinute: minute, scheduleDay: 0 };
 }
 
+function serializeLedgerAutomation(id: string, name: string) {
+	return {
+		id,
+		name,
+		prompt: 'p',
+		schedule: dailySchedule(),
+		target: { kind: 'workspace', folderUri: FOLDER.toJSON(), isolation: { kind: 'default' } },
+		enabled: true,
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+	};
+}
+
 suite('AutomationService', () => {
 
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Records a run, asserting the automation's active-run slot was free. */
+	async function claimRun(service: AutomationService, automationId: string, trigger: AutomationRunTrigger, leaderWindowId = 1): Promise<IAutomationRun> {
+		const claim = await service.recordRunStart(automationId, trigger, leaderWindowId);
+		assert.ok(claim.claimed, 'expected the run slot to be claimed');
+		return claim.run;
+	}
+
+	/** Records a run and completes it so the automation's slot is free for the next one. */
+	async function recordCompletedRun(service: AutomationService, automationId: string, trigger: AutomationRunTrigger = 'manual'): Promise<IAutomationRun> {
+		const run = await claimRun(service, automationId, trigger);
+		return await service.updateRun(run.id, { status: 'completed' }) ?? run;
+	}
 
 	function createService(storage?: InMemoryStorageService): { service: AutomationService; storage: InMemoryStorageService } {
 		const sharedStorage = teardown.add(storage ?? new InMemoryStorageService());
@@ -201,7 +227,7 @@ suite('AutomationService', () => {
 	test('recordRunStart inserts a pending run; updateRun applies a patch', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const run = await service.recordRunStart(a.id, 'schedule', 42);
+		const run = await claimRun(service, a.id, 'schedule', 42);
 		assert.strictEqual(run.status, 'pending');
 		assert.strictEqual(run.leaderWindowId, 42);
 		const updated = await service.updateRun(run.id, { status: 'completed', sessionResource: 'vscode-chat-session://copilot/sess-1', completedAt: new Date().toISOString() });
@@ -220,7 +246,7 @@ suite('AutomationService', () => {
 		});
 
 		service.setClockForTesting(() => new Date('2025-06-01T10:00:00Z'));
-		const run = await service.recordRunStart(automation.id, 'catch_up', 1);
+		const run = await claimRun(service, automation.id, 'catch_up');
 
 		assert.deepStrictEqual({
 			startedAt: run.startedAt,
@@ -244,7 +270,7 @@ suite('AutomationService', () => {
 		});
 
 		service.setClockForTesting(() => new Date('2025-06-01T00:30:00Z'));
-		const run = await service.recordRunStart(automation.id, 'manual', 1);
+		const run = await claimRun(service, automation.id, 'manual');
 
 		assert.deepStrictEqual({
 			startedAt: run.startedAt,
@@ -261,7 +287,7 @@ suite('AutomationService', () => {
 		const { service } = createService();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		assert.strictEqual(service.getActiveRunFor(a.id), undefined);
-		const run = await service.recordRunStart(a.id, 'schedule', 1);
+		const run = await claimRun(service, a.id, 'schedule');
 		assert.strictEqual(service.getActiveRunFor(a.id)?.id, run.id);
 		await service.updateRun(run.id, { status: 'completed' });
 		assert.strictEqual(service.getActiveRunFor(a.id), undefined);
@@ -270,8 +296,10 @@ suite('AutomationService', () => {
 	test('markStaleRunsFailed moves pending and running rows to failed', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const r1 = await service.recordRunStart(a.id, 'schedule', 1);
-		const r2 = await service.recordRunStart(a.id, 'schedule', 1);
+		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		// One row per state: only one run per automation can be active at a time.
+		const r1 = await claimRun(service, a.id, 'schedule');
+		const r2 = await claimRun(service, b.id, 'schedule');
 		await service.updateRun(r1.id, { status: 'running' });
 		await service.markStaleRunsFailed('Interrupted');
 		const all = service.runs.get();
@@ -284,9 +312,9 @@ suite('AutomationService', () => {
 		const { service } = createService();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		await service.recordRunStart(a.id, 'schedule', 1);
-		await service.recordRunStart(b.id, 'schedule', 1);
-		await service.recordRunStart(a.id, 'manual', 1);
+		await recordCompletedRun(service, a.id, 'schedule');
+		await recordCompletedRun(service, b.id, 'schedule');
+		await recordCompletedRun(service, a.id, 'manual');
 		assert.strictEqual(service.runsFor(a.id).get().length, 2);
 		assert.strictEqual(service.runsFor(b.id).get().length, 1);
 	});
@@ -298,13 +326,56 @@ suite('AutomationService', () => {
 		// Push 60 runs for a (cap is 50) and 5 for b. Each automation's
 		// history should be bounded independently.
 		for (let i = 0; i < 60; i++) {
-			await service.recordRunStart(a.id, 'manual', 1);
+			await recordCompletedRun(service, a.id);
 		}
 		for (let i = 0; i < 5; i++) {
-			await service.recordRunStart(b.id, 'manual', 1);
+			await recordCompletedRun(service, b.id);
 		}
 		assert.strictEqual(service.runsFor(a.id).get().length, 50);
 		assert.strictEqual(service.runsFor(b.id).get().length, 5);
+	});
+
+	test('recordRunStart declines a second claim while a run is active', async () => {
+		const { service } = createService();
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		const first = await claimRun(service, a.id, 'manual');
+		await service.updateRun(first.id, { status: 'running' });
+
+		const second = await service.recordRunStart(a.id, 'schedule', 2);
+
+		assert.deepStrictEqual({
+			claimed: second.claimed,
+			runId: second.run.id,
+			totalRuns: service.runsFor(a.id).get().length,
+		}, {
+			claimed: false,
+			runId: first.id,
+			totalRuns: 1,
+		});
+	});
+
+	test('concurrent claims from two windows produce a single run', async () => {
+		const sharedStorage = teardown.add(new InMemoryStorageService());
+		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const a = await windowA.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+
+		// Neither window sees an active run when it starts, so the claim has to be
+		// settled by the storage compare-and-swap rather than by a pre-read check.
+		const [first, second] = await Promise.all([
+			windowA.recordRunStart(a.id, 'manual', 1),
+			windowB.recordRunStart(a.id, 'manual', 2),
+		]);
+
+		assert.deepStrictEqual({
+			claimCount: [first, second].filter(claim => claim.claimed).length,
+			agreeOnRun: first.run.id === second.run.id,
+			totalRuns: windowA.runsFor(a.id).get().length,
+		}, {
+			claimCount: 1,
+			agreeOnRun: true,
+			totalRuns: 1,
+		});
 	});
 
 	test('persists across service restarts via shared storage', async () => {
@@ -430,7 +501,7 @@ suite('AutomationService', () => {
 		const reviewed = await windowA.createAutomation({ name: 'Original', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 
 		windowB.setClockForTesting(() => new Date('2025-06-01T10:00:00Z'));
-		const run = await windowB.recordRunStart(reviewed.id, 'schedule', 2);
+		const run = await claimRun(windowB, reviewed.id, 'schedule', 2);
 		const runtimeState = windowB.getAutomation(reviewed.id);
 		const result = await windowA.updateAutomationIfUnchanged(reviewed.id, { name: 'Reviewed edit' }, reviewed);
 
@@ -456,7 +527,7 @@ suite('AutomationService', () => {
 		const edited = await windowA.createAutomation({ name: 'Edit me', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		const deleted = await windowA.createAutomation({ name: 'Delete me', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 
-		const [, run, , created] = await Promise.all([
+		const [, claim, , created] = await Promise.all([
 			windowA.updateAutomation(edited.id, { name: 'Edited' }),
 			windowB.recordRunStart(edited.id, 'schedule', 2),
 			windowA.deleteAutomation(deleted.id),
@@ -473,7 +544,7 @@ suite('AutomationService', () => {
 				{ id: created.id, name: 'Created' },
 				{ id: edited.id, name: 'Edited' },
 			],
-			runs: [{ id: run.id, automationId: edited.id }],
+			runs: [{ id: claim.run.id, automationId: edited.id }],
 		});
 	});
 
@@ -538,6 +609,45 @@ suite('AutomationService', () => {
 		await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		const after = JSON.parse(storage.get('chat.automations.ledger', -1)!);
 		assert.ok(after.revision > 5000, `expected revision > 5000, got ${after.revision}`);
+	});
+
+	test('successful CAS accepts a restored lower revision without accepting stale notifications', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		storage.store('chat.automations.ledger', JSON.stringify({
+			schemaVersion: 3,
+			revision: 40,
+			automations: [serializeLedgerAutomation('newer', 'Before restore')],
+			runs: [],
+		}), -1, 1);
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+		const restoredLedger = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [serializeLedgerAutomation('restored', 'Restored')],
+			runs: [],
+		});
+		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
+
+		const created = await service.createAutomation({
+			name: 'After restore',
+			prompt: 'p',
+			schedule: dailySchedule(),
+			target: workspaceTarget(),
+		});
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
+
+		assert.deepStrictEqual({
+			createdName: created.name,
+			persistedRevision: persisted.revision,
+			persistedNames: persisted.automations.map((automation: { name: string }) => automation.name),
+			inMemoryNames: service.automations.get().map(automation => automation.name),
+		}, {
+			createdName: 'After restore',
+			persistedRevision: 2,
+			persistedNames: ['After restore', 'Restored'],
+			inMemoryNames: ['After restore', 'Restored'],
+		});
 	});
 
 	test('reading a corrupt ledger leaves observables empty without throwing', () => {

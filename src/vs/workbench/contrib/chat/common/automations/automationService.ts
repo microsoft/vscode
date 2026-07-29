@@ -11,6 +11,9 @@ import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule,
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
+/** Invoked immediately before each storage CAS attempt; throwing aborts before that attempt. */
+export type AutomationMutationGuard = () => void;
+
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
  * `nextRunAt`.
@@ -95,6 +98,14 @@ export interface IUpdateAutomationRunOptions {
 	readonly errorMessage?: string;
 }
 
+/** Outcome of an attempt to claim an automation's single active-run slot. */
+export interface IAutomationRunClaim {
+	/** `false` when another run already held the slot, in which case nothing was recorded. */
+	readonly claimed: boolean;
+	/** The run occupying the slot: the newly recorded one, or the pre-existing one. */
+	readonly run: IAutomationRun;
+}
+
 /**
  * Persistent store for automations and their run history, and the single
  * mutation point. Scheduler, runner, and UI all flow through it to keep
@@ -116,19 +127,25 @@ export interface IAutomationService {
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]>;
 
 	/** Creates and persists an automation after validating the complete definition. */
-	createAutomation(options: ICreateAutomationOptions): Promise<IAutomation>;
+	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation>;
 	/** Applies a patch to the latest automation state; throws when `id` does not exist. */
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
 	/**
 	 * Applies `patch` only when the current editable fields still match `expected`.
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
-	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult>;
+	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
 	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string): Promise<void>;
+	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
-	/** Records a new run as `pending` and advances the schedule for scheduled/catch-up runs. Throws if the automation does not exist. */
-	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun>;
+	/**
+	 * Atomically claims the automation's single active-run slot, records the new run as
+	 * `pending`, and advances the schedule for scheduled/catch-up runs. The active-run check
+	 * runs inside the same compare-and-swap that writes the run, so concurrent callers -- the
+	 * scheduler, other windows, or agent tool invocations -- cannot both claim one automation.
+	 * Throws if the automation does not exist.
+	 */
+	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim>;
 
 	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
 	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;

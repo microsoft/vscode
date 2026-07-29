@@ -227,6 +227,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
+	/**
+	 * In-flight {@link refreshModels} call, so overlapping triggers (an auth
+	 * token change, a transport flip, or a periodic tick from the host's
+	 * model-refresh scheduler) collapse into a single enumeration instead of
+	 * racing each other's writes to {@link _models}.
+	 */
+	private _modelRefreshInFlight: Promise<void> | undefined;
 
 	private _githubToken: string | undefined;
 	private _proxyHandle: IClaudeProxyHandle | undefined;
@@ -466,7 +473,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const next = this._resolveTransportMode();
 			if (next !== this._transportMode) {
 				this._transportMode = next;
-				void this._refreshModels();
+				// Proxy and native enumerate different catalogs. Do not retain
+				// models from the previous transport if the replacement cannot
+				// enumerate its own list.
+				this._models.set([], undefined);
+				void this._startModelRefresh();
 				// Flipping into proxy makes GitHub Copilot auth newly required.
 				// If no proxy handle was ever established, proactively ask the
 				// client to authenticate rather than waiting for the next command
@@ -490,7 +501,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// kick off the initial enumeration ourselves. (Transport *flips*
 			// after construction are covered by the `onDidRootConfigChange`
 			// subscription above.) `queueMicrotask` runs it off the ctor stack.
-			queueMicrotask(() => { void this._refreshModels(); });
+			queueMicrotask(() => { void this._startModelRefresh(); });
 		}
 	}
 
@@ -581,7 +592,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
-		void this._refreshModels();
+		if (tokenChanged) {
+			// A different account can have different model entitlements. Do
+			// not retain the previous token's catalog if enumeration for the
+			// replacement token fails.
+			this._models.set([], undefined);
+		}
+		void this._startModelRefresh();
 		return true;
 	}
 
@@ -592,6 +609,34 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private _isProxyEnabled(): boolean {
 		return this._transportMode === 'proxy';
+	}
+
+	/**
+	 * {@link IAgent.refreshModels}. Coalesces onto an in-flight refresh and
+	 * never rejects — {@link _refreshModels} already logs and handles failure.
+	 *
+	 * Only safe for callers with no new input to apply (the host's periodic
+	 * scheduler). Triggers that invalidate the in-flight request — a rotated
+	 * token, a transport flip — must call {@link _startModelRefresh} so they
+	 * are not answered by a refresh bound to the superseded input.
+	 */
+	refreshModels(): Promise<void> {
+		return this._modelRefreshInFlight ?? this._startModelRefresh();
+	}
+
+	/**
+	 * Unconditionally begins a refresh, superseding any in-flight one as the
+	 * coalescing target. The superseded request stays harmless: its own
+	 * stale-write guard drops the result if the token or transport moved on.
+	 */
+	private _startModelRefresh(): Promise<void> {
+		const refresh = this._refreshModels().finally(() => {
+			if (this._modelRefreshInFlight === refresh) {
+				this._modelRefreshInFlight = undefined;
+			}
+		});
+		this._modelRefreshInFlight = refresh;
+		return refresh;
 	}
 
 	private async _refreshModels(): Promise<void> {
@@ -615,9 +660,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Claude] Failed to refresh models');
-			if (this._isProxyEnabled() === proxyAtStart && (!proxyAtStart || this._githubToken === tokenAtStart)) {
-				this._models.set([], undefined);
-			}
+			// Keep the last known-good catalog. A periodic refresh is advisory;
+			// a transient service failure must not make every model disappear.
+			// Input changes that invalidate the catalog clear it at the point
+			// where that input changes.
 		}
 	}
 
@@ -686,24 +732,25 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (!existing.isPipelineReady) {
 				return {
 					session: existing.sessionUri,
-					workingDirectory: existing.workingDirectory,
+					resolvedWorkingDirectory: existing.workingDirectory,
 					provisional: true,
 					...(existing.project ? { project: existing.project } : {}),
 				};
 			}
-			return { session: sessionUri, workingDirectory: config.workingDirectory };
+			return { session: sessionUri, resolvedWorkingDirectory: config.workingDirectories?.[0] };
 		}
 
-		// A workspace-less session (no `workingDirectory` supplied, and not a
+		// A workspace-less session (no `workingDirectories` supplied, and not a
 		// fork) runs in a stable per-session scratch dir shared with the Copilot
 		// agent; without a cwd Claude throws at materialize. The workspace-less
 		// marker itself is owned/persisted centrally by the AH service.
-		const workingDirectory = config.workingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, sessionId);
+		const requestedWorkingDirectory = config.workingDirectories?.[0];
+		const workingDirectory = requestedWorkingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, sessionId);
 
 		// Only probe for a project when the caller supplied a real folder; a
 		// scratch dir is never a code project.
-		const project = config.workingDirectory
-			? await projectFromCopilotContext({ cwd: config.workingDirectory.fsPath }, this._gitService)
+		const project = requestedWorkingDirectory
+			? await projectFromCopilotContext({ cwd: requestedWorkingDirectory.fsPath }, this._gitService)
 			: undefined;
 
 		const permissionMode = this._resolvePermissionMode(config.config);
@@ -727,7 +774,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		return {
 			session: sessionUri,
-			workingDirectory,
+			resolvedWorkingDirectory: workingDirectory,
 			provisional: true,
 			...(project ? { project } : {}),
 		};
@@ -831,7 +878,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		await this.createSession({
 			session,
-			workingDirectory,
+			workingDirectories: [workingDirectory],
 			...(overlay.model ? { model: overlay.model } : {}),
 			...(overlay.agent ? { agent: overlay.agent } : {}),
 			...(overlay.permissionMode ? { config: { [ClaudeSessionConfigKey.PermissionMode]: overlay.permissionMode } } : {}),
@@ -867,8 +914,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this._disposeChat(session, chat);
 		},
-		sendMessage: (chatUri, prompt, workingDirectory, attachments, turnId, senderClientId) => {
-			return this._sendMessage(chatUri, prompt, workingDirectory, attachments, turnId, senderClientId);
+		sendMessage: (chatUri, prompt, workingDirectories, attachments, turnId, senderClientId) => {
+			return this._sendMessage(chatUri, prompt, workingDirectories, attachments, turnId, senderClientId);
 		},
 		abort: chatUri => {
 			return this._abortSession(chatUri);
@@ -946,7 +993,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// fast (rather than at the first `sendMessage` when `_resumeSession`
 			// requires a cwd). The Query itself starts lazily — see the JSDoc.
 			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
-			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectory;
+			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectories?.[0];
 			if (!workingDirectory) {
 				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd missing and none supplied)`);
 			}
@@ -958,7 +1005,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			}
 			return {
 				session: newSessionUri,
-				workingDirectory,
+				resolvedWorkingDirectory: workingDirectory,
 				...(project ? { project } : {}),
 			};
 		});
@@ -1009,7 +1056,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 *   inside `materialize` throws so we never expose a live pipeline
 	 *   for a session the caller has already torn down.
 	 */
-	private async _materializeProvisional(sessionId: string, workingDirectory?: URI): Promise<ClaudeAgentSession> {
+	private async _materializeProvisional(sessionId: string, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		const session = this._findAnySession(sessionId);
 		if (!session) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
@@ -1019,16 +1066,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const canUseTool = this._makeCanUseTool(sessionId);
 		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory: workingDirectories?.[0], serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
 		}
 
+		// Emit the resolved set (index 0 = process root); the host preserves the
+		// session set's tail via an index-0 replacement.
 		this._onDidMaterializeSession.fire({
 			session: session.sessionUri,
-			workingDirectory: session.workingDirectory,
 			project: session.project,
+			workingDirectories: workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined),
 		});
 
 		return session;
@@ -1102,8 +1151,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		this._onDidMaterializeSession.fire({
 			session: sessionUri,
-			workingDirectory,
 			project,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		});
 
 		return session;
@@ -1657,6 +1706,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		const sess = context.target;
 		if (sess && !sess.isPipelineReady) {
+			// Provisional session: the SDK chat has never been materialized, so
+			// there is no on-disk transcript to read. Logged because an empty
+			// transcript is otherwise indistinguishable from a failed read.
+			this._logService.info(`[Claude] getSessionMessages: chat ${chat.toString()} is not materialized yet; returning no turns`);
 			return [];
 		}
 		// Default chat: its SDK chat id is the session id.
@@ -1687,6 +1740,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// blow up the entire transcript read.
 			this._logService.warn(`[Claude] replay mapper threw for ${sdkSessionId}`, err);
 			return [];
+		}
+		// Always a bug: the SDK handed back a transcript but replay produced
+		// nothing, which surfaces to the user as a chat that opens completely
+		// empty. Warn so the next report is diagnosable from the log alone.
+		if (turns.length === 0 && messages.length > 0) {
+			this._logService.warn(`[Claude] replay produced no turns from ${messages.length} transcript message(s) for ${sdkSessionId}; chat will render empty`);
 		}
 		// A bug in `primeFromTranscript` MUST NOT break an otherwise-successful
 		// transcript read.
@@ -1861,7 +1920,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		})();
 	}
 
-	private async _sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
 		// `IAgent.sendMessage` declares `turnId?` but every production caller in
 		// `AgentSideEffects` supplies one. Generate a fallback so the
 		// session-side `QueuedRequest.turnId: string` invariant holds even if a
@@ -1898,7 +1957,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (existing?.isPipelineReady) {
 				session = existing;
 			} else if (existing) {
-				session = await this._materializeProvisional(context.sessionId, workingDirectory);
+				session = await this._materializeProvisional(context.sessionId, workingDirectories);
 			} else {
 				session = await this._resumeSession(context.sessionId, context.session);
 			}

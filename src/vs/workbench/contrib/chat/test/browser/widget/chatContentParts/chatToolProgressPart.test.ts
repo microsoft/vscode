@@ -27,7 +27,7 @@ import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatCo
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
 import { isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -290,6 +290,48 @@ suite('ChatToolProgressSubPart', () => {
 		renderToolInvocation(invocation);
 
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
+	});
+
+	test('renders codicon syntax in an automation name as literal text', () => {
+		const render = (automationName: string) => {
+			const part = disposables.add(instantiationService.createInstance(
+				ChatAutomationConfiguredResultSubPart,
+				createSerializedToolInvocation({ isComplete: true }),
+				{ kind: 'automationConfigured', automationId: 'automation-1', automationName, operation: 'created' } satisfies IChatAutomationConfiguredData,
+				createRenderContext(),
+				mockMarkdownRenderer,
+			));
+			const button = part.domNode.querySelector<HTMLElement>('.chat-open-session-button');
+			return {
+				text: button?.textContent,
+				ariaLabel: button?.getAttribute('aria-label'),
+				tabIndex: button?.tabIndex,
+				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				// `codicon-*` on the root would restyle the label text.
+				rootCarriesCodiconClass: button?.classList.contains('codicon'),
+				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
+					.flatMap(el => [...el.classList]).filter(c => c.startsWith('codicon-')),
+			};
+		};
+
+		assert.deepStrictEqual([render('$(error)'), render('a \\$(error) b')], [
+			{
+				text: 'Created an automation: $(error)',
+				ariaLabel: 'Open automation $(error)',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+			{
+				text: 'Created an automation: a \\$(error) b',
+				ariaLabel: 'Open automation a \\$(error) b',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+		]);
 	});
 
 	test('rerenders when terminal metadata changes without changing data kind', () => {

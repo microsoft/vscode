@@ -10,7 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -105,6 +106,28 @@ suite('Session Context Keys', () => {
 		}, {
 			first: false,
 			second: true,
+		});
+	});
+});
+
+suite('setSessionContextKeys - changes', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const change: IChatSessionFileChange = { modifiedUri: URI.parse('test:///file.ts'), insertions: 3, deletions: 1 };
+
+	test('hides the changes of the checkout that a session with a pending worktree was started from', () => {
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const worktreePending = observableValue('worktreePending', true);
+		const session = stubSession({ sessionId: 'a', changesets: constObservable(undefined), changes: constObservable([change]), worktreePending });
+
+		disposables.add(autorun(reader => setSessionContextKeys(session, contextKeyService, reader)));
+		const whilePending = SessionHasChangesContext.getValue(contextKeyService);
+
+		worktreePending.set(false, undefined);
+
+		assert.deepStrictEqual({ whilePending, afterWorktreeCreated: SessionHasChangesContext.getValue(contextKeyService) }, {
+			whilePending: false,
+			afterWorktreeCreated: true,
 		});
 	});
 });

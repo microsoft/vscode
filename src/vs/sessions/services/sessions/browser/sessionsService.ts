@@ -18,7 +18,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -232,6 +232,9 @@ export interface ISessionsService {
 
 	/** Make the given (already visible) session the active session. */
 	setActive(session: IActiveSession | undefined): void;
+
+	/** Submit the live input in the active new-session composer. */
+	submitNewSessionInput(): Promise<boolean>;
 
 	/**
 	 * Restore the sessions that were visible in the grid from persisted state.
@@ -450,7 +453,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this.openQuickChat();
 				} else {
 					const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
-					this.openNewSession(folderUri ? { folderUri, providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType } : undefined);
+					this.openNewSession(folderUri
+						? { folderUri, ...inheritableSessionTarget(this.sessionsManagementService, activeSession, folderUri) }
+						: undefined);
 				}
 			}
 			wasArchived = isArchived;
@@ -800,6 +805,25 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	setActive(session: IActiveSession | undefined): void {
 		this._activate(session);
+	}
+
+	async submitNewSessionInput(): Promise<boolean> {
+		let activeSession = this.activeSession.get();
+		if (activeSession?.isCreated.get()) {
+			return false;
+		}
+
+		// The composer is not necessarily mounted in the grid (e.g. every slot
+		// holds a created session), so open it before submitting into it.
+		if (!this.sessionsPartService.getSessionView(activeSession?.sessionId)) {
+			await this.openNewSession();
+			activeSession = this.activeSession.get();
+			if (activeSession?.isCreated.get()) {
+				return false;
+			}
+		}
+
+		return this.sessionsPartService.getSessionView(activeSession?.sessionId)?.submitInput() ?? false;
 	}
 
 	toggleSessionStickiness(session: ISession): void {
