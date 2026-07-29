@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatQuestion } from '../../common/chatService/chatService.js';
 import {
+	findQuestionValidationFailure,
 	getDisplayedQuestionText,
 	getOptionsWithDefaultsFirst,
 } from '../../common/chatService/chatQuestionCarouselHelpers.js';
@@ -96,6 +97,31 @@ suite('ChatQuestionCarouselHelpers', () => {
 		test('passes a markdown message through untouched', () => {
 			const message = { value: '**Which** region?' } as IMarkdownString;
 			assert.strictEqual(getDisplayedQuestionText({ ...single, message }), message);
+		});
+	});
+
+	suite('findQuestionValidationFailure', () => {
+		test('accepts a value inside every bound', () => {
+			assert.strictEqual(
+				findQuestionValidationFailure('42', { minLength: 1, maxLength: 3, minimum: 0, maximum: 99, isInteger: true }),
+				undefined,
+			);
+		});
+
+		test('reports the bound that was broken', () => {
+			assert.deepStrictEqual(findQuestionValidationFailure('ab', { minLength: 3 }), { kind: 'minLength', limit: 3 });
+			assert.deepStrictEqual(findQuestionValidationFailure('abcd', { maxLength: 3 }), { kind: 'maxLength', limit: 3 });
+			assert.deepStrictEqual(findQuestionValidationFailure('1', { minimum: 5 }), { kind: 'minimum', limit: 5 });
+			assert.deepStrictEqual(findQuestionValidationFailure('9', { maximum: 5 }), { kind: 'maximum', limit: 5 });
+		});
+
+		test('reports a malformed value by format', () => {
+			assert.deepStrictEqual(findQuestionValidationFailure('nope', { format: 'email' }), { kind: 'email' });
+			assert.deepStrictEqual(findQuestionValidationFailure('nope', { format: 'uri' }), { kind: 'uri' });
+			assert.deepStrictEqual(findQuestionValidationFailure('01-02-2026', { format: 'date' }), { kind: 'date' });
+			assert.deepStrictEqual(findQuestionValidationFailure('nope', { format: 'date-time' }), { kind: 'dateTime' });
+			assert.deepStrictEqual(findQuestionValidationFailure('nope', { minimum: 1 }), { kind: 'number' });
+			assert.deepStrictEqual(findQuestionValidationFailure('1.5', { isInteger: true }), { kind: 'integer' });
 		});
 	});
 });

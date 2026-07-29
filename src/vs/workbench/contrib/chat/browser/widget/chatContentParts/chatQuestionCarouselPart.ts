@@ -22,7 +22,7 @@ import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
-import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
+import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -1712,54 +1712,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns a validation error message for the given value, or undefined if valid.
 	 */
 	private getValidationError(value: string, validation: IChatQuestionValidation): string | undefined {
-		if (validation.minLength !== undefined && value.length < validation.minLength) {
-			return localize('chat.questionCarousel.validation.minLength', 'Minimum length is {0}', validation.minLength);
-		}
-		if (validation.maxLength !== undefined && value.length > validation.maxLength) {
-			return localize('chat.questionCarousel.validation.maxLength', 'Maximum length is {0}', validation.maxLength);
-		}
-		if (validation.format) {
-			switch (validation.format) {
-				case 'email':
-					if (!value.includes('@')) {
-						return localize('chat.questionCarousel.validation.email', 'Please enter a valid email address');
-					}
-					break;
-				case 'uri':
-					if (!URL.canParse(value)) {
-						return localize('chat.questionCarousel.validation.uri', 'Please enter a valid URI');
-					}
-					break;
-				case 'date': {
-					const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-					if (!dateRegex.test(value) || isNaN(new Date(value).getTime())) {
-						return localize('chat.questionCarousel.validation.date', 'Please enter a valid date (YYYY-MM-DD)');
-					}
-					break;
-				}
-				case 'date-time':
-					if (isNaN(new Date(value).getTime())) {
-						return localize('chat.questionCarousel.validation.dateTime', 'Please enter a valid date-time');
-					}
-					break;
-			}
-		}
-		if (validation.isInteger !== undefined || validation.minimum !== undefined || validation.maximum !== undefined) {
-			const num = Number(value);
-			if (isNaN(num)) {
+		const failure = findQuestionValidationFailure(value, validation);
+		switch (failure?.kind) {
+			case undefined:
+				return undefined;
+			case 'minLength':
+				return localize('chat.questionCarousel.validation.minLength', 'Minimum length is {0}', failure.limit);
+			case 'maxLength':
+				return localize('chat.questionCarousel.validation.maxLength', 'Maximum length is {0}', failure.limit);
+			case 'email':
+				return localize('chat.questionCarousel.validation.email', 'Please enter a valid email address');
+			case 'uri':
+				return localize('chat.questionCarousel.validation.uri', 'Please enter a valid URI');
+			case 'date':
+				return localize('chat.questionCarousel.validation.date', 'Please enter a valid date (YYYY-MM-DD)');
+			case 'dateTime':
+				return localize('chat.questionCarousel.validation.dateTime', 'Please enter a valid date-time');
+			case 'number':
 				return localize('chat.questionCarousel.validation.number', 'Please enter a valid number');
-			}
-			if (validation.isInteger && !Number.isInteger(num)) {
+			case 'integer':
 				return localize('chat.questionCarousel.validation.integer', 'Please enter a valid integer');
-			}
-			if (validation.minimum !== undefined && num < validation.minimum) {
-				return localize('chat.questionCarousel.validation.minimum', 'Minimum value is {0}', validation.minimum);
-			}
-			if (validation.maximum !== undefined && num > validation.maximum) {
-				return localize('chat.questionCarousel.validation.maximum', 'Maximum value is {0}', validation.maximum);
-			}
+			case 'minimum':
+				return localize('chat.questionCarousel.validation.minimum', 'Minimum value is {0}', failure.limit);
+			case 'maximum':
+				return localize('chat.questionCarousel.validation.maximum', 'Maximum value is {0}', failure.limit);
 		}
-		return undefined;
 	}
 
 	private showValidationError(message: string): void {

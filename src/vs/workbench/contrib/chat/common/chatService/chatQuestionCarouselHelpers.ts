@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IChatQuestion } from './chatService.js';
+import { IChatQuestion, IChatQuestionValidation } from './chatService.js';
 
 /** An option paired with its position in the question's declared order. */
 export interface IOrderedQuestionOption {
@@ -53,4 +53,63 @@ export function getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQu
  */
 export function getDisplayedQuestionText(question: IChatQuestion): string | IMarkdownString {
 	return question.message ?? question.title;
+}
+
+/** Why a value failed a question's validation rules. `limit` carries the bound it broke. */
+export type QuestionValidationFailure =
+	| { readonly kind: 'minLength' | 'maxLength' | 'minimum' | 'maximum'; readonly limit: number }
+	| { readonly kind: 'email' | 'uri' | 'date' | 'dateTime' | 'number' | 'integer' };
+
+/**
+ * Check a freeform value against a question's validation rules.
+ *
+ * The widget words the failure for the screen and the voice path just refuses
+ * the answer, so the rules themselves live here: an answer the form would
+ * reject on submit must not become acceptable by saying it out loud.
+ */
+export function findQuestionValidationFailure(value: string, validation: IChatQuestionValidation): QuestionValidationFailure | undefined {
+	if (validation.minLength !== undefined && value.length < validation.minLength) {
+		return { kind: 'minLength', limit: validation.minLength };
+	}
+	if (validation.maxLength !== undefined && value.length > validation.maxLength) {
+		return { kind: 'maxLength', limit: validation.maxLength };
+	}
+	switch (validation.format) {
+		case 'email':
+			if (!value.includes('@')) {
+				return { kind: 'email' };
+			}
+			break;
+		case 'uri':
+			if (!URL.canParse(value)) {
+				return { kind: 'uri' };
+			}
+			break;
+		case 'date':
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || isNaN(new Date(value).getTime())) {
+				return { kind: 'date' };
+			}
+			break;
+		case 'date-time':
+			if (isNaN(new Date(value).getTime())) {
+				return { kind: 'dateTime' };
+			}
+			break;
+	}
+	if (validation.isInteger !== undefined || validation.minimum !== undefined || validation.maximum !== undefined) {
+		const num = Number(value);
+		if (isNaN(num)) {
+			return { kind: 'number' };
+		}
+		if (validation.isInteger && !Number.isInteger(num)) {
+			return { kind: 'integer' };
+		}
+		if (validation.minimum !== undefined && num < validation.minimum) {
+			return { kind: 'minimum', limit: validation.minimum };
+		}
+		if (validation.maximum !== undefined && num > validation.maximum) {
+			return { kind: 'maximum', limit: validation.maximum };
+		}
+	}
+	return undefined;
 }

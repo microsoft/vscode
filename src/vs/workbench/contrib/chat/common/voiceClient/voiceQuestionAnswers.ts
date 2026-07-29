@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findQuestionValidationFailure } from '../chatService/chatQuestionCarouselHelpers.js';
 import { IChatQuestion, IChatQuestionAnswers } from '../chatService/chatService.js';
 
 /**
@@ -47,6 +48,11 @@ export function resolveQuestionAnswers(
 		}
 		const values = new Set((question.options ?? []).map(o => o.value));
 		const freeform = answer.freeform?.trim() || undefined;
+		// A value the form would reject on submit must not become acceptable by
+		// being spoken instead of typed.
+		if (freeform !== undefined && question.validation && findQuestionValidationFailure(freeform, question.validation)) {
+			return undefined;
+		}
 
 		if (question.type === 'text') {
 			if (answer.value !== undefined || answer.values !== undefined || !freeform) {

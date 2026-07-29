@@ -48,6 +48,18 @@ suite('VoiceQuestionAnswers', () => {
 			);
 		});
 
+		test('refuses a freeform value the form would reject on submit', () => {
+			const validated = { ...text, validation: { minLength: 5 } };
+			assert.strictEqual(
+				resolveQuestionAnswers([validated], [{ question_id: 'q_text', freeform: 'no' }]),
+				undefined,
+			);
+			assert.deepStrictEqual(
+				resolveQuestionAnswers([validated], [{ question_id: 'q_text', freeform: 'long enough' }]),
+				{ q_text: 'long enough' },
+			);
+		});
+
 		test('maps an exact single-select value', () => {
 			assert.deepStrictEqual(
 				resolveQuestionAnswers([single], [{ question_id: 'q_single', value: 'eastus' }]),

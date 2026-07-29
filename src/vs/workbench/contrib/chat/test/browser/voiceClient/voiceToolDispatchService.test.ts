@@ -149,6 +149,17 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.deepStrictEqual(part.data, { region: { selectedValue: 'westus' } });
 	});
 
+	test('refuses a malformed answers field rather than reading it as empty', async () => {
+		// Coercing a present non-array to empty would let a skip succeed while
+		// silently discarding whatever the call actually carried.
+		const part = carousel(true);
+
+		const result = await serviceFor(part).respondToSession(answerCall(part, { type: 'skip', answers: 'westus' }));
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'invalid_answer' });
+		assert.strictEqual(part.isUsed, undefined);
+	});
+
 	test('refuses an unresolvable carousel without marking it answered', async () => {
 		// A plain carousel with no deferred completion and no resolve id has
 		// nowhere to put an answer. Mutating it first would leave the form

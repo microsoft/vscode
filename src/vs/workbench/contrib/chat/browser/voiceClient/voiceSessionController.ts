@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, VOICE_RESPONSE_TYPES, VoiceResponseType } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -1802,9 +1802,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					// acknowledgement only for an outcome it has observed, so this
 					// must report what actually happened rather than a blanket 'ok'.
 					const response = e.args?.['response'];
-					const responseType = response && typeof response === 'object' && !Array.isArray(response)
-						&& typeof (response as Record<string, unknown>)['type'] === 'string'
-						? String((response as Record<string, unknown>)['type'])
+					// Clamped to the bounded set: the raw value is model output, and
+					// this is logged as telemetry.
+					const rawType = response && typeof response === 'object' && !Array.isArray(response)
+						? (response as Record<string, unknown>)['type']
+						: undefined;
+					const responseType = VOICE_RESPONSE_TYPES.includes(rawType as VoiceResponseType)
+						? rawType as VoiceResponseType
 						: 'unknown';
 					this.voiceToolDispatchService.respondToSession(e).then(result => {
 						this.logService.trace(`[voice] respond_to_session type=${responseType} ok=${result.ok} reason=${result.reason ?? '<none>'} coding_session_id=${typeof e.args?.['coding_session_id'] === 'string' ? String(e.args['coding_session_id']).slice(-32) : '<none>'}`);

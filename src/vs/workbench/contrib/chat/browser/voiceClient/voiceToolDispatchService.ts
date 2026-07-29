@@ -376,7 +376,13 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			return { ok: false, reason: 'stale_pending' };
 		}
 		const raw = response['answers'];
-		const rawAnswers = Array.isArray(raw) ? (raw as IBackendQuestionAnswer[]) : [];
+		// Only an absent `answers` means "none". A present non-array is a
+		// malformed call, and coercing it to empty would let a skip succeed while
+		// discarding whatever was actually meant.
+		if (raw !== undefined && !Array.isArray(raw)) {
+			return { ok: false, reason: 'invalid_answer' };
+		}
+		const rawAnswers = (raw ?? []) as IBackendQuestionAnswer[];
 		let answers: IChatQuestionAnswers | undefined;
 		if (rawAnswers.length > 0) {
 			answers = resolveQuestionAnswers(carousel.questions, rawAnswers);
