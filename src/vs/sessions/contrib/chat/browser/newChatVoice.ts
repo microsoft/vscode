@@ -59,13 +59,7 @@ export interface INewChatVoiceTargetService {
 	readonly _serviceBrand: undefined;
 	/** The most recent focused/registered mounted composer. */
 	readonly activeComposer: IObservable<INewChatVoiceComposer | undefined>;
-	/**
-	 * The single chat input voice mode is currently bound to, so exactly one
-	 * surface renders the listening glow/transcript at a time (the composer the
-	 * active session's created chat, or the focused chat). Mirrors the routing
-	 * priority used by `_chat.voice.getCurrentSession`. The composer target maps
-	 * to {@link NEW_CHAT_VOICE_SENTINEL}.
-	 */
+	/** The input resource currently selected for voice decorations. */
 	readonly currentVoiceInputResource: IObservable<URI | undefined>;
 	/** Register a composer as a voice target; dispose to remove it. */
 	registerComposer(composer: INewChatVoiceComposer): IDisposable;
