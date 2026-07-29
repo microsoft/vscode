@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { editorSelectionBackground, editorSelectionForeground } from '../../../../platform/theme/common/colors/editorColors.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { FeedbackInputWidget } from '../../agentFeedback/browser/feedbackInputWidget.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -17,6 +19,71 @@ import { IChat, SessionStatus } from '../../../services/sessions/common/session.
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IResolvedResponseSelection, resolveResponseSelection } from './responseSelectionResolver.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
+
+/**
+ * Name of the CSS custom highlight that stands in for the native selection
+ * once the browser collapses it.
+ */
+const selectionHighlightName = 'chat-response-selection';
+
+// Highlight pseudo-elements inherit custom properties from the root element
+// only, so they cannot see the `--vscode-*` theme variables (which are scoped
+// to `.monaco-workbench`); the color has to be baked into the rule instead.
+registerThemingParticipant((theme, collector) => {
+	const background = theme.getColor(editorSelectionBackground);
+	if (!background) {
+		return;
+	}
+	// High contrast themes select with an opaque background and rely on the
+	// paired foreground to keep the text readable.
+	const foreground = theme.getColor(editorSelectionForeground);
+	collector.addRule(`::highlight(${selectionHighlightName}) {
+		background-color: ${background};
+		${foreground ? `color: ${foreground};` : ''}
+	}`);
+});
+
+/**
+ * The highlight registry is per-window and shared by every chat view in it, so
+ * all controllers contribute ranges to one registered {@link Highlight} rather
+ * than overwriting each other's entry.
+ */
+function getSelectionHighlight(targetWindow: Window & typeof globalThis): Highlight | undefined {
+	const registry = targetWindow.CSS?.highlights;
+	if (!registry) {
+		return undefined; // CSS Custom Highlight API unavailable
+	}
+	let highlight = registry.get(selectionHighlightName);
+	if (!highlight) {
+		highlight = new targetWindow.Highlight();
+		registry.set(selectionHighlightName, highlight);
+	}
+	return highlight;
+}
+
+/**
+ * Bounding box of the range's *visible* line boxes. `Range.getBoundingClientRect`
+ * includes the empty box a line selection leaves at the start of the following
+ * block, which would push the affordance a line too far down.
+ */
+function getVisibleBoundingRect(range: Range): { top: number; bottom: number; left: number } | undefined {
+	let top = Number.POSITIVE_INFINITY;
+	let bottom = Number.NEGATIVE_INFINITY;
+	let left = Number.POSITIVE_INFINITY;
+	for (const rect of range.getClientRects()) {
+		if (rect.width === 0 || rect.height === 0) {
+			continue;
+		}
+		top = Math.min(top, rect.top);
+		bottom = Math.max(bottom, rect.bottom);
+		left = Math.min(left, rect.left);
+	}
+	if (bottom === Number.NEGATIVE_INFINITY) {
+		const fallback = range.getBoundingClientRect();
+		return fallback.width || fallback.height ? fallback : undefined;
+	}
+	return { top, bottom, left };
+}
 
 /**
  * Agents-window-only controller that shows an "Ask Question" input (reusing
@@ -29,6 +96,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 	private readonly _input: FeedbackInputWidget;
 	private _resolved: IResolvedResponseSelection | undefined;
+	/** Range currently painted via the CSS custom highlight, if any. */
+	private _paintedRange: Range | undefined;
 	private _chat: IChat | undefined;
 	/** Bumped on a genuine chat navigation/force-dismiss so a stale submission's completion/error handler can no-op. */
 	private _generation = 0;
@@ -48,7 +117,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 			getMaxContentWidth: () => this._widget.domNode.clientWidth,
 			primaryAction: {
 				label: localize('sessions.selectionSideChat.ask', "Ask Question"),
-				icon: Codicon.send,
+				icon: Codicon.arrowUpCompact,
 				keybindingLabel: localize('sessions.selectionSideChat.enter', "Enter"),
 			},
 		}));
@@ -84,6 +153,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._register(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
 		// Scrolling the transcript invalidates the widget's pinned position; hide rather than drift.
 		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._dismiss(), true));
+		this._register(toDisposable(() => this._paintHighlight(undefined)));
 	}
 
 	/**
@@ -107,12 +177,14 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// captured; a real outside invalidation is handled once focus
 		// actually leaves (the next selectionchange runs with focus outside).
 		if (dom.isAncestorOfActiveElement(this._input.domNode)) {
+			this._syncHighlight();
 			return;
 		}
 		// A pending submission owns the overlay until the view changes (see
 		// `_dismiss`); don't let an incidental selection change reposition or
 		// swap the captured selection out from under it.
 		if (this._input.isBusy) {
+			this._syncHighlight();
 			return;
 		}
 		const resolved = resolveResponseSelection(this._widget);
@@ -124,18 +196,48 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._showFor(resolved);
 	}
 
-	private _showFor(resolved: IResolvedResponseSelection): void {
+	/**
+	 * Keeps the captured selection visible. The native selection disappears as
+	 * soon as focus moves into the "Ask Question" input, so a CSS custom
+	 * highlight takes over painting the range for as long as the affordance is
+	 * open; while the native selection still covers it the browser paints it
+	 * and the highlight stays off so the two never stack.
+	 */
+	private _syncHighlight(): void {
+		const range = this._resolved?.range;
 		const nativeSelection = dom.getWindow(this._widget.domNode).getSelection();
-		const range = nativeSelection?.rangeCount ? nativeSelection.getRangeAt(0) : undefined;
-		if (!range) {
+		const paintedNatively = !!nativeSelection && !nativeSelection.isCollapsed && !!nativeSelection.toString().trim();
+		this._paintHighlight(range && !paintedNatively ? range : undefined);
+	}
+
+	private _paintHighlight(range: Range | undefined): void {
+		if (this._paintedRange === range) {
 			return;
 		}
-		const selectionRect = range.getBoundingClientRect();
+		const highlight = getSelectionHighlight(dom.getWindow(this._widget.domNode));
+		if (!highlight) {
+			return;
+		}
+		if (this._paintedRange) {
+			highlight.delete(this._paintedRange);
+		}
+		if (range) {
+			highlight.add(range);
+		}
+		this._paintedRange = range;
+	}
+
+	private _showFor(resolved: IResolvedResponseSelection): void {
+		const selectionRect = getVisibleBoundingRect(resolved.range);
+		if (!selectionRect) {
+			return;
+		}
 		const containerRect = this._widget.domNode.getBoundingClientRect();
 
 		this._input.show();
 		this._input.autoSize();
 		this._input.updateActionEnabled();
+		this._syncHighlight();
 
 		const gap = 4;
 		const inputWidth = this._input.domNode.offsetWidth;
@@ -177,6 +279,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 		const hadFocus = dom.isAncestorOfActiveElement(this._input.domNode);
 		this._resolved = undefined;
+		this._paintHighlight(undefined);
 		this._input.setBusy(false);
 		this._input.hide();
 		this._input.clearInput();

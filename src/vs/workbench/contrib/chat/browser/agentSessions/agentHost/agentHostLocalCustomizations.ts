@@ -39,9 +39,8 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
 ];
 
 /**
- * Storage sources whose contents are auto-synced. Extension, plugin, and
- * built-in customizations are included so the agent host has the same skills,
- * instructions, and agents available as the local VS Code client.
+ * Storage sources whose contents are auto-synced by default. Remote agent
+ * registrations can additionally include user storage.
  *
  * `builtin` only yields skills bundled with the Agents app (e.g. `/create-pr`,
  * `/merge`); for every other prompt type the prompts service returns nothing,
@@ -52,6 +51,10 @@ export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 	PromptsStorage.extension,
 	PromptsStorage.builtIn,
 ];
+
+export interface ILocalCustomizationSyncOptions {
+	readonly includeUserStorage?: boolean;
+}
 
 export interface ILocalCustomizationFile {
 	readonly uri: URI;
@@ -81,14 +84,18 @@ export async function enumerateLocalCustomizationsForHarness(
 	syncProvider: ICustomizationSyncProvider,
 	sessionType: string,
 	token: CancellationToken,
+	options?: ILocalCustomizationSyncOptions,
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
+	const storageSources = options?.includeUserStorage
+		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
+		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
 		const lists = await Promise.all(
-			SYNCABLE_STORAGE_SOURCES.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
+			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
-			const source = SYNCABLE_STORAGE_SOURCES[i];
+			const source = storageSources[i];
 			for (const file of lists[i]) {
 				if (matchesSessionType(file.sessionTypes, sessionType)) {
 					result.push({
@@ -252,8 +259,9 @@ export async function resolveCustomizationRefs(
 	configurationResolverService: IConfigurationResolverService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
+	options?: ILocalCustomizationSyncOptions,
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();

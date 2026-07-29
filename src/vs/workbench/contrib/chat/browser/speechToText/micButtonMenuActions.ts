@@ -23,6 +23,8 @@ const CANCEL_DICTATION_COMMAND = 'workbench.action.chat.cancelSpeechToText';
 const VOICE_DISCONNECT_COMMAND = 'agentsVoice.disconnect';
 /** Command that opens the Voice Mode settings; the affordance that used to live behind the toolbar gear. */
 const VOICE_OPEN_SETTINGS_COMMAND = 'agentsVoice.openSettings';
+/** Command that shows the Voice Mode onboarding card again. */
+export const SHOW_VOICE_MODE_ONBOARDING_COMMAND = 'agentsVoice.showOnboarding';
 /** Setting that enables dictation; toggled off by "Disable Dictation". */
 const DICTATION_ENABLED_SETTING = 'dictation.enabled';
 /** Setting that enables Voice Mode; toggled off by "Disable Voice Mode". */
@@ -99,6 +101,14 @@ function createVoiceModeSettingsAction(commandService: ICommandService): IAction
 	});
 }
 
+function createShowVoiceModeOnboardingAction(commandService: ICommandService): IAction {
+	return toAction({
+		id: SHOW_VOICE_MODE_ONBOARDING_COMMAND,
+		label: localize('voiceMode.showIntroduction', "Show Introduction"),
+		run: () => commandService.executeCommand(SHOW_VOICE_MODE_ONBOARDING_COMMAND),
+	});
+}
+
 function createConfigureInstructionsAction(commandService: ICommandService, commandId: string, label: string): IAction {
 	return toAction({
 		id: commandId,
@@ -120,6 +130,7 @@ export function getVoiceModeContextMenuActions(commandService: ICommandService, 
 		createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
 		createVoiceModeSettingsAction(commandService),
 		createConfigureInstructionsAction(commandService, CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID, localize('voiceMode.configureInstructions', "Configure Voice Mode Instructions")),
+		createShowVoiceModeOnboardingAction(commandService),
 		createSelectMicrophoneAction(commandService),
 		createDisableVoiceModeAction(commandService, configurationService),
 	];
