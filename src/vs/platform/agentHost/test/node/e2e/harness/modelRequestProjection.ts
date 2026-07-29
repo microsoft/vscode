@@ -155,19 +155,43 @@ export function projectModelRequest(request: IReadableAnthropicRequest): IProjec
 	};
 }
 
-/** Compares two projections. */
+/**
+ * Serializes a projection with object keys in a stable order.
+ *
+ * A tool call's `input` is JSON the model produced, and its key order is not
+ * guaranteed to survive a re-record or a YAML round-trip. Comparing raw
+ * `JSON.stringify` output would then report two semantically identical
+ * requests as a mismatch — which reads as a host regression and is
+ * particularly confusing because the printed values look equivalent.
+ */
+function stableStringify(value: unknown): string {
+	if (Array.isArray(value)) {
+		return `[${value.map(stableStringify).join(',')}]`;
+	}
+	if (value && typeof value === 'object') {
+		const entries = Object.entries(value as Record<string, unknown>)
+			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+			.map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`);
+		return `{${entries.join(',')}}`;
+	}
+	return JSON.stringify(value) ?? 'null';
+}
+
+/** Compares two projections, ignoring object key order. */
 export function modelRequestsMatch(expected: IProjectedModelRequest, actual: IProjectedModelRequest): boolean {
-	return JSON.stringify(expected) === JSON.stringify(actual);
+	return stableStringify(expected) === stableStringify(actual);
 }
 
 /**
  * Describes a mismatch for the replay failure, naming the turn so it can be
- * matched against the fixture's exchange list.
+ * matched against the fixture's exchange list. Both sides are printed in the
+ * same canonical form that was compared, so the reported difference is always
+ * the reason the comparison failed.
  */
 export function formatModelRequestMismatch(turnIndex: number, expected: IProjectedModelRequest, actual: IProjectedModelRequest): string {
 	return [
 		`model request #${turnIndex + 1} does not match the recorded request in the fixture`,
-		`  expected (recorded): ${JSON.stringify(expected)}`,
-		`  actual (live):       ${JSON.stringify(actual)}`,
+		`  expected (recorded): ${stableStringify(expected)}`,
+		`  actual (live):       ${stableStringify(actual)}`,
 	].join('\n');
 }

@@ -142,6 +142,30 @@ suite('modelRequestProjection', () => {
 		);
 	});
 
+	test('a tool input matches regardless of key order', () => {
+		// The `input` is JSON the model produced; its key order is not
+		// guaranteed to survive a re-record or a YAML round-trip, and comparing
+		// raw JSON would report identical requests as a regression.
+		const toolUse = (input: Record<string, unknown>) => request([{
+			role: 'assistant', content: [{ type: 'tool_use', name: 'bash', input }],
+		}]);
+		assert.ok(modelRequestsMatch(
+			projectModelRequest(toolUse({ command: 'echo hi', description: 'say hi' })),
+			projectModelRequest(toolUse({ description: 'say hi', command: 'echo hi' })),
+		));
+	});
+
+	test('a different tool input value is still a mismatch', () => {
+		// Key-order tolerance must not become value tolerance.
+		const toolUse = (input: Record<string, unknown>) => request([{
+			role: 'assistant', content: [{ type: 'tool_use', name: 'bash', input }],
+		}]);
+		assert.strictEqual(modelRequestsMatch(
+			projectModelRequest(toolUse({ command: 'echo hi' })),
+			projectModelRequest(toolUse({ command: 'echo bye' })),
+		), false);
+	});
+
 	test('detects the regressions it exists to catch', () => {
 		const recorded = projectModelRequest(request([
 			{ role: 'user', content: 'first question' },
