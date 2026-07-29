@@ -31,6 +31,13 @@ export interface IAgentHostSessionListEntry {
 	readonly provider: string;
 	readonly rawId: string;
 	readonly summary: SessionSummary;
+	/**
+	 * Whether {@link summary}'s status came from the host. `listSessions()`
+	 * metadata carries no status for a cold session that has never been marked
+	 * read or archived, and `SessionSummary.status` is required — so the status
+	 * is synthesized and the session-scoped flags on it mean nothing.
+	 */
+	readonly statusKnown: boolean;
 }
 
 /**
@@ -149,10 +156,12 @@ export class AgentHostSessionListStore extends Disposable {
 		let updated: IAgentHostSessionListEntry | undefined;
 		if (cached) {
 			const status = set ? cached.summary.status | flag : cached.summary.status & ~flag;
-			if (status === cached.summary.status) {
+			if (status === cached.summary.status && cached.statusKnown) {
 				return;
 			}
-			updated = { ...cached, summary: { ...cached.summary, status } };
+			// The flag is now meaningful whatever the host had said before: this
+			// dispatch is what establishes it.
+			updated = { ...cached, statusKnown: true, summary: { ...cached.summary, status } };
 		}
 
 		this._mutationGeneration++;
@@ -308,7 +317,12 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 
-			const updated = { provider, rawId, summary: { ...cached.summary, ...notification.changes } };
+			const updated: IAgentHostSessionListEntry = {
+				provider,
+				rawId,
+				statusKnown: cached.statusKnown || notification.changes.status !== undefined,
+				summary: { ...cached.summary, ...notification.changes },
+			};
 			if (!this._isSessionInWorkspace(updated)) {
 				this._mutationGeneration++;
 				this._removeSessionFromList(provider, rawId);
@@ -329,16 +343,16 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const rawId = AgentSession.id(session.session);
-		const status = session.status ?? SessionStatus.Idle;
 
 		return {
 			provider,
 			rawId,
+			statusKnown: session.status !== undefined,
 			summary: {
 				resource: session.session.toString(),
 				provider,
 				title: session.summary ?? `Session ${rawId.substring(0, 8)}`,
-				status,
+				status: session.status ?? SessionStatus.Idle,
 				activity: session.activity,
 				createdAt: new Date(session.startTime).toISOString(),
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
@@ -356,6 +370,7 @@ export class AgentHostSessionListStore extends Disposable {
 		return {
 			provider,
 			rawId: AgentSession.id(summary.resource),
+			statusKnown: true,
 			summary,
 		};
 	}

@@ -921,6 +921,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * so sessions read before the provider took ownership don't all resurface as
 	 * unread. Only ever promotes to read, and runs at most once per session so a
 	 * later "Mark as Unread" is not undone on the next refresh.
+	 *
+	 * The ledger is application-scoped even though the local state it hands off
+	 * is per-workspace: the provider-owned state it writes to is global, so a
+	 * second workspace that can see the same session (an empty window lists them
+	 * all) must not migrate it again and re-promote a deliberate "Mark as Unread".
 	 */
 	private migrateReadStateToProvider(sessions: Iterable<IInternalAgentSessionData>): void {
 		let changed = false;
@@ -957,13 +962,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			this.storageService.store(
 				AgentSessionsModel.READ_MIGRATION_DONE_KEY,
 				JSON.stringify(Array.from(this.migratedReadResources).map(resource => resource.toString())),
-				StorageScope.WORKSPACE,
+				StorageScope.APPLICATION,
 				StorageTarget.MACHINE);
 		}
 	}
 
 	private loadMigratedReadResources(): void {
-		const raw = this.storageService.get(AgentSessionsModel.READ_MIGRATION_DONE_KEY, StorageScope.WORKSPACE);
+		const raw = this.storageService.get(AgentSessionsModel.READ_MIGRATION_DONE_KEY, StorageScope.APPLICATION);
 		if (!raw) {
 			return;
 		}
