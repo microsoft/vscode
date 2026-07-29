@@ -15,3 +15,6 @@ export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
 
 /** Unarchives a session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
+
+/** Renames a session. Registered in `sessionsViewActions.ts`. */
+export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';

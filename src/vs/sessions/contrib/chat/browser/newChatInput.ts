@@ -73,7 +73,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -473,7 +473,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));
 		const inputArea = dom.append(inputAreaWrapper, dom.$('.new-chat-input-area'));
-		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined)));
 
 		// Attachments row (pills only) inside input area, above editor
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
@@ -483,6 +482,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._contextAttachments.registerPasteHandler(inputArea);
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
+		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
+		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined), inputHasContent, this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -608,6 +609,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				showWords: true,
 				showStatusBar: false,
 				insertMode: 'insert',
+				fitWidthToDetails: true,
 			},
 		};
 
@@ -913,16 +915,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
-				// First-use only. The on-device backend downloads a model, so
-				// render a download icon wrapped by a progress ring; the cloud
-				// backend just connects, so render a plain spinner instead.
+				// First-use only. Show a download icon wrapped by a progress
+				// ring only during an actual model download (a confirmed cache
+				// miss); otherwise (loading an already-cached model, or the cloud
+				// backend connecting) render a plain spinner instead.
 				// Glyphs render at the compact 12px size, so use the `*Compact`
 				// variants where one exists.
-				if (sttService.currentBackend === 'mai') {
-					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
-				} else {
+				if (sttService.isDownloadingModel) {
 					dom.append(button, renderIcon(Codicon.micDownloadCompact));
 					downloadRing.value = new DictationDownloadRing(button, sttService);
+				} else {
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 				}
 			} else {
 				// `mic` / `micFilled` have no compact variant, so they stay as-is.
@@ -937,6 +940,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
+		this._register(sttService.onDidChangeDownloadingModel(renderState));
 		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
 
 		const updateVisibility = () => {

@@ -55,6 +55,11 @@
 	width: 100%;
 }
 
+.interactive-input-part:has(.voice-mode-onboarding-container.has-voice-mode-onboarding) .chat-getting-started-tip-container,
+.interactive-input-part:has(.dictation-onboarding-container.has-dictation-onboarding) .chat-getting-started-tip-container {
+	display: none;
+}
+
 .chat-getting-started-tip-container .chat-tip-widget {
 	display: flex;
 	align-items: center;

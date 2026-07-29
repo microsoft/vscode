@@ -109,9 +109,11 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
 				override readonly onDidChangeState = Event.None;
 				override readonly onDidChangePreparingModel = Event.None;
+				override readonly onDidChangeDownloadingModel = Event.None;
 				override readonly state = ChatSpeechToTextState.Idle;
 				override readonly isConfigured = false;
 				override readonly isPreparingModel = false;
+				override readonly isDownloadingModel = false;
 			}());
 		},
 	});

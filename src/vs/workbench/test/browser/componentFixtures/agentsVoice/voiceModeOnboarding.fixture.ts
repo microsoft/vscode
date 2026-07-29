@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { constObservable } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { VoiceModeOnboardingBanner } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IVoiceSessionController, VoiceState } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -18,13 +20,16 @@ function renderVoiceModeOnboarding(width: string) {
 
 		const instantiationService = createEditorServices(disposableStore, {
 			colorTheme: theme,
-			additionalServices: services => services.definePartialInstance(IVoiceSessionController, {
-				voiceState: constObservable<VoiceState>('idle'),
-				setAutoListenHeld: () => undefined,
-				stopListening: () => undefined,
-				pttDown: () => undefined,
-				pttUp: () => undefined,
-			}),
+			additionalServices: services => {
+				services.defineInstance(IContextViewService, new class extends mock<IContextViewService>() { }());
+				services.definePartialInstance(IVoiceSessionController, {
+					voiceState: constObservable<VoiceState>('idle'),
+					setAutoListenHeld: () => undefined,
+					stopListening: () => undefined,
+					pttDown: () => undefined,
+					pttUp: () => undefined,
+				});
+			},
 		});
 		const host = document.createElement('div');
 		host.className = 'voice-mode-onboarding-container has-voice-mode-onboarding';

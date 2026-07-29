@@ -144,6 +144,24 @@ export interface ISessionDatabase extends IDisposable {
 	getFirstTurnEventId(): Promise<string | undefined>;
 
 	/**
+	 * Persists the JSON-serialized {@link UsageInfo} reported for a turn.
+	 * Idempotent — last writer wins per turn.
+	 *
+	 * Providers do not durably record token/credit usage themselves (the
+	 * Copilot SDK's `assistant.usage` event is explicitly ephemeral), so the
+	 * host persists it here to keep the context-usage widget and the session
+	 * cost total accurate across a reload.
+	 */
+	setTurnUsage(turnId: string, usage: string): Promise<void>;
+
+	/**
+	 * Returns every persisted turn usage, keyed by both the turn's own id and
+	 * its SDK event id (when known) so restored turns — which are keyed by the
+	 * SDK envelope id — resolve as well as live ones.
+	 */
+	getTurnUsages(): Promise<Map<string, string>>;
+
+	/**
 	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
 	 * with a turn. Idempotent — last writer wins per turn.
 	 */

@@ -538,6 +538,39 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
+		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
+			const turn = createTurn({
+				responseParts: [
+					{
+						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+							toolCallId: 'tc-marked',
+							toolInput: 'my-custom-script',
+							_meta: { toolKind: 'terminal', autoApproveRuleResolvable: true },
+							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///marked', title: 'Terminal' }],
+							success: true,
+						})
+					} as ToolCallResponsePart,
+					{
+						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+							toolCallId: 'tc-unmarked',
+							toolInput: 'echo hello',
+							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///unmarked', title: 'Terminal' }],
+							success: true,
+						})
+					} as ToolCallResponsePart,
+				],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.deepStrictEqual(
+				response.parts.map(part => getSerializedTerminalData(part as IChatToolInvocationSerialized).autoApproveRuleResolvable),
+				[true, undefined],
+				'flag is copied from tool call meta and absent otherwise');
+		});
+
 		test('terminal tool call in history carries the LM intention', () => {
 			const turn = createTurn({
 				responseParts: [{

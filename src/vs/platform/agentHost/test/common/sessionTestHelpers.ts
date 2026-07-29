@@ -7,7 +7,7 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
-import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
+import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { Message } from '../../common/state/sessionState.js';
 
@@ -17,12 +17,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
+	private readonly _turnUsages = new Map<string, string>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
 	deleteTurnsAfterCalls: string[] = [];
 	deleteAllTurnsCalls = 0;
 	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
+	setMetadataCalls: Array<{ key: string; value: string }> = [];
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -75,6 +77,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async setMetadata(key: string, value: string): Promise<void> {
+		this.setMetadataCalls.push({ key, value });
 		this._metadata.set(key, value);
 	}
 
@@ -106,6 +109,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async getNextTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 
 	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
+
+	async setTurnUsage(turnId: string, usage: string): Promise<void> {
+		this._turnUsages.set(turnId, usage);
+	}
+
+	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
 
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
@@ -177,11 +186,27 @@ export class TestDiffComputeService implements IDiffComputeService {
 	declare readonly _serviceBrand: undefined;
 
 	callCount = 0;
+	detailedCallCount = 0;
 
 	constructor(private readonly _result?: IDiffCountResult) { }
 
 	async computeDiffCounts(original: string, modified: string): Promise<IDiffCountResult> {
 		this.callCount++;
+		return this._computeDiffCounts(original, modified);
+	}
+
+	async computeDetailedDiff(original: string, modified: string): Promise<IDetailedDiffResult> {
+		this.detailedCallCount++;
+		const counts = this._computeDiffCounts(original, modified);
+		return {
+			added: counts.added,
+			removed: counts.removed,
+			replacements: original === modified ? [] : [{ start: 0, endExclusive: original.length, text: modified }],
+			hitTimeout: false,
+		};
+	}
+
+	private _computeDiffCounts(original: string, modified: string): IDiffCountResult {
 		if (this._result) {
 			return this._result;
 		}

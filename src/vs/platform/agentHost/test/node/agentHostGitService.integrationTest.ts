@@ -588,7 +588,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
 			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/include-files', 'main');
-			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**']);
+			const progress: { filesDone: number; filesTotal: number }[] = [];
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], sample => progress.push(sample));
 
 			const read = async (relativePath: string) => {
 				try { return await fs.readFile(join(wtPath, relativePath), 'utf8'); } catch { return undefined; }
@@ -603,6 +604,13 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				partialSkip: await read(join('partial', 'skip.bin')),
 				appConfig: await read(join('app', 'config.local')),
 				appTracked: await read(join('app', 'main.ts')),
+				// One sample per copied entry (`secrets/` collapsed, plus three
+				// standalone files), but counted in the 5 files they cover so
+				// the collapsed directory isn't under-weighted. Completion order
+				// is nondeterministic, so only the totals are asserted.
+				progressSamples: progress.length,
+				progressTotals: [...new Set(progress.map(sample => sample.filesTotal))],
+				progressDone: progress.at(-1)?.filesDone,
 			}, {
 				env: 'SECRET=1',
 				secretKey: 'key',
@@ -612,6 +620,9 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				partialSkip: undefined,
 				appConfig: 'local',
 				appTracked: 'committed',
+				progressSamples: 4,
+				progressTotals: [5],
+				progressDone: 5,
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
