@@ -998,9 +998,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 	}
 
-	private hasTextSelection(): boolean {
-		const selection = dom.getWindow(this.domNode).getSelection();
-		return !!selection && !selection.isCollapsed && selection.toString().length > 0;
+	private addSelectionAwareClickListener(element: HTMLElement, listener: (event: MouseEvent) => void): void {
+		let pointerDownPosition: { x: number; y: number } | undefined;
+		this._inputBoxes.add(dom.addDisposableListener(element, dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
+			pointerDownPosition = event.button === 0 ? { x: event.clientX, y: event.clientY } : undefined;
+		}));
+		this._inputBoxes.add(dom.addDisposableListener(element, dom.EventType.CLICK, (event: MouseEvent) => {
+			const didDrag = event.detail > 0 && pointerDownPosition !== undefined
+				&& (Math.abs(event.clientX - pointerDownPosition.x) > 1 || Math.abs(event.clientY - pointerDownPosition.y) > 1);
+			pointerDownPosition = undefined;
+			if (!didDrag) {
+				listener(event);
+			}
+		}));
 	}
 
 	/**
@@ -1152,10 +1162,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 
 			// if we select an option, clear text and go to next question
-			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
-				if (this.hasTextSelection()) {
-					return;
-				}
+			this.addSelectionAwareClickListener(listItem, e => {
 				e.preventDefault();
 				e.stopPropagation();
 				updateSelection(index);
@@ -1164,7 +1171,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					freeform.value = '';
 				}
 				this.handleNextOrSubmit();
-			}));
+			});
 
 			this._inputBoxes.add(this._hoverService.setupDelayedHover(listItem, {
 				content: option.label,
@@ -1367,10 +1374,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}));
 
 			// Click handler for the entire row (toggle checkbox)
-			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
-				if (this.hasTextSelection()) {
-					return;
-				}
+			this.addSelectionAwareClickListener(listItem, e => {
 				// Update focusedIndex when clicking a row
 				focusedIndex = index;
 				// Don't toggle if the click was on the checkbox itself (it handles itself)
@@ -1378,7 +1382,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					// Use click() to trigger onChange and sync visual state
 					checkbox.domNode.click();
 				}
-			}));
+			});
 
 			this._inputBoxes.add(this._hoverService.setupDelayedHover(listItem, {
 				content: option.label,

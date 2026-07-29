@@ -44,7 +44,6 @@ suite('ChatQuestionCarouselPart', () => {
 	}
 
 	teardown(() => {
-		mainWindow.getSelection()?.removeAllRanges();
 		if (widget?.domNode?.parentNode) {
 			widget.domNode.parentNode.removeChild(widget.domNode);
 		}
@@ -280,7 +279,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
 		});
 
-		test('does not submit singleSelect option when selecting its text', () => {
+		test('does not submit singleSelect option when dragging over its text', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -292,16 +291,13 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
-			const label = listItem.querySelector('.chat-question-list-label') as HTMLElement;
-			const range = mainWindow.document.createRange();
-			range.selectNodeContents(label);
-			mainWindow.getSelection()?.addRange(range);
-			listItem.click();
+			listItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }));
+			listItem.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 0, detail: 1 }));
 
 			assert.strictEqual(submittedAnswers, null);
 		});
 
-		test('does not toggle multiSelect option when selecting its text', () => {
+		test('does not toggle multiSelect option when dragging over its text', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -313,11 +309,8 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
-			const label = listItem.querySelector('.chat-question-list-label') as HTMLElement;
-			const range = mainWindow.document.createRange();
-			range.selectNodeContents(label);
-			mainWindow.getSelection()?.addRange(range);
-			listItem.click();
+			listItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }));
+			listItem.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 0, detail: 1 }));
 
 			assert.strictEqual(listItem.classList.contains('checked'), false);
 		});
