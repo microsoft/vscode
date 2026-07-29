@@ -219,8 +219,10 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly githubToken?: string;
 	/**
 	 * Receives localized activity labels while the worktree is being created,
-	 * so callers can surface live progress. Never called for sessions that
-	 * don't create a worktree, and the caller is responsible for clearing the
+	 * so callers can surface live progress. Only called for sessions that
+	 * selected worktree isolation — though such a session can still fall back
+	 * to its folder after the first label (e.g. the directory turns out not to
+	 * be a git repository) — and the caller is responsible for clearing the
 	 * activity once resolution settles.
 	 */
 	readonly onProgress?: (activity: string) => void;
@@ -484,12 +486,12 @@ export class WorktreeIsolation extends Disposable {
 			return already.worktree;
 		}
 
+		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
+
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return workingDirectory;
 		}
-
-		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
 
 		const worktreesRoot = getWorktreesRoot(repositoryRoot);
 		// Prefix (e.g. the user's `git.branchPrefix`) the client forwards for
