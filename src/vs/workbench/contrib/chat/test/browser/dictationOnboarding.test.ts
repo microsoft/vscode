@@ -74,6 +74,19 @@ suite('Dictation onboarding', () => {
 		]);
 	});
 
+	test('uses the first physical microphone when the virtual default has no identity', () => {
+		const options = buildMicrophoneOptions([
+			device('audioinput', 'default', 'System default'),
+			device('audioinput', 'mic-a', 'Studio Mic'),
+			device('audioinput', 'mic-b', 'Built-in Mic'),
+		]);
+
+		assert.deepStrictEqual(options, [
+			{ deviceId: '', label: 'Studio Mic (System default)' },
+			{ deviceId: 'mic-b', label: 'Built-in Mic' },
+		]);
+	});
+
 	test('falls back to the system default when the remembered device is gone', () => {
 		const options = buildMicrophoneOptions([
 			device('audioinput', 'default', 'Default - Built-in Mic'),

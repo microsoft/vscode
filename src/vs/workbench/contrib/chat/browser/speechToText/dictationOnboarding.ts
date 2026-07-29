@@ -475,10 +475,12 @@ export function buildMicrophoneOptions(devices: readonly MediaDeviceInfo[]): IMi
 
 	const defaultDevice = devices.find(device => device.kind === 'audioinput' && device.deviceId === 'default');
 	const defaultLabel = defaultDevice?.label.replace(/^(?:default|system default)\s*-\s*/i, '').trim();
-	const defaultMicrophone = defaultDevice && microphones.find(device =>
-		(defaultDevice.groupId && device.groupId === defaultDevice.groupId)
-		|| (defaultLabel && device.label === defaultLabel)
-	);
+	const defaultMicrophone = defaultDevice
+		? microphones.find(device =>
+			(defaultDevice.groupId && device.groupId === defaultDevice.groupId)
+			|| (defaultLabel && device.label === defaultLabel)
+		) ?? microphones[0]
+		: undefined;
 
 	const options: IMicrophoneOption[] = [];
 	if (defaultDevice) {
