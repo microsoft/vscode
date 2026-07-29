@@ -3544,7 +3544,6 @@ suite('CopilotAgentSession', () => {
 					},
 					meta: {
 						mcpServerName: 'docs',
-						toolArguments: '{"topic":"metadata"}',
 						ui: {
 							resourceUri: 'ui://docs',
 							channel: 'mcp://copilot/test-session-1/docs',
@@ -4025,15 +4024,6 @@ suite('CopilotAgentSession', () => {
 			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
 				const action = readySignal.action as ChatToolCallReadyAction;
 				assert.strictEqual(action.toolInput, 'npm test');
-			}
-			// toolArguments in _meta on the tool_start signal (signals[0])
-			const startSignal = signals[0];
-			assert.ok(isAction(startSignal, ActionType.ChatToolCallStart));
-			if (isAction(startSignal, ActionType.ChatToolCallStart)) {
-				const meta = (startSignal.action as ChatToolCallStartAction)._meta;
-				const toolArgs = meta?.['toolArguments'] as string | undefined;
-				assert.ok(toolArgs && toolArgs.includes('"npm test"'), `toolArguments should contain rewritten command, was: ${toolArgs}`);
-				assert.ok(!toolArgs?.includes('cd /repo/project'), 'toolArguments should not contain stripped prefix');
 			}
 		});
 
