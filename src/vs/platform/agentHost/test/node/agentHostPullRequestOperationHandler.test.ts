@@ -140,7 +140,9 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 			return this.existingAfterCreateFailure;
 		}
 		if (this.findError) {
-			throw this.findError;
+			const error = this.findError;
+			this.findError = undefined;
+			throw error;
 		}
 		return this.existing;
 	}
@@ -156,6 +158,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly rejectedTokens: Array<{ sessionKey: string; resource: string; token: string }> = [];
+	rejectResult = true;
 
 	async refreshSessionGitState(): Promise<void> { }
 	async setSessionGitHubState(): Promise<void> { }
@@ -164,7 +167,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 	isAuthenticationTokenRejected(): boolean { return false; }
 	rejectAuthenticationToken(sessionKey: string, resource: string, token: string): boolean {
 		this.rejectedTokens.push({ sessionKey, resource, token });
-		return true;
+		return this.rejectResult;
 	}
 }
 
@@ -310,6 +313,36 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
 			token: 'gh-token',
 		}]);
+	});
+
+	test('retries once when a stale 401 arrives after authentication changes', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		octoKitService.findError = new AgentHostGitHubApiError('Bad credentials', 401, undefined);
+		const { handler, session, gitStateService, createdEvents } = setup(disposables, gitService, octoKitService);
+		gitStateService.rejectResult = false;
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			rejectedTokens: gitStateService.rejectedTokens,
+			octoCalls: octoKitService.calls,
+			createdEvents,
+		}, {
+			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123).' },
+			rejectedTokens: [{
+				sessionKey: session.toString(),
+				resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
+				token: 'gh-token',
+			}],
+			octoCalls: [
+				'findPullRequestByHeadBranch:feature/test',
+				'findPullRequestByHeadBranch:feature/test',
+				'createPullRequest:false',
+			],
+			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+		});
 	});
 
 	// A visible PR button can race with refreshed git state. If the backend

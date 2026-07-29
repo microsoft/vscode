@@ -35,6 +35,8 @@ const MAX_PR_CONVERSATION_CONTEXT_CHARS = 12_000;
  */
 const MAX_PR_CHANGE_SUMMARY_CHARS = 4_000;
 
+class PullRequestAuthenticationChangedError extends Error { }
+
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
 	readonly pullRequestUrl: string;
@@ -88,7 +90,15 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 		try {
-			return await this._invoke(params, token, abortController.signal);
+			try {
+				return await this._invoke(params, token, abortController.signal);
+			} catch (error) {
+				if (!(error instanceof PullRequestAuthenticationChangedError)) {
+					throw error;
+				}
+				this._throwIfCancelled(token);
+				return await this._invoke(params, token, abortController.signal);
+			}
 		} finally {
 			cancellationListener.dispose();
 		}
@@ -255,7 +265,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (!(error instanceof AgentHostGitHubApiError) || error.statusCode !== 401) {
 			return;
 		}
-		this._gitStateService.rejectAuthenticationToken(sessionUri, resource.resource, token);
+		if (!this._gitStateService.rejectAuthenticationToken(sessionUri, resource.resource, token)) {
+			throw new PullRequestAuthenticationChangedError();
+		}
 		throw this._createAuthRequiredError(
 			localize('agentHost.changeset.pr.authExpired', "GitHub authentication expired. Sign in again to create the pull request."),
 			[resource],

@@ -45,7 +45,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
 	private readonly _pullRequestLookupSequencer = new SequencerByKey<string>();
-	private readonly _rejectedAuthTokens = new Map<string, string>();
+	private readonly _rejectedAuthTokens = new Map<string, Set<string>>();
 	private readonly _pendingPullRequestSessions = new Map<string, Set<string>>();
 
 	constructor(
@@ -104,11 +104,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			if (!authToken) {
 				return;
 			}
-			if (this._rejectedAuthTokens.get(repoResource.resource) === authToken) {
+			if (this._rejectedAuthTokens.get(repoResource.resource)?.has(authToken)) {
 				this._addPendingPullRequestSession(repoResource.resource, sessionKey);
 				return;
 			}
-			this._rejectedAuthTokens.delete(repoResource.resource);
 
 			try {
 				const pr = await this._findPullRequestWithRetry(
@@ -151,7 +150,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (resource !== this._gitHubEndpointService.getRepoResource().resource) {
 			return;
 		}
-		this._rejectedAuthTokens.delete(resource);
 		const pendingSessions = this._pendingPullRequestSessions.get(resource);
 		if (!pendingSessions) {
 			return;
@@ -166,7 +164,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	isAuthenticationTokenRejected(resource: string, token: string): boolean {
 		return resource === this._gitHubEndpointService.getRepoResource().resource
-			&& this._rejectedAuthTokens.get(resource) === token;
+			&& this._rejectedAuthTokens.get(resource)?.has(token) === true;
 	}
 
 	rejectAuthenticationToken(sessionKey: string, resource: string, token: string): boolean {
@@ -181,7 +179,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (currentToken && currentToken !== token) {
 			return false;
 		}
-		this._rejectedAuthTokens.set(resource, token);
+		let rejectedTokens = this._rejectedAuthTokens.get(resource);
+		if (!rejectedTokens) {
+			rejectedTokens = new Set();
+			this._rejectedAuthTokens.set(resource, rejectedTokens);
+		}
+		rejectedTokens.add(token);
 		this._addPendingPullRequestSession(resource, sessionKey);
 		this._stateManager.emitAuthRequired({
 			resource,

@@ -303,6 +303,7 @@ suite('AgentHostGitStateService', () => {
 			authRequired: h.notifications.filter(notification => notification.type === 'auth/required'),
 			gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
 			rejectedBeforeReplacement,
+			oldTokenRejectedAfterReplacement: h.service.isAuthenticationTokenRejected('https://api.github.com/repos', 'rejected-token'),
 			rejectedAfterReplacement: h.service.isAuthenticationTokenRejected('https://api.github.com/repos', 'fresh-token'),
 		}, {
 			pullRequestCalls: [
@@ -321,6 +322,7 @@ suite('AgentHostGitStateService', () => {
 				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
 			},
 			rejectedBeforeReplacement: true,
+			oldTokenRejectedAfterReplacement: true,
 			rejectedAfterReplacement: false,
 		});
 	});

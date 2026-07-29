@@ -383,15 +383,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
+			let authenticated = false;
 			for (const resource of protectedResources) {
+				if (resource.required === false) {
+					continue;
+				}
 				await this._authTokenCache.authenticate(
 					resource.resource,
 					resource.scopes_supported,
 					testToken,
-					() => this._agentHostService.authenticate({ resource: resource.resource, token: testToken }),
+					() => this._agentHostService.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token: testToken }),
 				);
+				authenticated = true;
 			}
-			return protectedResources.length > 0;
+			return authenticated;
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
@@ -403,11 +408,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _seedTestToken(agents: readonly AgentInfo[], token: string): Promise<void> {
 		for (const agent of agents) {
 			for (const resource of agent.protectedResources ?? []) {
+				if (resource.required === false) {
+					continue;
+				}
 				await this._authTokenCache.authenticate(
 					resource.resource,
 					resource.scopes_supported,
 					token,
-					() => this._agentHostService.authenticate({ resource: resource.resource, token }),
+					() => this._agentHostService.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token }),
 				);
 			}
 		}

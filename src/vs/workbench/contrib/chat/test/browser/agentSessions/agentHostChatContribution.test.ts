@@ -944,8 +944,11 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService> }) {
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; enableSmokeTestDriver?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride);
+	if (opts?.enableSmokeTestDriver) {
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false, enableSmokeTestDriver: true } as Partial<IWorkbenchEnvironmentService>);
+	}
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -10239,6 +10242,36 @@ suite('AgentHostChatContribution', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
+		});
+
+		test('scenario automation token skips optional protected resources', async () => {
+			const { agentHostService } = createContribution(disposables, {
+				enableSmokeTestDriver: true,
+				configOverrides: { 'chat.agentHost.unsafeTestToken': 'scenario-token' },
+			});
+			agentHostService.setRootState({
+				agents: [{
+					...protectedAgents()[0],
+					protectedResources: [
+						...protectedAgents()[0].protectedResources!,
+						{
+							resource: 'https://api.github.com/repos',
+							resource_name: 'GitHub Repository',
+							authorization_servers: ['https://github.com/login/oauth'],
+							scopes_supported: ['repo'],
+							required: false,
+						},
+					],
+				}],
+				activeSessions: 0,
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [{
+				resource: 'https://api.github.com',
+				scopes: ['read:user'],
+				token: 'scenario-token',
+			}]);
 		});
 
 		test('propagates interactive authentication errors for eager-created sessions', async () => {
