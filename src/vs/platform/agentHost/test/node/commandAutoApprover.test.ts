@@ -257,6 +257,8 @@ suite('CommandAutoApprover', () => {
 				['rm file.txt', { result: 'denied', ruleResolvable: false }],
 				// Unknown command blocked only by a missing allow rule.
 				['my-custom-script', { result: 'noMatch', ruleResolvable: true }],
+				// Transient env-var assignments are denied outright.
+				['FOO=bar my-custom-script', { result: 'denied', ruleResolvable: false }],
 				// Unapproved write redirects block regardless of rules, whether
 				// the command itself is approved or unmatched.
 				['echo hi > /etc/passwd', { result: 'noMatch', ruleResolvable: false }],

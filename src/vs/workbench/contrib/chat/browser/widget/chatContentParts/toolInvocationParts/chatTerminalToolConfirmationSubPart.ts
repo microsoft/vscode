@@ -223,7 +223,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			const commandForAnalysis = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			const analysisLanguage = terminalData.language === 'powershell' ? 'powershell' : 'shellscript';
 			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage).then(actions => {
-				if (this._store.isDisposed || !actions?.length || customActions) {
+				if (this._store.isDisposed || !actions?.length) {
 					return;
 				}
 				if (toolInvocation.state.get().type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
