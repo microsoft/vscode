@@ -63,7 +63,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
-	private readonly _onDidRootStateChange = new Emitter<RootState>();
+	private _rootStateListenerCount = 0;
+	private readonly _onDidRootStateChange = new Emitter<RootState>({
+		onDidAddListener: () => this._rootStateListenerCount++,
+		onWillRemoveListener: () => this._rootStateListenerCount--,
+	});
+	private readonly _onDidRootStateError = new Emitter<Error>();
 	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
 
@@ -75,6 +80,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
+	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -91,6 +97,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			get value() { return self._rootStateValue; },
 			get verifiedValue() { return self._rootStateValue instanceof Error ? undefined : self._rootStateValue; },
 			onDidChange: self._onDidRootStateChange.event,
+			onDidError: self._onDidRootStateError.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
@@ -269,7 +276,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	setRootStateError(): void {
-		this._rootStateValue = new Error('root state failed');
+		const error = new Error('root state failed');
+		this._rootStateValue = error;
+		this._onDidRootStateError.fire(error);
 	}
 
 	fireNotification(n: INotification): void {
@@ -543,6 +552,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'copilotcli', label: 'Copilot' },
 			{ id: 'openai', label: 'OpenAI' },
 		]);
+	});
+
+	test('shares the root-state listener across session adapters', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
+		const provider = createProvider(disposables, agentHost);
+		const listenerCountBeforeSessions = agentHost.rootStateListenerCount;
+
+		for (let i = 0; i < 200; i++) {
+			fireSessionAdded(agentHost, `listener-${i}`);
+		}
+
+		const listenerCountAfterSessions = agentHost.rootStateListenerCount;
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+		const supportsMultipleChatsAfterHydration = provider.getSessions()[0].capabilities.get().supportsMultipleChats;
+		agentHost.setRootStateError();
+
+		assert.deepStrictEqual({
+			listenerCountBeforeSessions,
+			listenerCountAfterSessions,
+			sessionCount: provider.getSessions().length,
+			supportsMultipleChatsAfterHydration,
+			supportsMultipleChatsAfterError: provider.getSessions()[0].capabilities.get().supportsMultipleChats,
+		}, {
+			listenerCountBeforeSessions: 1,
+			listenerCountAfterSessions: 1,
+			sessionCount: 200,
+			supportsMultipleChatsAfterHydration: true,
+			supportsMultipleChatsAfterError: false,
+		});
 	});
 
 	test('reports no session types before rootState hydrates', () => {
@@ -1157,6 +1195,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('caches session-scoped flags but never transient activity bits', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		// A session that was mid-turn (and unread) when the cache was flushed.
+		await persistCachedSessions(disposables, storageService, [{
+			...createSession('busy-1', { summary: 'Busy One' }),
+			status: ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsArchived,
+		}]);
+
+		// Authentication pending, so nothing corrects the hydrated state — a stale
+		// spinner here would stick around indefinitely for an unreachable remote host.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		const restored = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			status: restored.status.get(),
+			isArchived: restored.isArchived.get(),
+			isRead: restored.isRead.get(),
+		}, {
+			status: SessionStatus.Completed,
+			isArchived: true,
+			isRead: false,
+		});
+	}));
+
 	test('hydrated quick chat stays workspace-less after reload despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Regression #324581: a committed quick chat persisted into the startup
 		// cache carries a scratch cwd. The adapter seeds its session-kind at
@@ -1211,7 +1276,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// plain summary field.
 		agentHost.addSession({
 			...createSession('atomic-1', { summary: 'One', workingDirectory: URI.file('/repo') }),
-			isArchived: true,
+			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived,
 			_meta: withSessionGitState(undefined, { branchName: 'feature' }),
 		});
 		agentHost.fireAction({
@@ -2433,6 +2498,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 			requests: [
 				{ isolation: 'folder' },
 			],
+			remembered: {},
+		});
+	});
+
+	test('maps the programmatic branch tracking setter to hidden agent-host config without remembering it', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { [SessionConfigKey.WorktreeBranchTrack]: false },
+		};
+		await provider.setWorktreeBranchTrack(session.sessionId, false);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstAutomationRequest).map(request => request.config),
+			createSessionConfig: provider.getCreateSessionConfig(session.sessionId),
+			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+		}, {
+			requests: [
+				{
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.WorktreeBranchTrack]: false,
+				},
+			],
+			createSessionConfig: { [SessionConfigKey.WorktreeBranchTrack]: false },
 			remembered: {},
 		});
 	});

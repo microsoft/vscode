@@ -14,7 +14,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -119,6 +119,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
+	/**
+	 * Session resource of the last-focused chat widget, or this pane's own
+	 * session when no chat widget is focused. Used to bind the voice glow /
+	 * transcript to the single input voice targets, so with several chat inputs
+	 * open (e.g. this pane plus a chat editor) only the focused one lights up.
+	 */
+	private _focusedSessionResource!: IObservable<URI | undefined>;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -150,7 +157,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
-		@IChatWidgetService _chatWidgetService: IChatWidgetService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -181,6 +188,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsViewerVisibilityContext = ChatContextKeys.agentSessionsViewerVisible.bindTo(contextKeyService);
 
 		this.updateContextKeys();
+
+		// Tracks the session of the last-focused chat widget so the voice UI can
+		// bind to exactly one input even when several are open.
+		this._focusedSessionResource = observableFromEvent(this,
+			this.chatWidgetService.onDidChangeFocusedSession,
+			() => this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource);
 
 		this.registerListeners();
 	}
@@ -435,8 +448,35 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	/**
+	 * The single chat input voice mode is currently bound to. Mirrors the routing
+	 * used by `_chat.voice.acceptInput`: an explicit target session (set by the
+	 * floating aux window) wins, otherwise the last-focused chat widget's session,
+	 * falling back to this pane's own session. The glow / transcript render only on
+	 * the pane whose session matches this, so with several chat inputs open (e.g.
+	 * this pane plus a chat editor) exactly one lights up.
+	 */
+	private _currentVoiceInputResource(reader?: IReader): URI | undefined {
+		const target = reader ? this.voiceSessionController.targetSession.read(reader) : this.voiceSessionController.targetSession.get();
+		if (target) {
+			return target;
+		}
+		const focused = reader ? this._focusedSessionResource.read(reader) : this._focusedSessionResource.get();
+		return focused ?? this._widget?.viewModel?.sessionResource;
+	}
+
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
+		const showTranscriptSetting = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.showTranscript')),
+			() => this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false
+		);
+		const showLiveTranscriptSetting = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.liveTranscript')),
+			() => this.configurationService.getValue<boolean>('agents.voice.liveTranscript') !== false
+		);
 		const transcriptOverlay = $('.voice-transcript-overlay');
 		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
 			horizontal: ScrollbarVisibility.Hidden,
@@ -452,11 +492,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 		const win = getWindow(inputContainerEl);
 		let lastGlowTarget: HTMLElement | undefined;
-		// The session this pane's voice UI belongs to, kept in sync by the
-		// transcript ownership autorun below. The glow only renders on the input
-		// of the session voice is actually bound to, so it never lingers on a
-		// background/last-focused session in another split or window (#8514).
-		let voiceUiOwner: URI | undefined;
 		// Merge the real voice session with any dev/preview simulation so the walkthrough
 		// commands drive the input-box glow exactly as a live session would.
 		const getEffectiveVoice = (): { connected: boolean; voiceState: VoiceGlowState; simulating: boolean } => {
@@ -481,10 +516,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
 				// the "Listening..."/transcript overlay always render on the same
-				// pane and never on a different split/window (#8514). A dev/preview
-				// simulation bypasses ownership so the walkthrough can light up here.
+				// pane and never on a different split/window (#8514) or a chat
+				// editor open alongside this pane. A dev/preview simulation bypasses
+				// ownership so the walkthrough can light up here.
 				const currentSession = this._currentSessionResource.get();
-				const isOwner = !voiceUiOwner || !currentSession || isEqual(voiceUiOwner, currentSession);
+				const boundResource = this._currentVoiceInputResource();
+				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
 				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
 				const target = inputContainerEl;
 
@@ -609,13 +646,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
-			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
+			const showTranscript = showTranscriptSetting.read(reader);
+			const showLiveTranscript = showLiveTranscriptSetting.read(reader);
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
 			if (!connected) {
 				listeningSession = undefined;
 				ownerSession = undefined;
-				voiceUiOwner = undefined;
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
@@ -651,9 +689,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				listeningSession = undefined;
 			}
 
-			// Don't show a transcript that belongs to a different session here.
+			// Don't show a transcript that belongs to a different session here, or
+			// on a pane that isn't the single input voice is bound to (focus-aware,
+			// so a chat editor open alongside this pane doesn't also show it).
+			const boundResource = this._currentVoiceInputResource(reader);
+			if (boundResource && currentSession && !isEqual(boundResource, currentSession)) {
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				return;
+			}
 			const effectiveOwner = targetSession ?? ownerSession;
-			voiceUiOwner = effectiveOwner;
 			if (effectiveOwner && currentSession && !isEqual(effectiveOwner, currentSession)) {
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
@@ -661,11 +706,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			// Show hint when connected but no transcript yet
-			if (visible.length === 0 || !showTranscript) {
+			if (visible.length === 0 || !showTranscript || showListeningPlaceholder) {
 				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
-				if (!showTranscript && voiceState === 'listening') {
-					// Transcript is disabled: surface a minimal "Listening..." overlay
-					// while listening so the user has feedback. Cleared in any other state.
+				if (showListeningPlaceholder) {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
