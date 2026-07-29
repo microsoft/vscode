@@ -14,16 +14,15 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IWorkspacePickerItem, IWorkspaceSelection, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
-import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 
 /**
  * Web variant of {@link WorkspacePicker} for the Agents window's
@@ -46,38 +45,38 @@ import { IWorkspacesService } from '../../../../platform/workspaces/common/works
 export class WebWorkspacePicker extends WorkspacePicker {
 
 	constructor(
+		options: IWorkspacePickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IQuickInputService quickInputService: IQuickInputService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
+			options,
 			actionWidgetService,
-			storageService,
 			uriIdentityService,
 			sessionsProvidersService,
+			recentWorkspacesService,
 			remoteAgentHostService,
 			configurationService,
 			commandService,
-			workspacesService,
 			menuService,
 			contextKeyService,
 			instantiationService,
 			fileDialogService,
-			quickInputService,
 			telemetryService,
+			notificationService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
@@ -116,8 +115,8 @@ export class WebWorkspacePicker extends WorkspacePicker {
 
 	private _onScopedHostChanged(): void {
 		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
-		const current = this.selectedProject;
-		if (current && scopedProviderId !== undefined && current.providerId === scopedProviderId) {
+		const currentResolved = this.selectedResolved;
+		if (currentResolved && scopedProviderId !== undefined && currentResolved.providerId === scopedProviderId) {
 			this._onDidChangeSelection.fire();
 			return;
 		}
@@ -126,8 +125,11 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			? this._getRecentWorkspaces().find(w => w.providerId === scopedProviderId)
 			: undefined;
 		if (firstRecent) {
-			this.setSelectedWorkspace({ providerId: firstRecent.providerId, workspace: firstRecent.workspace });
-			return;
+			const folderUri = firstRecent.workspace.folders[0]?.root;
+			if (folderUri) {
+				this.setSelectedWorkspace(folderUri);
+				return;
+			}
 		}
 
 		this.clearSelection();
@@ -149,14 +151,18 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// 1. Recent workspaces for the scoped provider
 		const recents = this._getRecentWorkspaces().filter(w => w.providerId === scopedProviderId);
 		for (const { workspace, providerId } of recents) {
-			const selection: IWorkspaceSelection = { providerId, workspace };
+			const folderUri = workspace.folders[0]?.root;
+			if (!folderUri) {
+				continue;
+			}
+			const checked = this._isSelectedFolder(folderUri);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
-				item: { selection, checked: this._isSelectedWorkspace(selection) || undefined },
-				onRemove: () => this._removeRecentWorkspace(selection),
+				item: { folderUri, providerId, checked: checked || undefined },
+				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
 		}
 

@@ -7,13 +7,20 @@
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IEnvService } from '../../env/common/envService';
 import { collectSingleLineErrorMessage } from '../../log/common/logService';
-import { FetcherId, FetchOptions, IAbortController, isAbortError, PaginationOptions, ReportFetchEvent, Response, safeGetHostname } from '../common/fetcherService';
+import { CacheStatus, FetcherId, FetchOptions, IAbortController, isAbortError, PaginationOptions, ReportFetchEvent, Response, safeGetHostname } from '../common/fetcherService';
 import { IFetcher, userAgentLibraryHeader } from '../common/networking';
+import { VSCODE_CACHE_STATUS_HEADER } from './taggedCacheInterceptor';
+
+export type FetchImpl = (
+	input: string | globalThis.Request,
+	init?: RequestInit,
+	useCache?: boolean,
+) => Promise<globalThis.Response>;
 
 export abstract class BaseFetchFetcher implements IFetcher {
 
 	constructor(
-		private readonly _fetchImpl: typeof fetch | typeof import('electron').net.fetch,
+		private readonly _fetchImpl: FetchImpl,
 		private readonly _envService: IEnvService,
 		private readonly _fetcherId: FetcherId,
 		private readonly _reportEvent: ReportFetchEvent,
@@ -52,7 +59,7 @@ export abstract class BaseFetchFetcher implements IFetcher {
 		const internalId = generateUuid();
 		const hostname = safeGetHostname(url);
 		try {
-			const response = await this._fetch(url, method, headers, body, signal, internalId, hostname);
+			const response = await this._fetch(url, method, headers, body, signal, internalId, hostname, options);
 			this._reportEvent({ internalId, timestamp: Date.now(), outcome: 'success', phase: 'requestResponse', fetcher: this._fetcherId, hostname, statusCode: response.status });
 			return response;
 		} catch (e) {
@@ -89,8 +96,8 @@ export abstract class BaseFetchFetcher implements IFetcher {
 		return items;
 	}
 
-	private async _fetch(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', headers: { [name: string]: string }, body: string | undefined, signal: AbortSignal, internalId: string, hostname: string): Promise<Response> {
-		const resp = await this._fetchImpl(url, { method, headers, body, signal });
+	private async _fetch(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', headers: { [name: string]: string }, body: string | undefined, signal: AbortSignal, internalId: string, hostname: string, options: FetchOptions): Promise<Response> {
+		const resp = await this._fetchImpl(url, { method, headers, body, signal }, !!options.cache);
 		return new Response(
 			resp.status,
 			resp.statusText,
@@ -100,7 +107,22 @@ export abstract class BaseFetchFetcher implements IFetcher {
 			this._reportEvent,
 			internalId,
 			hostname,
+			this._readCacheStatus(resp.headers, options),
 		);
+	}
+
+	private _readCacheStatus(headers: { get(name: string): string | null }, options: FetchOptions): CacheStatus | undefined {
+		if (!options.cache) {
+			return undefined;
+		}
+		const stamped = headers.get(VSCODE_CACHE_STATUS_HEADER);
+		if (stamped === 'hit' || stamped === 'stale-hit' || stamped === 'revalidated' || stamped === 'miss') {
+			return stamped;
+		}
+		// Caller opted in but the response carried no marker — either the
+		// fetcher does not implement caching or the cache interceptor skipped
+		// this request.
+		return 'bypass';
 	}
 
 	async disconnectAll(): Promise<void> {

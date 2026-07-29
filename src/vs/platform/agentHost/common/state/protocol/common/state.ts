@@ -10,10 +10,13 @@ import type { RootState } from '../channels-root/state.js';
 import type { SessionState } from '../channels-session/state.js';
 import type { TerminalState } from '../channels-terminal/state.js';
 import type { ChangesetState } from '../channels-changeset/state.js';
+import type { ResourceWatchState } from '../channels-resource-watch/state.js';
+import type { AnnotationsState } from '../channels-annotations/state.js';
+import type { ChatState } from '../channels-chat/state.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
-/** A URI string (e.g. `ahp-root://` or `ahp-session:/<uuid>`). */
+/** A URI string (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`). */
 export type URI = string;
 
 /**
@@ -23,6 +26,9 @@ export type URI = string;
  * - An object with `{ markdown: string }` is rendered with Markdown formatting.
  */
 export type StringOrMarkdown = string | { markdown: string };
+
+/** A primitive JSON value: a string, number, boolean, or `null`. */
+export type JsonPrimitive = string | number | boolean | null;
 
 // ─── Icon ────────────────────────────────────────────────────────────────────
 
@@ -158,8 +164,8 @@ export interface ConfigPropertySchema {
 	description?: string;
 	/** JSON Schema: default value */
 	default?: unknown;
-	/** JSON Schema: allowed values (typically used with `string` type) */
-	enum?: string[];
+	/** JSON Schema: allowed values. May be primitives of any JSON type. */
+	enum?: JsonPrimitive[];
 	/** Display extension: human-readable label per enum value (parallel array) */
 	enumLabels?: string[];
 	/** Display extension: description per enum value (parallel array) */
@@ -172,6 +178,8 @@ export interface ConfigPropertySchema {
 	properties?: Record<string, ConfigPropertySchema>;
 	/** JSON Schema: list of required property ids (used when `type` is `'object'`) */
 	required?: string[];
+	/** JSON Schema: schema for additional properties not listed in `properties` (used when `type` is `'object'`). */
+	additionalProperties?: ConfigPropertySchema;
 }
 
 /**
@@ -243,6 +251,8 @@ export interface ContentRef {
 	sizeHint?: number;
 	/** Content MIME type */
 	contentType?: string;
+	/** Content nonce */
+	nonce?: string;
 }
 
 // ─── File Edit ───────────────────────────────────────────────────────────────
@@ -310,6 +320,12 @@ export interface ErrorInfo {
 	message: string;
 	/** Stack trace */
 	stack?: string;
+	/**
+	 * Additional provider-specific metadata for this error.
+	 * Clients MAY look for well-known optional keys here to provide enhanced UI
+	 * (e.g. a structured chat fetch error for richer, localized messaging).
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -319,10 +335,10 @@ export interface ErrorInfo {
  * @category Common Types
  */
 export interface Snapshot {
-	/** The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`) */
+	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState | ChangesetState;
+	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

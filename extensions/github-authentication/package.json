@@ -47,13 +47,6 @@
         "authorizationServerGlobs": [
           "*"
         ]
-      },
-      {
-        "label": "GitHub Copilot Enterprise",
-        "id": "github-enterprise-copilot",
-        "authorizationServerGlobs": [
-          "*"
-        ]
       }
     ],
     "configuration": [
@@ -104,7 +97,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/node-fetch": "^2.5.7"
   },
   "repository": {

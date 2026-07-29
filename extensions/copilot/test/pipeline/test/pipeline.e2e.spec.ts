@@ -6,6 +6,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { NesDatagenInputFormat, NesDatagenSampleTask, PivotStrategy } from '../../base/simulationOptions';
 import { runInputPipeline, RunPipelineOptions } from '../pipeline';
 import { allRecords, fixtures } from './fixtures/fixtureData';
 
@@ -30,10 +31,17 @@ let tmpDir: string;
 let inputPath: string;
 let outputPath: string;
 
+function parseJsonl<T>(contents: string): T[] {
+	return contents
+		.split('\n')
+		.filter(line => line.length > 0)
+		.map(line => JSON.parse(line) as T);
+}
+
 beforeAll(async () => {
 	tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nes-datagen-e2e-'));
 	inputPath = path.join(tmpDir, 'input.json');
-	outputPath = path.join(tmpDir, 'output.json');
+	outputPath = path.join(tmpDir, 'output.jsonl');
 	await fs.writeFile(inputPath, JSON.stringify(allRecords, null, 2));
 });
 
@@ -77,7 +85,7 @@ async function runPipeline(opts?: Partial<RunPipelineOptions>): Promise<{
 			input: inputPath,
 			output: outputPath,
 			rowOffset: 0,
-			workerMode: false,
+			workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 		},
 		configFile: configPath,
 		verbose: true,
@@ -88,7 +96,7 @@ async function runPipeline(opts?: Partial<RunPipelineOptions>): Promise<{
 	await runInputPipeline(pipelineOpts, log);
 
 	const outputContents = await fs.readFile(outputPath, 'utf-8');
-	const samples = JSON.parse(outputContents) as OutputSample[];
+	const samples = parseJsonl<OutputSample>(outputContents);
 
 	return { samples, logs };
 }
@@ -243,7 +251,7 @@ describe('nes-datagen pipeline e2e', () => {
 
 		beforeAll(async () => {
 			invalidInputPath = path.join(tmpDir, 'invalid-input.json');
-			invalidOutputPath = path.join(tmpDir, 'invalid-output.json');
+			invalidOutputPath = path.join(tmpDir, 'invalid-output.jsonl');
 			await fs.writeFile(invalidInputPath, JSON.stringify([fixtures.invalid.record]));
 		});
 
@@ -255,7 +263,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: invalidInputPath,
 						output: invalidOutputPath,
 						rowOffset: 0,
-						workerMode: false,
+						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 					},
 					configFile: configPath,
 					verbose: false,
@@ -265,7 +273,7 @@ describe('nes-datagen pipeline e2e', () => {
 			);
 
 			const content = await fs.readFile(invalidOutputPath, 'utf-8');
-			const samples = JSON.parse(content) as OutputSample[];
+			const samples = parseJsonl<OutputSample>(content);
 			expect(samples).toEqual([]);
 
 			// Should report the parse error
@@ -282,7 +290,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: inputPath,
 						output: outputPath,
 						rowOffset: 0,
-						workerMode: false,
+						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 					},
 					configFile: undefined,
 					verbose: false,
@@ -294,14 +302,14 @@ describe('nes-datagen pipeline e2e', () => {
 
 	describe('row offset', () => {
 		test('applies rowOffset to sample rowIndex in metadata', async () => {
-			const offsetOutputPath = path.join(tmpDir, 'offset-output.json');
+			const offsetOutputPath = path.join(tmpDir, 'offset-output.jsonl');
 			await runInputPipeline(
 				{
 					nesDatagen: {
 						input: inputPath,
 						output: offsetOutputPath,
 						rowOffset: 100,
-						workerMode: false,
+						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 					},
 					configFile: configPath,
 					verbose: false,
@@ -311,7 +319,7 @@ describe('nes-datagen pipeline e2e', () => {
 			);
 
 			const content = await fs.readFile(offsetOutputPath, 'utf-8');
-			const samples = JSON.parse(content) as OutputSample[];
+			const samples = parseJsonl<OutputSample>(content);
 			expect(samples.length).toBe(2);
 			// Row indices should be shifted by the offset
 			for (const sample of samples) {

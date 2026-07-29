@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { authentication, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vscode';
+import { authentication, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, Uri } from 'vscode';
 import { mixin } from '../../../util/vs/base/common/objects';
 import { URI } from '../../../util/vs/base/common/uri';
 import { AuthPermissionMode, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { authProviderId, GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
+import { authProviderId, getCopilotEnterpriseUri, GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, isGitHubEnterpriseAuthProvider, MinimalModeError } from '../common/authentication';
 
 export const SESSION_LOGIN_MESSAGE = 'You are not signed in to GitHub. Please sign in to use Copilot.';
 // These types are subsets of the "real" types AuthenticationSessionAccountInformation and
@@ -62,6 +62,7 @@ async function getAuthSession(providerId: string, defaultScopes: string[], getSi
  */
 export function getAnyAuthSession(configurationService: IConfigurationService, options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 	const providerId = authProviderId(configurationService);
+	const sessionOptions = getSessionOptions(configurationService, options);
 
 	return getAuthSession(
 		providerId,
@@ -69,23 +70,23 @@ export function getAnyAuthSession(configurationService: IConfigurationService, o
 		async () => {
 			// Ask for aligned scopes first, since that's what we want to use going forward.
 			if (configurationService.getConfig(ConfigKey.Shared.AuthPermissions) !== AuthPermissionMode.Minimal) {
-				const permissive = await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, { silent: true });
+				const permissive = await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, { ...sessionOptions, silent: true });
 				if (permissive) {
 					return permissive;
 				}
 			}
-			const minimal = await authentication.getSession(providerId, GITHUB_SCOPE_USER_EMAIL, { silent: true });
+			const minimal = await authentication.getSession(providerId, GITHUB_SCOPE_USER_EMAIL, { ...sessionOptions, silent: true });
 			if (minimal) {
 				return minimal;
 			}
 			// This is what Completions extension use to ask for and is here mostly for backwards compatibility.
-			const fallback = await authentication.getSession(providerId, GITHUB_SCOPE_READ_USER, { silent: true });
+			const fallback = await authentication.getSession(providerId, GITHUB_SCOPE_READ_USER, { ...sessionOptions, silent: true });
 			if (fallback) {
 				return fallback;
 			}
 			return undefined;
 		},
-		options
+		sessionOptions
 	);
 }
 
@@ -104,12 +105,33 @@ export function getAlignedSession(configurationService: IConfigurationService, o
 		return Promise.resolve(undefined);
 	}
 	const providerId = authProviderId(configurationService);
+	const sessionOptions = getSessionOptions(configurationService, options);
 	return getAuthSession(
 		providerId,
 		GITHUB_SCOPE_ALIGNED,
-		async () => await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, { silent: true }),
-		options
+		async () => await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, { ...sessionOptions, silent: true }),
+		sessionOptions
 	);
+}
+
+function getSessionOptions(configurationService: IConfigurationService, options: AuthenticationGetSessionOptions = {}): AuthenticationGetSessionOptions {
+	if (!isGitHubEnterpriseAuthProvider(authProviderId(configurationService))) {
+		return options;
+	}
+	const enterpriseUri = getCopilotEnterpriseUri(configurationService);
+	if (!enterpriseUri) {
+		return options;
+	}
+	const parsedUri = Uri.parse(enterpriseUri);
+	const normalizedUri = parsedUri.with({
+		path: parsedUri.path.replace(/\/+$/, ''),
+		query: '',
+		fragment: ''
+	});
+	return {
+		...options,
+		authorizationServer: Uri.joinPath(normalizedUri, '/login/oauth')
+	};
 }
 
 export function authChangeAffectsCopilot(event: AuthenticationSessionsChangeEvent, configurationService: IConfigurationService): boolean {

@@ -12,6 +12,7 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -157,6 +158,46 @@ export interface IChatSentiment {
 	registered?: boolean;
 }
 
+/**
+ * The inputs needed to decide whether Chat still requires the user to run setup
+ * (sign in / sign up / trust / enable) before it can service a request.
+ */
+export interface IChatSetupRequirement {
+	/** Whether the setup flow has been completed (any outcome). */
+	readonly completed: boolean;
+	/** Whether the chat extension is disabled for a reason other than trust. */
+	readonly disabled: boolean;
+	/** Whether the chat extension is disabled because the workspace is untrusted. */
+	readonly untrusted: boolean;
+	/** The user's last known or resolved entitlement. */
+	readonly entitlement: ChatEntitlement;
+	/** Whether anonymous (signed-out) Chat access is enabled. */
+	readonly anonymous: boolean;
+	/** Whether BYOK models are available. */
+	readonly hasByokModels: boolean;
+}
+
+/**
+ * Single source of truth for whether Chat still requires setup before it can
+ * service a request. Shared by the setup agent (which routes a sent message
+ * through setup) and the model picker (which surfaces a "Sign in to use Copilot"
+ * state instead of a misleading lone "Auto"). BYOK models and anonymous access
+ * intentionally satisfy the entitlement-based checks so those flows keep working.
+ */
+export function chatRequiresSetup(context: IChatSetupRequirement): boolean {
+	return (
+		(!context.completed && !context.hasByokModels) ||			// Setup not completed (unless BYOK models are available)
+		context.disabled ||											// Extension disabled: run setup to enable
+		context.untrusted ||										// Workspace untrusted: run setup to ask for trust
+		context.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
+		(
+			context.entitlement === ChatEntitlement.Unknown &&		// Entitlement unknown: run setup to sign in / sign up
+			!context.anonymous &&									// unless anonymous access is enabled
+			!context.hasByokModels									// unless BYOK models are available
+		)
+	);
+}
+
 export interface IChatEntitlementService {
 
 	_serviceBrand: undefined;
@@ -166,7 +207,6 @@ export interface IChatEntitlementService {
 	readonly entitlement: ChatEntitlement;
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
-	readonly previewFeaturesDisabled: boolean;
 	readonly clientByokEnabled: boolean;
 	readonly hasByokModels: boolean;
 
@@ -192,6 +232,13 @@ export interface IChatEntitlementService {
 	readonly onDidChangeAnonymous: Event<void>;
 	readonly anonymous: boolean;
 	readonly anonymousObs: IObservable<boolean>;
+
+	acceptQuotas(quotas: IQuotas): void;
+
+	/**
+	 * Clear all quota state.
+	 */
+	clearQuotas(): void;
 
 	markAnonymousRateLimited(): void;
 
@@ -466,10 +513,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		return this.context?.value.state.copilotTrackingId;
 	}
 
-	get previewFeaturesDisabled(): boolean {
-		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.previewFeaturesDisabled') === true;
-	}
-
 	get clientByokEnabled(): boolean {
 		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true;
 	}
@@ -492,6 +535,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly onDidChangeUsageBasedBilling = this._onDidChangeUsageBasedBilling.event;
 
 	private _quotas: IQuotas;
+	private quotaCopilotTrackingId: string | undefined;
 	get quotas() { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
@@ -542,8 +586,18 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
 	}
 
-	acceptQuotas(quotas: IQuotas): void {
+	acceptQuotas(incomingQuotas: IQuotas): void {
 		const oldQuota = this._quotas;
+		const cachedQuota = this.quotaCopilotTrackingId === this.copilotTrackingId ? oldQuota : {};
+		const quotas: IQuotas = {
+			...incomingQuotas,
+			chat: incomingQuotas.chat ? mergeDefinedSnapshot(cachedQuota.chat, incomingQuotas.chat) : undefined,
+			completions: incomingQuotas.completions ? mergeDefinedSnapshot(cachedQuota.completions, incomingQuotas.completions) : undefined,
+			premiumChat: incomingQuotas.premiumChat ? mergeDefinedSnapshot(cachedQuota.premiumChat, incomingQuotas.premiumChat) : undefined,
+			sessionRateLimit: incomingQuotas.sessionRateLimit ? mergeDefinedSnapshot(cachedQuota.sessionRateLimit, incomingQuotas.sessionRateLimit) : undefined,
+			weeklyRateLimit: incomingQuotas.weeklyRateLimit ? mergeDefinedSnapshot(cachedQuota.weeklyRateLimit, incomingQuotas.weeklyRateLimit) : undefined,
+		};
+		this.quotaCopilotTrackingId = this.copilotTrackingId;
 		this._quotas = quotas;
 		this.updateContextKeys();
 
@@ -567,7 +621,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+		const sessionRateLimitChanged = oldQuota.sessionRateLimit?.percentRemaining !== quotas.sessionRateLimit?.percentRemaining;
+		const weeklyRateLimitChanged = oldQuota.weeklyRateLimit?.percentRemaining !== quotas.weeklyRateLimit?.percentRemaining;
+
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || sessionRateLimitChanged || weeklyRateLimitChanged || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
@@ -613,8 +670,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			? this._quotas.premiumChat.hasQuota === false
 			: this._quotas.premiumChat?.percentRemaining === 0;
 		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+		const isManagedPlan = this.entitlement === ChatEntitlement.Business || this.entitlement === ChatEntitlement.Enterprise;
 
-		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
+		// For Business/Enterprise users, hasQuota === false is the authoritative signal
+		// that the org has blocked usage, regardless of additionalUsageEnabled.
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && (isManagedPlan || !additionalUsageEnabled)));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -691,7 +751,6 @@ type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
 	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the chat entitlement' };
-	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The percentage of chat requests remaining for the user' };
 	quotaChatUnlimited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has unlimited chat requests' };
 	quotaChatHasQuota: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user currently has chat quota available' };
 	quotaChatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The raw chat quota entitlement count' };
@@ -716,7 +775,6 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
 	sku: string | undefined;
-	quotaChat: number | undefined;
 	quotaChatUnlimited: boolean | undefined;
 	quotaChatHasQuota: boolean | undefined;
 	quotaChatEntitlement: number | undefined;
@@ -751,6 +809,13 @@ export interface IQuotaSnapshot {
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
 	readonly quotaRemaining?: number;
+	readonly creditsUsed?: number;
+}
+
+export interface IRateLimitSnapshot {
+	readonly percentRemaining: number;
+	readonly unlimited: boolean;
+	readonly resetDate?: string;
 }
 
 interface IQuotas {
@@ -765,6 +830,20 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly additionalUsageEntitlement?: number;
+
+	readonly sessionRateLimit?: IRateLimitSnapshot;
+	readonly weeklyRateLimit?: IRateLimitSnapshot;
+}
+
+function mergeDefinedSnapshot<T extends object>(previous: T | undefined, current: T): T {
+	const result = { ...previous, ...current };
+	for (const key of Object.keys(current) as (keyof T)[]) {
+		if (current[key] === undefined && previous?.[key] !== undefined) {
+			result[key] = previous[key];
+		}
+	}
+	return result;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
@@ -798,6 +877,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
+			const parsedCreditsUsed = rawQuotaSnapshot.credits_used !== undefined ? Number(rawQuotaSnapshot.credits_used) : undefined;
 
 			// Skip snapshots where the user has no allocated entitlement for this
 			// category (e.g. free tier premium_interactions with 0 credits). Under
@@ -814,8 +894,9 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				hasQuota: rawQuotaSnapshot.has_quota,
 				usageBasedBilling: entitlementsData.token_based_billing,
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
-				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
-				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isSafeInteger(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
+				entitlement: parsedEntitlement !== undefined && Number.isFinite(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isFinite(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
+				creditsUsed: parsedCreditsUsed !== undefined && Number.isFinite(parsedCreditsUsed) && parsedCreditsUsed >= 0 ? parsedCreditsUsed : undefined,
 			};
 
 			switch (quotaType) {
@@ -834,6 +915,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
 		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
 		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
+		quotas.additionalUsageEntitlement = overageSource?.overage_entitlement ?? 0;
 	}
 	return quotas;
 }
@@ -963,7 +1045,6 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsData.analytics_tracking_id,
 			sku: entitlements.sku,
-			quotaChat: entitlements.quotas?.chat?.percentRemaining,
 			quotaChatUnlimited: entitlements.quotas?.chat?.unlimited,
 			quotaChatHasQuota: entitlements.quotas?.chat?.hasQuota,
 			quotaChatEntitlement: entitlements.quotas?.chat?.entitlement,
@@ -1218,8 +1299,6 @@ export class ChatEntitlementContext extends Disposable {
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_MIGRATED_STORAGE_KEY = 'chat.setupContext.migrated.v1';
 
-	private static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
-
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
 
@@ -1309,7 +1388,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY)) {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this.updateContext();
 			}
 		}));
@@ -1318,7 +1397,7 @@ export class ChatEntitlementContext extends Disposable {
 	private _forceHidden = false;
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
-		if (this._forceHidden || this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) === true) {
+		if (this._forceHidden || this.configurationService.getValue(ChatAIDisabledSettingId) === true) {
 			return {
 				...state,
 				hidden: true

@@ -23,6 +23,8 @@ import { CircuitBreaker } from '../common/circuitBreaker';
 import {
 	createSessionTranslationState,
 	deriveTitleFromUserMessage,
+	isTerminalFlushEvent,
+	STREAMING_EVENT_TYPES,
 	translateSpan,
 	type SessionTranslationState,
 } from '../common/eventTranslator';
@@ -39,26 +41,47 @@ import { reindexSessions, reindexCloudSessions, type CloudReindexResult } from '
 
 // ── Configuration ───────────────────────────────────────────────────────────────
 
-/** How often to flush buffered events to the cloud (ms). */
+/**
+ * Delay between a terminal event arriving and the resulting flush. Small enough
+ * to feel realtime, large enough to coalesce events from the same turn into one
+ * request.
+ */
 const BATCH_INTERVAL_MS = 500;
 
-/** Faster drain interval when buffer is above soft cap. */
-const FAST_BATCH_INTERVAL_MS = 200;
+/**
+ * Default safety-net interval for buffered events that did not trigger a
+ * terminal flush. The effective value is read from
+ * {@link ConfigKey.TeamInternal.SessionSyncSafetyIntervalMs} at runtime; this constant is
+ * only used as the fallback when no configuration service is available
+ * (e.g. in tests that bypass the constructor).
+ */
+export const SAFETY_INTERVAL_MS = 60_000;
 
-/** Max events per flush request. */
+/**
+ * Default max events per flush request — also acts as a buffer-size flush
+ * trigger. The effective value is read from
+ * {@link ConfigKey.TeamInternal.SessionSyncMaxEventsPerFlush} at runtime.
+ */
 const MAX_EVENTS_PER_FLUSH = 500;
 
 /** Hard cap on buffered events (drop oldest beyond this). */
 const MAX_BUFFER_SIZE = 1_000;
 
-/** Soft cap — switch to faster drain. */
-const SOFT_BUFFER_CAP = 500;
+/** Max CHAT spans buffered per session while awaiting INVOKE_AGENT. */
+const MAX_PENDING_CHAT_SPANS_PER_SESSION = 32;
+
+/** Time to suppress further cloud session creates for an owner after a policy-blocked response. */
+const POLICY_BLOCKED_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Exports VS Code chat session events to the cloud in real-time.
  *
  * - Listens to OTel spans, translates to cloud SessionEvent format
- * - Buffers events and flushes in batches every 500ms
+ * - Buffers events; flushes within ~500ms when a terminal event arrives
+ *   (assistant.message, tool.execution_complete) or when the buffer reaches
+ *   {@link MAX_EVENTS_PER_FLUSH}, otherwise waits up to
+ *   {@link SAFETY_INTERVAL_MS} as a safety net
+ * - Streaming delta events are dropped before buffering
  * - Circuit breaker prevents cascading failures when the cloud is unavailable
  * - Lazy initialization: no work until the first real chat interaction
  *
@@ -88,6 +111,18 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	/** Sessions currently initializing (prevent concurrent init). */
 	private readonly _initializingSessions = new Set<string>();
 
+	/** CHAT spans received before session was initialized, keyed by session ID. */
+	private readonly _pendingChatSpans = new Map<string, { span: ICompletedSpanData; subagentId: string | undefined }[]>();
+
+	/** Sessions whose cloud-session creation was rate-limited; awaiting retry on a later flush. */
+	private readonly _rateLimitedSessions = new Set<string>();
+
+	/** Per-owner expiry (epoch ms) suppressing further createCloudSession attempts after a policy_blocked response. */
+	private readonly _policyBlockedUntilByOwner = new Map<number, number>();
+
+	/** Whether the policy-blocked notification has been shown this window. */
+	private _policyNotificationShown = false;
+
 	// ── Shared state ─────────────────────────────────────────────────────────────
 
 	/** Buffered events tagged with their chat session ID for correct routing. */
@@ -95,7 +130,8 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	private readonly _cloudClient: CloudSessionApiClient;
 	private readonly _circuitBreaker: CircuitBreaker;
 
-	private _flushTimer: ReturnType<typeof setInterval> | undefined;
+	private _flushTimer: ReturnType<typeof setTimeout> | undefined;
+	private _flushTimerKind: 'fast' | 'safety' | undefined;
 	private _isFlushing = false;
 	private _firstCloudWriteLogged = false;
 
@@ -158,6 +194,34 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	/** Invalidate the cached local synced count (call after cloud session set/delete). */
 	private _invalidateLocalSyncedCount(): void {
 		this._cachedLocalSyncedCount = undefined;
+	}
+
+	/**
+	 * Effective safety-net interval (ms), read from configuration. Falls back to
+	 * {@link SAFETY_INTERVAL_MS} when the configuration service is unavailable
+	 * (e.g. tests that bypass the constructor) or when the configured value is
+	 * not a positive finite number — otherwise an invalid treatment could turn
+	 * safety backoff into an immediate timer and busy-poll a failing endpoint.
+	 */
+	private _getSafetyIntervalMs(): number {
+		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSyncSafetyIntervalMs, this._expService);
+		return typeof configured === 'number' && Number.isFinite(configured) && configured > 0
+			? configured
+			: SAFETY_INTERVAL_MS;
+	}
+
+	/**
+	 * Effective max events per flush request, read from configuration. Falls back
+	 * to {@link MAX_EVENTS_PER_FLUSH} when the configuration service is
+	 * unavailable or when the configured value is not a positive integer —
+	 * otherwise an invalid treatment could splice an empty batch and busy-loop
+	 * re-arming fast flushes without uploading any events.
+	 */
+	private _getMaxEventsPerFlush(): number {
+		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSyncMaxEventsPerFlush, this._expService);
+		return Number.isInteger(configured) && configured > 0
+			? configured
+			: MAX_EVENTS_PER_FLUSH;
 	}
 
 	/**
@@ -225,6 +289,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			failureThreshold: 5,
 			resetTimeoutMs: 1_000,
 			maxResetTimeoutMs: 30_000,
+			onStateChange: (_from, to) => {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'circuitBreaker',
+					transition: to.toLowerCase(),
+				}, {
+					failureCount: this._circuitBreaker.getFailureCount(),
+				});
+			},
 		});
 
 		// Register delete cloud sessions command
@@ -295,10 +367,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	}
 
 	override dispose(): void {
-		if (this._flushTimer !== undefined) {
-			clearInterval(this._flushTimer);
-			this._flushTimer = undefined;
-		}
+		this._stopFlushTimer();
 
 		// Best-effort final flush with timeout
 		const pending = this._eventBuffer.length;
@@ -310,6 +379,8 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.clear();
 		this._disabledSessions.clear();
 		this._initializingSessions.clear();
+		this._pendingChatSpans.clear();
+		this._rateLimitedSessions.clear();
 
 		super.dispose();
 	}
@@ -541,6 +612,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					this._cloudSessions.delete(session.id);
 					this._translationStates.delete(session.id);
 					this._disabledSessions.delete(session.id);
+					this._rateLimitedSessions.delete(session.id);
 				}
 			},
 		);
@@ -614,12 +686,13 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._cloudSessions.delete(sessionId);
 			this._translationStates.delete(sessionId);
 			this._disabledSessions.delete(sessionId);
+			this._rateLimitedSessions.delete(sessionId);
 		}
 		this._invalidateLocalSyncedCount();
 		this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 	}
 
-	// ── Cloud reindex (called from /chronicle:reindex) ──────────────────────────
+	// ── Cloud reindex (called from /chronicle reindex) ─────────────────────────
 
 	/**
 	 * Reindex all local sessions to the cloud. Creates cloud sessions for
@@ -694,11 +767,16 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// appear as one continuous timeline in the cloud rather than
 			// surfacing each sub-agent invocation as its own standalone session.
 			const parentChatSessionId = span.attributes[CopilotChatAttr.PARENT_CHAT_SESSION_ID] as string | undefined;
-			const ownChatSessionId = (span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined)
+			const ownChatSessionIdAttr = span.attributes[CopilotChatAttr.CHAT_SESSION_ID] as string | undefined;
+			const ownChatSessionId = ownChatSessionIdAttr
 				?? (span.attributes[GenAiAttr.CONVERSATION_ID] as string | undefined)
 				?? (span.attributes[CopilotChatAttr.SESSION_ID] as string | undefined);
 			const sessionId = parentChatSessionId ?? ownChatSessionId;
 			const subagentId = parentChatSessionId ? ownChatSessionId : undefined;
+			// A real VS Code chat session id is required to safely buffer CHAT spans;
+			// gen_ai.conversation.id / session.id fallbacks belong to non-chat callers
+			// that will never produce a matching INVOKE_AGENT to replay against.
+			const hasRealChatSessionId = parentChatSessionId !== undefined || ownChatSessionIdAttr !== undefined;
 			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 			if (!sessionId || this._disabledSessions.has(sessionId)) {
 				return;
@@ -709,7 +787,29 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// typically complete before their parent, and using a sub-agent span as the
 			// init trigger would seed sessionSource/firstCloudWriteSessionSource and
 			// telemetry from the sub-agent's AGENT_NAME instead of the parent's.
-			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {
+			if (!this._cloudSessions.has(sessionId)
+				&& !this._initializingSessions.has(sessionId)
+				&& !this._rateLimitedSessions.has(sessionId)) {
+				if (operationName === GenAiOperationName.CHAT) {
+					// CHAT spans (LLM calls) complete before their parent invoke_agent.
+					// Buffer them so usage events aren't lost for the first turn — but
+					// only when the span carries a real chat session id; otherwise no
+					// INVOKE_AGENT will ever arrive to replay against and the buffer
+					// would grow unbounded.
+					if (!hasRealChatSessionId) {
+						return;
+					}
+					let pending = this._pendingChatSpans.get(sessionId);
+					if (!pending) {
+						pending = [];
+						this._pendingChatSpans.set(sessionId, pending);
+					}
+					if (pending.length >= MAX_PENDING_CHAT_SPANS_PER_SESSION) {
+						pending.shift();
+					}
+					pending.push({ span, subagentId });
+					return;
+				}
 				if (operationName !== GenAiOperationName.INVOKE_AGENT || subagentId) {
 					return;
 				}
@@ -724,7 +824,25 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 			if (events.length > 0) {
 				this._bufferEvents(sessionId, events);
-				this._ensureFlushTimer();
+			}
+
+			// Replay any CHAT spans that arrived before session initialization
+			if (operationName === GenAiOperationName.INVOKE_AGENT && !subagentId) {
+				const pendingChats = this._pendingChatSpans.get(sessionId);
+				if (pendingChats) {
+					this._pendingChatSpans.delete(sessionId);
+					for (const { span: chatSpan, subagentId: chatSubagentId } of pendingChats) {
+						const chatEvents = translateSpan(chatSpan, state, context, chatSubagentId);
+						if (chatEvents.length > 0) {
+							this._bufferEvents(sessionId, chatEvents);
+						}
+					}
+				}
+				// Parent INVOKE_AGENT completion marks a turn boundary. Force a fast
+				// flush even when the turn produced no terminal event (e.g. cancelled
+				// before any tokens streamed) so buffered user.message/session.start
+				// don't sit until the 60s safety timer.
+				this._scheduleFlush(BATCH_INTERVAL_MS, 'fast');
 			}
 		} catch {
 			// Non-fatal — individual span processing failure
@@ -800,14 +918,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
 						"indexingLevel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The indexing level for the session." },
 						"droppedEvents": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of events in a failed batch." },
-						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason session was disabled (no_consent, no_repo, init_error, create_error)." },
-						"transition": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Circuit breaker state transition (open, closed)." },
+						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason session was disabled (no_consent, no_repo, init_error, create_error, policy_blocked_cached)." },
+						"transition": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Circuit breaker state transition (open, half_open, closed)." },
 						"eventsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of actually submitted events (sum of eventsBySession sizes)." },
 						"orphanedCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of orphaned events not submitted (re-queued or dropped)." },
 						"batchDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time to submit batch in ms." },
 						"bufferSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Buffer size at time of event." },
 						"failureCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Consecutive failure count." },
-						"droppedCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Events dropped due to buffer overflow." }
+						"droppedCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Events dropped due to buffer overflow." },
+						"sessionCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of cloud sessions affected by a policy-blocked or rate-limited response in a flush batch." }
 					}
 				*/
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
@@ -827,6 +946,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					operation: 'sessionDisabled',
 					sessionSource,
 					reason: 'no_consent',
+				});
+				return;
+			}
+			if (this._isOwnerPolicyBlocked(repo.repoIds.ownerId)) {
+				this._disabledSessions.add(sessionId);
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'sessionDisabled',
+					sessionSource,
+					reason: 'policy_blocked_cached',
 				});
 				return;
 			}
@@ -870,6 +998,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		for (const sessionId of this._translationStates.keys()) {
 			if (!this._cloudSessions.has(sessionId) && !this._disabledSessions.has(sessionId)) {
+				if (this._isOwnerPolicyBlocked(repo.repoIds.ownerId)) {
+					this._disabledSessions.add(sessionId);
+					continue;
+				}
 				await this._createCloudSession(sessionId, repo, level);
 			}
 		}
@@ -889,12 +1021,34 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		if (!result.ok) {
 
-			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
-				operation: 'createCloudSession',
-				success: 'false',
-				error: result.reason?.substring(0, 100) ?? 'unknown',
-			}, {});
-			this._disabledSessions.add(sessionId);
+			if (result.reason === 'policy_blocked') {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'policyBlocked',
+				}, {
+					sessionCount: 1,
+				});
+				this._disabledSessions.add(sessionId);
+				this._rateLimitedSessions.delete(sessionId);
+				this._markOwnerPolicyBlocked(repo.repoIds.ownerId);
+			} else if (result.reason === 'rate_limited') {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'rateLimited',
+				}, {
+					sessionCount: 1,
+				});
+				// Transient — the client is self-backing-off. Mark for retry so
+				// buffered events for this session are not dropped as orphans
+				// and a later flush will reattempt initialization.
+				this._rateLimitedSessions.add(sessionId);
+			} else {
+				this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
+					operation: 'createCloudSession',
+					success: 'false',
+					error: result.reason?.substring(0, 100) ?? 'unknown',
+				}, {});
+				this._disabledSessions.add(sessionId);
+				this._rateLimitedSessions.delete(sessionId);
+			}
 			return;
 		}
 
@@ -905,6 +1059,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				error: 'missing_task_id',
 			}, {});
 			this._disabledSessions.add(sessionId);
+			this._rateLimitedSessions.delete(sessionId);
 			return;
 		}
 
@@ -914,6 +1069,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		};
 
 		this._cloudSessions.set(sessionId, cloudIds);
+		this._rateLimitedSessions.delete(sessionId);
 		this._invalidateLocalSyncedCount();
 
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
@@ -921,6 +1077,35 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			success: 'true',
 			indexingLevel,
 		});
+	}
+
+	/** Returns true if the owner is currently within the policy-blocked TTL window. */
+	private _isOwnerPolicyBlocked(ownerId: number): boolean {
+		const expiry = this._policyBlockedUntilByOwner.get(ownerId);
+		if (expiry === undefined) {
+			return false;
+		}
+		if (Date.now() >= expiry) {
+			this._policyBlockedUntilByOwner.delete(ownerId);
+			return false;
+		}
+		return true;
+	}
+
+	/** Record a policy-blocked response for an owner and show the user a one-time notification. */
+	private _markOwnerPolicyBlocked(ownerId: number): void {
+		this._policyBlockedUntilByOwner.set(ownerId, Date.now() + POLICY_BLOCKED_TTL_MS);
+		this._showPolicyBlockedNotification();
+	}
+
+	private _showPolicyBlockedNotification(): void {
+		if (this._policyNotificationShown) {
+			return;
+		}
+		this._policyNotificationShown = true;
+		void vscode.window.showInformationMessage(
+			vscode.l10n.t('Cloud sync for chat session insights is disabled for this workspace by your organization\'s policy.')
+		);
 	}
 
 	/**
@@ -978,15 +1163,36 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._translationStates.delete(sessionId);
 		this._disabledSessions.delete(sessionId);
 		this._initializingSessions.delete(sessionId);
+		this._pendingChatSpans.delete(sessionId);
+		this._rateLimitedSessions.delete(sessionId);
 		// Keep _cloudSessions entry — the cloud session ID mapping is needed
 		// for future delete operations (e.g. sidebar delete fires after dispose).
 	}
 
 	// ── Buffering ────────────────────────────────────────────────────────────────
 
+	/**
+	 * Buffer events, drop streaming deltas, and schedule a flush.
+	 *
+	 * Scheduling cadence:
+	 * - terminal event present in the batch → fast flush ({@link BATCH_INTERVAL_MS})
+	 * - buffer at/over {@link MAX_EVENTS_PER_FLUSH} → fast flush
+	 * - otherwise → safety flush ({@link SAFETY_INTERVAL_MS})
+	 */
 	private _bufferEvents(chatSessionId: string, events: SessionEvent[]): void {
+		let hasTerminal = false;
 		for (const event of events) {
+			if (STREAMING_EVENT_TYPES.has(event.type)) {
+				continue;
+			}
 			this._eventBuffer.push({ chatSessionId, event });
+			if (!hasTerminal && isTerminalFlushEvent(event)) {
+				hasTerminal = true;
+			}
+		}
+
+		if (this._eventBuffer.length === 0) {
+			return;
 		}
 
 		// Hard cap — drop oldest events
@@ -1000,20 +1206,33 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				bufferSize: MAX_BUFFER_SIZE,
 			});
 		}
+
+		if (hasTerminal || this._eventBuffer.length >= this._getMaxEventsPerFlush()) {
+			this._scheduleFlush(BATCH_INTERVAL_MS, 'fast');
+		} else {
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
+		}
 	}
 
-	// ── Flush timer ──────────────────────────────────────────────────────────────
+	// ── Flush scheduling ─────────────────────────────────────────────────────────
 
-	private _ensureFlushTimer(): void {
+	/**
+	 * Schedule a one-shot flush. Upgrade-only: a pending fast flush is never
+	 * downgraded by a later safety request.
+	 */
+	private _scheduleFlush(intervalMs: number, kind: 'fast' | 'safety'): void {
+
 		if (this._flushTimer !== undefined) {
-			return;
+			if (kind === 'safety' || this._flushTimerKind === 'fast') {
+				return;
+			}
+			clearTimeout(this._flushTimer);
 		}
 
-		const interval = this._eventBuffer.length > SOFT_BUFFER_CAP
-			? FAST_BATCH_INTERVAL_MS
-			: BATCH_INTERVAL_MS;
-
-		this._flushTimer = setInterval(() => {
+		this._flushTimerKind = kind;
+		this._flushTimer = setTimeout(() => {
+			this._flushTimer = undefined;
+			this._flushTimerKind = undefined;
 			this._flushBatch().catch(err => {
 
 				this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
@@ -1022,13 +1241,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					error: err instanceof Error ? err.message.substring(0, 100) : 'unknown',
 				}, {});
 			});
-		}, interval);
+		}, intervalMs);
 	}
 
 	private _stopFlushTimer(): void {
 		if (this._flushTimer !== undefined) {
-			clearInterval(this._flushTimer);
+			clearTimeout(this._flushTimer);
 			this._flushTimer = undefined;
+			this._flushTimerKind = undefined;
 		}
 	}
 
@@ -1040,9 +1260,6 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		}
 
 		if (this._eventBuffer.length === 0) {
-			if (this._cloudSessions.size === 0) {
-				this._stopFlushTimer();
-			}
 			return;
 		}
 
@@ -1051,28 +1268,70 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				const dropped = this._eventBuffer.length - MAX_BUFFER_SIZE;
 				this._eventBuffer.splice(0, dropped);
 			}
+			// Re-arm at the safety cadence so buffered events are retried once the
+			// breaker transitions to HALF_OPEN, even if no new spans arrive.
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
+			return;
+		}
+
+		// Skip the whole flush while the client is in rate-limit backoff. Calls
+		// would short-circuit anyway, but doing nothing here avoids the
+		// splice/unshift churn on each timer tick. _bufferEvents still enforces
+		// MAX_BUFFER_SIZE so memory stays bounded.
+		if (this._cloudClient.isRateLimited()) {
+			// Release the probe slot consumed by canRequest() above so we don't
+			// burn it on a flush we never actually attempted.
+			this._circuitBreaker.cancelProbe();
+			// Re-arm at the safety cadence so buffered events are retried once the
+			// client's Retry-After window elapses, even if no new spans arrive.
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
 			return;
 		}
 
 		this._isFlushing = true;
-		const batch = this._eventBuffer.splice(0, MAX_EVENTS_PER_FLUSH);
+		const batch = this._eventBuffer.splice(0, this._getMaxEventsPerFlush());
 		const batchStart = Date.now();
 		const uniqueSessionsInBatch = new Set(batch.map(e => e.chatSessionId)).size;
 		this._setSyncState({ kind: 'syncing', sessionCount: uniqueSessionsInBatch });
 
+		let flushFailed = false;
 		try {
 			// Group events by chat session ID for correct cloud session routing
-			const eventsBySession = new Map<string, SessionEvent[]>();
+			const eventsBySession = new Map<string, { events: SessionEvent[]; chatSessionIds: Set<string>; entries: typeof batch }>();
 			const orphanedEntries: typeof batch = [];
 
 			for (const entry of batch) {
 				const cloudIds = this._cloudSessions.get(entry.chatSessionId);
 				if (cloudIds) {
-					const arr = eventsBySession.get(cloudIds.cloudSessionId) ?? [];
-					arr.push(entry.event);
-					eventsBySession.set(cloudIds.cloudSessionId, arr);
+					const slot = eventsBySession.get(cloudIds.cloudSessionId);
+					if (slot) {
+						slot.events.push(entry.event);
+						slot.chatSessionIds.add(entry.chatSessionId);
+						slot.entries.push(entry);
+					} else {
+						eventsBySession.set(cloudIds.cloudSessionId, {
+							events: [entry.event],
+							chatSessionIds: new Set([entry.chatSessionId]),
+							entries: [entry],
+						});
+					}
 				} else {
 					orphanedEntries.push(entry);
+				}
+			}
+
+			// Retry cloud-session creation for any session previously marked
+			// rate-limited that now has buffered events. The client short-circuits
+			// while still in backoff, so this is cheap when the limit hasn't lifted.
+			if (this._rateLimitedSessions.size > 0 && this._repository) {
+				const repo = this._repository;
+				const level = this._indexingPreference.getStorageLevel(`${repo.owner}/${repo.repo}`);
+				const pending = new Set(orphanedEntries.map(e => e.chatSessionId));
+				const toRetry = [...this._rateLimitedSessions].filter(id =>
+					pending.has(id) && !this._initializingSessions.has(id)
+				);
+				for (const sessionId of toRetry) {
+					await this._createCloudSession(sessionId, repo, level);
 				}
 			}
 
@@ -1081,7 +1340,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			if (orphanedEntries.length > 0) {
 				const requeue = orphanedEntries.filter(e =>
 					!this._disabledSessions.has(e.chatSessionId)
-					&& (this._initializingSessions.has(e.chatSessionId) || this._cloudSessions.has(e.chatSessionId))
+					&& (this._initializingSessions.has(e.chatSessionId)
+						|| this._cloudSessions.has(e.chatSessionId)
+						|| this._rateLimitedSessions.has(e.chatSessionId))
 				);
 				if (requeue.length > 0) {
 					this._eventBuffer.unshift(...requeue);
@@ -1089,16 +1350,45 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			}
 
 			// Submit each session's events to the correct cloud session
-			let allSuccess = true;
+			let hadTransientError = false;
+			let policyBlockedSessions = 0;
+			let rateLimitedSessions = 0;
 			let submittedCount = 0;
-			for (const [cloudSessionId, events] of eventsBySession) {
-				submittedCount += events.length;
-				const filteredEvents = events.map(e => filterSecretsFromObj(e));
-				const success = await this._cloudClient.submitSessionEvents(cloudSessionId, filteredEvents);
-				if (!success) {
-					allSuccess = false;
+			const requeueOnRateLimit: typeof batch = [];
+			for (const [cloudSessionId, slot] of eventsBySession) {
+				submittedCount += slot.events.length;
+				const filteredEvents = slot.events.map(e => filterSecretsFromObj(e));
+				const result = await this._cloudClient.submitSessionEvents(cloudSessionId, filteredEvents);
+				if (result.ok) {
+					continue;
+				}
+				if (result.reason === 'policy_blocked') {
+					policyBlockedSessions++;
+					// Disable the affected chat session(s) so further events are dropped.
+					for (const chatSessionId of slot.chatSessionIds) {
+						this._disabledSessions.add(chatSessionId);
+					}
+					if (this._repository) {
+						this._markOwnerPolicyBlocked(this._repository.repoIds.ownerId);
+					}
+				} else if (result.reason === 'rate_limited') {
+					// Client is already self-backing-off; don't trip the circuit breaker.
+					// Requeue the unsent events so they're retried after the backoff, and
+					// fall into the safety cadence (60s) so we don't busy-poll the
+					// isRateLimited() flag at the fast batch interval until it lifts.
+					rateLimitedSessions++;
+					requeueOnRateLimit.push(...slot.entries);
+					flushFailed = true;
+				} else {
+					hadTransientError = true;
 				}
 			}
+
+			if (requeueOnRateLimit.length > 0) {
+				this._eventBuffer.unshift(...requeueOnRateLimit);
+			}
+
+			const allSuccess = !hadTransientError && policyBlockedSessions === 0 && rateLimitedSessions === 0;
 
 			if (allSuccess && eventsBySession.size > 0) {
 				this._circuitBreaker.recordSuccess();
@@ -1110,9 +1400,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					orphanedCount: orphanedEntries.length,
 					batchDurationMs: Date.now() - batchStart,
 					bufferSize: this._eventBuffer.length,
-				});
-
-				if (!this._firstCloudWriteLogged) {
+				}); if (!this._firstCloudWriteLogged) {
 					this._firstCloudWriteLogged = true;
 
 					this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
@@ -1120,28 +1408,53 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						sessionSource: this._firstCloudWriteSessionSource ?? 'unknown',
 					}, {});
 				}
-			} else if (!allSuccess) {
+			} else if (hadTransientError) {
 				this._circuitBreaker.recordFailure();
 				this._setSyncState({ kind: 'error' });
+				flushFailed = true;
 
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
-					operation: 'circuitBreaker',
-					transition: 'open',
+					operation: 'flushFailure',
 				}, {
 					failureCount: this._circuitBreaker.getFailureCount(),
 					eventsCount: submittedCount,
 					orphanedCount: orphanedEntries.length,
 					bufferSize: this._eventBuffer.length,
 				});
+			} else {
+				// Nothing failed but there was also nothing to submit (eg. all
+				// entries were orphans, or only policy/rate-limited sessions).
+				// Release any probe slot consumed by canRequest() so HALF_OPEN
+				// can probe again on the next tick instead of waiting for the
+				// probe timeout.
+				this._circuitBreaker.cancelProbe();
 			}
 
-			if (allSuccess) {
+			if (policyBlockedSessions > 0) {
+				// Policy responses are expected — do not count as circuit breaker failures.
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'policyBlocked',
+				}, {
+					sessionCount: policyBlockedSessions,
+				});
+			}
+
+			if (rateLimitedSessions > 0) {
+				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+					operation: 'rateLimited',
+				}, {
+					sessionCount: rateLimitedSessions,
+				});
+			}
+
+			if (!hadTransientError) {
 				this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 			}
 		} catch (err) {
 			// Re-queue on unexpected error
 			this._eventBuffer.unshift(...batch);
 			this._circuitBreaker.recordFailure();
+			flushFailed = true;
 
 			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
 				operation: 'flushBatch',
@@ -1153,9 +1466,20 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._isFlushing = false;
 		}
 
-		if (this._eventBuffer.length > SOFT_BUFFER_CAP && this._flushTimer !== undefined) {
-			this._stopFlushTimer();
-			this._ensureFlushTimer();
+		// Re-arm after a flush:
+		//  - transient failure or rate limit → back off at safety cadence (60s)
+		//    so we don't busy-loop against a failing or throttled endpoint;
+		//    the circuit breaker (for failures) and the client's own backoff
+		//    (for rate limits) still gate the actual request independently
+		//  - buffer still has work (re-queued orphans) → fast flush
+		//  - otherwise, keep a safety timer running while any cloud session is active
+		//    so late spans are caught even without a terminal event
+		if (flushFailed && this._eventBuffer.length > 0) {
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
+		} else if (this._eventBuffer.length > 0) {
+			this._scheduleFlush(BATCH_INTERVAL_MS, 'fast');
+		} else if (this._cloudSessions.size > 0) {
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
 		}
 	}
 

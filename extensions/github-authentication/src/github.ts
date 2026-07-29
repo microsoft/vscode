@@ -36,6 +36,12 @@ interface GitHubAuthenticationProviderRegistrationOptions {
 	readonly ghesUri?: vscode.Uri;
 	readonly providerId?: string;
 	readonly providerLabel?: string;
+	readonly registerProvider?: boolean;
+}
+
+interface GitHubEnterpriseAuthenticationProviderRegistrationOptions {
+	readonly ghesUris: readonly vscode.Uri[];
+	readonly defaultGhesUri?: vscode.Uri;
 }
 
 interface GitHubAuthenticationProviderOptions extends vscode.AuthenticationProviderSessionOptions {
@@ -182,9 +188,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const supportedAuthorizationServers = ghesUri
 			? [vscode.Uri.joinPath(ghesUri, '/login/oauth')]
 			: [vscode.Uri.parse('https://github.com/login/oauth')];
-		this._disposable = vscode.Disposable.from(
+		const disposables: vscode.Disposable[] = [
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(
+			this.context.secrets.onDidChange(() => this.checkForUpdates())
+		];
+		if (options?.registerProvider !== false) {
+			disposables.push(vscode.authentication.registerAuthenticationProvider(
 				providerId,
 				options?.providerLabel ?? this._githubServer.friendlyName,
 				this,
@@ -192,8 +201,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 					supportsMultipleAccounts: true,
 					supportedAuthorizationServers
 				}
-			),
-			this.context.secrets.onDidChange(() => this.checkForUpdates())
+			));
+		}
+		this._disposable = vscode.Disposable.from(
+			...disposables
 		);
 	}
 
@@ -458,4 +469,189 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			throw e;
 		}
 	}
+}
+
+export interface GitHubEnterpriseAuthenticationProviderEntry {
+	readonly ghesUri: vscode.Uri;
+	readonly authorizationServer: vscode.Uri;
+	readonly provider: vscode.AuthenticationProvider & vscode.Disposable;
+	readonly isDefault: boolean;
+}
+
+export class GitHubEnterpriseAuthenticationProviderRouter implements vscode.AuthenticationProvider, vscode.Disposable {
+	private readonly _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+	private readonly _defaultEntry: GitHubEnterpriseAuthenticationProviderEntry | undefined;
+	private readonly _disposable: vscode.Disposable;
+
+	constructor(private readonly _entries: readonly GitHubEnterpriseAuthenticationProviderEntry[]) {
+		this._defaultEntry = this._entries.find(entry => entry.isDefault);
+
+		const disposables: vscode.Disposable[] = [this._sessionChangeEmitter];
+		for (const entry of this._entries) {
+			disposables.push(
+				entry.provider,
+				entry.provider.onDidChangeSessions(event => this._sessionChangeEmitter.fire({
+					added: event.added?.map(session => this.decorateSession(session, entry)),
+					removed: event.removed?.map(session => this.decorateSession(session, entry)),
+					changed: event.changed?.map(session => this.decorateSession(session, entry))
+				}))
+			);
+		}
+		this._disposable = vscode.Disposable.from(...disposables);
+	}
+
+	dispose(): void {
+		this._disposable.dispose();
+	}
+
+	get onDidChangeSessions() {
+		return this._sessionChangeEmitter.event;
+	}
+
+	async getSessions(scopes: readonly string[] | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
+		const entries = options.authorizationServer
+			? [this.getEntry(options.authorizationServer)]
+			: scopes === undefined
+				? this._entries
+				: this._defaultEntry ? [this._defaultEntry] : [];
+		const sessions = await Promise.all(entries.map(async entry => {
+			const entryOptions = this.getEntryOptions(options, entry);
+			return (await entry.provider.getSessions(scopes, entryOptions)).map(session => this.decorateSession(session, entry));
+		}));
+		return sessions.flat();
+	}
+
+	async createSession(scopes: readonly string[], options: GitHubAuthenticationProviderOptions): Promise<vscode.AuthenticationSession> {
+		const entry = options.authorizationServer ? this.getEntry(options.authorizationServer) : this.getDefaultEntry();
+		const session = await entry.provider.createSession(scopes, this.getEntryOptions(options, entry));
+		return this.decorateSession(session, entry);
+	}
+
+	async removeSession(id: string): Promise<void> {
+		for (const entry of this._entries) {
+			const sessions = await entry.provider.getSessions(undefined, {});
+			const session = sessions.find(candidate => candidate.id === id);
+			if (session) {
+				return entry.provider.removeSession(id);
+			}
+		}
+		throw new Error('Session not found');
+	}
+
+	private getDefaultEntry(): GitHubEnterpriseAuthenticationProviderEntry {
+		if (!this._defaultEntry) {
+			throw new Error('"github-enterprise.uri" is not configured');
+		}
+		return this._defaultEntry;
+	}
+
+	private getEntry(authorizationServer: vscode.Uri): GitHubEnterpriseAuthenticationProviderEntry {
+		const key = authorizationServer.toString(true);
+		const entry = this._entries.find(candidate => candidate.authorizationServer.toString(true) === key);
+		if (!entry) {
+			throw new Error(`Unsupported GitHub Enterprise authorization server: ${key}`);
+		}
+		return entry;
+	}
+
+	private getEntryOptions(options: vscode.AuthenticationProviderSessionOptions, entry: GitHubEnterpriseAuthenticationProviderEntry): vscode.AuthenticationProviderSessionOptions {
+		if (!options.account || entry.isDefault) {
+			return options;
+		}
+		const idPrefix = `${entry.ghesUri.authority}:`;
+		const suffix = ` (${entry.ghesUri.authority})`;
+		const isDecorated = options.account.id.startsWith(idPrefix);
+		const label = isDecorated && options.account.label.endsWith(suffix)
+			? options.account.label.slice(0, -suffix.length)
+			: options.account.label;
+		return {
+			...options,
+			account: {
+				id: isDecorated
+					? options.account.id.slice(idPrefix.length)
+					: options.account.id,
+				label
+			}
+		};
+	}
+
+	private decorateSession(session: vscode.AuthenticationSession, entry: GitHubEnterpriseAuthenticationProviderEntry): vscode.AuthenticationSession {
+		if (entry.isDefault) {
+			return session;
+		}
+		return {
+			...session,
+			account: {
+				id: `${entry.ghesUri.authority}:${session.account.id}`,
+				label: `${session.account.label} (${entry.ghesUri.authority})`
+			}
+		};
+	}
+}
+
+export class GitHubEnterpriseAuthenticationProvider extends GitHubEnterpriseAuthenticationProviderRouter {
+	private readonly _registration: vscode.Disposable;
+
+	constructor(
+		context: vscode.ExtensionContext,
+		uriHandler: UriEventHandler,
+		options: GitHubEnterpriseAuthenticationProviderRegistrationOptions
+	) {
+		const entries = createGitHubEnterpriseProviderEntries(context, uriHandler, options);
+		super(entries);
+		this._registration = vscode.authentication.registerAuthenticationProvider(
+			AuthProviderType.githubEnterprise,
+			'GitHub Enterprise',
+			this,
+			{
+				supportsMultipleAccounts: true,
+				supportedAuthorizationServers: entries.map(entry => entry.authorizationServer)
+			}
+		);
+	}
+
+	override dispose(): void {
+		this._registration.dispose();
+		super.dispose();
+	}
+}
+
+function createGitHubEnterpriseProviderEntries(
+	context: vscode.ExtensionContext,
+	uriHandler: UriEventHandler,
+	options: GitHubEnterpriseAuthenticationProviderRegistrationOptions
+): GitHubEnterpriseAuthenticationProviderEntry[] {
+	const defaultGhesUri = options.defaultGhesUri && normalizeGhesUri(options.defaultGhesUri);
+	const entries = new Map<string, GitHubEnterpriseAuthenticationProviderEntry>();
+	for (const configuredUri of options.ghesUris) {
+		const ghesUri = normalizeGhesUri(configuredUri);
+		const authorizationServer = getAuthorizationServer(ghesUri);
+		const key = authorizationServer.toString(true);
+		if (entries.has(key)) {
+			continue;
+		}
+		entries.set(key, {
+			ghesUri,
+			authorizationServer,
+			provider: new GitHubAuthenticationProvider(context, uriHandler, {
+				// Preserve the configured URI for the keychain identifier so existing sessions remain available.
+				ghesUri: configuredUri,
+				registerProvider: false
+			}),
+			isDefault: defaultGhesUri?.toString(true) === ghesUri.toString(true)
+		});
+	}
+	return [...entries.values()];
+}
+
+function normalizeGhesUri(uri: vscode.Uri): vscode.Uri {
+	return uri.with({
+		path: uri.path.replace(/\/+$/, ''),
+		query: '',
+		fragment: ''
+	});
+}
+
+export function getAuthorizationServer(ghesUri: vscode.Uri): vscode.Uri {
+	return vscode.Uri.joinPath(normalizeGhesUri(ghesUri), '/login/oauth');
 }

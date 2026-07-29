@@ -43,7 +43,7 @@ export class ChatSuggestNextWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -99,9 +99,8 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.removeChild(child);
 		}
 
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 		const isAutopilotPolicyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const firstAutoSendHandoff = isAutopilotEnabled && !isAutopilotPolicyRestricted ? handoffs.find(h => h.send) : undefined;
+		const firstAutoSendHandoff = !isAutopilotPolicyRestricted ? handoffs.find(h => h.send) : undefined;
 
 		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);

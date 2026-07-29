@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Agent-sessions font-ramp size tokens.
+// Agent-sessions size tokens.
 //
 // Registrations live here in the sessions layer. The workbench entry point
 // (`workbench.common.main.ts`) imports this file as a side-effect so the
@@ -14,8 +14,26 @@ import { localize } from '../../nls.js';
 import { registerSize, sizeForAllThemes } from '../../platform/theme/common/sizeUtils.js';
 
 // ============================================================================
+// Agents window — layout
+// ============================================================================
+
+export const AGENTS_FLOATING_PANEL_GAP = 5;
+
+/** Gap between floating panels in the Agents window. */
+export const agentsLayoutFloatingPanelGap = registerSize(
+	'agents.layout.floatingPanelGap',
+	sizeForAllThemes(AGENTS_FLOATING_PANEL_GAP, 'px'),
+	localize('agents.layout.floatingPanelGap', "Gap between floating panels in the Agents window.")
+);
+
+// ============================================================================
 // Agents window — font ramp
 // ============================================================================
+//
+// "Strong" variants in the design (e.g. "Body 1 Strong", "Label 2 Strong") are
+// NOT separate size tokens: they reuse the matching size token paired with
+// `agents.fontWeight.semiBold` (600). Regular text pairs with
+// `agents.fontWeight.regular` (400). The ramp defines only these two weights.
 
 /** 26 px · SemiBold (600) — Welcome screen title */
 export const agentsFontSizeHeading1 = registerSize(
@@ -52,32 +70,25 @@ export const agentsFontSizeBody2 = registerSize(
 	localize('agents.fontSize.body2', "Secondary body font size for the agents window.")
 );
 
-/** 12 px · Medium (500) — Interactive tabs */
+/** 12 px · Regular (400) — Section title, tabs */
 export const agentsFontSizeLabel1 = registerSize(
 	'agents.fontSize.label1',
 	sizeForAllThemes(12, 'px'),
-	localize('agents.fontSize.label1', "Label 1 font size for the agents window (interactive tabs).")
+	localize('agents.fontSize.label1', "Label 1 font size for the agents window (section title, tabs).")
 );
 
-/** 11 px · Medium (500) — Metadata emphasis */
+/** 11 px · Regular (400) — Metadata */
 export const agentsFontSizeLabel2 = registerSize(
 	'agents.fontSize.label2',
 	sizeForAllThemes(11, 'px'),
-	localize('agents.fontSize.label2', "Label 2 font size for the agents window (metadata emphasis).")
-);
-
-/** 11 px · Regular (400) — Metadata primary */
-export const agentsFontSizeLabel3 = registerSize(
-	'agents.fontSize.label3',
-	sizeForAllThemes(11, 'px'),
-	localize('agents.fontSize.label3', "Label 3 font size for the agents window (metadata primary).")
+	localize('agents.fontSize.label2', "Label 2 font size for the agents window (metadata).")
 );
 
 /** 10 px · Regular (400) — Badge */
-export const agentsFontSizeLabel4 = registerSize(
-	'agents.fontSize.label4',
+export const agentsFontSizeLabel3 = registerSize(
+	'agents.fontSize.label3',
 	sizeForAllThemes(10, 'px'),
-	localize('agents.fontSize.label4', "Label 4 font size for the agents window (badge).")
+	localize('agents.fontSize.label3', "Label 3 font size for the agents window (badge).")
 );
 
 // ============================================================================
@@ -89,13 +100,6 @@ export const agentsFontWeightRegular = registerSize(
 	'agents.fontWeight.regular',
 	sizeForAllThemes(400, ''),
 	localize('agents.fontWeight.regular', "Regular font weight (400) for the agents window.")
-);
-
-/** Medium — 500 */
-export const agentsFontWeightMedium = registerSize(
-	'agents.fontWeight.medium',
-	sizeForAllThemes(500, ''),
-	localize('agents.fontWeight.medium', "Medium font weight (500) for the agents window.")
 );
 
 /** SemiBold — 600 */

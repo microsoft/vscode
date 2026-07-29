@@ -8,6 +8,13 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export interface IDiffCountResult {
 	added: number;
 	removed: number;
+	changes: readonly IOffsetEdit[];
+}
+
+export interface IOffsetEdit {
+	startOffset: number;
+	endOffsetExclusive: number;
+	newText: string;
 }
 
 export const IDiffComputeService = createDecorator<IDiffComputeService>('diffComputeService');
@@ -24,7 +31,7 @@ export interface IDiffComputeService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Computes line-level diff counts between two text strings.
+	 * Computes line-level diff counts and character edits between two text strings.
 	 * @param original - The original text.
 	 * @param modified - The modified text to compare against the original.
 	 * @param timeoutMs - Maximum time in milliseconds before aborting. Defaults to {@link DEFAULT_DIFF_TIMEOUT_MS}.

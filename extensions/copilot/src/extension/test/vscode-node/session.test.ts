@@ -188,7 +188,7 @@ suite('Session tests', function () {
 			assert.strictEqual(readUserScopeSessionStub.calledOnce, false);
 		});
 
-		test('should use the Copilot enterprise provider if configured', async () => {
+		test('should use the configured Copilot enterprise authorization server', async () => {
 			const configurationService = new InMemoryConfigurationService(
 				new DefaultsOnlyConfigurationService(),
 				new Map<Config<any>, unknown>([
@@ -196,11 +196,12 @@ suite('Session tests', function () {
 				]),
 				undefined
 			);
+			await configurationService.setNonExtensionConfig('github.copilot.enterprise.uri', 'https://copilot.example.com/');
 
 			const gheSessionId = 'ghe-session-id-1';
 
 			getAccountsStub.resolves([{ id: 'account', label: 'ghe-session-label' }]);
-			const gheSessionStub = getSessionStub.withArgs('github-enterprise-copilot', GITHUB_SCOPE_READ_USER, sinon.match.any);
+			const gheSessionStub = getSessionStub.withArgs('github-enterprise', GITHUB_SCOPE_READ_USER, sinon.match.any);
 			gheSessionStub.resolves({
 				id: gheSessionId,
 				accessToken: 'new-token',
@@ -214,6 +215,7 @@ suite('Session tests', function () {
 			assert.strictEqual((result as AuthenticationSession)?.id, gheSessionId);
 			assert.strictEqual(gheSessionStub.calledOnce, true);
 			assert.strictEqual(ghSessionStub.notCalled, true);
+			assert.strictEqual(gheSessionStub.firstCall.args[2]?.authorizationServer?.toString(), 'https://copilot.example.com/login/oauth');
 		});
 	});
 

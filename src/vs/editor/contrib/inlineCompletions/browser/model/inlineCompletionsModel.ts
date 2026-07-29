@@ -1096,7 +1096,7 @@ export class InlineCompletionsModel extends Disposable {
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)].filter(isDefined);
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 
-				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, type));
+				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, this.textModel.getLanguageId(), type));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Smooth);
 			} finally {
@@ -1203,7 +1203,8 @@ export class InlineCompletionsModel extends Disposable {
 	 * Used for cross-file inline edits.
 	 */
 	public transplantCompletion(item: InlineSuggestionItem): void {
-		item.addRef();
+		// No explicit addRef needed: `seedWithCompletion` creates a new `InlineCompletionsState`
+		// which calls `addRef` on every item it holds and pairs it with `removeRef` in dispose.
 		transaction(tx => {
 			this._source.seedWithCompletion(item, tx);
 			this._isActive.set(true, tx);

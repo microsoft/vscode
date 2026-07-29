@@ -142,6 +142,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
 
 	@memoize
+	get agentSessionsWorkspace(): URI { return joinPath(this.userRoamingDataHome, 'agent-sessions.code-workspace'); }
+
+	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
 	@memoize
@@ -200,7 +203,15 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this.extensionHostDebugEnvironment.extensionEnabledProposedApi;
+		if (this.extensionHostDebugEnvironment.extensionEnabledProposedApi !== undefined) {
+			return this.extensionHostDebugEnvironment.extensionEnabledProposedApi;
+		}
+
+		if (this.options.enabledExtensionProposedApi !== undefined) {
+			return [...this.options.enabledExtensionProposedApi];
+		}
+
+		return undefined;
 	}
 
 	@memoize

@@ -21,16 +21,89 @@ export function validateShellToken(value: string, label: string): string {
 	return value;
 }
 
-/** Install location for the VS Code CLI on the remote machine. */
-export function getRemoteCLIDir(quality: string): string {
-	const q = validateShellToken(quality, 'quality');
-	return q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+/**
+ * Validate and normalize a commit SHA. Returns the lowercase form.
+ *
+ * The commit-keyed install layout, the cleanup glob (`[0-9a-f]{40}`), and
+ * the fallback discovery glob all assume an exactly-40-char lowercase hex
+ * commit. If a caller ever supplies a non-SHA value (or uppercase hex),
+ * the cleanup pass would silently miss those binaries and the
+ * commit-pinned download URL could 404. Enforce the shape at the source.
+ *
+ * `productService.commit` is already lowercase hex in practice; the
+ * normalization is defense-in-depth for any future callers.
+ */
+export function validateCommit(commit: string): string {
+	const normalized = commit.toLowerCase();
+	if (!/^[0-9a-f]{40}$/.test(normalized)) {
+		throw new Error(`Unsafe commit value (expected 40-char hex SHA): ${JSON.stringify(commit)}`);
+	}
+	return normalized;
 }
 
-export function getRemoteCLIBin(quality: string): string {
+/**
+ * Name of the CLI binary as it appears inside the downloaded archive,
+ * derived from product quality. Matches the names used by Remote-SSH's
+ * exec-server installer so that CLI binaries can be shared between the
+ * two features.
+ */
+export function getRemoteCLIArchiveName(quality: string): string {
 	const q = validateShellToken(quality, 'quality');
-	const binaryName = q === 'stable' ? 'code' : 'code-insiders';
-	return `${getRemoteCLIDir(q)}/${binaryName}`;
+	switch (q) {
+		case 'stable': return 'code';
+		case 'exploration': return 'code-exploration';
+		default: return 'code-insiders';
+	}
+}
+
+/**
+ * Install root for the VS Code CLI on the remote machine. Shared with
+ * Remote-SSH's exec-server installer so the two features can reuse each
+ * other's installations. Also the parent of the agent host lockfile dir.
+ */
+export function getRemoteCLIInstallRoot(serverDataFolderName: string): string {
+	const d = validateShellToken(serverDataFolderName, 'server data folder name');
+	return `~/${d}`;
+}
+
+/**
+ * Per-machine launcher data dir for `code agent host` (and the embedded
+ * CLI machinery it inherits). Passed as `--cli-data-dir` so the CLI's
+ * downloads cache, unpacked server installs, supervisor logs, and other
+ * launcher state land under the same root Remote-SSH's `command-shell`
+ * uses (e.g. `~/.vscode-server/cli`). Without this flag the CLI would
+ * default to `~/.vscode-cli{,-<quality>}/` and split state across two
+ * roots.
+ *
+ * The lockfile is unaffected: the Rust CLI anchors it on
+ * `serverDataFolderName` regardless of `--cli-data-dir` (see
+ * `cli/src/state.rs::agent_host_root`).
+ */
+export function getRemoteCLIDataDir(serverDataFolderName: string): string {
+	return `${getRemoteCLIInstallRoot(serverDataFolderName)}/cli`;
+}
+
+/**
+ * Full path to the installed CLI binary on the remote.
+ *
+ * When `commit` is provided, the path is keyed on commit (e.g.
+ * `~/.vscode-server/code-insiders-<40hex>`) so we can install the CLI
+ * matching the current desktop without disturbing other installs. This
+ * mirrors Remote-SSH's exec-server layout.
+ *
+ * When `commit` is undefined (dev/OSS builds with no commit in product
+ * metadata), the path is just `<root>/<archive>` — a single, non-keyed
+ * filename. Caller code should keep the loose `--version`-based reuse
+ * check in that case.
+ */
+export function getRemoteCLIBin(serverDataFolderName: string, quality: string, commit?: string): string {
+	const archive = getRemoteCLIArchiveName(quality);
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	if (commit) {
+		const c = validateCommit(commit);
+		return `${root}/${archive}-${c}`;
+	}
+	return `${root}/${archive}`;
 }
 
 /** Escape a string for use as a single shell argument (single-quote wrapping). */
@@ -38,6 +111,24 @@ export function shellEscape(s: string): string {
 	// Wrap in single quotes; escape embedded single quotes as: '\''
 	const escaped = s.replace(/'/g, '\'\\\'\'');
 	return `'${escaped}'`;
+}
+
+/**
+ * Construct the bare command that launches the agent host on the remote.
+ *
+ * `--cli-data-dir` is passed up-front so the embedded CLI's launcher
+ * state (downloads cache, unpacked server installs, supervisor log) lands
+ * under `<cliDataDir>` — the same root Remote-SSH uses. The supervisor
+ * propagates this flag to its detached child (see
+ * `cli/src/commands/agent_host.rs`), so the entire AH process tree
+ * agrees on one launcher root.
+ *
+ * Inputs must already be safe for unquoted shell interpolation; callers
+ * build them via {@link getRemoteCLIBin} / {@link getRemoteCLIDataDir}
+ * which validate their components.
+ */
+export function buildAgentHostBaseCommand(cliBin: string, cliDataDir: string): string {
+	return `${cliBin} --cli-data-dir ${cliDataDir} agent host --port 0`;
 }
 
 export function resolveRemotePlatform(unameS: string, unameM: string): { os: string; arch: string } | undefined {
@@ -67,13 +158,138 @@ export function resolveRemotePlatform(unameS: string, unameM: string): { os: str
 	return { os: platformOs, arch };
 }
 
-export function buildCLIDownloadUrl(os: string, arch: string, quality: string): string {
-	return `https://update.code.visualstudio.com/latest/cli-${os}-${arch}/${quality}`;
+/**
+ * URL of the CLI download artifact.
+ *
+ * When `commit` is provided, uses the commit-pinned URL form so we get
+ * the exact CLI matching the current desktop build (mirrors Remote-SSH).
+ * When `commit` is undefined (dev/OSS builds), falls back to `latest`.
+ */
+export function buildCLIDownloadUrl(os: string, arch: string, quality: string, commit?: string): string {
+	const base = 'https://update.code.visualstudio.com';
+	const artifact = `cli-${os}-${arch}`;
+	if (commit) {
+		// Defense-in-depth: same validation as getRemoteCLIBin so the URL
+		// can never be formed with a non-SHA commit (would 404) and stays
+		// consistent with the commit-keyed install path.
+		const c = validateCommit(commit);
+		return `${base}/commit:${c}/${artifact}/${quality}`;
+	}
+	return `${base}/latest/${artifact}/${quality}`;
+}
+
+/**
+ * Shell snippet that prunes older commit-keyed CLI binaries from the
+ * install root, keeping the 5 most recently modified. Mirrors the
+ * retention policy in Remote-SSH's exec-server installer.
+ *
+ * The glob is tightened to exactly 40 hex chars (`[0-9a-f]`-only) so we
+ * never accidentally delete (or hand to `xargs`) any filename that
+ * happens to start with `<archive>-` but isn't actually one of our
+ * commit-keyed binaries — both for correctness and to avoid passing
+ * attacker-controlled filenames through `xargs rm` with option/whitespace
+ * splitting hazards. We also use `rm -f --` and `xargs -I{}` (which
+ * skips the command entirely on empty input on both GNU and BSD `xargs`).
+ */
+export function buildCleanupOldCLIsCommand(serverDataFolderName: string, quality: string): string {
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const archive = getRemoteCLIArchiveName(quality);
+	const commitGlob = '[0-9a-f]'.repeat(40);
+	// `ls -1t` sorts by mtime newest-first on both Linux (coreutils) and
+	// macOS (BSD). `awk 'NR>5'` drops the 5 most recent entries we want to
+	// keep. `xargs -I{} rm -f -- {}` is one-rm-per-line — slow but safe
+	// against whitespace splitting and option injection, and a no-op when
+	// input is empty on both BSDs and GNU.
+	return `ls -1t -- ${root}/${archive}-${commitGlob} 2>/dev/null | awk 'NR>5' | xargs -I{} rm -f -- {} 2>/dev/null; true`;
+}
+
+/**
+ * Shell snippet that prints candidate CLI binary paths that could be
+ * used as a fallback when the commit-pinned download fails. Order: any
+ * commit-keyed binaries in the shared install root (newest mtime first),
+ * then the legacy single-binary paths from the previous installer
+ * (`~/.vscode-cli{,-<quality>}/<archive>`).
+ *
+ * Each line is a single path. The glob for commit-keyed candidates is
+ * restricted to exactly 40 hex chars so the output can only contain
+ * filenames we recognise (callers should still re-validate with
+ * {@link isValidFallbackCLIPath}). The legacy paths are fixed strings
+ * derived from validated tokens, so they cannot contain shell
+ * metacharacters either.
+ */
+export function buildFindFallbackCLICommand(serverDataFolderName: string, quality: string): string {
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const archive = getRemoteCLIArchiveName(quality);
+	const commitGlob = '[0-9a-f]'.repeat(40);
+	const q = validateShellToken(quality, 'quality');
+	const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+	const legacyBin = `${legacyDir}/${archive}`;
+	return [
+		`ls -1t -- ${root}/${archive}-${commitGlob} 2>/dev/null`,
+		`ls -1 -- ${legacyBin} 2>/dev/null`,
+		'true',
+	].join('; ');
+}
+
+/**
+ * Validate that a candidate path string returned by the remote shell
+ * matches one of the two shapes we expect from
+ * {@link buildFindFallbackCLICommand}:
+ *
+ *  - `<installRoot>/<archive>-<40 hex chars>` — commit-keyed install
+ *  - `<legacyDir>/<archive>` — legacy single-binary install
+ *
+ * Anything else is rejected. This guards against the candidate being
+ * interpolated into a follow-up shell command (`<candidate> --version`,
+ * agent host spawn) with attacker-controlled metacharacters in the
+ * event that something unexpected ends up in the install root.
+ */
+export function isValidFallbackCLIPath(candidate: string, serverDataFolderName: string, quality: string): boolean {
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const archive = getRemoteCLIArchiveName(quality);
+	const q = validateShellToken(quality, 'quality');
+	const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+	const legacyBin = `${legacyDir}/${archive}`;
+	if (candidate === legacyBin) {
+		return true;
+	}
+	const pinnedPrefix = `${root}/${archive}-`;
+	if (candidate.startsWith(pinnedPrefix)) {
+		const suffix = candidate.slice(pinnedPrefix.length);
+		return /^[0-9a-f]{40}$/.test(suffix);
+	}
+	return false;
 }
 
 /** Redact connection tokens from log output. */
 export function redactToken(text: string): string {
 	return text.replace(/\?tkn=[^\s&]+/g, '?tkn=***');
+}
+
+/**
+ * Match the `ws://127.0.0.1:PORT[?tkn=TOKEN]` URL emitted by `code agent host`
+ * on stdout/stderr. Shared by SSH and WSL agent-host transports — both spawn
+ * the CLI inside a posix shell and scrape its first line of output to discover
+ * the WebSocket endpoint.
+ */
+const AGENT_HOST_WS_URL_RE = /ws:\/\/(?:127\.0\.0\.1|localhost):(\d+)(?:\?tkn=([^\s&]+))?/;
+
+/**
+ * Extract the `ws://` URL printed by `code agent host` from a line or buffer
+ * of mixed output. Returns the full URL plus its parsed components, or
+ * `undefined` if no match is found.
+ */
+export function extractAgentHostWebSocketURL(text: string): { url: string; host: string; port: number; token: string | undefined } | undefined {
+	const match = text.match(AGENT_HOST_WS_URL_RE);
+	if (!match) {
+		return undefined;
+	}
+	return {
+		url: match[0],
+		host: '127.0.0.1',
+		port: parseInt(match[1], 10),
+		token: match[2] || undefined,
+	};
 }
 
 /**

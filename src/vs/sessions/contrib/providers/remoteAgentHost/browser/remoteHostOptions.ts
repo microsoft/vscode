@@ -13,7 +13,6 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -34,6 +33,10 @@ export async function removeRemoteHost(provider: IAgentHostSessionsProvider, rem
 	} else if (provider.remoteAddress) {
 		await remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
 	}
+}
+
+export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStatus): boolean {
+	return RemoteAgentHostConnectionStatus.isConnecting(status) || RemoteAgentHostConnectionStatus.isConnected(status);
 }
 
 /**
@@ -87,10 +90,9 @@ export async function runServerUpgrade(
 					const watchStore = new DisposableStore();
 					let reconnectAlreadyInFlight = false;
 					if (provider.connectionStatus) {
-						const initialStatus = provider.connectionStatus.get();
 						watchStore.add(autorun(reader => {
 							const next = provider.connectionStatus!.read(reader);
-							if (next !== initialStatus && !RemoteAgentHostConnectionStatus.isIncompatible(next)) {
+							if (hasUpgradeReconnectStarted(next)) {
 								reconnectAlreadyInFlight = true;
 							}
 						}));
@@ -236,7 +238,7 @@ export interface IShowRemoteHostOptionsOptions {
 
 /**
  * Show the per-remote management options quickpick (Reconnect / Remove /
- * Copy Address / Open Settings / Show Output) for the given provider.
+ * Copy Address / Open Settings) for the given provider.
  *
  * Used by both the Workspace Picker's Manage submenu and the F1
  * "Manage Remote Agent Hosts..." command, so both surfaces drive the
@@ -256,7 +258,6 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const clipboardService = accessor.get(IClipboardService);
 	const preferencesService = accessor.get(IPreferencesService);
-	const outputService = accessor.get(IOutputService);
 	const productService = accessor.get(IProductService);
 	const instantiationService = accessor.get(IInstantiationService);
 
@@ -277,9 +278,6 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
 		{ label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' },
 	);
-	if (provider.outputChannelId) {
-		items.push({ label: '$(output) ' + localize('workspacePicker.showOutput', "Show Output"), id: 'output' });
-	}
 
 	const result = await new Promise<'back' | RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();
@@ -342,11 +340,6 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			break;
 		case 'settings':
 			await preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
-			break;
-		case 'output':
-			if (provider.outputChannelId) {
-				outputService.showChannel(provider.outputChannelId, true);
-			}
 			break;
 	}
 	return undefined;

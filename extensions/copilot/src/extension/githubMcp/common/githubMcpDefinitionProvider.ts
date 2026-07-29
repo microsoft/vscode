@@ -111,7 +111,7 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 		const channel = this.channel;
 		const isSignedIn = !!this.authenticationService.permissiveGitHubSession;
 
-		const basics = providerId === AuthProviderId.GitHubEnterpriseCopilot
+		const basics = providerId === AuthProviderId.GitHubEnterprise
 			? { label: 'GitHub Enterprise', uri: this.getGheUri() }
 			: { label: 'GitHub', uri: URI.parse('https://api.githubcopilot.com/mcp/') };
 
