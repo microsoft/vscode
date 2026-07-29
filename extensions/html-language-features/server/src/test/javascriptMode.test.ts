@@ -30,6 +30,11 @@ suite('HTML JavaScript Validation', () => {
 		assert.deepStrictEqual(diagnostics, []);
 	});
 
+	test('isolates module var declarations from classic scripts', async () => {
+		const diagnostics = await getJavaScriptDiagnostics('<script>let value = 1;</script><script type="module">var value = 2;</script>');
+		assert.deepStrictEqual(diagnostics, []);
+	});
+
 	test('isolates declarations in separate module scripts', async () => {
 		const diagnostics = await getJavaScriptDiagnostics('<script type="module">var value = 1;</script><script type="module">let value = 2;</script>');
 		assert.deepStrictEqual(diagnostics, []);
@@ -49,12 +54,12 @@ suite('HTML JavaScript Validation', () => {
 	});
 
 	test('maps module diagnostics to the HTML document', async () => {
-		const diagnostics = await getJavaScriptDiagnostics('<script type="module">let value; let value;</script>');
+		const diagnostics = await getJavaScriptDiagnostics('<script type="module">\nlet value;\nlet value;\n</script>');
 		assert.deepStrictEqual(diagnostics.map(diagnostic => ({ range: diagnostic.range, message: diagnostic.message })), [{
-			range: { start: { line: 0, character: 26 }, end: { line: 0, character: 31 } },
+			range: { start: { line: 1, character: 4 }, end: { line: 1, character: 9 } },
 			message: 'Cannot redeclare block-scoped variable \'value\'.'
 		}, {
-			range: { start: { line: 0, character: 37 }, end: { line: 0, character: 42 } },
+			range: { start: { line: 2, character: 4 }, end: { line: 2, character: 9 } },
 			message: 'Cannot redeclare block-scoped variable \'value\'.'
 		}]);
 	});
