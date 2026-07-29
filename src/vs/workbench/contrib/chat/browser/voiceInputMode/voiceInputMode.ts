@@ -147,7 +147,9 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		this.selectedMode = this._selectedMode;
 
 		const storedVariation = this.storageService.get(ANIMATION_VARIATION_STORAGE_KEY, StorageScope.PROFILE);
-		const initialVariation: VoiceAnimationVariation = storedVariation === 'beam' ? 'beam' : 'aurora';
+		const initialVariation: VoiceAnimationVariation =
+			storedVariation === 'border' ? 'border' :
+				storedVariation === 'rim' ? 'rim' : 'bloom';
 		this._voiceAnimationVariation = observableValue<VoiceAnimationVariation>(this, initialVariation);
 		this.voiceAnimationVariation = this._voiceAnimationVariation;
 

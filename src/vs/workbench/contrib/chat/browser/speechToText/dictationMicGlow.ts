@@ -7,6 +7,8 @@ import { getWindow } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
 import { createVoiceRim } from '../voiceClient/voiceGlowController.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
@@ -50,6 +52,7 @@ export function setupDictationMicGlow(
 	target: HTMLElement,
 	service: IChatSpeechToTextService,
 	accessibilityService: IAccessibilityService,
+	themeService: IThemeService,
 ): IDisposable {
 	const store = new DisposableStore();
 	const window = getWindow(target);
@@ -60,7 +63,11 @@ export function setupDictationMicGlow(
 	// The "Inside Rim" treatment from Voice Mode, locked to the cool (listening)
 	// colors, replacing the former flat blue inner glow. The dictation cell is a
 	// full pill, so the rim uses the pill radius to hug its rounded ends.
-	const rim = store.add(createVoiceRim(target, { warm: false, pill: true }));
+	const rim = store.add(createVoiceRim(target, {
+		warm: false,
+		pill: true,
+		themeKind: () => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
+	}));
 
 	const stopAnimation = () => {
 		if (animationFrame !== undefined) {

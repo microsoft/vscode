@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Shared, theme-aware glow math for voice-mode input decorations. The main
- * window's `ChatViewPane` and the Agents window surfaces render an identical
- * glow; this is the single source of truth for the easy-to-drift intensity,
- * color and box-shadow math. Callers own their own animation loop, target, and
- * gating (see `voiceGlowRenderer.ts` for the DOM applier that consumes these).
+ * Shared voice-mode glow helpers: the state model, the audio-intensity reducer
+ * and the synthetic breathing curve. The DOM applier that consumes these lives
+ * in `voiceGlowController.ts`; callers own their own animation loop, target and
+ * gating.
  *
  * This module is intentionally pure (no DOM / CSS imports) so it stays unit
  * testable.
@@ -22,11 +21,16 @@ import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceProcessingGlow
 export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
 /**
- * The two ambient-glow designs. `aurora` is a soft breathing box-shadow wash;
- * `beam` is a traveling comet that re-tints the same border-beam language used by
- * the working/progress ring. Both are theme-aware and handle every glowing state.
+ * The three ambient-glow designs the user can switch between:
+ * - `bloom`: a soft exterior halo that blooms outside the input box (cool while
+ *   listening, warm while speaking), with an interior rim breath for processing.
+ * - `border`: a crisp light that travels around the input's border with an inner
+ *   glow, audio-reactive and cool/warm, with no exterior halo.
+ * - `rim`: an audio-reactive interior rim while listening/speaking (cool/warm),
+ *   the travelling border for processing, and a subtle rim breath while idle.
+ * All are theme-aware and handle every glowing state.
  */
-export type VoiceAnimationVariation = 'aurora' | 'beam';
+export type VoiceAnimationVariation = 'bloom' | 'border' | 'rim';
 
 /**
  * Glow states that actually render a border/box-shadow. Connected-idle voice

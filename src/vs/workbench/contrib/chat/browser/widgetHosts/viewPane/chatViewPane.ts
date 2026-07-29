@@ -39,6 +39,7 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../../../platform/theme/common/theme.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
@@ -454,7 +455,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let animFrameId: number | undefined;
 		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 		const win = getWindow(inputContainerEl);
-		const glowController = this._register(createVoiceGlowController(inputContainerEl));
+		const glowController = this._register(createVoiceGlowController(
+			inputContainerEl,
+			() => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
+		));
+		this._register(this.themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 		// The session this pane's voice UI belongs to, kept in sync by the
 		// transcript ownership autorun below. The glow only renders on the input
 		// of the session voice is actually bound to, so it never lingers on a
@@ -488,7 +493,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// simulation bypasses ownership so the walkthrough can light up here.
 				const currentSession = this._currentSessionResource.get();
 				const isOwner = !voiceUiOwner || !currentSession || isEqual(voiceUiOwner, currentSession);
-				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
+				// The `rim` variation also renders a subtle idle breath, so it counts
+				// idle as "glowing"; the others render nothing when idle.
+				const variation = this.voiceInputModeService.voiceAnimationVariation.get();
+				const stateGlows = isGlowingVoiceState(voiceState) || (variation === 'rim' && voiceState === 'idle');
+				const glowActive = connected && stateGlows && (simulating || isOwner);
 
 				if (!glowActive) {
 					glowController.clear();
@@ -512,7 +521,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
+				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced(), variation);
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -533,7 +542,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'processing' || sim === 'speaking';
-			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
+			// The `rim` variation also breathes while idle, so keep the loop alive for
+			// idle (real or simulated) when it's selected.
+			const variation = this.voiceInputModeService.voiceAnimationVariation.read(reader);
+			const rimIdle = variation === 'rim' && (sim === 'idle' || (connected && voiceState === 'idle'));
+			if (simGlow || rimIdle || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();

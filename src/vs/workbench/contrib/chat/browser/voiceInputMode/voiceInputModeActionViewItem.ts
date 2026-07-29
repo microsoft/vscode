@@ -23,6 +23,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -228,8 +229,9 @@ export function registerVoiceInputModeSimulateActions(): void {
 	// Ambient-glow animation variation switch — flip the active design live to
 	// compare them under any theme (the Simulate/Walkthrough states above drive it).
 	const VARIATIONS: { readonly variation: VoiceAnimationVariation; readonly label: string }[] = [
-		{ variation: 'aurora', label: 'Aurora (Ambient Wash)' },
-		{ variation: 'beam', label: 'Beam (Traveling Comet)' },
+		{ variation: 'bloom', label: 'Bloom (Exterior Halo)' },
+		{ variation: 'border', label: 'Border (Traveling Light)' },
+		{ variation: 'rim', label: 'Rim (Inside Rim + Beam)' },
 	];
 	for (const { variation, label } of VARIATIONS) {
 		registerAction2(class extends Action2 {
@@ -367,6 +369,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super(undefined, action);
 	}
@@ -400,7 +403,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
 		));
-		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService));
+		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this.themeService));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));

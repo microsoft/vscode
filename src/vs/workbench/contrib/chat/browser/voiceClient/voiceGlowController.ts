@@ -5,9 +5,8 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateBeamCSS, getPulseDriverConfig, sizePresets, sizeThemePresets, type PulseDriverConfig } from './borderBeam/styles.js';
-import { registerPulseInstance } from './borderBeam/pulseDriver.js';
 import { BorderBeamSize } from './borderBeam/types.js';
-import { VoiceGlowState } from './voiceGlow.js';
+import { VoiceAnimationVariation, VoiceGlowState } from './voiceGlow.js';
 
 /**
  * Production applier for the voice-mode ambient glow. Reproduces the "combined,
@@ -43,6 +42,26 @@ const FADE = 'opacity .6s cubic-bezier(.4,0,.2,1), transform .6s cubic-bezier(.4
 const ENTER_SCALE = 0.94;
 const EXIT_SCALE = 1.04;
 
+/**
+ * Bloom reach limiters. The vendored pulse-outside defaults blur very wide
+ * (bloom blur 22.5px dark / 15px light) and reach far; these tighten it into a
+ * calmer halo. Applied as inline consumer hooks so the vendored CSS is untouched.
+ */
+const BLOOM_BLUR = { dark: 13, light: 9 } as const;
+const BLOOM_CORE_BLUR = { dark: 2, light: 4 } as const;
+/** Multiplier on the bloom gradient blob sizes (<1 pulls the reach inward). */
+const BLOOM_BOOST = 0.8;
+
+/** HSL hues (deg) for the CSS border variation. */
+const BORDER_COOL_HUE = 200; // listening
+const BORDER_WARM_HUE = 312; // speaking
+const BORDER_NEUTRAL_HUE = 210; // processing
+/** Saturation (%) for active (listening/speaking) vs neutral (processing) border. */
+const BORDER_ACTIVE_SAT = 92;
+const BORDER_NEUTRAL_SAT = 26;
+
+type GlowThemeKind = 'light' | 'dark';
+
 interface IStateConfig {
 	readonly family: 'rim' | 'bloom';
 	readonly size: BorderBeamSize;
@@ -55,27 +74,46 @@ interface IStateConfig {
 	readonly warm?: boolean;
 }
 
-/** Per glowing-state beam recipe, ported 1:1 from the approved combo2 preview. */
+/** Per glowing-state beam recipe (bloom variation). Toned down from the preview. */
 const STATE_CONFIGS: Readonly<Record<'listening' | 'processing' | 'speaking', IStateConfig>> = {
-	listening: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.45, brightness: 1.9, saturation: 0.5, duration: 2.3, warm: false },
+	listening: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.15, brightness: 1.55, saturation: 0.5, duration: 2.3, warm: false },
 	processing: { family: 'rim', size: 'pulse-inner', variant: 'mono', strength: 0.62, brightness: 1.3, saturation: 0.2, duration: 2.3 },
-	speaking: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.53, brightness: 1.9, saturation: 0.6, duration: 2.3, warm: true },
+	speaking: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.2, brightness: 1.55, saturation: 0.6, duration: 2.3, warm: true },
 };
 
-/** A live beam instance mounted on one of the buffered slot hosts. */
-interface ILayer {
+/** The visual layer kind a state maps to for a given variation. */
+type LayerKind = 'bloom' | 'rim' | 'border';
+
+/** What to render for a (variation, state) pair; undefined = no glow. */
+interface ILayerDesc {
+	readonly kind: LayerKind;
+	readonly warm: boolean;
+	/** border only: the calm "thinking" hue used for processing. */
+	readonly neutral?: boolean;
+	/** rim only: the dimmer, slower idle breath. */
+	readonly subtle?: boolean;
+}
+
+/** A live layer mounted on one of the buffered slot hosts. */
+interface IMountedLayer extends IDisposable {
 	readonly host: HTMLElement;
-	readonly config: IStateConfig;
-	readonly driver: PulseDriverConfig | undefined;
-	readonly hueProp: string | undefined;
-	readonly disposable: IDisposable;
+	readonly desc: ILayerDesc;
+	/** Advance motion + intensity from the smoothed audio `level` ([0,1]). */
+	drive(level: number): void;
+	/** Pin to a representative still frame (reduced motion). */
+	driveStatic(level: number): void;
 }
 
 export interface IVoiceGlowController extends IDisposable {
-	/** Show/keep the glow for `state`, driving intensity from `level` ([0,1]). */
-	render(state: VoiceGlowState, level: number, reducedMotion: boolean): void;
+	/**
+	 * Show/keep the glow for `state`, driving intensity from `level` ([0,1]).
+	 * `variation` selects the look (soft exterior bloom vs travelling border).
+	 */
+	render(state: VoiceGlowState, level: number, reducedMotion: boolean, variation?: VoiceAnimationVariation): void;
 	/** Fade the glow out (idle / not-owner / disconnected). */
 	clear(): void;
+	/** Re-apply the current state after a color-theme change so presets update. */
+	refreshTheme(): void;
 }
 
 let beamSeq = 0;
@@ -87,10 +125,9 @@ let beamSeq = 0;
  * the shared pulse loop, so the bloom can be hand-driven for the constrained
  * cool/warm hue and audio-reactive strength.
  */
-function injectBeam(host: HTMLElement, config: IStateConfig, radiusOverride?: number): { id: string; driver: PulseDriverConfig | undefined; hueProp: string | undefined; dispose: () => void } {
+function injectBeam(host: HTMLElement, config: IStateConfig, theme: GlowThemeKind, radiusOverride?: number): { id: string; driver: PulseDriverConfig | undefined; hueProp: string | undefined; dispose: () => void } {
 	const id = `voiceglow-${beamSeq++}`;
 	const { size, variant, brightness, saturation, duration } = config;
-	const theme = 'dark';
 	const themeConfig = sizeThemePresets[size][theme];
 	const sizeConfig = sizePresets[size];
 	const staticColors = variant === 'mono';
@@ -147,6 +184,11 @@ function injectBeam(host: HTMLElement, config: IStateConfig, radiusOverride?: nu
 	host.style.setProperty('--beam-strength', String(config.strength));
 	host.style.setProperty('--beam-hue-base', '0deg');
 	if (size === 'pulse-outside') {
+		// Pull the reach inward: tighter blur + a boost < 1 shrinks the halo so it
+		// reads as a calm glow rather than a wide diffuse wash.
+		host.style.setProperty('--beam-bloom-blur', `${BLOOM_BLUR[theme]}px`);
+		host.style.setProperty('--beam-core-blur', `${BLOOM_CORE_BLUR[theme]}px`);
+		host.style.setProperty('--pulse-glow-boost', String(BLOOM_BOOST));
 		const rect = host.getBoundingClientRect();
 		const clamp = (v: number) => Math.max(0.35, Math.min(4, v));
 		if (rect.width && rect.height) {
@@ -160,6 +202,9 @@ function injectBeam(host: HTMLElement, config: IStateConfig, radiusOverride?: nu
 		host.removeAttribute('data-active');
 		host.style.removeProperty('--beam-strength');
 		host.style.removeProperty('--beam-hue-base');
+		host.style.removeProperty('--beam-bloom-blur');
+		host.style.removeProperty('--beam-core-blur');
+		host.style.removeProperty('--pulse-glow-boost');
 		host.style.removeProperty('--pulse-glow-sx');
 		host.style.removeProperty('--pulse-glow-sy');
 	}));
@@ -181,11 +226,81 @@ function readRadius(el: HTMLElement): number {
 }
 
 /**
- * Create a voice glow controller bound to `target` (the input box). The bloom is
- * mounted BEHIND the box (self-masking to the exterior); the rim overlays it.
+ * Inject a scoped stylesheet for a host, hoisting any `@property` rules to the
+ * document head (they only register at document scope) and keeping the scoped
+ * selectors in the host's root (shadow DOM aware). Returns a disposable that
+ * removes both style elements. Shared by the CSS border variation.
  */
-export function createVoiceGlowController(target: HTMLElement): IVoiceGlowController {
-	return new VoiceGlowController(target);
+function injectScopedCss(host: HTMLElement, css: string): IDisposable {
+	const doc = host.ownerDocument;
+	const root = host.getRootNode() as Document | ShadowRoot;
+	const propertyRules = css.match(/@property[^{]+\{[^}]*\}/g)?.join('\n') ?? '';
+	const scopedCss = css.replace(/@property[^{]+\{[^}]*\}/g, '');
+	const store = new DisposableStore();
+	if (propertyRules) {
+		const propEl = doc.createElement('style');
+		propEl.textContent = propertyRules;
+		doc.head.appendChild(propEl);
+		store.add(toDisposable(() => propEl.remove()));
+	}
+	const styleEl = doc.createElement('style');
+	styleEl.textContent = scopedCss;
+	(root instanceof ShadowRoot ? root : doc.head).appendChild(styleEl);
+	store.add(toDisposable(() => styleEl.remove()));
+	return store;
+}
+
+/**
+ * Original CSS for the "border" variation: a light that travels around the input
+ * edge (a masked conic-gradient ring) plus an audio-reactive inner glow. Hue is
+ * driven by `--vg-hue`; intensity by `--vg-level`; spin period by `--vg-spin`.
+ * Theme-tuned so it reads on light backgrounds. Not derived from border-beam.
+ */
+function borderCss(id: string, radius: number, theme: GlowThemeKind): string {
+	const light = theme === 'light';
+	const l1 = light ? 52 : 73;
+	const l2 = light ? 55 : 75;
+	const l3 = light ? 50 : 72;
+	const a1 = light ? 0.85 : 0.95;
+	const a2 = light ? 0.5 : 0.55;
+	const a3 = light ? 0.72 : 0.82;
+	const glowL = light ? 56 : 66;
+	const glowA = light ? 0.14 : 0.18;
+	return `
+@property --vg-ang-${id} { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes vg-rot-${id} { to { --vg-ang-${id}: 360deg; } }
+[data-vgborder="${id}"] { position: absolute; inset: 0; border-radius: ${radius}px; pointer-events: none; }
+[data-vgborder="${id}"]::before {
+	content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.4px;
+	background: conic-gradient(from var(--vg-ang-${id}, 0deg),
+		transparent 0deg,
+		hsl(var(--vg-hue, 200) 96% ${l1}% / ${a1}) 28deg,
+		hsl(calc(var(--vg-hue, 200) + 30) 96% ${l2}% / ${a2}) 78deg,
+		transparent 150deg, transparent 210deg,
+		hsl(calc(var(--vg-hue, 200) - 22) 96% ${l3}% / ${a3}) 300deg,
+		transparent 350deg);
+	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+	mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+	animation: vg-rot-${id} var(--vg-spin, 7s) linear infinite;
+}
+[data-vgborder="${id}"]::after {
+	content: ''; position: absolute; inset: 0; border-radius: inherit;
+	box-shadow: inset 0 0 12px hsl(var(--vg-hue, 200) 92% ${glowL}% / calc(${glowA} + 0.34 * var(--vg-level, 0.3)));
+}
+@media (prefers-reduced-motion: reduce) {
+	[data-vgborder="${id}"]::before { animation: none; }
+}`;
+}
+
+
+/**
+ * Create a voice glow controller bound to `target` (the input box). `themeKind`
+ * lets the caller supply the active light/dark theme so the glow uses the right
+ * presets (defaults to dark). The bloom is mounted BEHIND the box (self-masking
+ * to the exterior); the rim / border overlay it.
+ */
+export function createVoiceGlowController(target: HTMLElement, themeKind?: () => GlowThemeKind): IVoiceGlowController {
+	return new VoiceGlowController(target, themeKind);
 }
 
 /** A standalone, audio-reactive interior rim light (the "Inside Rim" treatment). */
@@ -206,7 +321,7 @@ export interface IVoiceRim extends IDisposable {
  * for symmetry. The rim overlays the target's edge (its center is transparent, so
  * it never obscures the button glyph).
  */
-export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: boolean; readonly pill?: boolean }): IVoiceRim {
+export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: boolean; readonly pill?: boolean; readonly themeKind?: () => GlowThemeKind }): IVoiceRim {
 	const store = new DisposableStore();
 	const doc = target.ownerDocument;
 	const host = doc.createElement('div');
@@ -230,7 +345,7 @@ export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: 
 	host.style.borderRadius = options?.pill ? 'var(--vscode-cornerRadius-circle)' : `${radius}px`;
 
 	const config: IStateConfig = { family: 'rim', size: 'pulse-inner', variant: 'ocean', strength: 0.7, brightness: 1.4, saturation: 0.55, duration: 2.3, warm: options?.warm };
-	const beam = injectBeam(host, config, radius);
+	const beam = injectBeam(host, config, options?.themeKind?.() ?? 'dark', radius);
 	store.add(toDisposable(beam.dispose));
 
 	const center = options?.warm ? WARM_CENTER : COOL_CENTER;
@@ -287,26 +402,24 @@ export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: 
 
 class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
-	private readonly _bloomSlots: readonly HTMLElement[];
-	private readonly _rimSlots: readonly HTMLElement[];
-	/** MutableDisposable per slot so mounting a new beam disposes the slot's old one. */
-	private readonly _slotBeams = new Map<HTMLElement, MutableDisposable<IDisposable>>();
-	private readonly _rimRegs = new Map<HTMLElement, MutableDisposable<IDisposable>>();
+	/** Exterior hosts (behind the box) for the bloom variation. */
+	private readonly _exterior: readonly HTMLElement[];
+	/** Interior overlay hosts (on the box edge) for the rim / border variations. */
+	private readonly _interior: readonly HTMLElement[];
+	/** MutableDisposable per host so mounting a new layer disposes the old one. */
+	private readonly _mounts = new Map<HTMLElement, MutableDisposable<IMountedLayer>>();
 
-	private _front: ILayer | undefined;
+	private _front: IMountedLayer | undefined;
 	private _currentState: VoiceGlowState | 'none' = 'none';
-	private _slotToggle = { rim: 0, bloom: 0 };
-
-	// Bloom drive state.
-	private _animTime = 0;
-	private _prevTs: number | undefined;
-	private _level = 0.3;
-	private _hueNow = COOL_CENTER;
-	private _hueTarget = COOL_CENTER;
+	private _variation: VoiceAnimationVariation = 'bloom';
+	private _clearTimer: ReturnType<typeof setTimeout> | undefined;
 
 	private readonly _targetRadius: number;
 
-	constructor(private readonly _target: HTMLElement) {
+	constructor(
+		private readonly _target: HTMLElement,
+		private readonly _themeKind: () => GlowThemeKind = () => 'dark',
+	) {
 		super();
 		_target.style.position = _target.style.position || 'relative';
 		const doc = _target.ownerDocument;
@@ -321,16 +434,16 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			parent.style.position = 'relative';
 		}
 
-		const mkRim = (): HTMLElement => {
+		const mkInterior = (): HTMLElement => {
 			const el = doc.createElement('div');
-			el.className = 'voice-glow-slot voice-glow-slot-rim';
+			el.className = 'voice-glow-slot voice-glow-slot-interior';
 			el.style.cssText = 'position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;will-change:opacity,transform;';
 			el.style.borderRadius = `${this._targetRadius}px`;
 			_target.appendChild(el);
 			this._register(toDisposable(() => el.remove()));
 			return el;
 		};
-		const mkBloom = (): HTMLElement => {
+		const mkExterior = (): HTMLElement => {
 			const el = doc.createElement('div');
 			el.className = 'voice-glow-slot voice-glow-slot-bloom';
 			el.style.cssText = 'position:absolute;pointer-events:none;opacity:0;will-change:opacity,transform;';
@@ -340,8 +453,8 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			this._register(toDisposable(() => el.remove()));
 			return el;
 		};
-		this._rimSlots = [mkRim(), mkRim()];
-		this._bloomSlots = [mkBloom(), mkBloom()];
+		this._interior = [mkInterior(), mkInterior()];
+		this._exterior = [mkExterior(), mkExterior()];
 		this._syncGeometry();
 
 		const ResizeObserverCtor = view?.ResizeObserver;
@@ -351,12 +464,14 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			this._register(toDisposable(() => ro.disconnect()));
 		}
 
-		for (const el of [...this._bloomSlots, ...this._rimSlots]) {
-			this._slotBeams.set(el, this._register(new MutableDisposable<IDisposable>()));
-			if (el.classList.contains('voice-glow-slot-rim')) {
-				this._rimRegs.set(el, this._register(new MutableDisposable<IDisposable>()));
-			}
+		for (const el of [...this._exterior, ...this._interior]) {
+			this._mounts.set(el, this._register(new MutableDisposable<IMountedLayer>()));
 		}
+		this._register(toDisposable(() => {
+			if (this._clearTimer !== undefined) {
+				clearTimeout(this._clearTimer);
+			}
+		}));
 	}
 
 	/** Keep the exterior bloom layers aligned to (and lifted around) the box. */
@@ -367,7 +482,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		const w = t.offsetWidth + 2 * BLOOM_LIFT;
 		const h = t.offsetHeight + 2 * BLOOM_LIFT;
 		const clamp = (v: number) => Math.max(0.35, Math.min(4, v));
-		for (const el of this._bloomSlots) {
+		for (const el of this._exterior) {
 			el.style.left = `${left}px`;
 			el.style.top = `${top}px`;
 			el.style.width = `${w}px`;
@@ -377,30 +492,54 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		}
 	}
 
-	render(state: VoiceGlowState, level: number, reducedMotion: boolean): void {
-		const mapped: 'listening' | 'processing' | 'speaking' | undefined =
-			state === 'listening' ? 'listening' :
-				state === 'processing' ? 'processing' :
-					state === 'speaking' ? 'speaking' : undefined;
-		if (!mapped) {
+	/** Map (variation, state) to the layer to render, or undefined for no glow. */
+	private _resolve(variation: VoiceAnimationVariation, state: VoiceGlowState): ILayerDesc | undefined {
+		switch (variation) {
+			case 'border':
+				if (state === 'listening') { return { kind: 'border', warm: false }; }
+				if (state === 'speaking') { return { kind: 'border', warm: true }; }
+				if (state === 'processing') { return { kind: 'border', warm: false, neutral: true }; }
+				return undefined;
+			case 'rim':
+				if (state === 'listening') { return { kind: 'rim', warm: false }; }
+				if (state === 'speaking') { return { kind: 'rim', warm: true }; }
+				if (state === 'processing') { return { kind: 'border', warm: false, neutral: true }; }
+				if (state === 'idle') { return { kind: 'rim', warm: false, subtle: true }; }
+				return undefined;
+			case 'bloom':
+			default:
+				if (state === 'listening') { return { kind: 'bloom', warm: false }; }
+				if (state === 'speaking') { return { kind: 'bloom', warm: true }; }
+				if (state === 'processing') { return { kind: 'rim', warm: false }; }
+				return undefined;
+		}
+	}
+
+	render(state: VoiceGlowState, level: number, reducedMotion: boolean, variation: VoiceAnimationVariation = 'bloom'): void {
+		const desc = this._resolve(variation, state);
+		if (!desc) {
 			this.clear();
 			return;
 		}
 
-		if (state !== this._currentState) {
+		if (state !== this._currentState || variation !== this._variation) {
 			this._currentState = state;
+			this._variation = variation;
+			if (this._clearTimer !== undefined) {
+				clearTimeout(this._clearTimer);
+				this._clearTimer = undefined;
+			}
 			// Publish state classes on the target so surface CSS that tints the mic
 			// glyph (blue listening / purple speaking) keeps working.
 			this._target.classList.add('voice-active');
-			this._target.classList.toggle('voice-listening', mapped === 'listening');
-			this._target.classList.toggle('voice-processing', mapped === 'processing');
-			this._target.classList.toggle('voice-speaking', mapped === 'speaking');
-			this._showState(mapped, reducedMotion);
+			this._target.classList.toggle('voice-listening', state === 'listening');
+			this._target.classList.toggle('voice-processing', state === 'processing');
+			this._target.classList.toggle('voice-speaking', state === 'speaking');
+			this._showLayer(desc, reducedMotion);
 		}
 
-		// Per-frame: drive the active bloom's motion, intensity and cool/warm hue.
-		if (this._front?.config.family === 'bloom' && !reducedMotion) {
-			this._driveBloom(this._front, level);
+		if (this._front && !reducedMotion) {
+			this._front.drive(level);
 		}
 	}
 
@@ -416,41 +555,45 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			prev.host.style.transition = FADE;
 			prev.host.style.opacity = '0';
 			prev.host.style.transform = `scale(${EXIT_SCALE})`;
+			// Dispose the mount once faded out so its CSS animation stops.
+			const host = prev.host;
+			this._clearTimer = setTimeout(() => {
+				this._clearTimer = undefined;
+				if (this._front?.host !== host) {
+					this._mounts.get(host)?.clear();
+				}
+			}, 650);
 		}
 	}
 
-	private _showState(mapped: 'listening' | 'processing' | 'speaking', reducedMotion: boolean): void {
-		const config = STATE_CONFIGS[mapped];
-		const slots = config.family === 'bloom' ? this._bloomSlots : this._rimSlots;
-		const idx = (this._slotToggle[config.family] ^= 1);
-		const host = slots[idx];
-
-		// Mount a fresh beam on the chosen slot (disposing whatever was there).
-		const beam = injectBeam(host, config);
-		const beamStore = new DisposableStore();
-		beamStore.add(toDisposable(beam.dispose));
-		this._slotBeams.get(host)!.value = beamStore;
-
-		const layer: ILayer = { host, config, driver: beam.driver, hueProp: beam.hueProp, disposable: beamStore };
-
-		// Rim breathes via the shared pulse loop; bloom is hand-driven per frame.
-		if (config.family === 'rim' && beam.driver && !reducedMotion) {
-			const reg = registerPulseInstance(host, beam.driver);
-			this._rimRegs.get(host)!.value = toDisposable(reg);
-		} else if (config.family === 'rim') {
-			this._rimRegs.get(host)?.clear();
+	refreshTheme(): void {
+		if (this._currentState === 'none' || this._currentState === 'idle' || this._currentState === 'error') {
+			// Nothing showing (except the rim variation's idle, handled below).
 		}
+		if (this._front) {
+			// Re-mount the current layer so it picks up the new theme presets.
+			const state = this._currentState;
+			const variation = this._variation;
+			this._currentState = 'none';
+			if (state !== 'none') {
+				this.render(state, 0.3, false, variation);
+			}
+		}
+	}
 
-		if (config.family === 'bloom') {
-			// Carry the eased hue across a listening<->speaking swap so the cross-fade
-			// sweeps cool->warm; snap when arriving from a non-bloom state.
-			this._hueTarget = config.warm ? WARM_CENTER : COOL_CENTER;
-			if (this._front?.config.family !== 'bloom') {
-				this._hueNow = this._hueTarget;
-			}
-			if (reducedMotion) {
-				this._driveBloomStatic(layer);
-			}
+	private _showLayer(desc: ILayerDesc, reducedMotion: boolean): void {
+		const pair = desc.kind === 'bloom' ? this._exterior : this._interior;
+		const host = pair.find(h => h !== this._front?.host) ?? pair[0];
+
+		// Dispose any prior mount on this host FIRST: mounts share their host's
+		// attributes (data-beam / data-vgborder), so disposing after creating the
+		// new one would strip the fresh attributes. (Reused when the same host is
+		// revisited, e.g. the rim variation's speaking -> processing -> idle.)
+		this._mounts.get(host)!.clear();
+		const mounted = this._mount(host, desc, reducedMotion);
+		this._mounts.get(host)!.value = mounted;
+		if (reducedMotion) {
+			mounted.driveStatic(0.4);
 		}
 
 		// Cross-fade: incoming in, previous out.
@@ -467,51 +610,144 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			prev.host.style.opacity = '0';
 			prev.host.style.transform = `scale(${EXIT_SCALE})`;
 		}
-		this._front = layer;
+		this._front = mounted;
 	}
 
-	private _driveBloom(layer: ILayer, level: number): void {
+	private _mount(host: HTMLElement, desc: ILayerDesc, reducedMotion: boolean): IMountedLayer {
+		switch (desc.kind) {
+			case 'bloom': return this._mountBloom(host, desc);
+			case 'rim': return this._mountRim(host, desc, reducedMotion);
+			case 'border': return this._mountBorder(host, desc);
+		}
+	}
+
+	private _perf(): number {
 		const view = this._target.ownerDocument.defaultView;
-		const ts = (view?.performance ?? performance).now() / 1000;
-		const dt = this._prevTs === undefined ? 0 : Math.min(0.05, ts - this._prevTs);
-		this._prevTs = ts;
-
-		// Smooth the audio level (fast attack, slow release) and let motion slow when quiet.
-		const target = Math.max(0, Math.min(1, level));
-		this._level += (target - this._level) * (target > this._level ? 0.35 : 0.09);
-		const speed = 0.28 + 1.05 * this._level;
-		this._animTime += dt * speed;
-
-		if (layer.driver) {
-			for (const osc of layer.driver.oscillators) {
-				const phase = (this._animTime - osc.delay) / osc.period;
-				const value = osc.a + (osc.b - osc.a) * ((1 - Math.cos(2 * Math.PI * phase)) / 2);
-				layer.host.style.setProperty(osc.prop, osc.unit === 'px' ? `${value.toFixed(2)}px` : value.toFixed(4));
-			}
-		}
-		layer.host.style.setProperty('--beam-strength', (layer.config.strength * (0.5 + 0.95 * this._level)).toFixed(3));
-
-		if (layer.hueProp) {
-			this._hueNow += (this._hueTarget - this._hueNow) * 0.06;
-			const warm = !!layer.config.warm;
-			const drift = warm ? 12 : 16;
-			const vShift = warm ? -7 * this._level : 8 * this._level;
-			const hue = this._hueNow + drift * Math.sin(this._animTime * 0.45) + vShift;
-			layer.host.style.setProperty(layer.hueProp, `${hue.toFixed(1)}deg`);
-		}
+		return (view?.performance ?? performance).now() / 1000;
 	}
 
-	/** Reduced-motion: pin the bloom to a representative still frame. */
-	private _driveBloomStatic(layer: ILayer): void {
-		if (layer.driver) {
-			for (const osc of layer.driver.oscillators) {
-				const mid = (osc.a + osc.b) / 2;
-				layer.host.style.setProperty(osc.prop, osc.unit === 'px' ? `${mid.toFixed(2)}px` : mid.toFixed(4));
+	private _mountBloom(host: HTMLElement, desc: ILayerDesc): IMountedLayer {
+		const config = desc.warm ? STATE_CONFIGS.speaking : STATE_CONFIGS.listening;
+		const beam = injectBeam(host, config, this._themeKind(), this._targetRadius);
+		const center = desc.warm ? WARM_CENTER : COOL_CENTER;
+		let animTime = 0;
+		let prevTs: number | undefined;
+		let lvl = 0.3;
+		const apply = (level: number, animate: boolean): void => {
+			if (animate) {
+				const ts = this._perf();
+				const dt = prevTs === undefined ? 0 : Math.min(0.05, ts - prevTs);
+				prevTs = ts;
+				const target = Math.max(0, Math.min(1, level));
+				lvl += (target - lvl) * (target > lvl ? 0.35 : 0.09);
+				animTime += dt * (0.28 + 1.05 * lvl);
+			} else {
+				lvl = Math.max(0, Math.min(1, level));
 			}
-		}
-		layer.host.style.setProperty('--beam-strength', layer.config.strength.toFixed(3));
-		if (layer.hueProp) {
-			layer.host.style.setProperty(layer.hueProp, `${this._hueTarget.toFixed(1)}deg`);
-		}
+			if (beam.driver) {
+				for (const osc of beam.driver.oscillators) {
+					const value = animate
+						? osc.a + (osc.b - osc.a) * ((1 - Math.cos(2 * Math.PI * ((animTime - osc.delay) / osc.period))) / 2)
+						: (osc.a + osc.b) / 2;
+					host.style.setProperty(osc.prop, osc.unit === 'px' ? `${value.toFixed(2)}px` : value.toFixed(4));
+				}
+			}
+			host.style.setProperty('--beam-strength', (config.strength * (0.5 + 0.85 * lvl)).toFixed(3));
+			if (beam.hueProp) {
+				const drift = desc.warm ? 12 : 16;
+				const vShift = desc.warm ? -7 * lvl : 8 * lvl;
+				const hue = center + (animate ? drift * Math.sin(animTime * 0.45) : 0) + vShift;
+				host.style.setProperty(beam.hueProp, `${hue.toFixed(1)}deg`);
+			}
+		};
+		return {
+			host, desc,
+			drive: (level: number) => apply(level, true),
+			driveStatic: (level: number) => apply(level, false),
+			dispose: () => beam.dispose(),
+		};
+	}
+
+	private _mountRim(host: HTMLElement, desc: ILayerDesc, _reducedMotion: boolean): IMountedLayer {
+		const subtle = !!desc.subtle;
+		const config: IStateConfig = {
+			family: 'rim', size: 'pulse-inner', variant: 'ocean',
+			strength: subtle ? 0.4 : 0.72, brightness: subtle ? 1.18 : 1.42,
+			saturation: 0.55, duration: subtle ? 4.8 : 2.3, warm: desc.warm,
+		};
+		const beam = injectBeam(host, config, this._themeKind(), this._targetRadius);
+		const center = desc.warm ? WARM_CENTER : COOL_CENTER;
+		let animTime = 0;
+		let prevTs: number | undefined;
+		let lvl = subtle ? 0.15 : 0.25;
+		let hueNow = center;
+		const apply = (level: number, animate: boolean): void => {
+			if (animate) {
+				const ts = this._perf();
+				const dt = prevTs === undefined ? 0 : Math.min(0.05, ts - prevTs);
+				prevTs = ts;
+				const target = Math.max(0, Math.min(1, level));
+				lvl += (target - lvl) * (target > lvl ? 0.3 : 0.08);
+				animTime += dt * (subtle ? 0.22 : 0.4 + 0.9 * lvl);
+			} else {
+				lvl = Math.max(0, Math.min(1, level));
+			}
+			if (beam.driver) {
+				for (const osc of beam.driver.oscillators) {
+					const value = animate
+						? osc.a + (osc.b - osc.a) * ((1 - Math.cos(2 * Math.PI * ((animTime - osc.delay) / osc.period))) / 2)
+						: (osc.a + osc.b) / 2;
+					host.style.setProperty(osc.prop, osc.unit === 'px' ? `${value.toFixed(2)}px` : value.toFixed(4));
+				}
+			}
+			const audioGain = subtle ? 0.35 : 0.75;
+			host.style.setProperty('--beam-strength', (config.strength * (0.55 + audioGain * lvl)).toFixed(3));
+			if (beam.hueProp) {
+				hueNow += (center - hueNow) * 0.06;
+				host.style.setProperty(beam.hueProp, `${(hueNow + (animate ? 14 * Math.sin(animTime * 0.4) : 0)).toFixed(1)}deg`);
+			}
+		};
+		return {
+			host, desc,
+			drive: (level: number) => apply(level, true),
+			driveStatic: (level: number) => apply(level, false),
+			dispose: () => beam.dispose(),
+		};
+	}
+
+	private _mountBorder(host: HTMLElement, desc: ILayerDesc): IMountedLayer {
+		const id = `voiceglow-${beamSeq++}`;
+		const css = borderCss(id, this._targetRadius, this._themeKind());
+		const cssDisposable = injectScopedCss(host, css);
+		host.setAttribute('data-vgborder', id);
+		const hue = desc.neutral ? BORDER_NEUTRAL_HUE : desc.warm ? BORDER_WARM_HUE : BORDER_COOL_HUE;
+		const sat = desc.neutral ? BORDER_NEUTRAL_SAT : BORDER_ACTIVE_SAT;
+		host.style.setProperty('--vg-hue', String(hue));
+		host.style.setProperty('--vg-sat', `${sat}%`);
+		host.style.setProperty('--vg-level', '0.3');
+		host.style.setProperty('--vg-spin', desc.neutral ? '9s' : '7s');
+		let lvl = 0.3;
+		const apply = (level: number, animate: boolean): void => {
+			const target = Math.max(0, Math.min(1, level));
+			lvl += animate ? (target - lvl) * (target > lvl ? 0.3 : 0.08) : (target - lvl);
+			host.style.setProperty('--vg-level', lvl.toFixed(3));
+			// Spin a touch faster with volume (active states only).
+			if (!desc.neutral) {
+				host.style.setProperty('--vg-spin', `${(7 - 2.5 * lvl).toFixed(2)}s`);
+			}
+		};
+		return {
+			host, desc,
+			drive: (level: number) => apply(level, true),
+			driveStatic: (level: number) => apply(level, false),
+			dispose: () => {
+				cssDisposable.dispose();
+				host.removeAttribute('data-vgborder');
+				host.style.removeProperty('--vg-hue');
+				host.style.removeProperty('--vg-sat');
+				host.style.removeProperty('--vg-level');
+				host.style.removeProperty('--vg-spin');
+			},
+		};
 	}
 }

@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -50,7 +51,7 @@ export interface IVoiceInputDecorationsOptions {
  * Decorations show only while this surface is active and voice targets it.
  */
 export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServices, options: IVoiceInputDecorationsOptions): IDisposable {
-	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService, accessibilityService } = services;
+	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService, themeService, voiceInputModeService, accessibilityService } = services;
 	const { inputContainer: inputContainerEl, isActive, getCurrentResource } = options;
 
 	const store = new DisposableStore();
@@ -71,7 +72,11 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	const win = dom.getWindow(inputContainerEl);
 	let animFrameId: number | undefined;
 	const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
-	const glowController = store.add(createVoiceGlowController(inputContainerEl));
+	const glowController = store.add(createVoiceGlowController(
+		inputContainerEl,
+		() => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
+	));
+	store.add(themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 	const startGlowAnimation = () => {
 		if (animFrameId !== undefined) {
 			return;
@@ -88,7 +93,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				? breathingIntensity(Date.now())
 				: readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
-			glowController.render(voiceState, intensity, accessibilityService.isMotionReduced());
+			glowController.render(voiceState, intensity, accessibilityService.isMotionReduced(), voiceInputModeService.voiceAnimationVariation.get());
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -108,7 +113,10 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const current = getCurrentResource();
 		// Glow only the active slot targeted by the backend.
 		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
-		if (connected && active && !targetedElsewhere && isGlowingVoiceState(voiceState)) {
+		// The `rim` variation also breathes while idle, so keep the loop alive for it.
+		const variation = voiceInputModeService.voiceAnimationVariation.read(reader);
+		const stateGlows = isGlowingVoiceState(voiceState) || (variation === 'rim' && voiceState === 'idle');
+		if (connected && active && !targetedElsewhere && stateGlows) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
