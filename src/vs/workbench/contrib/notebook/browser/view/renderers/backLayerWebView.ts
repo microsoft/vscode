@@ -1125,11 +1125,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const resource = extractedSelection.uri;
 
 		if (!this.fileService.hasProvider(resource) || this.workspaceContextService.isInsideWorkspace(resource)) {
-			await this.openerService.open(uri, {
-				fromUserGesture: true,
-				fromWorkspace: true,
-				editorOptions: selection ? { selection } : undefined
-			});
+			await this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
 			return;
 		}
 
