@@ -11,6 +11,18 @@
 	display: none;
 }
 
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
+	margin-bottom: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container {
+	margin-top: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container .new-chat-input-area {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+}
+
 .new-session-feedback-banners {
 	width: 100%;
 	max-width: 800px;
