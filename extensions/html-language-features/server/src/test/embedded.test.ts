@@ -126,6 +126,7 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<script>/* --> */</script>', 'javascript', '        /* --> */         ');
 		assertEmbeddedLanguageContent('<script>/* --> ----------------------------- */</script>', 'javascript', '        /* --> ----------------------------- */         ');
 		assertEmbeddedLanguageContent('<script><!--commnet1-->\n<!--conment2--></script>', 'javascript', '        /* commnet1 */\n/* conment2 */         ');
+		assertEmbeddedLanguageContent('<script><!--a--> foo(); <!--b--></script>', 'javascript', '        /* a */ foo(); /* b */         ');
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
 		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
 		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
