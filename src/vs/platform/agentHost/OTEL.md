@@ -18,7 +18,7 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 
 | Mode | Trigger | Behavior |
 |---|---|---|
-| **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). No process-local interception. |
+| **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). SDK spans are not intercepted; host-produced session-title metadata uses the matching JSON/file/console forwarder. |
 | **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | The SDK is pointed at a loopback OTLP/HTTP receiver inside the agent host. Spans are decoded and written to a local SQLite database. If `otlpEndpoint` is **also** configured, the receiver fans the raw OTLP body out to it — so an external collector keeps receiving traces alongside the local DB. |
 
 ```
@@ -49,8 +49,20 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
                  └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. The agent host does not intercept span data.
+- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then constructs the SDK pointing at that loopback URL. For each batch the receiver decodes the OTLP-JSON body and inserts spans into `OTelSqliteStore` (`onSpans`). If an external `otlpEndpoint` is also configured, the receiver fans the **raw** OTLP body out to an `OtlpHttpForwarder` (`onForward`) so the user's collector keeps receiving traces alongside the local DB.
+
+## Session Title Metadata
+
+When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever the authoritative Copilot session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
+
+| Attribute | Description |
+|---|---|
+| `gen_ai.conversation.id` | Copilot SDK conversation ID used to correlate the metadata with SDK spans. |
+| `vscode.agent_host.session.title` | Latest session title, bounded to 200 characters. |
+| `vscode.agent_host.session.uri` | Agent Host protocol URI for the session. |
+
+Title text is user-derived content, so these spans are emitted only when `chat.agentHost.otel.captureContent` is enabled. Host-produced title spans copy `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` so collectors group them with the SDK telemetry. They are persisted in DB mode and use the configured OTLP, file, or console forwarder. Synthetic OTLP forwarding currently uses OTLP/HTTP JSON; when `http/protobuf` or gRPC is configured, title spans remain available in DB mode but are not sent to that external endpoint.
 
 ## VS Code Settings
 

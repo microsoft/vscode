@@ -20,8 +20,8 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled, runRecordOnlyTests } = context;
-	(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
+	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, runRecordOnlyTests } = context;
+	(portableShellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
 		this.timeout(120_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);

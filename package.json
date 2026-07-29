@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.132.0",
-  "distro": "d0fd3324a737f695bd14f2aee3ca92accd28870f",
+  "distro": "09533f921029d9d073c06e70f566ebe31e43cebc",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -63,7 +63,7 @@
     "monaco-compile-check": "tsc --project src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node --max-old-space-size=8192 node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "vscode-dts-compile-check": "tsc --project src/tsconfig.vscode-dts.json && tsc --project src/tsconfig.vscode-proposed-dts.json",
-    "valid-layers-check": "node build/checker/layersChecker.ts && tsc --project build/checker/tsconfig.browser.json && tsc --project build/checker/tsconfig.worker.json && tsc --project build/checker/tsconfig.node.json && tsc --project build/checker/tsconfig.electron-browser.json && tsc --project build/checker/tsconfig.electron-main.json && tsc --project build/checker/tsconfig.electron-utility.json",
+    "valid-layers-check": "node --max-old-space-size=8192 build/checker/layersChecker.ts && tsc --project build/checker/tsconfig.browser.json && tsc --project build/checker/tsconfig.worker.json && tsc --project build/checker/tsconfig.node.json && tsc --project build/checker/tsconfig.electron-browser.json && tsc --project build/checker/tsconfig.electron-main.json && tsc --project build/checker/tsconfig.electron-utility.json",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.ts && tsc --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
     "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
@@ -109,7 +109,7 @@
     "@microsoft/mxc-sdk": "0.6.1",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-24",
+    "@vscode/codicons": "^0.0.46-27",
     "@vscode/copilot-api": "^0.4.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -167,7 +167,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.198",
+    "@anthropic-ai/claude-agent-sdk": "0.3.220",
     "@openai/codex": "0.142.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.61.1",
@@ -215,7 +215,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "42.7.0",
+    "electron": "42.7.1",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

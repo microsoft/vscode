@@ -31,6 +31,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	firstSessionDate = 'firstSessionDate';
 
 	readonly enhancedEvents: IRestrictedCall[] = [];
+	readonly enhancedMeasurements: Array<TelemetryMeasurements | undefined> = [];
 	readonly internalEvents: IRestrictedCall[] = [];
 
 	publicLog(): void { }
@@ -41,8 +42,9 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	setCommonProperty(): void { }
 
 	sendGHTelemetryEvent(): void { }
-	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
+	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
+		this.enhancedMeasurements.push(measurements);
 	}
 	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
 		this.enhancedEvents.push({ eventName, properties });
@@ -176,6 +178,57 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.internalEvents.length, 2);
 		assert.strictEqual(service.internalEvents[0].eventName, 'toolCallDetailsInternal');
 		assert.strictEqual(service.internalEvents[1].eventName, 'toolCallDetailsInternal');
+	});
+
+	test('autoModeRouterDecision maps the SDK Hydra and binary score shapes without inventing unavailable fields', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.autoModeRouterDecision({
+			session,
+			turnId: 'turn-hydra',
+			chosenModel: 'gpt-5',
+			predictedLabel: 'high',
+			confidence: 0.9,
+			candidateModels: ['gpt-5', 'gpt-4.1'],
+			categoryScores: { reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 },
+		});
+		reporter.autoModeRouterDecision({
+			session,
+			turnId: 'turn-binary',
+			chosenModel: 'gpt-4.1',
+			predictedLabel: 'no_reasoning',
+			confidence: undefined,
+			candidateModels: undefined,
+			categoryScores: { needs_reasoning: 0.2, no_reasoning: 0.8 },
+		});
+
+		assert.deepStrictEqual({ events: service.enhancedEvents, measurements: service.enhancedMeasurements }, {
+			events: [{
+				eventName: 'automode.routerDecisionRestricted',
+				properties: {
+					conversationId: AgentSession.id(session),
+					vscodeRequestId: 'turn-hydra',
+					predictedLabel: 'high',
+					candidateModel: 'gpt-5',
+					chosenModel: 'gpt-5',
+					candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
+					hydraScores: JSON.stringify({ reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 }),
+				},
+			}, {
+				eventName: 'automode.routerDecisionRestricted',
+				properties: {
+					conversationId: AgentSession.id(session),
+					vscodeRequestId: 'turn-binary',
+					predictedLabel: 'no_reasoning',
+					candidateModel: '',
+					chosenModel: 'gpt-4.1',
+					candidateModels: JSON.stringify([]),
+					binaryScores: JSON.stringify({ needs_reasoning: 0.2, no_reasoning: 0.8 }),
+				},
+			}],
+			measurements: [{ confidence: 0.9 }, { scoreNeedsReasoning: 0.2, scoreNoReasoning: 0.8 }],
+		});
 	});
 
 	test('skillContentRead emits plaintext skill metadata to enhanced + internal, maps plugin identity + hashes content, and no-ops without a name', () => {

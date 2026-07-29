@@ -6,36 +6,68 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Read nested/value.txt and reply with its exact contents only.
+          content: Read nested/value.txt and reply with its exact contents only. Use your file tools rather than running a shell command.
     response:
       content:
         - type: tool_use
           id: toolcall_0
-          name: bash
+          name: glob
           input:
-            command: cat nested/value.txt
-            description: Read nested/value.txt
+            pattern: '**/nested/value.txt'
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Read nested/value.txt and reply with its exact contents only.
+          content: Read nested/value.txt and reply with its exact contents only. Use your file tools rather than running a shell command.
         - role: assistant
           content:
             - type: tool_use
-              name: bash
+              name: glob
               input:
-                command: cat nested/value.txt
-                description: Read nested/value.txt
+                pattern: '**/nested/value.txt'
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                NESTED_VALUE_42
-                <shellId: 0 completed with exit code 0>
+              content: ./nested/value.txt
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/nested/value.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read nested/value.txt and reply with its exact contents only. Use your file tools rather than running a shell command.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: glob
+              input:
+                pattern: '**/nested/value.txt'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ./nested/value.txt
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/nested/value.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 1. NESTED_VALUE_42
     response:
       content: NESTED_VALUE_42
       stopReason: end_turn

@@ -63,7 +63,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	/** Quick chats are only offered while the agent host is enabled. */
 	get supportsQuickChats(): boolean {
-		return this._agentHostEnablementService.enabled;
+		return this._agentHostEnablementService.enabled.get();
 	}
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
@@ -185,11 +185,12 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	protected _adapterOptions() {
 		return {
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
-				const uriForDescription = project?.uri ?? workingDirectory;
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
+				const primary = workingDirectories?.[0];
+				const uriForDescription = project?.uri ?? primary;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
-				return LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, gitHubInfo, gitState, description, branchProtectionPatterns);
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, primary ?? project?.uri);
+				return LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectories, gitHubInfo, gitState, description, branchProtectionPatterns);
 			},
 		};
 	}
@@ -204,13 +205,13 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
 		// Intentionally pass `undefined` for `providerLabel` so the workspace
 		// label matches the one produced by `resolveWorkspace` (and by other
 		// providers serving the same folder). Sessions list grouping uses
 		// `workspace.label` as the group key — divergent labels would surface
 		// the same folder as multiple groups.
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitHubInfo, gitState);
+		return buildAgentHostSessionWorkspace(project, workingDirectories, { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitHubInfo, gitState);
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {

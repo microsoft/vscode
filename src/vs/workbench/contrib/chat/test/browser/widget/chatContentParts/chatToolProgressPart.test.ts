@@ -292,35 +292,46 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
 	});
 
-	test('renders codicon syntax in an automation name as literal accessible text', () => {
-		const data: IChatAutomationConfiguredData = {
-			kind: 'automationConfigured',
-			automationId: 'automation-1',
-			automationName: '$(error)',
-			operation: 'created',
+	test('renders codicon syntax in an automation name as literal text', () => {
+		const render = (automationName: string) => {
+			const part = disposables.add(instantiationService.createInstance(
+				ChatAutomationConfiguredResultSubPart,
+				createSerializedToolInvocation({ isComplete: true }),
+				{ kind: 'automationConfigured', automationId: 'automation-1', automationName, operation: 'created' } satisfies IChatAutomationConfiguredData,
+				createRenderContext(),
+				mockMarkdownRenderer,
+			));
+			const button = part.domNode.querySelector<HTMLElement>('.chat-open-session-button');
+			return {
+				text: button?.textContent,
+				ariaLabel: button?.getAttribute('aria-label'),
+				tabIndex: button?.tabIndex,
+				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				// `codicon-*` on the root would restyle the label text.
+				rootCarriesCodiconClass: button?.classList.contains('codicon'),
+				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
+					.flatMap(el => [...el.classList]).filter(c => c.startsWith('codicon-')),
+			};
 		};
-		const part = disposables.add(instantiationService.createInstance(
-			ChatAutomationConfiguredResultSubPart,
-			createSerializedToolInvocation({ isComplete: true }),
-			data,
-			createRenderContext(),
-			mockMarkdownRenderer,
-		));
-		const button = part.domNode.querySelector<HTMLElement>('.chat-open-session-button');
 
-		assert.deepStrictEqual({
-			text: button?.textContent,
-			ariaLabel: button?.getAttribute('aria-label'),
-			tabIndex: button?.tabIndex,
-			hasWatchIcon: button?.classList.contains('codicon-watch'),
-			hasInjectedErrorIcon: button?.classList.contains('codicon-error') || !!button?.querySelector('.codicon-error'),
-		}, {
-			text: 'Created an automation: $(error)',
-			ariaLabel: 'Open automation $(error)',
-			tabIndex: 0,
-			hasWatchIcon: true,
-			hasInjectedErrorIcon: false,
-		});
+		assert.deepStrictEqual([render('$(error)'), render('a \\$(error) b')], [
+			{
+				text: 'Created an automation: $(error)',
+				ariaLabel: 'Open automation $(error)',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+			{
+				text: 'Created an automation: a \\$(error) b',
+				ariaLabel: 'Open automation a \\$(error) b',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+		]);
 	});
 
 	test('rerenders when terminal metadata changes without changing data kind', () => {

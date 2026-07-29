@@ -5,24 +5,14 @@
 		"note": "A symbol is \"covered\" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted."
 	},
 	"commands": {
-		"covered": 15,
+		"covered": 25,
 		"total": 29,
-		"percentage": 51.72,
+		"percentage": 86.2,
 		"uncovered": [
-			"createResourceWatch",
 			"fetchTurns",
 			"invokeChangesetOperation",
 			"ping",
-			"reconnect",
-			"resourceCopy",
-			"resourceDelete",
-			"resourceList",
-			"resourceMkdir",
-			"resourceMove",
-			"resourceRead",
-			"resourceRequest",
-			"resourceResolve",
-			"resourceWrite"
+			"reconnect"
 		]
 	},
 	"notifications": {
