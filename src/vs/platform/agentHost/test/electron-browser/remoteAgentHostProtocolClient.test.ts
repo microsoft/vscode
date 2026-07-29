@@ -15,7 +15,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
-import { AgentHostPermissionMode, AgentHostResourcePermissionError, IAgentHostResourceService } from '../../common/agentHostResourceService.js';
+import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
@@ -146,11 +146,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 	}
 
 	interface IResourceServiceStubOpts {
-		granted?: (address: string, uri: URI, mode: AgentHostPermissionMode) => boolean;
-		onRequest?: (address: string, params: { uri: string; read?: boolean; write?: boolean }) => Promise<void>;
-		onGrantImplicitRead?: (address: string, uri: URI) => void;
+		granted?: (identity: AgentHostResourceIdentity, uri: URI, mode: AgentHostPermissionMode) => boolean;
+		onRequest?: (identity: AgentHostResourceIdentity, params: { uri: string; read?: boolean; write?: boolean }) => Promise<void>;
+		onGrantImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		/** Test hook that observes disposal of the implicit-read grant. */
-		onRevokeImplicitRead?: (address: string, uri: URI) => void;
+		onRevokeImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		readBytes?: VSBuffer;
 	}
 
@@ -166,11 +166,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 		const empty = observableValue<readonly never[]>('test', []);
 		const denyRead = (uri: string) => new AgentHostResourcePermissionError({ channel: 'ahp-root://', uri, read: true });
 		const denyWrite = (uri: string) => new AgentHostResourcePermissionError({ channel: 'ahp-root://', uri, write: true });
-		const gateRead = async (addr: string, uri: URI) => {
-			if (!grant(addr, uri, AgentHostPermissionMode.Read)) { throw denyRead(uri.toString()); }
+		const gateRead = async (identity: AgentHostResourceIdentity, uri: URI) => {
+			if (!grant(identity, uri, AgentHostPermissionMode.Read)) { throw denyRead(uri.toString()); }
 		};
-		const gateWrite = async (addr: string, uri: URI) => {
-			if (!grant(addr, uri, AgentHostPermissionMode.Write)) { throw denyWrite(uri.toString()); }
+		const gateWrite = async (identity: AgentHostResourceIdentity, uri: URI) => {
+			if (!grant(identity, uri, AgentHostPermissionMode.Write)) { throw denyWrite(uri.toString()); }
 		};
 		return {
 			_serviceBrand: undefined,
@@ -201,9 +201,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService));
+	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		const client = disposables.add(new RemoteAgentHostProtocolClient(identity, transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService));
 		return { client, transport, configurationService };
+	}
+
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		return createClientForIdentity('test.example:1234', transport, permissionService, loadEstimator, logService, configurationService, clientId, clientInfo);
 	}
 
 	async function connectClient(client: RemoteAgentHostProtocolClient, transport: TestProtocolTransport): Promise<void> {
@@ -1099,6 +1103,57 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	suite('reverse permission gating', () => {
 
+		test('remote local address does not receive trusted local access', async () => {
+			const permissionService = createResourceServiceStub({
+				granted: identity => identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			});
+			const { client, transport } = createClientForIdentity('local', undefined, permissionService);
+			const uri = URI.file('/etc/passwd').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 41, method: 'resourceRead', params: { channel: 'ahp-root://', uri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual({
+				address: client.address,
+				response: transport.sentMessages.pop(),
+			}, {
+				address: 'local',
+				response: {
+					jsonrpc: '2.0',
+					id: 41,
+					error: {
+						code: AhpErrorCodes.PermissionDenied,
+						message: `Access to ${uri} is not granted.`,
+						data: { request: { channel: ROOT_STATE_URI, uri, read: true } },
+					},
+				},
+			});
+		});
+
+		test('trusted local identity retains local resource access', async () => {
+			const permissionService = createResourceServiceStub({
+				granted: identity => identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+				readBytes: VSBuffer.fromString('trusted'),
+			});
+			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, undefined, permissionService);
+			const uri = URI.file('/etc/passwd').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 40, method: 'resourceRead', params: { channel: 'ahp-root://', uri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual({
+				address: client.address,
+				response: transport.sentMessages.pop(),
+			}, {
+				address: 'local',
+				response: {
+					jsonrpc: '2.0',
+					id: 40,
+					result: { data: 'dHJ1c3RlZA==', encoding: ContentEncoding.Base64 },
+				},
+			});
+		});
+
 		test('resourceRead is denied with PermissionDeniedErrorData when not granted', async () => {
 			const { transport } = createClient(undefined, createPermissionService(false));
 			const uri = URI.file('/etc/passwd').toString();
@@ -1194,7 +1249,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 
 		test('reverse resourceRequest delegates to permission service and replies with empty result', async () => {
-			let lastRequest: { address: string; params: { uri: string; read?: boolean; write?: boolean } } | undefined;
+			let lastRequest: { address: AgentHostResourceIdentity; params: { uri: string; read?: boolean; write?: boolean } } | undefined;
 			const stub = createResourceServiceStub({
 				granted: () => false,
 				onRequest: async (address, params) => { lastRequest = { address, params }; },
@@ -1237,8 +1292,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	suite('implicit grants for outgoing actions', () => {
 
-		function createCapturingPermissionService(): { service: IAgentHostResourceService; calls: { address: string; uri: URI }[] } {
-			const calls: { address: string; uri: URI }[] = [];
+		function createCapturingPermissionService(): { service: IAgentHostResourceService; calls: { address: AgentHostResourceIdentity; uri: URI }[] } {
+			const calls: { address: AgentHostResourceIdentity; uri: URI }[] = [];
 			const service = createResourceServiceStub({
 				onGrantImplicitRead: (address, uri) => calls.push({ address, uri }),
 			});
