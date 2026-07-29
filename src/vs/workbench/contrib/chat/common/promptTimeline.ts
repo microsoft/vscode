@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** Id of the per-widget contribution that owns the prompt timeline rail. */
-export const PROMPT_TIMELINE_CONTRIB_ID = 'sessions.promptTimeline';
+/** Id of the per-widget contribution that owns the prompt timeline surfaces. */
+export const PROMPT_TIMELINE_CONTRIB_ID = 'chat.promptTimeline';
 
-/** Setting that controls which prompt timeline rail (if any) is shown next to the chat transcript. */
+/** Setting that controls which prompt timeline rail (if any) is shown next to the chat transcript. Agents window only. */
 export const PROMPT_TIMELINE_RAIL_SETTING = 'sessions.promptTimeline.rail';
 
 /** Setting that controls whether the sticky prompt header pins the current prompt while scrolling. */
-export const PROMPT_TIMELINE_STICKY_HEADER_SETTING = 'sessions.promptTimeline.stickyHeader';
+export const PROMPT_TIMELINE_STICKY_HEADER_SETTING = 'chat.promptTimeline.stickyHeader';
 
 /**
  * The rail styles the {@link PROMPT_TIMELINE_RAIL_SETTING} can select:
@@ -23,5 +23,5 @@ export type PromptTimelineRailStyle = 'off' | 'ruler' | 'dock';
 /** The selectable rail-style values, for the setting's `enum`. */
 export const PROMPT_TIMELINE_RAIL_STYLES: readonly PromptTimelineRailStyle[] = ['off', 'ruler', 'dock'];
 
-/** Minimum number of user prompts before the rail is shown. */
+/** Minimum number of user prompts before the timeline surfaces (rail and sticky header) are shown. */
 export const MIN_PROMPTS = 2;

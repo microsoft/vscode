@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, ModelInfo, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, ModelInfo, Options, PermissionMode, Query, SDKControlInterruptResponse, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
@@ -587,8 +587,9 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 		throw err;
 	}
 
-	async interrupt(): Promise<void> {
+	async interrupt(): Promise<SDKControlInterruptResponse | undefined> {
 		this.interruptCount++;
+		return undefined;
 	}
 
 	// Phase 6 doesn't exercise the rest of the Query control surface; if a
@@ -848,10 +849,10 @@ function tick(): Promise<void> {
  */
 function forkSourceMessages(sourceId: string): SessionMessage[] {
 	return [
-		{ type: 'user', uuid: 'u1', session_id: sourceId, parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: 'apple' }] } },
-		{ type: 'assistant', uuid: 'a1', session_id: sourceId, parent_tool_use_id: null, message: { id: 'msg_a1', role: 'assistant', content: [{ type: 'text', text: 'apple!' }] } },
-		{ type: 'user', uuid: 'u2', session_id: sourceId, parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: 'banana' }] } },
-		{ type: 'assistant', uuid: 'a2', session_id: sourceId, parent_tool_use_id: null, message: { id: 'msg_a2', role: 'assistant', content: [{ type: 'text', text: 'banana!' }] } },
+		{ type: 'user', uuid: 'u1', session_id: sourceId, parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: 'apple' }] } },
+		{ type: 'assistant', uuid: 'a1', session_id: sourceId, parent_tool_use_id: null, parent_agent_id: null, message: { id: 'msg_a1', role: 'assistant', content: [{ type: 'text', text: 'apple!' }] } },
+		{ type: 'user', uuid: 'u2', session_id: sourceId, parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: 'banana' }] } },
+		{ type: 'assistant', uuid: 'a2', session_id: sourceId, parent_tool_use_id: null, parent_agent_id: null, message: { id: 'msg_a2', role: 'assistant', content: [{ type: 'text', text: 'banana!' }] } },
 	];
 }
 
@@ -4892,6 +4893,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		return {
 			signal: new AbortController().signal,
 			toolUseID,
+			requestId: toolUseID,
 			...(overrides?.blockedPath !== undefined ? { blockedPath: overrides.blockedPath } : {}),
 		};
 	}
@@ -4996,6 +4998,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		const options: Parameters<NonNullable<Options['canUseTool']>>[2] = {
 			signal: ac.signal,
 			toolUseID: 'tu_aborted',
+			requestId: 'tu_aborted',
 		};
 
 		const promise = canUseTool('Read', { file_path: '/tmp/x' }, options);
@@ -5018,6 +5021,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		const result = await canUseTool('Read', { file_path: '/tmp/y' }, {
 			signal: ac.signal,
 			toolUseID: 'tu_pre_aborted',
+			requestId: 'tu_pre_aborted',
 		});
 
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'SDK aborted the tool request' });
@@ -5173,7 +5177,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 				question: 'Pick one?',
 				options: [{ label: 'Apple' }, { label: 'Banana' }],
 			}],
-		}, { signal: new AbortController().signal, toolUseID: 'tu_ask' });
+		}, { signal: new AbortController().signal, toolUseID: 'tu_ask', requestId: 'tu_ask' });
 		await tick();
 
 		const inputRequest = inputRequests.at(-1)!;
@@ -5211,7 +5215,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 
 		const promise = canUseTool('AskUserQuestion', {
 			questions: [{ header: 'q1', question: 'Pick one?', options: [{ label: 'Apple' }] }],
-		}, { signal: new AbortController().signal, toolUseID: 'tu_ask_cancel' });
+		}, { signal: new AbortController().signal, toolUseID: 'tu_ask_cancel', requestId: 'tu_ask_cancel' });
 		await tick();
 
 		ctx.agent.respondToUserInputRequest('tu_ask_cancel', ChatInputResponseKind.Cancel);
@@ -5236,6 +5240,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		const promise = canUseTool('ExitPlanMode', { plan: '1. Read foo\n2. Edit foo' }, {
 			signal: new AbortController().signal,
 			toolUseID: 'tu_plan_ok',
+			requestId: 'tu_plan_ok',
 		});
 		await tick();
 
@@ -5281,6 +5286,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		const promise = canUseTool('ExitPlanMode', { plan: 'just plan' }, {
 			signal: new AbortController().signal,
 			toolUseID: 'tu_plan_deny',
+			requestId: 'tu_plan_deny',
 		});
 		await tick();
 
@@ -5314,6 +5320,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		const result = await canUseTool('ExitPlanMode', { plan: 'sync test' }, {
 			signal: new AbortController().signal,
 			toolUseID: 'tu_plan_race',
+			requestId: 'tu_plan_race',
 		});
 		assert.deepStrictEqual(result, { behavior: 'allow', updatedInput: { plan: 'sync test' } });
 	});
@@ -5850,6 +5857,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const permissionPromise = canUseTool('Read', { file_path: '/tmp/foo.txt' }, {
 			signal: new AbortController().signal,
 			toolUseID: 'tu_pending',
+			requestId: 'tu_pending',
 		});
 		await tick();
 
@@ -6040,6 +6048,7 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { role: 'user', content: [{ type: 'text', text }] },
 		};
 	}
@@ -6050,6 +6059,7 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'text', text }] },
 		};
 	}
@@ -6846,8 +6856,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			: sentContent?.filter(block => block.type === 'text').map(block => block.text).join('\n');
 		sdk.sessionMessagesById.set('side-1', [
 			...forkSourceMessages('side-1').slice(0, 2),
-			{ type: 'user', uuid: 'turn-side', session_id: 'side-1', parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
-			{ type: 'assistant', uuid: 'a3', session_id: 'side-1', parent_tool_use_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
+			{ type: 'user', uuid: 'turn-side', session_id: 'side-1', parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
+			{ type: 'assistant', uuid: 'a3', session_id: 'side-1', parent_tool_use_id: null, parent_agent_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
 		]);
 		await agent.chats.changeModel(chatUri, { id: 'claude-opus-4-6' });
 		const turns = await agent.chats.getMessages(chatUri);
@@ -6901,6 +6911,44 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
+	test('createChat({ sideChat }) falls back to injected source context while the source turn is awaiting its first response', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
+		const parentId = AgentSession.id(created.session);
+		const sourceChat = defaultChatUri(created.session);
+		const turnId = 'request_31bb16da-2a24-4312-8adb-04781b463d41';
+		const sourceContext = 'User request:\nsource question';
+		sdk.sessionMessagesById.set(parentId, [{
+			type: 'user',
+			uuid: turnId,
+			session_id: parentId,
+			parent_tool_use_id: null,
+			parent_agent_id: null,
+			message: { role: 'user', content: [{ type: 'text', text: 'source question' }] },
+		}]);
+		sdk.forkSessionRejection = new Error(`Invalid upToMessageId: ${turnId}`);
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side-active'));
+		const result = await agent.chats.createChat(chatUri, {
+			sideChat: { source: sourceChat, turnId, sourceContext },
+		});
+		assert.ok(result?.providerData);
+
+		assert.deepStrictEqual({
+			forked: sdk.forkSessionCalls.length,
+			sideChat: JSON.parse(result.providerData).sideChat,
+		}, {
+			forked: 0,
+			sideChat: {
+				source: sourceChat.toString(),
+				turnId,
+				inheritedTurnCount: 0,
+				context: sourceContext,
+			},
+		});
+	});
+
 	test('createChat({ sideChat }) preserves a local source turn id while forking from the concrete provider anchor', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -6930,8 +6978,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			: sentContent?.filter(block => block.type === 'text').map(block => block.text).join('\n');
 		sdk.sessionMessagesById.set('side-local-1', [
 			...forkSourceMessages('side-local-1').slice(0, 2),
-			{ type: 'user', uuid: 'turn-side-local', session_id: 'side-local-1', parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
-			{ type: 'assistant', uuid: 'a3', session_id: 'side-local-1', parent_tool_use_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
+			{ type: 'user', uuid: 'turn-side-local', session_id: 'side-local-1', parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
+			{ type: 'assistant', uuid: 'a3', session_id: 'side-local-1', parent_tool_use_id: null, parent_agent_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
 		]);
 		const turns = await agent.chats.getMessages(chatUri);
 

@@ -287,6 +287,8 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-agents-fontSize-label2);
 	font-style: italic;
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
 	opacity: 0.7;
 	pointer-events: none;
 }

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
+import { $, addDisposableListener, append, clearNode, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { PromptTimelineCard } from './promptTimelineCard.js';
 import { MIN_HOST_WIDTH, spaceMarkCenters } from './promptTimelineLayout.js';
 import { IPromptScrollLayout, PromptFileDiff, PromptTick } from './promptTimelineModel.js';

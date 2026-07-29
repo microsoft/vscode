@@ -100,7 +100,7 @@
 
 	/* Pinned but not hovered/focused: show only the unpin action */
 	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
-		.session-title-toolbar {
+		.session-item:not(.session-archive-animation) .session-title-toolbar {
 			display: block;
 
 			.action-item:not(:last-child) {
