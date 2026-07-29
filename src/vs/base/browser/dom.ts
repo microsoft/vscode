@@ -2181,7 +2181,7 @@ export function getRecentDisposableResizeObserverContextForLoopError(
 	if (context.overflow) {
 		names.push('<overflow>');
 	}
-	return `[ResizeObserverLoopContext(recentWrappedObservers=${names.join(',')})] ${message}`;
+	return `[ResizeObserverLoopContext(${names.join(',')})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

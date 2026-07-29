@@ -674,7 +674,7 @@ suite('dom', () => {
 			);
 			assert.strictEqual(
 				context,
-				'[ResizeObserverLoopContext(recentWrappedObservers=a,b)] ResizeObserver loop completed with undelivered notifications.',
+				'[ResizeObserverLoopContext(a,b)] ResizeObserver loop completed with undelivered notifications.',
 			);
 			a.dispose();
 			b.dispose();
@@ -689,7 +689,7 @@ suite('dom', () => {
 			}
 			assert.strictEqual(
 				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.'),
-				'[ResizeObserverLoopContext(recentWrappedObservers=observer-0,observer-1,observer-2,observer-3,observer-4,observer-5,observer-6,observer-7,<overflow>)] ResizeObserver loop completed with undelivered notifications.',
+				'[ResizeObserverLoopContext(observer-0,observer-1,observer-2,observer-3,observer-4,observer-5,observer-6,observer-7,<overflow>)] ResizeObserver loop completed with undelivered notifications.',
 			);
 			observers.forEach(observer => observer.dispose());
 		});
@@ -710,7 +710,7 @@ suite('dom', () => {
 			);
 			assert.strictEqual(
 				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.', auxiliaryWindow),
-				'[ResizeObserverLoopContext(recentWrappedObservers=auxiliary)] ResizeObserver loop completed with undelivered notifications.',
+				'[ResizeObserverLoopContext(auxiliary)] ResizeObserver loop completed with undelivered notifications.',
 			);
 
 			observer.dispose();

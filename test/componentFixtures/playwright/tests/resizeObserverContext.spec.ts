@@ -13,6 +13,6 @@ test('retains wrapped observer context until the browser dispatches the loop war
 	await expect(status).toHaveAttribute('data-warning-count', '1');
 	await expect(status).toHaveAttribute(
 		'data-observer-context',
-		'[ResizeObserverLoopContext(recentWrappedObservers=ResizeObserverContextFixture.selfResizer)] ResizeObserver loop completed with undelivered notifications.',
+		'[ResizeObserverLoopContext(ResizeObserverContextFixture.selfResizer)] ResizeObserver loop completed with undelivered notifications.',
 	);
 });
