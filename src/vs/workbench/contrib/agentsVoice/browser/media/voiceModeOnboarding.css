@@ -69,21 +69,6 @@
 	line-height: 1.4;
 }
 
-.voice-mode-onboarding-listening-notice {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--vscode-spacing-size40);
-	margin-top: var(--vscode-spacing-size40);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.4;
-	color: var(--vscode-descriptionForeground);
-}
-
-.voice-mode-onboarding-listening-notice .codicon {
-	flex-shrink: 0;
-	margin-top: 1px;
-}
-
 /* The settings link sits inside the sentence, so it takes its colour from the
  * link token and nothing else - no weight, no size, no box that would lift it
  * out of the prose it belongs to. */
@@ -187,9 +172,9 @@
 }
 
 .voice-mode-onboarding-voice.selected {
-	background-color: var(--vscode-agentsVoice-speakingBackground);
-	border-color: var(--vscode-agentsVoice-speakingForeground);
-	color: var(--vscode-agentsVoice-speakingForeground);
+	background-color: var(--vscode-list-activeSelectionBackground);
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-list-activeSelectionForeground);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 

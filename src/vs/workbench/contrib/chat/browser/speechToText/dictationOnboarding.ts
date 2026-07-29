@@ -8,7 +8,6 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -35,6 +34,9 @@ import './media/dictationOnboarding.css';
  */
 const DICTATION_INTRO_SHOWN_KEY = 'chat.dictation.introShown';
 
+export const SHOW_DICTATION_ONBOARDING_COMMAND = 'workbench.action.chat.showSpeechToTextIntroduction';
+export const RESET_DICTATION_ONBOARDING_COMMAND = 'workbench.action.chat.resetSpeechToTextIntroduction';
+
 /** Opens the settings editor, filtered by the query below. */
 const OPEN_SETTINGS_COMMAND = 'workbench.action.openSettings';
 
@@ -44,7 +46,7 @@ const DICTATION_SETTINGS_QUERY = 'dictation';
 /** The `deviceId` value that means "whatever the system is using". */
 const SYSTEM_DEFAULT_DEVICE_ID = '';
 
-type DictationOnboardingAction = 'shown' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'startDictation' | 'cancel';
+type DictationOnboardingAction = 'shown' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
 
 type DictationOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Dictation onboarding card.' };
@@ -164,8 +166,8 @@ const enum MicrophonePreviewError {
  * Listens to a microphone purely so its loudness can be shown. Owns the media
  * stream, the audio graph and nothing else; releasing it frees the microphone.
  *
- * This is deliberately independent of the dictation pipeline: the whole point of
- * the card is to prove the chosen device works *before* anything is recorded.
+ * This is deliberately independent of the dictation pipeline so the card can
+ * remain informational while recording starts immediately.
  */
 class MicrophonePreview extends Disposable {
 
@@ -487,22 +489,12 @@ export function indexOfMicrophone(options: readonly IMicrophoneOption[], deviceI
 
 // --- Banner --------------------------------------------------------------
 
-/**
- * How long the card waits before dictation takes over.
- *
- * Load-bearing rather than cosmetic: the preview microphone is released at the
- * start of it, and the audio service needs a moment to actually hand the device
- * over before dictation asks for it.
- */
-const HANDOFF_DELAY_MS = 300;
-
 export interface IDictationOnboardingBannerOptions {
 	/** The element the card attaches itself to. */
 	readonly container: HTMLElement;
-	/** Dismiss the card without dictating (Escape). */
-	readonly onCancel: () => void;
-	/** Dismiss the card and start the dictation it deferred. */
-	readonly onStartDictation: () => void;
+	readonly onDismiss: () => void;
+	/** Whether this manually opened card should acquire a microphone preview. */
+	readonly previewMicrophone: boolean;
 	readonly source: 'automatic' | 'manual';
 }
 
@@ -510,10 +502,8 @@ export interface IDictationOnboardingBannerOptions {
  * The first-run dictation card: which microphone dictation will use, live proof
  * that it is working, and one line on what dictation is.
  *
- * The card takes over the very first dictation rather than running alongside it,
- * because "is my microphone even connected" cannot be answered while words are
- * already being transcribed. Nothing is recorded while it is up: talking here
- * only moves the waveform, and dictation starts when the user says it should.
+ * The card runs alongside the first dictation, so it explains the feature
+ * without delaying the action the user invoked.
  */
 export class DictationOnboardingBanner extends Disposable {
 
@@ -526,9 +516,7 @@ export class DictationOnboardingBanner extends Disposable {
 	private readonly pickerContainer: HTMLElement;
 
 	private readonly picker = this._register(new MutableDisposable<DisposableStore>());
-	private readonly handoff = this._register(new MutableDisposable<IDisposable>());
 	private options: IMicrophoneOption[] = [];
-	private finished = false;
 
 	constructor(
 		private readonly bannerOptions: IDictationOnboardingBannerOptions,
@@ -545,11 +533,10 @@ export class DictationOnboardingBanner extends Disposable {
 			container: bannerOptions.container,
 			className: 'dictation-onboarding-banner',
 			ariaLabel: localize('dictation.onboarding.region', "Dictation introduction"),
-			// Sighted users get this from the waveform moving as they talk. A
-			// screen-reader user has no waveform to watch, so the card has to say
-			// what it is for and how to leave it.
-			ariaDescription: localize('dictation.onboarding.regionDescription', "Say anything to check your microphone, then start dictating."),
-			onEscape: () => this.cancel(),
+			ariaDescription: bannerOptions.previewMicrophone
+				? localize('dictation.onboarding.regionDescription.preview', "Say anything to check your microphone.")
+				: localize('dictation.onboarding.regionDescription.listening', "Dictation is listening."),
+			onEscape: () => this.dismiss('escape'),
 		}));
 		this.domNode = this.card.domNode;
 
@@ -596,7 +583,11 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 
 		this.waveform.start();
-		void this.startPreview();
+		if (this.bannerOptions.previewMicrophone) {
+			void this.startPreview();
+		} else {
+			void this.refreshDevices();
+		}
 		this.logAction('shown');
 	}
 
@@ -751,7 +742,9 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 
 		status(localize('dictation.onboarding.microphoneSelected', "{0} selected.", option.label));
-		void this.preview.listen(option.deviceId).then(() => this.updateHint());
+		if (this.bannerOptions.previewMicrophone) {
+			void this.preview.listen(option.deviceId).then(() => this.updateHint());
+		}
 	}
 
 	/**
@@ -760,68 +753,25 @@ export class DictationOnboardingBanner extends Disposable {
 	 * one the card can do without.
 	 */
 	private updateHint(): void {
-		if (this.finished) {
-			return;
-		}
 		const error = this.preview.error;
 		this.domNode.classList.toggle('has-error', error !== undefined);
 		this.hint.textContent = error === undefined ? '' : hintForError(error);
 	}
 
-	/**
-	 * The one control that starts dictation. A check rather than a cross:
-	 * leaving this card is a confirmation that the microphone is right, not an
-	 * abandonment.
-	 *
-	 * Pinned to the corner and out of the content flow, so it never competes
-	 * with the picker for room and never moves as the card re-flows.
-	 */
 	private renderClose(): void {
 		this.card.addAction({
 			className: 'dictation-onboarding-close',
-			ariaLabel: localize('dictation.onboarding.close', "Start Dictating"),
-			icon: Codicon.check,
-			onActivate: () => this.finish(),
+			ariaLabel: localize('dictation.onboarding.close', "Close the introduction"),
+			icon: Codicon.close,
+			onActivate: () => this.dismiss('close'),
 		});
 	}
 
-	/**
-	 * Hand the session over to real dictation, at the user's word rather than on
-	 * a guess about what they meant by talking.
-	 *
-	 * The preview microphone is released first and the hand-off is deferred by a
-	 * beat: dictation would otherwise be asking the audio service for a device
-	 * the card has not finished giving back.
-	 */
-	private finish(): void {
-		if (this.finished) {
-			return;
-		}
-		this.finished = true;
-		this.logAction('startDictation');
+	private dismiss(action: 'close' | 'escape'): void {
+		this.logAction(action);
 		this.waveform.stop();
 		this.preview.releaseMicrophone();
-
-		this.domNode.classList.remove('has-error');
-		this.domNode.classList.add('handing-off');
-		// Announced rather than shown: the card is on its way out, so a line of
-		// text nobody has time to read would only be noise. A screen reader has
-		// no waveform to watch and does need telling.
-		status(localize('dictation.onboarding.starting', "Starting dictation…"));
-
-		this.handoff.value = disposableTimeout(() => this.bannerOptions.onStartDictation(), HANDOFF_DELAY_MS);
-	}
-
-	/** Escape means "I did not want to dictate after all". */
-	private cancel(): void {
-		if (this.finished) {
-			return;
-		}
-		this.finished = true;
-		this.logAction('cancel');
-		this.waveform.stop();
-		this.preview.releaseMicrophone();
-		this.bannerOptions.onCancel();
+		this.bannerOptions.onDismiss();
 	}
 
 	private logAction(action: DictationOnboardingAction): void {
@@ -861,20 +811,20 @@ export interface IDictationOnboardingService {
 	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable;
 
 	/**
-	 * Show the card in place of the user's first dictation. Returns `true` when
-	 * it took the dictation over, in which case `startDictation` is called once
-	 * the user confirms the card - and never called at all if they pressed
-	 * Escape. Returns `false` when the card has been seen before or there is no
-	 * chat input to dock it to, and the caller should just dictate.
+	 * Show the card alongside the user's first dictation. Dictation starts
+	 * independently and is never gated on the card.
 	 */
-	showIfNeeded(startDictation: () => void): boolean;
+	showIfNeeded(): boolean;
 
 	/**
 	 * Show the card again regardless of whether it has been seen, for the "Show
 	 * Introduction" command. Returns `false` when there is no visible chat input
 	 * to dock it to, so the caller can explain why nothing happened.
 	 */
-	show(startDictation?: () => void): boolean;
+	show(): boolean;
+
+	/** Reset first-run state so the introduction is shown next time. */
+	reset(): void;
 }
 
 export class DictationOnboardingService extends Disposable implements IDictationOnboardingService {
@@ -885,6 +835,7 @@ export class DictationOnboardingService extends Disposable implements IDictation
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -898,22 +849,23 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		return this.onboarding.registerHost(container, focusRoot);
 	}
 
-	showIfNeeded(startDictation: () => void): boolean {
-		return this.onboarding.showIfNeeded(context => this.createBanner(context.container, context.dismiss, 'automatic', startDictation));
+	showIfNeeded(): boolean {
+		return this.onboarding.showIfNeeded(context => this.createBanner(context.container, context.dismiss, 'automatic', false));
 	}
 
-	show(startDictation?: () => void): boolean {
-		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', startDictation));
+	show(): boolean {
+		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true));
 	}
 
-	private createBanner(container: HTMLElement, dismiss: () => void, source: 'automatic' | 'manual', startDictation?: () => void): DictationOnboardingBanner {
+	reset(): void {
+		this.storageService.remove(DICTATION_INTRO_SHOWN_KEY, StorageScope.APPLICATION);
+	}
+
+	private createBanner(container: HTMLElement, dismiss: () => void, source: 'automatic' | 'manual', previewMicrophone: boolean): DictationOnboardingBanner {
 		return this.instantiationService.createInstance(DictationOnboardingBanner, {
 			container,
-			onCancel: dismiss,
-			onStartDictation: () => {
-				dismiss();
-				startDictation?.();
-			},
+			onDismiss: dismiss,
+			previewMicrophone,
 			source,
 		});
 	}

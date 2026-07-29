@@ -20,7 +20,6 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
@@ -32,14 +31,7 @@ const VOICE_SETTING = 'agents.voice.voice';
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
-/**
- * Where the second link goes: `voice.md`, the customization file sent to the
- * backend as `voice_instructions`. It shapes what the agent *says back*, which
- * is why the link reads "how it responds" rather than naming the file.
- */
-const VOICE_INSTRUCTIONS_COMMAND = 'workbench.action.chat.configureVoiceInstructions';
-
-type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'openSettings' | 'close' | 'escape';
 
 type VoiceModeOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
@@ -557,7 +549,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -576,20 +567,10 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
 
-		// Voice Mode is live, but it must not be listening while the user is still
-		// reading and picking a voice. A hold is used rather than `stopListening`
-		// because the card goes up on `isConnecting`, before the session exists:
-		// `stopListening` no-ops until connected, and hands-free would then open
-		// the microphone on `session_init` with the card still on screen.
-		// Released in `finish()`, which is the only way out of the card.
-		this.voiceSessionController.setAutoListenHeld(true);
-		this._register(toDisposable(() => this.voiceSessionController.setAutoListenHeld(false)));
-
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
 		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
 		title.textContent = localize('voiceMode.onboarding.title', "Welcome to Voice Mode");
 		this.renderDescription(copy);
-		this.renderListeningNotice(copy);
 
 		this.renderSharedWaveform(instantiationService);
 
@@ -683,35 +664,29 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	/**
-	 * One short paragraph: what Voice Mode does, and the two places to change
-	 * your mind - the settings that control it, and the customization file that
-	 * shapes what it says back.
+	 * One short paragraph: what Voice Mode does, and where to change its
+	 * settings.
 	 *
 	 * `[[...]]` marks each clause that becomes a link, so translators can place
-	 * them naturally in the sentence instead of receiving fixed phrases
-	 * concatenated onto the end. `renderFormattedText` numbers them in source
-	 * order and hands the index to the callback.
+	 * it naturally in the sentence instead of receiving a fixed phrase
+	 * concatenated onto the end.
 	 */
 	private renderDescription(container: HTMLElement): void {
 		const description = dom.append(container, dom.$('.voice-mode-onboarding-description'));
 		const text = localize({
 			key: 'voiceMode.onboarding.description',
 			comment: [
-				'Preserve the double square brackets: they mark the two pieces of text that become links.',
-				'The first link opens Voice Mode settings; the second opens a file for customizing how the agent speaks.',
+				'Preserve the double square brackets: they mark the text that becomes a link.',
+				'The link opens Voice Mode settings.',
 			],
-		}, "Your agent can speak back to you, free of charge. Adjust [[settings]] or [[how it responds]] anytime.");
+		}, "Your agent can speak back to you, free of charge. Adjust [[settings]] anytime.");
 
-		const commands = [VOICE_SETTINGS_COMMAND, VOICE_INSTRUCTIONS_COMMAND];
 		dom.append(description, renderFormattedText(text, {
 			actionHandler: {
-				callback: index => {
-					const command = commands[Number(index)];
-					if (command) {
-						this.logAction(index === '0' ? 'openSettings' : 'openInstructions');
-						this.commandService.executeCommand(command)
-							.catch(error => this.logService.error(`[voice] Failed to run ${command}: ${error}`));
-					}
+				callback: () => {
+					this.logAction('openSettings');
+					this.commandService.executeCommand(VOICE_SETTINGS_COMMAND)
+						.catch(error => this.logService.error(`[voice] Failed to run ${VOICE_SETTINGS_COMMAND}: ${error}`));
 				},
 				disposables: this._store,
 			},
@@ -735,14 +710,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		}
 	}
 
-	private renderListeningNotice(container: HTMLElement): void {
-		const notice = dom.append(container, dom.$('.voice-mode-onboarding-listening-notice'));
-		const icon = dom.append(notice, dom.$(`span.codicon.codicon-${Codicon.mic.id}`));
-		icon.setAttribute('aria-hidden', 'true');
-		const text = dom.append(notice, dom.$('span'));
-		text.textContent = localize('voiceMode.onboarding.closeWhenReady', "Close this when you're ready to speak.");
-	}
-
 	/**
 	 * Dismissal is always available and never gated: a disabled close would trap
 	 * someone in the card. Choosing a voice already commits it, so this is only
@@ -751,8 +718,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	private renderClose(): void {
 		this.card.addAction({
 			className: 'voice-mode-onboarding-close',
-			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction and continue to Voice Mode"),
-			icon: Codicon.checkCompact,
+			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction"),
+			icon: Codicon.close,
 			onActivate: () => this.finish(),
 		});
 	}
@@ -803,22 +770,9 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.domNode.classList.toggle('playing', playingVoice !== undefined);
 	}
 
-	/**
-	 * Close the introduction and hand the session back to the user. Voice Mode
-	 * stays connected either way; hands-free starts listening immediately, while
-	 * push-to-talk waits for the mic button so nobody is recorded unexpectedly.
-	 */
 	private finish(): void {
 		this.player.stop();
 		this.logAction('close');
-
-		// Releasing the hold is what hands the session back: hands-free picks up
-		// and starts listening, push-to-talk stays quiet until the mic button.
-		// The release itself runs on dispose, below.
-		status(this.configurationService.getValue<boolean>('agents.voice.handsFree') === true
-			? localize('voiceMode.onboarding.listening', "Voice Mode is listening.")
-			: localize('voiceMode.onboarding.ready', "Voice Mode is ready. Press the mic button to start talking."));
-
 		this.options.onDismiss();
 	}
 

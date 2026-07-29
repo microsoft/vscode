@@ -27,7 +27,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
-import { IDictationOnboardingService } from '../speechToText/dictationOnboarding.js';
+import { IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
@@ -47,10 +47,9 @@ export interface IDictationShortcutContext {
 	readonly keybindingService: IKeybindingService;
 	readonly logService: ILogService;
 	/**
-	 * Supplied by chat inputs only. The first dictation started from one is
-	 * handed to the introduction card so the microphone can be chosen and
-	 * checked before anything is transcribed; editor and terminal dictation have
-	 * nowhere to dock the card and dictate straight away.
+	 * Supplied by chat inputs only. The first dictation started from one shows
+	 * its introduction alongside recording; editor and terminal dictation have
+	 * nowhere to dock the card.
 	 */
 	readonly onboardingService?: IDictationOnboardingService;
 }
@@ -89,13 +88,8 @@ export async function runDictationShortcut(context: IDictationShortcutContext, c
 
 	const window = getWindow(editor.getDomNode()) ?? getActiveWindow();
 
-	// First run: let the introduction card take this dictation over so the user
-	// can confirm the microphone is the right one and is actually being heard.
-	// Nothing is recorded until they confirm the card, which is what starts the
-	// dictation this press asked for.
-	if (context.onboardingService?.showIfNeeded(() => void startDictation(speechService, editor, window, logService))) {
-		return;
-	}
+	// The first-run card is informational and must not delay recording.
+	context.onboardingService?.showIfNeeded();
 
 	// Attempt to detect a held keybinding. Returns `undefined` when not invoked
 	// through a held key (e.g. the toolbar mic or the command palette), which
@@ -353,7 +347,7 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 }
 
 class ShowChatSpeechToTextIntroductionAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.showSpeechToTextIntroduction';
+	static readonly ID = SHOW_DICTATION_ONBOARDING_COMMAND;
 
 	constructor() {
 		super({
@@ -374,6 +368,22 @@ class ShowChatSpeechToTextIntroductionAction extends Action2 {
 		// The card docks to a chat input, so there is nothing to show it in when
 		// no chat is open. Say so rather than appearing to do nothing.
 		accessor.get(INotificationService).info(localize('chatStt.introductionNeedsChat', "Open a chat to see the dictation introduction."));
+	}
+}
+
+class ResetChatSpeechToTextIntroductionAction extends Action2 {
+	constructor() {
+		super({
+			id: RESET_DICTATION_ONBOARDING_COMMAND,
+			title: localize2('chat.speechToText.resetIntroduction', "Dictate: Reset Onboarding"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatSpeechToTextConfigured,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IDictationOnboardingService).reset();
 	}
 }
 
@@ -415,6 +425,7 @@ export function registerChatSpeechToTextActions(): DisposableStore {
 	store.add(registerAction2(HoldToSpeechToTextAction));
 	store.add(registerAction2(CancelChatSpeechToTextAction));
 	store.add(registerAction2(ShowChatSpeechToTextIntroductionAction));
+	store.add(registerAction2(ResetChatSpeechToTextIntroductionAction));
 	store.add(registerAction2(SelectSpeechToTextMicrophoneAction));
 	return store;
 }

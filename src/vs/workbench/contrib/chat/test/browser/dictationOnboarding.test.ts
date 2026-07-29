@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -13,12 +12,6 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { buildMicrophoneOptions, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
-
-/**
- * Comfortably longer than the card's hand-off delay, so the tests observe the
- * settled state rather than racing it.
- */
-const HANDOFF_GRACE_MS = 500;
 
 /** Minimal stand-in for the browser's device descriptor. */
 function device(kind: MediaDeviceKind, deviceId: string, label: string): MediaDeviceInfo {
@@ -94,66 +87,53 @@ suite('Dictation onboarding', () => {
 			{ remembered: 1, systemDefault: 0, unplugged: 0 });
 	});
 
-	test('takes over the first dictation, then never returns', async () => {
+	test('shows alongside the first dictation, then never returns', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];
 		const service = createService(disposables, undefined, telemetryEvents);
 		const host = createHost(disposables);
 		disposables.add(service.registerHost(host.container, host.root));
 
-		let dictations = 0;
-		const tookOver = service.showIfNeeded(() => dictations++);
+		const shownFirstTime = service.showIfNeeded();
 		const shown = host.container.classList.contains('has-dictation-onboarding');
 
-		// Nothing is recorded while the card is up: confirming it is the only
-		// thing that starts the dictation it deferred, and even that waits a beat
-		// for the card to hand the microphone back.
-		const dictationsWhileOpen = dictations;
+		const closeIcon = host.container.querySelector('.dictation-onboarding-close .codicon')?.className;
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
-		const dictationsBeforeHandoff = dictations;
-		await timeout(HANDOFF_GRACE_MS);
-
-		const tookOverAgain = service.showIfNeeded(() => dictations++);
+		const shownAgain = service.showIfNeeded();
 
 		assert.deepStrictEqual(
 			{
-				tookOver, shown, dictationsWhileOpen, dictationsBeforeHandoff,
-				dictationsAfterHandoff: dictations,
-				visibleAfterHandoff: host.container.classList.contains('has-dictation-onboarding'),
-				tookOverAgain,
+				shownFirstTime, shown, closeIcon,
+				visibleAfterClose: host.container.classList.contains('has-dictation-onboarding'),
+				shownAgain,
 				telemetryEvents,
 			},
 			{
-				tookOver: true, shown: true, dictationsWhileOpen: 0, dictationsBeforeHandoff: 0,
-				dictationsAfterHandoff: 1,
-				visibleAfterHandoff: false,
-				tookOverAgain: false,
+				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close',
+				visibleAfterClose: false,
+				shownAgain: false,
 				telemetryEvents: [
 					{ name: 'dictationOnboarding.action', data: { action: 'shown', source: 'automatic' } },
-					{ name: 'dictationOnboarding.action', data: { action: 'startDictation', source: 'automatic' } },
+					{ name: 'dictationOnboarding.action', data: { action: 'close', source: 'automatic' } },
 				],
 			});
 	});
 
-	test('escape dismisses the card without dictating', async () => {
+	test('escape dismisses the card', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
 		disposables.add(service.registerHost(host.container, host.root));
 
-		let dictations = 0;
-		service.showIfNeeded(() => dictations++);
+		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-banner')!
 			.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-		await timeout(HANDOFF_GRACE_MS);
 
-		assert.deepStrictEqual(
-			{ dictations, visible: host.container.classList.contains('has-dictation-onboarding') },
-			{ dictations: 0, visible: false });
+		assert.strictEqual(host.container.classList.contains('has-dictation-onboarding'), false);
 	});
 
 	test('dictates straight away when there is no chat input to dock to', () => {
 		const service = createService(disposables);
 
-		assert.strictEqual(service.showIfNeeded(() => { }), false);
+		assert.strictEqual(service.showIfNeeded(), false);
 	});
 
 	test('showing again replaces the card rather than hiding it', () => {
@@ -172,6 +152,18 @@ suite('Dictation onboarding', () => {
 			{ visible: true, cards: 1 });
 	});
 
+	test('reset shows the introduction on the next dictation', () => {
+		const service = createService(disposables);
+		const host = createHost(disposables);
+		disposables.add(service.registerHost(host.container, host.root));
+
+		service.showIfNeeded();
+		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
+		service.reset();
+
+		assert.strictEqual(service.showIfNeeded(), true);
+	});
+
 	test('attaches to the most recently focused host', () => {
 		const service = createService(disposables);
 		const first = createHost(disposables);
@@ -183,7 +175,7 @@ suite('Dictation onboarding', () => {
 		// so raise the same event the focus tracker listens for.
 		second.root.focus();
 		second.root.dispatchEvent(new FocusEvent('focus'));
-		service.showIfNeeded(() => { });
+		service.showIfNeeded();
 
 		assert.deepStrictEqual(
 			{
