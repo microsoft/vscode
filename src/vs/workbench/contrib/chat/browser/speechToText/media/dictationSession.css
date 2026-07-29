@@ -10,10 +10,13 @@
 	display: none !important;
 }
 
-/* The trailing portion of the transcript the recognizer is still working out is
- * rendered in the input's placeholder color to signal it is provisional. Words
- * become solid as soon as the recognizer commits them, and the decoration is
- * gone entirely once the transcript is finalized. */
-.monaco-editor .dictation-interim-processing {
+/* The not-yet-final transcript is rendered in the input's placeholder color to
+ * signal it is provisional; the decoration is removed once the transcript is
+ * finalized, leaving solid text.
+ *
+ * The selector has to out-specify Monaco's syntax-token rules (`.monaco-editor
+ * .mtkN`), which are injected into the document after this stylesheet and would
+ * otherwise win the tie and paint the text in the normal foreground color. */
+.monaco-editor .view-line span.dictation-interim-processing {
 	color: var(--vscode-input-placeholderForeground);
 }
