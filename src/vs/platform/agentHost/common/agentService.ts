@@ -1363,9 +1363,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	/**
 	 * Host-only shell grammar hint for terminal auto-approval (not part of the
 	 * dispatched action). Set by shell tools so PowerShell commands are parsed
-	 * with the PowerShell grammar instead of bash.
+	 * with the PowerShell grammar instead of bash. `unknown` means the shell
+	 * request could not be correlated with its tool and must not be auto-approved.
 	 */
-	readonly shellLanguage?: 'bash' | 'powershell';
+	readonly shellLanguage?: 'bash' | 'powershell' | 'unknown';
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting

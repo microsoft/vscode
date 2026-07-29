@@ -232,14 +232,14 @@ export class CommandAutoApprover extends Disposable {
 		const rules = this._compileRules(options?.autoApproveRules);
 		const isPowerShell = options?.language === 'powershell';
 
-		const parsed = this._extractSubCommands(trimmed, isPowerShell);
-		if (!parsed) {
-			this._logService.trace('[CommandAutoApprover] Tree-sitter unavailable, requiring confirmation');
-			return { result: 'noMatch', autoApproveRuleResolvable: false };
-		}
-
 		if (this._matchesRule(trimmed, rules.denyCommandLineRules)) {
 			return { result: 'denied', autoApproveRuleResolvable: false };
+		}
+
+		const parsed = this._extractSubCommands(trimmed, isPowerShell);
+		if (!parsed) {
+			this._logService.trace('[CommandAutoApprover] Command line could not be analyzed, requiring confirmation');
+			return { result: 'noMatch', autoApproveRuleResolvable: false };
 		}
 
 		const hasUnapprovedRedirect = () => parsed.unsafeWriteDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
@@ -332,17 +332,22 @@ export class CommandAutoApprover extends Disposable {
 				}
 				// No-space PowerShell redirects (`2>$null`) parse as generic_token
 				// command arguments rather than redirection nodes, so both are
-				// captured and filtered by shape below.
+				// captured and filtered by shape below. Assignments and method
+				// invocations are captured so the command line can fail closed
+				// when it contains code the rules cannot see.
 				const query = new this._queryClass(language, isPowerShell
-					? '(command) @command (redirection) @redirection (generic_token) @generic_token'
+					? '(command) @command (redirection) @redirection (generic_token) @generic_token (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
 					: '(command) @command (file_redirect) @file_redirect (heredoc_redirect) @heredoc_redirect (herestring_redirect) @herestring_redirect');
 				const captures: QueryCapture[] = query.captures(tree.rootNode);
 				const subCommands: string[] = [];
 				const unsafeWriteDests: (string | undefined)[] = [];
+				let unanalyzableType: string | undefined;
 				for (const capture of captures) {
 					const text = masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex);
 					if (capture.name === 'command') {
 						subCommands.push(text);
+					} else if (capture.name === 'unanalyzable') {
+						unanalyzableType ??= capture.node.type;
 					} else if (capture.name === 'file_redirect' || capture.name === 'redirection' || (capture.name === 'generic_token' && pwshNoSpaceRedirectRegex.test(text))) {
 						// Writes to known-safe sinks (e.g. `> /dev/null`, `2>$null`)
 						// and file-descriptor duplications (e.g. `2>&1`) are allowed.
@@ -356,6 +361,11 @@ export class CommandAutoApprover extends Disposable {
 					}
 				}
 				query.delete();
+
+				if (unanalyzableType) {
+					this._logService.trace(`[CommandAutoApprover] Command line contains an unanalyzable ${unanalyzableType}, requiring confirmation`);
+					return undefined;
+				}
 				return subCommands.length > 0 || unsafeWriteDests.length > 0 ? { subCommands, unsafeWriteDests } : undefined;
 			} finally {
 				tree.delete();
@@ -400,12 +410,14 @@ export class CommandAutoApprover extends Disposable {
 				}
 			}));
 
-			// Load the bash and PowerShell grammars
+			// Load the bash and PowerShell grammars. A failure to load one must
+			// not disable auto-approval for the other, so each is settled
+			// independently and assigned only if it resolved.
 			const loadGrammar = async (fileName: string) => {
 				const grammarWasm = await fs.promises.readFile(URI.joinPath(moduleRoot, fileName).fsPath);
 				return TreeSitter.Language.load(new Uint8Array(grammarWasm.buffer, grammarWasm.byteOffset, grammarWasm.byteLength));
 			};
-			const [bashLanguage, powershellLanguage] = await Promise.all([
+			const [bashLanguage, powershellLanguage] = await Promise.allSettled([
 				loadGrammar('tree-sitter-bash.wasm'),
 				loadGrammar('tree-sitter-powershell.wasm'),
 			]);
@@ -415,10 +427,21 @@ export class CommandAutoApprover extends Disposable {
 			}
 
 			this._parser = parser;
-			this._bashLanguage = bashLanguage;
-			this._powershellLanguage = powershellLanguage;
 			this._queryClass = TreeSitter.Query;
-			this._logService.info('[CommandAutoApprover] Tree-sitter initialized successfully');
+			// A grammar that fails to load leaves its language undefined, so
+			// commands for that shell fall back to `noMatch` and require
+			// confirmation rather than auto-approving.
+			if (bashLanguage.status === 'fulfilled') {
+				this._bashLanguage = bashLanguage.value;
+			} else {
+				this._logService.warn('[CommandAutoApprover] Failed to load the bash grammar; bash commands will require confirmation', bashLanguage.reason);
+			}
+			if (powershellLanguage.status === 'fulfilled') {
+				this._powershellLanguage = powershellLanguage.value;
+			} else {
+				this._logService.warn('[CommandAutoApprover] Failed to load the PowerShell grammar; PowerShell commands will require confirmation', powershellLanguage.reason);
+			}
+			this._logService.info(`[CommandAutoApprover] Tree-sitter initialized (bash=${this._bashLanguage ? 'available' : 'unavailable'}, powershell=${this._powershellLanguage ? 'available' : 'unavailable'})`);
 		} catch (err) {
 			this._logService.warn('[CommandAutoApprover] Failed to initialize tree-sitter', err);
 		}

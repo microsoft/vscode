@@ -302,7 +302,9 @@ suite('CommandAutoApprover', () => {
 		// The PowerShell grammar descends into script blocks, so commands nested
 		// inside `{ ... }` are checked individually. The bash grammar keeps the
 		// block opaque, which would let an allow rule on the outer cmdlet
-		// blanket-approve arbitrary nested commands.
+		// blanket-approve arbitrary nested commands. Nested content that is not
+		// a command (e.g. a .NET invocation) is handled by the fail-closed check
+		// below, not by this traversal.
 		test('denies commands nested inside script blocks', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Remove-Item $_ }', pwsh),
@@ -352,6 +354,45 @@ suite('CommandAutoApprover', () => {
 				['if ($x -eq', { result: 'noMatch', autoApproveRuleResolvable: false }],
 			];
 			assert.deepStrictEqual(cases.map(([commandLine]) => approver.evaluate(commandLine, pwsh)), cases.map(([, expected]) => expected));
+		});
+
+		test('fails closed on PowerShell assignments and invocations', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('$env:GIT_SSH_COMMAND="evil"; git status', pwsh),
+				approver.shouldAutoApprove('Write-Output ($env:FOO="evil"); Get-ChildItem', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { $env:FOO="evil"; $true }', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem; [System.IO.File]::Delete("x")', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { [System.IO.File]::Delete($_.FullName) }', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem; $obj.Delete()', pwsh),
+				// Deliberate over-block: an invocation in an argument is usually
+				// harmless, but the rules cannot tell `[math]::Round` from
+				// `[System.IO.File]::Delete`, so both require confirmation.
+				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', pwsh),
+				// Property access executes no method, so it stays approved.
+				approver.shouldAutoApprove('(Get-Content README.md).Length', pwsh),
+			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved']);
+		});
+
+		test('exact allow rules require a safely analyzable command line', () => {
+			const parseErrorAllow = { '/^if \\(\\$x -eq$/': { approve: true, matchCommandLine: true } };
+			const parseErrorDeny = { '/^if \\(\\$x -eq$/': { approve: false, matchCommandLine: true } };
+			const invocationAllow = { '/^Write-Output \\(\\[math\\]::Round\\(1\\.5\\)\\)$/': { approve: true, matchCommandLine: true } };
+			const redirectAllow = {
+				Write: true,
+				'/^Write-Host hi >out\\.txt$/': { approve: true, matchCommandLine: true },
+			};
+			const deniedSubCommand = {
+				Get: true,
+				Remove: false,
+				'/^Get-ChildItem; Remove-Item x$/': { approve: true, matchCommandLine: true },
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', autoApproveRules: parseErrorAllow }),
+				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', autoApproveRules: parseErrorDeny }),
+				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', { language: 'powershell', autoApproveRules: invocationAllow }),
+				approver.shouldAutoApprove('Write-Host hi >out.txt', { language: 'powershell', autoApproveRules: redirectAllow }),
+				approver.shouldAutoApprove('Get-ChildItem; Remove-Item x', { language: 'powershell', autoApproveRules: deniedSubCommand }),
+			], ['noMatch', 'denied', 'noMatch', 'noMatch', 'denied']);
 		});
 	});
 });

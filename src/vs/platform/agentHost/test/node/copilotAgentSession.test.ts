@@ -2320,6 +2320,42 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'denied-interactively-by-user');
 		});
 
+		test('shell permissions carry the tracked shell language or unknown', async () => {
+			const cases = [
+				{ toolCallId: 'tc-powershell-language', toolName: 'powershell', expected: 'powershell' },
+				{ toolCallId: 'tc-bash-language', toolName: 'bash', expected: 'bash' },
+				{ toolCallId: 'tc-unrecognized-language', toolName: 'unexpected-shell-tool', expected: 'unknown' },
+				{ toolCallId: 'tc-unknown-language', toolName: undefined, expected: 'unknown' },
+			] as const;
+			const actual: string[] = [];
+
+			for (const { toolCallId, toolName } of cases) {
+				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+				if (toolName) {
+					mockSession.fire('tool.execution_start', {
+						toolCallId,
+						toolName,
+						arguments: { command: 'Get-ChildItem' },
+					} as SessionEventPayload<'tool.execution_start'>['data']);
+				}
+				const resultPromise = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId,
+					fullCommandText: 'Get-ChildItem',
+				});
+				const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === toolCallId);
+				assert.strictEqual(signal.kind, 'pending_confirmation');
+				if (signal.kind !== 'pending_confirmation') {
+					throw new Error('Expected a pending confirmation');
+				}
+				actual.push(`${toolCallId}=${signal.shellLanguage}`);
+				assert.ok(session.respondToPermissionRequest(toolCallId, true));
+				assert.strictEqual((await resultPromise).kind, 'approve-once');
+			}
+
+			assert.deepStrictEqual(actual, cases.map(({ toolCallId, expected }) => `${toolCallId}=${expected}`));
+		});
+
 		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },

@@ -60,6 +60,10 @@ suite('SessionPermissionManager', () => {
 		return { toolCallId: 'tc-shell', session: URI.parse(sessionUri), permissionKind: 'shell', toolInput: commandLine };
 	}
 
+	function powershellEvent(commandLine: string): IToolApprovalEvent {
+		return { ...shellEvent(commandLine), shellLanguage: 'powershell' };
+	}
+
 	setup(async () => {
 		// Prefer the CI runner temp dir (a plain long path) over `os.tmpdir()`,
 		// which on Windows CI is an 8.3 short path (`C:\Users\RUNNER~1\...`) that
@@ -289,13 +293,40 @@ suite('SessionPermissionManager', () => {
 	// PowerShell's case-insensitive matching, so it distinguishes which grammar
 	// the approver used.
 	test('shell approval and rule eligibility respect the event shell language', async () => {
-		const pwshEvent: IToolApprovalEvent = { ...shellEvent('get-childitem'), shellLanguage: 'powershell' };
+		const pwshEvent = powershellEvent('get-childitem');
 		assert.deepStrictEqual([
 			await permissions.getAutoApproval(pwshEvent, sessionUri),
 			await permissions.getAutoApproval(shellEvent('get-childitem'), sessionUri),
 			permissions.isAutoApproveRuleResolvable(pwshEvent, sessionUri),
 			permissions.isAutoApproveRuleResolvable(shellEvent('get-childitem'), sessionUri),
 		], [ToolCallConfirmationReason.NotNeeded, undefined, false, true]);
+	});
+
+	test('PowerShell redirects require a literal approved destination', async () => {
+		const dynamicResults = [];
+		for (const dest of ['$HOME/outside.txt', '$env:TEMP/x.txt', '$(Get-Location)/x.txt', '`pwd`/x.txt', '${HOME}/x.txt', '%APPDATA%/x.txt']) {
+			dynamicResults.push(await permissions.getAutoApproval(powershellEvent(`Write-Host hi >${dest}`), sessionUri));
+		}
+		assert.deepStrictEqual({
+			dynamicResults,
+			literalWorkspaceDestination: await permissions.getAutoApproval(powershellEvent('Write-Host hi >out.txt'), sessionUri),
+			nullSink: await permissions.getAutoApproval(powershellEvent('Write-Host hi >$null'), sessionUri),
+		}, {
+			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
+			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
+			nullSink: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
+	test('unknown shell language disables terminal rules and rule suggestions', async () => {
+		const event: IToolApprovalEvent = { ...shellEvent('Get-ChildItem'), shellLanguage: 'unknown' };
+		assert.deepStrictEqual({
+			approval: await permissions.getAutoApproval(event, sessionUri),
+			ruleResolvable: permissions.isAutoApproveRuleResolvable(event, sessionUri),
+		}, {
+			approval: undefined,
+			ruleResolvable: false,
+		});
 	});
 
 	test('does not affect session bypass permission mode when terminal auto-approve is disabled', async () => {

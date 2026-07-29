@@ -32,7 +32,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from 
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
@@ -2494,13 +2494,24 @@ export class CopilotAgentSession extends Disposable {
 
 			const isShellRequest = request.kind === 'shell'
 				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
-			// Tell the auto-approver which grammar the command is written in.
-			// `shell` requests carry no tool name, so fall back to the tracked
-			// tool call's SDK tool name.
-			const shellToolName = typeof request.toolName === 'string' ? request.toolName : this._activeToolCalls.get(toolCallId)?.toolName;
-			const shellLanguage = isShellRequest
-				? (shellToolName && getShellLanguage(shellToolName) === 'powershell' ? 'powershell' as const : 'bash' as const)
-				: undefined;
+			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName;
+			const shellToolName = typeof request.toolName === 'string' ? request.toolName : trackedToolName;
+			let shellLanguage: IAgentToolPendingConfirmationSignal['shellLanguage'];
+			if (isShellRequest) {
+				switch (shellToolName) {
+					case 'bash':
+						shellLanguage = 'bash';
+						break;
+					case 'powershell':
+						shellLanguage = 'powershell';
+						break;
+					default:
+						shellLanguage = 'unknown';
+				}
+			}
+			if (shellLanguage === 'unknown') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Shell permission request has no recognized shell tool name; requiring confirmation: toolCallId=${toolCallId}, toolName=${shellToolName ?? '(missing)'}`);
+			}
 
 			if (!managedApprovalRequired && request.kind === 'custom-tool'
 				&& typeof request.toolName === 'string'
