@@ -152,6 +152,7 @@ The **Create Group** context-menu action is also available from list blank space
 ### Navigation
 
 - **Clicking a session** marks it read and calls `SessionsManagementService.openSession()`
+- **Double-clicking a rename-capable session title** opens the existing **Rename...** Quick Input after the first click opens the session. The title handler consumes the `dblclick` so it does not issue a second open. The gesture is gated live on `ISession.capabilities.supportsRename`, applies only to the main `SessionsList` (not `SessionsFlatList` consumers), and is limited to unmodified primary-button double-clicks on the rendered title text. Keyboard users can focus the row, open its context menu (for example with Shift+F10), and choose **Rename...**.
 - **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
 - **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl/Cmd+PageUp` / `Ctrl/Cmd+PageDown` navigates the visible list (`Cmd+Alt+Left` / `Cmd+Alt+Right` and `Cmd+Shift+[` / `Cmd+Shift+]` on macOS); `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
 - **Mobile** — opening a session also closes the sidebar drawer
