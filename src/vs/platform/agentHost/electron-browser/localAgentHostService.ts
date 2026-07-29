@@ -6,7 +6,8 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { mark } from '../../../base/common/performance.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -70,8 +71,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
 	private readonly _management: IAgentHostManagementService;
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
-	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
 	private _connectStarted = false;
+	private _didStartInitialSessionList = false;
+	private _didCompleteInitialSessionList = false;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
@@ -109,24 +112,30 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}))
 			: undefined;
 
-		if (!agentHostEnablementService.enabled) {
-			this.setAuthenticationPending(false);
-			return;
+		this._register(autorun(reader => {
+			if (agentHostEnablementService.enabled.read(reader)) {
+				this.startAgentHost();
+			}
+		}));
+	}
+
+	startAgentHost(): void {
+		if (!this._protocolClient) {
+			const transport = new AgentHostIpcChannelTransport(
+				getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
+				this._ahpLogger,
+			);
+			this._protocolClient = this._register(this._instantiationService.createInstance(
+				RemoteAgentHostProtocolClient,
+				'local',
+				transport,
+				undefined,
+				this.clientId,
+				this._clientInfo,
+			));
+			this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
 		}
 
-		const transport = new AgentHostIpcChannelTransport(
-			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
-			this._ahpLogger,
-		);
-		this._protocolClient = this._register(this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient,
-			'local',
-			transport,
-			undefined,
-			this.clientId,
-			this._clientInfo,
-		));
-		this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
 		void this._connect().catch(error => {
 			this._protocolClient?.notifyTransportClosed();
 			this._logService.error(`${LOG_PREFIX} Protocol connection failed`, error);
@@ -138,10 +147,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return;
 		}
 		this._connectStarted = true;
+		mark('code/agentHost/willStart');
 
 		this._logService.info(`${LOG_PREFIX} Acquiring MessagePort to agent host...`);
 		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
 		const port = await acquirePort('vscode:createAgentHostMessageChannel', 'vscode:createAgentHostMessageChannelResult');
+		mark('code/agentHost/didAcquireMessagePort');
 		this._logService.info(`${LOG_PREFIX} MessagePort acquired, creating client...`);
 
 		const store = this._register(new DisposableStore());
@@ -156,6 +167,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 		const protocolClient = this._requireClient();
 		await protocolClient.connect();
+		mark('code/agentHost/didConnect');
 		this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${protocolClient.clientId}`);
 		this._onAgentHostStart.fire();
 	}
@@ -222,7 +234,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	listSessions(): Promise<IAgentSessionMetadata[]> {
-		return this._requireClient().listSessions();
+		if (!this._didStartInitialSessionList) {
+			this._didStartInitialSessionList = true;
+			mark('code/agentHost/willListSessions');
+		}
+		return this._requireClient().listSessions().then(sessions => {
+			if (!this._didCompleteInitialSessionList) {
+				this._didCompleteInitialSessionList = true;
+				mark('code/agentHost/didListSessions');
+			}
+			return sessions;
+		});
 	}
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
