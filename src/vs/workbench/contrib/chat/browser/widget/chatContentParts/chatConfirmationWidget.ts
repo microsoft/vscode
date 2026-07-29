@@ -323,6 +323,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private _buttonsDomNode: HTMLElement;
+	private _buttons: { readonly label: string; readonly widget: IButton }[] = [];
 
 	setShowButtons(showButton: boolean): void {
 		this.domNode.classList.toggle('hideButtons', !showButton);
@@ -427,9 +428,14 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	updateButtons(buttons: IChatConfirmationButton<T>[]) {
+		const focusedButton = this._buttons.find(button => button.widget.hasFocus());
+		const focusedDropdown = focusedButton?.widget instanceof ButtonWithDropdown && focusedButton.widget.dropdownButton.hasFocus();
+		this._buttons = [];
+
 		while (this._buttonsDomNode.children.length > 0) {
 			this._buttonsDomNode.children[0].remove();
 		}
+
 		for (const buttonData of buttons) {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
@@ -460,11 +466,19 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			}
 
 			this._register(button);
+			this._buttons.push({ label: buttonData.label, widget: button });
 			button.label = buttonData.label;
 			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
 				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
 			}
+		}
+
+		const buttonToFocus = focusedButton && this._buttons.find(button => button.label === focusedButton.label)?.widget;
+		if (focusedDropdown && buttonToFocus instanceof ButtonWithDropdown) {
+			buttonToFocus.dropdownButton.focus();
+		} else {
+			buttonToFocus?.focus();
 		}
 	}
 
