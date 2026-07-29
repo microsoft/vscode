@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PluginFormat, toParsedAgent, toParsedSkill, type IParsedRule } from '../../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../../files/common/files.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationType, McpServerStatus, type AgentSelection, type DirectoryCustomization, type HookCustomization, type McpServerCustomization } from '../../../common/state/protocol/state.js';
@@ -16,7 +17,6 @@ import { customizationId, type PluginCustomization } from '../../../common/state
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, mapDiscoveredCustomizations, resolveClaudeAgentName } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { CLAUDE_BUILTIN_AGENTS } from '../../../node/claude/customizations/claudeBuiltinCommands.js';
-import { toParsedAgent, toParsedSkill, type IParsedRule } from '../../../../agentPlugins/common/pluginParsers.js';
 import type { IResolvedNativePlugin } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
 
@@ -33,6 +33,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			id,
 			root,
 			parsed: {
+				format: PluginFormat.Claude,
 				hooks: [],
 				mcpServers: [],
 				instructions: [],
@@ -206,6 +207,41 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			// The SDK-only commands appear in the read-only Built-in container.
 			const builtin = skillDirs.find(d => URI.parse(d.uri).scheme === 'agent-builtin');
 			assert.deepStrictEqual((builtin?.children ?? []).map(c => c.name), ['init', 'loop']);
+		});
+
+		test('SDK-reported in-process host bridges are not surfaced as SDK-only entries', () => {
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'real', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const sdk: ISdkResolvedCustomizations = {
+				agents: [],
+				commands: [],
+				// `client` / `host` are the agent host's in-process client-tool and
+				// server-tool bridges, injected into `Options.mcpServers`; only
+				// `real` is user-configured.
+				mcpServers: [{ name: 'client', status: 'connected' }, { name: 'host', status: 'connected' }, { name: 'real', status: 'connected' }],
+				plugins: [],
+			};
+
+			const result = buildDiscoveredCustomizations([], [diskMcp], [], [], workspace, userHome, sdk);
+			const mcps = result.filter(c => c.type === CustomizationType.McpServer) as McpServerCustomization[];
+
+			assert.deepStrictEqual(mcps.map(m => m.name), ['real']);
+		});
+
+		test('a disk-defined MCP server is kept even when its name collides with a host bridge', () => {
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'host', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const sdk: ISdkResolvedCustomizations = {
+				agents: [],
+				commands: [],
+				mcpServers: [{ name: 'host', status: 'connected' }],
+				plugins: [],
+			};
+
+			const result = buildDiscoveredCustomizations([], [diskMcp], [], [], workspace, userHome, sdk);
+			const mcps = result.filter(c => c.type === CustomizationType.McpServer) as McpServerCustomization[];
+
+			// The user configured this one, so it stays visible (and editable via
+			// its real URI) rather than being hidden by the injected-name check.
+			assert.deepStrictEqual(mcps.map(m => ({ name: m.name, uri: m.uri })), [{ name: 'host', uri: 'inmemory:/settings.json' }]);
 		});
 
 		test('rules survive the post-materialize SDK filter (no SDK counterpart)', () => {

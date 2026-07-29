@@ -5,11 +5,11 @@
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -37,6 +37,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -140,8 +141,8 @@ export interface IVoiceSessionController {
 	connect(window: Window & typeof globalThis): Promise<void>;
 	disconnect(source?: 'explicit' | 'internal'): void;
 
-	pttDown(source?: 'explicit' | 'auto' | 'connect'): void;
-	pttUp(source?: 'explicit' | 'internal'): void;
+	pttDown(source?: 'explicit' | 'auto' | 'connect', forceNewTurn?: boolean): void;
+	pttUp(source?: 'explicit' | 'internal', forceFinish?: boolean): void;
 
 	/**
 	 * Stop the current recording / auto-listen loop without disconnecting.
@@ -152,6 +153,17 @@ export interface IVoiceSessionController {
 	 * without a new handshake. Use `disconnect()` to fully end the session.
 	 */
 	stopListening(source?: 'explicit' | 'internal'): void;
+
+	/**
+	 * Hold hands-free auto-listen off until released.
+	 *
+	 * Unlike {@link stopListening}, this is safe to call *before* the session is
+	 * connected: it survives the connect handshake, so a caller that needs the
+	 * microphone to stay shut while the user reads or decides something can take
+	 * the hold at `connect()` time rather than racing `session_init`. Releasing
+	 * enters listening immediately if hands-free would have done so.
+	 */
+	setAutoListenHeld(held: boolean): void;
 
 	/**
 	 * Stop the current recording WITHOUT finalizing the turn: any in-flight
@@ -291,6 +303,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** When true, the auto-listen loop is suppressed (user pressed Stop
 	 *  Recording). Cleared on the next explicit `pttDown` or on connect. */
 	private _autoListenSuppressed = false;
+	/**
+	 * Auto-listen hold taken by UI that must not be talked over (see
+	 * {@link setAutoListenHeld}). Deliberately separate from
+	 * `_autoListenSuppressed`, which pttDown, playback prep and disconnect all
+	 * clear as part of normal turn-taking - a hold has to outlive all of that.
+	 */
+	private _autoListenHeld = false;
 	/** Timestamp (ms) until which an incoming `send_to_chat` is dropped after a
 	 *  discarded turn, so buffered speech from a focus-change discard can't be
 	 *  misrouted to the newly focused session. Cleared on the next `pttDown`. */
@@ -685,6 +704,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -962,6 +982,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		this._voiceEventDisposables.clear();
 
+		// Multi-window hands-free: abort any open passive turn when this window
+		// loses OS focus so the background window stops recording, and re-arm
+		// listening when it gains focus so only the focused window listens (#8507).
+		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'blur', () => this._onWindowBlur()));
+		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'focus', () => this._onWindowFocus()));
+
 		// Streaming PTT: send start/chunks/end as they arrive
 		this._voiceEventDisposables.add(this.micCaptureService.onPttStart((passive) => {
 			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, passive);
@@ -1106,12 +1132,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.telemetryService.publicLog2<VoiceSessionStartedEvent, VoiceSessionStartedClassification>('voiceSessionStarted', { sessionIndex: this._telemetrySessionIndex });
 				}
 				this._telemetryLastConnectMs = now;
+				const voiceInstructions = await this.promptsService.getVoiceInstructions(CancellationToken.None);
+				if (
+					connectAttemptGeneration !== this._connectAttemptGeneration ||
+					!this.voiceClientService.isConnected ||
+					(!this._isConnecting.get() && !this._isReconnecting.get())
+				) {
+					return;
+				}
 				if (isResuming) {
-					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId());
+					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId(), voiceInstructions);
 				} else {
 					const priorTimeline = this._pendingPriorTimeline;
 					this._pendingPriorTimeline = [];
-					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline);
+					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline, undefined, voiceInstructions);
 				}
 
 				// On a reconnect cycle, refresh the mic stream: the old MediaStream
@@ -1455,16 +1489,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
 
-				// Enter listening as soon as a fresh session is ready. Starting
-				// voice mode always begins the first turn listening, regardless
-				// of `handsFree` (which only controls whether we RE-listen after
-				// the assistant speaks). We wait for the backend `session_init`
-				// ack (see onSessionInit below) rather than acting here, because
-				// the mic/handshake isn't settled yet at connection time.
-				// Previously this was deferred until a welcome greeting finished
-				// playing, but the greeting was removed. A short fallback timer
-				// covers backends that don't emit `session_init`.
-				this._enterListenOnSessionInit = !isResuming;
+				// Wait for the backend session ack before opening the hands-free mic.
+				this._enterListenOnSessionInit = this._shouldEnterListenOnSessionInit(isResuming);
 				this.logService.trace(`[voice] connected: isResuming=${isResuming} handsFree=${this._isHandsFreeEnabled()} armListen=${this._enterListenOnSessionInit}`);
 				if (this._enterListenOnSessionInit) {
 					this._voiceEventDisposables.add(disposableTimeout(() => {
@@ -2194,7 +2220,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	pttDown(source: 'explicit' | 'auto' | 'connect' = 'explicit'): void {
+	pttDown(source: 'explicit' | 'auto' | 'connect' = 'explicit', forceNewTurn = false): void {
 		if (!this._isConnected.get()) { this.logService.trace('[voice] pttDown ignored: not connected'); return; }
 
 		// A press is passive when the mic opened without a deliberate user gesture
@@ -2207,8 +2233,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._suppressSendToChatUntil = 0;
 		this._setPinnedSubmitSession(undefined);
 
-		// Toggle mode: second tap finishes recording
-		if (this._pttToggleMode) {
+		// Toggle mode: second tap finishes recording. A forced new turn (e.g.
+		// hold-to-talk press) cancels any pending toggle mode and records fresh.
+		if (forceNewTurn) {
+			this._pttToggleMode = false;
+		} else if (this._pttToggleMode) {
 			this.logService.trace('[voice] pttDown: toggle-mode second tap -> finishing turn');
 			this._pttToggleMode = false;
 			this._finishPtt();
@@ -2333,17 +2362,42 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, VoiceSessionController._PTT_MAX_DURATION_MS);
 	}
 
-	pttUp(source: 'explicit' | 'internal' = 'explicit'): void {
+	pttUp(source: 'explicit' | 'internal' = 'explicit', forceFinish = false): void {
 		if (!this._pttHeld) { return; }
 
 		// Short tap: enter toggle mode — keep recording until next tap
-		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
-		if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
-			this._pttToggleMode = true;
-			return;
+		if (!forceFinish) {
+			const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
+			if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
+				this._pttToggleMode = true;
+				return;
+			}
 		}
 
 		this._finishPtt('local', source);
+	}
+
+	setAutoListenHeld(held: boolean): void {
+		if (this._autoListenHeld === held) {
+			return;
+		}
+		this._autoListenHeld = held;
+		this.logService.trace(`[voice] setAutoListenHeld: ${held}`);
+		if (held) {
+			// The session may already have opened the mic before the hold was
+			// taken, so close it rather than only blocking the next turn.
+			this._clearAutoListenTimer();
+			if (this._isConnected.get() && this._pttHeld) {
+				this._finishPtt('local', 'internal');
+			}
+			return;
+		}
+		// Released: hands-free resumes where it left off. `_enterAutoListen`
+		// re-checks connection, playback and focus, so this is safe whether or
+		// not the session ever finished connecting while the hold was in place.
+		if (this._isConnected.get() && this._isHandsFreeEnabled()) {
+			this._enterAutoListen('connect');
+		}
 	}
 
 	stopListening(source: 'explicit' | 'internal' = 'explicit'): void {
@@ -2522,10 +2576,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _isHandsFreeEnabled(): boolean {
-		// Default-off: hands-free auto-listen is opt-in, so only an explicit
-		// `true` enables it. An unresolved/undefined value resolves to the
-		// `handsFree` default (`false`) and stays disabled.
+		// Hands-free auto-listen is on by default; an unresolved/undefined value
+		// resolves to the `handsFree` default (`true`). Only an explicit `false`
+		// disables it.
 		return this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+	}
+
+	private _shouldEnterListenOnSessionInit(isResuming: boolean): boolean {
+		return !isResuming && this._isHandsFreeEnabled();
 	}
 
 	private _isLiveTranscriptEnabled(): boolean {
@@ -2571,11 +2629,53 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return text;
 	}
 
+	/**
+	 * Whether this controller's window currently has OS focus. In multi-window
+	 * setups (e.g. an editor window + the agents window) each window has its own
+	 * controller/WebSocket, so without this gate every open window would re-arm
+	 * hands-free auto-listen and reply simultaneously. Only the focused window
+	 * should keep listening (#8507).
+	 */
+	private _isWindowFocused(): boolean {
+		try {
+			return this._window?.document.hasFocus() ?? false;
+		} catch {
+			return false;
+		}
+	}
+
+	/** Called when this controller's window loses OS focus. Aborts any open
+	 *  passive turn so the background window stops recording while the newly
+	 *  focused window can take over hands-free listening (#8507). */
+	private _onWindowBlur(): void {
+		if (this._pttHeld && this._pttCurrentTurnPassive) {
+			this.logService.trace('[voice] window blur: aborting passive turn (multi-window hands-free #8507)');
+			this._finishPtt('discard', 'internal');
+		}
+	}
+
+	/** Called when this controller's window gains OS focus. Re-arms hands-free
+	 *  auto-listen so the focused window is always the one that listens (#8507). */
+	private _onWindowFocus(): void {
+		if (this._isHandsFreeEnabled()) {
+			this.logService.trace('[voice] window focus: re-arming hands-free auto-listen (multi-window #8507)');
+			this._enterAutoListen();
+		}
+	}
+
 	/** Re-enter listening via synthetic short tap. */
 	private _enterAutoListen(source: 'auto' | 'connect' = 'auto'): void {
 		this._clearAutoListenTimer();
-		if (this._autoListenSuppressed || !this._isConnected.get() || this._pttHeld) {
-			this.logService.trace(`[voice] _enterAutoListen skipped: suppressed=${this._autoListenSuppressed} connected=${this._isConnected.get()} pttHeld=${this._pttHeld}`);
+		if (this._autoListenHeld || this._autoListenSuppressed || !this._isConnected.get() || this._pttHeld) {
+			this.logService.trace(`[voice] _enterAutoListen skipped: held=${this._autoListenHeld} suppressed=${this._autoListenSuppressed} connected=${this._isConnected.get()} pttHeld=${this._pttHeld}`);
+			return;
+		}
+		// In multi-window hands-free, only the focused window keeps auto-listening
+		// so two windows don't both listen and reply at once (#8507). The 'connect'
+		// source is a user gesture in the connecting (focused) window, so it isn't
+		// gated here.
+		if (source === 'auto' && !this._isWindowFocused()) {
+			this.logService.trace('[voice] _enterAutoListen skipped: window not focused (multi-window hands-free)');
 			return;
 		}
 		// Don't enter listening if audio is still playing or queued.
@@ -2620,7 +2720,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * already held.
 	 */
 	private _startBargeInListen(): void {
-		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenSuppressed || !this._window) {
+		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenHeld || this._autoListenSuppressed || !this._window) {
+			return;
+		}
+		// Only barge-in listen in the focused window so background windows don't
+		// also open a mic during playback (#8507).
+		if (!this._isWindowFocused()) {
 			return;
 		}
 		this._clearAutoListenTimer();
@@ -2696,8 +2801,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	/**
 	 * Send transcription text to the target session or active chat.
-	 * If a target session is selected, sends directly via chatService.
-	 * Otherwise sends to whatever is currently active via the view pane command.
 	 */
 	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		// A focus-change submit pins routing to the session the user was
@@ -5376,7 +5479,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return { state: 'thinking' };
 		}
 
-		const responseText = lastRequest?.response?.response.getMarkdown().trim() ?? '';
+		const responseText = [
+			lastRequest?.response?.response.getMarkdown().trim(),
+			lastRequest?.response?.result?.errorDetails?.message.trim(),
+		].filter(value => !!value).join('\n\n');
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
 	}
 

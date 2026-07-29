@@ -64,11 +64,12 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -228,6 +229,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 	) {
@@ -266,6 +268,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	get(sessionResource: URI): URI | undefined {
 		return this._entries.get(sessionResource)?.backendSession;
+	}
+
+	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
+		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._agentHostService.rootState.value, provider);
 	}
 
 	getInitialSessionConfig(): Record<string, unknown> | undefined {
@@ -318,7 +324,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const created = await this._agentHostService.createSession({
 					provider,
 					session: backendSession,
-					workingDirectory,
+					workingDirectories: this._computeWorkingDirectories(workingDirectory, provider),
 					config: initialConfig,
 					progressToken: generateUuid(),
 				});
@@ -397,7 +403,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			created = await this._agentHostService.createSession({
 				provider,
 				session: newBackendSession,
-				workingDirectory,
+				workingDirectories: this._computeWorkingDirectories(workingDirectory, provider),
 				config,
 				...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
 				progressToken: generateUuid(),
@@ -461,7 +467,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				created = await this._agentHostService.createSession({
 					provider,
 					session: entry.backendSession,
-					workingDirectory: newWorkingDirectory,
+					workingDirectories: this._computeWorkingDirectories(newWorkingDirectory, provider),
 					config,
 					progressToken: generateUuid(),
 				});

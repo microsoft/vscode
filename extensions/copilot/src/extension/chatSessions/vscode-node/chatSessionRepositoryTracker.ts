@@ -11,6 +11,9 @@ import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeServic
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+
+const AGENT_HOST_ENABLED_SETTING_ID = 'chat.agentHost.enabled';
 
 export class ChatSessionRepositoryTracker extends Disposable {
 	private readonly repositories = new DisposableResourceMap();
@@ -18,6 +21,7 @@ export class ChatSessionRepositoryTracker extends Disposable {
 	constructor(
 		// This is only required in non-controller code paths.
 		private readonly sessionItemProvider: ICopilotCLIChatSessionItemProvider | undefined,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionWorktreeService private readonly worktreeService: IChatSessionWorktreeService,
 		@IChatSessionWorkspaceFolderService private readonly workspaceFolderService: IChatSessionWorkspaceFolderService,
 		@IGitService private readonly gitService: IGitService,
@@ -26,8 +30,12 @@ export class ChatSessionRepositoryTracker extends Disposable {
 	) {
 		super();
 
-		// Only track repository changes in the sessions app
-		if (vscode.workspace.isAgentSessionsWorkspace) {
+		// Only open repositories and track their changes in
+		// the agents app when the agent host is not enabled.
+		if (
+			vscode.workspace.isAgentSessionsWorkspace &&
+			this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_ENABLED_SETTING_ID) !== true
+		) {
 			this.logService.trace('[ChatSessionRepositoryTracker][constructor] Initializing workspace folder event handler');
 			this._register(vscode.workspace.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
 			this.onDidChangeWorkspaceFolders({ added: vscode.workspace.workspaceFolders ?? [], removed: [] });

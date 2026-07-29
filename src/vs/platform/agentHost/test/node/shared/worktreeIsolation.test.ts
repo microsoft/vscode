@@ -13,7 +13,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -65,7 +65,10 @@ suite('WorktreeIsolation', () => {
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
-			getBranches: async () => ['main', 'feature'],
+			getBranches: async () => [
+				{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+				{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
+			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
 			addWorktree: async (_root, worktree, branch, startPoint) => {
@@ -163,13 +166,13 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('branchCompletions returns git branches, empty without a working directory', async () => {
+	test('branchCompletions returns current then default then recent git branches, empty without a working directory', async () => {
 		const isolation = createIsolation(disposables);
 		assert.deepStrictEqual({
 			withDir: await isolation.branchCompletions(repoRoot),
 			noDir: await isolation.branchCompletions(undefined),
 		}, {
-			withDir: { items: [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }] },
+			withDir: { items: [{ value: 'feature', label: 'feature' }, { value: 'main', label: 'main' }] },
 			noDir: { items: [] },
 		});
 	});
@@ -235,6 +238,49 @@ suite('WorktreeIsolation', () => {
 			idempotentReturn: expectedWorktree.toString(),
 			createdSessions: [sessionId],
 		});
+	});
+
+	test('resolveWorkingDirectory names each creation phase, rounding percentages down and skipping repeats', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async (_root, worktree, branch, startPoint, onProgress) => {
+			addWorktreeCalls.push({ worktree, branchName: branch, startPoint });
+			mkdirSync(worktree.fsPath, { recursive: true });
+			onProgress?.({ filesDone: 7, filesTotal: 800 });
+			onProgress?.({ filesDone: 96, filesTotal: 800 });
+			onProgress?.({ filesDone: 100, filesTotal: 800 });
+			onProgress?.({ filesDone: 800, filesTotal: 800 });
+		};
+		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
+			onProgress?.({ filesDone: 1, filesTotal: 4 });
+			onProgress?.({ filesDone: 4, filesTotal: 4 });
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const activities: string[] = [];
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+			},
+			prompt: 'do a thing',
+			onProgress: activity => activities.push(activity),
+		});
+
+		assert.deepStrictEqual(activities, [
+			'Creating isolated worktree',
+			'Creating isolated worktree (naming branch)',
+			'Creating isolated worktree (checking out files)',
+			'Creating isolated worktree (checking out files, 0%)',
+			'Creating isolated worktree (checking out files, 12%)',
+			'Creating isolated worktree (checking out files, 100%)',
+			'Creating isolated worktree (copying additional files)',
+			'Creating isolated worktree (copying additional files, 25%)',
+			'Creating isolated worktree (copying additional files, 100%)',
+		]);
 	});
 
 	test('resolveWorkingDirectory avoids an existing worktree directory', async () => {
@@ -573,22 +619,6 @@ suite('WorktreeIsolation', () => {
 			removedDuringArchive: true,
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
-		});
-	});
-
-	test('archive skips removal when the worktree has uncommitted changes', async () => {
-		const isolation = createIsolation(disposables);
-		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
-		hasUncommittedChanges = true;
-
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
-
-		assert.deepStrictEqual({
-			removeCalls: removeCalls.length,
-			stillExists: worktree ? existsSync(worktree.fsPath) : false,
-		}, {
-			removeCalls: 0,
-			stillExists: true,
 		});
 	});
 

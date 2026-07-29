@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -32,6 +33,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -57,11 +59,14 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override readonly onNarrationInterrupted = this.narrationInterruptedEmitter.event;
 	override readonly onSessionInit = Event.None;
 	override readonly onError = Event.None;
-	override readonly onDidChangeConnectionState = Event.None;
+	private readonly connectionStateEmitter = new Emitter<boolean>();
+	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
 	override readonly onFatalDisconnect = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
+	private connected = false;
 
-	override disconnect(): void { }
+	override get isConnected(): boolean { return this.connected; }
+	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	override sendSessionContext(): void { }
 	override flushSessionContext(): void { }
@@ -107,6 +112,11 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.narrationUnblockedEmitter.fire(event);
 	}
 
+	fireConnectionState(connected: boolean): void {
+		this.connected = connected;
+		this.connectionStateEmitter.fire(connected);
+	}
+
 	dispose(): void {
 		this.audioResponseEmitter.dispose();
 		this.bargeInEmitter.dispose();
@@ -115,19 +125,21 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.speechStartedEmitter.dispose();
 		this.narrationUnblockedEmitter.dispose();
 		this.narrationInterruptedEmitter.dispose();
+		this.connectionStateEmitter.dispose();
 	}
 }
 
 class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 	readonly pttDownCalls: { turnId: string; passive: boolean | undefined }[] = [];
 	abortCalls = 0;
+	prepareCalls = 0;
 	override readonly onPttStart = Event.None;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
 	override readonly onPttDiagnostic = Event.None;
 	override readonly analyserNode = undefined;
 	override isMuted = false;
-	override prepare(): void { }
+	override prepare(): void { this.prepareCalls++; }
 	override async startCapture(): Promise<void> { }
 	override stopCapture(): void { }
 	override abortPtt(): void { this.abortCalls++; }
@@ -148,6 +160,11 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	override readonly onPlaybackStarted = Event.None;
 	override readonly onPlaybackStopped = this.playbackStoppedEmitter.event;
 	override readonly analyserNode = undefined;
+	override ensureContext(): AudioContext {
+		return new class extends mock<AudioContext>() {
+			override resume(): Promise<void> { return Promise.resolve(); }
+		}();
+	}
 	override playAudioChunk(audio: string): void {
 		if (audio) {
 			this.playedAudio.push(audio);
@@ -244,6 +261,21 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
+function completedResponseModel(markdown: string, errorMessage?: string): IChatModel {
+	const response = {
+		isPendingConfirmation: observableValue('pending', undefined),
+		isIncomplete: observableValue('incomplete', false),
+		response: {
+			value: [],
+			getMarkdown: () => markdown,
+		},
+		result: errorMessage ? { errorDetails: { message: errorMessage } } : undefined,
+	};
+	return {
+		getRequests: () => [{ response }],
+	} as unknown as IChatModel;
+}
+
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidAddWidget = Event.None;
@@ -295,6 +327,9 @@ suite('VoiceSessionController', () => {
 		micCaptureService: IMicCaptureService = new TestMicCaptureService(),
 		configurationService: IConfigurationService = new TestConfigurationService({ 'agents.voice.handsFree': false }),
 		chatService: IChatService = new TestChatService(),
+		promptsService: IPromptsService = new class extends mock<IPromptsService>() {
+			override async getVoiceInstructions(): Promise<undefined> { return undefined; }
+		}(),
 	): IVoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -328,8 +363,62 @@ suite('VoiceSessionController', () => {
 			new TestAccessibilityService(),
 			new TestChatWidgetService(),
 			new class extends mock<INotificationService>() { }(),
+			promptsService,
 		));
 	}
+
+	test('includes response errors in the summary sent to the voice backend', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+
+		assert.deepStrictEqual([
+			getAgentStateInfo.call(controller, completedResponseModel('', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('I could not rebase the branch.', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('The rebase completed.')),
+		], [
+			{ state: 'idle', last_response_summary: 'The branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'The rebase completed.' },
+		]);
+	});
+
+	test('does not finish connecting after voice instructions resolve for a stale attempt', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const micCaptureService = new RecordingMicCaptureService();
+		const voiceInstructionsStarted = new DeferredPromise<void>();
+		const voiceInstructions = new DeferredPromise<string | undefined>();
+		const promptsService = new class extends mock<IPromptsService>() {
+			override getVoiceInstructions(): Promise<string | undefined> {
+				voiceInstructionsStarted.complete();
+				return voiceInstructions.p;
+			}
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			undefined,
+			undefined,
+			promptsService,
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await voiceInstructionsStarted.p;
+		controller.disconnect();
+		voiceInstructions.complete('Use Contoso DB.');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			connected: controller.isConnected.get(),
+			prepareCalls: micCaptureService.prepareCalls,
+		}, {
+			connected: false,
+			prepareCalls: 0,
+		});
+	});
 
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {
 		const voiceClientService = new TestVoiceClientService();
@@ -381,7 +470,14 @@ suite('VoiceSessionController', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const commandService = new TestCommandService();
-		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
+		const controller = createController(
+			voiceClientService,
+			ttsPlaybackService,
+			commandService,
+			NullTelemetryService,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
 		await controller.connect(mainWindow);
 
 		voiceClientService.fireAudioResponse({
@@ -646,6 +742,10 @@ suite('VoiceSessionController', () => {
 		);
 		await controller.connect(mainWindow);
 		Reflect.get(controller, '_isConnected').set(true, undefined);
+		// Install a focused window so the multi-window hands-free focus gate
+		// (#8507) lets the passive barge-in turn open; the headless test window
+		// reports `document.hasFocus()` as false.
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
 
 		voiceClientService.fireAudioResponse({
 			audio: 'story-start',
@@ -673,6 +773,55 @@ suite('VoiceSessionController', () => {
 			pttTurns: [passiveTurnId],
 			passiveTurnPromoted: true,
 		});
+	});
+
+	test('forced pttDown cancels pending toggle mode and keeps the turn recording instead of finishing it', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		// Advance off the fake-clock epoch (0) so pttDown records a truthy
+		// `_telemetryPttDownMs`; at time 0 the tap/hold split reads the press as
+		// "no press recorded" (Infinity hold) and never enters toggle mode.
+		clock.setSystemTime(5_000);
+
+		// Press + quick release: a sub-threshold tap enters toggle mode, which keeps
+		// the mic recording until the next tap.
+		controller.pttDown();
+		controller.pttUp();
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: true, held: true }, 'short tap enters toggle mode while still recording');
+
+		// A forced press (the hold-to-talk gesture) cancels the pending toggle mode
+		// and keeps recording the same turn, rather than finishing it as a normal
+		// second tap would.
+		controller.pttDown('explicit', true);
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: false, held: true }, 'forced pttDown bypasses toggle mode and stays recording');
+	});
+
+	test('forced pttUp finishes a sub-threshold turn instead of entering toggle mode', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		controller.pttDown();
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true, 'pttDown starts recording');
+
+		// A forced release (hold-to-talk release) finishes and sends immediately even
+		// for a short hold, instead of dropping into toggle mode and leaving `_pttHeld`
+		// active with the mic still open.
+		controller.pttUp('explicit', true);
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: false, held: false }, 'forced pttUp finishes the turn rather than entering toggle mode');
 	});
 
 	test('restores idle state when solicited narration never starts returning audio', () => {
@@ -770,12 +919,126 @@ suite('VoiceSessionController', () => {
 		const mic = new RecordingMicCaptureService();
 		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
 
 		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
 		enterAutoListen.call(controller);
 
 		assert.strictEqual(mic.pttDownCalls.length, 1);
 		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('connect only arms listening automatically in hands-free mode', () => {
+		const manualVoiceClientService = new TestVoiceClientService();
+		const manualController = createController(manualVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }));
+
+		const handsFreeVoiceClientService = new TestVoiceClientService();
+		const handsFreeController = createController(handsFreeVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }));
+		const manualShouldArm = Reflect.get(manualController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+		const handsFreeShouldArm = Reflect.get(handsFreeController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+
+		assert.deepStrictEqual({
+			manualFreshConnect: manualShouldArm.call(manualController, false),
+			handsFreeFreshConnect: handsFreeShouldArm.call(handsFreeController, false),
+			handsFreeResume: handsFreeShouldArm.call(handsFreeController, true),
+		}, {
+			manualFreshConnect: false,
+			handsFreeFreshConnect: true,
+			handsFreeResume: false,
+		});
+	});
+
+	test('stopping listening in manual mode submits the transcript', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const controller = createController(voiceClientService, undefined, commandService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+		controller.stopListening();
+		voiceClientService.fireToolCall({
+			callId: 'manual-transcription',
+			name: 'send_to_chat',
+			args: { text: 'send this when listening stops' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
+	});
+
+	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => false } });
+
+		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
+		enterAutoListen.call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 0);
+	});
+
+	test('window blur aborts an open passive turn so the background window stops recording', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		Reflect.set(controller, '_pttCurrentTurnId', 'passive-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		Reflect.set(controller, '_pttHeld', true);
+
+		(Reflect.get(controller, '_onWindowBlur') as () => void).call(controller);
+
+		assert.strictEqual(mic.abortCalls, 1);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), false);
+	});
+
+	test('window blur does not abort a deliberate (non-passive) turn', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		Reflect.set(controller, '_pttCurrentTurnId', 'deliberate-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', false);
+		Reflect.set(controller, '_pttHeld', true);
+
+		(Reflect.get(controller, '_onWindowBlur') as () => void).call(controller);
+
+		assert.strictEqual(mic.abortCalls, 0);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
+	});
+
+	test('window focus re-arms hands-free auto-listen in the focused window', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }));
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
+
+		(Reflect.get(controller, '_onWindowFocus') as () => void).call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 1);
+		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('window focus does not re-arm auto-listen when hands-free is disabled', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }));
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
+
+		(Reflect.get(controller, '_onWindowFocus') as () => void).call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 0);
 	});
 
 	test('a deliberate user press opens a non-passive mic turn', () => {

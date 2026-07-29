@@ -11,6 +11,39 @@
 	display: none;
 }
 
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
+	margin-bottom: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container {
+	margin-top: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container .new-chat-input-area {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+}
+
+.new-session-feedback-banners {
+	width: 100%;
+	max-width: 800px;
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.new-session-feedback-banners .session-input-banner {
+	padding-bottom: var(--vscode-spacing-size100);
+	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	background-color: var(--session-view-background);
+}
+
+.new-session-feedback-banners:not(:has(.session-input-banner)) {
+	margin-top: 0;
+}
+
+.new-session-feedback-banners:has(.session-input-banner) + .new-chat-input-container {
+	margin-top: 0;
+}
+
 /* Ensure the input editor fits properly */
 .new-chat-input-container .interactive-input-part {
 	margin: 0;
@@ -30,6 +63,11 @@
 .new-chat-input-container .chat-input-container {
 	overflow: hidden;
 	border-color: var(--vscode-agentsChatInput-border);
+}
+
+.new-chat-input-area-wrapper {
+	position: relative;
+	width: 100%;
 }
 
 .new-chat-input-area {
@@ -127,6 +165,7 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	padding: 4px 6px 6px 6px;
 	color: var(--vscode-icon-foreground);
 }
@@ -143,6 +182,35 @@
 
 .sessions-chat-voice-toolbar .monaco-toolbar {
 	position: relative;
+}
+
+/* Match the send button's control tier (22×22, control radius) and the compact
+	glyph size used by the pickers, so the voice controls, the dictation mic and
+	Send all read as one row. */
+.sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-voice-toolbar .action-label.codicon-loading-compact::before,
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button .codicon-loading-compact.codicon-modifier-spin {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
+/* Segmented voice/dictation pill (experimental) */
+.sessions-chat-voice-input-mode {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-input-mode.hidden {
+	display: none;
 }
 
 /* Model picker - uses workbench ModelPickerActionItem */
@@ -252,7 +320,7 @@
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -263,7 +331,8 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 50%;
+	font-size: var(--vscode-codiconFontSize-compact);
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -295,9 +364,9 @@
 
 .monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
-	/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
 	display: inline-block;
-	transform: translateX(-0.5px);
+	font-size: var(--vscode-codiconFontSize-compact);
+	transform: translateY(0.5px);
 }
 
 /* Ensure no underline / link decoration ever shows under the codicon glyph
@@ -417,18 +486,20 @@
 	color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
 }
 
+/* Compact glyph, matching the model / mode picker icons in the row above. */
 .monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
-	font-size: var(--vscode-codiconFontSize, 16px);
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 /* Determinate download ring shown over the mic while the on-device dictation
-	model downloads on first use (see DictationDownloadRing). */
+	model downloads on first use (see DictationDownloadRing). Sized to hug the
+	compact glyph rather than the full button. */
 .sessions-chat-stt-button > .dictation-download-ring {
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	width: 22px;
-	height: 22px;
+	width: 16px;
+	height: 16px;
 	transform: translate(-50%, -50%) rotate(-90deg);
 	pointer-events: none;
 }

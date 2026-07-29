@@ -6,6 +6,7 @@
 import { realpath as fsRealpath } from 'fs';
 import { homedir } from 'os';
 import { promisify } from 'util';
+import { firstParallel } from '../../../base/common/async.js';
 import { match as globMatch } from '../../../base/common/glob.js';
 import { untildify } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -49,11 +50,14 @@ export interface IToolApprovalEvent {
 
 /** Standard per-tool confirmation options presented to the user. */
 const ALLOW_SESSION_OPTION_ID = 'allow-session';
+const ALLOW_ONCE_OPTION: ConfirmationOption = { id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve };
+const SKIP_OPTION: ConfirmationOption = { id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 };
 const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
-	{ id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
-	{ id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
+	ALLOW_ONCE_OPTION,
+	SKIP_OPTION,
 ];
+const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
 
 /** Default write-path glob rules applied to auto-approved edits. */
 const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
@@ -64,6 +68,14 @@ const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
 	'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
 	'**/*.lock': false,
 	'**/*-lock.{yaml,json}': false,
+	// Files that can register lifecycle hooks running arbitrary shell commands.
+	// Writing them must never be auto-approved. Keep in sync with the hook and
+	// agent source locations in `promptFileLocations.ts`.
+	'**/.github/agents/**': false,
+	'**/.github/hooks/**': false,
+	'**/.claude/agents/**': false,
+	'**/.claude/settings.json': false,
+	'**/.claude/settings.local.json': false,
 };
 
 const HOME_DIR = URI.file(homedir());
@@ -243,8 +255,15 @@ export class SessionPermissionManager extends Disposable {
 	 * 6. Shell command rules (tree-sitter parsed, default allow/deny)
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
-		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
-		const workingDirectory = workDir ? URI.parse(workDir) : undefined;
+		// `sessionKey` is the chat channel URI (see `_handleToolReady`), so the
+		// state manager returns that chat's *effective* working-directory set
+		// (its own subset override when present, else the session's full set —
+		// peer chats inherit). A read/write/shell destination auto-approves when
+		// contained by *any* root. Today the set has exactly one entry (the
+		// create-time length guard), so this is behaviour-identical to the
+		// previous single-directory logic.
+		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workingDirectories = workDirs?.map(d => URI.parse(d));
 
 		// 0. Sandbox bypass: a shell command that opted out of the
 		// sandbox (`requestSandboxBypass`) escapes the sandbox's
@@ -270,7 +289,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
-			if (await this._isReadAutoApproved(URI.file(e.permissionPath), workingDirectory)) {
+			if (await this._isReadAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -279,7 +298,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 5. Write auto-approval
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectory)) {
+			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -293,7 +312,7 @@ export class SessionPermissionManager extends Disposable {
 			}
 			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
 				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectory),
+				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
 			});
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
@@ -347,10 +366,14 @@ export class SessionPermissionManager extends Disposable {
 				edits: state.edits,
 				editable: state.editable,
 				...(state._meta ? { _meta: state._meta } : {}),
-				// Agents can supply tool-specific buttons (e.g. ExitPlanMode's
-				// `Approve`/`Deny`) by populating `state.options`. The standard
-				// `Allow Once / Allow in this Session / Skip` set is the default.
-				options: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
+				// Managed asks are one-time only. Other agents can supply tool-specific
+				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
+				// otherwise the standard session/once/skip set is used.
+				options: e.managedApprovalRequired
+					? MANAGED_CONFIRMATION_OPTIONS.slice()
+					: state.options
+						? state.options.slice()
+						: CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {
@@ -386,15 +409,32 @@ export class SessionPermissionManager extends Disposable {
 
 	// ---- Internal helpers ---------------------------------------------------
 
-	private async _isReadAutoApproved(resource: URI, workingDirectory: URI | undefined): Promise<boolean> {
-		if (!workingDirectory) {
+	/**
+	 * Whether a read of `resource` auto-approves against the session's working
+	 * directories: it must be contained by **at least one** root. The read's
+	 * symlink-resolved real path is compared too, so a symlink that crosses
+	 * from one root into another is *not* auto-approved (fail-closed). With a
+	 * single root this is identical to the previous behaviour.
+	 */
+	private async _isReadAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+		if (!workingDirectories || workingDirectories.length === 0) {
 			return false;
 		}
+		// Resolve the read target once (literal + symlink real path); a denied
+		// resolution requires confirmation.
+		const resourcesToCheck = this._resolveResourcesForApproval(resource);
+		// Resolve each root's real path in parallel and stop at the first root
+		// that contains the target.
+		const match = await firstParallel(
+			workingDirectories.map(directory => this._isReadContainedByRoot(resourcesToCheck, directory)),
+			approved => approved,
+		);
+		return match === true;
+	}
 
-		const [resourcesToCheck, workingDirectories] = await Promise.all([
-			this._resolveResourcesForApproval(resource),
-			this._resolveResourcesForApproval(workingDirectory),
-		]);
+	/** Whether every resolved read candidate is contained by `workingDirectory` (or its real path). */
+	private async _isReadContainedByRoot(resourcesToCheckPromise: Promise<readonly URI[] | undefined>, workingDirectory: URI): Promise<boolean> {
+		const [resourcesToCheck, workingDirectories] = await Promise.all([resourcesToCheckPromise, this._resolveResourcesForApproval(workingDirectory)]);
 		return resourcesToCheck !== undefined
 			&& workingDirectories !== undefined
 			&& resourcesToCheck.every(candidate => workingDirectories.some(directory => this._isResourceInDirectory(candidate, directory)));
@@ -414,12 +454,18 @@ export class SessionPermissionManager extends Disposable {
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
 	 */
-	private _isShellWriteDestApproved(dest: string, workingDirectory: URI | undefined): boolean {
-		const resource = this._resolveShellRedirectResource(dest, workingDirectory);
+	private _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined): boolean {
+		// A shell command runs in exactly one process cwd = the primary root
+		// (index 0), so a *relative* redirect can only resolve against that cwd.
+		const resource = this._resolveShellRedirectResource(dest, workingDirectories?.[0]);
 		if (!resource) {
 			return false;
 		}
-		return this._checkWriteResource(resource, workingDirectory);
+		// The resolved (absolute) destination auto-approves when contained by
+		// any root — the same "any root" rule as read/write. Unlike read/write,
+		// this path is synchronous and does not resolve symlinks on the
+		// destination (pre-existing behaviour, unchanged here).
+		return (workingDirectories ?? []).some(workingDirectory => this._checkWriteResource(resource, workingDirectory));
 	}
 
 	/**
@@ -456,9 +502,22 @@ export class SessionPermissionManager extends Disposable {
 	 *    `~/Library`, `%APPDATA%`, ...).
 	 * 5. The path must match the edit auto-approve glob rules.
 	 */
-	private async _isEditAutoApproved(resource: URI, workingDirectory: URI | undefined): Promise<boolean> {
+	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+		if (!workingDirectories || workingDirectories.length === 0) {
+			// A write is never auto-approved without a working directory to
+			// contain it (matches the previous behaviour).
+			return false;
+		}
+		// Resolve the write target once (literal + symlink real path); a denied
+		// resolution requires confirmation.
 		const resourcesToCheck = await this._resolveResourcesForApproval(resource);
-		return resourcesToCheck !== undefined && resourcesToCheck.every(candidate => this._checkWriteResource(candidate, workingDirectory));
+		if (resourcesToCheck === undefined) {
+			return false;
+		}
+		// Approve if ANY root clears the write checks for every resource
+		// candidate. `_checkWriteResource` is synchronous, so a plain `.some`
+		// already short-circuits — there is no per-root async work to parallelize.
+		return workingDirectories.some(workingDirectory => resourcesToCheck.every(candidate => this._checkWriteResource(candidate, workingDirectory)));
 	}
 
 	/**

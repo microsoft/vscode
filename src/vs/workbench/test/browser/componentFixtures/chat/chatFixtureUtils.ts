@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { IReference } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -43,7 +43,9 @@ import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSes
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
@@ -53,6 +55,8 @@ import { IChatContextPickService } from '../../../../contrib/chat/browser/attach
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
@@ -167,6 +171,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getAgentNameRestriction() { return true; }
 	}());
 	reg.define(IChatService, MockChatService);
+	reg.defineInstance(IChatPetService, new class extends mock<IChatPetService>() {
+		override readonly enabled = observableValue('chatPetEnabled', false);
+		override toggle() { return false; }
+	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
 		override readonly onDidAddWidget = Event.None;
@@ -184,6 +192,12 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override disposeRequest() { }
 		override acceptResponse() { }
 		override acceptElicitation() { }
+	}());
+	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
+		override registerHost() { return Disposable.None; }
+	}());
+	reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
+		override registerHost() { return Disposable.None; }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly isExtensionDevelopment = false;
@@ -246,6 +260,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getActiveNotification() { return undefined; }
 		override announceRendered() { }
 	}());
+	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
 	// Agent-host chat widgets (e.g. the turn changes summary fixtures) create the
 	// generic config chips lane, which opens a session subscription. Return an
@@ -280,7 +295,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getFolder() { return undefined; }
 	}());
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
-		override readonly enabled = false;
+		override readonly enabled = constObservable(false);
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);
