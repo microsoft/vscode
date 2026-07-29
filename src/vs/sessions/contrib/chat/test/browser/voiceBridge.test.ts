@@ -8,7 +8,10 @@ import { Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
 
@@ -36,8 +39,18 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		return { controller, getDisconnectCount: () => disconnectCount };
 	}
 
+	function createTarget(): NewChatVoiceTargetService {
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		}();
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override readonly onDidChangeFocusedSession = Event.None;
+		}();
+		return new NewChatVoiceTargetService(sessionsService, chatWidgetService);
+	}
+
 	test('disconnects when a fresh welcome composer takes over a connected voice session', () => {
-		const target = disposables.add(new NewChatVoiceTargetService());
+		const target = disposables.add(createTarget());
 		const isConnected = observableValue<boolean>('isConnected', false);
 		const { controller, getDisconnectCount } = createController(isConnected);
 
@@ -55,7 +68,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 	});
 
 	test('keeps voice connected when switching to an in-session composer that opts to route', () => {
-		const target = disposables.add(new NewChatVoiceTargetService());
+		const target = disposables.add(createTarget());
 		const isConnected = observableValue<boolean>('isConnected', false);
 		const { controller, getDisconnectCount } = createController(isConnected);
 
@@ -72,7 +85,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 	});
 
 	test('does not disconnect when voice is not connected', () => {
-		const target = disposables.add(new NewChatVoiceTargetService());
+		const target = disposables.add(createTarget());
 		const isConnected = observableValue<boolean>('isConnected', false);
 		const { controller, getDisconnectCount } = createController(isConnected);
 
