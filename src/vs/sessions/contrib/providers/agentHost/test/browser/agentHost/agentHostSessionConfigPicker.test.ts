@@ -9,9 +9,10 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { IActionListDelegate } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -26,8 +27,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-
-import { AgentHostSessionConfigPicker } from '../../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, IConfigPickerItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 
@@ -52,6 +52,27 @@ function makeRepoConfig(branchValue?: string): ResolveSessionConfigResult {
 	} as ResolveSessionConfigResult;
 }
 
+/** A config whose Branch property is resolved dynamically (no static `enum`), as the real branch picker is. */
+function makeDynamicBranchConfig(branchValue: string): ResolveSessionConfigResult {
+	return {
+		schema: {
+			type: 'object',
+			properties: {
+				[SessionConfigKey.Isolation]: {
+					title: 'Isolation', description: '', type: 'string',
+					enum: ['folder', 'worktree'], enumLabels: ['Folder', 'Worktree'],
+					default: 'worktree',
+				},
+				[SessionConfigKey.Branch]: {
+					title: 'Base Branch', description: '', type: 'string',
+					enumDynamic: true,
+				},
+			},
+		},
+		values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: branchValue },
+	} as ResolveSessionConfigResult;
+}
+
 function makeNoGitConfig(): ResolveSessionConfigResult {
 	return {
 		schema: {
@@ -73,12 +94,14 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
  * toolbar rebuild still reads the seeded chips from here.
  */
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'getSessionConfigCompletions'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string>;
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
 	readonly resolving = observableValue<boolean>('resolving', false);
 	isNew = true;
+	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
+	completions: readonly SessionConfigValueItem[] = [];
 
 	constructor(private readonly _emitter: Emitter<string>) {
 		this.onDidChangeSessionConfig = _emitter.event;
@@ -88,6 +111,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	getCreateSessionConfig(): Record<string, unknown> | undefined { return this.isNew ? {} : undefined; }
 	isSessionConfigResolving() { return this.resolving; }
 	async setSessionConfigValue(): Promise<void> { }
+	async getSessionConfigCompletions(): Promise<readonly SessionConfigValueItem[]> { return this.completions; }
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
 	set(config: ResolveSessionConfigResult, resolving: boolean): void {
@@ -116,12 +140,22 @@ function branchLabel(container: HTMLElement): string | undefined {
 	return branchSlot(container)?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent ?? undefined;
 }
 
+/** Captures the delegate passed to the last `IActionWidgetService.show` call, so tests can drive a selection. */
+class CapturingActionWidgetHolder {
+	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
+}
+
 function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>) {
 	const emitter = store.add(new Emitter<string>());
 	const provider = new FakeProvider(emitter);
+	const actionWidget = new CapturingActionWidgetHolder();
 
 	const instantiationService = store.add(new TestInstantiationService());
-	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } } as Partial<IActionWidgetService> as IActionWidgetService);
+	instantiationService.stub(IActionWidgetService, {
+		isVisible: false,
+		hide: () => { },
+		show: (_user, _supportsPreview, _items, delegate: IActionListDelegate<IConfigPickerItem>) => { actionWidget.delegate = delegate; },
+	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IConfigurationService, new (class extends mock<IConfigurationService>() { })());
@@ -143,7 +177,7 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	})());
 
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
-	return { instantiationService, provider, sessionObs };
+	return { instantiationService, provider, sessionObs, actionWidget };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -227,6 +261,67 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation re-enables after resolve');
 		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch re-enables after resolve');
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
+	});
+
+	test('branch picker keeps the display label for a dynamic (enumDynamic) selection, not just the persisted value', async () => {
+		const services = setupServices(store);
+		const { provider, actionWidget } = services;
+
+		provider.config = makeDynamicBranchConfig('main');
+		const { picker, container } = renderPicker(store, services);
+
+		// Only `value` gets persisted server-side for enumDynamic properties, so the
+		// display label for a freshly selected branch must come from the picker's
+		// own cache of the last-fetched completions, not from the schema (there is
+		// no static `enum`/`enumLabels` for a dynamic property) or the raw value.
+		provider.completions = [{ value: 'feature/x', label: 'Feature X' }];
+
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.ok(actionWidget.delegate, 'opening the picker fetches completions and shows the action widget');
+		actionWidget.delegate!.onSelect({ value: 'feature/x', label: 'Feature X' });
+		await new Promise(resolve => setTimeout(resolve));
+
+		// Simulate the provider persisting the new value and notifying listeners,
+		// as the real provider does once `setSessionConfigValue` resolves.
+		provider.set(makeDynamicBranchConfig('feature/x'), false);
+
+		assert.strictEqual(branchLabel(container), 'Feature X', 'branch label uses the cached completion label, not the raw value');
+		picker.dispose();
+	});
+
+	test('evicts dynamic-value label cache entries once the picker moves to a different session', async () => {
+		const services = setupServices(store);
+		const { provider, actionWidget, sessionObs } = services;
+
+		// The new-session composer's `_session` observable tracks the globally
+		// active session, so the *same* picker instance can be shown a sequence of
+		// different draft sessions over its lifetime (see `NewChatWidget._session`).
+		// Simulate that here by mutating `sessionObs` in place instead of disposing.
+		provider.config = makeDynamicBranchConfig('main');
+		const { picker, container } = renderPicker(store, services);
+
+		provider.completions = [{ value: 'feature/x', label: 'Feature X' }];
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		actionWidget.delegate!.onSelect({ value: 'feature/x', label: 'Feature X' });
+		await new Promise(resolve => setTimeout(resolve));
+		provider.set(makeDynamicBranchConfig('feature/x'), false);
+
+		const cache = (picker as unknown as { _dynamicValueLabels: Map<string, Map<string, string>> })._dynamicValueLabels;
+		assert.ok(Array.from(cache.keys()).some(key => key.startsWith(`${SESSION_ID}\0`)), 'cache holds an entry for the first session');
+
+		// Move the picker to a different session, as would happen when the
+		// composer's active session changes without the picker being recreated.
+		const OTHER_SESSION_ID = 'local-agent-host:s2';
+		provider.config = makeDynamicBranchConfig('main');
+		sessionObs.set({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: OTHER_SESSION_ID } as IActiveSession, undefined);
+
+		assert.strictEqual(Array.from(cache.keys()).some(key => key.startsWith(`${SESSION_ID}\0`)), false, 'stale entries for the previous session are evicted');
+		picker.dispose();
 	});
 
 	test('does not render folder isolation when the workspace has no Git repository', () => {
