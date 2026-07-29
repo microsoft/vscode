@@ -203,11 +203,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		if (this.extensionHostDebugEnvironment.extensionEnabledProposedApi) {
+		if (this.extensionHostDebugEnvironment.extensionEnabledProposedApi !== undefined) {
 			return this.extensionHostDebugEnvironment.extensionEnabledProposedApi;
 		}
 
-		if (this.options.enabledExtensionProposedApi) {
+		if (this.options.enabledExtensionProposedApi !== undefined) {
 			return [...this.options.enabledExtensionProposedApi];
 		}
 

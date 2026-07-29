@@ -110,14 +110,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
 
-	const enableProposedApi = args['enable-proposed-api'];
-	const productService: IProductService = {
-		_serviceBrand: undefined,
-		...product,
-		extensionsEnabledWithApiProposalVersion: Array.isArray(enableProposedApi) && enableProposedApi.length
-			? [...(product.extensionsEnabledWithApiProposalVersion ?? []), ...enableProposedApi]
-			: product.extensionsEnabledWithApiProposalVersion
-	};
+	const productService: IProductService = { _serviceBrand: undefined, ...product };
 	services.set(IProductService, productService);
 
 	const environmentService = new ServerEnvironmentService(args, productService);
