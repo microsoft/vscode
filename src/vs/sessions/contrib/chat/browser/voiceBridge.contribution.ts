@@ -283,21 +283,7 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 
 registerWorkbenchContribution2(SessionsVoiceListeningContribution.ID, SessionsVoiceListeningContribution, WorkbenchPhase.Eventually);
 
-/**
- * Ends the voice session when the user opens a fresh new-session composer.
- *
- * Voice Mode is a global singleton tied to the surface that started it. When the
- * user creates a session by voice and then opens another new-session view (e.g.
- * `Cmd+N`), a brand-new welcome composer becomes the active voice surface. The
- * existing connection is still bound to the surface that started it and can't
- * route to the fresh composer, so the toolbar/pill would show Voice Mode as
- * enabled even though talking to it does nothing (clicking merely disconnects).
- * Disconnect it so the new composer starts from a clean, off state.
- *
- * In-session composers opt out via {@link INewChatVoiceComposer.routesWhileSessionActive}:
- * they deliberately keep routing an active session's voice, so switching to one
- * must not disconnect.
- */
+/** Ends voice when a different welcome composer becomes active; routing in-session composers are exempt. */
 export class SessionsVoiceNewComposerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.voiceNewComposer';
