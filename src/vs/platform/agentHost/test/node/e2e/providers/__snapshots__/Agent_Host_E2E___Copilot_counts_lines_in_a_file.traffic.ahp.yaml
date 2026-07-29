@@ -30,25 +30,12 @@ rounds:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          toolName: glob
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallComplete
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_0}
-          result:
-            success: true
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallStart
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_1}
           toolName: view
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
           turnId: ${turn_0}
-          toolCallId: ${toolCall_1}
+          toolCallId: ${toolCall_0}
           result:
             success: true
       - channel: ${chat_0}

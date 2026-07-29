@@ -521,6 +521,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell!.classList.toggle('collapsed', !dictationPresent);
 			this._dictationCell!.classList.toggle('active', isDictating || dictationBusy);
 			this._dictationCell!.classList.toggle('preparing', dictationBusy);
+			this._dictationCell!.classList.toggle('cloud-preparing', dictationBusy && this.chatSpeechToTextService.currentBackend === 'mai');
 			this._dictationCell!.setAttribute('aria-pressed', String(isDictating));
 			this._dictationCell!.setAttribute('aria-label', dictationBusy
 				? localize('voiceInputMode.dictationPreparingCancelable', "Cancel Dictation. {0}", getDictationPreparingLabel(this.chatSpeechToTextService))

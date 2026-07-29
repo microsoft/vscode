@@ -467,6 +467,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
+		const showTranscriptSetting = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.showTranscript')),
+			() => this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false
+		);
+		const showLiveTranscriptSetting = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.liveTranscript')),
+			() => this.configurationService.getValue<boolean>('agents.voice.liveTranscript') !== false
+		);
 		const transcriptOverlay = $('.voice-transcript-overlay');
 		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
 			horizontal: ScrollbarVisibility.Hidden,
@@ -636,8 +646,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
-			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
+			const showTranscript = showTranscriptSetting.read(reader);
+			const showLiveTranscript = showLiveTranscriptSetting.read(reader);
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
 			if (!connected) {
 				listeningSession = undefined;
@@ -694,11 +706,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			// Show hint when connected but no transcript yet
-			if (visible.length === 0 || !showTranscript) {
+			if (visible.length === 0 || !showTranscript || showListeningPlaceholder) {
 				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
-				if (!showTranscript && voiceState === 'listening') {
-					// Transcript is disabled: surface a minimal "Listening..." overlay
-					// while listening so the user has feedback. Cleared in any other state.
+				if (showListeningPlaceholder) {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();

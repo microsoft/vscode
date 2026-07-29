@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, GitCheckoutProgressParser, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -41,6 +41,37 @@ suite('AgentHostGitService', () => {
 			),
 			['maintenance', 'main'],
 		);
+	});
+
+	suite('GitCheckoutProgressParser', () => {
+		function collect(chunks: readonly string[]): { filesDone: number; filesTotal: number }[] {
+			const reported: { filesDone: number; filesTotal: number }[] = [];
+			const parser = new GitCheckoutProgressParser(progress => reported.push(progress));
+			for (const chunk of chunks) {
+				parser.push(chunk);
+			}
+			return reported;
+		}
+
+		test('forwards every complete sample and ignores non-progress output', () => {
+			assert.deepStrictEqual(collect([
+				'Preparing worktree (new branch agents/foo)\n',
+				'Updating files:   1% (8/800)\rUpdating files:   2% (16/800)\r',
+				'Updating files:   2% (20/800)\r',
+				'Updating files: 100% (800/800), done.\n',
+			]), [
+				{ filesDone: 8, filesTotal: 800 },
+				{ filesDone: 16, filesTotal: 800 },
+				{ filesDone: 20, filesTotal: 800 },
+				{ filesDone: 800, filesTotal: 800 },
+			]);
+		});
+
+		test('holds back a sample split across chunk boundaries until it completes', () => {
+			assert.deepStrictEqual(collect(['Updating files:  42% (33', '6/800)\r']), [
+				{ filesDone: 336, filesTotal: 800 },
+			]);
+		});
 	});
 
 	suite('parseGitStatusV2', () => {

@@ -1185,6 +1185,53 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- turn usage persistence -------------------------------------------
+
+	suite('turn usage persistence', () => {
+
+		const usage = { inputTokens: 100, outputTokens: 20, model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } };
+
+		function createUsageSideEffects(db: TestSessionDatabase): void {
+			const sessionDataService = createSessionDataService(db);
+			createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService,
+				localTurns: new AgentHostLocalTurns(sessionDataService, new NullLogService()),
+				onTurnComplete: () => { },
+			});
+		}
+
+		test('persists the latest usage of a turn, without waiting for the turn to end', async () => {
+			// Written eagerly rather than buffered until a terminal action: a turn
+			// cut short by a crash or disconnect must keep the usage it accrued,
+			// which is the class of loss this persistence exists to prevent.
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			createUsageSideEffects(db);
+
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 1, outputTokens: 1 } });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage });
+
+			// No ChatTurnComplete/Cancelled/Error — the rows are already durable.
+			await new Promise(r => setTimeout(r, 10));
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', JSON.stringify(usage)]]);
+		});
+
+		test('does not persist usage reported on a subagent chat', async () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			createUsageSideEffects(db);
+
+			const subagentChatUri = buildSubagentChatUri(sessionUri.toString(), 'tool-call-1');
+			stateManager.dispatchServerAction(subagentChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage });
+			stateManager.dispatchServerAction(subagentChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 });
+
+			await new Promise(r => setTimeout(r, 10));
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], []);
+		});
+	});
+
 	// ---- immediate title on first turn -----------------------------------
 
 	suite('immediate title on first turn', () => {
@@ -2885,6 +2932,51 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
 			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.PendingConfirmation,
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
+		});
+
+		test('tool_ready marks autoApproveRuleResolvable only for eligible shell confirmations', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			// Rule resolvability requires a successful tree-sitter parse.
+			await sideEffects.initialize();
+
+			const cases = [
+				['tc-shell-rules-1', { requestSandboxBypass: false }],
+				['tc-shell-rules-2', { requestSandboxBypass: true }],
+				['tc-shell-rules-3', { managedApprovalRequired: true }],
+			] as const;
+			for (const [toolCallId, signalOverrides] of cases) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'shell', displayName: 'Shell', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+						_meta: { toolKind: undefined, language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId, toolName: '', displayName: '',
+						invocationMessage: 'Run command', toolInput: 'foo --bar',
+						confirmationTitle: 'Run in terminal?', edits: undefined,
+					},
+					permissionKind: 'shell', permissionPath: undefined,
+					...signalOverrides,
+				});
+			}
+
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const parts = s?.activeTurn?.responseParts;
+				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+			});
+			assert.deepStrictEqual(
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRuleResolvable'] : undefined),
+				[true, undefined, undefined],
+				'only the rule-resolvable shell confirmation is marked; sandbox-bypass and managed confirmations are not');
 		});
 
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {
