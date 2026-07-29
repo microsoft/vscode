@@ -2864,6 +2864,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.Isolation, value);
 	}
 
+	async setWorktreeBranchTrack(sessionId: string, enabled: boolean): Promise<void> {
+		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeBranchTrack, enabled);
+	}
+
 	async setBranch(sessionId: string, branch: string): Promise<void> {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 		const value = normalizeSessionConfigValue(SessionConfigKey.Branch, branch, policyRestricted);

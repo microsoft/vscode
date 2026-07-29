@@ -132,13 +132,20 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
-	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
+	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false): Promise<void> {
 		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
-		// Pass --no-track so the new agent branch never picks up upstream
-		// tracking from the start point (e.g. when starting from
-		// 'origin/main', without --no-track git would set the new branch's
-		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 180_000, throwOnError: true });
+		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
+
+		if (!track) {
+			// Pass --no-track so the new agent branch never picks up upstream
+			// tracking from the start point (e.g. when starting from
+			// 'origin/main', without --no-track git would set the new branch's
+			// upstream to origin/main, which would mis-attribute pushes/pulls).
+			args.push('--no-track');
+		}
+
+		args.push('-b', branchName, worktree.fsPath, resolvedStartPoint);
+		await this._runGit(repositoryRoot, args, { timeout: 180_000, throwOnError: true });
 	}
 
 	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[]): Promise<void> {
