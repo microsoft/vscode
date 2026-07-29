@@ -286,6 +286,16 @@ export class AccessibleView extends Disposable {
 		this.show(this._lastProvider);
 	}
 
+	public getAccessibilityStatus(): {providerId: string | undefined; isInCdeBlock: boolean; onLastLine: boolean}{
+
+		return{
+
+			providerId: this._currentProvider? .id,
+			isIncodeBlock: this._accessibleViewInCodeBlock.get() ?? false,
+			onLastLine: this._onLastLine.get() ?? false
+		};
+	}
+
 	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
