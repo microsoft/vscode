@@ -73,13 +73,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		private readonly repository: Repository,
 		private readonly logger: LogOutputChannel
 	) {
-		// If this is the agents window we don't need to initialize the
-		// history provider since the agents window does not have the
-		// Graph view.
-		if (workspace.isAgentSessionsWorkspace) {
-			return;
-		}
-
 		this.disposables.push(workspace.onDidChangeConfiguration(this.onDidChangeConfiguration));
 		this.onDidChangeConfiguration();
 
