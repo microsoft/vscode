@@ -858,6 +858,7 @@ export class CapiReplayProxy {
 			}
 		}
 		if (this._options.homeDir) {
+			result = replaceAll(result, escapeJsonString(this._options.homeDir), HOMEDIR_PLACEHOLDER);
 			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
 		}
 		if (this._options.userName) {

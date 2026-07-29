@@ -52,6 +52,34 @@ const RUNTIME_ID_PLACEHOLDER = '${uuid}';
 const RAW_UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const ORDINAL_UUID_RE = /\$\{uuid_\d+\}/g;
 
+/** Stands in for the directory part of a path, whose spelling is per-machine. */
+const PATH_PLACEHOLDER = '${path}';
+
+/**
+ * A path with at least one separator: a recorder placeholder root
+ * (`${workdir}/x`), a Windows absolute path (`C:\x\y`), or a POSIX absolute
+ * path (`/x/y`). Stops at whitespace and at the punctuation that typically
+ * closes a path in prose or JSON.
+ */
+const PATH_RE = /(?:\$\{(?:workdir|homedir)\}|(?<![A-Za-z])[A-Za-z]:|(?<![A-Za-z0-9])(?=[/\\]))(?:[/\\][^\s"'`,;:*?<>|)\]}]+)+/g;
+
+/**
+ * Collapses a path to `${path}/<basename>`.
+ *
+ * Which file the host referenced is host-authored and worth asserting; where
+ * that file happens to live is not. The directory spelling differs on every
+ * axis that matters here — separator (`\` vs `/`), drive letter, 8.3 short
+ * names, `/var` vs `/private/var`, and whether the recorder's placeholder
+ * substitution matched at all — so a capture recorded on one platform can
+ * never match a live run on another if the directory is compared literally.
+ */
+function elidePathDirectories(text: string): string {
+	return text.replace(PATH_RE, match => {
+		const basename = match.split(/[/\\]/).pop();
+		return basename ? `${PATH_PLACEHOLDER}/${basename}` : PATH_PLACEHOLDER;
+	});
+}
+
 /**
  * Reasoning blocks cannot survive the capture round-trip: aggregating a
  * recorded reply drops them, so the assistant turn replayed back to the agent
@@ -75,7 +103,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER);
+	return elidePathDirectories(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
 }
 
 function projectValue(value: unknown): unknown {

@@ -105,6 +105,41 @@ suite('modelRequestProjection', () => {
 		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
 	});
 
+	test('a path keeps its filename but not its directory', () => {
+		// Windows CI recorded these three shapes against captures made on
+		// macOS. Each is the same file addressed differently: an unsubstituted
+		// workdir, an unsubstituted homedir, and a `\` separator.
+		const pairs: [string, string][] = [
+			['Read the file at ${workdir}/peer-note.txt.', 'Read the file at C:\\Users\\CLOUDT~1\\Temp\\ws\\peer-note.txt.'],
+			['${homedir}/.copilot/session-state/${uuid_0}/plan.md', 'C:\\Users\\CLOUDT~1\\Temp\\home-x/.copilot/session-state/${uuid_0}/plan.md'],
+			['* ${workdir}/calculator.py (2 lines)', '* ${workdir}\\calculator.py (2 lines)'],
+		];
+		assert.deepStrictEqual(pairs.map(([recorded, live]) => modelRequestsMatch(
+			projectModelRequest(request([{ role: 'user', content: recorded }])),
+			projectModelRequest(request([{ role: 'user', content: live }])),
+		)), [true, true, true]);
+	});
+
+	test('a different filename is still a mismatch', () => {
+		// Eliding the directory must not elide which file was referenced.
+		assert.strictEqual(modelRequestsMatch(
+			projectModelRequest(request([{ role: 'user', content: 'Read ${workdir}/wanted.txt' }])),
+			projectModelRequest(request([{ role: 'user', content: 'Read ${workdir}/other.txt' }])),
+		), false);
+	});
+
+	test('prose that merely contains a slash is left alone', () => {
+		const prose = [
+			'use a 3/4 ratio',
+			'on 2024/01/02 we shipped',
+			'Reply with exactly "hello world".',
+		];
+		assert.deepStrictEqual(
+			prose.map(text => (projectModelRequest(request([{ role: 'user', content: text }])).messages[0].content)),
+			prose,
+		);
+	});
+
 	test('detects the regressions it exists to catch', () => {
 		const recorded = projectModelRequest(request([
 			{ role: 'user', content: 'first question' },
