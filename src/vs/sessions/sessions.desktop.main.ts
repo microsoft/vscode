@@ -208,6 +208,9 @@ import '../workbench/contrib/mcp/electron-browser/mcp.contribution.js';
 // Policy Export
 import '../workbench/contrib/policyExport/electron-browser/policyExport.contribution.js';
 
+// Keybindings Export
+import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
+
 //#endregion
 
 

@@ -16,7 +16,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { Limiter, SequencerByKey } from '../../../base/common/async.js';
 
@@ -39,6 +39,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim()
 			|| (await this._runGit(workingDirectory, ['rev-parse', '--short', 'HEAD']))?.trim()
 			|| undefined;
+	}
+
+	async getCurrentBranchName(workingDirectory: URI): Promise<string | undefined> {
+		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim() || undefined;
 	}
 
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
@@ -132,8 +136,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
-	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false): Promise<void> {
+	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
 		if (!track) {
@@ -145,10 +150,21 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		args.push('-b', branchName, worktree.fsPath, resolvedStartPoint);
-		await this._runGit(repositoryRoot, args, { timeout: 180_000, throwOnError: true });
+
+		// `git worktree add` forces progress reporting on its internal checkout
+		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
+		// parsed for live feedback. GIT_PROGRESS_DELAY=0 lifts git's default
+		// two-second suppression so the first sample arrives immediately.
+		const progressParser = onProgress ? new GitCheckoutProgressParser(onProgress) : undefined;
+
+		await this._runGit(repositoryRoot, args, {
+			timeout: 180_000,
+			throwOnError: true,
+			...(progressParser ? { env: { GIT_PROGRESS_DELAY: '0' }, onStderr: chunk => progressParser.push(chunk) } : {}),
+		});
 	}
 
-	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[]): Promise<void> {
+	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		try {
 			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, globs);
 			if (worktreeIncludePaths.length === 0) {
@@ -157,10 +173,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 			const startTime = performance.now();
 			const limiter = new Limiter<void>(15);
-			const results = await Promise.allSettled(worktreeIncludePaths.map(sourcePath => limiter.queue(async () => {
-				const targetPath = path.join(worktree.fsPath, path.relative(repositoryRoot.fsPath, sourcePath));
+			const filesTotal = worktreeIncludePaths.reduce((total, entry) => total + entry.fileCount, 0);
+			let filesDone = 0;
+			const results = await Promise.allSettled(worktreeIncludePaths.map(entry => limiter.queue(async () => {
+				const targetPath = path.join(worktree.fsPath, path.relative(repositoryRoot.fsPath, entry.sourcePath));
 				await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
-				await copyFile(sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
+				await copyFile(entry.sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
+				filesDone += entry.fileCount;
+				onProgress?.({ filesDone, filesTotal });
 			})));
 
 			const failedOperations = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
@@ -394,7 +414,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined ? remoteBranch : undefined;
 	}
 
-	private async _getWorktreeIncludePaths(repositoryRoot: URI, globs: readonly string[]): Promise<string[]> {
+	/**
+	 * Resolves the git-ignored paths to copy into a worktree.
+	 */
+	private async _getWorktreeIncludePaths(repositoryRoot: URI, globs: readonly string[]): Promise<IWorktreeIncludeEntry[]> {
 		if (globs.length === 0) {
 			return [];
 		}
@@ -470,19 +493,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 		}
 
-		// Emit the collapsed directories plus every matched file not already
-		// covered by one of them.
-		const includePaths: string[] = [...collapsedDirectories];
-		for (const file of matchedFiles) {
-			if (
-				collapsedDirectories.size === 0 ||
-				findContainingDirectory(file, collapsedDirectories) === undefined
-			) {
-				includePaths.push(file);
-			}
-		}
-
-		return includePaths.map(entry => path.join(repositoryRoot.fsPath, entry));
+		return toWorktreeIncludeEntries(repositoryRoot, matchedFiles, collapsedDirectories);
 	}
 
 	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
@@ -763,7 +774,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return stripUndefined(result);
 	}
 
-	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
+	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void }): Promise<string | undefined> {
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
 
 		return new Promise((resolve, reject) => {
@@ -794,6 +805,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 				resolve(stdout);
 			});
+			// `execFile` keeps its own listener for the buffered result; an
+			// extra one just tees the same chunks for live progress.
+			const onStderr = options?.onStderr;
+			if (onStderr) {
+				child.stderr?.on('data', (chunk: Buffer | string) => onStderr(chunk.toString()));
+			}
 			const timer = setTimeout(() => {
 				didTimeOut = true;
 				child.kill();
@@ -801,6 +818,94 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+/**
+ * Incrementally extracts checkout progress from git's stderr. Git rewrites the
+ * progress line in place with carriage returns, so a chunk carries any number
+ * of samples and may split one across chunk boundaries; the trailing partial
+ * line is held back until the rest arrives. Every complete sample is forwarded
+ * verbatim — rounding and rate limiting belong to the consumer, which knows how
+ * it wants to present them.
+ *
+ * Exported for tests.
+ */
+export class GitCheckoutProgressParser {
+
+	private static readonly _pattern = /Updating files:\s+\d+% \((?<done>\d+)\/(?<total>\d+)\)/g;
+
+	private _pending = '';
+
+	constructor(private readonly _onProgress: (progress: IWorktreeFileProgress) => void) { }
+
+	push(chunk: string): void {
+		// Keep whatever follows the last line break for the next chunk; git
+		// separates progress samples with `\r` and ends the phase with `\n`.
+		const buffer = this._pending + chunk;
+		const lastBreak = Math.max(buffer.lastIndexOf('\r'), buffer.lastIndexOf('\n'));
+		if (lastBreak === -1) {
+			this._pending = buffer;
+			return;
+		}
+		this._pending = buffer.substring(lastBreak + 1);
+
+		const complete = buffer.substring(0, lastBreak);
+		GitCheckoutProgressParser._pattern.lastIndex = 0;
+		let match: RegExpExecArray | null;
+		while ((match = GitCheckoutProgressParser._pattern.exec(complete))) {
+			const filesTotal = Number(match.groups!.total);
+			if (filesTotal > 0) {
+				this._onProgress({ filesDone: Number(match.groups!.done), filesTotal });
+			}
+		}
+	}
+}
+
+/**
+ * A path to copy into a worktree, plus how many individual ignored files it
+ * covers — one for a plain file, the whole tally for a collapsed directory —
+ * so callers can report progress in files rather than in entries of wildly
+ * different size.
+ */
+interface IWorktreeIncludeEntry {
+	readonly sourcePath: string;
+	readonly fileCount: number;
+}
+
+/**
+ * Builds the entries to copy: one per collapsed directory, standing in for all
+ * the matched files beneath it, plus one per matched file no collapsed
+ * directory covers.
+ */
+function toWorktreeIncludeEntries(repositoryRoot: URI, matchedFiles: readonly string[], collapsedDirectories: ReadonlySet<string>): IWorktreeIncludeEntry[] {
+	const toEntry = (relativePath: string, fileCount: number): IWorktreeIncludeEntry => ({
+		sourcePath: path.join(repositoryRoot.fsPath, relativePath),
+		fileCount,
+	});
+
+	// Seeded with every collapsed directory so one is still emitted even if the
+	// tally below never reaches it.
+	const directoryFileCounts = new Map<string, number>();
+	for (const dir of collapsedDirectories) {
+		directoryFileCounts.set(dir, 0);
+	}
+
+	const fileEntries: IWorktreeIncludeEntry[] = [];
+	for (const file of matchedFiles) {
+		const containingDirectory = collapsedDirectories.size > 0
+			? findContainingDirectory(file, collapsedDirectories)
+			: undefined;
+		if (containingDirectory === undefined) {
+			fileEntries.push(toEntry(file, 1));
+		} else {
+			directoryFileCounts.set(containingDirectory, directoryFileCounts.get(containingDirectory)! + 1);
+		}
+	}
+
+	return [
+		...[...directoryFileCounts].map(([dir, fileCount]) => toEntry(dir, fileCount)),
+		...fileEntries,
+	];
 }
 
 /**
