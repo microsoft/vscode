@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, isFaithfulDictationCleanup, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 
 suite('ChatSpeechToTextService', () => {
 
