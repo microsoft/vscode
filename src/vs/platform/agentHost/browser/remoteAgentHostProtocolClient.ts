@@ -19,10 +19,11 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostClaudeMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
-import { AgentHostResourcePermissionError, IAgentHostResourceService } from '../common/agentHostResourceService.js';
+import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
@@ -176,6 +177,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _clientId: string;
 	private readonly _address: string;
+	private readonly _resourceIdentity: AgentHostResourceIdentity;
 	private readonly _transportFactory: (() => IProtocolTransport) | undefined;
 	private _transport!: IProtocolTransport;
 	/** Disposable holding the listeners attached to the current transport. */
@@ -300,7 +302,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	constructor(
-		address: string,
+		identity: AgentHostResourceIdentity,
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
 		loadEstimator: ILoadEstimator | undefined,
 		clientId: string | undefined = undefined,
@@ -310,9 +312,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._address = address;
+		this._resourceIdentity = identity;
+		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = clientId ?? generateUuid();
-		this._connectionAuthority = agentHostAuthority(address);
+		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
 		this._loadEstimator = loadEstimator ?? LoadEstimator.getInstance();
 
 		if (typeof transportOrFactory === 'function') {
@@ -1140,7 +1143,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			return;
 		}
 		this._grantedImplicitReadUris.add(uri);
-		this._implicitReadGrants.add(this._resourceService.grantImplicitRead(this._address, uri));
+		this._implicitReadGrants.add(this._resourceService.grantImplicitRead(this._resourceIdentity, uri));
 	}
 
 	/**
@@ -1321,7 +1324,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._rejectPendingRequests(error);
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
-		this._resourceService.connectionClosed(this._address);
+		this._resourceService.connectionClosed(this._resourceIdentity);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire();
 	}
@@ -1384,61 +1387,61 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		};
 
 		const p = (params ?? {}) as Record<string, unknown>;
-		const addr = this._address;
+		const identity = this._resourceIdentity;
 		void (async () => {
 			try {
 				switch (method) {
 					case 'resourceList': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.list(addr, URI.parse(p.uri as string));
+						const result = await this._resourceService.list(identity, URI.parse(p.uri as string));
 						sendResult({ entries: result.entries });
 						return;
 					}
 					case 'resourceRead': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.read(addr, URI.parse(p.uri as string));
+						const result = await this._resourceService.read(identity, URI.parse(p.uri as string));
 						sendResult({ data: encodeBase64(result.bytes), encoding: ContentEncoding.Base64 });
 						return;
 					}
 					case 'resourceWrite': {
 						if (!p.uri || p.data === undefined) { throw new Error('Missing uri or data'); }
-						await this._resourceService.write(addr, p as unknown as Parameters<typeof this._resourceService.write>[1]);
+						await this._resourceService.write(identity, p as unknown as Parameters<typeof this._resourceService.write>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceDelete': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						await this._resourceService.del(addr, p as unknown as Parameters<typeof this._resourceService.del>[1]);
+						await this._resourceService.del(identity, p as unknown as Parameters<typeof this._resourceService.del>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceMove': {
 						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
-						await this._resourceService.move(addr, p as unknown as Parameters<typeof this._resourceService.move>[1]);
+						await this._resourceService.move(identity, p as unknown as Parameters<typeof this._resourceService.move>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceCopy': {
 						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
-						await this._resourceService.copy(addr, p as unknown as Parameters<typeof this._resourceService.copy>[1]);
+						await this._resourceService.copy(identity, p as unknown as Parameters<typeof this._resourceService.copy>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceResolve': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.resolve(addr, p as unknown as Parameters<typeof this._resourceService.resolve>[1]);
+						const result = await this._resourceService.resolve(identity, p as unknown as Parameters<typeof this._resourceService.resolve>[1]);
 						sendResult(result);
 						return;
 					}
 					case 'resourceMkdir': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						await this._resourceService.mkdir(addr, p as unknown as Parameters<typeof this._resourceService.mkdir>[1]);
+						await this._resourceService.mkdir(identity, p as unknown as Parameters<typeof this._resourceService.mkdir>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceRequest': {
 						try {
-							await this._resourceService.request(addr, p as unknown as ResourceRequestParams);
+							await this._resourceService.request(identity, p as unknown as ResourceRequestParams);
 							sendResult({});
 						} catch (err) {
 							if (err instanceof CancellationError) {
