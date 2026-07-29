@@ -73,7 +73,9 @@ import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } f
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
@@ -217,6 +219,9 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
+		const editAttributionService = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+		diServices.set(IAgentEditAttributionService, editAttributionService);
+		agentService.setEditAttributionService(editAttributionService);
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);

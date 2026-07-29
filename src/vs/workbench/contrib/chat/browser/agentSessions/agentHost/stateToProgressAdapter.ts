@@ -18,7 +18,7 @@ import { getToolKind } from '../../../../../../platform/agentHost/common/state/s
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostElementAttachmentDisplayKind } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
+import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
@@ -34,7 +34,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -42,6 +42,7 @@ import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
+import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -870,10 +871,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
  * `undefined` when the message has no convertible attachments.
  */
 export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(message.attachments, connectionAuthority);
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text);
 }
 
-export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string): IChatRequestVariableData | undefined {
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string): IChatRequestVariableData | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
@@ -885,11 +886,27 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 	if (aggregatedFeedback) {
 		variables.push(aggregatedFeedback);
 	}
+	const consumedAttachments = new Set<MessageAttachment>();
 	for (const a of attachments) {
-		if (isAgentFeedbackAnnotationsAttachment(a)) {
+		if (isAgentFeedbackAnnotationsAttachment(a) || consumedAttachments.has(a)) {
 			continue; // handled by the aggregation above
 		}
-		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
+		const element = restoreElementVariableEntry(a, a.type === MessageAttachmentKind.Simple ? a.modelRepresentation : undefined);
+		if (element) {
+			const correlationId = getElementAttachmentCorrelationId(a);
+			const imageAttachment = correlationId
+				? attachments.find(candidate => candidate.displayKind === 'image' && getElementAttachmentCorrelationId(candidate) === correlationId)
+				: undefined;
+			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, connectionAuthority) : undefined;
+			if (imageAttachment && image?.kind === 'image') {
+				consumedAttachments.add(imageAttachment);
+			}
+			variables.push(image?.kind === 'image'
+				? { ...element, imageData: image.value instanceof Uint8Array || URI.isUri(image.value) ? image.value : undefined, imageMimeType: image.mimeType }
+				: element);
+			continue;
+		}
+		const v = messageAttachmentToVariableEntry(a, connectionAuthority, messageText);
 		if (v) {
 			variables.push(v);
 		}
@@ -938,7 +955,7 @@ function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly Messa
 	};
 }
 
-function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string, messageText?: string): IChatRequestVariableEntry | undefined {
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {
@@ -1018,6 +1035,10 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		};
 	}
 
+	if (attachment.type === MessageAttachmentKind.Chat) {
+		return restoreChatReferenceVariableEntryFromAttachment(attachment, messageText);
+	}
+
 	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);
 	if (agentHostCompletionKind !== undefined) {
 		return toAgentHostCompletionVariableEntryFromMetadata(agentHostCompletionKind, attachment.label, attachment._meta);
@@ -1047,10 +1068,6 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			_meta: attachment._meta,
 		};
 	}
-	const element = restoreElementVariableEntry(attachment, modelRepresentation);
-	if (element) {
-		return element;
-	}
 	if (attachment.type === MessageAttachmentKind.Simple) {
 		const sessionReferenceEntry = restoreSessionReferenceVariableEntryFromAttachment(attachment);
 		if (sessionReferenceEntry) {
@@ -1075,7 +1092,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	};
 }
 
-function restoreElementVariableEntry(attachment: MessageAttachment, modelRepresentation: string | undefined): IChatRequestVariableEntry | undefined {
+function restoreElementVariableEntry(attachment: MessageAttachment, modelRepresentation: string | undefined): IElementVariableEntry | undefined {
 	if (attachment.displayKind !== AgentHostElementAttachmentDisplayKind || modelRepresentation === undefined) {
 		return undefined;
 	}

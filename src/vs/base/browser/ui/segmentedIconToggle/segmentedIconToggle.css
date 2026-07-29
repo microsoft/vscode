@@ -15,6 +15,7 @@
  * exposed as custom properties so a host toolbar can size the pill without overriding rules.
  */
 
+/* Tunable metrics are exposed as custom properties so a host toolbar can size the pill without overriding rules. */
 .monaco-segmented-icon-toggle-container {
 	display: flex;
 	align-items: center;
@@ -28,7 +29,7 @@
 	width: var(--segmented-icon-toggle-width, 56px);
 	height: var(--segmented-icon-toggle-height, 24px);
 	border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));
-	border-radius: 8px;
+	border-radius: var(--segmented-icon-toggle-radius, 8px);
 }
 
 .monaco-segmented-icon-toggle-reel {
@@ -60,12 +61,12 @@
 	z-index: 1;
 }
 
-/* Hover background — a rounded-rectangle (squircle) filling the whole cell, edge-to-edge and full height, so it fully covers the housing interior with no surrounding gap. */
+/* Hover background — a rounded-rectangle (squircle) filling the whole cell, edge-to-edge and full height, so it fully covers the housing interior with no surrounding gap. Its radius nests one step inside the housing so the corners stay concentric. */
 .monaco-segmented-icon-toggle-cell::before {
 	content: '';
 	position: absolute;
 	inset: 0;
-	border-radius: 7px;
+	border-radius: var(--segmented-icon-toggle-cell-radius, 7px);
 	background: transparent;
 	transition: background 0.15s ease;
 	z-index: 0;

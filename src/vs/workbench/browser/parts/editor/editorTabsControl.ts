@@ -353,7 +353,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	private updateEditorLayoutActionsToolbar(): void {
-		if (!this.editorActionsEnabled || !this.editorLayoutActionsToolbar) {
+		if (
+			!this.editorActionsEnabled ||
+			!this.editorLayoutActionsToolbarContainer ||
+			!this.editorLayoutActionsToolbar
+		) {
 			return;
 		}
 
@@ -365,12 +369,15 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const { primary, secondary } = this.prepareEditorLayoutActions(editorActions.actions);
 		this.editorLayoutActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 
-		// Only show the separator when the layout toolbar has actions AND there are
-		// editor actions to its left to separate from.
+		const hasLayoutActions = primary.length > 0 || secondary.length > 0;
+
+		// Only show the separator and the toolbar container when the layout toolbar
+		// has actions AND there are editor actions to its left to separate from.
 		if (this.editorLayoutActionsSeparator) {
-			const hasLayoutActions = primary.length > 0 || secondary.length > 0;
 			setVisibility(hasLayoutActions && this.editorActionsToolbarHasActions, this.editorLayoutActionsSeparator);
 		}
+
+		setVisibility(hasLayoutActions, this.editorLayoutActionsToolbarContainer);
 	}
 
 	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
@@ -393,6 +400,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorLayoutActionsToolbar?.setActions([], []);
 		if (this.editorLayoutActionsSeparator) {
 			setVisibility(false, this.editorLayoutActionsSeparator);
+		}
+		if (this.editorLayoutActionsToolbarContainer) {
+			setVisibility(false, this.editorLayoutActionsToolbarContainer);
 		}
 	}
 

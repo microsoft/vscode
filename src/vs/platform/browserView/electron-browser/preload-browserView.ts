@@ -7,7 +7,7 @@
 /* eslint-disable no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
-import type { IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
+import type { IBrowserElementSelectionOptions, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
 
 /**
  * Preload script for pages loaded in Integrated Browser
@@ -169,8 +169,8 @@ function init() {
 		elementPicker.setTheme(theme);
 		areaPicker.setTheme(theme);
 	});
-	ipcRenderer.on('vscode:browserView:startElementPicker', (_event: unknown) => {
-		elementPicker.start();
+	ipcRenderer.on('vscode:browserView:startElementPicker', (_event: unknown, options: IBrowserElementSelectionOptions) => {
+		elementPicker.start(options);
 	});
 	ipcRenderer.on('vscode:browserView:stopElementPicker', (_event: unknown) => {
 		elementPicker.stop();
@@ -330,6 +330,7 @@ class ElementPicker {
 	private _dragStart: { x: number; y: number } | undefined;
 	private _dragStartTarget: Element | undefined;
 	private _highlightTarget: Element | undefined;
+	private _focusedTarget: Element | undefined;
 	private _cursorStylesheet: HTMLStyleElement | undefined;
 
 	constructor(
@@ -390,7 +391,7 @@ class ElementPicker {
 		window.addEventListener('resize', () => this._onScrollOrResize());
 	}
 
-	start(): boolean {
+	start(options: IBrowserElementSelectionOptions): boolean {
 		if (this._selectionActive) {
 			return true;
 		}
@@ -413,7 +414,13 @@ class ElementPicker {
 		window.addEventListener('pointerup', this._onPointerUp, true);
 		window.addEventListener('click', this._onClick, true);
 		window.addEventListener('contextmenu', this._onClick, true);
+		window.addEventListener('focusin', this._onFocusIn, true);
+		window.addEventListener('blur', this._onWindowBlur);
 		window.addEventListener('keydown', this._onKeyDown, true);
+
+		const focusedElement = this._getFocusedElement();
+		this._focusedTarget = options.highlightFocusedElement ? focusedElement : undefined;
+		this._updateHighlight(this._focusedTarget);
 
 		return true;
 	}
@@ -435,6 +442,8 @@ class ElementPicker {
 		window.removeEventListener('pointerup', this._onPointerUp, true);
 		window.removeEventListener('click', this._onClick, true);
 		window.removeEventListener('contextmenu', this._onClick, true);
+		window.removeEventListener('focusin', this._onFocusIn, true);
+		window.removeEventListener('blur', this._onWindowBlur);
 		window.removeEventListener('keydown', this._onKeyDown, true);
 
 		this._highlight.style.display = 'none';
@@ -443,6 +452,7 @@ class ElementPicker {
 		this._dragStart = undefined;
 		this._dragStartTarget = undefined;
 		this._highlightTarget = undefined;
+		this._focusedTarget = undefined;
 
 		this._onStopped();
 	}
@@ -514,7 +524,7 @@ class ElementPicker {
 			return;
 		}
 		if (!this._dragStart) {
-			this._updateHighlight(undefined);
+			this._updateHighlight(this._focusedTarget);
 		}
 	};
 
@@ -579,6 +589,23 @@ class ElementPicker {
 		e.stopPropagation();
 	};
 
+	private _onFocusIn = (): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		const focusedElement = this._getFocusedElement();
+		this._focusedTarget = focusedElement?.matches(':focus-visible') ? focusedElement : undefined;
+		this._updateHighlight(this._focusedTarget);
+	};
+
+	private _onWindowBlur = (): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		this._focusedTarget = undefined;
+		this._updateHighlight(undefined);
+	};
+
 	private _onKeyDown = (e: KeyboardEvent): void => {
 		if (!this._selectionActive) {
 			return;
@@ -587,6 +614,13 @@ class ElementPicker {
 			this.stop();
 			e.preventDefault();
 			e.stopPropagation();
+		} else if (e.key === 'Enter' && !e.isComposing) {
+			const focusedElement = this._getFocusedElement();
+			if (focusedElement) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._commit(focusedElement);
+			}
 		}
 	};
 
@@ -597,6 +631,20 @@ class ElementPicker {
 	}
 
 	// --- Picking helpers ---
+
+	private _getFocusedElement(): Element | undefined {
+		if (!document.hasFocus()) {
+			return undefined;
+		}
+		let activeElement = document.activeElement;
+		while (activeElement?.shadowRoot?.activeElement) {
+			activeElement = activeElement.shadowRoot.activeElement;
+		}
+		if (!activeElement || activeElement === document.body || activeElement === document.documentElement || activeElement === this._shadowHost || activeElement instanceof HTMLIFrameElement) {
+			return undefined;
+		}
+		return activeElement;
+	}
 
 	/** Return the page element under a viewport point, skipping our own overlay host. */
 	private _pickElementAt(x: number, y: number): Element | undefined {
