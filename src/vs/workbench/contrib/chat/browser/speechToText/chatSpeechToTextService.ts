@@ -1393,22 +1393,29 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			// text on a mid-stream failure, which could replace the complete raw
 			// transcript with a truncated one. Any error here falls through to the
 			// catch and yields `undefined` (raw-transcript fallback).
+			//
+			// The whole consumption is raced against the cancellation token so a
+			// hung or half-open network request — one that never yields another
+			// chunk, errors, or completes — cannot wedge the wait past the
+			// timeout. Without the race, cancellation is only observed between
+			// stream chunks and `response.result` is awaited unconditionally, so a
+			// stalled request would block `stopAndTranscribe` (and the user's
+			// tap-to-stop) forever, leaving dictation stuck and unresponsive.
 			let cleaned = '';
-			for await (const part of response.stream) {
-				if (cts.token.isCancellationRequested) {
-					this._logService.info(`[chat-stt] cancelled language model cleanup during stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
-					return undefined;
-				}
-				const parts = Array.isArray(part) ? part : [part];
-				for (const item of parts) {
-					if (item.type === 'text') {
-						cleaned += item.value;
+			const consumed = await raceCancellation((async () => {
+				for await (const part of response.stream) {
+					const parts = Array.isArray(part) ? part : [part];
+					for (const item of parts) {
+						if (item.type === 'text') {
+							cleaned += item.value;
+						}
 					}
 				}
-			}
-			await response.result;
-			if (cts.token.isCancellationRequested) {
-				this._logService.info(`[chat-stt] cancelled language model cleanup after stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
+				await response.result;
+				return true;
+			})(), cts.token);
+			if (consumed === undefined || cts.token.isCancellationRequested) {
+				this._logService.info(`[chat-stt] cancelled language model cleanup during stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
 				return undefined;
 			}
 			cleaned = cleaned.trim();
