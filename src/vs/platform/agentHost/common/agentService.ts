@@ -749,13 +749,12 @@ export interface IAgentSessionMetadata {
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
+	/** Activity bits plus the session-scoped {@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived} flags. */
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
 	/** All working directories available to the session (index 0 = primary). */
 	readonly workingDirectories?: readonly URI[];
-	readonly isRead?: boolean;
-	readonly isArchived?: boolean;
 	/**
 	 * Aggregate counts (additions / deletions / files) describing the
 	 * `changeKind: 'session'` changeset for this session — the chip
