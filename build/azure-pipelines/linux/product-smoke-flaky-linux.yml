@@ -63,6 +63,34 @@ jobs:
       - script: npm run compile --prefix test/smoke
         displayName: Compile smoke tests
 
+      # Initialize fontconfig before Electron starts Pango and Chromium threads,
+      # avoiding concurrent first-time FcInit calls that can corrupt its config.
+      - script: |
+          set -euo pipefail
+          SOURCE_PATH="$(Agent.TempDirectory)/fcpreinit.c"
+          SHIM_PATH="$(Agent.TempDirectory)/libfcpreinit.so"
+          cat > "$SOURCE_PATH" <<'CEOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+
+          __attribute__((constructor))
+          static void preinit_fontconfig(void)
+          {
+            void *handle = dlopen("libfontconfig.so.1", RTLD_NOW | RTLD_GLOBAL);
+            if (handle) {
+              int (*fc_init)(void) = (int (*)(void)) dlsym(handle, "FcInit");
+              if (fc_init) {
+                fc_init();
+              }
+            }
+          }
+          CEOF
+          gcc -shared -fPIC -O2 -Wall -Wextra -o "$SHIM_PATH" "$SOURCE_PATH" -ldl
+          PRELOAD_VALUE="$SHIM_PATH${LD_PRELOAD:+:$LD_PRELOAD}"
+          echo "##vso[task.setvariable variable=VSCODE_SMOKE_LD_PRELOAD]$PRELOAD_VALUE"
+          echo "Built fontconfig pre-init shim at $SHIM_PATH"
+        displayName: Pre-initialize fontconfig for Electron
+
       # Guarantee the artifact directories exist so the 1ES output publishing
       # never fails on a missing path. The smoke runner writes logs under
       # .build/logs and crash dumps under .build/crashes (only on a crash).
@@ -78,6 +106,7 @@ jobs:
             npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
           env:
             TMPDIR: $(Agent.TempDirectory)
+            LD_PRELOAD: $(VSCODE_SMOKE_LD_PRELOAD)
           displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
           continueOnError: true
           timeoutInMinutes: 20

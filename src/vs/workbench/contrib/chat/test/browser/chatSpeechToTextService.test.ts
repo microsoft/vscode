@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 
 suite('ChatSpeechToTextService', () => {
 
@@ -74,6 +74,38 @@ suite('ChatSpeechToTextService', () => {
 				shortRange: undefined,
 			}
 		);
+	});
+
+	test('collapses punctuation artifacts from concatenated segments', () => {
+		assert.deepStrictEqual(
+			[
+				stripDictationFillers('zoom in on a couple things., first for now'),
+				stripDictationFillers('not expecting any,, meaningful difference'),
+				stripDictationFillers('control over, then that is interesting., and then'),
+				stripDictationFillers('one thing ,. another thing'),
+			],
+			[
+				'zoom in on a couple things. first for now',
+				'not expecting any, meaningful difference',
+				'control over, then that is interesting. and then',
+				'one thing. another thing',
+			]
+		);
+	});
+
+	test('final cleanup prompt guides list formatting with ordering cues; incremental does not', () => {
+		const finalPrompt = createDictationCleanupSystemPrompt('final', false);
+		const incrementalPrompt = createDictationCleanupSystemPrompt('incremental', false);
+
+		assert.deepStrictEqual({
+			finalMentionsList: finalPrompt.includes('format them as a Markdown list'),
+			finalMentionsNumbered: finalPrompt.includes('numbered list when the wording implies order'),
+			incrementalOmitsList: !incrementalPrompt.includes('Markdown list'),
+		}, {
+			finalMentionsList: true,
+			finalMentionsNumbered: true,
+			incrementalOmitsList: true,
+		});
 	});
 
 	test('appends dictation instructions without replacing dictation safeguards', () => {

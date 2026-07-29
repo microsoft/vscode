@@ -45,7 +45,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { NewChatVoiceController } from './newChatVoice.js';
+import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
@@ -73,7 +73,8 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -304,6 +305,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The underlying input editor. Exposed for component fixtures. */
 	get inputEditor(): CodeEditorWidget | undefined { return this._editor; }
 
+	/** The current model-selection state. Exposed so host widgets can react to model changes. */
+	get selectedModelState() { return this._sessionModelSelectionModel.state; }
+
+	/** Opens the model picker dropdown. */
+	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
+
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
@@ -380,6 +387,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
+		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -467,7 +475,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));
 		const inputArea = dom.append(inputAreaWrapper, dom.$('.new-chat-input-area'));
-		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined)));
 
 		// Attachments row (pills only) inside input area, above editor
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
@@ -477,6 +484,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._contextAttachments.registerPasteHandler(inputArea);
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
+		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
+		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined), inputHasContent, this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -602,6 +611,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				showWords: true,
 				showStatusBar: false,
 				insertMode: 'insert',
+				fitWidthToDetails: true,
 			},
 		};
 
@@ -839,6 +849,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
 		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
+		const isVoiceInputActive = derived(this, reader => isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
 
 		const action = toAction({
 			id: ChatVoiceInputModeAction.ID,
@@ -849,6 +860,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Dictation must target this composer's editor, not the last focused
 			// chat widget (this composer isn't an `IChatWidget`).
 			toggleDictation: () => { void this.toggleDictation(); },
+			isActive: isVoiceInputActive,
 		}));
 		pill.render(pillContainer);
 
@@ -907,16 +919,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
-				// First-use only. The on-device backend downloads a model, so
-				// render a download icon wrapped by a progress ring; the cloud
-				// backend just connects, so render a plain spinner instead.
+				// First-use only. Show a download icon wrapped by a progress
+				// ring only during an actual model download (a confirmed cache
+				// miss); otherwise (loading an already-cached model, or the cloud
+				// backend connecting) render a plain spinner instead.
 				// Glyphs render at the compact 12px size, so use the `*Compact`
 				// variants where one exists.
-				if (sttService.currentBackend === 'mai') {
-					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
-				} else {
+				if (sttService.isDownloadingModel) {
 					dom.append(button, renderIcon(Codicon.micDownloadCompact));
 					downloadRing.value = new DictationDownloadRing(button, sttService);
+				} else {
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 				}
 			} else {
 				// `mic` / `micFilled` have no compact variant, so they stay as-is.
@@ -931,6 +944,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
+		this._register(sttService.onDidChangeDownloadingModel(renderState));
 		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
 
 		const updateVisibility = () => {
