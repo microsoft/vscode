@@ -998,6 +998,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 	}
 
+	private hasTextSelection(): boolean {
+		const selection = dom.getWindow(this.domNode).getSelection();
+		return !!selection && !selection.isCollapsed && selection.toString().length > 0;
+	}
+
 	/**
 	 * Sets up auto-resize behavior for a textarea element.
 	 * @returns A function that triggers the resize manually (useful for initial sizing).
@@ -1148,6 +1153,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			// if we select an option, clear text and go to next question
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
+				if (this.hasTextSelection()) {
+					return;
+				}
 				e.preventDefault();
 				e.stopPropagation();
 				updateSelection(index);
@@ -1360,6 +1368,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			// Click handler for the entire row (toggle checkbox)
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
+				if (this.hasTextSelection()) {
+					return;
+				}
 				// Update focusedIndex when clicking a row
 				focusedIndex = index;
 				// Don't toggle if the click was on the checkbox itself (it handles itself)

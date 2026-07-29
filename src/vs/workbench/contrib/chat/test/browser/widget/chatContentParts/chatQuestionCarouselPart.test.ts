@@ -44,6 +44,7 @@ suite('ChatQuestionCarouselPart', () => {
 	}
 
 	teardown(() => {
+		mainWindow.getSelection()?.removeAllRanges();
 		if (widget?.domNode?.parentNode) {
 			widget.domNode.parentNode.removeChild(widget.domNode);
 		}
@@ -277,6 +278,48 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(listItems.length, 3, 'Should have 3 list items for multiSelect');
 			const checkboxes = widget.domNode.querySelectorAll('.chat-question-list-checkbox');
 			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
+		});
+
+		test('does not submit singleSelect option when selecting its text', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [{ id: 'a', label: 'Option A', value: 'a' }]
+				}
+			]);
+			createWidget(carousel);
+
+			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
+			const label = listItem.querySelector('.chat-question-list-label') as HTMLElement;
+			const range = mainWindow.document.createRange();
+			range.selectNodeContents(label);
+			mainWindow.getSelection()?.addRange(range);
+			listItem.click();
+
+			assert.strictEqual(submittedAnswers, null);
+		});
+
+		test('does not toggle multiSelect option when selecting its text', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					options: [{ id: 'a', label: 'Option A', value: 'a' }]
+				}
+			]);
+			createWidget(carousel);
+
+			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
+			const label = listItem.querySelector('.chat-question-list-label') as HTMLElement;
+			const range = mainWindow.document.createRange();
+			range.selectNodeContents(label);
+			mainWindow.getSelection()?.addRange(range);
+			listItem.click();
+
+			assert.strictEqual(listItem.classList.contains('checked'), false);
 		});
 
 		test('freeform textarea is rendered for singleSelect by default', () => {

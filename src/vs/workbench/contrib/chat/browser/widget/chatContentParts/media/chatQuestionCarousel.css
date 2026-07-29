@@ -27,6 +27,8 @@
 	container-type: inline-size;
 	max-height: min(420px, 45vh);
 	position: relative;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .interactive-session .chat-question-carousel-container:focus {
@@ -221,7 +223,6 @@
 			padding: 6px 8px;
 			cursor: pointer;
 			border-radius: var(--vscode-cornerRadius-medium);
-			user-select: none;
 
 			.chat-question-list-indicator {
 				width: 16px;
