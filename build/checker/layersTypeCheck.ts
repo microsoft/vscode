@@ -63,7 +63,8 @@ function typeCheck(project: string): Promise<string> {
 		child.stderr.on('data', data => output += data.toString());
 
 		child.on('error', reject);
-		child.on('exit', code => resolve(code === 0 ? '' : output.trim() || `tsc exited with code ${code ?? 'unknown'}.`));
+		// `close` rather than `exit`, so the captured output is complete before it is inspected.
+		child.on('close', code => resolve(code === 0 ? '' : output.trim() || `tsc exited with code ${code ?? 'unknown'}.`));
 	});
 }
 

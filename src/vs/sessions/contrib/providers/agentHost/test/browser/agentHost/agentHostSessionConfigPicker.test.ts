@@ -333,4 +333,30 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.strictEqual(isolationSlot(container), null);
 	});
+
+	test('never renders a chip for the hidden worktreeBranchTrack carrier property', () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					[SessionConfigKey.Isolation]: {
+						title: 'Isolation', description: '', type: 'string',
+						enum: ['folder', 'worktree'], enumLabels: ['Folder', 'Worktree'],
+						default: 'worktree',
+					},
+					[SessionConfigKey.WorktreeBranchTrack]: {
+						title: 'Track Branch', description: '', type: 'boolean',
+						default: false, readOnly: true, sessionMutable: false,
+					},
+				},
+			},
+			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false },
+		} as ResolveSessionConfigResult;
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+
+		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders, not a worktreeBranchTrack chip');
+	});
 });

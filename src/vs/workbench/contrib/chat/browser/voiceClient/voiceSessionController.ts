@@ -5556,6 +5556,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const lastRequest = model.getRequests().at(-1);
+
+		// Do not narrate partial work after the user cancels a turn.
+		if (lastRequest?.response?.isCanceled) {
+			return { state: 'idle' };
+		}
+
 		const pendingConfirmation = lastRequest?.response?.isPendingConfirmation.get();
 		if (pendingConfirmation) {
 			// Scan ALL response parts to find the most recent pending item.
