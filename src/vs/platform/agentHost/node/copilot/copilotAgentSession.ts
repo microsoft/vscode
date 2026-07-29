@@ -3186,6 +3186,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
+			if (notification.completedAgentId) {
+				this._completeSubagentTurn(notification.completedAgentId);
+			}
 			if (this._turnId) {
 				this._emitAction({
 					type: ActionType.ChatResponsePart,
