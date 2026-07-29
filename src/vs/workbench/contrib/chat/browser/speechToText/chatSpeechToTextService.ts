@@ -123,7 +123,7 @@ export function createDictationCleanupSystemPrompt(source: 'final' | 'incrementa
 		: 'Add sentence punctuation, capitalization, and paragraph breaks so it reads naturally. Split run-on sentences and group related sentences into paragraphs separated by a blank line.';
 	const listInstruction = source === 'incremental'
 		? ''
-		: 'When the speaker dictates a sequence of items, format it as a Markdown bulleted or numbered list, choosing numbered only when order matters.';
+		: 'When the speaker enumerates two or more items, steps, or options, format them as a Markdown list with one item per line instead of a paragraph. Use a numbered list when the wording implies order or sequence (for example ordinals like "first", "second", "third", "next", "finally", counting like "one", "two", "three", or phrases like "step one" or "step two"); otherwise use a bulleted list with "-". Do not add items the speaker did not dictate.';
 	const continuationInstruction = isContinuation
 		? (source === 'incremental'
 			? 'This input continues earlier text. Do not capitalize its first word or add leading punctuation unless the wording itself clearly contains that punctuation.'
@@ -321,9 +321,10 @@ export interface IChatDictationTranscript {
 	/** Full cumulative transcript to display. */
 	readonly text: string;
 	/**
-	 * The leading portion of `text` that is finalized (committed): it should be
-	 * rendered without the shimmer. The remainder is the in-progress interim
-	 * tail that keeps shimmering until it is finalized.
+	 * The leading portion of `text` that is finalized (committed) by the
+	 * recognizer. Note that streaming backends endpoint segments almost as fast
+	 * as they are spoken, so this is not a good signal for how much of the
+	 * transcript has settled from the user's point of view.
 	 */
 	readonly finalizedText: string;
 }
@@ -338,7 +339,7 @@ export interface IChatSpeechToTextService {
 	 * Fires with the cumulative transcript while recording, so callers can
 	 * render dictation live as the user speaks. The value grows monotonically
 	 * (finalized utterances plus any in-progress delta), and carries the
-	 * finalized (non-shimmering) portion of that transcript.
+	 * finalized (committed) portion of that transcript.
 	 */
 	readonly onDidUpdateTranscript: Event<IChatDictationTranscript>;
 
@@ -362,6 +363,17 @@ export interface IChatSpeechToTextService {
 	readonly onDidChangePreparingModel: Event<boolean>;
 	/** Whether the on-device model is currently downloading/loading. */
 	readonly isPreparingModel: boolean;
+
+	/**
+	 * Fires when the model-download sub-state changes. `true` while the model is
+	 * actively downloading to disk (a confirmed cache miss), `false` while it is
+	 * merely loading an already-cached model into memory or once preparation
+	 * ends. Callers use this to show a download affordance only during a real
+	 * download, and a plain spinner while loading.
+	 */
+	readonly onDidChangeDownloadingModel: Event<boolean>;
+	/** Whether the on-device model is currently downloading to disk (cache miss). */
+	readonly isDownloadingModel: boolean;
 
 	/**
 	 * Fires whenever the on-device model download progress changes while the
@@ -421,6 +433,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _isPreparingModel = false;
 	get isPreparingModel(): boolean {
 		return this._isPreparingModel;
+	}
+
+	private readonly _onDidChangeDownloadingModel = this._register(new Emitter<boolean>());
+	readonly onDidChangeDownloadingModel = this._onDidChangeDownloadingModel.event;
+
+	private _isDownloadingModel = false;
+	get isDownloadingModel(): boolean {
+		return this._isDownloadingModel;
 	}
 
 	private readonly _onDidChangeModelDownloadProgress = this._register(new Emitter<void>());
@@ -503,7 +523,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _finalizedText = '';
 	/** In-progress text for the current utterance (from delta events). */
 	private _deltaText = '';
-	/** Normalized prefix the backend reports as finalized, used for shimmer rendering. */
+	/** Normalized prefix the backend reports as finalized, used to style the in-progress tail. */
 	private _backendFinalizedText = '';
 	/** Raw finalized prefix already represented by `_incrementalCleanedPrefix`. */
 	private _incrementalCleanedRawPrefix = '';
@@ -618,8 +638,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._preparingContextKey.set(preparing);
 		if (!preparing) {
 			this._setModelDownloadProgress(undefined);
+			// Preparation ended (ready, error, or teardown): the model is no
+			// longer downloading.
+			this._setDownloadingModel(false);
 		}
 		this._onDidChangePreparingModel.fire(preparing);
+	}
+
+	private _setDownloadingModel(downloading: boolean): void {
+		if (this._isDownloadingModel === downloading) {
+			return;
+		}
+		this._isDownloadingModel = downloading;
+		this._onDidChangeDownloadingModel.fire(downloading);
 	}
 
 	private _setModelDownloadProgress(progress: number | undefined): void {
@@ -791,8 +822,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	/**
 	 * Record a transcript update on the shared cumulative surface and accumulate
 	 * the latency/stability telemetry, regardless of backend. `text` is the full
-	 * cumulative transcript; `finalizedText` is its committed (non-shimmering)
-	 * prefix; `isFinal` marks the terminal update after the session stops.
+	 * cumulative transcript; `finalizedText` is its committed prefix; `isFinal`
+	 * marks the terminal update after the session stops.
 	 */
 	private _emitTranscript(text: string, finalizedText: string, isFinal: boolean): void {
 		this._finalizedText = text;
@@ -1162,6 +1193,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 */
 	private _handleModelStatus(status: ILocalTranscriptionModelStatus): void {
 		this._lastModelStatus = status;
+		// Track whether we are in an actual on-disk download (a confirmed cache
+		// miss) versus merely loading an already-cached model, so the UI can show
+		// a download affordance only during a real download.
+		this._setDownloadingModel(status.state === LocalTranscriptionModelState.Downloading);
 		this._updateModelDownloadProgress(status);
 		this._updateDownloadNotification(status);
 		if (status.state === LocalTranscriptionModelState.Ready) {
@@ -1393,22 +1428,22 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			// text on a mid-stream failure, which could replace the complete raw
 			// transcript with a truncated one. Any error here falls through to the
 			// catch and yields `undefined` (raw-transcript fallback).
+			// Bound response consumption so cancellation can release a stalled stream or result wait.
 			let cleaned = '';
-			for await (const part of response.stream) {
-				if (cts.token.isCancellationRequested) {
-					this._logService.info(`[chat-stt] cancelled language model cleanup during stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
-					return undefined;
-				}
-				const parts = Array.isArray(part) ? part : [part];
-				for (const item of parts) {
-					if (item.type === 'text') {
-						cleaned += item.value;
+			const consumed = await raceCancellation((async () => {
+				for await (const part of response.stream) {
+					const parts = Array.isArray(part) ? part : [part];
+					for (const item of parts) {
+						if (item.type === 'text') {
+							cleaned += item.value;
+						}
 					}
 				}
-			}
-			await response.result;
-			if (cts.token.isCancellationRequested) {
-				this._logService.info(`[chat-stt] cancelled language model cleanup after stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
+				await response.result;
+				return true;
+			})(), cts.token);
+			if (consumed === undefined || cts.token.isCancellationRequested) {
+				this._logService.info(`[chat-stt] cancelled language model cleanup while consuming response (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
 				return undefined;
 			}
 			cleaned = cleaned.trim();

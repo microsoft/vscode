@@ -224,6 +224,12 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
+	/**
+	 * Authoritative read state, set by controllers that own it (see
+	 * {@link IChatSessionItemController.setChatSessionItemRead}). Otherwise
+	 * `undefined`, and the workbench falls back to its own read tracking.
+	 */
+	readonly isRead?: boolean;
 	readonly metadata?: IChatSessionItemMetadata;
 	/**
 	 * Resource identifier the item was previously known by. When set, host-stored
@@ -306,6 +312,10 @@ export type IChatSessionHistoryItem = {
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
 export interface IChatSessionServerRequest {
+	/**
+	 * Identifier of the backing provider turn.
+	 */
+	readonly id: string;
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
@@ -634,6 +644,14 @@ export interface IChatSessionItemController {
 	 * Set the authoritative archived state for the session identified by `resource`.
 	 */
 	setChatSessionItemArchived?(resource: URI, archived: boolean): void;
+
+	/**
+	 * Set the authoritative read state for the session identified by `resource`.
+	 * Implementing this declares that the controller, not the workbench, owns read
+	 * state — letting it be shared with other clients on the same backend. The
+	 * controller reflects the new value back via {@link IChatSessionItem.isRead}.
+	 */
+	setChatSessionItemRead?(resource: URI, isRead: boolean): void;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -784,6 +802,16 @@ export interface IChatSessionsService {
 	 * Sets archived state by delegating to the registered item controller.
 	 */
 	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void;
+
+	/**
+	 * Whether the registered item controller owns read state for the session.
+	 */
+	canSetChatSessionItemRead(sessionResource: URI): boolean;
+
+	/**
+	 * Sets read state by delegating to the registered item controller.
+	 */
+	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void;
 
 	// #endregion
 
