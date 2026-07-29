@@ -43,14 +43,29 @@ const ENTER_SCALE = 0.94;
 const EXIT_SCALE = 1.04;
 
 /**
- * Bloom reach limiters. The vendored pulse-outside defaults blur very wide
- * (bloom blur 22.5px dark / 15px light) and reach far; these tighten it into a
- * calmer halo. Applied as inline consumer hooks so the vendored CSS is untouched.
+ * Bloom reach limiters. Keep the vendored blur high enough to stay smooth (a low
+ * blur reads as patchy blobs), and pull the *reach* in with the boost multiplier
+ * instead. Applied as inline consumer hooks so the vendored CSS is untouched.
  */
-const BLOOM_BLUR = { dark: 13, light: 9 } as const;
-const BLOOM_CORE_BLUR = { dark: 2, light: 4 } as const;
+const BLOOM_BLUR = { dark: 20, light: 14 } as const;
+const BLOOM_CORE_BLUR = { dark: 3, light: 5 } as const;
 /** Multiplier on the bloom gradient blob sizes (<1 pulls the reach inward). */
-const BLOOM_BOOST = 0.8;
+const BLOOM_BOOST = 0.82;
+
+/**
+ * Even, hue-matched halo drawn behind the box to complement the vendored bloom.
+ * The vendored pulse-outside gradient blobs are authored top-heavy, so on their
+ * own they pile the glow above the box. This symmetric box-shadow ring fills the
+ * sides/bottom evenly so the bloom actually wraps; the organic bloom rides on top.
+ */
+const HALO_HUE = { cool: 202, warm: 315 } as const; // absolute HSL hues
+const HALO_SAT = { dark: 82, light: 90 } as const;
+const HALO_LIGHT = { dark: 62, light: 55 } as const;
+const HALO_BASE_ALPHA = { dark: 0.20, light: 0.24 } as const;
+const HALO_ALPHA_GAIN = 0.22; // extra alpha at full audio level
+const HALO_BLUR = { dark: 22, light: 18 } as const;
+const HALO_SPREAD_BASE = 1; // px
+const HALO_SPREAD_GAIN = 5; // px added at full audio level
 
 /** HSL hues (deg) for the CSS border variation. */
 const BORDER_COOL_HUE = 200; // listening
@@ -74,11 +89,12 @@ interface IStateConfig {
 	readonly warm?: boolean;
 }
 
-/** Per glowing-state beam recipe (bloom variation). Toned down from the preview. */
+/** Per glowing-state beam recipe (bloom variation). Bright + smooth; reach is
+ * pulled in via BLOOM_BOOST rather than by dimming. */
 const STATE_CONFIGS: Readonly<Record<'listening' | 'processing' | 'speaking', IStateConfig>> = {
-	listening: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.15, brightness: 1.55, saturation: 0.5, duration: 2.3, warm: false },
+	listening: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.4, brightness: 1.85, saturation: 0.5, duration: 2.3, warm: false },
 	processing: { family: 'rim', size: 'pulse-inner', variant: 'mono', strength: 0.62, brightness: 1.3, saturation: 0.2, duration: 2.3 },
-	speaking: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.2, brightness: 1.55, saturation: 0.6, duration: 2.3, warm: true },
+	speaking: { family: 'bloom', size: 'pulse-outside', variant: 'ocean', strength: 1.45, brightness: 1.85, saturation: 0.6, duration: 2.3, warm: true },
 };
 
 /** The visual layer kind a state maps to for a given variation. */
@@ -258,14 +274,16 @@ function injectScopedCss(host: HTMLElement, css: string): IDisposable {
  */
 function borderCss(id: string, radius: number, theme: GlowThemeKind): string {
 	const light = theme === 'light';
-	const l1 = light ? 52 : 73;
-	const l2 = light ? 55 : 75;
-	const l3 = light ? 50 : 72;
-	const a1 = light ? 0.85 : 0.95;
-	const a2 = light ? 0.5 : 0.55;
-	const a3 = light ? 0.72 : 0.82;
+	const l = light ? 52 : 72;   // base lightness
+	const lh = light ? 56 : 78;  // head lightness
+	// Alphas: keep a continuous base glow around the whole ring (never fully
+	// transparent) so it reads as a lit border with a travelling bright head,
+	// rather than isolated arcs that look like "only part" of the box glows.
+	const aBase = light ? 0.28 : 0.32;
+	const aHead = light ? 0.9 : 0.98;
+	const aMid = light ? 0.45 : 0.55;
 	const glowL = light ? 56 : 66;
-	const glowA = light ? 0.14 : 0.18;
+	const glowA = light ? 0.16 : 0.2;
 	return `
 @property --vg-ang-${id} { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 @keyframes vg-rot-${id} { to { --vg-ang-${id}: 360deg; } }
@@ -273,12 +291,12 @@ function borderCss(id: string, radius: number, theme: GlowThemeKind): string {
 [data-vgborder="${id}"]::before {
 	content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.4px;
 	background: conic-gradient(from var(--vg-ang-${id}, 0deg),
-		transparent 0deg,
-		hsl(var(--vg-hue, 200) 96% ${l1}% / ${a1}) 28deg,
-		hsl(calc(var(--vg-hue, 200) + 30) 96% ${l2}% / ${a2}) 78deg,
-		transparent 150deg, transparent 210deg,
-		hsl(calc(var(--vg-hue, 200) - 22) 96% ${l3}% / ${a3}) 300deg,
-		transparent 350deg);
+		hsl(var(--vg-hue, 200) var(--vg-sat, 92%) ${l}% / ${aBase}) 0deg,
+		hsl(var(--vg-hue, 200) var(--vg-sat, 92%) ${lh}% / ${aHead}) 45deg,
+		hsl(calc(var(--vg-hue, 200) + 20) var(--vg-sat, 92%) ${lh}% / ${aMid}) 110deg,
+		hsl(var(--vg-hue, 200) var(--vg-sat, 92%) ${l}% / ${aBase}) 200deg,
+		hsl(calc(var(--vg-hue, 200) - 16) var(--vg-sat, 92%) ${l}% / ${aMid}) 290deg,
+		hsl(var(--vg-hue, 200) var(--vg-sat, 92%) ${l}% / ${aBase}) 360deg);
 	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
 	mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
 	animation: vg-rot-${id} var(--vg-spin, 7s) linear infinite;
@@ -628,8 +646,15 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _mountBloom(host: HTMLElement, desc: ILayerDesc): IMountedLayer {
 		const config = desc.warm ? STATE_CONFIGS.speaking : STATE_CONFIGS.listening;
-		const beam = injectBeam(host, config, this._themeKind(), this._targetRadius);
+		const theme = this._themeKind();
+		const beam = injectBeam(host, config, theme, this._targetRadius);
 		const center = desc.warm ? WARM_CENTER : COOL_CENTER;
+		// Even halo behind the box so the (top-heavy) vendored bloom wraps all sides.
+		const halo = host.ownerDocument.createElement('div');
+		halo.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:transparent;';
+		halo.style.borderRadius = `${this._targetRadius + BLOOM_LIFT}px`;
+		host.insertBefore(halo, host.firstChild);
+		const haloHue = desc.warm ? HALO_HUE.warm : HALO_HUE.cool;
 		let animTime = 0;
 		let prevTs: number | undefined;
 		let lvl = 0.3;
@@ -652,19 +677,23 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 					host.style.setProperty(osc.prop, osc.unit === 'px' ? `${value.toFixed(2)}px` : value.toFixed(4));
 				}
 			}
-			host.style.setProperty('--beam-strength', (config.strength * (0.5 + 0.85 * lvl)).toFixed(3));
+			host.style.setProperty('--beam-strength', (config.strength * (0.6 + 0.9 * lvl)).toFixed(3));
 			if (beam.hueProp) {
 				const drift = desc.warm ? 12 : 16;
 				const vShift = desc.warm ? -7 * lvl : 8 * lvl;
 				const hue = center + (animate ? drift * Math.sin(animTime * 0.45) : 0) + vShift;
 				host.style.setProperty(beam.hueProp, `${hue.toFixed(1)}deg`);
 			}
+			const alpha = HALO_BASE_ALPHA[theme] + HALO_ALPHA_GAIN * lvl;
+			const spread = HALO_SPREAD_BASE + HALO_SPREAD_GAIN * lvl;
+			const hue = haloHue + (animate ? 6 * Math.sin(animTime * 0.4) : 0);
+			halo.style.boxShadow = `0 0 ${HALO_BLUR[theme]}px ${spread.toFixed(2)}px hsla(${hue.toFixed(1)}, ${HALO_SAT[theme]}%, ${HALO_LIGHT[theme]}%, ${alpha.toFixed(3)})`;
 		};
 		return {
 			host, desc,
 			drive: (level: number) => apply(level, true),
 			driveStatic: (level: number) => apply(level, false),
-			dispose: () => beam.dispose(),
+			dispose: () => { halo.remove(); beam.dispose(); },
 		};
 	}
 
@@ -672,7 +701,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		const subtle = !!desc.subtle;
 		const config: IStateConfig = {
 			family: 'rim', size: 'pulse-inner', variant: 'ocean',
-			strength: subtle ? 0.4 : 0.72, brightness: subtle ? 1.18 : 1.42,
+			strength: subtle ? 0.5 : 0.95, brightness: subtle ? 1.2 : 1.5,
 			saturation: 0.55, duration: subtle ? 4.8 : 2.3, warm: desc.warm,
 		};
 		const beam = injectBeam(host, config, this._themeKind(), this._targetRadius);
