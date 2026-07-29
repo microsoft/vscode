@@ -108,7 +108,8 @@ suite('ChatSpeechToTextService', () => {
 		});
 	});
 
-	test('appends dictation instructions without replacing dictation safeguards', () => {		const prompt = createDictationCleanupSystemPrompt('final', false, 'Spell the product name as "Contoso DB".\nUse short paragraphs.');
+	test('appends dictation instructions without replacing dictation safeguards', () => {
+		const prompt = createDictationCleanupSystemPrompt('final', false, 'Spell the product name as "Contoso DB".\nUse short paragraphs.');
 
 		assert.deepStrictEqual({
 			preservesWording: prompt.includes('Preserve the wording exactly'),
