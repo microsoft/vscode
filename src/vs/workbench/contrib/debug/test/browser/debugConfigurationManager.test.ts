@@ -179,5 +179,20 @@ suite('debugConfigurationManager', () => {
 		assert.deepStrictEqual(_debugConfigurationManager.getAllConfigurations().map(({ name }) => name), ['visible']);
 	});
 
+	test('ignores null entries in launch configurations', () => {
+		configurationService.setUserConfiguration('launch', {
+			version: '0.2.0',
+			configurations: [
+				{ type: 'node', request: 'launch', name: 'valid' },
+				null
+			]
+		});
+
+		disposables.delete(_debugConfigurationManager);
+		_debugConfigurationManager = createConfigurationManager();
+
+		assert.deepStrictEqual(_debugConfigurationManager.getAllConfigurations().map(({ name }) => name), ['valid']);
+	});
+
 	teardown(() => disposables.clear());
 });

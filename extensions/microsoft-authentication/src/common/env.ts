@@ -10,9 +10,9 @@ const VALID_DESKTOP_CALLBACK_SCHEMES = [
 	'vscode',
 	'vscode-insiders',
 	'vscode-exploration',
-	'vscode-sessions',
-	'vscode-sessions-insiders',
-	'vscode-sessions-exploration',
+	'vscode-agents',
+	'vscode-agents-insiders',
+	'vscode-agents-exploration',
 	// On Windows, some browsers don't seem to redirect back to OSS properly.
 	// As a result, you get stuck in the auth flow. We exclude this from the
 	// list until we can figure out a way to fix this behavior in browsers.

@@ -61,10 +61,15 @@ export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfigurat
 	readonly dev?: IMcpDevModeConfig;
 }
 
+export interface IMcpRemoteServerOAuthConfiguration {
+	readonly clientId?: string;
+}
+
 export interface IMcpRemoteServerConfiguration extends ICommonMcpServerConfiguration {
 	readonly type: McpServerType.REMOTE;
 	readonly url: string;
 	readonly headers?: Record<string, string>;
+	readonly oauth?: IMcpRemoteServerOAuthConfiguration;
 	readonly dev?: IMcpDevModeConfig;
 }
 

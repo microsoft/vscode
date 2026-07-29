@@ -7,20 +7,39 @@
 	position: absolute;
 	z-index: 10000;
 	background-color: var(--vscode-panel-background);
-	border: 1px solid var(--vscode-agentFeedbackInputWidget-border, var(--vscode-input-border, var(--vscode-widget-border)));
+	border: 1px solid var(--vscode-agentFeedbackInputWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
 	box-shadow: var(--vscode-shadow-lg);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	padding: 4px;
 	display: flex;
 	flex-direction: row;
 	align-items: flex-end;
+	animation: agentFeedbackInputAppear 0.15s ease-out;
 }
 
+@keyframes agentFeedbackInputAppear {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-feedback-input-widget {
+		animation: none;
+		transform: none;
+	}
+}
 .agent-feedback-input-widget textarea {
 	background-color: var(--vscode-panel-background);
 	border: none;
 	color: var(--vscode-input-foreground);
-	border-radius: 4px;
+	font: inherit;
+	border-radius: var(--vscode-cornerRadius-small);
 	padding: 0 0 0 6px;
 	outline: none;
 	min-width: 150px;
@@ -49,16 +68,70 @@
 	height: 0;
 	overflow: hidden;
 	white-space: pre;
+	font: inherit;
+	font-size: var(--vscode-agents-fontSize-body1);
 }
 
 .agent-feedback-input-widget .agent-feedback-input-actions {
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
 	margin-left: 2px;
 	flex-shrink: 0;
 }
 
-.agent-feedback-input-widget .agent-feedback-input-actions .action-bar .action-item .action-label {
+.agent-feedback-input-widget .agent-feedback-input-actions .monaco-action-bar .action-item .action-label {
+	box-sizing: content-box;
 	width: 16px;
 	height: 16px;
+}
+
+.agent-feedback-input-widget .agent-feedback-input-actions .monaco-action-bar .action-item .action-label.codicon-arrow-up-compact {
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.agent-feedback-input-widget textarea:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.agent-feedback-input-widget .agent-feedback-input-busy-indicator {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	/* Same shared line-height box as .agent-feedback-input-actions, so the spinner replacing the send action centers identically to it. */
+	box-sizing: border-box;
+	margin-left: 2px;
+	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-feedback-input-widget .agent-feedback-input-busy-indicator {
+		animation: none;
+	}
+}
+
+.monaco-editor .line-numbers.agent-feedback-glyph {
+	cursor: pointer;
+	z-index: 10;
+}
+
+.monaco-editor .line-numbers.agent-feedback-glyph.line-hover::before {
+	content: var(--vscode-icon-plus-content);
+	font-family: var(--vscode-icon-plus-font-family);
+	font-size: var(--vscode-codiconFontSize);
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	color: var(--vscode-editorGutter-commentGlyphForeground, var(--vscode-foreground));
+	background-color: var(--vscode-editorGutter-commentRangeForeground);
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
 }

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
+import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+
 //#region Session Context
 
 /**
@@ -26,6 +29,14 @@ export interface IGitHubRepository {
 	readonly defaultBranch: string;
 	readonly isPrivate: boolean;
 	readonly description: string;
+}
+
+export interface IGitHubChangedFile {
+	readonly filename: string;
+	readonly previous_filename: string | undefined;
+	readonly status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+	readonly additions: number;
+	readonly deletions: number;
 }
 
 //#endregion
@@ -79,6 +90,51 @@ export interface IGitHubPullRequestMergeability {
 	readonly blockers: readonly IMergeBlocker[];
 }
 
+export interface IGitHubPullRequestReview {
+	readonly id: number;
+	readonly author: IGitHubUser;
+	readonly state: string;
+	readonly submittedAt: string;
+}
+
+/**
+ * Additional live status used to refine the icon of an open pull request.
+ */
+export interface IPullRequestIconStatus {
+	/** Whether the pull request has at least one failing CI check. */
+	readonly hasFailingChecks?: boolean;
+	/** Whether the pull request has at least one unresolved review comment thread. */
+	readonly hasUnresolvedComments?: boolean;
+}
+
+/**
+ * Compute the PR status icon from a state value.
+ * Accepts both the `GitHubPullRequestState` enum values and the
+ * metadata-only `'draft'` value the extension writes to session metadata.
+ *
+ * For open (non-draft) pull requests the optional {@link IPullRequestIconStatus}
+ * refines the icon: a failing CI check shows an error variant (orange), while an
+ * unresolved review comment shows a comment variant (using the open PR green).
+ */
+export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', status?: IPullRequestIconStatus): ThemeIcon {
+	switch (state) {
+		case GitHubPullRequestState.Merged:
+			return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
+		case GitHubPullRequestState.Closed:
+			return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
+		case 'draft':
+			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
+		case GitHubPullRequestState.Open:
+			if (status?.hasFailingChecks) {
+				return { ...Codicon.gitPullRequestError, color: themeColorFromId('charts.orange') };
+			}
+			if (status?.hasUnresolvedComments) {
+				return { ...Codicon.gitPullRequestComment, color: themeColorFromId('charts.green') };
+			}
+			return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
+	}
+}
+
 //#endregion
 
 //#region Review Comments & Threads
@@ -99,7 +155,7 @@ export interface IGitHubPRComment {
 	readonly inReplyToId: number | undefined;
 }
 
-export interface IGitHubPRReviewThread {
+export interface IGitHubPullRequestReviewThread {
 	readonly id: string;
 	readonly isResolved: boolean;
 	readonly path: string;

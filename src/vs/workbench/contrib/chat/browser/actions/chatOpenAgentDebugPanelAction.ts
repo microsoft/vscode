@@ -23,10 +23,9 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IChatDebugEditorOptions } from '../chatDebug/chatDebugTypes.js';
+import { IChatDebugEditorOptions, CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST } from '../chatDebug/chatDebugTypes.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 /**
@@ -76,7 +75,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 					when: ChatContextKeys.inChatEditor.negate()
 				}, {
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 0,
 					group: '4_logs'
 				}]
@@ -117,14 +116,14 @@ export function registerChatOpenAgentDebugPanelAction() {
 			super({
 				id: 'workbench.action.chat.exportAgentDebugLog',
 				title: localize2('chat.exportAgentDebugLog.label', "Export Agent Debug Log..."),
-				icon: Codicon.desktopDownload,
+				icon: Codicon.chatExport,
 				f1: true,
 				category: Categories.Developer,
 				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID), CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate()),
 					order: 10
 				}],
 			});
@@ -182,14 +181,14 @@ export function registerChatOpenAgentDebugPanelAction() {
 			super({
 				id: 'workbench.action.chat.importAgentDebugLog',
 				title: localize2('chat.importAgentDebugLog.label', "Import Agent Debug Log..."),
-				icon: Codicon.cloudUpload,
+				icon: Codicon.chatImport,
 				f1: true,
 				category: Categories.Developer,
 				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID), CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate()),
 					order: 11
 				}],
 			});

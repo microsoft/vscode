@@ -5,7 +5,7 @@
 
 import { isFirefox } from '../../browser.js';
 import { DataTransfers } from '../../dnd.js';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from '../../dom.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame, trackFocus } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
@@ -13,7 +13,7 @@ import { IBoundarySashes, Orientation } from '../sash/sash.js';
 import { Color, RGBA } from '../../../common/color.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
 import './paneview.css';
 import { localize } from '../../../../nls.js';
@@ -48,6 +48,10 @@ export interface IPaneStyles {
  */
 export abstract class Pane extends Disposable implements IView {
 
+	/**
+	 * Fallback header size (in px) used when the `--pane-header-size` CSS variable
+	 * is not resolvable (e.g. before the element is attached to the document).
+	 */
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
@@ -72,6 +76,23 @@ export abstract class Pane extends Disposable implements IView {
 		leftBorder: undefined
 	};
 	private animationTimer: number | undefined = undefined;
+
+	/**
+	 * Cached result of {@link Pane.resolveHeaderSize}. Resolving reads a computed
+	 * style, which is comparatively expensive and runs on the layout hot path
+	 * (`minimumSize` / `maximumSize` / `layout` can each read it), so the value is
+	 * memoized and only re-read once per {@link Pane.layout} pass.
+	 */
+	private _headerSize: number | undefined = undefined;
+
+	/**
+	 * Deferred re-clamp scheduled when {@link Pane.layout} detects that the header
+	 * size changed between passes (e.g. the `--pane-header-size` CSS variable was
+	 * overridden at runtime). Fires {@link Pane.onDidChange} on the next frame so
+	 * the split view re-clamps the size it reserves for this pane without
+	 * reentering the current layout pass.
+	 */
+	private readonly _headerSizeRelayout = this._register(new MutableDisposable());
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
@@ -118,8 +139,23 @@ export abstract class Pane extends Disposable implements IView {
 		this._onDidChange.fire(undefined);
 	}
 
+	/**
+	 * Resolves the header size from the `--pane-header-size` CSS variable so it can
+	 * be overridden via CSS (e.g. by the `paneHeaders` style-override) without a
+	 * hard-coded constant. Falls back to {@link Pane.HEADER_SIZE} when the variable
+	 * is absent or unparseable. The result is cached and refreshed once per
+	 * {@link Pane.layout} pass.
+	 */
+	private resolveHeaderSize(): number {
+		if (this._headerSize === undefined) {
+			const size = parseInt(getWindow(this.element).getComputedStyle(this.element).getPropertyValue('--pane-header-size'), 10);
+			this._headerSize = isNaN(size) ? Pane.HEADER_SIZE : size;
+		}
+		return this._headerSize;
+	}
+
 	private get headerSize(): number {
-		return this.headerVisible ? Pane.HEADER_SIZE : 0;
+		return this.headerVisible ? this.resolveHeaderSize() : 0;
 	}
 
 	get minimumSize(): number {
@@ -298,7 +334,22 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	layout(size: number): void {
-		const headerSize = this.headerVisible ? Pane.HEADER_SIZE : 0;
+		// Re-read the header size from CSS once per layout pass; subsequent
+		// `minimumSize` / `maximumSize` reads within the pass reuse the cache.
+		const previousHeaderSize = this._headerSize;
+		this._headerSize = undefined;
+		const headerSize = this.headerSize;
+
+		// If the header size changed since the previous pass — e.g. the
+		// `--pane-header-size` CSS variable was overridden at runtime (a style
+		// override toggled) — the containing split view still reserves the old
+		// size for this pane, most visibly when it is collapsed. Refresh the
+		// header and, on the next frame, fire `onDidChange` so the split view
+		// re-clamps the reservation. Deferring avoids reentering this layout pass.
+		if (previousHeaderSize !== undefined && previousHeaderSize !== headerSize) {
+			this.updateHeader();
+			this._headerSizeRelayout.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => this._onDidChange.fire(undefined));
+		}
 
 		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
 		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;

@@ -25,9 +25,50 @@
 	function showSplash(configuration: INativeWindowConfiguration) {
 		performance.mark('code/willShowPartsSplash');
 
-		const baseTheme = 'vs-dark';
-		const shellBackground = '#191A1B';
-		const shellForeground = '#CCCCCC';
+		let data = configuration.partsSplash;
+		if (data) {
+			if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
+				if ((configuration.colorScheme.dark && data.baseTheme !== 'hc-black') || (!configuration.colorScheme.dark && data.baseTheme !== 'hc-light')) {
+					data = undefined; // high contrast mode has been turned by the OS -> ignore stored colors and layouts
+				}
+			} else if (configuration.autoDetectColorScheme) {
+				if ((configuration.colorScheme.dark && data.baseTheme !== 'vs-dark') || (!configuration.colorScheme.dark && data.baseTheme !== 'vs')) {
+					data = undefined; // OS color scheme is tracked and has changed
+				}
+			}
+		}
+
+		// minimal color configuration (works with or without persisted data)
+		let baseTheme = 'vs-dark';
+		let shellBackground = '#1E1E1E';
+		let shellForeground = '#CCCCCC';
+		if (data) {
+			baseTheme = data.baseTheme;
+			shellBackground = data.baseTheme === 'vs'
+				? (data.colorInfo.background ?? data.colorInfo.editorBackground)
+				: (data.colorInfo.editorBackground ?? data.colorInfo.background);
+			shellForeground = data.colorInfo.foreground ?? shellForeground;
+		} else if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
+			if (configuration.colorScheme.dark) {
+				baseTheme = 'hc-black';
+				shellBackground = '#000000';
+				shellForeground = '#FFFFFF';
+			} else {
+				baseTheme = 'hc-light';
+				shellBackground = '#FFFFFF';
+				shellForeground = '#000000';
+			}
+		} else if (configuration.autoDetectColorScheme) {
+			if (configuration.colorScheme.dark) {
+				baseTheme = 'vs-dark';
+				shellBackground = '#1E1E1E';
+				shellForeground = '#CCCCCC';
+			} else {
+				baseTheme = 'vs';
+				shellBackground = '#F3F3F3';
+				shellForeground = '#000000';
+			}
+		}
 
 		// Apply base colors
 		const style = document.createElement('style');
@@ -36,13 +77,13 @@
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 		// Set zoom level from splash data if available
-		if (typeof configuration.partsSplash?.zoomLevel === 'number' && typeof preloadGlobals?.webFrame?.setZoomLevel === 'function') {
-			preloadGlobals.webFrame.setZoomLevel(configuration.partsSplash.zoomLevel);
+		if (typeof data?.zoomLevel === 'number' && typeof preloadGlobals?.webFrame?.setZoomLevel === 'function') {
+			preloadGlobals.webFrame.setZoomLevel(data.zoomLevel);
 		}
 
 		const splash = document.createElement('div');
 		splash.id = 'monaco-parts-splash';
-		splash.className = baseTheme;
+		splash.className = baseTheme ?? 'vs-dark';
 
 		window.document.body.appendChild(splash);
 
@@ -70,6 +111,9 @@
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
+
+		// Set product configuration as global (used e.g. to select the ASAR path in `amdX`)
+		globalThis._VSCODE_PRODUCT_JSON = { ...configuration.product };
 
 		// Dev only: CSS import map tricks
 		setupCSSImportMaps<T>(configuration, baseUrl);

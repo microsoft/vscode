@@ -26,6 +26,10 @@ import { IChatAgentResult } from '../participants/chatAgents.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
+export interface IChatEditingSessionProvider {
+	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+}
+
 export interface IChatEditingService {
 
 	_serviceBrand: undefined;
@@ -48,6 +52,14 @@ export interface IChatEditingService {
 	 * Creates an editing session with state transferred from the provided session.
 	 */
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession;
+
+	/**
+	 * Registers a provider that creates editing sessions for chat sessions
+	 * with the given URI scheme. When {@link createEditingSession} is called
+	 * for a chat model whose sessionResource matches the scheme, the provider
+	 * is used instead of the default implementation.
+	 */
+	registerEditingSessionProvider(scheme: string, provider: IChatEditingSessionProvider): IDisposable;
 }
 
 export interface WorkingSetDisplayMetadata {
@@ -89,6 +101,7 @@ export interface ISnapshotEntry {
 
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
+	readonly supportsKeepUndo: boolean;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
@@ -277,6 +290,20 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	/** LHS and RHS of a diff editor, if opened: */
 	originalURI: URI;
 	modifiedURI: URI;
+
+	/**
+	 * Optional frozen "after" content for the RHS. When set, this is the exact
+	 * modified-side snapshot the diff represents (e.g. an agent-host per-turn
+	 * checkpoint), as opposed to {@link modifiedURI} which may be the live
+	 * working file and therefore include later changes. Consumers that want the
+	 * changeset's own diff should prefer this when present; {@link modifiedURI}
+	 * remains the file's identity for labels and go-to-file.
+	 *
+	 * Note: distinct from the agent-host checkpoint-ref readability fix (#323932).
+	 * That made the frozen snapshot blobs *readable*; this field carries *which*
+	 * snapshot to diff against so a per-turn review shows only that turn's changes.
+	 */
+	modifiedSnapshotURI?: URI;
 
 	/** Diff state information: */
 	quitEarly: boolean;

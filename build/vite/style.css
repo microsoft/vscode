@@ -8,8 +8,12 @@
 	border: 1px solid black;
 }
 
+/*
+Disabled because of rspack
+
 @font-face {
 	font-family: "codicon";
 	font-display: block;
 	src: url("~@vscode/codicons/dist/codicon.ttf") format("truetype");
 }
+*/

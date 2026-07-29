@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { DiffScrollSyncData, MarkdownPreviewLineChanges } from '../types/previewMessaging';
+
 export interface PreviewSettings {
 	readonly source: string;
 	readonly line?: number;
 	readonly fragment?: string;
 	readonly selectedLine?: number;
+	readonly lineChanges?: MarkdownPreviewLineChanges;
+	readonly diffScrollSync?: DiffScrollSyncData;
 
 	readonly scrollPreviewWithEditor?: boolean;
 	readonly scrollEditorWithPreview: boolean;

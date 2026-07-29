@@ -9,16 +9,19 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
+import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 export enum AgentSessionProviders {
-	Local = 'local',
-	Background = 'copilotcli',
-	Cloud = 'copilot-cloud-agent',
-	Claude = 'claude-code',
-	Codex = 'openai-codex',
-	Growth = 'copilot-growth',
-	AgentHostCopilot = 'agent-host-copilot',
+	Local = SessionType.Local,
+	Background = SessionType.CopilotCLI,
+	Cloud = SessionType.CopilotCloud,
+	Claude = SessionType.ClaudeCode,
+	Codex = SessionType.Codex,
+	Growth = SessionType.Growth,
+	AgentHostCopilot = SessionType.AgentHostCopilot,
+	AgentHostClaude = SessionType.AgentHostClaude,
+	AgentHostCodex = SessionType.AgentHostCodex,
 }
 
 /**
@@ -29,7 +32,7 @@ export enum AgentSessionProviders {
  */
 export type AgentSessionTarget = AgentSessionProviders | (string & {});
 
-export function isBuiltInAgentSessionProvider(provider: string): boolean {
+export function isBuiltInAgentSessionProvider(provider: AgentSessionTarget): boolean {
 	return provider === AgentSessionProviders.Local ||
 		provider === AgentSessionProviders.Background ||
 		provider === AgentSessionProviders.Cloud ||
@@ -45,13 +48,15 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.AgentHostCopilot:
+		case AgentSessionProviders.AgentHostClaude:
+		case AgentSessionProviders.AgentHostCodex:
 			return type;
 		default:
 			return undefined;
 	}
 }
 
-export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
+export function getAgentSessionProviderName(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
@@ -60,43 +65,44 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
 		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.AgentHostClaude:
 			return 'Claude';
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.AgentHostCodex:
 			return 'Codex';
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
-			return 'Agent Host - Copilot';
+			return localize('chat.session.providerLabel.agentHostCopilot', "Copilot");
+		default:
+			return provider;
 	}
 }
 
-export function getAgentSessionProviderIcon(provider: AgentSessionProviders): ThemeIcon {
+export function getAgentSessionProviderIcon(provider: AgentSessionTarget): ThemeIcon {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return Codicon.vm;
 		case AgentSessionProviders.Background:
-			return Codicon.worktree;
+			return Codicon.copilot;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.AgentHostCodex:
 			return Codicon.openai;
 		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.AgentHostClaude:
 			return Codicon.claude;
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
 		case AgentSessionProviders.AgentHostCopilot:
-			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
+			return Codicon.vm;
+		default:
+			return Codicon.extensions;
 	}
 }
 
-/**
- * Returns the VS Code or VS Code Insiders icon depending on product quality.
- */
-export function getAgentHostIcon(productService: IProductService): ThemeIcon {
-	return productService.quality === 'stable' ? Codicon.vscode : Codicon.vscodeInsiders;
-}
-
-export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders): boolean {
+export function isFirstPartyAgentSessionProvider(provider: AgentSessionTarget): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
@@ -104,42 +110,71 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.AgentHostCopilot:
 			return true;
 		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.AgentHostClaude:
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.AgentHostCodex:
 		case AgentSessionProviders.Growth:
+			return false;
+		default:
 			return false;
 	}
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ * Re-exported from `common/chatSessionsService.ts` so existing browser-layer
+ * callers keep working without changing imports.
+ */
+export { isAgentHostTarget };
+
+/**
+ * Generic command used to delegate ("Continue in…") an existing conversation to
+ * a new agent host session. The conversation transcript travels as an
+ * attachment so the target agent can pick up the work.
  *
- * Note: The `remote-` prefix convention is established by
- * {@link RemoteAgentHostContribution} which generates session types as
- * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
- * are NOT agent hosts need a different prefix, this function must be updated.
+ * Both VS Code (the main window) and the Agents window surface agent host
+ * sessions, but they open sessions through different infrastructure. To avoid
+ * registering a command per session type, agent host delegation is funneled
+ * through this single command id. The Agents window registers a handler that
+ * creates the target session via its session management service; in the main
+ * window the chat action opens the session directly. The command id is
+ * intentionally a plain string constant so the `vs/sessions` layer can register
+ * a handler for it without importing chat browser internals.
  */
-export function isAgentHostTarget(target: string): boolean {
-	return target === AgentSessionProviders.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
+export const CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID = 'workbench.action.chat.delegateToAgentHostSession';
+
+/**
+ * Arguments passed to {@link CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID}.
+ * The values are passed by reference within a single renderer, so rich types
+ * such as the attached context entries survive the command invocation.
+ */
+export interface IAgentHostDelegationRequest {
+	/** The target agent host session type, e.g. `agent-host-copilotcli`. */
+	readonly type: string;
+	/** Human readable name of the target session type. */
+	readonly displayName: string;
+	/** The user prompt to send to the new session. */
+	readonly prompt: string;
+	/** Attachments to include with the first request (e.g. the prior transcript). */
+	readonly attachedContext?: IChatRequestVariableEntry[];
 }
 
-export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
+export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.AgentHostCopilot:
 			return true;
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
-		case AgentSessionProviders.AgentHostCopilot:
 			return false;
+		default:
+			return isAgentHostTarget(provider);
 	}
 }
 
-export function getAgentSessionProviderDescription(provider: AgentSessionProviders): string {
+export function getAgentSessionProviderDescription(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerDescription.local', "Run tasks within VS Code chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
@@ -148,13 +183,18 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerDescription.cloud', "Delegate tasks to the GitHub Copilot coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.");
 		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.AgentHostClaude:
 			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude Agent SDK using the Claude models included in your GitHub Copilot subscription. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Codex:
-			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
+			return localize('chat.session.providerDescription.codex', "Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.");
+		case AgentSessionProviders.AgentHostCodex:
+			return localize('chat.session.providerDescription.agentHostCodex', "Delegate tasks to the Codex App Server using the Codex models included in your GitHub Copilot subscription. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.AgentHostCopilot:
-			return 'Run a Copilot SDK agent in a dedicated process.';
+			return localize('chat.session.providerDescription.agentHostCopilot', "Run a Copilot SDK agent in the local agent host process.");
+		default:
+			return '';
 	}
 }
 
