@@ -57,6 +57,41 @@
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	display: none;
+	width: 16px;
+	height: 16px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.chat-voice-input-mode-cell.dictation.preparing:not(.cloud-preparing) > .dictation-download-ring {
+	display: block;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track,
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 0.25;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-progress {
+	stroke-linecap: round;
+}
+
+.hc-black .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
 /* The Device EQ waveform lives in the voice cell and transforms per state. Thin bars = default (disconnected); thick bars = filled (connected). Its box matches the compact glyph size of the neighbouring cells so every state of the pill reads at the same optical weight. */
 .chat-voice-input-mode-bars {
 	display: inline-flex;
