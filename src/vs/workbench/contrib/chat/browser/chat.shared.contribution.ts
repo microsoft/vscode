@@ -2026,7 +2026,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AutoExpandToolFailures]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.tools.autoExpandFailures', "When enabled, tool failures are automatically expanded in the chat UI to show error details."),
+			markdownDescription: nls.localize('chat.tools.autoExpandFailures', "When enabled, terminal tool failures are automatically expanded in the chat UI to show error details."),
 		},
 		[ChatAIDisabledSettingId]: {
 			type: 'boolean',
