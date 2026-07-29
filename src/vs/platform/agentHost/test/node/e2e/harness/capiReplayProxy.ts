@@ -40,6 +40,8 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
+import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
+import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
 
 // `http`/`https`/`js-yaml` are lazily required (slow to load and/or not in this
 // layer's import allowlist); `import type` above still gives us http/https types.
@@ -59,13 +61,56 @@ const HOMEDIR_PLACEHOLDER = '${homedir}';
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
+
+/**
+ * The Copilot CLI names its shell tools after the shell it runs — `bash` and
+ * friends on POSIX, `powershell` and friends on Windows — so a fixture recorded
+ * on one platform instructs the agent to call a tool that does not exist on the
+ * other, and the turn fails with "Tool does not exist".
+ *
+ * Store the platform-neutral placeholder in the fixture and expand it back to
+ * the running platform's name on replay, so a single capture drives every
+ * platform. Only the names that actually vary are mapped: Claude's `Bash` and
+ * Codex's `shell` are fixed strings their SDKs use everywhere.
+ */
+const SHELL_TOOL_PREFIXES = ['', 'read_', 'write_', 'stop_', 'list_'] as const;
+const SHELL_TOOL_PLACEHOLDERS = new Map<string, string>();
+for (const prefix of SHELL_TOOL_PREFIXES) {
+	const placeholder = `\${${prefix}shell}`;
+	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}bash`, placeholder);
+	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}powershell`, placeholder);
+}
+SHELL_TOOL_PLACEHOLDERS.set('bash_shutdown', '${shell_shutdown}');
+SHELL_TOOL_PLACEHOLDERS.set('powershell_shutdown', '${shell_shutdown}');
+
+/** Rewrites a platform-specific shell tool name to its stable placeholder. */
+export function normalizeShellToolNameForCapture(toolName: string): string {
+	return SHELL_TOOL_PLACEHOLDERS.get(toolName) ?? toolName;
+}
+
+/**
+ * Expands a shell tool placeholder to the name the given platform uses.
+ *
+ * `platform` is injectable so both branches are testable from either host;
+ * it defaults to the running platform.
+ */
+export function expandShellToolName(toolName: string, platform: NodeJS.Platform = process.platform): string {
+	const match = /^\$\{(?<prefix>read_|write_|stop_|list_)?shell(?<shutdown>_shutdown)?\}$/.exec(toolName);
+	if (!match) {
+		return toolName;
+	}
+	const shell = platform === 'win32' ? 'powershell' : 'bash';
+	return match.groups?.shutdown ? `${shell}_shutdown` : `${match.groups?.prefix ?? ''}${shell}`;
+}
+
+
 /**
  * Placeholder for the recorder's OS username. It appears in captured tool output
  * (e.g. the owner column of `ls -la`) where it is not part of a path, so
  * `homeDir` normalization misses it — scrub it explicitly to keep local identity
  * out of fixtures.
  */
-const USER_PLACEHOLDER = '${user}';
+const USER_PLACEHOLDER = USER_NAME_PLACEHOLDER;
 /**
  * Placeholder for the upstream CAPI origin in recorded response bodies. Token /
  * user-discovery responses echo the CAPI host (`endpoints.api`); rewriting that
@@ -197,6 +242,14 @@ export interface ICapiReplayProxyOptions {
 	 * replaying. Defaults to true. Ignored while recording.
 	 */
 	readonly strict?: boolean;
+	/**
+	 * Skip the POSIX-only shell command check when writing a fixture.
+	 *
+	 * Only for a scenario that genuinely cannot be portable — the test must also
+	 * be scoped to a platform explicitly at its call site, with the reason
+	 * stated there. See `posixCommandLint.ts`.
+	 */
+	readonly allowPosixCommands?: boolean;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
@@ -223,6 +276,7 @@ export class CapiReplayProxy {
 	private readonly _replayBuckets = new Map<string, IReplayBucket>();
 	/** Exchanges captured during recording, in arrival order. */
 	private readonly _recorded: IRecordedExchange[] = [];
+	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
 	private _workingDirectory: string | undefined;
 
@@ -321,12 +375,17 @@ export class CapiReplayProxy {
 		this._fixturePath = fixturePath;
 		this._workingDirectory = undefined;
 		this._replayBuckets.clear();
+		this._observedModelRequestBodies.length = 0;
 		this._cacheMisses.length = 0;
 		this._loadFixture();
 	}
 
 	setWorkingDirectory(workingDirectory: string): void {
 		this._workingDirectory = workingDirectory;
+	}
+
+	get observedModelRequestBodies(): readonly string[] {
+		return this._observedModelRequestBodies;
 	}
 
 	/**
@@ -412,6 +471,9 @@ export class CapiReplayProxy {
 		}
 
 		const key = `${method} ${path}`;
+		if (MODEL_ENDPOINTS.has(path)) {
+			this._observedModelRequestBodies.push(this._normalize(body));
+		}
 		const bucket = this._replayBuckets.get(key);
 
 		let item: IReplayItem | undefined;
@@ -451,6 +513,9 @@ export class CapiReplayProxy {
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
 		const method = req.method ?? 'GET';
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+		if (MODEL_ENDPOINTS.has(path)) {
+			this._observedModelRequestBodies.push(this._normalize(body));
+		}
 		const upstreamBase = this._upstreamFor(path);
 		const upstream = new URL(req.url ?? '/', upstreamBase);
 		const isHttps = upstream.protocol === 'https:';
@@ -579,6 +644,7 @@ export class CapiReplayProxy {
 		const exchanges = built.map(b => b.exchange);
 		this._normalizeToolCallIds(exchanges);
 		this._normalizeUuids(exchanges);
+		this._assertNoPosixOnlyCommands(exchanges);
 		// Every turn in a fixture shares one endpoint, so the dialect (and the
 		// `(method, path)` it implies) is stored once at the top instead of on each
 		// exchange.
@@ -586,6 +652,42 @@ export class CapiReplayProxy {
 		const fixture: IFixture = { version: 1, ...(dialect ? { dialect } : {}), exchanges };
 		mkdirSync(dirname(this._fixturePath), { recursive: true });
 		writeFileSync(this._fixturePath, yamlModule.dump(fixture, { lineWidth: -1, noRefs: true }));
+	}
+
+	/**
+	 * Reject a recording whose shell commands cannot run on Windows.
+	 *
+	 * Only the assistant's `tool_use` blocks matter: those are what replay feeds
+	 * back to the agent, so they are the commands that will actually be executed
+	 * on whatever platform the test later runs on. The `tool_result` blocks
+	 * echoed in request summaries are never read back.
+	 *
+	 * Throws before the file is written so a rejected recording cannot leave a
+	 * half-portable fixture behind.
+	 */
+	private _assertNoPosixOnlyCommands(exchanges: IFixtureExchange[]): void {
+		if (this._options.allowPosixCommands) {
+			return;
+		}
+		const commands: IRecordedCommand[] = [];
+		for (const exchange of exchanges) {
+			if (!isTurnExchange(exchange)) {
+				continue;
+			}
+			for (const block of deserializeAnthropicContent(exchange.response.content)) {
+				if (block.type !== 'tool_use') {
+					continue;
+				}
+				const command = (block.input as { command?: unknown } | undefined)?.command;
+				if (typeof command === 'string' && command) {
+					commands.push({ command, toolName: block.name });
+				}
+			}
+		}
+		const findings = findPosixOnlyCommands(commands);
+		if (findings.length > 0) {
+			throw new Error(formatPosixCommandError(this._fixturePath, findings));
+		}
 	}
 
 	/**
@@ -722,7 +824,7 @@ export class CapiReplayProxy {
 			} catch {
 				// non-serializable input; keep as-is
 			}
-			return { type: 'tool_use', id: block.id, name: block.name, input };
+			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input };
 		});
 	}
 
@@ -744,7 +846,7 @@ export class CapiReplayProxy {
 			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
 		}
 		if (this._options.userName) {
-			result = replaceAll(result, this._options.userName, USER_PLACEHOLDER);
+			result = scrubUserName(result, this._options.userName);
 		}
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
@@ -755,9 +857,17 @@ export class CapiReplayProxy {
 	private _expandReplayMessage(message: IAnthropicMessage): IAnthropicMessage {
 		return {
 			...message,
-			content: message.content.map(block => block.type === 'text'
-				? { ...block, text: this._expandReplayPlaceholders(block.text) }
-				: { ...block, input: this._expandReplayValue(block.input) }),
+			content: message.content.map(block => {
+				if (block.type === 'text') {
+					return { ...block, text: this._expandReplayPlaceholders(block.text) };
+				}
+				if (block.type === 'tool_use') {
+					return { ...block, name: expandShellToolName(block.name), input: this._expandReplayValue(block.input) };
+				}
+				// Any future block kind passes through untouched rather than being
+				// rewritten as if it were a tool call.
+				return block;
+			}),
 		};
 	}
 

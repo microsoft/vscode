@@ -462,7 +462,7 @@ describe('SearchSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', () 
 	const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
 
 	function endpoint(model: string, family: string, supportsToolCalls: boolean): IChatEndpoint {
-		return { model, family, supportsToolCalls } as IChatEndpoint;
+		return { model, name: `${model} display name`, family, supportsToolCalls } as IChatEndpoint;
 	}
 
 	/** Records how the mock endpoint provider was called so tests can assert the resolution path. */
@@ -520,6 +520,8 @@ describe('SearchSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', () 
 		const resolved = await (loop as any).getEndpoint();
 
 		expect(resolved.model).toBe('mai-code-1-flash-picker');
+		expect(await loop.getModelName()).toBe('mai-code-1-flash-picker display name');
+		expect(await (loop as any).getEndpoint()).toBe(resolved);
 		expect(probe.getAllCalls).toBe(1);
 		expect(probe.familyCalls).toEqual([]);
 		expect(probe.mainCalls).toBe(0);

@@ -32,6 +32,7 @@ import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SessionChatInputToolbar } from './sessionChatInputToolbar.js';
+import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
@@ -96,6 +97,10 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+	override submitInput(): Promise<boolean> {
+		return this._widget instanceof NewChatWidget ? this._widget.submitInput() : Promise.resolve(false);
+	}
+
 	override attach(uris: URI[]): void {
 		this._widget.attach(uris);
 	}
@@ -117,6 +122,9 @@ export class ChatView extends AbstractChatView {
 	private readonly _banners: SessionInputBanners;
 	/** Floating status pills (changes, preview, background activity) above the input. */
 	private readonly _chatPills: SessionChatInputToolbar;
+
+	/** Shows an "Ask Question" input when the user selects assistant markdown text. */
+	private readonly _selectionSideChatController: ResponseSelectionSideChatController;
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
@@ -190,6 +198,8 @@ export class ChatView extends AbstractChatView {
 		this._widget.render(this.element);
 		this._widget.setVisible(true);
 
+		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget));
+
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
 		this._banners.setActive(this._isActive);
@@ -245,6 +255,7 @@ export class ChatView extends AbstractChatView {
 
 		// Reflect this chat's last-turn changes, status, and background activity.
 		this._chatPills.setChat(chat);
+		this._selectionSideChatController.setChat(chat);
 		this._banners.setDebugData(undefined);
 
 		// Reflect read-only (non-interactive) chats: hide the composer and gate

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IChatSpeechToTextService } from './chatSpeechToTextService.js';
@@ -75,14 +75,51 @@ export class DictationDownloadRing extends Disposable {
 }
 
 /**
- * Static hover explaining that the on-device dictation model is downloading.
- * The ring itself conveys the live progress, so the hover stays fixed to avoid
- * churning the tooltip on every progress tick.
+ * Markdown describing what the mic is doing while it prepares, for use as hover
+ * content. The on-device backend downloads a local model; the cloud backend
+ * connects. Both are cancelled by clicking the affordance, so the hover invites
+ * the user to click to cancel. The ring conveys live progress/activity, so the
+ * text stays fixed to avoid churning on every tick.
  */
-export function getDictationDownloadHoverContent(): IManagedHoverContent {
+export function getDictationDownloadHoverMarkdown(service: IChatSpeechToTextService): IMarkdownString {
 	const markdown = new MarkdownString('', { supportThemeIcons: true });
-	markdown.appendMarkdown(localize('chatStt.hover.title', "**Downloading speech-to-text model**"));
+	if (service.currentBackend === 'mai') {
+		markdown.appendMarkdown(localize('chatStt.hover.connectingTitle', "**Connecting to dictation service**"));
+		markdown.appendMarkdown('\n\n');
+		markdown.appendMarkdown(localize('chatStt.hover.connecting', "Establishing a connection. This happens each time you start cloud dictation. Click to cancel."));
+		return markdown;
+	}
+	markdown.appendMarkdown(localize('chatStt.hover.title', "**Downloading local model**"));
 	markdown.appendMarkdown('\n\n');
-	markdown.appendMarkdown(localize('chatStt.hover.preparing', "Preparing the on-device model. This happens only the first time you dictate."));
+	markdown.appendMarkdown(localize('chatStt.hover.preparing', "This happens only the first time you dictate. Click to cancel."));
+	return markdown;
+}
+
+/**
+ * Static hover explaining what the mic is doing while it prepares, wrapped as
+ * managed hover content for toolbar affordances.
+ */
+export function getDictationDownloadHoverContent(service: IChatSpeechToTextService): IManagedHoverContent {
+	const markdown = getDictationDownloadHoverMarkdown(service);
 	return { markdown, markdownNotSupportedFallback: markdown.value };
+}
+
+/**
+ * A short, live label describing the on-device model's preparation state, for
+ * surfaces without a progress ring (editor placeholder, terminal decoration).
+ * Reads out the download percentage when known, otherwise a generic preparing
+ * message (indeterminate download or loading into memory).
+ */
+export function getDictationPreparingLabel(service: IChatSpeechToTextService): string {
+	// The cloud backend connects rather than downloading a model, so describe it
+	// as connecting; there is no percentage to report.
+	if (service.currentBackend === 'mai') {
+		return localize('chatStt.preparing.connecting', "Connecting to dictation service…");
+	}
+	const progress = service.modelDownloadProgress;
+	if (typeof progress === 'number') {
+		const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
+		return localize('chatStt.preparing.downloading', "Downloading speech-to-text model… {0}%", percent);
+	}
+	return localize('chatStt.preparing.preparing', "Preparing speech-to-text model…");
 }

@@ -68,6 +68,10 @@ export interface IElementAncestor {
 	readonly classNames?: string[];
 }
 
+export interface IBrowserElementSelectionOptions {
+	readonly highlightFocusedElement?: boolean;
+}
+
 export interface IElementData {
 	readonly url?: string;
 	readonly outerHTML: string;
@@ -628,8 +632,9 @@ export interface IBrowserViewService {
 	 *
 	 * @param id The browser view identifier
 	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 * @param options Options used when enabling element selection.
 	 */
-	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+	toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
 
 	/**
 	 * Toggle drag-to-select area picking on the top frame of a browser view.

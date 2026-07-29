@@ -94,9 +94,13 @@
 		}
 	}
 
+	.monaco-list-row:has(.session-item.session-archive-animation) .session-title-toolbar {
+		display: block;
+	}
+
 	/* Pinned but not hovered/focused: show only the unpin action */
 	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
-		.session-title-toolbar {
+		.session-item:not(.session-archive-animation) .session-title-toolbar {
 			display: block;
 
 			.action-item:not(:last-child) {
@@ -108,6 +112,18 @@
 			margin-right: 8px;
 		}
 	}
+}
+
+.session-archive-catch-pulse {
+	position: fixed;
+	z-index: 1000;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	box-sizing: border-box;
+	pointer-events: none;
+	border: var(--vscode-strokeThickness) solid var(--vscode-textLink-foreground);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Session Item */
@@ -642,7 +658,11 @@
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 3s linear infinite;
+			animation: session-title-shimmer 3s steps(180, jump-none) infinite;
+		}
+
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
+			animation-play-state: paused;
 		}
 
 		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,

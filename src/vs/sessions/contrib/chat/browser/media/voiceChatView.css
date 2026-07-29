@@ -5,27 +5,6 @@
 
 /* Voice transcript overlay inside the chat input, mirroring chatViewPane.css. */
 
-@keyframes sessionsVoiceTextPulse {
-	0%,
-	100% {
-		opacity: 0.9;
-	}
-
-	50% {
-		opacity: 0.4;
-	}
-}
-
-@keyframes sessionsVoiceListeningShimmer {
-	0% {
-		background-position: 120% 0;
-	}
-
-	100% {
-		background-position: -120% 0;
-	}
-}
-
 .voice-transcript-overlay-scrollable {
 	position: absolute !important;
 	top: 0;
@@ -64,39 +43,12 @@
 	color: var(--vscode-foreground);
 	opacity: 0.6;
 	font-style: italic;
-	animation: sessionsVoiceTextPulse 1.5s ease-in-out infinite;
 }
 
+/* Placeholder text while listening: static, no shimmer animation. */
 .voice-transcript-overlay .listening {
+	color: var(--vscode-descriptionForeground);
 	font-style: italic;
-	background: linear-gradient(90deg,
-			var(--vscode-descriptionForeground) 0%,
-			var(--vscode-descriptionForeground) 30%,
-			var(--vscode-chat-thinkingShimmer) 50%,
-			var(--vscode-descriptionForeground) 70%,
-			var(--vscode-descriptionForeground) 100%);
-	background-size: 400% 100%;
-	background-clip: text;
-	-webkit-background-clip: text;
-	-webkit-text-fill-color: transparent;
-	animation: sessionsVoiceListeningShimmer 2s linear infinite;
-	will-change: background-position;
-}
-
-/* Motion-sensitive users: keep the gradient text but stop the shimmer. */
-@media (prefers-reduced-motion: reduce) {
-	.voice-transcript-overlay .listening {
-		animation: none;
-	}
-}
-
-/* High-contrast / forced-colors: gradient-clipped transparent text is invisible, so fall back to a solid readable color and no animation. */
-@media (forced-colors: active) {
-	.voice-transcript-overlay .listening {
-		background: none;
-		-webkit-text-fill-color: currentColor;
-		animation: none;
-	}
 }
 
 .voice-transcript-overlay .assistant-text {
@@ -111,32 +63,33 @@ so mirror the blue-listening / purple-speaking glow here. `voice-active` /
 @keyframes sessionsVoiceIconGlow {
 	0%,
 	100% {
-		box-shadow: 0 0 4px var(--sessions-voice-icon-glow-color);
+		box-shadow: 0 0 2px var(--sessions-voice-icon-glow-color);
 	}
 
 	50% {
-		box-shadow: 0 0 9px var(--sessions-voice-icon-glow-color);
+		box-shadow: 0 0 5px var(--sessions-voice-icon-glow-color);
 	}
 }
 
-/* Blue when listening */
-.new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode {
-	--sessions-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+/* Blue when listening. The glow keeps the button's resting shape so the control
+never morphs between states — only its color and the pulse change. */
+.new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode-compact {
+	--sessions-voice-icon-glow-color: rgba(88, 166, 255, 0.4);
 	color: var(--vscode-charts-blue, #58a6ff) !important;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode-compact {
 	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
 }
 
 /* Purple when speaking */
-.new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
-	--sessions-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
+.new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode-compact {
+	--sessions-voice-icon-glow-color: rgba(163, 113, 247, 0.4);
 	color: var(--vscode-charts-purple, #a371f7) !important;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode-compact {
 	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
 }

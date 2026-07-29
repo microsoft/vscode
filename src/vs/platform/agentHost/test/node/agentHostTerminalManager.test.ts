@@ -15,7 +15,7 @@ import { ActionType, StateAction } from '../../common/state/protocol/actions.js'
 import { TerminalClaimKind, TerminalContentPart, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostTerminalManager, formatTerminalText, removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
+import { AgentHostTerminalManager, formatTerminalText, removeTerminalQueriesSuppressedFromClient, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
 
 /**
@@ -58,21 +58,38 @@ class TestTerminalDataHandler {
 	handlePtyData(rawData: string): string {
 		let cleanedForClient = '';
 
-		// Process cleaned-data and events in stream order so that output which
-		// arrives before a CommandFinished marker is appended to the command
-		// before the finished event snapshots it — see _handlePtyData.
+		// Data is dispatched in stream order relative to command events: flush
+		// pending data before handling each event so subscribers observe
+		// CommandExecuted -> data -> CommandFinished exactly like the raw
+		// stream — see _handlePtyData.
+		let pendingClientData = '';
+		const flushClientData = (): void => {
+			if (pendingClientData.length === 0) {
+				return;
+			}
+			this.dispatched.push({
+				type: ActionType.TerminalData,
+				data: pendingClientData,
+			});
+			cleanedForClient += pendingClientData;
+			pendingClientData = '';
+		};
+
 		for (const segment of this.tracker.parser.parseSegments(rawData)) {
 			if (segment.kind === 'event') {
+				flushClientData();
 				this._handleOsc633Event(segment.event);
 				continue;
 			}
 
-			const cleanedData = removeServerHandledTerminalQueries(segment.data, this._terminalQueryFilterState);
+			const cleanedData = removeTerminalQueriesSuppressedFromClient(segment.data, this._terminalQueryFilterState);
 			if (cleanedData.length > 0) {
 				this._appendToContent(cleanedData);
-				cleanedForClient += cleanedData;
+				pendingClientData += cleanedData;
 			}
 		}
+
+		flushClientData();
 
 		return cleanedForClient;
 	}
@@ -419,6 +436,39 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(pty.writes, ['\x1b[1;4R']);
 	});
 
+	test('swallows OSC color queries while preserving headless CPR responses', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/color-query';
+		const clientData: string[] = [];
+
+		const createTerminal = manager.createTerminal({
+			channel: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		disposables.add(manager.onData(uri, data => clientData.push(data)));
+		pty.fireData('before\x1b]10;?\x1b\\\x1b[6nmid\x1b]11;?\x07\x1b[6nafter');
+		await createTerminal;
+		await waitForWrites(pty, 2);
+
+		assert.deepStrictEqual({
+			clientData,
+			ptyWrites: pty.writes,
+		}, {
+			clientData: ['beforemidafter'],
+			ptyWrites: ['\x1b[1;7R', '\x1b[1;10R'],
+		});
+	});
+
 	test('resolves alt-buffer promise from headless terminal data', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -480,29 +530,44 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.strictEqual(didEnterAltBuffer, false);
 	});
 
-	test('server-handled CPR queries are stripped from client-facing data', () => {
+	test('client-suppressed terminal queries are stripped from client-facing data', () => {
 		function filter(data: string): string {
-			return removeServerHandledTerminalQueries(data, { pendingData: '' });
+			return removeTerminalQueriesSuppressedFromClient(data, { pendingData: '' });
 		}
 
 		assert.strictEqual(filter('before \x1b[6n after'), 'before  after');
 		assert.strictEqual(filter('before \x1b[?6n after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]10;?\x1b\\ after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]10;?\x07 after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]11;?\x1b\\ after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]11;?\x07 after'), 'before  after');
 		assert.strictEqual(filter('\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c'), '\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c');
+		assert.strictEqual(filter('\x1b]10;#ffffff\x1b\\\x1b]11;rgb:0000/0000/0000\x07'), '\x1b]10;#ffffff\x1b\\\x1b]11;rgb:0000/0000/0000\x07');
+		assert.strictEqual(filter('\x1b]10;?;#ffffff\x1b\\\x1b]12;?\x1b\\\x1b]4;0;?\x1b\\'), '\x1b]10;?;#ffffff\x1b\\\x1b]12;?\x1b\\\x1b]4;0;?\x1b\\');
 		assert.strictEqual(filter('normal output\r\n'), 'normal output\r\n');
 	});
 
-	test('server-handled CPR queries are stripped across data chunks', () => {
+	test('client-suppressed terminal queries are stripped across data chunks', () => {
 		let state: ITerminalQueryFilterState = { pendingData: '' };
-		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
-		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b[', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('6n after', state), ' after');
 
 		state = { pendingData: '' };
-		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[?', state), 'before ');
-		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b[?', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('6n after', state), ' after');
 
 		state = { pendingData: '' };
-		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
-		assert.strictEqual(removeServerHandledTerminalQueries('K after', state), '\x1b[K after');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b[', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('K after', state), '\x1b[K after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b]10;', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('?\x1b', state), '');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('\\ after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b]11;', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('?\x07 after', state), ' after');
 	});
 
 	test('manager data path strips CPR queries while preserving surrounding output', () => {
@@ -512,7 +577,11 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 
 		assert.strictEqual(cleaned, 'beforemidafter');
 		assert.deepStrictEqual(handler.content, [{ type: 'unclassified', value: 'beforemidafter' }]);
-		assert.strictEqual(handler.dispatched[0].type, ActionType.TerminalCommandDetectionAvailable);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data: 'before' },
+			{ type: ActionType.TerminalCommandDetectionAvailable },
+			{ type: ActionType.TerminalData, data: 'midafter' },
+		]);
 	});
 
 	test('TerminalCommandDetectionAvailable is dispatched on first OSC 633', () => {
@@ -687,7 +756,9 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(handler.content, [
 			{ type: 'unclassified', value: data },
 		]);
-		assert.deepStrictEqual(handler.dispatched, []);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data },
+		]);
 	});
 
 	test('CommandFinished without active command is ignored', () => {
@@ -748,8 +819,99 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 			output: event.output,
 		})));
 
+		// Clients rebuild per-command output from the action stream, so the
+		// data must also be DISPATCHED between the executed and finished
+		// actions, not after the whole chunk.
+		const dispatched: { type: string; data?: string }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			const action = envelope.action;
+			if (action.type === ActionType.TerminalCommandExecuted || action.type === ActionType.TerminalCommandFinished) {
+				dispatched.push({ type: action.type });
+			} else if (action.type === ActionType.TerminalData) {
+				dispatched.push({ type: action.type, data: action.data });
+			}
+		}));
+
 		pty.fireData(`${osc633('C')}hi\r\n${osc633('D;0')}`);
 
 		assert.deepStrictEqual(completions, [{ exitCode: 0, output: 'hi\r\n' }]);
+		assert.deepStrictEqual(dispatched, [
+			{ type: ActionType.TerminalCommandExecuted },
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			{ type: ActionType.TerminalCommandFinished },
+		]);
+	});
+});
+
+suite('AgentHostTerminalManager – output-only terminals', () => {
+
+	const disposables = new DisposableStore();
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createManager() {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const manager = disposables.add(new AgentHostTerminalManager(stateManager, logService, productService, configurationService));
+		return { manager, stateManager };
+	}
+
+	test('streams appended data, snapshots state with isPty false, and records the exit', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-1';
+		const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1', toolCallId: 'tc-1' };
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+
+		manager.createOutputTerminal(uri, { title: 'Run Shell Command', claim });
+		manager.appendOutputTerminalData(uri, 'tick 1\n');
+		manager.appendOutputTerminalData(uri, 'tick 2\n');
+		manager.finalizeOutputTerminal(uri, 0);
+		manager.finalizeOutputTerminal(uri, 1); // recorded exit is immutable
+
+		assert.deepStrictEqual(manager.getTerminalState(uri), {
+			title: 'Run Shell Command',
+			content: [{ type: 'unclassified', value: 'tick 1\ntick 2\n' }],
+			exitCode: 0,
+			claim,
+			isPty: false,
+		});
+		assert.deepStrictEqual(dispatched, [
+			{ type: ActionType.TerminalData, data: 'tick 1\n' },
+			{ type: ActionType.TerminalData, data: 'tick 2\n' },
+			{ type: ActionType.TerminalExited, exitCode: 0 },
+		]);
+		// Output channels are discovered through tool result content, not generic PTY terminal APIs.
+		assert.strictEqual(manager.hasTerminal(uri), false);
+		assert.deepStrictEqual(manager.getTerminalInfos(), []);
+	});
+
+	test('reset clears content and dispose removes the channel', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-2';
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+
+		manager.createOutputTerminal(uri, { title: 'Bash', claim: { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1' } });
+		manager.appendOutputTerminalData(uri, 'old output');
+		manager.resetOutputTerminal(uri);
+		manager.appendOutputTerminalData(uri, 'fresh output');
+
+		assert.deepStrictEqual(manager.getTerminalState(uri)?.content, [{ type: 'unclassified', value: 'fresh output' }]);
+		assert.deepStrictEqual(dispatched.map(action => action.type), [ActionType.TerminalData, ActionType.TerminalCleared, ActionType.TerminalData]);
+
+		manager.disposeTerminal(uri);
+		assert.strictEqual(manager.hasTerminal(uri), false);
+		assert.strictEqual(manager.getTerminalState(uri), undefined);
 	});
 });

@@ -29,6 +29,7 @@ import { DeepPartial } from '../../../../base/common/types.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
+import { EditorPartModalVisibleContext } from '../../../common/contextkeys.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -63,6 +64,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	declare readonly _serviceBrand: undefined;
 
 	readonly mainPart: MainEditorPart;
+	private readonly modalEditorVisibleContext: IContextKey<boolean>;
 
 	// Most recently active parts across all windows. Multiple parts can
 	// share the same window (e.g. main part and modal part both live in
@@ -78,6 +80,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super('workbench.editorParts', themeService, storageService);
+		this.modalEditorVisibleContext = EditorPartModalVisibleContext.bindTo(this.contextKeyService);
 
 		this.editorWorkingSets = (() => {
 			const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
@@ -186,6 +189,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private modalEditorSidebarWidth: number | undefined;
 	private modalEditorSidebarHidden: boolean | undefined;
 
+	// Tracks an in-flight creation so concurrent callers await and reuse the
+	// same singleton instance instead of each racing to create their own.
+	private modalEditorPartCreatePromise: Promise<IModalEditorPart> | undefined;
+
 	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
 		// Reuse existing modal editor part if it exists
@@ -195,17 +202,43 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return this.modalEditorPart;
 		}
 
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create({
-			...options,
-			maximized: options?.maximized ?? this.modalEditorMaximized,
-			size: options?.size ?? this.modalEditorSize,
-			position: options?.position ?? this.modalEditorPosition,
-			sidebar: options?.sidebar ? {
-				...options.sidebar,
-				sidebarWidth: options.sidebar.sidebarWidth ?? this.modalEditorSidebarWidth,
-				sidebarHidden: options.sidebar.sidebarHidden ?? this.modalEditorSidebarHidden
-			} : undefined
+		// Another creation is already in flight: await it instead of starting
+		// a second one, then apply this call's options to the shared instance
+		if (this.modalEditorPartCreatePromise) {
+			const part = await this.modalEditorPartCreatePromise;
+			part.updateOptions(options);
+
+			return part;
+		}
+
+		const createPromise = this.doCreateModalEditorPart(options).finally(() => {
+			this.modalEditorPartCreatePromise = undefined;
 		});
+		this.modalEditorPartCreatePromise = createPromise;
+
+		return createPromise;
+	}
+
+	private async doCreateModalEditorPart(options: IModalEditorPartOptions | undefined): Promise<IModalEditorPart> {
+		this.modalEditorVisibleContext.set(true);
+		let result;
+		try {
+			result = await this.instantiationService.createInstance(ModalEditorPart, this).create({
+				...options,
+				maximized: options?.maximized ?? this.modalEditorMaximized,
+				size: options?.size ?? this.modalEditorSize,
+				position: options?.position ?? this.modalEditorPosition,
+				sidebar: options?.sidebar ? {
+					...options.sidebar,
+					sidebarWidth: options.sidebar.sidebarWidth ?? this.modalEditorSidebarWidth,
+					sidebarHidden: options.sidebar.sidebarHidden ?? this.modalEditorSidebarHidden
+				} : undefined
+			});
+		} catch (error) {
+			this.modalEditorVisibleContext.set(false);
+			throw error;
+		}
+		const { part, instantiationService, disposables } = result;
 
 		// Keep instantiation service and reference to reuse
 		this.modalEditorPart = part;
@@ -223,6 +256,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 			this.modalPartInstantiationService = undefined;
 			this.modalEditorPart = undefined;
+			this.modalEditorVisibleContext.set(false);
 		}));
 
 		// Events

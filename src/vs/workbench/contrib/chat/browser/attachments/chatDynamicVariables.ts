@@ -15,7 +15,8 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IChatRequestVariableValue, IDynamicVariable } from '../../common/attachments/chatVariables.js';
+import { IChatRequestVariableEntry, isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableValue, IDynamicVariable, toAttachedContextDynamicVariable } from '../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
@@ -62,6 +63,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			this._subscribeToEditor();
 			this.updateDecorations();
 		}));
+		this._register(widget.input.attachmentModel.onDidChange(() => this.updateDecorations()));
 	}
 
 	private _subscribeToEditor(): void {
@@ -128,7 +130,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	getInputState(contrib: Record<string, unknown>): void {
-		contrib[ChatDynamicVariableModel.ID] = this.variables;
+		contrib[ChatDynamicVariableModel.ID] = [...this._variables];
 	}
 
 	setInputState(contrib: Readonly<Record<string, unknown>>): void {
@@ -152,6 +154,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	addReference(ref: IDynamicVariable): void {
 		if (!isValidEditorRange(ref.range)) {
 			return;
+		}
+
+		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		if (existingAttachment) {
+			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
 		}
 
 		this._variables.push(ref);
@@ -184,6 +191,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
+		const attachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		if (attachment) {
+			return isImageVariableEntry(attachment) ? undefined : this.createAttachmentLabelHover(attachment);
+		}
+
 		const value = ref.data;
 		if (URI.isUri(value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
@@ -194,6 +206,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		} else {
 			return undefined;
 		}
+	}
+
+	private createAttachmentLabelHover(attachment: IChatRequestVariableEntry): IMarkdownString {
+		const resource = IChatRequestVariableEntry.toUri(attachment) ?? attachment.references?.find(reference => URI.isUri(reference.reference))?.reference;
+		const label = URI.isUri(resource)
+			? this.labelService.getUriLabel(resource, { relative: true })
+			: attachment.modelDescription ?? attachment.fullName ?? attachment.name;
+		return new MarkdownString().appendText(label);
 	}
 
 	/**

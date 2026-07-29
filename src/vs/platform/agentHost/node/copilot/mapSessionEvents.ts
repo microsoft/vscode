@@ -14,12 +14,14 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
-import { buildSessionDbUri } from '../shared/fileEditTracker.js';
+import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
+import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -45,20 +47,49 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
 	return !!source && source.toLowerCase() !== 'user';
 }
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly ToolExecutionCompleteContent[] | undefined): void {
+/**
+ * Converts SDK `tool.execution_complete` content blocks into AHP tool result
+ * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
+ * the tool call's terminal content block; when no terminal block exists yet
+ * (e.g. history replay, where no live channel survives) and `terminal` is
+ * provided, a non-pty terminal block is synthesized so the outcome still
+ * renders from `result.preview`. Returns the `shell_exit` outcome, if any, so
+ * the live path can settle the non-pty output channel from it.
+ */
+export interface ISdkShellExit {
+	readonly shellId: string;
+	readonly result: TerminalCommandResult;
+}
+
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly ToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
+	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
-			case 'shell_exit':
-				content.push({
-					type: ToolResultContentType.TerminalComplete,
+			case 'shell_exit': {
+				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,
-					...(sdkContent.cwd !== undefined ? { cwd: URI.file(sdkContent.cwd).toString() } : {}),
 					...(sdkContent.outputPreview !== undefined ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
-				});
+				};
+				shellExit = { shellId: sdkContent.shellId, result };
+				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
+				if (terminalIndex !== -1) {
+					const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
+					content[terminalIndex] = { ...terminalBlock, result };
+				} else if (terminal) {
+					content.push({
+						type: ToolResultContentType.Terminal,
+						resource: buildNonPtyShellTerminalUri(terminal.session, terminal.toolCallId),
+						title: terminal.title,
+						isPty: false,
+						result,
+					});
+				}
 				break;
+			}
 		}
 	}
+	return shellExit;
 }
 
 // =============================================================================
@@ -99,6 +130,10 @@ interface ISubagentInfo {
 interface ITurnBuilder {
 	id: string;
 	message: Message;
+	/** ISO 8601 timestamp of the SDK event that opened this turn, when known. */
+	startedAt: string | undefined;
+	/** ISO 8601 timestamp of the most recent SDK event that belonged to this turn. */
+	lastEventAt: string | undefined;
 	readonly responseParts: ResponsePart[];
 	usage: UsageInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
@@ -111,7 +146,7 @@ export interface IMapSessionEventsOptions {
 	readonly agent?: AgentSelection;
 }
 
-function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind }): ITurnBuilder {
+function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind; startedAt?: string }): ITurnBuilder {
 	const message: Message = {
 		text,
 		origin: { kind: options?.origin ?? MessageKind.User },
@@ -119,7 +154,13 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, responseParts: [], usage: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, pendingTools: new Map() };
+}
+
+/** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
+function readEventTimestamp(event: SessionEvent): string | undefined {
+	const timestamp: unknown = event.timestamp;
+	return isString(timestamp) && Number.isFinite(Date.parse(timestamp)) ? timestamp : undefined;
 }
 
 function readStringProperty(source: unknown, key: string): string | undefined {
@@ -184,9 +225,17 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	};
 }
 
+/** Seals a turn builder into a {@link Turn}, deriving `duration` from its first and last event timestamps. */
 function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
+	const startedAtMs = builder.startedAt === undefined ? undefined : Date.parse(builder.startedAt);
+	const endedAtMs = builder.lastEventAt === undefined ? undefined : Date.parse(builder.lastEventAt);
+	const duration = startedAtMs !== undefined && endedAtMs !== undefined && Number.isFinite(startedAtMs) && Number.isFinite(endedAtMs)
+		? Math.max(0, endedAtMs - startedAtMs)
+		: undefined;
 	return {
 		id: builder.id,
+		...(builder.startedAt !== undefined ? { startedAt: builder.startedAt } : {}),
+		...(duration !== undefined ? { duration } : {}),
 		message: builder.message,
 		responseParts: builder.responseParts,
 		usage: builder.usage,
@@ -302,6 +351,16 @@ export async function mapSessionEvents(
 	let rootAssistantTurnActive = false;
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 
+	/** Envelope timestamp of the event currently being processed. */
+	let currentEventTimestamp: string | undefined;
+
+	/** Records the current event as belonging to `builder`, so it bounds that turn's duration. */
+	const touch = (builder: ITurnBuilder | undefined): void => {
+		if (builder && currentEventTimestamp !== undefined) {
+			builder.lastEventAt = currentEventTimestamp;
+		}
+	};
+
 	const flushParent = (): void => {
 		if (!parentBuilder) {
 			return;
@@ -332,12 +391,13 @@ export async function mapSessionEvents(
 	const ensureSubagentBuilder = (parentToolCallId: string): ITurnBuilder => {
 		let builder = subagentBuilders.get(parentToolCallId);
 		if (!builder) {
-			builder = newTurnBuilder(generateUuid(), '');
+			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp });
 			subagentBuilders.set(parentToolCallId, builder);
 			if (!subagentTurnStates.has(parentToolCallId)) {
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
 			}
 		}
+		touch(builder);
 		return builder;
 	};
 
@@ -345,19 +405,23 @@ export async function mapSessionEvents(
 		if (parentToolCallId) {
 			return ensureSubagentBuilder(parentToolCallId);
 		}
+		touch(parentBuilder);
 		return parentBuilder;
 	};
 
 	for (const e of events) {
+		currentEventTimestamp = readEventTimestamp(e);
 		switch (e.type) {
 			case 'assistant.turn_start':
 				if (!e.agentId) {
 					rootAssistantTurnActive = true;
+					touch(parentBuilder);
 				}
 				break;
 			case 'assistant.turn_end':
 				if (!e.agentId) {
 					rootAssistantTurnActive = false;
+					touch(parentBuilder);
 				}
 				break;
 			case 'session.model_change': {
@@ -405,7 +469,7 @@ export async function mapSessionEvents(
 					// fork / truncate RPCs operate on.
 					flushParent();
 					const turnId = e.id ?? messageId;
-					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent });
+					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent, startedAt: currentEventTimestamp });
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
 							model: pendingAutoModeResolved.chosenModel,
@@ -426,6 +490,7 @@ export async function mapSessionEvents(
 				if (!content && !reasoningText && !hasToolRequests) {
 					if (!parentToolCallId && parentBuilder && !parentTurnAborted) {
 						parentTurnState = TurnState.Complete;
+						touch(parentBuilder);
 					}
 					break;
 				}
@@ -436,7 +501,7 @@ export async function mapSessionEvents(
 				// branch above.
 				const fallbackTurnId = e.id ?? messageId;
 				const builder = targetBuilderFor(parentToolCallId)
-					?? (parentBuilder = newTurnBuilder(fallbackTurnId, ''));
+					?? (parentBuilder = newTurnBuilder(fallbackTurnId, '', { startedAt: currentEventTimestamp }));
 				if (reasoningText) {
 					builder.responseParts.push({
 						kind: ResponsePartKind.Reasoning,
@@ -469,9 +534,10 @@ export async function mapSessionEvents(
 						kind: ResponsePartKind.SystemNotification,
 						content: notification.messageText,
 					});
+					touch(parentBuilder);
 				} else if (notification.startsTurn) {
 					flushParent();
-					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification });
+					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification, startedAt: currentEventTimestamp });
 				}
 				break;
 			}
@@ -488,6 +554,7 @@ export async function mapSessionEvents(
 				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
 				if (!parentToolCallId && parentBuilder) {
 					parentTurnState = TurnState.Cancelled;
+					touch(parentBuilder);
 				}
 				break;
 			}
@@ -536,7 +603,7 @@ export async function mapSessionEvents(
 				const synth = synthesizeSkillToolCall(e.data, e.id);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				const builder = targetBuilderFor(parentToolCallId)
-					?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
+					?? (parentBuilder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp }));
 				if (!parentToolCallId && builder === parentBuilder) {
 					parentTurnState = TurnState.Cancelled;
 				}
@@ -564,6 +631,7 @@ export async function mapSessionEvents(
 					if (parentBuilder) {
 						parentTurnState = TurnState.Cancelled;
 						parentTurnAborted = true;
+						touch(parentBuilder);
 					}
 				}
 				break;
@@ -678,11 +746,13 @@ function sdkAttachmentToProtocol(
 			if (typeof attachment.data !== 'string') {
 				return undefined;
 			}
-			if (attachment.mimeType.startsWith('text/plain')) {
+			const simpleDisplayKind = readSimpleAttachmentDisplayKindFromMimeType(attachment.mimeType);
+			if (attachment.mimeType.startsWith('text/plain') || simpleDisplayKind !== undefined) {
 				return {
 					type: MessageAttachmentKind.Simple,
 					label: attachment.displayName ?? 'attachment',
 					modelRepresentation: decodeBase64(attachment.data ?? '').toString(),
+					...(simpleDisplayKind !== undefined ? { displayKind: simpleDisplayKind } : {}),
 				};
 			}
 			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;
@@ -719,7 +789,7 @@ function makeCompletedToolCallPart(
 	if (toolOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: toolOutput });
 	}
-	appendSdkToolResultContent(content, d.result?.contents);
+	appendSdkToolResultContent(content, d.result?.contents, { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName });
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);

@@ -7,10 +7,12 @@ import { Event } from '../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
+import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
 import { AgentHostIpcChannels, IAgentService } from '../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService, ILoggerService } from '../../platform/log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../platform/log/common/logIpc.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IServerLifetimeService } from './serverLifetimeService.js';
 
 export const IServerAgentHostManager = createDecorator<IServerAgentHostManager>('serverAgentHostManager');
@@ -57,6 +59,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IServerLifetimeService private readonly _serverLifetimeService: IServerLifetimeService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(this._starter);
@@ -87,7 +90,14 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 					this._connectionCount = 0;
 					this._lifetimeToken.clear();
 
-					if (this._restartCount <= Constants.MaxRestarts) {
+					const willRestart = this._restartCount <= Constants.MaxRestarts;
+					reportAgentHostProcessError(this._telemetryService, {
+						kind: 'unexpectedExit',
+						code: e.code,
+						restartCount: this._restartCount,
+						willRestart,
+					});
+					if (willRestart) {
 						this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
 						this._restartCount++;
 						connection.store.dispose();
@@ -104,7 +114,13 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 				return;
 			}
 
-			if (this._restartCount <= Constants.MaxRestarts) {
+			const willRestart = this._restartCount <= Constants.MaxRestarts;
+			reportAgentHostProcessError(this._telemetryService, {
+				kind: 'startFailed',
+				restartCount: this._restartCount,
+				willRestart,
+			}, error);
+			if (willRestart) {
 				this._logService.error('ServerAgentHostManager: agent host failed to start', error);
 				this._restartCount++;
 				this._start();

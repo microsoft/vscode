@@ -7,7 +7,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -17,6 +17,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, hasPreferredCopilotHarness, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
+import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+
+export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 export const enum BYOKUtilityModelDefault {
 	None = 'none',
@@ -25,7 +28,6 @@ export const enum BYOKUtilityModelDefault {
 }
 
 export enum ChatConfiguration {
-	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
@@ -57,6 +59,7 @@ export enum ChatConfiguration {
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
+	CollapseCompletedResponses = 'chat.agent.collapseCompletedResponses',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
 	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
@@ -72,7 +75,6 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
-	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -324,7 +326,7 @@ export function getComputedDefaultSessionResource(
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
 }
 
-export function isRememberedSessionTypeUsable(
+export function isNewChatSessionTypeUsable(
 	sessionType: string,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
@@ -336,7 +338,7 @@ export function isRememberedSessionTypeUsable(
 	if (isAgentHostTarget(sessionType)) {
 		return true;
 	}
-	return !!chatSessionsService.getChatSessionContribution(sessionType);
+	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace);
 }
 
 export interface IDefaultNewChatSessionTypeOptions {
@@ -368,12 +370,16 @@ export function getDefaultNewChatSessionType(
 		return options.explicitOverride;
 	}
 
+	if (isVirtualWorkspace(workspace)) {
+		return localChatSessionType;
+	}
+
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
 	if (remembered) {
 		return remembered;
 	}
 
-	if (options?.currentSessionType) {
+	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace)) {
 		return options.currentSessionType;
 	}
 
@@ -381,15 +387,21 @@ export function getDefaultNewChatSessionType(
 }
 
 export function resolveDefaultNewChatSessionType(
-	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	storageService: IStorageService,
-	workspace: IWorkspace,
-	agentHostEnabled: boolean,
+	accessor: ServicesAccessor,
 	options?: IDefaultNewChatSessionTypeOptions
 ): IResolvedNewChatSessionType {
+	const configurationService = accessor.get(IConfigurationService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
+	const storageService = accessor.get(IStorageService);
+	const workspace = accessor.get(IWorkspaceContextService).getWorkspace();
+	const agentHostEnabled = accessor.get(IAgentHostEnablementService).enabled.get();
+
 	if (options?.explicitOverride) {
 		return { sessionType: options.explicitOverride, isPreferCopilotHarnessSwap: false };
+	}
+
+	if (isVirtualWorkspace(workspace)) {
+		return { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false };
 	}
 
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
@@ -421,7 +433,7 @@ function getUsableRememberedSessionType(
 	workspace: IWorkspace
 ): string | undefined {
 	const remembered = getRememberedSessionType(storageService);
-	return remembered && isRememberedSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace) ? remembered : undefined;
+	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace) ? remembered : undefined;
 }
 
 export function getDefaultNewChatSessionResource(
@@ -489,6 +501,7 @@ function getVisibleNonLocalEditorChatSessionTypes(
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';

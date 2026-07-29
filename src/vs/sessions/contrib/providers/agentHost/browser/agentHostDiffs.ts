@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SessionStatus as ProtocolSessionStatus, type ChangesetFile } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionFileDiff } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
+import { canonicalizeSessionDbUri } from '../../../../../platform/agentHost/common/sessionDbUri.js';
 import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { readChangesetFileMeta } from '../../../../../platform/agentHost/common/meta/agentChangesetFileMeta.js';
@@ -125,9 +126,10 @@ export function diffsEqual(current: readonly ISessionFileChange[], diffs: readon
 		}
 
 		const beforeContentUri = d.before?.content?.uri;
+		const beforeUri = d.before?.uri;
 		const currentOriginal = c.originalUri?.toString();
-		if (beforeContentUri) {
-			const parsedBefore = URI.parse(beforeContentUri);
+		if (beforeContentUri && beforeUri) {
+			const parsedBefore = canonicalizeSessionDbUri(URI.parse(beforeContentUri), URI.parse(beforeUri));
 			const mappedBefore = mapUri ? mapUri(parsedBefore) : parsedBefore;
 			if (currentOriginal !== mappedBefore.toString()) {
 				return false;

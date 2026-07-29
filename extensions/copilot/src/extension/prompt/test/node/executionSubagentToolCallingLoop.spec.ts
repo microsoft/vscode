@@ -43,7 +43,7 @@ interface IEndpointProviderProbe {
 }
 
 function endpoint(model: string, family: string, supportsToolCalls: boolean): IChatEndpoint {
-	return { model, family, supportsToolCalls } as IChatEndpoint;
+	return { model, name: `${model} display name`, family, supportsToolCalls } as IChatEndpoint;
 }
 
 describe('ExecutionSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', () => {
@@ -64,7 +64,7 @@ describe('ExecutionSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', 
 		disposables.dispose();
 	});
 
-	const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
+	const mainEndpoint = { model: 'main-agent', name: 'Main Agent' } as IChatEndpoint;
 
 	function createLoop(options: {
 		allEndpoints?: IChatEndpoint[];
@@ -114,6 +114,8 @@ describe('ExecutionSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', 
 		const resolved = await (loop as any).getEndpoint();
 
 		expect(resolved.model).toBe('mai-code-1-flash-picker');
+		expect(await loop.getModelName()).toBe('mai-code-1-flash-picker display name');
+		expect(await (loop as any).getEndpoint()).toBe(resolved);
 		expect(probe.getAllCalls).toBe(1);
 		expect(probe.familyCalls).toEqual([]);
 		expect(probe.mainCalls).toBe(0);

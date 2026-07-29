@@ -9,18 +9,49 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import type { ModelSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
+
+const testRuntime: ICopilotSessionRuntime = {
+	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
+	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
+	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
+	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
+	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
+	requestUnsandboxedCommandConfirmation: async () => false,
+	handlePreToolUse: async () => { },
+	handlePostToolUse: async () => { },
+	createClientSdkTools: () => [],
+	createServerSdkTools: () => [],
+};
+
+const testWorkingDirectory = URI.file(process.cwd());
+
+function createTestLauncher(): CopilotSessionLauncher {
+	const configurationService = {
+		getRootValue: () => undefined,
+	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
+	return new CopilotSessionLauncher(
+		configurationService,
+		{} as IAgentHostTerminalManager,
+		new NullLogService(),
+		{} as IFileService,
+		{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
+		new ByokLmBridgeRegistry(),
+	);
+}
 
 /**
  * Covers the BYOK provider/model synthesis the launcher feeds into
@@ -281,35 +312,33 @@ suite('CopilotSessionLauncher client identity', () => {
 				return session;
 			},
 		};
-		const configurationService = {
-			getRootValue: () => undefined,
-		} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
-		const launcher = new CopilotSessionLauncher(
-			configurationService,
-			{} as IAgentHostTerminalManager,
-			new NullLogService(),
-			{} as IFileService,
-			{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
-			new ByokLmBridgeRegistry(),
-		);
-		const runtime: ICopilotSessionRuntime = {
-			handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
-			handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
-			handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
-			handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
-			handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
-			requestUnsandboxedCommandConfirmation: async () => false,
-			handlePreToolUse: async () => { },
-			handlePostToolUse: async () => { },
-			createClientSdkTools: () => [],
-			createServerSdkTools: () => [],
+		const launcher = createTestLauncher();
+		const pluginDir = URI.file('/tmp/synced-customizations');
+		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
+		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
+		const plugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [],
+			agents: [],
+			skills: [{
+				uri: skillUri,
+				name: 'user-skill',
+				customization: { type: CustomizationType.Skill, id: skillUri.toString(), uri: skillUri.toString(), name: 'user-skill' },
+			}],
+			instructions: [{
+				uri: instructionUri,
+				name: 'user',
+				customization: { type: CustomizationType.Rule, id: instructionUri.toString(), uri: instructionUri.toString(), name: 'user', alwaysApply: true },
+			}],
+			pluginDir,
 		};
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
-			workingDirectory: URI.file('/workspace'),
+			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { tools: [], plugins: [plugin], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubToken: undefined,
@@ -325,18 +354,116 @@ suite('CopilotSessionLauncher client identity', () => {
 			fallback: { model: undefined },
 		};
 
-		const created = await launcher.launch(createPlan, runtime);
-		const resumed = await launcher.launch(resumePlan, runtime);
-		created.dispose();
-		resumed.dispose();
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(createPlan, testRuntime));
+			sessions.add(await launcher.launch(resumePlan, testRuntime));
 
-		assert.deepStrictEqual({
-			createClientName: createConfigs[0].clientName,
-			resumeClientName: resumeConfigs[0].clientName,
-		}, {
-			createClientName: 'vscode-agent-host',
-			resumeClientName: 'vscode-agent-host',
-		});
+			assert.deepStrictEqual({
+				createClientName: createConfigs[0].clientName,
+				createPluginDirectories: createConfigs[0].pluginDirectories,
+				createSkillDirectories: createConfigs[0].skillDirectories,
+				createInstructionDirectories: createConfigs[0].instructionDirectories,
+				resumeClientName: resumeConfigs[0].clientName,
+				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
+				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
+				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
+			}, {
+				createClientName: 'vscode-agent-host',
+				createPluginDirectories: [pluginDir.fsPath],
+				createSkillDirectories: [],
+				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeClientName: 'vscode-agent-host',
+				resumePluginDirectories: [pluginDir.fsPath],
+				resumeSkillDirectories: [],
+				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+			});
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+});
+
+suite('CopilotSessionLauncher resume fallback', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestSdkError extends Error {
+		constructor(message: string, readonly code: number) {
+			super(message);
+		}
+	}
+
+	function createResumeFailingLaunch(message: string, code = -32603): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number } {
+		let createSessionCalls = 0;
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async () => {
+				createSessionCalls++;
+				return session;
+			},
+			resumeSession: async () => {
+				throw new TestSdkError(message, code);
+			},
+		};
+		return {
+			launcher: createTestLauncher(),
+			plan: {
+				client,
+				sessionId: 'session-1',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubToken: undefined,
+				kind: 'resume',
+				fallback: { model: undefined },
+			},
+			getCreateSessionCalls: () => createSessionCalls,
+		};
+	}
+
+	test('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch(`Request session.resume failed with message: LocalRpcSession: 'session.getMessages' returned no events for session session-1`);
+
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			assert.strictEqual(getCreateSessionCalls(), 1);
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('falls back to createSession for an unknown -32603 from resumeSession', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
+
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			assert.strictEqual(getCreateSessionCalls(), 1);
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('does not replace a corrupted session file with an empty session', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: Session file is corrupted (line 19567: data.compactionTokensUsed.copilotUsage.tokenDetails.0.batchSize: Number must be greater than 0)');
+
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /Session file is corrupted/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
+		} finally {
+			await launcher.disposeByokProxyHandle();
+		}
 	});
 });
 
