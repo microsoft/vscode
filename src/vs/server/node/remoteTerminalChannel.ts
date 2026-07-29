@@ -204,6 +204,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
 			type: args.shellLaunchConfig.type,
 			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal,
+			forceShellIntegration: args.shellLaunchConfig.forceShellIntegration,
 			tabActions: args.shellLaunchConfig.tabActions,
 			shellIntegrationEnvironmentReporting: args.shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
@@ -226,7 +227,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		const activeWorkspaceFolder = args.activeWorkspaceFolder ? reviveWorkspaceFolder(args.activeWorkspaceFolder) : undefined;
 		const activeFileResource = args.activeFileResource ? URI.revive(uriTransformer.transformIncoming(args.activeFileResource)) : undefined;
 		const customVariableResolver = new CustomVariableResolver(baseEnv, workspaceFolders, activeFileResource, args.resolvedVariables, this._extensionManagementService);
-		const variableResolver = terminalEnvironment.createVariableResolver(activeWorkspaceFolder, process.env, customVariableResolver);
+		const variableResolver = terminalEnvironment.createVariableResolver(activeWorkspaceFolder, baseEnv, customVariableResolver);
 
 		// Get the initial cwd
 		const initialCwd = await terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), variableResolver, activeWorkspaceFolder?.uri, args.configuration['terminal.integrated.cwd'], this._logService);

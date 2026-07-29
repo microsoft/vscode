@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../../base/browser/dom.js';
+import { $, append, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { getToolApprovalMessage } from './toolInvocationParts/chatToolPartUtilities.js';
+import { getToolApprovalMessage, isAskQuestionsToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
@@ -26,6 +27,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -33,6 +35,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _fileWidgetStore = this._register(new DisposableStore());
 	private currentContent: IMarkdownString;
 
 	constructor(
@@ -43,6 +46,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		forceShowMessage: boolean | undefined,
 		icon: ThemeIcon | undefined,
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized | undefined,
+		shimmer: boolean | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -59,23 +63,78 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.showSpinner && !this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			// TODO@roblourens is this the right place for this?
+		if (this.showSpinner && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			// this step is in progress, communicate it to SR users
-			alert(progress.content.value);
+			alert(stripIcons(renderAsPlaintext(progress.content)));
 		}
-		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
+		const isLoadingIcon = icon && ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin'));
+		// Even if callers request shimmer, only the active (spinner-visible) progress row should animate.
+		const useShimmer = (shimmer ?? (!icon || isLoadingIcon)) && this.showSpinner;
+		// if we have shimmer, don't show spinner
+		const codicon = useShimmer ? Codicon.check : (icon ?? (this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check));
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		if (useShimmer) {
+			this.applyPartialShimmer(result.element);
+		}
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, codicon, tooltip));
 		this.domNode = progressPart.domNode;
+		if (useShimmer) {
+			this.domNode.classList.add('shimmer-progress');
+		}
 		this.renderedMessage.value = result;
 	}
 
-	updateMessage(content: MarkdownString): void {
+	private applyPartialShimmer(element: HTMLElement): void {
+		if (!this.toolInvocation || !isAskQuestionsToolInvocation(this.toolInvocation)) {
+			return;
+		}
+
+		const firstChild = element.firstElementChild;
+		const messageElement = isHTMLElement(firstChild) && firstChild.tagName === 'P' ? firstChild : element;
+		const message = messageElement.textContent;
+		const suffixOffset = message?.indexOf(' (') ?? -1;
+		if (suffixOffset <= 0) {
+			return;
+		}
+
+		element.classList.add('chat-progress-partial-shimmer');
+		this.wrapLeadingText(messageElement, suffixOffset);
+	}
+
+	private wrapLeadingText(element: HTMLElement, length: number): void {
+		let remaining = length;
+		const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+		while (remaining > 0) {
+			const node = walker.nextNode();
+			if (!node) {
+				return;
+			}
+
+			const text = node.nodeValue ?? '';
+			if (!text) {
+				continue;
+			}
+
+			const shimmerText = text.slice(0, remaining);
+			const suffixText = text.slice(remaining);
+			const span = element.ownerDocument.createElement('span');
+			span.classList.add('chat-progress-shimmer-text');
+			span.textContent = shimmerText;
+			node.parentNode?.insertBefore(span, node);
+			if (suffixText) {
+				node.nodeValue = suffixText;
+			} else {
+				node.parentNode?.removeChild(node);
+			}
+			remaining -= shimmerText.length;
+		}
+	}
+
+	updateMessage(content: IMarkdownString): void {
 		if (this.isHidden) {
 			return;
 		}
@@ -83,7 +142,8 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		// Render the new message
 		const result = this._register(this.chatContentMarkdownRenderer.render(content));
 		result.element.classList.add('progress-step');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		this._fileWidgetStore.clear();
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
 
 		// Replace the old message container with the new one
 		if (this.renderedMessage.value) {
@@ -142,6 +202,10 @@ export class ChatProgressSubPart extends Disposable {
 				content: tooltip,
 				style: HoverStyle.Pointer,
 			}));
+			this._register(hoverService.setupDelayedHover(messageElement, {
+				content: tooltip,
+				style: HoverStyle.Pointer,
+			}));
 		}
 		append(this.domNode, iconElement);
 
@@ -150,22 +214,61 @@ export class ChatProgressSubPart extends Disposable {
 	}
 }
 
+/**
+ * Picks a working-progress label, debounced per response so rapid
+ * re-instantiations during streaming reuse the previous label instead of
+ * flickering. Each response gets its own dwell window keyed by
+ * `element.id`; stale entries are pruned opportunistically on each call.
+ */
+const WORKING_LABEL_MIN_DWELL_MS = 1200;
+const lastPickedWorkingLabelByElement = new Map<string, { label: string; pickedAt: number }>();
+
+function pickWorkingLabel(elementId: string, configurationService: IConfigurationService): string {
+	const now = Date.now();
+
+	// Prune entries older than the dwell window. The map only holds entries
+	// for actively-streaming responses, so this stays small.
+	for (const [id, entry] of lastPickedWorkingLabelByElement) {
+		if (now - entry.pickedAt >= WORKING_LABEL_MIN_DWELL_MS) {
+			lastPickedWorkingLabelByElement.delete(id);
+		}
+	}
+
+	const existing = lastPickedWorkingLabelByElement.get(elementId);
+	if (existing && now - existing.pickedAt < WORKING_LABEL_MIN_DWELL_MS) {
+		existing.pickedAt = now;
+		return existing.label;
+	}
+
+	const fun = maybePickFunWorkingMessage(configurationService);
+	const label = fun ?? (() => {
+		const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
+		return pool[Math.floor(Math.random() * pool.length)];
+	})();
+	lastPickedWorkingLabelByElement.set(elementId, { label, pickedAt: now });
+	return label;
+}
+
 export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
+	private explicitContent: IMarkdownString | undefined;
+
 	constructor(
-		_workingProgress: { kind: 'working' },
+		workingProgress: IChatWorkingProgress,
 		chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
+		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 	) {
+		const explicitContent = workingProgress.content;
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
-			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
+			content: explicitContent ?? new MarkdownString().appendText(pickWorkingLabel(context.element.id, configurationService))
 		};
-		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
-		this.domNode.classList.add('working-progress');
+		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, true, instantiationService, chatMarkdownAnchorService, configurationService);
+		this.explicitContent = explicitContent;
+
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
 			if (isEqual(context.element.sessionResource, e.sessionResource)) {
 				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
@@ -173,7 +276,12 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}));
 	}
 
+	updateWorkingContent(content: IMarkdownString): void {
+		this.explicitContent = content;
+		this.updateMessage(content);
+	}
+
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'working';
+		return other.kind === 'working' && other.content?.value === this.explicitContent?.value;
 	}
 }

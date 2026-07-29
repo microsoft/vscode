@@ -38,7 +38,7 @@ export class ChatTaskContentPart extends Disposable implements IChatContentPart 
 				true;
 			this.isSettled = isSettled;
 			const showSpinner = !isSettled && !context.element.isComplete;
-			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, task, chatContentMarkdownRenderer, context, showSpinner, true, undefined, undefined));
+			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, task, chatContentMarkdownRenderer, context, showSpinner, true, undefined, undefined, undefined));
 			this.domNode = progressPart.domNode;
 		}
 	}

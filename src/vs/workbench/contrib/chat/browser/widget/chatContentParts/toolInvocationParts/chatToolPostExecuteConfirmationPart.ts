@@ -16,6 +16,7 @@ import { ILanguageModelToolsConfirmationService } from '../../../../common/tools
 import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPart, IToolResultTextPart, stringifyPromptTsxPart } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleIOPart } from '../chatToolInputOutputContentPart.js';
 import { ChatToolOutputContentSubPart } from '../chatToolOutputContentSubPart.js';
@@ -36,13 +37,14 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelToolsConfirmationService private readonly confirmationService: ILanguageModelToolsConfirmationService,
+		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
-		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService);
+		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService, riskAssessmentService);
 		const subtitle = toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
 		this.render({
 			allowActionId: AcceptToolPostConfirmationActionId,
 			skipActionId: SkipToolPostConfirmationActionId,
-			allowLabel: localize('allow', "Allow"),
+			allowLabel: localize('allow', "Allow Once"),
 			skipLabel: localize('skip.post', 'Skip Results'),
 			partType: 'chatToolPostConfirmation',
 			subtitle: typeof subtitle === 'string' ? subtitle : subtitle?.value,
@@ -87,6 +89,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			actions.push({
 				label: action.label,
 				tooltip: action.detail,
+				scope: action.scope,
 				data: async () => {
 					const shouldConfirm = await action.select();
 					if (shouldConfirm) {

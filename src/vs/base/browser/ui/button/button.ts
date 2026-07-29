@@ -73,6 +73,9 @@ export interface IButton extends IDisposable {
 	set enabled(value: boolean);
 	set checked(value: boolean);
 
+	setTitle(title: string): void;
+	setAriaLabel(ariaLabel: string): void;
+
 	focus(): void;
 	hasFocus(): boolean;
 }
@@ -89,6 +92,15 @@ const buttonSanitizerConfig = Object.freeze<DomSanitizerConfig>({
 	allowedAttributes: {
 		override: ['class'],
 	},
+});
+
+// Markdown render options that allow class attributes to pass through
+const buttonMarkdownRenderOptions = Object.freeze({
+	sanitizerConfig: {
+		allowedAttributes: {
+			override: ['class'],
+		}
+	}
 });
 
 export class Button extends Disposable implements IButton {
@@ -262,7 +274,7 @@ export class Button extends Disposable implements IButton {
 		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
 
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
+			const rendered = renderMarkdown(value, buttonMarkdownRenderOptions, document.createElement('span'));
 			rendered.dispose();
 
 			// Don't include outer `<p>`
@@ -368,6 +380,10 @@ export class Button extends Disposable implements IButton {
 		} else if (this._hover) {
 			this._hover.update(title);
 		}
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this._element.setAttribute('aria-label', ariaLabel);
 	}
 
 	focus(): void {
@@ -486,6 +502,14 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		return this.primaryButton.checked;
 	}
 
+	setTitle(title: string): void {
+		this.primaryButton.setTitle(title);
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this.primaryButton.setAriaLabel(ariaLabel);
+	}
+
 	focus(): void {
 		this.primaryButton.focus();
 	}
@@ -543,6 +567,14 @@ export class ButtonWithDescription implements IButtonWithDescription {
 
 	get checked(): boolean {
 		return this._button.checked;
+	}
+
+	setTitle(title: string): void {
+		this._button.setTitle(title);
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this._button.setAriaLabel(ariaLabel);
 	}
 
 	focus(): void {
@@ -673,7 +705,7 @@ export class ButtonWithIcon extends Button {
 
 		this._element.classList.add('monaco-text-button');
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
+			const rendered = renderMarkdown(value, buttonMarkdownRenderOptions, document.createElement('span'));
 			rendered.dispose();
 
 			// eslint-disable-next-line no-restricted-syntax

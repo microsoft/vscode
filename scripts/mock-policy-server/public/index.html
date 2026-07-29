@@ -1,0 +1,120 @@
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Policy Server</title>
+	<link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+	<header>
+		<div class="header-content">
+			<div>
+				<h1>Policy Server</h1>
+				<p class="sub">Mock Copilot policy endpoints</p>
+			</div>
+		</div>
+	</header>
+
+	<main>
+		<section class="editor-panel">
+			<div class="tabs-header">
+				<nav id="tabs" class="tabs" aria-label="Policy endpoints"></nav>
+			</div>
+
+			<div class="content-section">
+				<p id="endpoint-meta" class="endpoint-description"></p>
+
+				<div class="form-group">
+					<div class="label-row">
+						<label for="preset">Preset</label>
+					</div>
+					<div class="row">
+						<select id="preset"></select>
+						<button id="apply-preset" type="button" class="btn-secondary">Apply</button>
+					</div>
+				</div>
+
+				<div id="schema-section" class="section-block" hidden>
+					<div class="section-header section-header-toggle" id="schema-toggle">
+						<span class="chevron" id="schema-chevron">&#9654;</span>
+						<h2>Schema</h2>
+						<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
+						<span class="info-icon" data-tooltip="Clone github/copilot-agent-runtime for the schema">&#9432;</span>
+					</div>
+					<div id="schema-details" class="schema-details" hidden>
+						<input id="schema-source" type="text" class="schema-source-input" placeholder="Path or URL to schema JSON">
+						<div class="button-group">
+							<button id="refresh-schema" type="button" class="btn-secondary">Load</button>
+							<button id="hydrate-schema" type="button" class="btn-secondary">Generate example</button>
+							<button id="toggle-schema" type="button" class="btn-secondary">View</button>
+						</div>
+						<pre id="schema-view" class="code schema-view" hidden></pre>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<div class="label-row">
+						<label for="editor">Response body (JSON)</label>
+					</div>
+					<textarea id="editor" spellcheck="false" autocomplete="off"></textarea>
+					<p id="editor-status" class="status" aria-live="polite"></p>
+					<div id="validation-results" hidden></div>
+				</div>
+
+				<div class="button-group">
+					<button id="format" type="button" class="btn-secondary">Format JSON</button>
+				</div>
+
+				<div class="endpoint-url-box">
+					<span class="label-small">Endpoint URL</span>
+					<span id="endpoint-url" class="code endpoint-url"></span>
+				</div>
+			</div>
+		</section>
+
+		<aside class="sidebar-panel">
+			<div class="section-block">
+				<div class="section-header">
+					<h2>product.overrides.json</h2>
+					<span class="info-icon" data-tooltip="Redirects Copilot policy URLs to this local server. Restore reverts to the original file. Reload Code OSS after.">&#9432;</span>
+				</div>
+				<div class="status-box">
+					<span class="label-small">Status</span>
+					<strong id="wired-status">&#8230;</strong>
+				</div>
+				<div class="button-group-vertical">
+					<button id="wire" type="button" class="btn-primary btn-full">Apply overrides</button>
+					<button id="unwire" type="button" class="btn-secondary btn-full">Restore original</button>
+					<button id="copy-overrides" type="button" class="btn-secondary btn-full">&#128203; Copy JSON</button>
+					<button id="copy-overrides-path" type="button" class="btn-secondary btn-full">&#128203; Copy file path</button>
+				</div>
+			</div>
+
+			<div class="section-block">
+				<div class="section-header">
+					<h2>Apply changes</h2>
+				</div>
+				<ol class="steps">
+					<li>Reload Code OSS window</li>
+					<li>Sign in with GitHub account</li>
+					<li>Run <strong>Developer: Sync Account Policy</strong></li>
+					<li>Run <strong>Developer: Policy Diagnostics</strong></li>
+				</ol>
+			</div>
+
+
+		</aside>
+	</main>
+
+	<script src="./endpoints.js"></script>
+	<script src="./app.js"></script>
+</body>
+
+</html>

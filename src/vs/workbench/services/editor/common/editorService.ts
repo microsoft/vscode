@@ -40,6 +40,19 @@ export type AUX_WINDOW_GROUP_TYPE = typeof AUX_WINDOW_GROUP;
 export const MODAL_GROUP = -4;
 export type MODAL_GROUP_TYPE = typeof MODAL_GROUP;
 
+/**
+ * Setting that controls whether editors open in a modal editor part.
+ */
+export const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
+
+/**
+ * Possible values for the `workbench.editor.useModal` setting:
+ * - `'off'`: never open editors modal (user opt-out, honored over `RequiresModal`)
+ * - `'some'`: open modal only for editors that request it (e.g. `RequiresModal`)
+ * - `'all'`: open all editors modal
+ */
+export type UseModalEditorMode = 'off' | 'some' | 'all';
+
 export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE | MODAL_GROUP_TYPE;
 
 export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
@@ -133,6 +146,16 @@ export interface IEditorsChangeEvent {
 	event: IGroupModelChangeEvent;
 }
 
+export interface IVisibleEditorsChangeEvent {
+
+	/**
+	 * Indicates whether the visibility change is the result of an explicit
+	 * user action (`true`) or happened automatically as a side effect
+	 * (e.g. the chat agent opening files it has edited).
+	 */
+	readonly isExplicit: boolean;
+}
+
 export interface IEditorService {
 
 	readonly _serviceBrand: undefined;
@@ -149,7 +172,7 @@ export interface IEditorService {
 	 *
 	 * @see {@link IEditorService.visibleEditorPanes}
 	 */
-	readonly onDidVisibleEditorsChange: Event<void>;
+	readonly onDidVisibleEditorsChange: Event<IVisibleEditorsChangeEvent>;
 
 	/**
 	 * An aggregated event for any change to any editor across
@@ -270,7 +293,7 @@ export interface IEditorService {
 	openEditor(editor: IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 
 	/**
-	 * @deprecated using this method is a sign that your editor has not adopted the editor
+	 * Using this method is a sign that your editor has not adopted the editor
 	 * resolver yet. Please use `IEditorResolverService.registerEditor` to make your editor
 	 * known to the workbench and then use untyped editor inputs for opening:
 	 *

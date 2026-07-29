@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
 import { BrowserLifecycleService } from '../../lifecycle/browser/lifecycleService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getWorkspaceIdentifier } from '../../workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { localize } from '../../../../nls.js';
 import Severity from '../../../../base/common/severity.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -577,6 +577,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		// There seems to be no API to bring a window to front in browsers
 	}
 
+	async setWindowDimmed(_targetWindow: Window, _dimmed: boolean): Promise<void> {
+		// not supported in browser
+	}
+
 	async getCursorScreenPoint(): Promise<undefined> {
 		return undefined;
 	}
@@ -630,6 +634,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
 		mainWindow.close();
+	}
+
+	async shutdown(): Promise<void> {
+		return this.close();
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {

@@ -14,6 +14,7 @@ export interface IConfirmationPrompt {
 	options: string[];
 	descriptions?: string[];
 	detectedRequestForFreeFormInput: boolean;
+	suggestedInput?: string;
 }
 
 export interface IExecution {
@@ -28,7 +29,6 @@ export interface IExecution {
 export interface IPollingResult {
 	output: string;
 	resources?: ILinkLocation[];
-	modelOutputEvalResponse?: string;
 	state: OutputMonitorState;
 }
 
@@ -40,13 +40,6 @@ export enum OutputMonitorState {
 	Timeout = 'Timeout',
 	Active = 'Active',
 	Cancelled = 'Cancelled',
-}
-
-export interface IRacePollingOrPromptResult {
-	output: string;
-	pollDurationMs?: number;
-	modelOutputEvalResponse?: string;
-	state: OutputMonitorState;
 }
 
 export const enum PollingConsts {

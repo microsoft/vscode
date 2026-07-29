@@ -6,7 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IKeyMods, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { AbstractGotoLineQuickAccessProvider } from '../../../../../editor/contrib/quickAccess/browser/gotoLineQuickAccess.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -19,7 +19,6 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
@@ -28,7 +27,6 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService protected override readonly storageService: IStorageService
 	) {
@@ -60,7 +58,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 				preserveFocus: options.preserveFocus
 			};
 
-			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
+			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it

@@ -5,27 +5,27 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { escapeModelIdForTelemetry, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentData } from '../participants/chatAgents.js';
 import { ChatRequestModel, IChatRequestVariableData } from '../model/chatModel.js';
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../requestParser/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
+import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
+import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
 	agentId: string;
 	command: string | undefined;
-	reason: string | undefined;
 };
 
 type ChatVoteClassification = {
 	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this vote is for.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that this vote is for.' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason selected by the user for voting down.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -121,6 +121,9 @@ type ChatEditHunkEvent = {
 	outcome: 'accepted' | 'rejected';
 	lineCount: number;
 	hasRemainingEdits: boolean;
+	requestId: string;
+	modelId: string;
+	modeId: string;
 };
 
 type ChatEditHunkClassification = {
@@ -128,6 +131,9 @@ type ChatEditHunkClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of the edit hunk action.' };
 	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the relevant change.' };
 	hasRemainingEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there are remaining edits in the file after this action.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request that produced the edit.' };
+	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the edit.' };
+	modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request (e.g. ask, edit, agent).' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -138,6 +144,7 @@ export type ChatProviderInvokedEvent = {
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
 	requestType: 'string' | 'followup' | 'slashCommand';
 	chatSessionId: string;
+	requestId: string;
 	agent: string;
 	agentExtensionId: string | undefined;
 	slashCommand: string | undefined;
@@ -148,6 +155,10 @@ export type ChatProviderInvokedEvent = {
 	enableCommandDetection: boolean;
 	attachmentKinds: string[];
 	model: string | undefined;
+	permissionLevel: ChatPermissionLevel | undefined;
+	chatMode: string | undefined;
+	sessionType: string | undefined;
+	harness: string | undefined;
 };
 
 export type ChatProviderInvokedClassification = {
@@ -156,6 +167,7 @@ export type ChatProviderInvokedClassification = {
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the chat request, used to correlate workbench and agent host telemetry.' };
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of agent used.' };
 	agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
@@ -166,6 +178,10 @@ export type ChatProviderInvokedClassification = {
 	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether participation detection was disabled for this invocation.' };
 	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used to generate the response.' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected in the permission picker (default, assisted, autoApprove, or autopilot). Undefined when the picker is not applicable (e.g. ask mode or API-driven requests).' };
+	chatMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request. Built-in modes (ask, agent, edit), extension-contributed names (e.g. Plan), or a hashed identifier for user-created custom agents.' };
+	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness/provider (e.g. copilotcli, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -181,7 +197,6 @@ export class ChatServiceTelemetry {
 				direction: action.action.direction === ChatAgentVoteDirection.Up ? 'up' : 'down',
 				agentId: action.agentId ?? '',
 				command: action.command,
-				reason: action.action.reason,
 			});
 		} else if (action.action.kind === 'copy') {
 			this.telemetryService.publicLog2<ChatCopyEvent, ChatCopyClassification>('interactiveSessionCopy', {
@@ -220,6 +235,9 @@ export class ChatServiceTelemetry {
 				outcome: action.action.outcome,
 				lineCount: action.action.lineCount,
 				hasRemainingEdits: action.action.hasRemainingEdits,
+				requestId: action.requestId,
+				modelId: escapeModelIdForTelemetry(action.modelId) ?? '',
+				modeId: action.modeId ?? '',
 			});
 		}
 	}
@@ -263,7 +281,7 @@ export class ChatRequestTelemetry {
 		agent: IChatAgentData;
 		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
 		commandPart: ChatRequestSlashCommandPart | undefined;
-		sessionId: string;
+		sessionResource: URI;
 		location: ChatAgentLocation;
 		options: IChatSendRequestOptions | undefined;
 		enableCommandDetection: boolean;
@@ -291,10 +309,11 @@ export class ChatRequestTelemetry {
 			totalTime,
 			result,
 			requestType,
+			requestId: request.id,
 			agent: detectedAgent?.id ?? this.opts.agent.id,
 			agentExtensionId: detectedAgent?.extensionId.value ?? this.opts.agent.extensionId.value,
 			slashCommand: this.opts.agentSlashCommandPart ? this.opts.agentSlashCommandPart.command.name : this.opts.commandPart?.slashCommand.command,
-			chatSessionId: this.opts.sessionId,
+			chatSessionId: chatSessionResourceToId(this.opts.sessionResource),
 			enableCommandDetection: this.opts.enableCommandDetection,
 			isParticipantDetected: !!detectedAgent,
 			location: this.opts.location,
@@ -302,6 +321,10 @@ export class ChatRequestTelemetry {
 			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
 			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
+			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
+			chatMode: this.opts.options?.modeInfo?.telemetryModeName ?? this.opts.options?.modeInfo?.telemetryModeId,
+			sessionType: getChatSessionTypeForTelemetry(this.opts.sessionResource),
+			harness: getHarnessForTelemetry(this.opts.sessionResource),
 		});
 	}
 
@@ -346,4 +369,20 @@ export class ChatRequestTelemetry {
 	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
 		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
 	}
+}
+
+function getChatSessionTypeForTelemetry(sessionResource: URI): string {
+	const sessionType = getChatSessionType(sessionResource);
+	// Collapse the high-cardinality, host-specific authority into a single
+	// value (the authority is PII); the harness is reported separately.
+	return isRemoteAgentHostSessionType(sessionType) ? 'remote-agent-host' : sessionType;
+}
+
+/**
+ * For remote agent host sessions, the underlying harness/provider so remote
+ * activity can be split by harness (the collapsed sessionType cannot). See
+ * telemetry gap #2 in #8209. Undefined for non-remote sessions.
+ */
+function getHarnessForTelemetry(sessionResource: URI): string | undefined {
+	return parseRemoteAgentHostHarness(getChatSessionType(sessionResource));
 }

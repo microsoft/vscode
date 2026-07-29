@@ -5,12 +5,15 @@
 
 import { BrowserFeatures } from '../../canIUse.js';
 import * as DOM from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
 import * as platform from '../../../common/platform.js';
-import { Range } from '../../../common/range.js';
 import { OmitOptional } from '../../../common/types.js';
 import './contextview.css';
+
+export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from '../../../common/layout.js';
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
@@ -31,18 +34,6 @@ export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
 	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
 }
 
-export const enum AnchorAlignment {
-	LEFT, RIGHT
-}
-
-export const enum AnchorPosition {
-	BELOW, ABOVE
-}
-
-export const enum AnchorAxisAlignment {
-	VERTICAL, HORIZONTAL
-}
-
 export interface IDelegate {
 	/**
 	 * The anchor where to position the context view.
@@ -60,11 +51,103 @@ export interface IDelegate {
 	canRelayout?: boolean; // default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
 	onHide?(data?: unknown): void;
+	closeAnimation?: IContextViewCloseAnimation;
 
 	/**
 	 * context views with higher layers are rendered higher in z-index order
 	 */
 	layer?: number; // Default: 0
+}
+
+export interface IContextViewCloseAnimation {
+	readonly className: string;
+	readonly duration: number;
+	readonly requiredAncestorClasses?: readonly string[];
+}
+
+export const CONTEXT_VIEW_MENU_MOTION_CLASS = 'context-view-menu-motion';
+export const CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS = 'context-view-menu-motion-closing';
+export const CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION = 150;
+export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'] as const;
+export const CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE = '--vscode-context-view-close-animation-duration';
+export const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-context-view-menu-motion-shadow';
+const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
+const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE = '--vscode-context-view-menu-motion-close-start-transform';
+
+const CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS = 250;
+const CONTEXT_VIEW_MENU_MOTION_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
+
+export const contextViewMenuCloseAnimation: IContextViewCloseAnimation = {
+	className: CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS,
+	duration: CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION,
+	requiredAncestorClasses: CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES,
+};
+
+function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
+	return /* css */ `
+	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS} {
+		animation: none;
+		box-shadow: none;
+		overflow: visible;
+	}
+
+	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS} > .monaco-scrollable-element {
+		animation: context-view-menu-motion-open ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms ${CONTEXT_VIEW_MENU_MOTION_EASING} backwards;
+		box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
+		transform-origin: top left;
+		will-change: opacity;
+	}
+
+	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS}.right > .monaco-scrollable-element {
+		transform-origin: top right;
+	}
+
+	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS}.top > .monaco-scrollable-element {
+		transform-origin: bottom left;
+	}
+
+	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS}.top.right > .monaco-scrollable-element {
+		transform-origin: bottom right;
+	}
+
+	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS}.${CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS} > .monaco-scrollable-element {
+		animation: context-view-menu-motion-close var(${CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE}) ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
+		pointer-events: none;
+	}
+
+	@keyframes context-view-menu-motion-open {
+		0% {
+			opacity: 0;
+			transform: scale(0.97);
+		}
+
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	@keyframes context-view-menu-motion-close {
+		0% {
+			opacity: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE}, 1);
+			transform: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE}, scale(1));
+		}
+
+		100% {
+			opacity: 0;
+			transform: scale(0.99);
+		}
+	}`;
+}
+
+let contextViewMenuMotionStyleSheet: HTMLStyleElement | undefined;
+
+function ensureContextViewMenuMotionStyleSheet(): void {
+	if (!contextViewMenuMotionStyleSheet) {
+		contextViewMenuMotionStyleSheet = createStyleSheet(undefined, style => {
+			style.textContent = getContextViewMenuMotionCss('.style-override.monaco-enable-motion');
+		});
+	}
 }
 
 export interface IContextViewProvider {
@@ -73,66 +156,40 @@ export interface IContextViewProvider {
 	layout(): void;
 }
 
-export interface IPosition {
-	top: number;
-	left: number;
-}
+export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor): IRect {
+	// Get the element's position and size (to anchor the view)
+	if (DOM.isHTMLElement(anchor)) {
+		const elementPosition = DOM.getDomNodePagePosition(anchor);
 
-export interface ISize {
-	width: number;
-	height: number;
-}
+		// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
+		// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
+		// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
+		const zoom = DOM.getDomNodeZoomLevel(anchor);
 
-export interface IView extends IPosition, ISize { }
-
-export const enum LayoutAnchorPosition {
-	Before,
-	After
-}
-
-export enum LayoutAnchorMode {
-	AVOID,
-	ALIGN
-}
-
-export interface ILayoutAnchor {
-	offset: number;
-	size: number;
-	mode?: LayoutAnchorMode; // default: AVOID
-	position: LayoutAnchorPosition;
-}
-
-/**
- * Lays out a one dimensional view next to an anchor in a viewport.
- *
- * @returns The view offset within the viewport.
- */
-export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
-	const layoutAfterAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset : anchor.offset + anchor.size;
-	const layoutBeforeAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset + anchor.size : anchor.offset;
-
-	if (anchor.position === LayoutAnchorPosition.Before) {
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
-			return layoutAfterAnchorBoundary; // happy case, lay it out after the anchor
-		}
-
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // ok case, lay it out before the anchor
-		}
-
-		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
+		return {
+			top: elementPosition.top * zoom,
+			left: elementPosition.left * zoom,
+			width: elementPosition.width * zoom,
+			height: elementPosition.height * zoom
+		};
+	} else if (isAnchor(anchor)) {
+		return {
+			top: anchor.y,
+			left: anchor.x,
+			width: anchor.width || 1,
+			height: anchor.height || 2
+		};
 	} else {
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
-		}
-
-
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary && layoutBeforeAnchorBoundary < viewSize / 2) {
-			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
-		}
-
-
-		return 0; // sad case, lay it over the anchor
+		return {
+			top: anchor.posy,
+			left: anchor.posx,
+			// We are about to position the context view where the mouse
+			// cursor is. To prevent the view being exactly under the mouse
+			// when showing and thus potentially triggering an action within,
+			// we treat the mouse location like a small sized block element.
+			width: 2,
+			height: 2
+		};
 	}
 }
 
@@ -148,11 +205,14 @@ export class ContextView extends Disposable {
 	private delegate: IDelegate | null = null;
 	private toDisposeOnClean: IDisposable = Disposable.None;
 	private toDisposeOnSetContainer: IDisposable = Disposable.None;
+	private hidingContextView: { readonly disposable: IDisposable; readonly toDispose: IDisposable; readonly className: string } | undefined;
 	private shadowRoot: ShadowRoot | null = null;
 	private shadowRootHostElement: HTMLElement | null = null;
 
 	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition) {
 		super();
+
+		ensureContextViewMenuMotionStyleSheet();
 
 		this.view = DOM.$('.context-view');
 		DOM.hide(this.view);
@@ -218,8 +278,10 @@ export class ContextView extends Disposable {
 	}
 
 	show(delegate: IDelegate): void {
+		this.completeHideAnimation();
+
 		if (this.isVisible()) {
-			this.hide();
+			this.hide(undefined, true);
 		}
 
 		// Show static box
@@ -270,86 +332,19 @@ export class ContextView extends Disposable {
 		}
 
 		// Get anchor
-		const anchor = this.delegate!.getAnchor();
-
-		// Compute around
-		let around: IView;
-
-		// Get the element's position and size (to anchor the view)
-		if (DOM.isHTMLElement(anchor)) {
-			const elementPosition = DOM.getDomNodePagePosition(anchor);
-
-			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
-			// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
-			// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
-			const zoom = DOM.getDomNodeZoomLevel(anchor);
-
-			around = {
-				top: elementPosition.top * zoom,
-				left: elementPosition.left * zoom,
-				width: elementPosition.width * zoom,
-				height: elementPosition.height * zoom
-			};
-		} else if (isAnchor(anchor)) {
-			around = {
-				top: anchor.y,
-				left: anchor.x,
-				width: anchor.width || 1,
-				height: anchor.height || 2
-			};
-		} else {
-			around = {
-				top: anchor.posy,
-				left: anchor.posx,
-				// We are about to position the context view where the mouse
-				// cursor is. To prevent the view being exactly under the mouse
-				// when showing and thus potentially triggering an action within,
-				// we treat the mouse location like a small sized block element.
-				width: 2,
-				height: 2
-			};
-		}
-
-		const viewSizeWidth = DOM.getTotalWidth(this.view);
-		const viewSizeHeight = DOM.getTotalHeight(this.view);
-
-		const anchorPosition = this.delegate!.anchorPosition ?? AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate!.anchorAlignment ?? AnchorAlignment.LEFT;
-		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment ?? AnchorAxisAlignment.VERTICAL;
-
-		let top: number;
-		let left: number;
-
-		const activeWindow = DOM.getActiveWindow();
-		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
-			const verticalAnchor: ILayoutAnchor = { offset: around.top - activeWindow.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
-
-			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
-
-			// if view intersects vertically with anchor,  we must avoid the anchor
-			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
-				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
-			}
-
-			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
-		} else {
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
-
-			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
-
-			// if view intersects horizontally with anchor, we must avoid the anchor
-			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
-				verticalAnchor.mode = LayoutAnchorMode.AVOID;
-			}
-
-			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
-		}
+		const anchor = getAnchorRect(this.delegate!.getAnchor());
+		const containerWindow = this.container ? DOM.getWindow(this.container) : DOM.getActiveWindow();
+		const viewport = { top: containerWindow.pageYOffset, left: containerWindow.pageXOffset, width: containerWindow.innerWidth, height: containerWindow.innerHeight };
+		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
+		const anchorPosition = this.delegate!.anchorPosition;
+		const anchorAlignment = this.delegate!.anchorAlignment;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
+		const layoutResult = layout2d(viewport, view, anchor, { anchorAlignment, anchorPosition, anchorAxisAlignment });
+		const { top, left } = layoutResult;
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
-		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		this.view.classList.add(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+		this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 		this.view.classList.toggle('fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
@@ -363,21 +358,99 @@ export class ContextView extends Disposable {
 		this.view.style.width = 'initial';
 	}
 
-	hide(data?: unknown): void {
+	hide(data?: unknown, skipAnimation = false): void {
+		if (this.hidingContextView) {
+			if (skipAnimation) {
+				this.completeHideAnimation();
+			}
+			return;
+		}
+
 		const delegate = this.delegate;
 		this.delegate = null;
 
-		if (delegate?.onHide) {
-			delegate.onHide(data);
+		if (!delegate) {
+			return;
 		}
 
-		this.toDisposeOnClean.dispose();
+		const toDispose = this.toDisposeOnClean;
+		this.toDisposeOnClean = Disposable.None;
 
+		delegate.onHide?.(data);
+
+		const closeAnimation = delegate.closeAnimation;
+		if (!skipAnimation && closeAnimation && closeAnimation.duration > 0 && this.hasRequiredAncestorClasses(closeAnimation.requiredAncestorClasses)) {
+			this.view.style.setProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, `${closeAnimation.duration}ms`);
+			this.prepareMenuCloseAnimation();
+			this.view.classList.add(closeAnimation.className);
+			const timeout = setTimeout(() => this.completeHideAnimation(), closeAnimation.duration);
+			this.hidingContextView = {
+				disposable: toDisposable(() => clearTimeout(timeout)),
+				toDispose,
+				className: closeAnimation.className
+			};
+			return;
+		}
+
+		toDispose.dispose();
 		DOM.hide(this.view);
 	}
 
 	private isVisible(): boolean {
 		return !!this.delegate;
+	}
+
+	private completeHideAnimation(): void {
+		const hidingContextView = this.hidingContextView;
+		if (!hidingContextView) {
+			return;
+		}
+
+		this.hidingContextView = undefined;
+		hidingContextView.disposable.dispose();
+		this.view.classList.remove(hidingContextView.className);
+		this.view.style.removeProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE);
+		this.view.style.removeProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE);
+		this.view.style.removeProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE);
+		hidingContextView.toDispose.dispose();
+		DOM.hide(this.view);
+	}
+
+	private prepareMenuCloseAnimation(): void {
+		if (!this.view.classList.contains(CONTEXT_VIEW_MENU_MOTION_CLASS)) {
+			return;
+		}
+
+		const surface = Array.from(this.view.children).find(element => DOM.isHTMLElement(element) && element.classList.contains('monaco-scrollable-element'));
+		if (!DOM.isHTMLElement(surface)) {
+			return;
+		}
+
+		const computedStyle = DOM.getWindow(surface).getComputedStyle(surface);
+		this.view.style.setProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE, computedStyle.opacity);
+		this.view.style.setProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE, computedStyle.transform);
+	}
+
+	private hasRequiredAncestorClasses(classNames: readonly string[] | undefined): boolean {
+		if (!classNames?.length) {
+			return true;
+		}
+
+		for (let candidate: HTMLElement | null = this.view; candidate;) {
+			const current: HTMLElement = candidate;
+			if (classNames.every(className => current.classList.contains(className))) {
+				return true;
+			}
+
+			if (current.parentElement) {
+				candidate = current.parentElement;
+			} else {
+				const root = current.getRootNode();
+				candidate = root instanceof ShadowRoot && DOM.isHTMLElement(root.host) ? root.host : null;
+			}
+		}
+
+		return false;
 	}
 
 	private onDOMEvent(e: UIEvent, onCapture: boolean): void {
@@ -392,6 +465,7 @@ export class ContextView extends Disposable {
 
 	override dispose(): void {
 		this.hide();
+		this.completeHideAnimation();
 
 		super.dispose();
 	}
@@ -436,4 +510,5 @@ const SHADOW_ROOT_CSS = /* css */ `
 	:host-context(.linux:lang(zh-Hant)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
 	:host-context(.linux:lang(ja)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
 	:host-context(.linux:lang(ko)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+	${getContextViewMenuMotionCss(':host-context(.style-override.monaco-enable-motion)')}
 `;

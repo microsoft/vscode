@@ -6,7 +6,7 @@
 import { window, InputBoxOptions, Uri, Disposable, workspace, QuickPickOptions, l10n, LogOutputChannel } from 'vscode';
 import { IDisposable, EmptyDisposable, toDisposable, extractFilePathFromArgs } from './util';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
-import { CredentialsProvider, Credentials } from './api/git';
+import type { CredentialsProvider, Credentials } from './api/git';
 import { ITerminalEnvironmentProvider } from './terminal';
 import { AskpassPaths } from './askpassManager';
 
@@ -16,6 +16,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	private sshEnv: { [key: string]: string };
 	private disposable: IDisposable = EmptyDisposable;
 	private cache = new Map<string, Credentials>();
+	private cacheEvictionTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
 	readonly featureDescription = 'git auth provider';
@@ -80,6 +81,8 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
 		if (cached && password) {
 			this.cache.delete(authority);
+			clearTimeout(this.cacheEvictionTimers.get(authority));
+			this.cacheEvictionTimers.delete(authority);
 			return cached.password;
 		}
 
@@ -90,7 +93,11 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
 					if (credentials) {
 						this.cache.set(authority, credentials);
-						setTimeout(() => this.cache.delete(authority), 60_000);
+						clearTimeout(this.cacheEvictionTimers.get(authority));
+						this.cacheEvictionTimers.set(authority, setTimeout(() => {
+							this.cache.delete(authority);
+							this.cacheEvictionTimers.delete(authority);
+						}, 60_000));
 						return credentials.username;
 					}
 				} catch { }
@@ -167,6 +174,9 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	}
 
 	dispose(): void {
+		for (const timer of this.cacheEvictionTimers.values()) {
+			clearTimeout(timer);
+		}
 		this.disposable.dispose();
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { strictEqual } from 'assert';
+import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
@@ -14,7 +14,7 @@ import { TerminalCapabilityStore } from '../../../../../platform/terminal/common
 import { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestXtermAddonImporter } from './xterm/xtermTestUtils.js';
-import { computeMaxBufferColumnWidth, vtBoundaryMatches } from '../../browser/chatTerminalCommandMirror.js';
+import { computeMaxBufferColumnWidth, computeSnapshotLineCount, vtBoundaryMatches } from '../../browser/chatTerminalCommandMirror.js';
 
 const defaultTerminalConfig = {
 	fontFamily: 'monospace',
@@ -202,6 +202,17 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			strictEqual(mirrorText.includes('before'), false);
 		});
 
+		test('disposed start marker does not throw in VT serialization', async () => {
+			const source = await createXterm();
+			await write(source, 'line 1\r\nline 2');
+
+			const startMarker = source.raw.registerMarker(0)!;
+			startMarker.dispose();
+
+			const vt = await source.getRangeAsVT(startMarker, undefined, true);
+			strictEqual(typeof vt, 'string');
+		});
+
 		test('incremental mirroring appends correctly', async () => {
 			const source = await createXterm();
 			const marker = source.raw.registerMarker(0)!;
@@ -261,10 +272,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			// Boundary should NOT match because the prefix diverged
 			strictEqual(boundaryMatches, false, 'Boundary check should detect divergence');
 
-			// When boundary doesn't match, the fix does a full reset + rewrite
-			// instead of corrupting the output by blind slicing
-			mirror.raw.reset();
-			await write(mirror, vt2);
+			// Use \x1bc (RIS) + new content in one write to avoid a blank frame
+			await write(mirror, `\x1bc${vt2}`);
 
 			// Final content should be the complete new VT, not corrupted
 			strictEqual(getBufferText(mirror), 'DifferentPrefixLine3');
@@ -347,6 +356,61 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const fullRewriteWouldBe = vt1.length + vt2.length + vt3.length;
 			strictEqual(totalWritten < fullRewriteWouldBe, true,
 				`Append path should write less (${totalWritten}) than full rewrites would (${fullRewriteWouldBe})`);
+		});
+
+		test('snapshot line count reflects rendered rows', async () => {
+			async function measure(text: string): Promise<number> {
+				const xterm = await createXterm();
+				if (text) {
+					await write(xterm, text);
+				}
+				return computeSnapshotLineCount(xterm.raw.buffer.active);
+			}
+
+			deepStrictEqual({
+				empty: await measure(''),
+				short: await measure('hello'),
+				exactlyOneRow: await measure('a'.repeat(80)),
+				twoWrappedRows: await measure('a'.repeat(81)),
+				threeWrappedRows: await measure('a'.repeat(200)),
+				multilineWithWrapping: await measure(`${'a'.repeat(81)}\r\nnext`),
+				trailingCarriageReturnLineFeed: await measure('line\r\n'),
+				trailingLineFeed: await measure('line\n'),
+			}, {
+				empty: 0,
+				short: 1,
+				exactlyOneRow: 1,
+				twoWrappedRows: 2,
+				threeWrappedRows: 3,
+				multilineWithWrapping: 3,
+				trailingCarriageReturnLineFeed: 1,
+				trailingLineFeed: 1,
+			});
+		});
+
+		test('snapshot line count updates after appends and rewrites', async () => {
+			const xterm = await createXterm();
+			await write(xterm, 'a'.repeat(81));
+			const initial = computeSnapshotLineCount(xterm.raw.buffer.active);
+
+			await write(xterm, 'b'.repeat(120));
+			const appended = computeSnapshotLineCount(xterm.raw.buffer.active);
+
+			await write(xterm, '\x1b[2J\x1b[3J\x1b[Hshort');
+			const rewritten = computeSnapshotLineCount(xterm.raw.buffer.active);
+
+			deepStrictEqual({ initial, appended, rewritten }, {
+				initial: 2,
+				appended: 3,
+				rewritten: 1,
+			});
+		});
+
+		test('snapshot line count preserves an explicit value', async () => {
+			const xterm = await createXterm();
+			await write(xterm, 'a'.repeat(200));
+
+			strictEqual(computeSnapshotLineCount(xterm.raw.buffer.active, 7), 7);
 		});
 	});
 

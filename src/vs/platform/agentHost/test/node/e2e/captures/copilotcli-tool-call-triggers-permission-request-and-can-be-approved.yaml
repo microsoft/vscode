@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: echo "hello from test"
+            description: Echo test string
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: echo "hello from test"
+                description: Echo test string
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                hello from test
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: 'Output: `hello from test`'
+      stopReason: end_turn

@@ -98,7 +98,7 @@ class ShareWorkbenchContribution extends Disposable {
 							primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.KeyS,
 						},
 						menu: [
-							{ id: MenuId.CommandCenter, order: 1000 }
+							{ id: MenuId.CommandCenter, order: 3 }
 						]
 					});
 				}

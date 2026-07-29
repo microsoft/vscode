@@ -6,6 +6,7 @@
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -186,7 +187,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
 		return !!snapshot &&
-			this.modifiedURI.toString() === snapshot.resource.toString() &&
+			isEqual(this.modifiedURI, snapshot.resource) &&
 			this.modifiedModel.getLanguageId() === snapshot.languageId &&
 			this.originalModel.getValue() === snapshot.original &&
 			this.modifiedModel.getValue() === snapshot.current &&
@@ -197,7 +198,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path, this.modifiedURI.scheme, this.modifiedURI.authority),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			state: this.state.get(),
@@ -216,6 +217,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async resetToInitialContent() {
 		await this._textModelChangeService.resetDocumentValues(undefined, this.initialContent);
+	}
+
+	async resetEditTrackerToInitialContent() {
+		await this._textModelChangeService.resetDocumentValues(this.initialContent, undefined);
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {

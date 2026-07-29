@@ -14,7 +14,9 @@ import { Registry } from '../../../platform/registry/common/platform.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { createStringDataTransferItem, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, UriList, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { Mimes } from '../../../base/common/mime.js';
+import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
 import * as typeConvert from '../common/extHostTypeConverters.js';
@@ -264,7 +266,11 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 		const additionalDataTransfer = new VSDataTransfer();
 		additionalDataTransferDTO.items.forEach(([type, item]) => {
-			additionalDataTransfer.replace(type, createStringDataTransferItem(item.asString));
+			// For text/uri-list, reconstruct from uriListData which has been transformed by the URI transformer
+			const value = type === Mimes.uriList && item.uriListData
+				? UriList.create(item.uriListData.map(part => typeof part === 'string' ? part : URI.revive(part)))
+				: item.asString;
+			additionalDataTransfer.replace(type, createStringDataTransferItem(value));
 		});
 		return additionalDataTransfer;
 	}
@@ -286,12 +292,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this.hasResolve = this._proxy.$hasResolve(this.treeViewId);
 	}
 
-	async getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+	async getChildren(treeItem?: ITreeItem): Promise<readonly ITreeItem[] | undefined> {
 		const batches = await this.getChildrenBatch(treeItem ? [treeItem] : undefined);
 		return batches?.[0];
 	}
 
-	getChildrenBatch(treeItems?: ITreeItem[]): Promise<ITreeItem[][] | undefined> {
+	getChildrenBatch(treeItems?: ITreeItem[]): Promise<(readonly ITreeItem[])[] | undefined> {
 		if (!treeItems) {
 			this.itemsMap.clear();
 		}
@@ -311,12 +317,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				});
 	}
 
-	private convertTransferChildren(parents: ITreeItem[], children: (number | ITreeItem)[][] | undefined) {
-		const convertedChildren: (ITreeItem[] | undefined)[] = Array(parents.length);
+	private convertTransferChildren(parents: ITreeItem[], children: (readonly (number | ITreeItem)[])[] | undefined) {
+		const convertedChildren: (readonly ITreeItem[] | undefined)[] = Array(parents.length);
 		if (children) {
 			for (const childGroup of children) {
 				const childGroupIndex = childGroup[0] as number;
-				convertedChildren[childGroupIndex] = childGroup.slice(1) as ITreeItem[];
+				convertedChildren[childGroupIndex] = childGroup.slice(1) as readonly ITreeItem[];
 			}
 		}
 		return convertedChildren;
@@ -360,7 +366,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elementGroups: (ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
+	private async postGetChildren(elementGroups: (readonly ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
 		if (elementGroups === undefined) {
 			return undefined;
 		}

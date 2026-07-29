@@ -48,6 +48,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { compareIgnoreCase } from '../../../../base/common/strings.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -90,7 +91,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IURLService urlService: IURLService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -214,7 +216,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openPreferences(): Promise<void> {
-		await this.editorService.openEditor(this.instantiationService.createInstance(PreferencesEditorInput));
+		await this.editorService.openEditor(this.instantiationService.createInstance(PreferencesEditorInput), undefined, MODAL_GROUP);
 	}
 
 	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -354,7 +356,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
 				]);
 			} else {
-				await this.editorService.openEditor({ resource: editableKeybindings, options }, options.groupId);
+				await this.editorService.openEditor({ resource: editableKeybindings, options }, this.getEditorGroupFromOptions(options));
 			}
 
 		} else {
@@ -371,12 +373,33 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
-	private getEditorGroupFromOptions(options: { groupId?: number; openInModal?: boolean; openToSide?: boolean }): PreferredGroup {
+	private getEditorGroupFromOptions(options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
+
+		// When the caller knows the source editor group (e.g. the editor title actions
+		// and their keyboard shortcuts that switch between the settings UI and JSON editor),
+		// open in that same group so the editor stays in the editor part (main, modal or
+		// auxiliary window) it was invoked from. If that group lives in the modal editor part,
+		// request the modal group so it stays modal; otherwise open in that exact group. This
+		// is skipped when opening to the side, where a new side group is preferred instead.
+		if (options?.groupId !== undefined && !options.openToSide) {
+			const group = this.editorGroupService.getGroup(options.groupId);
+			if (group) {
+				const modalEditorPart = this.editorGroupService.activeModalEditorPart;
+				if (modalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id)) {
+					return MODAL_GROUP;
+				}
+				return group;
+			}
+		}
+
+		if (
+			this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off' &&					// modal editors enabled in settings
+			!this.environmentService.enableSmokeTestDriver && !this.environmentService.extensionTestsLocationURI	// but not in smoke test or extension test environments to reduce flakiness
+		) {
+			return MODAL_GROUP;
+		}
 		if (options.openToSide) {
 			return SIDE_GROUP;
-		}
-		if (options.openInModal) {
-			return MODAL_GROUP;
 		}
 		if (options?.groupId !== undefined) {
 			return this.editorGroupService.getGroup(options.groupId) ?? this.editorGroupService.activeGroup;

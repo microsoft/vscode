@@ -6,7 +6,8 @@
 import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
 import { Repository } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
-import { Branch, RefType, RemoteSourcePublisher } from './api/git';
+import type { Branch, RemoteSourcePublisher } from './api/git';
+import { RefType } from './api/git.constants';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { CheckoutOperation, CheckoutTrackingOperation, OperationKind } from './operation';
 

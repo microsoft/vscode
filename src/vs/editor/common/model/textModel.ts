@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayQueue, pushMany } from '../../../base/common/arrays.js';
+import { pushMany } from '../../../base/common/arrays.js';
 import { VSBuffer, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CharCode } from '../../../base/common/charCode.js';
 import { SetWithKey } from '../../../base/common/collections.js';
@@ -40,7 +40,7 @@ import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChanged, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChanged, ModelLineHeightChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
-import { TokenArray } from '../tokens/lineTokens.js';
+import { LineTokens, TokenArray } from '../tokens/lineTokens.js';
 import { BracketPairsTextModelPart } from './bracketPairsTextModelPart/bracketPairsImpl.js';
 import { ColorizedBracketPairsDecorationProvider } from './bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider.js';
 import { EditStack } from './editStack.js';
@@ -299,7 +299,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _guidesTextModelPart: GuidesTextModelPart;
 	public get guides(): IGuidesTextModelPart { return this._guidesTextModelPart; }
 
-	private readonly _attachedViews = new AttachedViews();
+	private readonly _attachedViews = this._register(new AttachedViews());
 	private readonly _viewModels = new Set<IViewModel>();
 
 	constructor(
@@ -1539,63 +1539,36 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
 
 				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
-				const firstEditLineNumber = currentEditStartLineNumber;
-				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
-
-				const decorationsWithInjectedTextInEditedRange = this._decorationsTree.getInjectedTextInInterval(
-					this,
-					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
-					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
-					0
-				);
-
-
-				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
-				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
 					const currentEditLineNumber = currentEditStartLineNumber + j;
 
-					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
-					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
-
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
-							this.getLineContent(currentEditLineNumber),
-							decorationsInCurrentLine
+							currentEditLineNumber
 						));
 				}
 
 				if (editingLinesCnt < deletingLinesCnt) {
 					// Must delete some lines
 					const spliceStartLineNumber = startLineNumber + editingLinesCnt;
-					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
+					const cnt = insertingLinesCnt - deletingLinesCnt;
+					const lastUntouchedLinePostEdit = newLineCount - lineCount - cnt + spliceStartLineNumber;
+					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber, lastUntouchedLinePostEdit));
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
-					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 					// Must insert some lines
 					const spliceLineNumber = startLineNumber + editingLinesCnt;
 					const cnt = insertingLinesCnt - editingLinesCnt;
 					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
-					const injectedTexts: (LineInjectedText[] | null)[] = [];
-					const newLines: string[] = [];
-					for (let i = 0; i < cnt; i++) {
-						const lineNumber = fromLineNumber + i;
-						newLines[i] = this.getLineContent(lineNumber);
-
-						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
-						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
-					}
-
 					rawContentChanges.push(
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
-							startLineNumber + insertingLinesCnt,
-							newLines,
-							injectedTexts
+							fromLineNumber,
+							cnt
 						)
 					);
 				}
@@ -1653,7 +1626,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
-			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
+			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
 			this._onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 		this._fireOnDidChangeLineHeight(affectedLineHeights);
@@ -1678,10 +1651,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
-			viewModel.onDidChangeContentOrInjectedText(e);
+			try {
+				viewModel.onDidChangeContentOrInjectedText(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 		for (const viewModel of this._viewModels) {
-			viewModel.emitContentChangeEvent(e);
+			try {
+				viewModel.emitContentChangeEvent(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 	}
 
@@ -1865,11 +1846,17 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decs;
 	}
 
-	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {
+	public getCustomLineHeightsDecorationsInRange(range: Range, ownerId: number = 0): model.IModelDecoration[] {
+		const decs = this._decorationsTree.getCustomLineHeightsInInterval(this, this.getOffsetAt(range.getStartPosition()), this.getOffsetAt(range.getEndPosition()), ownerId);
+		pushMany(decs, this._fontTokenDecorationsProvider.getDecorationsInRange(range, ownerId));
+		return decs;
+	}
+
+	public getLineInjectedText(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
+		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
@@ -2145,6 +2132,37 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 }
 
+export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: model.InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
+	let lineTokens: LineTokens;
+	if (injectionOffsets) {
+		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+
+		for (let idx = 0; idx < injectionOffsets.length; idx++) {
+			const offset = injectionOffsets[idx];
+			const tokens = injectionOptions![idx].tokens;
+			if (tokens) {
+				tokens.forEach((range, info) => {
+					tokensToInsert.push({
+						offset,
+						text: range.substring(injectionOptions![idx].content),
+						tokenMetadata: info.metadata,
+					});
+				});
+			} else {
+				tokensToInsert.push({
+					offset,
+					text: injectionOptions![idx].content,
+					tokenMetadata: LineTokens.defaultTokenMetadata,
+				});
+			}
+		}
+		lineTokens = tokens.withInserted(tokensToInsert);
+	} else {
+		lineTokens = tokens;
+	}
+	return lineTokens;
+}
+
 export function indentOfLine(line: string): number {
 	let indent = 0;
 	for (const c of line) {
@@ -2246,6 +2264,12 @@ class DecorationsTrees {
 	public getAllCustomLineHeights(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._search(filterOwnerId, false, false, false, versionId, false);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => typeof i.options.lineHeight === 'number');
+	}
+
+	public getCustomLineHeightsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
+		const versionId = host.getVersionId();
+		const result = this._intervalSearch(start, end, filterOwnerId, false, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => typeof i.options.lineHeight === 'number');
 	}
 

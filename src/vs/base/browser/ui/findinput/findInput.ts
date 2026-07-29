@@ -174,9 +174,9 @@ export class FindInput extends Widget {
 			}));
 
 			// Arrow-Key support to navigate between options
-			const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 			this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
+					const indexes = this.getToggleDomNodes();
 					const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
 					if (index >= 0) {
 						let newIndex: number = -1;
@@ -315,18 +315,34 @@ export class FindInput extends Widget {
 		this.updateInputBoxPadding();
 	}
 
+	protected getToggleDomNodes(): HTMLElement[] {
+		const nodes: HTMLElement[] = [];
+		if (this.caseSensitive) {
+			nodes.push(this.caseSensitive.domNode);
+		}
+		if (this.wholeWords) {
+			nodes.push(this.wholeWords.domNode);
+		}
+		if (this.regex) {
+			nodes.push(this.regex.domNode);
+		}
+		for (const toggle of this.additionalToggles) {
+			nodes.push(toggle.domNode);
+		}
+		return nodes;
+	}
+
 	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
 		this.inputBox.setActions(actions, actionViewItemProvider);
+		this.updateInputBoxPadding();
 	}
 
 	private updateInputBoxPadding(controlsHidden = false) {
-		if (controlsHidden) {
-			this.inputBox.paddingRight = 0;
-		} else {
-			this.inputBox.paddingRight =
-				((this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0))
-				+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
-		}
+		const togglesWidth = controlsHidden
+			? 0
+			: ((this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0))
+			+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
+		this.inputBox.paddingRight = togglesWidth + this.inputBox.actionsWidth;
 	}
 
 	public clear(): void {
