@@ -506,6 +506,7 @@ export class AutomationsCardsWidget extends Disposable {
 		this.element.style.width = `${width}px`;
 		this.element.style.height = `${height}px`;
 		this.scrollContent.style.width = `${width}px`;
+		this.scrollContent.style.height = `${height}px`;
 		this.scrollable.getDomNode().style.height = `${height}px`;
 		this.scrollable.scanDomNode();
 	}

@@ -1004,9 +1004,9 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		container.classList.add('session-section');
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
+		const label = DOM.append(container, $('span.session-section-label'));
 		const statusIndicator = DOM.append(container, $('span.session-section-status-indicator'));
 		statusIndicator.setAttribute('aria-hidden', 'true');
-		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const chevron = DOM.append(container, $('span.session-section-chevron'));

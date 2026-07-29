@@ -2464,6 +2464,16 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /*
+ * The dialog root has tabIndex=-1 and receives programmatic focus when shown,
+ * which would otherwise trigger the browser's default focus ring around the
+ * entire modal. Focus rings on interactive children inside the dialog remain
+ * unaffected.
+ */
+.monaco-dialog-box.automation-dialog:focus {
+	outline: none;
+}
+
+/*
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,
  * `.dialog-toolbar-row` reserves ~24px of dead space above the title.

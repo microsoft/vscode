@@ -7,6 +7,7 @@
 	position: relative;
 	height: 100%;
 	overflow: hidden;
+	outline: none;
 }
 
 .automations-cards-widget > .monaco-scrollable-element {
@@ -19,7 +20,6 @@
 	align-items: center;
 	padding: 32px 24px;
 	box-sizing: border-box;
-	overflow: hidden;
 }
 
 /* Centered content band */
