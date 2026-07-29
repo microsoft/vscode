@@ -354,7 +354,6 @@ export class WebClientServer {
 
 		const productConfiguration: Partial<Mutable<IProductConfiguration>> = {
 			embedderIdentifier: 'server-distro',
-			voiceWsUrl: this._productService.voiceWsUrl,
 			extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
 				...this._productService.extensionsGallery,
 				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
