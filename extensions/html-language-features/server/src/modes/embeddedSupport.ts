@@ -12,6 +12,7 @@ export interface LanguageRange extends Range {
 
 export interface HTMLDocumentRegions {
 	getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
+	getEmbeddedDocuments(languageId: string, ignoreAttributeValues?: boolean): TextDocument[];
 	getLanguageRanges(range: Range): LanguageRange[];
 	getLanguageAtPosition(position: Position): string | undefined;
 	getLanguagesInDocument(): string[];
@@ -59,7 +60,8 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
 					const token = scanner.getTokenText();
-					if (/["']module["']/.test(token) || token === 'module') {
+					const scriptType = token.toLowerCase();
+					if (/["']module["']/.test(scriptType) || scriptType === 'module') {
 						languageIdFromType = 'javascript';
 						isModuleScript = true;
 					} else if (/["'](text|application)\/(java|ecma)script["']/.test(token) || /["']text\/babel["']/.test(token)) {
@@ -90,12 +92,26 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 	return {
 		getLanguageRanges: (range: Range) => getLanguageRanges(document, regions, range),
 		getEmbeddedDocument: (languageId: string, ignoreAttributeValues: boolean) => getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
+		getEmbeddedDocuments: (languageId: string, ignoreAttributeValues: boolean) => getEmbeddedDocuments(document, regions, languageId, ignoreAttributeValues),
 		getLanguageAtPosition: (position: Position) => getLanguageAtPosition(document, regions, position),
 		getLanguagesInDocument: () => getLanguagesInDocument(document, regions),
 		getImportedScripts: () => importedScripts
 	};
 }
 
+
+function getEmbeddedDocuments(document: TextDocument, contents: EmbeddedRegion[], languageId: string, ignoreAttributeValues: boolean): TextDocument[] {
+	const moduleRegions = contents.filter(region => region.languageId === languageId && region.isModule);
+	if (moduleRegions.length === 0) {
+		return [getEmbeddedDocument(document, contents, languageId, ignoreAttributeValues)];
+	}
+
+	const result = [getEmbeddedDocument(document, contents.filter(region => !region.isModule), languageId, ignoreAttributeValues)];
+	moduleRegions.forEach((region, index) => {
+		result.push(getEmbeddedDocument(document, [region], languageId, ignoreAttributeValues, `${document.uri}.module-${index}`, true));
+	});
+	return result;
+}
 
 function getLanguageRanges(document: TextDocument, regions: EmbeddedRegion[], range: Range): LanguageRange[] {
 	const result: LanguageRange[] = [];
@@ -166,7 +182,7 @@ function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[]
 	return 'html';
 }
 
-function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string, ignoreAttributeValues: boolean): TextDocument {
+function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string, ignoreAttributeValues: boolean, uri = document.uri, isModule = false): TextDocument {
 	let currentPos = 0;
 	const oldContent = document.getText();
 	let result = '';
@@ -180,7 +196,10 @@ function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[],
 		}
 	}
 	result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '');
-	return TextDocument.create(document.uri, languageId, document.version, result);
+	if (isModule) {
+		result += '\nexport {};';
+	}
+	return TextDocument.create(uri, languageId, document.version, result);
 }
 
 function getPrefix(c: EmbeddedRegion) {
@@ -188,9 +207,6 @@ function getPrefix(c: EmbeddedRegion) {
 		switch (c.languageId) {
 			case 'css': return CSS_STYLE_RULE + '{';
 		}
-	}
-	if (c.isModule) {
-		return '{';
 	}
 	return '';
 }
@@ -200,9 +216,6 @@ function getSuffix(c: EmbeddedRegion) {
 			case 'css': return '}';
 			case 'javascript': return ';';
 		}
-	}
-	if (c.isModule) {
-		return '}';
 	}
 	return '';
 }
