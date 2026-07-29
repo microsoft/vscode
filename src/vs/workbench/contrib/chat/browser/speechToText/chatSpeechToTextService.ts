@@ -364,6 +364,17 @@ export interface IChatSpeechToTextService {
 	readonly isPreparingModel: boolean;
 
 	/**
+	 * Fires when the model-download sub-state changes. `true` while the model is
+	 * actively downloading to disk (a confirmed cache miss), `false` while it is
+	 * merely loading an already-cached model into memory or once preparation
+	 * ends. Callers use this to show a download affordance only during a real
+	 * download, and a plain spinner while loading.
+	 */
+	readonly onDidChangeDownloadingModel: Event<boolean>;
+	/** Whether the on-device model is currently downloading to disk (cache miss). */
+	readonly isDownloadingModel: boolean;
+
+	/**
 	 * Fires whenever the on-device model download progress changes while the
 	 * model is being prepared, so callers can update a progress ring.
 	 */
@@ -421,6 +432,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _isPreparingModel = false;
 	get isPreparingModel(): boolean {
 		return this._isPreparingModel;
+	}
+
+	private readonly _onDidChangeDownloadingModel = this._register(new Emitter<boolean>());
+	readonly onDidChangeDownloadingModel = this._onDidChangeDownloadingModel.event;
+
+	private _isDownloadingModel = false;
+	get isDownloadingModel(): boolean {
+		return this._isDownloadingModel;
 	}
 
 	private readonly _onDidChangeModelDownloadProgress = this._register(new Emitter<void>());
@@ -618,8 +637,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._preparingContextKey.set(preparing);
 		if (!preparing) {
 			this._setModelDownloadProgress(undefined);
+			// Preparation ended (ready, error, or teardown): the model is no
+			// longer downloading.
+			this._setDownloadingModel(false);
 		}
 		this._onDidChangePreparingModel.fire(preparing);
+	}
+
+	private _setDownloadingModel(downloading: boolean): void {
+		if (this._isDownloadingModel === downloading) {
+			return;
+		}
+		this._isDownloadingModel = downloading;
+		this._onDidChangeDownloadingModel.fire(downloading);
 	}
 
 	private _setModelDownloadProgress(progress: number | undefined): void {
@@ -1162,6 +1192,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 */
 	private _handleModelStatus(status: ILocalTranscriptionModelStatus): void {
 		this._lastModelStatus = status;
+		// Track whether we are in an actual on-disk download (a confirmed cache
+		// miss) versus merely loading an already-cached model, so the UI can show
+		// a download affordance only during a real download.
+		this._setDownloadingModel(status.state === LocalTranscriptionModelState.Downloading);
 		this._updateModelDownloadProgress(status);
 		this._updateDownloadNotification(status);
 		if (status.state === LocalTranscriptionModelState.Ready) {

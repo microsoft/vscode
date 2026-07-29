@@ -460,6 +460,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		const dictationPreparing = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangePreparingModel,
 			() => this.chatSpeechToTextService.isPreparingModel);
+		// Sub-state of preparing: `true` only during a confirmed on-disk download
+		// (cache miss), `false` while loading an already-cached model. Drives the
+		// download-vs-spinner glyph below.
+		const dictationDownloading = observableFromEvent(this,
+			this.chatSpeechToTextService.onDidChangeDownloadingModel,
+			() => this.chatSpeechToTextService.isDownloadingModel);
 
 		this._register(autorun(reader => {
 			const dictationAvailable = this.voiceInputModeService.dictationAvailable.read(reader);
@@ -524,8 +530,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				: localize('voiceInputMode.dictation', "Dictation"));
 			// Glyphs render at the compact 12px size, so use the `*Compact` variants
 			// wherever one exists (`mic` / `micFilled` have none and stay as-is).
+			// While preparing, show the download glyph only during an actual on-disk
+			// download (cache miss); otherwise (loading a cached model) show a
+			// spinner, which the `.preparing` CSS animates.
 			const dictationIcon = dictationBusy
-				? this.chatSpeechToTextService.currentBackend === 'mai' ? Codicon.loadingCompact : Codicon.micDownloadCompact
+				? dictationDownloading.read(reader) ? Codicon.micDownloadCompact : Codicon.loadingCompact
 				: isDictating ? Codicon.micFilled : Codicon.mic;
 			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationIcon)}`;
 
