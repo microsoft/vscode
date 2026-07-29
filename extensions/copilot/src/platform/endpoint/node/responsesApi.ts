@@ -604,8 +604,8 @@ function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
  * Attaches a prompt-cache marker (`prompt_cache_breakpoint: { mode: 'explicit' }`) to a single
  * Responses API input item.
  *
- * The Responses API supports cache breakpoints only on `input_text`, `input_image`, and
- * `input_file` content blocks. Returns whether a marker was applied.
+ * The Responses API supports cache breakpoints only on `input_text` and `input_image` content
+ * blocks and `message` input items. Returns whether a marker was applied.
  */
 function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem): boolean {
 	const content = (item as { content?: unknown }).content;
@@ -615,10 +615,15 @@ function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem)
 
 	for (let contentIndex = content.length - 1; contentIndex >= 0; contentIndex--) {
 		const block = content[contentIndex] as { type?: string; prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint };
-		if (block.type === 'input_text' || block.type === 'input_image' || block.type === 'input_file') {
+		if (block.type === 'input_text' || block.type === 'input_image') {
 			block.prompt_cache_breakpoint = promptCacheBreakpoint;
 			return true;
 		}
+	}
+
+	if ((item as { type?: string }).type === 'message') {
+		(item as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint }).prompt_cache_breakpoint = promptCacheBreakpoint;
+		return true;
 	}
 
 	return false;
