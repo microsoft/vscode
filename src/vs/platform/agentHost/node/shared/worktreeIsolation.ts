@@ -14,7 +14,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -95,6 +95,63 @@ export function buildWorktreeAnnouncementText(branchName: string): string {
 }
 
 /**
+ * The steps of worktree creation that are slow enough to be worth naming while
+ * a session materializes. Ordered as they run.
+ */
+export const enum WorktreeCreationPhase {
+	/** Queued behind another worktree being created in the same repository. */
+	Starting,
+	/** Asking the model for a branch name, then probing candidates for collisions. */
+	NamingBranch,
+	/** `git worktree add` — the phase that reports file-level progress. */
+	CheckingOut,
+	/** Copying the git-ignored files the client asked to carry over. */
+	CopyingIncludeFiles,
+}
+
+/**
+ * Builds the localized activity label for a worktree-creation phase. `percent`
+ * only applies to the phases that report file-level progress
+ * ({@link WorktreeCreationPhase.CheckingOut} and
+ * {@link WorktreeCreationPhase.CopyingIncludeFiles}), where it is absent until
+ * the first sample arrives.
+ */
+export function buildWorktreeProgressText(phase: WorktreeCreationPhase, percent?: number): string {
+	switch (phase) {
+		case WorktreeCreationPhase.NamingBranch:
+			return localize('agentHost.worktreeNamingBranch', "Creating isolated worktree (naming branch)");
+		case WorktreeCreationPhase.CheckingOut:
+			return percent === undefined
+				? localize('agentHost.worktreeCheckingOut', "Creating isolated worktree (checking out files)")
+				: localize('agentHost.worktreeCheckingOutPercent', "Creating isolated worktree (checking out files, {0}%)", percent);
+		case WorktreeCreationPhase.CopyingIncludeFiles:
+			return percent === undefined
+				? localize('agentHost.worktreeCopyingIncludeFiles', "Creating isolated worktree (copying additional files)")
+				: localize('agentHost.worktreeCopyingIncludeFilesPercent', "Creating isolated worktree (copying additional files, {0}%)", percent);
+		default:
+			return localize('agentHost.worktreeCreating', "Creating isolated worktree");
+	}
+}
+
+/**
+ * Adapts the raw file counts the git service reports into progress labels for
+ * a phase. Samples can arrive several times a second, so this rounds down to
+ * whole percent and drops anything that doesn't advance it — a consumer never
+ * sees two updates that read the same, and never more than 101 per phase.
+ */
+function createPercentProgressReporter(phase: WorktreeCreationPhase, onProgress: (activity: string) => void): (progress: IWorktreeFileProgress) => void {
+	let lastPercent = -1;
+	return ({ filesDone, filesTotal }) => {
+		const percent = Math.min(100, Math.floor(filesDone * 100 / filesTotal));
+		if (percent <= lastPercent) {
+			return;
+		}
+		lastPercent = percent;
+		onProgress(buildWorktreeProgressText(phase, percent));
+	};
+}
+
+/**
  * Returns a copy of `turns` where `announcement` has been prepended to the
  * first top-level assistant turn's first markdown response part. Used on
  * session restore so the worktree announcement remains visible after the
@@ -160,6 +217,13 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly config: Record<string, unknown> | undefined;
 	readonly prompt?: string;
 	readonly githubToken?: string;
+	/**
+	 * Receives localized activity labels while the worktree is being created,
+	 * so callers can surface live progress. Never called for sessions that
+	 * don't create a worktree, and the caller is responsible for clearing the
+	 * activity once resolution settles.
+	 */
+	readonly onProgress?: (activity: string) => void;
 }
 
 /**
@@ -406,7 +470,7 @@ export class WorktreeIsolation extends Disposable {
 	 * working directory unchanged.
 	 */
 	async resolveWorkingDirectory(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
-		const { config, workingDirectory, sessionId, sessionUri, prompt, githubToken } = request;
+		const { config, workingDirectory, sessionId, sessionUri, prompt, githubToken, onProgress } = request;
 		if (config?.[SessionConfigKey.Isolation] !== 'worktree' || !workingDirectory || typeof config[SessionConfigKey.Branch] !== 'string') {
 			return workingDirectory;
 		}
@@ -425,6 +489,8 @@ export class WorktreeIsolation extends Disposable {
 			return workingDirectory;
 		}
 
+		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
+
 		const worktreesRoot = getWorktreesRoot(repositoryRoot);
 		// Prefix (e.g. the user's `git.branchPrefix`) the client forwards for
 		// worktree-isolated sessions. Prepended ahead of the built-in `agents/`
@@ -434,6 +500,7 @@ export class WorktreeIsolation extends Disposable {
 			: undefined;
 		const selectedBranch = config[SessionConfigKey.Branch] as string;
 		const { branchName, worktree, baseBranch } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
 			const branchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
 				message: prompt,
@@ -450,7 +517,11 @@ export class WorktreeIsolation extends Disposable {
 			const worktree = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix));
 			const baseBranch = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
-			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch);
+			// Git suppresses progress for the first couple of seconds, so name
+			// the phase up front rather than leaving the label stale until the
+			// first percentage arrives.
+			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
+			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, onProgress && createPercentProgressReporter(WorktreeCreationPhase.CheckingOut, onProgress));
 			return { branchName, worktree, baseBranch };
 		});
 		const worktreeIncludeFiles = Array.isArray(config[SessionConfigKey.WorktreeIncludeFiles])
@@ -459,7 +530,8 @@ export class WorktreeIsolation extends Disposable {
 			: undefined;
 		if (worktreeIncludeFiles?.length) {
 			try {
-				await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles);
+				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
+				await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles, onProgress && createPercentProgressReporter(WorktreeCreationPhase.CopyingIncludeFiles, onProgress));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}

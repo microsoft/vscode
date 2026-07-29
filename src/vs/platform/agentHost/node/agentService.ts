@@ -631,11 +631,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Creates the session's isolated worktree on the first send (deferred so the
-	 * user's prompt can name the branch), surfaces the "Created isolated worktree"
-	 * announcement as the first markdown response part of the turn, and returns
-	 * the created worktree URI. Idempotent; safe to call once the worktree exists.
-	 * Returns `undefined` when worktree creation failed. Only invoked for sessions
-	 * whose worktree is still pending (see {@link _resolveWorkingDirectoryBeforeSend}).
+	 * user's prompt can name the branch), reports creation progress as the chat's
+	 * activity, surfaces the "Created isolated worktree" announcement as the first
+	 * markdown response part of the turn, and returns the created worktree URI.
+	 * Idempotent; safe to call once the worktree exists. Returns `undefined` when
+	 * worktree creation failed. Only invoked for sessions whose worktree is still
+	 * pending (see {@link _resolveWorkingDirectoryBeforeSend}).
 	 */
 	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
 		const { sessionId, pickedFolderUri } = params;
@@ -643,6 +644,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!worktree) {
 			return undefined;
 		}
+		let reportedActivity = false;
 		try {
 			await worktree.resolveOnFirstSend({
 				sessionUri: URI.parse(params.session),
@@ -654,9 +656,18 @@ export class AgentService extends Disposable implements IAgentService {
 					resource: this._gitHubEndpointService.getCopilotResource().resource,
 					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
 				}),
+				onProgress: activity => {
+					reportedActivity = true;
+					this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity });
+				},
 			});
 		} catch (err) {
 			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${toErrorMessage(err)}`);
+		}
+		// Clear on every exit path so a failed creation can't strand the chat
+		// on a stale "Creating isolated worktree" activity.
+		if (reportedActivity) {
+			this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
 		}
 		const announcement = worktree.takePendingAnnouncement(sessionId);
 		if (announcement !== undefined) {
