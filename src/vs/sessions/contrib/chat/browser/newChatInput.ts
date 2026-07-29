@@ -915,16 +915,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
-				// First-use only. The on-device backend downloads a model, so
-				// render a download icon wrapped by a progress ring; the cloud
-				// backend just connects, so render a plain spinner instead.
+				// First-use only. Show a download icon wrapped by a progress
+				// ring only during an actual model download (a confirmed cache
+				// miss); otherwise (loading an already-cached model, or the cloud
+				// backend connecting) render a plain spinner instead.
 				// Glyphs render at the compact 12px size, so use the `*Compact`
 				// variants where one exists.
-				if (sttService.currentBackend === 'mai') {
-					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
-				} else {
+				if (sttService.isDownloadingModel) {
 					dom.append(button, renderIcon(Codicon.micDownloadCompact));
 					downloadRing.value = new DictationDownloadRing(button, sttService);
+				} else {
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 				}
 			} else {
 				// `mic` / `micFilled` have no compact variant, so they stay as-is.
@@ -939,6 +940,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
+		this._register(sttService.onDidChangeDownloadingModel(renderState));
 		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
 
 		const updateVisibility = () => {
