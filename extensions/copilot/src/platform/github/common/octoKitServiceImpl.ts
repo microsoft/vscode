@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
-import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse } from './githubService';
+import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse, RepositoryComparison } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
 	declare readonly _serviceBrand: undefined;
@@ -341,6 +341,24 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			return [];
 		}
 		return this.getPullRequestFilesWithToken(owner, repo, pullNumber, authToken);
+	}
+
+	async compareCommits(owner: string, repo: string, base: string, head: string, authOptions: AuthOptions): Promise<RepositoryComparison | undefined> {
+		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
+		if (!authToken) {
+			this._logService.trace('No authentication token available for compareCommits');
+			return undefined;
+		}
+		return this.compareCommitsWithToken(owner, repo, base, head, authToken);
+	}
+
+	async getRepositoryById(id: number, authOptions: AuthOptions): Promise<{ owner: string; name: string } | undefined> {
+		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
+		if (!authToken) {
+			this._logService.trace('No authentication token available for getRepositoryById');
+			return undefined;
+		}
+		return this.getRepositoryByIdWithToken(id, authToken);
 	}
 
 	async closePullRequest(owner: string, repo: string, pullNumber: number, authOptions: AuthOptions): Promise<boolean> {

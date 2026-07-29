@@ -15,9 +15,11 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export interface IToolConfirmationConfig {
 	allowActionId: string;
@@ -50,6 +52,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService protected readonly chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService protected readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatToolRiskAssessmentService protected readonly riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super(toolInvocation);
 
@@ -114,6 +117,14 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 		const contentElement = this.createContentElement();
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);
+		// Risk badges describe a pending action, so they only show on the pre-execution
+		// confirmation, not after the tool has run.
+		const approvalReasonBadge = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages?.approvalReason)
+			: undefined;
+		const riskBadge = approvalReasonBadge?.domNode ?? (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? this.createRiskBadgeDomNode(state.parameters)
+			: undefined);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<(() => void)>,
 			this.context,
@@ -123,6 +134,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 				subtitle: config.subtitle,
 				buttons,
 				message: contentElement,
+				footerBanner: riskBadge,
 				toolbarData: {
 					arg: toolInvocation,
 					partType: config.partType,
@@ -198,6 +210,15 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 	protected additionalPrimaryActions(): AbstractToolPrimaryAction[] {
 		return [];
+	}
+
+	/**
+	 * Create the risk-assessment badge DOM node for this confirmation, or
+	 * `undefined` when the feature is disabled or the tool is unknown. Returned
+	 * as a `footerBanner` for the confirmation widget.
+	 */
+	protected createRiskBadgeDomNode(parameters: unknown): HTMLElement | undefined {
+		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, parameters)?.domNode;
 	}
 
 	/**

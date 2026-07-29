@@ -755,5 +755,60 @@ suite('ChatSessionOperationLog', () => {
 			assert.ok(parsed.content.startsWith('[VS Code:'), `unexpected: ${parsed.content.slice(0, 80)}`);
 			assert.strictEqual(parsed.label, 'ok');
 		});
+
+		test('deepCloneWithFallback returns a structural clone on the common path', () => {
+			const original = { a: 1, nested: { b: 'two', list: [1, 2, 3] } };
+			const clone = Adapt.deepCloneWithFallback(original);
+			assert.deepStrictEqual(clone, original);
+			assert.notStrictEqual(clone, original);
+			assert.notStrictEqual(clone.nested, original.nested);
+		});
+
+		test('deepCloneWithFallback recovers from RangeError during the clone', () => {
+			// The value() transform deep-clones extracted objects on every write,
+			// *before* any entry is serialized. A single oversized field used to
+			// throw RangeError here and lose the whole session (#322364). The clone
+			// must instead truncate and succeed.
+			const big = 'x'.repeat(2 * 1024 * 1024); // 2 MiB, over the 1 MiB per-string cap
+			let calls = 0;
+			const value: { huge: string; label: string; toJSON(): { huge: string; label: string } } = {
+				huge: big,
+				label: 'ok',
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { huge: big, label: 'ok' };
+				},
+			};
+			const clone = Adapt.deepCloneWithFallback(value);
+			assert.strictEqual(calls, 2, 'should have been called twice (initial + retry)');
+			assert.strictEqual(clone.label, 'ok');
+			assert.notStrictEqual(clone.huge, big);
+			assert.ok(clone.huge.startsWith('[VS Code:'), `unexpected: ${clone.huge.slice(0, 80)}`);
+		});
+
+		test('value().extract recovers when the deep-clone throws RangeError', () => {
+			// End-to-end: an oversized object flowing through a value() transform
+			// (as IChatAgentResult.metadata.toolCallResults does) must not throw.
+			const big = 'x'.repeat(2 * 1024 * 1024);
+			let calls = 0;
+			const huge = {
+				kept: 'meta',
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { dump: big, kept: 'meta' };
+				},
+			};
+			const transform = Adapt.value<typeof huge, { dump: string; kept: string }>((a, b) => a.dump === b.dump && a.kept === b.kept);
+			const extracted = transform.extract(huge);
+			assert.strictEqual(calls, 2);
+			assert.strictEqual(extracted.kept, 'meta');
+			assert.ok(extracted.dump.startsWith('[VS Code:'));
+		});
 	});
 });

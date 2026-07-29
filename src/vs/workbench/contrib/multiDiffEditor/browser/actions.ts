@@ -19,7 +19,7 @@ import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput } from './multiDiffEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 export class GoToFileAction extends Action2 {
 	constructor() {
@@ -143,12 +143,28 @@ export class CollapseAllAction extends Action2 {
 			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-				id,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-				group: 'navigation',
-				order: 100
-			})),
+			menu: [
+				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
+					group: 'navigation',
+					order: 100
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
+					group: '4_collapse',
+					order: 10
+				}
+			],
 			f1: true,
 		});
 	}
@@ -176,12 +192,28 @@ export class ExpandAllAction extends Action2 {
 			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-				id,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-				group: 'navigation',
-				order: 100
-			})),
+			menu: [
+				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
+					group: 'navigation',
+					order: 100
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
+					group: '4_collapse',
+					order: 10
+				}
+			],
 			f1: true,
 		});
 	}

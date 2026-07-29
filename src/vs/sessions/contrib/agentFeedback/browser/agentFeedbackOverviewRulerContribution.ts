@@ -13,7 +13,7 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',
@@ -37,6 +37,10 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 		this._decorations = this._editor.createDecorationsCollection();
 
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(() => this._updateDecorations()));
+		this._store.add(this._agentFeedbackService.onDidChangeFeedbackScope(() => {
+			this._resolveSession();
+			this._updateDecorations();
+		}));
 		this._store.add(this._editor.onDidChangeModel(() => {
 			this._resolveSession();
 			this._updateDecorations();
@@ -52,7 +56,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = this._agentFeedbackService.getSessionForFile(model.uri)?.resource;
+		this._sessionResource = this._agentFeedbackService.getFeedbackSessionResource(model.uri);
 	}
 
 	private _updateDecorations(): void {
@@ -72,7 +76,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 
 		this._decorations.set(
 			feedbackItems
-				.filter(item => item.resourceUri.toString() === modelUri)
+				.filter(item => item.resourceUri.toString() === modelUri && item.state !== AgentFeedbackState.Resolved)
 				.map(item => ({
 					range: item.range,
 					options: {

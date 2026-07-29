@@ -8,14 +8,17 @@
 	display: none;
 }
 
-/* Shared styling for interactive sidebar action buttons (account widget, customization links, etc.) */
-.sidebar-action-button {
+/* Shared styling for interactive sidebar action buttons (account widget, customization links, etc.).
+ * The class is doubled (`.sidebar-action-button.sidebar-action-button`) to raise specificity to
+ * (0,2,0) so these overrides win over the base `.monaco-text-button` rules in button.css — which
+ * also target this element at (0,1,0) — regardless of stylesheet concatenation order. */
+.sidebar-action-button.sidebar-action-button {
 	display: flex;
 	align-items: center;
 	border: none;
 	padding: 6px;
 	margin: 0;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
 	height: auto;
 	white-space: nowrap;
 	overflow: hidden;
@@ -26,7 +29,7 @@
 	text-align: left;
 	justify-content: flex-start;
 	text-decoration: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	gap: 6px;
 	display: flex;

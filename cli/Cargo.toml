@@ -56,8 +56,8 @@ console = "0.15.7"
 bytes = "1.11.1"
 tar = "0.4.46"
 local-ip-address = "0.6"
-ahp = "0.2"
-ahp-types = "0.2"
+ahp = "0.4"
+ahp-types = "0.4"
 
 [build-dependencies]
 serde = { version="1.0.163", features = ["derive"] }
