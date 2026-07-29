@@ -442,6 +442,15 @@ function sessionIsArchived(session: IAgentSessionMetadata): boolean {
 	return isSessionStatusArchived(session.status);
 }
 
+/**
+ * Whether a session is *known* to be unread. A session with no status has no
+ * recorded read state — cold sessions from agents that don't project one, such
+ * as Claude — and must not be reported as unread.
+ */
+function sessionIsUnread(session: IAgentSessionMetadata): boolean {
+	return session.status !== undefined && !isSessionStatusRead(session.status);
+}
+
 /** Whether any of a session's working directories matches the given folder (absolute path or URI). */
 function sessionMatchesWorkspace(session: IAgentSessionMetadata, workspace: string): boolean {
 	const dirs = session.workingDirectories;
@@ -478,7 +487,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.withChanges && !sessionHasChanges(session)) {
 			return false;
 		}
-		if (args.unread && isSessionStatusRead(session.status)) {
+		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
 		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrl) {
@@ -537,7 +546,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.activity !== undefined ? { activity: session.activity } : {}),
 		...(session.workingDirectories?.[0] !== undefined ? { workingDirectory: session.workingDirectories[0].toString() } : {}),
 		...(session.project !== undefined ? { project: session.project.displayName } : {}),
-		...(isSessionStatusRead(session.status) ? {} : { unread: true }),
+		...(sessionIsUnread(session) ? { unread: true } : {}),
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
 		...(session.modifiedTime > 0 ? { modifiedAt: new Date(session.modifiedTime).toISOString() } : {}),
 		...(session.changes !== undefined ? { changes: session.changes } : {}),

@@ -126,6 +126,27 @@ suite('SessionServerTools', () => {
 		]);
 	});
 
+	test('only sessions known to be unread report or filter as unread', () => {
+		// A cold session from an agent that projects no status (e.g. Claude) has
+		// no recorded read state and must not be reported as unread.
+		const unknown: IAgentSessionMetadata = { session: URI.parse('copilot:/unknown'), startTime: 0, modifiedTime: 0, workingDirectories: [workspace] };
+		const unread: IAgentSessionMetadata = { ...sessionMeta('unread', SessionStatus.Idle, workspace), status: SessionStatus.Idle };
+		const read: IAgentSessionMetadata = sessionMeta('read', SessionStatus.Idle, workspace);
+		const sessions = [unknown, unread, read];
+
+		assert.deepStrictEqual({
+			serializedUnread: JSON.parse(serializeSessions(sessions)).sessions.map((s: { session: string; unread?: boolean }) => ({ session: s.session, unread: s.unread })),
+			filteredToUnread: filterSessions(sessions, getListSessionsArgs({ unread: true })).map(s => s.session.toString()),
+		}, {
+			serializedUnread: [
+				{ session: 'copilot:/unknown', unread: undefined },
+				{ session: 'copilot:/unread', unread: true },
+				{ session: 'copilot:/read', unread: undefined },
+			],
+			filteredToUnread: ['copilot:/unread'],
+		});
+	});
+
 	test('getCreateSessionArgs resolves workspace by working directory and model by id/name', () => {
 		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
 		const byId = getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'gpt-4o' }, sessions, [model]);

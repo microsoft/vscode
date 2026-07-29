@@ -852,18 +852,24 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return false;
 		}
 
-		const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline /* Use read date baseline when no read date is stored */);
-
-		// Install a heuristic to reduce false positives: a user might observe
-		// the output of a session and quickly click on another session before
-		// it is finished. Strictly speaking the session is unread, but we
-		// allow a certain threshold of time to count as read to accommodate.
-		if (readDate >= this.sessionTimeForReadStateTracking(session) - 2000) {
+		if (this.localReadDateCoversActivity(session, storedReadDate)) {
 			return true;
 		}
 
 		// Never consider a session as unread if its connected to a widget
 		return !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
+	}
+
+	/** Grace window absorbing a click away from a session just before it finishes. */
+	private static readonly READ_GRACE_WINDOW = 2000;
+
+	/**
+	 * Whether the locally-stored read timestamp covers the session's last
+	 * activity. Falls back to the read-date baseline when nothing is stored.
+	 */
+	private localReadDateCoversActivity(session: IInternalAgentSessionData, storedReadDate: number | undefined): boolean {
+		const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline);
+		return readDate >= this.sessionTimeForReadStateTracking(session) - AgentSessionsModel.READ_GRACE_WINDOW;
 	}
 
 	private sessionTimeForReadStateTracking(session: IInternalAgentSessionData): number {
@@ -942,8 +948,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
 				continue; // explicitly marked unread locally — leave it unread
 			}
-			const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline);
-			if (readDate >= this.sessionTimeForReadStateTracking(session) - 2000) {
+			if (this.localReadDateCoversActivity(session, storedReadDate)) {
 				this.chatSessionsService.setChatSessionItemRead(session.resource, true);
 			}
 		}
