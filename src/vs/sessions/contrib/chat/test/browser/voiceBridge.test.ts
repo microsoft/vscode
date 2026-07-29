@@ -10,6 +10,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
@@ -40,11 +41,10 @@ suite('SessionsVoiceNewComposerContribution', () => {
 
 	function createTarget(): NewChatVoiceTargetService {
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		}();
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidChangeFocusedSession = Event.None;
-			override readonly lastFocusedWidget = undefined;
 		}();
 		return new NewChatVoiceTargetService(sessionsService, chatWidgetService);
 	}
