@@ -123,4 +123,96 @@ suite('vscode API - webview', () => {
 			await rm(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	test('consumes Ctrl/Cmd+W and Ctrl/Cmd+N so the platform cannot act on them too', async () => {
+		const timeout = 20_000;
+
+		// Keys the workbench binds itself. If the webview leaves one un-prevented the
+		// platform acts on it as well: a PWA closes its window, and on desktop the
+		// native menu accelerator dispatches the bound command a second time after
+		// the forwarded keydown already ran it. A key the workbench does not claim
+		// has to stay un-prevented so webview content keeps receiving it.
+		const cases = [
+			{ name: 'ctrl+w', keyCode: 87, ctrlKey: true, metaKey: false },
+			{ name: 'meta+w', keyCode: 87, ctrlKey: false, metaKey: true },
+			{ name: 'ctrl+n', keyCode: 78, ctrlKey: true, metaKey: false },
+			{ name: 'meta+n', keyCode: 78, ctrlKey: false, metaKey: true },
+			{ name: 'plain a', keyCode: 65, ctrlKey: false, metaKey: false },
+		];
+
+		const panel = vscode.window.createWebviewPanel(webviewViewType, 'Webview Keydown Test', vscode.ViewColumn.Active, {
+			enableScripts: true,
+		});
+		disposables.push(panel);
+
+		const didDispose = asPromise(panel.onDidDispose, timeout);
+		const didReceiveMessage = new Promise<{
+			readonly type: 'done';
+			readonly results: readonly { readonly name: string; readonly keyCode: number; readonly defaultPrevented: boolean }[];
+		}>((resolve, reject) => {
+			disposables.push(panel.webview.onDidReceiveMessage(message => {
+				if (message?.type === 'done') {
+					resolve(message);
+				} else if (message?.type === 'error') {
+					reject(new Error(message.message));
+				}
+			}));
+		});
+
+		const nonce = String(Date.now());
+		panel.webview.html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}';">
+</head>
+<body>
+	<script nonce="${nonce}">
+		const vscode = acquireVsCodeApi();
+		const cases = ${JSON.stringify(cases)};
+		const run = () => {
+			try {
+				const results = cases.map(testCase => {
+					const event = new KeyboardEvent('keydown', {
+						keyCode: testCase.keyCode,
+						ctrlKey: testCase.ctrlKey,
+						metaKey: testCase.metaKey,
+						bubbles: true,
+						cancelable: true,
+					});
+					// Not every engine honors keyCode from the init dictionary, and the
+					// handler under test matches on it.
+					if (event.keyCode !== testCase.keyCode) {
+						Object.defineProperty(event, 'keyCode', { get: () => testCase.keyCode });
+					}
+					// Untrusted events are never forwarded to the workbench, so this
+					// exercises the webview's own handling without closing this panel.
+					window.dispatchEvent(event);
+					return { name: testCase.name, keyCode: event.keyCode, defaultPrevented: event.defaultPrevented };
+				});
+				vscode.postMessage({ type: 'done', results });
+			} catch (error) {
+				vscode.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) });
+			}
+		};
+		// The host installs its keydown listener on this window, so yield once to be
+		// sure it is attached before probing.
+		setTimeout(run, 0);
+	</script>
+</body>
+</html>`;
+
+		const result = await Promise.race([
+			didReceiveMessage,
+			didDispose.then(() => Promise.reject(new Error('Webview disposed before the keydown probe reported'))),
+		]);
+
+		assert.deepStrictEqual(result.results, [
+			{ name: 'ctrl+w', keyCode: 87, defaultPrevented: true },
+			{ name: 'meta+w', keyCode: 87, defaultPrevented: true },
+			{ name: 'ctrl+n', keyCode: 78, defaultPrevented: true },
+			{ name: 'meta+n', keyCode: 78, defaultPrevented: true },
+			{ name: 'plain a', keyCode: 65, defaultPrevented: false },
+		]);
+	});
 });
