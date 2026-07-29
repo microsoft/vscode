@@ -2289,7 +2289,7 @@ suite('AgentHostChatContribution', () => {
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'Archived session',
-				isArchived: true,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
 			});
 
 			await listController.refresh(CancellationToken.None);
@@ -2367,6 +2367,78 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 		});
 
+		test('read mutations dispatch through AHP and reconcile server summaries', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'readable');
+			const baseStatus = SessionStatus.Idle | SessionStatus.IsRead;
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Readable session',
+				status: baseStatus,
+			});
+
+			const sessionListStore = createSessionListStore(disposables, instantiationService, agentHostService);
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
+			await listController.refresh(CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+
+			const readEvents: (boolean | undefined)[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				for (const item of delta.addedOrUpdated ?? []) {
+					readEvents.push(item.isRead);
+				}
+			}));
+
+			const resource = listController.items[0].resource;
+			const initialIsRead = listController.items[0].isRead;
+
+			// Repeated calls with the same value are no-ops.
+			listController.setChatSessionItemRead(resource, false);
+			listController.setChatSessionItemRead(resource, false);
+			const unreadStatus = sessionListStore.getSessions('copilot')[0].summary.status;
+
+			listController.setChatSessionItemRead(resource, true);
+			listController.setChatSessionItemRead(resource, true);
+
+			// The host marks the session unread again after background output.
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: SessionStatus.Idle },
+			});
+
+			assert.deepStrictEqual({
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+				initialIsRead,
+				unreadStatus,
+				reconciledIsRead: listController.items[0].isRead,
+				readEvents,
+			}, {
+				actions: [{
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsReadChanged, isRead: false },
+				}, {
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsReadChanged, isRead: true },
+				}],
+				initialIsRead: true,
+				unreadStatus: SessionStatus.Idle,
+				reconciledIsRead: false,
+				readEvents: [false, true, false],
+			});
+		});
+
+		test('read mutation ignores resources from another session type', () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			listController.setChatSessionItemRead(URI.from({ scheme: 'agent-host-other', path: '/session' }), true);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		});
+
 		test('archive mutation prevents an in-flight stale refresh from overwriting optimistic state', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const backendSession = AgentSession.uri('copilot', 'archive-refresh-race');
@@ -2391,7 +2463,7 @@ suite('AgentHostChatContribution', () => {
 					await released;
 					return [metadata];
 				}
-				return [{ ...metadata, isArchived: true }];
+				return [{ ...metadata, status: SessionStatus.Idle | SessionStatus.IsArchived }];
 			};
 
 			sessionListStore.resetCache();
@@ -2429,7 +2501,7 @@ suite('AgentHostChatContribution', () => {
 					await released;
 					return [metadata];
 				}
-				return [{ ...metadata, isArchived: true }];
+				return [{ ...metadata, status: SessionStatus.Idle | SessionStatus.IsArchived }];
 			};
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);

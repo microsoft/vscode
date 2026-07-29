@@ -36,6 +36,7 @@ import {
 	isSubagentChatUri,
 	isChatReadOnly,
 	AH_META_IS_ARCHIVED_DB_KEY,
+	AH_META_IS_READ_DB_KEY,
 	MessageAttachmentKind,
 	MessageKind,
 	parseChatUri,
@@ -242,6 +243,19 @@ export class AgentSideEffects extends Disposable {
 				const values = this._stateManager.getSessionState(envelope.channel)?.config?.values;
 				if (values) {
 					this._persistSessionFlag(envelope.channel, 'configValues', JSON.stringify(values));
+				}
+			}
+			// Read/archived are session-scoped flags whose durable home is the
+			// session database. Persisting here rather than in `handleAction`
+			// covers both client-dispatched and server-dispatched changes (e.g.
+			// the unread marking after a turn completes) from one place, so no
+			// dispatch path can silently skip persistence. Rejected actions were
+			// never applied to state and must not be written.
+			if (!envelope.rejectionReason) {
+				if (envelope.action.type === ActionType.SessionIsReadChanged) {
+					this._persistSessionFlag(envelope.channel, AH_META_IS_READ_DB_KEY, envelope.action.isRead ? 'true' : '');
+				} else if (envelope.action.type === ActionType.SessionIsArchivedChanged) {
+					this._persistSessionFlag(envelope.channel, AH_META_IS_ARCHIVED_DB_KEY, envelope.action.isArchived ? 'true' : '');
 				}
 			}
 		}));
@@ -835,8 +849,8 @@ export class AgentSideEffects extends Disposable {
 		if (!(status & SessionStatus.IsRead)) {
 			return;
 		}
+		// Persistence rides the envelope observer registered in the constructor.
 		this._stateManager.dispatchServerAction(session, { type: ActionType.SessionIsReadChanged, isRead: false });
-		this._persistSessionFlag(session, 'isRead', '');
 	}
 
 	private _describeSignal(signal: AgentSignal): string {
@@ -1373,12 +1387,9 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
-			case ActionType.SessionIsReadChanged: {
-				this._persistSessionFlag(channel, 'isRead', action.isRead ? 'true' : '');
-				break;
-			}
 			case ActionType.SessionIsArchivedChanged: {
-				this._persistSessionFlag(channel, AH_META_IS_ARCHIVED_DB_KEY, action.isArchived ? 'true' : '');
+				// Persistence rides the envelope observer registered in the
+				// constructor; only the non-persistence side effects live here.
 				// Host-owned worktree lifecycle (agents stay unaware): remove the
 				// clean, branch-preserved worktree on archive and recreate it on
 				// unarchive. Serialized per session inside the controller so it can't

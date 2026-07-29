@@ -40,8 +40,12 @@ suite('SessionServerTools', () => {
 	const workspace = URI.parse('file:///workspace/app');
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
 
+	/**
+	 * Sessions default to read (`IsRead` set); tests that care about unread
+	 * clear the bit explicitly so the two are never ambiguous.
+	 */
 	function sessionMeta(id: string, status: SessionStatus, dir: URI): IAgentSessionMetadata {
-		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
+		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status: status | SessionStatus.IsRead, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
 	}
 
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: IAgentModelInfo }) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
@@ -93,7 +97,6 @@ suite('SessionServerTools', () => {
 			activity: 'Running tests',
 			workingDirectories: workspace ? [workspace] : undefined,
 			project: { uri: workspace, displayName: 'app' },
-			isRead: false,
 			summary: 'Rich session',
 			changes: { files: 1, additions: 2, deletions: 0 },
 			_meta: meta,
@@ -115,14 +118,14 @@ suite('SessionServerTools', () => {
 		});
 	});
 
-	test('serializeSessions reports archived status for metadata-only archives', () => {
-		const metadataOnly: IAgentSessionMetadata = { ...sessionMeta('archived', SessionStatus.Idle, workspace), isArchived: true };
-		const bitOnly: IAgentSessionMetadata = { ...sessionMeta('bitArchived', SessionStatus.Idle | SessionStatus.IsArchived, workspace) };
-		const noStatus: IAgentSessionMetadata = { session: URI.parse('copilot:/noStatus'), startTime: 0, modifiedTime: 0, isArchived: true, workingDirectories: workspace ? [workspace] : undefined };
-		assert.deepStrictEqual(JSON.parse(serializeSessions([metadataOnly, bitOnly, noStatus])).sessions.map((s: { session: string; status?: string }) => ({ session: s.session, status: s.status })), [
+	test('serializeSessions reports archived status from the IsArchived status bit', () => {
+		const archived: IAgentSessionMetadata = { ...sessionMeta('archived', SessionStatus.Idle | SessionStatus.IsArchived, workspace) };
+		const notArchived: IAgentSessionMetadata = { ...sessionMeta('notArchived', SessionStatus.Idle, workspace) };
+		const noStatus: IAgentSessionMetadata = { session: URI.parse('copilot:/noStatus'), startTime: 0, modifiedTime: 0, workingDirectories: workspace ? [workspace] : undefined };
+		assert.deepStrictEqual(JSON.parse(serializeSessions([archived, notArchived, noStatus])).sessions.map((s: { session: string; status?: string }) => ({ session: s.session, status: s.status })), [
 			{ session: 'copilot:/archived', status: 'idle,archived' },
-			{ session: 'copilot:/bitArchived', status: 'idle,archived' },
-			{ session: 'copilot:/noStatus', status: 'archived' },
+			{ session: 'copilot:/notArchived', status: 'idle' },
+			{ session: 'copilot:/noStatus', status: undefined },
 		]);
 	});
 
@@ -181,9 +184,9 @@ suite('SessionServerTools', () => {
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const other = URI.parse('file:///workspace/other');
 		const idle = { ...sessionMeta('idle', SessionStatus.Idle, workspace), startTime: 1000, changes: { files: 2, additions: 5, deletions: 1 } };
-		const needsInput = { ...sessionMeta('needsInput', SessionStatus.InputNeeded, workspace), startTime: 3000, isRead: false };
+		const needsInput = { ...sessionMeta('needsInput', SessionStatus.InputNeeded, workspace), startTime: 3000, status: SessionStatus.InputNeeded };
 		const elsewhere = { ...sessionMeta('elsewhere', SessionStatus.Idle, other), startTime: 5000 };
-		const archived = { ...sessionMeta('archived', SessionStatus.Idle, workspace), startTime: 2000, isArchived: true };
+		const archived = { ...sessionMeta('archived', SessionStatus.Idle | SessionStatus.IsArchived, workspace), startTime: 2000 };
 		const withPr = { ...sessionMeta('withPr', SessionStatus.Idle, workspace), startTime: 4000, _meta: withSessionGitHubState(undefined, { pullRequestUrl: 'https://github.com/o/r/pull/2' }) };
 		const sessions = [idle, needsInput, elsewhere, archived, withPr];
 		const group = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions }));

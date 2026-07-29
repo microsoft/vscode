@@ -64,7 +64,7 @@ export interface IAgentSessionsModel {
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
 
-interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'iconPath'> {
+interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'iconPath' | 'isRead'> {
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -144,6 +144,15 @@ interface IInternalAgentSessionData extends IAgentSessionData {
 	 * and `setArchived()` methods instead.
 	 */
 	readonly archived: boolean | undefined;
+
+	/**
+	 * Read state as reported by the session's provider. Only meaningful for
+	 * providers that own read state (see
+	 * {@link IChatSessionsService.canSetChatSessionItemRead}); for those it is
+	 * authoritative and shared with every other client connected to the same
+	 * backend. Kept internal — use `isRead()` / `setRead()`.
+	 */
+	readonly providerIsRead: boolean | undefined;
 }
 
 interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData { }
@@ -507,6 +516,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
 		this.readDateBaseline = this.resolveReadDateBaseline(); // we use this to account for bugfixes in the read/unread tracking
+		this.loadMigratedReadResources();
 
 		this.registerListeners();
 	}
@@ -673,6 +683,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status: session.status ?? AgentSessionStatus.Completed,
 					archived: session.archived,
+					providerIsRead: session.isRead,
 					timing: session.timing,
 					changes: normalizedChanges,
 					metadata: session.metadata,
@@ -704,6 +715,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		this._sessions = sessions;
 		this._resolved = true;
+
+		this.migrateReadStateToProvider(sessions.values());
 
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
@@ -809,12 +822,33 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isMarkedUnread(session: IInternalAgentSessionData): boolean {
+		if (this.ownsReadState(session)) {
+			return !this.isRead(session);
+		}
+
 		return this.resolveStateEntry(session)?.read === AgentSessionsModel.UNREAD_MARKER;
+	}
+
+	/**
+	 * Whether the session's provider owns read state. When it does, the
+	 * provider-reported value is authoritative and shared with every other
+	 * client connected to the same backend (e.g. the agent window, or another
+	 * window on the same agent host), so the local timestamp heuristics below
+	 * must not second-guess it.
+	 */
+	private ownsReadState(session: IInternalAgentSessionData): boolean {
+		return this.chatSessionsService.canSetChatSessionItemRead(session.resource);
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
 		if (this.isArchived(session)) {
 			return true; // archived sessions are always read
+		}
+
+		if (this.ownsReadState(session)) {
+			// A session the provider has not reported on yet (e.g. one just
+			// created in this window) has no backend opinion; treat as read.
+			return session.providerIsRead ?? true;
 		}
 
 		const storedReadDate = this.resolveStateEntry(session)?.read;
@@ -841,6 +875,17 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
+		if (this.ownsReadState(session)) {
+			if (read === (session.providerIsRead ?? true)) {
+				return; // no change
+			}
+			// The provider echoes the new value back through a session-item
+			// change event, which refreshes the model — no local state to write
+			// and no event to fire here.
+			this.chatSessionsService.setChatSessionItemRead(session.resource, read);
+			return;
+		}
+
 		// Adopt any legacy state forward first so we don't establish an own entry
 		// under the current resource and orphan the legacy one.
 		const state = this.resolveStateEntry(session) ?? {};
@@ -863,6 +908,77 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		if (!skipEvent) {
 			this._onDidChangeSessions.fire();
+		}
+	}
+
+	private static readonly READ_MIGRATION_DONE_KEY = 'agentSessions.providerReadMigration';
+
+	private readonly migratedReadResources = new ResourceSet();
+
+	/**
+	 * One-time, additive hand-off of locally-tracked read state to providers that
+	 * own it. Without this, sessions that were read before their provider took
+	 * ownership would all resurface as unread, since the backend has no record of
+	 * them ever having been viewed.
+	 *
+	 * Only ever promotes a session to read, never back to unread, and runs at
+	 * most once per session (tracked in storage) so a deliberate "Mark as Unread"
+	 * afterwards is not undone on the next refresh.
+	 */
+	private migrateReadStateToProvider(sessions: Iterable<IInternalAgentSessionData>): void {
+		let changed = false;
+		for (const session of sessions) {
+			if (this.migratedReadResources.has(session.resource) || !this.ownsReadState(session)) {
+				continue;
+			}
+
+			// `undefined` means the provider has not reported yet — a session
+			// carried over from a cache written before it tracked read state, or
+			// one this resolve pass didn't cover. Consuming the one-shot flag now
+			// would drop the hand-off when the real value arrives, so wait.
+			if (session.providerIsRead === undefined) {
+				continue;
+			}
+
+			this.migratedReadResources.add(session.resource);
+			changed = true;
+
+			if (session.providerIsRead) {
+				continue; // already read on the backend — nothing to hand off
+			}
+
+			// Consult the local heuristics directly: `isRead()` already defers to
+			// the provider for these sessions.
+			const storedReadDate = this.resolveStateEntry(session)?.read;
+			if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
+				continue; // explicitly marked unread locally — leave it unread
+			}
+			const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline);
+			if (readDate >= this.sessionTimeForReadStateTracking(session) - 2000) {
+				this.chatSessionsService.setChatSessionItemRead(session.resource, true);
+			}
+		}
+
+		if (changed) {
+			this.storageService.store(
+				AgentSessionsModel.READ_MIGRATION_DONE_KEY,
+				JSON.stringify(Array.from(this.migratedReadResources).map(resource => resource.toString())),
+				StorageScope.WORKSPACE,
+				StorageTarget.MACHINE);
+		}
+	}
+
+	private loadMigratedReadResources(): void {
+		const raw = this.storageService.get(AgentSessionsModel.READ_MIGRATION_DONE_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return;
+		}
+		try {
+			for (const entry of JSON.parse(raw) as string[]) {
+				this.migratedReadResources.add(URI.parse(entry));
+			}
+		} catch {
+			// Ignore a corrupt entry: the worst case is re-running an additive migration.
 		}
 	}
 
@@ -909,6 +1025,8 @@ interface ISerializedAgentSession {
 	readonly icon: string;
 
 	readonly archived: boolean | undefined;
+
+	readonly isRead?: boolean;
 
 	readonly metadata: { [key: string]: unknown } | undefined;
 
@@ -957,6 +1075,7 @@ class AgentSessionsCache {
 
 			status: isSessionInProgressStatus(session.status) ? AgentSessionStatus.Completed : session.status, // never cache sessions as in progress, this needs to be live state
 			archived: session.archived,
+			isRead: session.providerIsRead,
 
 			timing: session.timing,
 
@@ -990,6 +1109,7 @@ class AgentSessionsCache {
 
 				status: session.status,
 				archived: session.archived,
+				providerIsRead: session.isRead,
 
 				timing: {
 					created: session.timing.created ?? 0,

@@ -1272,6 +1272,35 @@ export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
 /**
+ * Session-database metadata key recording whether a session has been read. Written by
+ * the AH orchestrator (`AgentSideEffects`, for both client-dispatched and
+ * server-dispatched `SessionIsReadChanged`) and read back by `AgentService`
+ * restore/list. This is the *only* durable representation of read state — the
+ * in-memory truth is {@link SessionStatus.IsRead} on the session summary, and
+ * neither the Copilot, Claude, nor Codex SDKs track read state themselves.
+ */
+export const AH_META_IS_READ_DB_KEY = 'isRead';
+
+/**
+ * Returns `status` with `flag` set or cleared. Use for the session-scoped flag
+ * bits ({@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived}) so they
+ * are never encoded as separate booleans alongside the status bitset.
+ */
+export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
+	return set ? (status | flag) : (status & ~flag);
+}
+
+/** Whether the {@link SessionStatus.IsRead} flag bit is set. */
+export function isSessionStatusRead(status: SessionStatus | undefined): boolean {
+	return status !== undefined && (status & SessionStatus.IsRead) !== 0;
+}
+
+/** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
+export function isSessionStatusArchived(status: SessionStatus | undefined): boolean {
+	return status !== undefined && (status & SessionStatus.IsArchived) !== 0;
+}
+
+/**
  * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
  * `true` only when the well-known key is present and set to boolean `true`.
  */

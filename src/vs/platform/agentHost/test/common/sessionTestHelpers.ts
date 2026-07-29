@@ -23,6 +23,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	deleteTurnsAfterCalls: string[] = [];
 	deleteAllTurnsCalls = 0;
 	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
+	setMetadataCalls: Array<{ key: string; value: string }> = [];
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -75,6 +76,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async setMetadata(key: string, value: string): Promise<void> {
+		this.setMetadataCalls.push({ key, value });
 		this._metadata.set(key, value);
 	}
 

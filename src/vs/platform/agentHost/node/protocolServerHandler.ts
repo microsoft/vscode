@@ -1270,19 +1270,13 @@ export class ProtocolServerHandler extends Disposable {
 				if (!provider) {
 					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
 				}
-				// Encode isRead/isArchived as status bitmask flags
-				let status = s.status ?? SessionStatus.Idle;
-				if (s.isRead) {
-					status |= SessionStatus.IsRead;
-				}
-				if (s.isArchived) {
-					status |= SessionStatus.IsArchived;
-				}
 				return {
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
-					status,
+					// `status` already carries the session-scoped `IsRead` /
+					// `IsArchived` flag bits; there is no separate boolean to fold in.
+					status: s.status ?? SessionStatus.Idle,
 					activity: s.activity,
 					createdAt: new Date(s.startTime).toISOString(),
 					modifiedAt: new Date(s.modifiedTime).toISOString(),

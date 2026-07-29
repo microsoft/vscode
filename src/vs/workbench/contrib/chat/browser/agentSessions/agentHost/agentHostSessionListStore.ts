@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostWorkspaceSessionMembershipStore } from './agentHostWorkspaceSessionMembershipStore.js';
@@ -124,14 +124,33 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	setSessionArchived(provider: string, rawId: string, archived: boolean): void {
+		this._setSessionFlag(provider, rawId, SessionStatus.IsArchived, archived, {
+			type: ActionType.SessionIsArchivedChanged,
+			isArchived: archived,
+		});
+	}
+
+	setSessionRead(provider: string, rawId: string, isRead: boolean): void {
+		this._setSessionFlag(provider, rawId, SessionStatus.IsRead, isRead, {
+			type: ActionType.SessionIsReadChanged,
+			isRead,
+		});
+	}
+
+	/**
+	 * Optimistically flips a session-scoped status flag on the cached summary and
+	 * dispatches the owning action so the host — the source of truth — fans the
+	 * change out to every other connected client. When the session isn't cached
+	 * the action is still dispatched; the resulting summary notification seeds
+	 * the entry.
+	 */
+	private _setSessionFlag(provider: string, rawId: string, flag: SessionStatus, set: boolean, action: IIsArchivedChangedAction | IIsReadChangedAction): void {
 		const session = AgentSession.uri(provider, rawId);
 		const key = this._key(provider, rawId);
 		const cached = this._entries.get(key);
 		let updated: IAgentHostSessionListEntry | undefined;
 		if (cached) {
-			const status = archived
-				? cached.summary.status | SessionStatus.IsArchived
-				: cached.summary.status & ~SessionStatus.IsArchived;
+			const status = set ? cached.summary.status | flag : cached.summary.status & ~flag;
 			if (status === cached.summary.status) {
 				return;
 			}
@@ -139,10 +158,7 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		this._mutationGeneration++;
-		this._connection.dispatch(session.toString(), {
-			type: ActionType.SessionIsArchivedChanged,
-			isArchived: archived,
-		});
+		this._connection.dispatch(session.toString(), action);
 		if (updated) {
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
@@ -315,13 +331,8 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const rawId = AgentSession.id(session.session);
-		let status = session.status ?? SessionStatus.Idle;
-		if (session.isRead) {
-			status |= SessionStatus.IsRead;
-		}
-		if (session.isArchived) {
-			status |= SessionStatus.IsArchived;
-		}
+		// `status` is the sole carrier for read/archived state; no booleans to fold in.
+		const status = session.status ?? SessionStatus.Idle;
 
 		return {
 			provider,

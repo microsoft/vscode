@@ -1157,6 +1157,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('caches session-scoped flags but never transient activity bits', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		// A session that was mid-turn (and unread) when the cache was flushed.
+		await persistCachedSessions(disposables, storageService, [{
+			...createSession('busy-1', { summary: 'Busy One' }),
+			status: ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsArchived,
+		}]);
+
+		// Fresh launch with authentication pending, so nothing corrects the
+		// hydrated state: a stale spinner here would stick around indefinitely
+		// for an unreachable remote host.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		const restored = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			status: restored.status.get(),
+			isArchived: restored.isArchived.get(),
+			isRead: restored.isRead.get(),
+		}, {
+			status: SessionStatus.Completed,
+			isArchived: true,
+			isRead: false,
+		});
+	}));
+
 	test('hydrated quick chat stays workspace-less after reload despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Regression #324581: a committed quick chat persisted into the startup
 		// cache carries a scratch cwd. The adapter seeds its session-kind at
@@ -1211,7 +1239,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// plain summary field.
 		agentHost.addSession({
 			...createSession('atomic-1', { summary: 'One', workingDirectory: URI.file('/repo') }),
-			isArchived: true,
+			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived,
 			_meta: withSessionGitState(undefined, { branchName: 'feature' }),
 		});
 		agentHost.fireAction({
