@@ -103,7 +103,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
-	private readonly _authenticationRecovery: AgentHostAuthenticationRecovery | undefined;
+	private _authenticationRecovery: AgentHostAuthenticationRecovery | undefined;
 	private readonly _pendingAuthenticationRequests = new Map<string, AuthRequiredReason>();
 
 	private readonly _isSessionsWindow: boolean;
