@@ -195,7 +195,7 @@ and you asked me not to run one.
 
 This is a provider capability difference, not a bug to be fixed by re-recording. Making these scenarios run against Codex means giving them a provider-specific prompt that pins a portable shell command instead of steering to file tools — the "pin, don't steer" half of [Steering versus pinning](#steering-versus-pinning). That is worth doing and is the actionable next step here.
 
-Reproduce with any of the gated scenarios:
+Reproduce by temporarily enabling `supportsFileTools` for Codex and recording one scenario:
 
 ```bash
 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
@@ -203,7 +203,16 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
   --grep "reads a file from a nested directory"
 ```
 
-The same gate also covers the file-operation scenarios that pin a shell command rather than steering. Codex performs those through `exec_command` too, and they do not replay stably once several of them share one server: the failing scenario moves between runs, which is the [shared-server load ceiling](./README.md#server-lifecycle) rather than a fault in any one test. Enabling them needs that lifecycle understood first; enabling them naively turns a green suite into one that fails about one run in four.
+Recording is required rather than incidental: these scenarios have no Codex capture, so plain replay stops at fixture resolution and never reaches the provider. **Note that this rewrites captures and AHP snapshots**, so `git checkout` the artifacts afterwards unless the new recording is the intended result. The failure appears in the run output — Codex says it cannot read a file without a shell — rather than in the artifacts.
+
+### Codex file scenarios are unstable on a shared server
+
+- Scope: Codex.
+- Gate: `stableSharedServerFileScenarios: false`.
+
+Separate from the capability gap above, and tracked separately because the two need different work. The file-operation scenarios that pin a portable shell command need no file tools, so Codex can run them — but it performs each through `exec_command`, and several such turns on one long-lived server do not replay stably: the tool-call completion is reported inconsistently, and **the failing scenario moves between runs**.
+
+That signature is the [shared-server load ceiling](./README.md#server-lifecycle), not a fault in any single test; each replays cleanly in isolation via `--grep`. Enabling the family naively turns a green suite into one that fails roughly one run in four, so it needs the lifecycle understood first.
 
 ## Platform and deterministic-replay limitations
 
@@ -301,7 +310,8 @@ These pending tests do not currently indicate bugs. They are listed by capabilit
 | Multiple chats | `supportsMultipleChats` | Codex | All model-backed peer-chat scenarios in `multiChatSuite` skip. The negative test `provider without multiple chat capability rejects peer creation` runs *because* of the gate. Host-owned peer-catalog semantics are unaffected — they moved to the conformance tier and run once regardless of provider. |
 | Chat fork (E2E) | `supportsChatForkE2E` | Claude, Codex | `forkProviderTest` scenarios skip. For Claude this is **not** an expected skip — see [Claude provider-context fork](#claude-provider-context-fork). |
 | Subagents | `supportsSubagents` | Codex | `subagent tool calls are routed to the subagent session, not flat in the parent`, `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`. |
-| File tools | `supportsFileTools` | Codex | The file-operation scenarios in `fileOperationsSuite`. See [Codex has no file tools](#codex-has-no-file-tools). |
+| File tools | `supportsFileTools` | Codex | The `fileOperationsSuite` scenarios whose prompt steers to file tools. See [Codex has no file tools](#codex-has-no-file-tools). |
+| Shared-server file scenarios | `stableSharedServerFileScenarios` | Codex | The `fileOperationsSuite` scenarios that pin a shell command. See [Codex file scenarios are unstable on a shared server](#codex-file-scenarios-are-unstable-on-a-shared-server). |
 | Plan mode | `supportsPlanMode` | Codex, Claude | `planning-mode session-state writes are auto-approved in default mode`. For Claude this is a prompt-portability problem — see [Claude plan-mode prompt](#claude-plan-mode-prompt). |
 | Host terminal tool | `supportsHostTerminalTool` | Claude, Codex | Worktree isolation is verified via the resolved working directory alone rather than terminal `pwd` output. |
 | Worktree isolation | `supportsWorktreeIsolation` | none | Now host-owned; enabled for all providers. |

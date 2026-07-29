@@ -39,6 +39,7 @@ export interface IAgentHostE2ETestContext {
 	 */
 	readonly portableShellToolReplayEnabled: boolean;
 	readonly supportsFileTools: boolean;
+	readonly stableSharedServerFileScenarios: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;

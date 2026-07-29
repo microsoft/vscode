@@ -324,6 +324,17 @@ export interface IAgentHostE2EProviderConfig {
 	 */
 	readonly supportsFileTools: boolean;
 	/**
+	 * Whether this provider's file-manipulation scenarios replay stably when the
+	 * whole suite shares one server.
+	 *
+	 * A provider without file tools performs each of them through its shell, and
+	 * several such turns on one long-lived server hit the shared-server load
+	 * ceiling: the tool-call completion is reported inconsistently and the
+	 * failing scenario moves between runs. Individually they replay fine, so
+	 * this gates the family rather than any single test.
+	 */
+	readonly stableSharedServerFileScenarios?: boolean;
+	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
 	 * on-disk `subagents/agent-*.jsonl` files — not reliably visible on Windows
