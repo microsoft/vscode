@@ -31,7 +31,7 @@ jobs:
       # Build VS Code from source. No VSCODE_RUN_*_TESTS flags are passed, so the
       # compile template builds the client/server but skips compiling the test
       # suites and skips the unit/integration/smoke test template entirely — we
-      # run only the smoke tests below, nothing else.
+      # run the tests below with iteration loops, nothing else.
       - template: ./steps/product-build-win32-compile.yml@self
         parameters:
           VSCODE_ARCH: x64
@@ -51,11 +51,76 @@ jobs:
       - powershell: npm run compile --prefix test/smoke
         displayName: Compile smoke tests
 
+      # Build the integration test extensions that integration tests depend on.
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npm run gulp `
+            compile-extension:configuration-editing `
+            compile-extension:css-language-features-server `
+            compile-extension:emmet `
+            compile-extension:git `
+            compile-extension:github-authentication `
+            compile-extension:html-language-features-server `
+            compile-extension:ipynb `
+            compile-extension:notebook-renderers `
+            compile-extension:json-language-features-server `
+            compile-extension:markdown-language-features `
+            compile-extension-media `
+            compile-extension:microsoft-authentication `
+            compile-extension:typescript-language-features `
+            compile-extension:vscode-api-tests `
+            compile-extension:vscode-colorize-tests `
+            compile-extension:vscode-colorize-perf-tests `
+            compile-extension:vscode-test-resolver `
+          }
+        displayName: Build integration tests
+
       # Guarantee the artifact directories exist so the 1ES output publishing
       # never fails on a missing path. The smoke runner writes logs under
       # .build/logs and crash dumps under .build/crashes (only on a crash).
       - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
         displayName: Ensure artifact directories exist
+
+      # Run the Electron unit tests once per iteration. continueOnError lets
+      # every iteration run even if some fail, and gives each run its own
+      # timeline record so the flaky function can tally passes vs. failures.
+      - ${{ each i in parameters.iterations }}:
+        - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
+          env:
+            VSCODE_SKIP_PRELAUNCH: '1'
+          displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+          continueOnError: true
+          timeoutInMinutes: 15
+
+      # Run the node.js unit tests once per iteration.
+      - ${{ each i in parameters.iterations }}:
+        - powershell: |
+            New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
+            npm run test-node -- --build
+          displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
+          continueOnError: true
+          timeoutInMinutes: 15
+
+      # Run the Electron integration tests once per iteration. continueOnError
+      # lets every iteration run even if some fail, and gives each run its own
+      # timeline record so the flaky function can tally passes vs. failures.
+      - ${{ each i in parameters.iterations }}:
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+            $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+            $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+            $AppNameShort = $AppProductJson.nameShort
+            $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+            $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+            exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+          env:
+            VSCODE_SKIP_PRELAUNCH: '1'
+          displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+          continueOnError: true
+          timeoutInMinutes: 20
 
       # Run the Electron smoke test once per iteration. continueOnError lets every
       # iteration run even if some fail, and gives each run its own timeline record
