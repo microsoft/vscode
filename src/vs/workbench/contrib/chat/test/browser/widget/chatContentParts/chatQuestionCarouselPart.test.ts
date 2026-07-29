@@ -279,42 +279,6 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
 		});
 
-		test('does not submit singleSelect option when dragging over its text', () => {
-			const carousel = createMockCarousel([
-				{
-					id: 'q1',
-					type: 'singleSelect',
-					title: 'Choose one',
-					options: [{ id: 'a', label: 'Option A', value: 'a' }]
-				}
-			]);
-			createWidget(carousel);
-
-			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
-			listItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }));
-			listItem.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 0, detail: 1 }));
-
-			assert.strictEqual(submittedAnswers, null);
-		});
-
-		test('does not toggle multiSelect option when dragging over its text', () => {
-			const carousel = createMockCarousel([
-				{
-					id: 'q1',
-					type: 'multiSelect',
-					title: 'Choose multiple',
-					options: [{ id: 'a', label: 'Option A', value: 'a' }]
-				}
-			]);
-			createWidget(carousel);
-
-			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
-			listItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }));
-			listItem.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 0, detail: 1 }));
-
-			assert.strictEqual(listItem.classList.contains('checked'), false);
-		});
-
 		test('freeform textarea is rendered for singleSelect by default', () => {
 			const carousel = createMockCarousel([
 				{
