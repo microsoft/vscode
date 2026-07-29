@@ -100,6 +100,11 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		return await this.metadataStore.getRepositoryProperties(sessionId);
 	}
 
+	async setRepositoryProperties(sessionId: string, repositoryProperties: RepositoryProperties): Promise<void> {
+		this.sessionsWithNoRepoProperties.delete(sessionId);
+		await this.metadataStore.storeRepositoryProperties(sessionId, repositoryProperties);
+	}
+
 	async handleRequestCompleted(sessionId: string): Promise<void> {
 		// Clear changes cache
 		this.invalidateSessionCache(sessionId);
@@ -109,6 +114,14 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		const existingRepoKey = this.sessionRepoKeys.get(sessionId);
 		const cachedChanges = existingRepoKey ? this.workspaceFolderChanges.get(existingRepoKey) : undefined;
 		return !!cachedChanges;
+	}
+
+	async refreshWorkspaceChanges(sessionId: string): Promise<void> {
+		// Clear the cache
+		this.clearWorkspaceChanges(sessionId);
+
+		// Populate the cache
+		await this.getWorkspaceChanges(sessionId);
 	}
 
 	async getWorkspaceChanges(sessionId: string): Promise<readonly ChatSessionWorktreeFile[] | undefined> {

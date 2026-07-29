@@ -14,13 +14,13 @@ import type { ICompletedSpanData } from '../../../platform/otel/common/otelServi
 // ── Truncation limits (shared by sessionStoreTracker and sessionReindexer) ──
 
 /** Maximum characters stored for user_message. */
-export const MAX_USER_MESSAGE_LENGTH = 100;
+export const MAX_USER_MESSAGE_LENGTH = 1000;
 
 /** Maximum characters stored for assistant_response. */
-export const MAX_ASSISTANT_RESPONSE_LENGTH = 1000;
+export const MAX_ASSISTANT_RESPONSE_LENGTH = 5000;
 
 /** Maximum characters stored for session summary. */
-export const MAX_SUMMARY_LENGTH = 100;
+export const MAX_SUMMARY_LENGTH = 1000;
 
 /**
  * Truncate a string to at most `maxLength` stored characters, appending '...' if truncated.

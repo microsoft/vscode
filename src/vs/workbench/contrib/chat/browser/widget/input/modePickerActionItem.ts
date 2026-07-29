@@ -40,6 +40,8 @@ export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
 	readonly currentChatModes: IObservable<IChatModes>;
 	readonly sessionResource: () => URI | undefined;
+	/** Direct mode-change callback for hosts without a registered IChatWidget (bypasses ToggleAgentModeActionId). */
+	readonly setMode?: (mode: IChatMode) => void;
 	/**
 	 * When set, the mode picker will show custom agents whose target matches this value.
 	 * Custom agents without a target are always shown in all session types. If no agents match the target, shows a default "Agent" option.
@@ -51,7 +53,6 @@ export interface IModePickerDelegate {
 const builtinDefaultIcon = (mode: IChatMode) => {
 	switch (mode.name.get().toLowerCase()) {
 		case 'ask': return Codicon.ask;
-		case 'edit': return Codicon.edit;
 		case 'plan': return Codicon.tasklist;
 		default: return undefined;
 	}
@@ -136,6 +137,20 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				run: async () => {
 					if (isDisabledViaPolicy) {
 						return; // Block interaction if disabled by policy
+					}
+					// Session-less hosts (e.g. the automations dialog) provide
+					// `setMode` and a `sessionResource` that returns undefined.
+					// Skip the command path because it requires a registered
+					// `IChatWidget`. Route the change to the host directly so the
+					// input's mode observable is actually updated. Real chat
+					// widgets always have a session URI. They always take the
+					// command path (telemetry, confirmation, new-chat-on-clear).
+					if (this.delegate.setMode && !this.delegate.sessionResource()) {
+						this.delegate.setMode(mode);
+						if (this.element) {
+							this.renderLabel(this.element);
+						}
+						return;
 					}
 					const result = await commandService.executeCommand(
 						ToggleAgentModeActionId,
@@ -290,7 +305,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const labelElements = [];
-		const collapsed = this.pickerOptions.hideChevrons.get();
+		const collapsed = this.pickerOptions.compact.get();
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		}
@@ -303,7 +318,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 }
 
-function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
+export function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
 	if (mode.isBuiltin) {
 		return true;
 	}
@@ -325,13 +340,9 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 }
 
 function shouldShowBuiltInMode(mode: IChatMode, assignments: { showOldAskMode: boolean }, agentModeDisabledViaPolicy: boolean): boolean {
-	// The built-in "Edit" mode is deprecated, but still supported for older conversations and agent disablement.
-	if (mode.id === ChatMode.Edit.id || mode.name.get().toLowerCase() === 'edit') {
-		if (mode.id === ChatMode.Edit.id) {
-			return agentModeDisabledViaPolicy;
-		} else {
-			return !agentModeDisabledViaPolicy;
-		}
+	// The built-in "Edit" mode is deprecated, but still shown when agent mode is disabled via policy.
+	if (mode.id === ChatMode.Edit.id) {
+		return agentModeDisabledViaPolicy;
 	}
 
 	// The "Ask" mode is a special case - we want to show either the old or new version based on the assignment or agent disablement, but not both

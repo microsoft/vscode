@@ -70,7 +70,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			return null;
 		}
 
-		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
+		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']) || location.matches(['catalog']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
 				if (currentWord[0] === '@') {
@@ -184,7 +184,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			return null;
 		}
 
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
+		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']) || location.matches(['catalog', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
 				const info = await this.fetchPackageInfo(currentKey, resource);
@@ -317,24 +317,22 @@ export class PackageJSONContribution implements IJSONContribution {
 				commandPath = `"${npmCommandPath}"`;
 			}
 			cp.execFile(commandPath, args, options, (error, stdout) => {
-				resolve(error ? undefined : stdout);
+				resolve(error ? undefined : stdout.toString());
 			});
 		});
 	}
 
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		// Request @latest to avoid fetching publish timestamps for all versions in the time field.
-		const args = ['view', '--json', '--', `${pack}@latest`, 'description', 'homepage', 'version', 'time'];
-
+		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
 		if (stdout) {
 			try {
 				const content = JSON.parse(stdout);
-				const version = content['version'];
+				const version = content['dist-tags.latest'] || content['version'];
 				return {
 					description: content['description'],
-					version: content['version'],
-					time: version ? content['time']?.[version] : undefined,
+					version,
+					time: content.time?.[version],
 					homepage: content['homepage']
 				};
 			} catch (e) {
@@ -385,7 +383,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		if (!this.isEnabled()) {
 			return null;
 		}
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
+		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']) || location.matches(['catalog', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
 				return this.fetchPackageInfo(pack, resource).then(info => {

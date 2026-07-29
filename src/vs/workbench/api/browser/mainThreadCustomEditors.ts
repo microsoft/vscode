@@ -46,6 +46,7 @@ import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, NO_TYPE_ID, Wo
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { IUntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -100,6 +101,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
 	) {
 		super();
 
@@ -419,7 +421,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 			case CustomEditorModelType.Custom:
 				{
-					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, () => {
+					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, this._untitledTextEditorService, () => {
 						return Array.from(this.mainThreadWebviewPanels.webviewInputs)
 							.filter(editor =>
 								(editor instanceof CustomEditorInput && isEqual(editor.resource, resource))
@@ -529,6 +531,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		viewType: string,
 		resource: URI,
 		options: { backupId?: string },
+		untitledTextEditorService: IUntitledTextEditorService,
 		getEditors: () => CustomEditorWebviewInput[],
 		cancellation: CancellationToken,
 	): Promise<MainThreadCustomEditorModel> {
@@ -539,6 +542,14 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			untitledDocumentData = primaryCustomEditorInput.untitledDocumentData;
 		}
 		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
+
+		// Now that the extension has received the untitledDocumentData, revert
+		// the untitled text model so it is no longer tracked as a separate dirty
+		// working copy (avoids double-dirty prompts, see #125293).
+		if (untitledDocumentData && resource.scheme === Schemas.untitled) {
+			untitledTextEditorService.get(resource)?.revert();
+		}
+
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors);
 	}
 

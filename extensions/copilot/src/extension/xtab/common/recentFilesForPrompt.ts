@@ -26,7 +26,12 @@ export function getRecentCodeSnippets(
 	computeTokens: (code: string) => number,
 	opts: PromptOptions,
 	neighborSnippets?: readonly INeighborFileSnippet[],
-): { codeSnippets: string; documents: Set<DocumentId>; neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined } {
+): {
+	codeSnippets: string;
+	documents: Set<DocumentId>;
+	neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	subsections: RecentlyViewedSubsectionSnippets;
+} {
 
 	const { includeViewedFiles, nDocuments, clippingStrategy } = opts.recentlyViewedDocuments;
 
@@ -40,22 +45,47 @@ export function getRecentCodeSnippets(
 		recentlyViewedCodeSnippets = docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d));
 	}
 
+	// Keep the three sources in separate arrays (like `runGlobalBudgetCascade`)
+	// so per-subsection token counts can be reported. The appenders only read
+	// `docsInPrompt` for de-duplication, so splitting the output arrays does not
+	// change which snippets are selected; concatenating them in the same order
+	// (recent files, language context, neighbor files) reproduces the previous
+	// single-array output byte-for-byte.
 	const { snippets, docsInPrompt } = buildCodeSnippetsUsingPagedClipping(recentlyViewedCodeSnippets, computeTokens, opts);
 
+	const langCtxSnippets: string[] = [];
 	if (langCtx) {
-		appendLanguageContextSnippets(langCtx, snippets, opts.languageContext.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+		appendLanguageContextSnippets(langCtx, langCtxSnippets, opts.languageContext.maxTokens, computeTokens);
 	}
 
+	const neighborOutSnippets: string[] = [];
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	if (opts.neighborFiles.enabled && neighborSnippets && neighborSnippets.length > 0) {
-		neighborSnippetsResult = appendNeighborFileSnippets(neighborSnippets, snippets, docsInPrompt, opts.neighborFiles.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+		neighborSnippetsResult = appendNeighborFileSnippets(neighborSnippets, neighborOutSnippets, docsInPrompt, opts.neighborFiles.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
 	}
 
 	return {
-		codeSnippets: snippets.join('\n\n'),
+		codeSnippets: [...snippets, ...langCtxSnippets, ...neighborOutSnippets].join('\n\n'),
 		documents: docsInPrompt,
 		neighborSnippetsResult,
+		subsections: {
+			recentlyViewedFiles: snippets.join('\n\n'),
+			languageContext: langCtxSnippets.join('\n\n'),
+			neighborFiles: neighborOutSnippets.join('\n\n'),
+		},
 	};
+}
+
+/**
+ * Rendered strings for the three sources that make up the
+ * `recently_viewed_code_snippets` block, kept separate so per-subsection token
+ * counts can be reported. Each is the `\n\n`-joined snippets for that source
+ * (empty string when the source contributed nothing).
+ */
+export interface RecentlyViewedSubsectionSnippets {
+	readonly recentlyViewedFiles: string;
+	readonly languageContext: string;
+	readonly neighborFiles: string;
 }
 
 function formatLinesWithLineNumbers(
@@ -169,12 +199,31 @@ function collectRecentDocumentsGrouped(
 	return docOrder.map(docId => ({ docId, entries: docEntries.get(docId)! }));
 }
 
-type RecentCodeSnippet = {
+export type RecentCodeSnippet = {
 	readonly id: DocumentId;
 	readonly content: StringText;
 	readonly focalRanges?: readonly OffsetRange[];
 	readonly editEntryCount?: number;
 };
+
+/**
+ * Build the per-document `RecentCodeSnippet` list that feeds the paged-clipping
+ * recently-viewed builder. Extracted from {@link getRecentCodeSnippets} so the
+ * global-budget cascade can run the recently-viewed sub-builder independently.
+ */
+export function prepareRecentCodeSnippets(
+	activeDoc: StatelessNextEditDocument,
+	xtabHistory: readonly IXtabHistoryEntry[],
+	opts: PromptOptions,
+): RecentCodeSnippet[] {
+	const { includeViewedFiles, nDocuments, clippingStrategy } = opts.recentlyViewedDocuments;
+	if (clippingStrategy === RecentFileClippingStrategy.Proportional) {
+		const grouped = collectRecentDocumentsGrouped(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
+		return grouped.map(g => historyEntriesToCodeSnippet(g.entries));
+	}
+	const docsBesidesActiveDoc = collectRecentDocuments(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
+	return docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d));
+}
 
 /**
  * Select focal ranges prioritizing the most recent (earliest in array order),
@@ -295,14 +344,18 @@ export function historyEntriesToCodeSnippet(entries: IXtabHistoryEntry[]): Recen
 
 /**
  * Append language context snippets to the snippets array, respecting the token budget.
+ * Language context snippets omit line numbers because providers do not report source ranges.
+ *
+ * @returns the number of tokens consumed (matches the same per-snippet accounting
+ * the function uses internally for budget decisions).
  */
-function appendLanguageContextSnippets(
+export function appendLanguageContextSnippets(
 	langCtx: LanguageContextResponse,
 	snippets: string[],
 	tokenBudget: number,
 	computeTokens: (code: string) => number,
-	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
-): void {
+): number {
+	const initialBudget = tokenBudget;
 	for (const langCtxEntry of langCtx.items) {
 		// Context which is provided on timeout is not guranteed to be good context
 		// TODO should these be included?
@@ -320,10 +373,15 @@ function appendLanguageContextSnippets(
 				break;
 			}
 			const documentId = DocumentId.create(ctx.uri.toString());
-			snippets.push(formatCodeSnippet(documentId, langCtxSnippet.split(/\r?\n/), { truncated: false, includeLineNumbers, startLineOffset: 0 }));
+			snippets.push(formatCodeSnippet(documentId, langCtxSnippet.split(/\r?\n/), {
+				truncated: false,
+				includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption.None,
+				startLineOffset: 0,
+			}));
 			tokenBudget = potentialBudget;
 		}
 	}
+	return initialBudget - tokenBudget;
 }
 
 /**
@@ -341,6 +399,8 @@ export interface AppendNeighborFileSnippetsResult {
 	 * at 0, 1 and 2 were skipped because the budget ran out).
 	 */
 	readonly includedIndices: readonly number[];
+	/** Tokens consumed using the same per-snippet accounting used for budget decisions. */
+	readonly tokensConsumed: number;
 }
 
 /**
@@ -363,6 +423,7 @@ export function appendNeighborFileSnippets(
 	computeTokens: (code: string) => number,
 	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
 ): AppendNeighborFileSnippetsResult {
+	const initialBudget = tokenBudget;
 	const selected: { snippet: INeighborFileSnippet; originalIndex: number }[] = [];
 	// Iterate from highest score (last) to lowest (first) so the best snippets reserve budget first.
 	for (let i = neighborSnippets.length - 1; i >= 0; i--) {
@@ -382,10 +443,15 @@ export function appendNeighborFileSnippets(
 	// Reverse so the highest-scoring snippet is appended last (closest to the current file).
 	for (let i = selected.length - 1; i >= 0; i--) {
 		const neighborSnippet = selected[i].snippet;
+		// Related (language-service) files omit line numbers, matching the language-context path;
+		// open-tab neighbors keep the configured line-number formatting.
+		const snippetIncludeLineNumbers = neighborSnippet.isFromRelatedFile
+			? xtabPromptOptions.IncludeLineNumbersOption.None
+			: includeLineNumbers;
 		snippets.push(formatCodeSnippet(
 			DocumentId.create(neighborSnippet.uri),
 			neighborSnippet.snippet.split(/\r?\n/),
-			{ truncated: false, includeLineNumbers, startLineOffset: neighborSnippet.lineRange.startLine },
+			{ truncated: false, includeLineNumbers: snippetIncludeLineNumbers, startLineOffset: neighborSnippet.lineRange.startLine },
 		));
 	}
 	const includedIndices = selected.map(s => s.originalIndex).sort((a, b) => a - b);
@@ -393,6 +459,7 @@ export function appendNeighborFileSnippets(
 		nComputed: neighborSnippets.length,
 		nIncluded: selected.length,
 		includedIndices,
+		tokensConsumed: initialBudget - tokenBudget,
 	};
 }
 
@@ -490,6 +557,7 @@ function clipAroundFocalRanges(
 	tokenBudget: number,
 	computeTokens: (s: string) => number,
 	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
+	useLeftoverBudgetFromAbove: boolean,
 	result: { snippets: string[]; docsInPrompt: Set<DocumentId> },
 ): number | undefined {
 	if (tokenBudget <= 0) {
@@ -522,7 +590,8 @@ function clipAroundFocalRanges(
 		pageSize,
 		tokenBudget,
 		computeTokens,
-		false
+		false,
+		useLeftoverBudgetFromAbove
 	);
 
 	if (budgetLeft === tokenBudget) {
@@ -551,7 +620,7 @@ export function buildCodeSnippetsUsingPagedClipping(
 	recentlyViewedCodeSnippets: RecentCodeSnippet[],
 	computeTokens: (s: string) => number,
 	opts: PromptOptions,
-): { snippets: string[]; docsInPrompt: Set<DocumentId> } {
+): { snippets: string[]; docsInPrompt: Set<DocumentId>; tokensConsumed: number } {
 
 	const pageSize = opts.pagedClipping?.pageSize;
 	if (pageSize === undefined) {
@@ -575,15 +644,17 @@ function buildCodeSnippetsGreedy(
 	computeTokens: (s: string) => number,
 	opts: PromptOptions,
 	pageSize: number,
-): { snippets: string[]; docsInPrompt: Set<DocumentId> } {
+): { snippets: string[]; docsInPrompt: Set<DocumentId>; tokensConsumed: number } {
 
 	const result: { snippets: string[]; docsInPrompt: Set<DocumentId> } = {
 		snippets: [],
 		docsInPrompt: new Set<DocumentId>(),
 	};
 
-	let maxTokenBudget = opts.recentlyViewedDocuments.maxTokens;
+	const initialBudget = opts.recentlyViewedDocuments.maxTokens;
+	let maxTokenBudget = initialBudget;
 	const includeLineNumbers = opts.recentlyViewedDocuments.includeLineNumbers;
+	const useLeftoverBudgetFromAbove = opts.recentlyViewedDocuments.useLeftoverBudgetFromAbove;
 
 	for (const file of recentlyViewedCodeSnippets) {
 		const lines = file.content.getLines();
@@ -593,7 +664,7 @@ function buildCodeSnippetsGreedy(
 		if (file.focalRanges !== undefined) {
 			const budgetLeft = clipAroundFocalRanges(
 				file as { id: DocumentId; content: StringText; focalRanges: readonly OffsetRange[] },
-				pageSize, lines.length, maxTokenBudget, computeTokens, includeLineNumbers, result
+				pageSize, lines.length, maxTokenBudget, computeTokens, includeLineNumbers, useLeftoverBudgetFromAbove, result
 			);
 			if (budgetLeft === undefined) {
 				break;
@@ -605,7 +676,7 @@ function buildCodeSnippetsGreedy(
 		}
 	}
 
-	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt };
+	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt, tokensConsumed: initialBudget - maxTokenBudget };
 }
 
 /**
@@ -621,7 +692,7 @@ function buildCodeSnippetsWithProportionalBudget(
 	computeTokens: (s: string) => number,
 	opts: PromptOptions,
 	pageSize: number,
-): { snippets: string[]; docsInPrompt: Set<DocumentId> } {
+): { snippets: string[]; docsInPrompt: Set<DocumentId>; tokensConsumed: number } {
 
 	const result: { snippets: string[]; docsInPrompt: Set<DocumentId> } = {
 		snippets: [],
@@ -630,9 +701,10 @@ function buildCodeSnippetsWithProportionalBudget(
 
 	const totalBudget = opts.recentlyViewedDocuments.maxTokens;
 	const includeLineNumbers = opts.recentlyViewedDocuments.includeLineNumbers;
+	const useLeftoverBudgetFromAbove = opts.recentlyViewedDocuments.useLeftoverBudgetFromAbove;
 
 	if (recentlyViewedCodeSnippets.length === 0) {
-		return { snippets: [], docsInPrompt: new Set() };
+		return { snippets: [], docsInPrompt: new Set(), tokensConsumed: 0 };
 	}
 
 	// --- Pass 1: compute minimum focal costs ---
@@ -652,7 +724,7 @@ function buildCodeSnippetsWithProportionalBudget(
 	}
 
 	if (includedCount === 0) {
-		return { snippets: [], docsInPrompt: new Set() };
+		return { snippets: [], docsInPrompt: new Set(), tokensConsumed: 0 };
 	}
 
 	// --- Pass 2: distribute expansion budget proportionally ---
@@ -675,7 +747,7 @@ function buildCodeSnippetsWithProportionalBudget(
 		if (file.focalRanges !== undefined && file.focalRanges.length > 0) {
 			const budgetLeft = clipAroundFocalRanges(
 				file as { id: DocumentId; content: StringText; focalRanges: readonly OffsetRange[] },
-				pageSize, lines.length, effectiveBudget, computeTokens, includeLineNumbers, result
+				pageSize, lines.length, effectiveBudget, computeTokens, includeLineNumbers, useLeftoverBudgetFromAbove, result
 			);
 			unspentBudget = budgetLeft ?? effectiveBudget;
 		} else {
@@ -684,6 +756,8 @@ function buildCodeSnippetsWithProportionalBudget(
 		}
 	}
 
-	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt };
+	// Total budget given out across all files = sum(focalCosts[0..includedCount]) + expansionBudget = totalBudget,
+	// with unspentBudget rolling forward each iteration. Final unspentBudget therefore represents the leftover
+	// of the entire pool, so consumed = totalBudget - finalUnspentBudget.
+	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt, tokensConsumed: totalBudget - unspentBudget };
 }
-

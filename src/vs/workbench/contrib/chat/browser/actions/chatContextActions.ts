@@ -93,7 +93,7 @@ abstract class AttachResourceAction extends Action2 {
 	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
-		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
+		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, ...args) : Array.isArray(args[1]) ? args[1] : [args[0]];
 		const files = [];
 		for (const context of contexts) {
 			let uri;

@@ -27,8 +27,6 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 			userDataDir,
 			homeDir: userDataDir,
 			tmpDir: userDataDir,
-			parentAppUserDataDir: undefined,
-			parentAppUserHomeDir: undefined
 		};
 		super(Object.create(null), paths, { _serviceBrand: undefined, ...product });
 	}
@@ -127,6 +125,7 @@ suite('UserDataProfileMainService', () => {
 			keybindings: true,
 			prompts: true,
 			mcp: true,
+			languageModels: true,
 			snippets: true,
 			tasks: true,
 			extensions: true,
@@ -138,6 +137,7 @@ suite('UserDataProfileMainService', () => {
 		assert.strictEqual(profile.extensionsResource.toString(), testObject.defaultProfile.extensionsResource.toString());
 		assert.strictEqual(profile.promptsHome.toString(), testObject.defaultProfile.promptsHome.toString());
 		assert.strictEqual(profile.mcpResource.toString(), testObject.defaultProfile.mcpResource.toString());
+		assert.strictEqual(profile.languageModelsResource.toString(), testObject.defaultProfile.languageModelsResource.toString());
 	});
 
 });

@@ -11,7 +11,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-export type { AICustomizationPromptsStorage } from '../../common/aiCustomizationWorkspaceService.js';
+export type { AICustomizationSource } from '../../common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 
 export function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {

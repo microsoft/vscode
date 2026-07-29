@@ -8,11 +8,36 @@
  */
 export const enum AgentSandboxSettingId {
 	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
-	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
+	AgentSandboxWindowsEnabled = 'chat.agent.sandbox.enabledWindows',
+	AgentSandboxAllowNetwork = 'chat.agent.sandbox.allowNetwork',
+	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
+	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
+	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
+	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
+	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
+	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
+	AgentSandboxWindowsSchemaVersion = 'chat.agent.sandbox.advanced.windows.schemaVersion',
+	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 }
 
 export const enum AgentSandboxEnabledValue {
 	Off = 'off',
 	On = 'on',
 	AllowNetwork = 'allowNetwork',
+}
+
+export type AgentSandboxEnabledSettingValue = AgentSandboxEnabledValue | boolean;
+
+export function normalizeAgentSandboxEnabledValue(value: AgentSandboxEnabledSettingValue): AgentSandboxEnabledValue {
+	if (value === true) {
+		return AgentSandboxEnabledValue.On;
+	}
+	if (value === false) {
+		return AgentSandboxEnabledValue.Off;
+	}
+	return value;
+}
+
+export function isAgentSandboxEnabledValue(value: AgentSandboxEnabledSettingValue | undefined): boolean {
+	return value !== undefined && normalizeAgentSandboxEnabledValue(value) !== AgentSandboxEnabledValue.Off;
 }

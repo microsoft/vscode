@@ -10,7 +10,7 @@ import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Tag } from '../../base/tag';
 import { EXISTING_CODE_MARKER } from '../../panel/codeBlockFormattingRules';
-import { MathIntegrationRules } from '../../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabilities, GenericEditingTips, getEditingReminder, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from '../defaultAgentInstructions';
 import { FileLinkificationInstructions } from '../fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from '../promptRegistry';
@@ -114,7 +114,7 @@ export class DefaultOpenAIAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				- Wrap symbol names (classes, methods, variables) in backticks: `MyClass`, `handleClick()`<br />
 				- When mentioning files or line numbers, always follow the rules in fileLinkification section below:
 				<FileLinkificationInstructions />
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;

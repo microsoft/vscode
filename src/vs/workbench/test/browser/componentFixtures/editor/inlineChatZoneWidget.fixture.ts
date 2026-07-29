@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -24,8 +25,10 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -49,6 +52,10 @@ import { IPromptsService } from '../../../../contrib/chat/common/promptSyntax/se
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -142,7 +149,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatInput, {
 });
 MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	group: 'navigation', order: 4,
-	command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp },
+	command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine },
 });
 
 function renderInlineChatZoneWidget({ container, disposableStore, theme }: ComponentFixtureContext, showTerminationCard: boolean): void {
@@ -223,6 +230,17 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
 				override readonly anonymousObs = observableValue('anonymous', false);
 				override readonly onDidChangeAnonymous = Event.None;
+				override readonly onDidChangeEntitlement = Event.None;
+				override readonly onDidChangeSentiment = Event.None;
+				// A signed-in, set-up user so the model picker renders normally
+				// (no Restricted / Sign In state) in this fixture.
+				override readonly sentiment = { completed: true };
+				override readonly entitlement = ChatEntitlement.Pro;
+				override readonly anonymous = false;
+				override readonly hasByokModels = false;
+				override readonly quotas = {};
+				override readonly onDidChangeQuotaRemaining = Event.None;
+				override readonly onDidChangeUsageBasedBilling = Event.None;
 			}());
 			reg.defineInstance(IChatModeService, new MockChatModeService());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
@@ -241,6 +259,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override getOptionGroupsForSessionType() { return undefined; }
 				override getCustomAgentTargetForSessionType() { return Target.Undefined; }
 				override requiresCustomModelsForSessionType() { return false; }
+				override supportsAutoModelForSessionType() { return true; }
 				override getChatSessionContribution() { return undefined; }
 				override getCapabilitiesForSessionType() { return undefined; }
 				override getSessionOptions() { return undefined; }
@@ -248,6 +267,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			}());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 				override readonly onDidChangeLanguageModels = Event.None;
+				override readonly onDidChangeModelVisibility = Event.None;
 				override getLanguageModelIds() { return []; }
 				override getVendors() { return []; }
 			}());
@@ -261,6 +281,18 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
 					override readonly onDidChangeSessions = Event.None;
 				}();
+			}());
+			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
+			reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get() { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
+				override resolve() { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() {
+				override readonly onDidChangeFolder = Event.None;
+				override getFolder() { return undefined; }
 			}());
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
@@ -293,6 +325,13 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 				override readonly onDidChange = Event.None;
 				override getActiveNotification() { return undefined; }
+				override announceRendered() { }
+			}());
+			reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
+				override registerHost() { return Disposable.None; }
+			}());
+			reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
+				override registerHost() { return Disposable.None; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
@@ -397,7 +436,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 
 	zoneWidget.show(new Position(10, 1));
 
-	const dummyModel = instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false });
+	const dummyModel = disposableStore.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false }));
 	zoneWidget.widget.chatWidget.setModel(dummyModel);
 	zoneWidget.widget.chatWidget.setInputPlaceholder('Ask Copilot...');
 

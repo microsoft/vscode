@@ -409,6 +409,9 @@ export class CustomMenubarControl extends MenubarControl {
 			case StateType.Updating:
 				return toAction({ id: 'update.updating', label: localize('installingUpdate', "Installing Update..."), enabled: false, run: () => { } });
 
+			case StateType.Cancelling:
+				return toAction({ id: 'update.cancelling', label: localize('cancellingUpdate', "Cancelling Update..."), enabled: false, run: () => { } });
+
 			case StateType.Ready:
 				return toAction({
 					id: 'update.restart', label: localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), enabled: true, run: () =>

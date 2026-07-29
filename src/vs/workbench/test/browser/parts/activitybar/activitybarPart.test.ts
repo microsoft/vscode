@@ -48,6 +48,11 @@ class StubPaneCompositePart implements IPaneCompositePart {
 	dispose(): void { }
 }
 
+class TestFloatingPanelsLayoutService extends TestLayoutService {
+	floatingPanelsEnabled = false;
+	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+}
+
 suite('ActivitybarPart', () => {
 
 	const disposables = new DisposableStore();
@@ -66,13 +71,15 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean): { part: ActivitybarPart; configService: TestConfigurationService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
+			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 		});
 		const storageService = disposables.add(new TestStorageService());
 		const themeService = new TestThemeService();
-		const layoutService = new TestLayoutService();
+		const layoutService = new TestFloatingPanelsLayoutService();
+		layoutService.floatingPanelsEnabled = floatingPanelsEnabled;
 
 		// Override isVisible to return false so that create() does not call show()
 		// and attempt to instantiate the composite bar (which requires a full DI setup).
@@ -92,7 +99,7 @@ suite('ActivitybarPart', () => {
 			configService,
 		));
 
-		return { part, configService };
+		return { part, configService, layoutService };
 	}
 
 	function fireConfigChange(configService: TestConfigurationService, key: string): void {
@@ -103,7 +110,7 @@ suite('ActivitybarPart', () => {
 
 	// --- Static constants ---------------------------------------------------
 
-	test('default constants match original (pre-compact) dimensions', () => {
+	test('default constants match expected dimensions', () => {
 		assert.deepStrictEqual(
 			{
 				width: ActivitybarPart.ACTIVITYBAR_WIDTH,
@@ -127,8 +134,23 @@ suite('ActivitybarPart', () => {
 			},
 			{
 				width: 36,
-				actionHeight: 32,
+				actionHeight: 28,
 				iconSize: 16,
+			}
+		);
+	});
+
+	test('floating constants are narrower than default', () => {
+		assert.deepStrictEqual(
+			{
+				width: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH,
+				actionHeight: ActivitybarPart.FLOATING_ACTION_HEIGHT,
+				compactWidth: ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH,
+			},
+			{
+				width: 36,
+				actionHeight: 36,
+				compactWidth: 28,
 			}
 		);
 	});
@@ -155,6 +177,18 @@ suite('ActivitybarPart', () => {
 		const { part } = createActivitybarPart(false);
 		assert.strictEqual(part.minimumHeight, 0);
 		assert.strictEqual(part.maximumHeight, Number.POSITIVE_INFINITY);
+	});
+
+	test('floating panels reserves additional width gutter', () => {
+		const { part } = createActivitybarPart(false, true);
+
+		assert.deepStrictEqual(
+			{ min: part.minimumWidth, max: part.maximumWidth },
+			{
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
+			}
+		);
 	});
 
 	// --- Configuration change: dimension update ----------------------------
@@ -218,6 +252,20 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(events.length, 0);
 	});
 
+	test('fires onDidChange(undefined) when floating panels setting changes', () => {
+		const { part, configService, layoutService } = createActivitybarPart(false, false);
+
+		const events: (IViewSize | undefined)[] = [];
+		disposables.add(part.onDidChange(e => events.push(e)));
+
+		layoutService.floatingPanelsEnabled = true;
+		configService.setUserConfiguration(LayoutSettings.MODERN_UI, true);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI);
+
+		assert.deepStrictEqual(events, [undefined]);
+		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN);
+	});
+
 	// --- CSS custom properties on element -----------------------------------
 
 	test('updateCompactStyle sets correct CSS custom properties in default mode', () => {
@@ -244,6 +292,19 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.COMPACT_ACTION_HEIGHT}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.COMPACT_ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), true);
+	});
+
+	test('updateCompactStyle sets correct CSS custom properties in floating mode', () => {
+		const { part } = createActivitybarPart(false, true);
+
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-width'), `${ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH}px`);
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.FLOATING_ACTION_HEIGHT}px`);
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.ICON_SIZE}px`);
+		assert.strictEqual(el.classList.contains('compact'), false);
 	});
 
 	test('toggling compact updates CSS custom properties on element', () => {

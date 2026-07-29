@@ -16,7 +16,7 @@
 	"dependencies": {
 		"@microsoft/tiktokenizer": "^1.0.10",
 		"@sinclair/typebox": "^0.34.41",
-		"@vscode/copilot-api": "^0.2.19",
+		"@vscode/copilot-api": "^0.4.2",
 		"@vscode/l10n": "^0.0.18",
 		"@vscode/prompt-tsx": "^0.4.0-alpha.8",
 		"@vscode/tree-sitter-wasm": "0.0.5-php.2",
@@ -39,9 +39,9 @@
 		"npm-run-all": "^4.1.5",
 		"outdent": "^0.8.0",
 		"rimraf": "^6.0.1",
-		"tsx": "^4.20.3",
+		"tsx": "^4.22.4",
 		"typescript": "^5.8.3",
-		"vitest": "^3.0.5"
+		"vitest": "^4.1.8"
 	},
 	"keywords": [
 		"chat",

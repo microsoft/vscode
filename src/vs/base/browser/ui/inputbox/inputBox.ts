@@ -231,6 +231,10 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public get actionsWidth(): number {
+		return this.actionbar?.getContainer().offsetWidth ?? 0;
+	}
+
 	protected onBlur(): void {
 		this._hideMessage();
 		if (this.options.showPlaceholderOnFocus) {

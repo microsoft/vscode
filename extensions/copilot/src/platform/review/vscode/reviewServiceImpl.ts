@@ -28,7 +28,7 @@ export class ReviewServiceImpl implements IReviewService {
 	private readonly _repositoryDisposables = new DisposableStore();
 	private _reviewDiffReposString: string | undefined;
 	private _diagnosticCollection: vscode.DiagnosticCollection | undefined;
-	private _commentController = vscode.comments.createCommentController('github-copilot-review', 'Code Review');
+	private _commentController = this._disposables.add(vscode.comments.createCommentController('github-copilot-review', 'Code Review'));
 	private _comments: InternalComment[] = [];
 	private _monitorActiveThread: any | undefined;
 	private _activeThread: vscode.CommentThread | undefined;
@@ -227,6 +227,7 @@ export class ReviewServiceImpl implements IReviewService {
 	}
 
 	dispose(): void {
+		clearInterval(this._monitorActiveThread);
 		this._disposables.dispose();
 	}
 }

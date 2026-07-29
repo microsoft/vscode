@@ -26,8 +26,6 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 			userDataDir,
 			homeDir: userDataDir,
 			tmpDir: userDataDir,
-			parentAppUserDataDir: undefined,
-			parentAppUserHomeDir: undefined
 		};
 		super(Object.create(null), paths, { _serviceBrand: undefined, ...product });
 	}
@@ -219,6 +217,14 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(profile.isDefault, false);
 		assert.deepStrictEqual(profile.useDefaultFlags, { extensions: true });
 		assert.strictEqual(profile.extensionsResource.toString(), testObject.defaultProfile.extensionsResource.toString());
+	});
+
+	test('profile using default profile for language models', async () => {
+		const profile = await testObject.createNamedProfile('name', { useDefaultFlags: { languageModels: true } });
+
+		assert.strictEqual(profile.isDefault, false);
+		assert.deepStrictEqual(profile.useDefaultFlags, { languageModels: true });
+		assert.strictEqual(profile.languageModelsResource.toString(), testObject.defaultProfile.languageModelsResource.toString());
 	});
 
 	test('update profile using default profile for keybindings', async () => {

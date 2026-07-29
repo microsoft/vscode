@@ -373,7 +373,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 	}
 }
 
-class ExtHostManagedSocket extends ManagedSocket {
+export class ExtHostManagedSocket extends ManagedSocket {
 	public static connect(
 		passing: vscode.ManagedMessagePassing,
 		path: string, query: string, debugLabel: string,

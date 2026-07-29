@@ -170,7 +170,7 @@ function createProvider() {
 	const metadataStore = new class extends mock<IChatSessionMetadataStore>() {
 		override getRequestDetails = vi.fn(async () => []);
 		override getRepositoryProperties = vi.fn(async () => undefined);
-		override getSessionParentId = vi.fn(async () => undefined);
+		override getSessionParentId = vi.fn<IChatSessionMetadataStore['getSessionParentId']>(async () => undefined);
 	};
 	const gitService = new TestGitService();
 	const folderRepositoryManager = new TestFolderRepositoryManager();
@@ -401,6 +401,7 @@ describe('CopilotCLIChatSessionParticipant', () => {
 			new class extends mock<IChatSessionMetadataStore>() {
 				declare readonly _serviceBrand: undefined;
 			}(),
+			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
 		);
 
 		await participant.createHandler()(

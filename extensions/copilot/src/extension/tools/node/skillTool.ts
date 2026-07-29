@@ -197,7 +197,7 @@ Task: ${query}`;
 	 * If not found, throws with a list of available skills.
 	 */
 	private resolveSkillUri(skillName: string): URI {
-		const indexVariable = this._inputContext?.chatVariables.find(isCustomizationsIndex);
+		const indexVariable = this._inputContext?.chatVariables.find(v => isCustomizationsIndex(v.reference));
 		const indexValue = indexVariable && isString(indexVariable.value) ? indexVariable.value : undefined;
 		return resolveSkillUri(
 			skillName,

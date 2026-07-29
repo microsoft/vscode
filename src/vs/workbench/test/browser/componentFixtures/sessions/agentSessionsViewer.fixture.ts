@@ -11,6 +11,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -18,9 +19,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { AgentSessionRenderer, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { AgentSessionStatus, IAgentSession, AgentSessionSection, IAgentSessionSection } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../../contrib/chat/browser/agentSessions/agentSessions.js';
-import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -111,6 +113,14 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 				override readonly onDidChangeInProgress = Event.None;
 				override async resolveChatSessionItem() { return undefined; }
 			}());
+			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly speakingSession = observableValue<URI | undefined>('speakingSession', undefined);
+				override readonly lastPlayedVersion = observableValue<number>('lastPlayedVersion', 0);
+				override readonly pendingResponseVersion = observableValue<number>('pendingResponseVersion', 0);
+				override hasPendingResponse() { return false; }
+				override hasLastPlayed() { return false; }
+				override getLastPlayed() { return undefined; }
+			}());
 		},
 	});
 
@@ -134,7 +144,12 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 	container.appendChild(listRow);
 
 	const template = renderer.renderTemplate(listRow);
-	renderer.renderElement(wrapAsTreeNode(session), 0, template);
+	const treeNode = wrapAsTreeNode(session);
+	renderer.renderElement(treeNode, 0, template);
+	disposableStore.add(toDisposable(() => {
+		renderer.disposeElement(treeNode, 0, template);
+		renderer.disposeTemplate(template);
+	}));
 }
 
 function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionSection): void {
@@ -160,7 +175,12 @@ function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionS
 	container.appendChild(listRow);
 
 	const template = renderer.renderTemplate(listRow);
-	renderer.renderElement(wrapAsTreeNode(section), 0, template);
+	const treeNode = wrapAsTreeNode(section);
+	renderer.renderElement(treeNode, 0, template);
+	disposableStore.add(toDisposable(() => {
+		renderer.disposeElement(treeNode, 0, template);
+		renderer.disposeTemplate(template);
+	}));
 }
 
 // ============================================================================
@@ -588,6 +608,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-json');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Other,
 				label: '{ "action": "deleteFile", "path": "/src/old-module.ts" }',
 				languageId: 'json',
 				since: new Date(),
@@ -612,6 +634,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-bash');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'npm install --save express@latest',
 				languageId: 'sh',
 				since: new Date(),
@@ -636,6 +660,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-powershell');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'Start-Job -ScriptBlock { Set-Location \'c:\\some\\path\'; npm install } | Out-Null',
 				languageId: 'pwsh',
 				since: new Date(),
@@ -660,6 +686,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-long');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'rm -rf node_modules && npm cache clean --force && npm install --legacy-peer-deps --ignore-scripts',
 				languageId: 'sh',
 				since: new Date(),
@@ -686,6 +714,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-1line');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'npm install --save express@latest',
 				languageId: 'sh',
 				since: new Date(),
@@ -710,6 +740,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-2lines');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'cd /workspace/project\nnpm install',
 				languageId: 'sh',
 				since: new Date(),
@@ -734,6 +766,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-3lines');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'cd /workspace/project\nnpm install\nnpm run build',
 				languageId: 'sh',
 				since: new Date(),
@@ -758,6 +792,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-4lines');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'cd /workspace/project\nnpm install\nnpm run build\nnpm run test -- --coverage',
 				languageId: 'sh',
 				since: new Date(),
@@ -782,6 +818,8 @@ export default defineThemedFixtureGroup({
 			const now = Date.now();
 			const resource = URI.parse('vscode-chat-session://local/approval-3longlines');
 			const approvalModel = createMockApprovalModel(resource, {
+				approvalId: resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
 				label: 'RUSTFLAGS="-C target-cpu=native -C opt-level=3" cargo build --release --target x86_64-unknown-linux-gnu\nfind ./target/release -name "*.so" -exec strip --strip-unneeded {} \\; && tar czf release-bundle.tar.gz -C target/release .\ncurl -X POST https://deploy.internal.example.com/api/v2/artifacts/upload --header "Authorization: Bearer $DEPLOY_TOKEN" --form "bundle=@release-bundle.tar.gz"',
 				languageId: 'sh',
 				since: new Date(),
