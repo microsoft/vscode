@@ -127,11 +127,7 @@ suite('vscode API - webview', () => {
 	test('consumes Ctrl/Cmd+W and Ctrl/Cmd+N so the platform cannot act on them too', async () => {
 		const timeout = 20_000;
 
-		// Keys the workbench binds itself. If the webview leaves one un-prevented the
-		// platform acts on it as well: a PWA closes its window, and on desktop the
-		// native menu accelerator dispatches the bound command a second time after
-		// the forwarded keydown already ran it. A key the workbench does not claim
-		// has to stay un-prevented so webview content keeps receiving it.
+		// 'plain a' must stay un-prevented so webview content keeps receiving keys.
 		const cases = [
 			{ name: 'ctrl+w', keyCode: 87, ctrlKey: true, metaKey: false },
 			{ name: 'meta+w', keyCode: 87, ctrlKey: false, metaKey: true },
@@ -180,13 +176,11 @@ suite('vscode API - webview', () => {
 						bubbles: true,
 						cancelable: true,
 					});
-					// Not every engine honors keyCode from the init dictionary, and the
-					// handler under test matches on it.
+					// The handler matches on keyCode, which not every engine takes from init.
 					if (event.keyCode !== testCase.keyCode) {
 						Object.defineProperty(event, 'keyCode', { get: () => testCase.keyCode });
 					}
-					// Untrusted events are never forwarded to the workbench, so this
-					// exercises the webview's own handling without closing this panel.
+					// Untrusted events are not forwarded, so this cannot close the panel.
 					window.dispatchEvent(event);
 					return { name: testCase.name, keyCode: event.keyCode, defaultPrevented: event.defaultPrevented };
 				});
@@ -195,8 +189,7 @@ suite('vscode API - webview', () => {
 				vscode.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) });
 			}
 		};
-		// The host installs its keydown listener on this window, so yield once to be
-		// sure it is attached before probing.
+		// Yield so the host's keydown listener on this window is certainly attached.
 		setTimeout(run, 0);
 	</script>
 </body>

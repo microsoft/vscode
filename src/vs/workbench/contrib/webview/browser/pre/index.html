@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-nwlicgcSw6Z8ipNjNsUx5rOAD+Ua8UrTuM5dfV8OCIE=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-IsHVcRjd+MiEm0tHYrcvKUS8oPCVnVaPERo8BOxeu0I=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -601,12 +601,8 @@
 					return; // let the browser handle this
 				}
 			} else if (isCloseTab(e) || isNewWindow(e)) {
-				// Prevent the platform from acting on a key the host already handles.
-				// In a PWA that is Ctrl+W closing the window and Ctrl+N opening a new
-				// one. On desktop the real event has to be consumed too: an unhandled
-				// key reaches the native menu, whose accelerator dispatches the same
-				// command a second time after the forwarded keydown already ran it.
-				// (No effect in a regular browser tab.)
+				// The host handles these, so the real event must not reach the platform:
+				// a PWA acts on it, and on desktop the menu accelerator dispatches again.
 				e.preventDefault();
 			} else if (!onElectron && (isHelp(e) || isRefresh(e))) {
 				// Prevent F1 opening browser help / F5 reloading the PWA.
