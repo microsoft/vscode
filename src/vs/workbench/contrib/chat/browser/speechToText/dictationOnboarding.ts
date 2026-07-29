@@ -444,7 +444,8 @@ export interface IMicrophoneOption {
 }
 
 /**
- * The pickable microphones, always led by "System default".
+ * The pickable microphones, with the physical system-default device identified
+ * in its label instead of represented by a separate synthetic row.
  *
  * Drops the virtual `default`/`communications` entries (which duplicate a real
  * device under a synthetic id) and de-duplicates by `deviceId`, so one physical
@@ -452,12 +453,8 @@ export interface IMicrophoneOption {
  * Microphone" quick pick does, kept in one place so the two never disagree.
  */
 export function buildMicrophoneOptions(devices: readonly MediaDeviceInfo[]): IMicrophoneOption[] {
-	const options: IMicrophoneOption[] = [{
-		deviceId: SYSTEM_DEFAULT_DEVICE_ID,
-		label: localize('dictation.onboarding.systemDefault', "System default"),
-	}];
-
 	const seen = new Set<string>();
+	const microphones: MediaDeviceInfo[] = [];
 	for (const device of devices) {
 		if (device.kind !== 'audioinput' || device.deviceId === 'default' || device.deviceId === 'communications') {
 			continue;
@@ -466,6 +463,38 @@ export function buildMicrophoneOptions(devices: readonly MediaDeviceInfo[]): IMi
 			continue;
 		}
 		seen.add(device.deviceId);
+		microphones.push(device);
+	}
+
+	if (microphones.length === 0) {
+		return [{
+			deviceId: SYSTEM_DEFAULT_DEVICE_ID,
+			label: localize('dictation.onboarding.systemDefault', "System default"),
+		}];
+	}
+
+	const defaultDevice = devices.find(device => device.kind === 'audioinput' && device.deviceId === 'default');
+	const defaultLabel = defaultDevice?.label.replace(/^(?:default|system default)\s*-\s*/i, '').trim();
+	const defaultMicrophone = defaultDevice && microphones.find(device =>
+		(defaultDevice.groupId && device.groupId === defaultDevice.groupId)
+		|| (defaultLabel && device.label === defaultLabel)
+	);
+
+	const options: IMicrophoneOption[] = [];
+	if (defaultDevice) {
+		const label = defaultMicrophone?.label || defaultLabel;
+		options.push({
+			deviceId: SYSTEM_DEFAULT_DEVICE_ID,
+			label: label
+				? localize('dictation.onboarding.defaultDevice', "{0} (System default)", label)
+				: localize('dictation.onboarding.systemDefault', "System default"),
+		});
+	}
+
+	for (const device of microphones) {
+		if (device === defaultMicrophone) {
+			continue;
+		}
 		options.push({
 			deviceId: device.deviceId,
 			// Labels are empty until microphone permission has been granted at
@@ -473,7 +502,6 @@ export function buildMicrophoneOptions(devices: readonly MediaDeviceInfo[]): IMi
 			label: device.label || localize('dictation.onboarding.unknownDevice', "Unknown device ({0})", device.deviceId.slice(0, 8)),
 		});
 	}
-
 	return options;
 }
 

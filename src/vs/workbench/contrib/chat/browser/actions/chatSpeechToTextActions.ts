@@ -27,7 +27,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
-import { IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
+import { buildMicrophoneOptions, IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
@@ -299,21 +299,7 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 
 		const devices = await navigator.mediaDevices.enumerateDevices();
 
-		// Filter out the virtual "default"/"communications" entries (which duplicate a real
-		// device) and de-duplicate by deviceId so a single microphone shows up only once.
-		const seenDeviceIds = new Set<string>();
-		const audioInputs = devices.filter(d => {
-			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
-				return false;
-			}
-			if (seenDeviceIds.has(d.deviceId)) {
-				return false;
-			}
-			seenDeviceIds.add(d.deviceId);
-			return true;
-		});
-
-		if (audioInputs.length === 0) {
+		if (!devices.some(device => device.kind === 'audioinput')) {
 			quickInputService.pick([{ label: localize('chatStt.noMicrophones', "No microphones found") }]);
 			return;
 		}
@@ -322,19 +308,11 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 		const currentDeviceId = storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
 
 		type DevicePickItem = { label: string; description?: string; deviceId: string };
-		const items: DevicePickItem[] = [{
-			label: localize('chatStt.systemDefault', "System Default"),
-			description: currentDeviceId === '' ? localize('chatStt.current', "(current)") : undefined,
-			deviceId: '',
-		}];
-		for (const d of audioInputs) {
-			const label = d.label || localize('chatStt.unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			items.push({
-				label,
-				description: d.deviceId === currentDeviceId ? localize('chatStt.current', "(current)") : undefined,
-				deviceId: d.deviceId,
-			});
-		}
+		const items: DevicePickItem[] = buildMicrophoneOptions(devices).map(device => ({
+			label: device.label,
+			description: device.deviceId === currentDeviceId ? localize('chatStt.current', "(current)") : undefined,
+			deviceId: device.deviceId,
+		}));
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: localize('chatStt.selectMic', "Select a microphone for dictation"),

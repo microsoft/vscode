@@ -55,7 +55,7 @@ suite('Dictation onboarding', () => {
 		return store.add(instantiationService.createInstance(DictationOnboardingService));
 	}
 
-	test('lists every real microphone once, behind the system default', () => {
+	test('labels the physical default microphone without listing it twice', () => {
 		const options = buildMicrophoneOptions([
 			// The virtual entries duplicate a real device under a synthetic id.
 			device('audioinput', 'default', 'Default - Studio Mic'),
@@ -69,14 +69,17 @@ suite('Dictation onboarding', () => {
 		]);
 
 		assert.deepStrictEqual(options, [
-			{ deviceId: '', label: 'System default' },
-			{ deviceId: 'mic-a', label: 'Studio Mic' },
+			{ deviceId: '', label: 'Studio Mic (System default)' },
 			{ deviceId: 'abcdefghij-unlabelled', label: 'Unknown device (abcdefgh)' },
 		]);
 	});
 
 	test('falls back to the system default when the remembered device is gone', () => {
-		const options = buildMicrophoneOptions([device('audioinput', 'mic-a', 'Studio Mic')]);
+		const options = buildMicrophoneOptions([
+			device('audioinput', 'default', 'Default - Built-in Mic'),
+			device('audioinput', 'built-in', 'Built-in Mic'),
+			device('audioinput', 'mic-a', 'Studio Mic'),
+		]);
 
 		assert.deepStrictEqual(
 			{
