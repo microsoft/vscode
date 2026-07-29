@@ -2307,6 +2307,9 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
 
+	/** Start connecting to the agent host if it has not already started. */
+	startAgentHost(): void;
+
 	restartAgentHost(): Promise<void>;
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -58,7 +59,7 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IChatSessionsService, chatSessionsService);
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
-		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
+		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled) });
 		return resolveDefaultNewChatSessionType(accessor, options);
 	}
 
