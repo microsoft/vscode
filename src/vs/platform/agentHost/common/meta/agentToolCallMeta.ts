@@ -32,8 +32,6 @@ export interface IToolCallMeta {
 	readonly subagentAgentName?: string;
 	/** Chat URI of the subagent this tool call spawns, stamped by the host (see {@link buildSubagentChatUri}); the resource may not be registered yet. */
 	readonly subagentChatUri?: string;
-	/** Raw, pre-stringified tool arguments captured for display/debugging. */
-	readonly toolArguments?: unknown;
 	/** Originating MCP server name, when the call came from an MCP server. */
 	readonly mcpServerName?: string;
 	/** Originating MCP tool name, when the call came from an MCP server. */
@@ -129,7 +127,6 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['subagentDescription'] === 'string') { result.subagentDescription = meta['subagentDescription']; }
 	if (typeof meta['subagentAgentName'] === 'string') { result.subagentAgentName = meta['subagentAgentName']; }
 	if (typeof meta['subagentChatUri'] === 'string') { result.subagentChatUri = meta['subagentChatUri']; }
-	if (meta['toolArguments'] !== undefined) { result.toolArguments = meta['toolArguments']; }
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }

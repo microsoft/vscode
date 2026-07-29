@@ -3954,21 +3954,6 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
 		}));
 
-		test('malformed toolArguments does not throw', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-
-			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash' } as ChatAction);
-			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-bad', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ChatAction);
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-
-			await turnPromise;
-
-			assert.strictEqual(collected.length, 1);
-			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
-		}));
-
 		test('outstanding tool invocations are completed on idle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 

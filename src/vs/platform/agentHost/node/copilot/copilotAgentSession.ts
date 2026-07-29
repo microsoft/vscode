@@ -3447,9 +3447,6 @@ export class CopilotAgentSession extends Disposable {
 			if (subagentMeta?.agentName) {
 				meta.subagentAgentName = subagentMeta.agentName;
 			}
-			if (toolArgs !== undefined) {
-				meta.toolArguments = toolArgs;
-			}
 			if (e.data.mcpServerName) {
 				meta.mcpServerName = e.data.mcpServerName;
 			}

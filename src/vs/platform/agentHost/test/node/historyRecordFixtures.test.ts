@@ -372,7 +372,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		}
 
 		function getStart(events: ReturnType<typeof mapSessionEventsToHistoryRecords> extends Promise<infer R> ? R : never) {
-			return events[0] as { toolInput: string; toolArguments?: string };
+			return events[0] as { toolInput: string };
 		}
 
 		test('strips redundant bash cd prefix matching workingDirectory', async () => {
@@ -381,7 +381,6 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			], cwd);
 			const start = getStart(result);
 			assert.strictEqual(start.toolInput, 'ls -la');
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'ls -la' });
 		});
 
 		test('leaves command unchanged when cd dir does not match', async () => {
@@ -408,8 +407,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				},
 			], cwd);
 			const start = getStart(result);
-			// edit tool's toolInput is derived from filePath, not command — but toolArguments preserves original
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'cd /workspace/proj && ls' });
+			assert.deepStrictEqual(JSON.parse(start.toolInput), { command: 'cd /workspace/proj && ls' });
 		});
 
 		test('handles trailing slash on workingDirectory', async () => {
