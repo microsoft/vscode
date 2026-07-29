@@ -198,6 +198,57 @@ export interface IAgentHostToolCallDetailsReport {
 	parallelToolCallsTotal: number;
 }
 
+export interface IAgentHostToolApprovalReport {
+	provider: string;
+	session: string;
+	turnId: string;
+	toolId: string;
+	toolSourceKind: string;
+	confirmKind: AgentHostToolApprovalConfirmKind;
+	confirmationNotNeededReason: string | undefined;
+	requestUnsandboxedExecution: boolean | undefined;
+}
+
+type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied';
+
+export interface IAgentHostToolApprovalEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	chatSessionId: string;
+	requestId: string;
+	toolId: string;
+	toolExtensionId: string | undefined;
+	toolSourceKind: string;
+	confirmKind: AgentHostToolApprovalConfirmKind;
+	settingId: string | undefined;
+	lmServiceScope: string | undefined;
+	customButtonKind: string | undefined;
+	confirmationNotNeededReason: string | undefined;
+	sandboxWrapped: boolean | undefined;
+	requestUnsandboxedExecution: boolean | undefined;
+}
+
+export type IAgentHostToolApprovalClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool approval belongs to a subagent session.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request turn that this tool approval is associated with, if available.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
+	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source kind of the tool.' };
+	confirmKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the confirmation was resolved (userAction, setting, confirmationNotNeeded, denied).' };
+	settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is setting, the configuration id that auto-approved the tool.' };
+	lmServiceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is lmServicePerTool, the scope (session/workspace/profile).' };
+	customButtonKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the user clicked a custom button on the confirmation widget, whether the button represents approve or deny semantics.' };
+	confirmationNotNeededReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is confirmationNotNeeded, a stable identifier for why the tool did not require confirmation.' };
+	sandboxWrapped: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether this specific invocation runs inside the agent terminal sandbox.' };
+	requestUnsandboxedExecution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether the model requested to bypass the sandbox for this invocation.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval) in agent host sessions.';
+};
+
 export interface IAgentHostAutoModeRouterDecisionReport {
 	session: string;
 	turnId: string;
@@ -479,6 +530,29 @@ export class AgentHostTelemetryReporter {
 		};
 		restricted.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', properties, measurements);
 		restricted.sendInternalMSFTTelemetryEvent('toolCallDetailsInternal', properties, measurements);
+	}
+
+	/** Emits the workbench-compatible tool-approval telemetry from the agent host on the standard telemetry channel. */
+	toolApproval(report: IAgentHostToolApprovalReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const agentSessionId = AgentSession.id(session);
+		this._telemetryService.publicLog2<IAgentHostToolApprovalEvent, IAgentHostToolApprovalClassification>('chat.toolApproval', {
+			provider: report.provider,
+			agentSessionId,
+			isSubagentSession: isSubagentSession(session),
+			chatSessionId: agentSessionId,
+			requestId: report.turnId,
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			confirmKind: report.confirmKind,
+			settingId: undefined,
+			lmServiceScope: undefined,
+			customButtonKind: undefined,
+			confirmationNotNeededReason: report.confirmationNotNeededReason,
+			sandboxWrapped: undefined,
+			requestUnsandboxedExecution: report.requestUnsandboxedExecution,
+		});
 	}
 
 	/**
