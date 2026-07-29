@@ -418,7 +418,6 @@ describe('replace_string_in_file - applyEdit', () => {
 			expect(result.updatedFile).toContain('line3');
 		});
 	});
-
 	// Similarity-based matching strategy tests
 	describe('similarity matching', () => {
 		test('matches highly similar content with minor differences', async () => {
@@ -1144,4 +1143,3 @@ describe('agent definition files require confirmation', () => {
 		expect(await checker(URI.file('/workspace/.github/workflows/ci.md'))).toBe(ConfirmationCheckResult.NoConfirmation);
 	});
 });
-

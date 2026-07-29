@@ -87,6 +87,14 @@ function classifyFileRedirect(redirectText: string): FileRedirectClassification 
  */
 export type CommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 
+/** Structured outcome of {@link CommandAutoApprover.evaluate}. */
+export interface ICommandApprovalEvaluation {
+	/** Final approval outcome, identical to {@link CommandAutoApprover.shouldAutoApprove}. */
+	readonly result: CommandApprovalResult;
+	/** Whether a missing allow rule is the only reason confirmation is required. */
+	readonly autoApproveRuleResolvable: boolean;
+}
+
 /** Options for {@link CommandAutoApprover.shouldAutoApprove}. */
 export interface IShouldAutoApproveOptions {
 	/**
@@ -172,9 +180,14 @@ export class CommandAutoApprover extends Disposable {
 	 * predicate, write redirections do not block auto-approval.
 	 */
 	shouldAutoApprove(commandLine: string, options?: IShouldAutoApproveOptions): CommandApprovalResult {
+		return this.evaluate(commandLine, options).result;
+	}
+
+	/** Evaluates the command and reports whether adding a persistent allow rule could resolve the result. */
+	evaluate(commandLine: string, options?: IShouldAutoApproveOptions): ICommandApprovalEvaluation {
 		const trimmed = commandLine.trimStart();
 		if (trimmed.length === 0) {
-			return 'approved';
+			return { result: 'approved', autoApproveRuleResolvable: false };
 		}
 
 		const rules = this._compileRules(options?.autoApproveRules);
@@ -182,26 +195,24 @@ export class CommandAutoApprover extends Disposable {
 		const parsed = this._extractSubCommands(trimmed);
 		if (!parsed) {
 			this._logService.trace('[CommandAutoApprover] Tree-sitter unavailable, requiring confirmation');
-			return 'noMatch';
+			return { result: 'noMatch', autoApproveRuleResolvable: false };
 		}
 
 		if (this._matchesRule(trimmed, rules.denyCommandLineRules)) {
-			return 'denied';
+			return { result: 'denied', autoApproveRuleResolvable: false };
 		}
+
+		const hasUnapprovedRedirect = () => parsed.unsafeWriteDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
 
 		let result = this._matchSubCommands(parsed.subCommands, rules);
 		if (result !== 'denied' && this._matchesRule(trimmed, rules.allowCommandLineRules)) {
 			result = 'approved';
 		}
-		if (result === 'approved' && parsed.unsafeWriteDests.length > 0) {
-			for (const dest of parsed.unsafeWriteDests) {
-				if (dest === undefined || !options?.isWriteDestApproved?.(dest)) {
-					this._logService.trace('[CommandAutoApprover] Write redirection to non-approved destination, requiring confirmation');
-					return 'noMatch';
-				}
-			}
+		if (result === 'approved' && hasUnapprovedRedirect()) {
+			this._logService.trace('[CommandAutoApprover] Write redirection to non-approved destination, requiring confirmation');
+			return { result: 'noMatch', autoApproveRuleResolvable: false };
 		}
-		return result;
+		return { result, autoApproveRuleResolvable: result === 'noMatch' && !hasUnapprovedRedirect() };
 	}
 
 	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules): CommandApprovalResult {

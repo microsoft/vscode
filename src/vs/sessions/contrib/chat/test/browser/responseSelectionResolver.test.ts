@@ -69,6 +69,27 @@ suite('resolveResponseSelection', () => {
 		assert.strictEqual(resolved!.text, 'hello world');
 	});
 
+	test('preserves leading whitespace while dropping the trailing newline artifact', () => {
+		// Leading whitespace is part of what the user selected (e.g. starting
+		// mid-indentation); only the newline browsers append when a line
+		// selection spills into the next block should be dropped.
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const textNode = doc.createTextNode('    indented text');
+		markdown.appendChild(textNode);
+		widgetDomNode.appendChild(markdown);
+
+		stubSelection(store, textNode, textNode, '    indented text\n');
+		const response = makeResponse('turn-1');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		assert.strictEqual(resolveResponseSelection(widget)?.text, '    indented text');
+	});
+
 	test('resolves a line selection that ends at the start of the element after the markdown', () => {
 		// A triple-click selects the whole line and parks the selection's focus
 		// at offset 0 of the *next* block, which for the last line of a

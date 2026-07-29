@@ -73,6 +73,25 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.strictEqual(agentHostAuthority('ws://localhost:9090'), agentHostAuthority('localhost:9090'));
 	});
 
+	test('remote local address does not collide with the ambient authority', () => {
+		const authority = agentHostAuthority('local');
+		const wrapped = toAgentHostUri(URI.file('/remote/file.txt'), authority);
+
+		assert.deepStrictEqual({
+			authority,
+			normalizedAuthority: agentHostAuthority('ws://local'),
+			similarAddressAuthority: agentHostAuthority('remote_local'),
+			wrappedScheme: wrapped.scheme,
+			wrappedAuthority: wrapped.authority,
+		}, {
+			authority: 'remote_local',
+			normalizedAuthority: 'remote_local',
+			similarAddressAuthority: 'b64-cmVtb3RlX2xvY2Fs',
+			wrappedScheme: AGENT_HOST_SCHEME,
+			wrappedAuthority: 'remote_local',
+		});
+	});
+
 	test('different addresses produce different authorities', () => {
 		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080'];
 		const results = cases.map(agentHostAuthority);

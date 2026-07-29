@@ -5,7 +5,7 @@
 
 import ts from 'typescript';
 import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname, join } from 'path';
+import { resolve, dirname, join, relative } from 'path';
 import minimatch from 'minimatch';
 
 //
@@ -33,7 +33,7 @@ const NATIVE_TYPES = [
 	'IMainProcessService',
 ];
 
-const RULES: IRule[] = [
+export const RULES: IRule[] = [
 
 	// Tests: skip
 	{
@@ -47,7 +47,8 @@ const RULES: IRule[] = [
 			'environment/common/*.ts',
 			'window/common/window.ts',
 			'native/common/native.ts',
-			'native/common/nativeHostService.ts'
+			'native/common/nativeHostService.ts',
+			'ipc/common/mainProcessService.ts'
 		].join(',')}}`,
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 	},
@@ -62,6 +63,12 @@ const RULES: IRule[] = [
 	{
 		target: '**/vs/platform/browserView/electron-browser/preload-browserView.ts',
 		disallowedTypes: NATIVE_TYPES,
+	},
+
+	// Validated IPC wrapper
+	{
+		target: '**/vs/base/parts/ipc/electron-main/ipcMain.ts',
+		disallowedTypes: [],
 	},
 
 	// Common
@@ -93,77 +100,147 @@ const RULES: IRule[] = [
 
 const TS_CONFIG_PATH = join(import.meta.dirname, '../../', 'src', 'tsconfig.json');
 
-interface IRule {
+export interface IRule {
 	target: string;
 	skip?: boolean;
 	disallowedTypes?: string[];
 }
 
-let hasErrors = false;
+export interface ILayerViolation {
+	type: string;
+	target: string;
+	fileName: string;
+	line: number;
+	character: number;
+}
 
-function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) {
+function checkFile(checker: ts.TypeChecker, sourceFile: ts.SourceFile, rule: IRule, violations: ILayerViolation[]): void {
+	if (!rule.disallowedTypes?.length) {
+		return;
+	}
+
+	const disallowedTypes = new Set(rule.disallowedTypes);
+	const candidateNames = new Set(disallowedTypes);
+
+	collectAliases(sourceFile);
 	checkNode(sourceFile);
 
+	function collectAliases(node: ts.Node): void {
+		if ((ts.isImportSpecifier(node) || ts.isExportSpecifier(node)) && disallowedTypes.has((node.propertyName ?? node.name).text)) {
+			candidateNames.add(node.name.text);
+		}
+
+		ts.forEachChild(node, collectAliases);
+	}
+
 	function checkNode(node: ts.Node): void {
-		if (node.kind !== ts.SyntaxKind.Identifier) {
+		if (!ts.isIdentifier(node)) {
 			return ts.forEachChild(node, checkNode); // recurse down
 		}
 
-		const checker = program.getTypeChecker();
+		if (!candidateNames.has(node.text) && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) {
+			return;
+		}
+
 		const symbol = checker.getSymbolAtLocation(node);
 
 		if (!symbol) {
 			return;
 		}
 
-		let text = symbol.getName();
-		let _parentSymbol: any = symbol;
-
-		while (_parentSymbol.parent) {
-			_parentSymbol = _parentSymbol.parent;
-		}
-
-		const parentSymbol = _parentSymbol as ts.Symbol;
-		text = parentSymbol.getName();
-
-		if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
-			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-			console.log(`[build/checker/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
-
-			hasErrors = true;
-			return;
+		const type = findDisallowedType(checker, symbol, disallowedTypes);
+		if (type) {
+			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+			violations.push({
+				type,
+				target: rule.target,
+				fileName: sourceFile.fileName,
+				line: line + 1,
+				character: character + 1,
+			});
 		}
 	}
 }
 
-function createProgram(tsconfigPath: string): ts.Program {
+function findDisallowedType(checker: ts.TypeChecker, symbol: ts.Symbol, disallowedTypes: Set<string>): string | undefined {
+	const seen = new Set<ts.Symbol>();
+	let current: ts.Symbol | undefined = symbol;
+
+	while (current && !seen.has(current)) {
+		seen.add(current);
+
+		const name = current.getName();
+		if (disallowedTypes.has(name)) {
+			return name;
+		}
+
+		if (current.flags & ts.SymbolFlags.Alias) {
+			current = checker.getAliasedSymbol(current);
+		} else {
+			current = getContainingSymbol(checker, current);
+		}
+	}
+
+	return undefined;
+}
+
+function getContainingSymbol(checker: ts.TypeChecker, symbol: ts.Symbol): ts.Symbol | undefined {
+	for (const declaration of symbol.declarations ?? []) {
+		const container = declaration.parent;
+		if (ts.isClassDeclaration(container) || ts.isClassExpression(container) || ts.isInterfaceDeclaration(container) || ts.isEnumDeclaration(container) || ts.isModuleDeclaration(container)) {
+			if (container.name) {
+				return checker.getSymbolAtLocation(container.name);
+			}
+		}
+	}
+
+	return undefined;
+}
+
+export function getRule(fileName: string, rootPath: string, rules: readonly IRule[]): IRule | undefined {
+	const relativeFileName = relative(rootPath, fileName).replaceAll('\\', '/');
+	return rules.find(rule => minimatch(relativeFileName, rule.target));
+}
+
+export function createProgram(tsconfigPath: string, rules: readonly IRule[]): ts.Program {
 	const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
 
 	const configHostParser: ts.ParseConfigHost = { fileExists: existsSync, readDirectory: ts.sys.readDirectory, readFile: file => readFileSync(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
-	const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, resolve(dirname(tsconfigPath)), { noEmit: true });
+	const rootPath = resolve(dirname(tsconfigPath));
+	const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, rootPath, { noEmit: true });
+	const rootFileNames = tsConfigParsed.fileNames.filter(fileName => !getRule(fileName, rootPath, rules)?.skip);
 
 	const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
 
-	return ts.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
+	return ts.createProgram(rootFileNames, tsConfigParsed.options, compilerHost);
 }
 
-//
-// Create program and start checking
-//
-const program = createProgram(TS_CONFIG_PATH);
+export function checkProgram(program: ts.Program, rootPath: string, rules: readonly IRule[]): ILayerViolation[] {
+	const checker = program.getTypeChecker();
+	const violations: ILayerViolation[] = [];
 
-for (const sourceFile of program.getSourceFiles()) {
-	for (const rule of RULES) {
-		if (minimatch.match([sourceFile.fileName], rule.target).length > 0) {
-			if (!rule.skip) {
-				checkFile(program, sourceFile, rule);
-			}
-
-			break;
+	for (const sourceFile of program.getSourceFiles()) {
+		const rule = getRule(sourceFile.fileName, rootPath, rules);
+		if (rule && !rule.skip) {
+			checkFile(checker, sourceFile, rule, violations);
 		}
 	}
+
+	return violations;
 }
 
-if (hasErrors) {
-	process.exit(1);
+export function runLayerChecker(tsconfigPath: string, rules: readonly IRule[]): number {
+	const rootPath = resolve(dirname(tsconfigPath));
+	const program = createProgram(tsconfigPath, rules);
+	const violations = checkProgram(program, rootPath, rules);
+
+	for (const violation of violations) {
+		console.log(`[build/checker/layersChecker.ts]: Reference to type '${violation.type}' violates layer '${violation.target}' (${violation.fileName}:${violation.line}:${violation.character}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
+	}
+
+	return violations.length;
+}
+
+if (import.meta.main) {
+	process.exitCode = runLayerChecker(TS_CONFIG_PATH, RULES) ? 1 : 0;
 }
