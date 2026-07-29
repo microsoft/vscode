@@ -782,7 +782,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 				'Preserve the double square brackets: they mark the text that becomes a link.',
 				'The link opens Voice Mode settings.',
 			],
-		}, "Your agent can speak back to you, free of charge. Adjust [[settings]] anytime.");
+		}, "Choose how your agent speaks to you. Adjust [[settings]] anytime.");
 
 		dom.append(description, renderFormattedText(text, {
 			actionHandler: {
