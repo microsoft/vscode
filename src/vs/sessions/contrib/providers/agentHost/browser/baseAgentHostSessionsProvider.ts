@@ -26,7 +26,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -89,7 +89,11 @@ interface ISerializedSessionMetadata {
 	readonly modifiedTime: number;
 	readonly summary?: string;
 	readonly workingDirectory?: string;
+	/** Session-scoped flag bits only — see {@link SESSION_STATUS_FLAG_MASK}. */
+	readonly status?: ProtocolSessionStatus;
+	/** @deprecated Superseded by the `IsRead` bit on {@link status}. */
 	readonly isRead?: boolean;
+	/** @deprecated Superseded by the `IsArchived` bit on {@link status}. */
 	readonly isArchived?: boolean;
 	/** @deprecated Legacy name for `isArchived`. */
 	readonly isDone?: boolean;
@@ -103,6 +107,13 @@ interface ISerializedSessionMetadata {
 	readonly workspaceless?: boolean;
 }
 
+/**
+ * Only these bits are cached. The activity bits are live state, and restoring them
+ * would show a stale spinner until the next `listSessions()` lands — indefinitely
+ * for an unreachable remote host, which keeps republishing its cached snapshot.
+ */
+const SESSION_STATUS_FLAG_MASK = ProtocolSessionStatus.IsRead | ProtocolSessionStatus.IsArchived;
+
 function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetadata {
 	return {
 		session: meta.session.toString(),
@@ -110,8 +121,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
-		isRead: meta.isRead,
-		isArchived: meta.isArchived,
+		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 	};
@@ -125,14 +135,29 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			modifiedTime: raw.modifiedTime,
 			summary: raw.summary,
 			workingDirectories: raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined,
-			isRead: raw.isRead,
-			isArchived: raw.isArchived ?? raw.isDone,
+			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 			...(raw.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		};
 	} catch {
 		return undefined;
 	}
+}
+
+/** Reads the cached flag bits, folding in the legacy standalone booleans. */
+function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStatus | undefined {
+	const legacyArchived = raw.isArchived ?? raw.isDone;
+	if (raw.isRead === undefined && legacyArchived === undefined) {
+		return raw.status !== undefined ? raw.status & SESSION_STATUS_FLAG_MASK : undefined;
+	}
+	let status = (raw.status ?? ProtocolSessionStatus.Idle) & SESSION_STATUS_FLAG_MASK;
+	if (raw.isRead !== undefined) {
+		status = withSessionStatusFlag(status, ProtocolSessionStatus.IsRead, raw.isRead);
+	}
+	if (legacyArchived !== undefined) {
+		status = withSessionStatusFlag(status, ProtocolSessionStatus.IsArchived, legacyArchived);
+	}
+	return status;
 }
 
 function isRememberedSessionConfigKey(property: string): boolean {
@@ -665,12 +690,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return undefined;
 		});
 
-		if (metadata.isArchived) {
+		if (isSessionStatusArchived(metadata.status)) {
 			this.isArchived.set(true, undefined);
 		}
 
-		if (metadata.isRead !== undefined) {
-			this.isRead.set(metadata.isRead, undefined);
+		if (metadata.status !== undefined) {
+			this.isRead.set(isSessionStatusRead(metadata.status), undefined);
 		}
 
 		this.isActiveSessionObs = derived(this, reader => {
@@ -1140,14 +1165,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			}
 
-			if (metadata.isArchived !== undefined && metadata.isArchived !== this.isArchived.get()) {
-				this.isArchived.set(metadata.isArchived, tx);
-				didChange = true;
-			}
+			if (metadata.status !== undefined) {
+				const isArchived = isSessionStatusArchived(metadata.status);
+				if (isArchived !== this.isArchived.get()) {
+					this.isArchived.set(isArchived, tx);
+					didChange = true;
+				}
 
-			if (metadata.isRead !== undefined && metadata.isRead !== this.isRead.get()) {
-				this.isRead.set(metadata.isRead, tx);
-				didChange = true;
+				const isRead = isSessionStatusRead(metadata.status);
+				if (isRead !== this.isRead.get()) {
+					this.isRead.set(isRead, tx);
+					didChange = true;
+				}
 			}
 
 			// `metadata.changes` (aggregate) drives the chip aggregate.
@@ -4273,8 +4302,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...base,
 				summary: adapter.title.get() || base.summary,
 				modifiedTime: adapter.updatedAt.get().getTime(),
-				isRead: adapter.isRead.get(),
-				isArchived: adapter.isArchived.get(),
+				status: withSessionStatusFlag(
+					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
+					ProtocolSessionStatus.IsArchived,
+					adapter.isArchived.get()),
 				// The adapter's live kind wins over the snapshot: several metadata
 				// sources omit `_meta`, and persisting a stale one would resurrect
 				// the session as a workspace rooted at the host's scratch cwd.
@@ -4537,8 +4568,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			} : {}),
 			workingDirectories: workingDirs,
 			changes: summary.changes,
-			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
-			isRead: !!(summary.status & ProtocolSessionStatus.IsRead),
 			// Carry `_meta` so a new adapter seeds its session-kind from it and an
 			// existing one can be promoted by it.
 			...(summary._meta !== undefined ? { _meta: summary._meta } : {}),

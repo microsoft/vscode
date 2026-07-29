@@ -1444,6 +1444,24 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(await db.getMetadata('isRead'), '');
 		});
 
+		test('persists read state exactly once for client- and server-dispatched changes', () => {
+			const { db } = setupPersisting();
+			setupSession();
+
+			// A client marking the session read (e.g. the user opened it in the
+			// editor window or the agent window).
+			stateManager.dispatchClientAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, { clientId: 'client-1', clientSeq: 1 });
+			// The host marking it unread after background output.
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: false });
+			// A rejected client action never reached state and must not persist.
+			stateManager.rejectClientAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, { clientId: 'client-1', clientSeq: 2 }, 'nope');
+
+			assert.deepStrictEqual(db.setMetadataCalls.filter(c => c.key === 'isRead'), [
+				{ key: 'isRead', value: 'true' },
+				{ key: 'isRead', value: '' },
+			]);
+		});
+
 		test('marks the parent session unread when a subagent turn completes', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
