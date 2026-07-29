@@ -1287,10 +1287,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
 		rowRoot?.classList.toggle('request', isRequestVM(element));
 		rowRoot?.classList.toggle('response', isResponseVM(element));
-		// `.chat-most-recent-response` marks the actual last row. The reserved-space filler
-		// (`--chat-current-response-min-height`) is only applied to response rows via CSS, so
-		// when a queued/steering request row is last it gets no filler and the pending rows
-		// simply hug the streaming response above them.
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 
