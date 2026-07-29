@@ -310,17 +310,18 @@ export class SessionsVoiceNewComposerContribution extends Disposable implements 
 
 		// Preserve the owner across the disposal/mount gap so a new surface can be detected.
 		let voiceComposer: INewChatVoiceComposer | undefined;
+		let voiceComposerCaptured = false;
 		this._register(autorun(reader => {
 			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
 			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
 			if (!connected) {
-				// Idle: remember which composer a fresh connection would belong to.
 				voiceComposer = activeComposer;
+				voiceComposerCaptured = false;
 				return;
 			}
-			if (!voiceComposer) {
-				// Connection appeared without a prior owner - adopt the active composer.
+			if (!voiceComposerCaptured) {
 				voiceComposer = activeComposer;
+				voiceComposerCaptured = true;
 				return;
 			}
 			// A different welcome composer took over while voice is connected: the
