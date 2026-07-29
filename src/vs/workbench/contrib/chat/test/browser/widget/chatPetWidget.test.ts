@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, isChatPetImageSource } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, isChatPetImageSource } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -15,6 +15,7 @@ suite('ChatPetWidget', () => {
 		assert.deepStrictEqual([
 			getChatPetBaseState(false, false, false, false),
 			getChatPetBaseState(false, false, false, true),
+			getChatPetBaseState(false, false, true, false),
 			getChatPetBaseState(false, false, true, true),
 			getChatPetBaseState(true, false, true, true),
 			getChatPetBaseState(true, true, true, true),
@@ -22,6 +23,7 @@ suite('ChatPetWidget', () => {
 			'idle',
 			'sleep',
 			'typing',
+			'sleep',
 			'rendering',
 			'clapping',
 		]);
@@ -158,6 +160,33 @@ suite('ChatPetWidget', () => {
 			[],
 			[300, 240, 1_500, 240, 360],
 			[220, 220, 220, 100, 160, 180],
+		]);
+	});
+
+	test('selects animation frames and completes on the final frame', () => {
+		const frameDurations = [100, 50, 150];
+		assert.deepStrictEqual([
+			getChatPetAnimationFrame([], 0, 1),
+			getChatPetAnimationFrame(frameDurations, -1, 1),
+			getChatPetAnimationFrame(frameDurations, 99, 1),
+			getChatPetAnimationFrame(frameDurations, 100, 1),
+			getChatPetAnimationFrame(frameDurations, 149, 1),
+			getChatPetAnimationFrame(frameDurations, 150, 1),
+			getChatPetAnimationFrame(frameDurations, 299, 1),
+			getChatPetAnimationFrame(frameDurations, 300, 1),
+			getChatPetAnimationFrame(frameDurations, 300, Infinity),
+			getChatPetAnimationFrame(frameDurations, 600, 2),
+		], [
+			{ frameIndex: 0, complete: true },
+			{ frameIndex: 0, complete: false },
+			{ frameIndex: 0, complete: false },
+			{ frameIndex: 1, complete: false },
+			{ frameIndex: 1, complete: false },
+			{ frameIndex: 2, complete: false },
+			{ frameIndex: 2, complete: false },
+			{ frameIndex: 2, complete: true },
+			{ frameIndex: 0, complete: false },
+			{ frameIndex: 2, complete: true },
 		]);
 	});
 

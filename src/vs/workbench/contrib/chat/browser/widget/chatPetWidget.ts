@@ -11,7 +11,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
@@ -194,14 +194,39 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 	if (hasActiveRequest) {
 		return 'rendering';
 	}
+	if (idleExpired) {
+		return 'sleep';
+	}
 	if (hasInput) {
 		return 'typing';
 	}
-	return idleExpired ? 'sleep' : 'idle';
+	return 'idle';
 }
 
 export function getChatPetRenderedState(baseState: ChatPetState, transientState: ChatPetState | undefined, isDragging: boolean): ChatPetState {
 	return isDragging ? 'idle' : transientState ?? baseState;
+}
+
+export function getChatPetAnimationFrame(frameDurations: readonly number[], elapsed: number, iterations: number): { frameIndex: number; complete: boolean } {
+	if (frameDurations.length === 0) {
+		return { frameIndex: 0, complete: true };
+	}
+
+	const totalDuration = frameDurations.reduce((total, duration) => total + duration, 0);
+	if (elapsed >= totalDuration * iterations) {
+		return { frameIndex: frameDurations.length - 1, complete: true };
+	}
+
+	const iterationElapsed = Math.max(0, elapsed) % totalDuration;
+	let frameEnd = 0;
+	let frameIndex = 0;
+	for (; frameIndex < frameDurations.length - 1; frameIndex++) {
+		frameEnd += frameDurations[frameIndex];
+		if (iterationElapsed < frameEnd) {
+			break;
+		}
+	}
+	return { frameIndex, complete: false };
 }
 
 function getTransientStateDuration(state: ChatPetState): number {
@@ -266,6 +291,7 @@ export class ChatPetWidget extends Disposable {
 	private _renderedState: ChatPetState | undefined;
 	private _motionReduced = false;
 	private _enabled = false;
+	private _busy = false;
 	private _enablementInitialized = false;
 	private _hasCustomPosition = false;
 	private _suppressNextPointerClick = false;
@@ -276,6 +302,7 @@ export class ChatPetWidget extends Disposable {
 		private readonly dragBounds: HTMLElement,
 		model: IObservable<IChatModel | undefined>,
 		hasInput: IObservable<boolean>,
+		inputChanged: (listener: () => void) => IDisposable,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
@@ -328,15 +355,22 @@ export class ChatPetWidget extends Disposable {
 				this._gazeScheduler.schedule();
 			}
 		}));
-		this._register(dom.addDisposableListener(this._button.element, dom.EventType.ANIMATION_END, event => {
+		const onAnimationComplete = (event: AnimationEvent) => {
 			if (event.animationName === 'chat-pet-exit' && !this._enabled) {
 				this._finishDisable();
 			} else if (event.animationName === 'chat-pet-yapping-fall' && !this._isDragging.get() && event.target === this._activeSprite?.container && this._button.element.dataset.state === 'yapping') {
 				this._transientState.set('yappingMouthOpen', undefined);
 			}
-		}));
+		};
+		this._register(dom.addDisposableListener(this._button.element, dom.EventType.ANIMATION_END, onAnimationComplete));
+		this._register(dom.addDisposableListener(this._button.element, 'animationcancel', onAnimationComplete));
 		this._register(dom.addDisposableListener(this._button.element, dom.EventType.POINTER_DOWN, event => this._startDrag(event)));
 		this._register(dom.addDisposableListener(this._button.element, dom.EventType.KEY_DOWN, event => this._onKeyDown(event)));
+		this._register(inputChanged(() => {
+			if (this._enabled) {
+				this._wake();
+			}
+		}));
 
 		this._register(this._button.onDidClick(e => {
 			dom.EventHelper.stop(e, true);
@@ -378,6 +412,7 @@ export class ChatPetWidget extends Disposable {
 			const needsInput = !!request?.response?.isPendingConfirmation.read(reader);
 			const hasActiveRequest = chatModel?.hasActiveRequest.read(reader) ?? false;
 			const inputHasContent = hasInput.read(reader);
+			this._busy = hasActiveRequest || needsInput;
 			let idleExpired = this._idleExpired.read(reader);
 			let transientState = this._transientState.read(reader);
 			const isDragging = this._isDragging.read(reader);
@@ -407,7 +442,7 @@ export class ChatPetWidget extends Disposable {
 				return;
 			}
 
-			if (hasActiveRequest || needsInput || inputHasContent) {
+			if (this._busy) {
 				this._idleScheduler.cancel();
 				if (idleExpired) {
 					idleExpired = false;
@@ -586,7 +621,11 @@ export class ChatPetWidget extends Disposable {
 	private _wake(): void {
 		const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
 		this._idleExpired.set(false, undefined);
-		this._idleScheduler.schedule();
+		if (this._busy) {
+			this._idleScheduler.cancel();
+		} else {
+			this._idleScheduler.schedule();
+		}
 		if (wasSleeping) {
 			this._beginWakeAnimation();
 		}
@@ -651,7 +690,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable): void {
+	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>): void {
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
 		const context = canvas.getContext('2d');
@@ -679,28 +718,18 @@ export class ChatPetWidget extends Disposable {
 		}
 
 		const targetWindow = dom.getWindow(canvas);
-		const totalDuration = frameDurations.reduce((total, duration) => total + duration, 0);
 		const startTime = targetWindow.performance.now();
 		let currentFrame = 0;
 		let animationFrame: number | undefined;
 		const updateFrame = (timestamp: number) => {
-			const elapsed = timestamp - startTime;
-			if (elapsed >= totalDuration * source.iterations) {
-				drawFrame(frameDurations.length - 1);
+			const frame = getChatPetAnimationFrame(frameDurations, timestamp - startTime, source.iterations);
+			if (frame.complete) {
+				drawFrame(frame.frameIndex);
 				return;
 			}
-			const iterationElapsed = elapsed % totalDuration;
-			let frameEnd = 0;
-			let frameIndex = 0;
-			for (; frameIndex < frameDurations.length - 1; frameIndex++) {
-				frameEnd += frameDurations[frameIndex];
-				if (iterationElapsed < frameEnd) {
-					break;
-				}
-			}
-			if (frameIndex !== currentFrame) {
-				currentFrame = frameIndex;
-				drawFrame(frameIndex);
+			if (frame.frameIndex !== currentFrame) {
+				currentFrame = frame.frameIndex;
+				drawFrame(frame.frameIndex);
 			}
 			animationFrame = targetWindow.requestAnimationFrame(updateFrame);
 		};
