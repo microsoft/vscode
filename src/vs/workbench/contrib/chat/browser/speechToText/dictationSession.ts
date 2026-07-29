@@ -18,23 +18,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
 /**
- * Inline decoration class for the trailing portion of the transcript the
- * recognizer has not committed yet: rendered in the placeholder color so it
- * reads as provisional.
+ * Inline decoration class for the not-yet-final transcript: rendered in the
+ * placeholder color so it reads as provisional until dictation ends.
  */
 const INTERIM_PROCESSING_CLASS = 'dictation-interim-processing';
 
 const LOG_PREFIX = '[chat-stt-dictation]';
-
-/** Number of leading characters `a` and `b` share. */
-function commonPrefixLength(a: string, b: string): number {
-	const max = Math.min(a.length, b.length);
-	let i = 0;
-	while (i < max && a.charCodeAt(i) === b.charCodeAt(i)) {
-		i++;
-	}
-	return i;
-}
 
 /**
  * Renders the cumulative transcript into a code editor, replacing its own
@@ -56,17 +45,16 @@ class LiveTranscriptInserter {
 
 	/**
 	 * Render the cumulative transcript. While `interim` is true the text is not
-	 * yet fully committed, so the trailing portion the recognizer is still
-	 * working out (everything past `finalizedText`) is rendered in the
-	 * placeholder color. Words turn solid as the recognizer commits them, and
-	 * the final update (`interim === false`) clears the decoration entirely.
+	 * yet final, so it is rendered in the placeholder color to read as
+	 * provisional. The final update (`interim === false`) clears the decoration,
+	 * leaving solid text.
 	 *
 	 * Once a final update has been applied, later interim updates are ignored:
 	 * the transcription service can emit a trailing interim transcript as it
 	 * shuts down (after `stopAndTranscribe` resolves), which would otherwise
 	 * overwrite the final text and re-apply the interim styling.
 	 */
-	update(fullText: string, interim: boolean = true, finalizedText: string = ''): void {
+	update(fullText: string, interim: boolean = true): void {
 		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} userModified=${this._userModified} len=${fullText.length}`);
 		if (this._userModified) {
 			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (user modified transcript)`);
@@ -124,7 +112,7 @@ class LiveTranscriptInserter {
 			this._isApplyingEdit = false;
 		}
 
-		this._updateInterimDecorations(text, fullText, interim, finalizedText);
+		this._updateInterimDecorations(interim);
 	}
 
 	onDidChangeModelContent(event: IModelContentChangedEvent): void {
@@ -143,42 +131,29 @@ class LiveTranscriptInserter {
 		this.clearInterimDecorations();
 	}
 
-	/** Position of the given character offset within the inserted `text`. */
-	private _positionAtOffset(text: string, offset: number): Position {
-		const anchor = this._anchor!;
-		const sub = text.slice(0, offset);
-		const lines = sub.split('\n');
-		if (lines.length === 1) {
-			return new Position(anchor.lineNumber, anchor.column + lines[0].length);
-		}
-		return new Position(anchor.lineNumber + lines.length - 1, lines[lines.length - 1].length + 1);
-	}
-
 	/**
-	 * Render the trailing portion of the interim text — everything past what the
-	 * recognizer reports as committed (`finalizedText`) — in the placeholder
-	 * color. Words turn solid as soon as the recognizer commits them, and the
-	 * decoration is cleared entirely once the transcript is finalized.
+	 * Render the whole not-yet-final transcript in the placeholder color, so it
+	 * reads as provisional while the user is still speaking. The decoration is
+	 * cleared once the transcript is finalized, leaving solid text.
+	 *
+	 * Deliberately not split on the recognizer's finalized prefix: streaming
+	 * backends endpoint segments almost as fast as they are spoken, so styling
+	 * only the uncommitted tail leaves nearly every word solid on arrival and
+	 * the provisional state never becomes visible.
 	 */
-	private _updateInterimDecorations(text: string, fullText: string, interim: boolean, finalizedText: string): void {
+	private _updateInterimDecorations(interim: boolean): void {
 		if (!interim || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
 			this._logService.trace(`${LOG_PREFIX} interim decorations clear (interim=${interim})`);
 			this._processingDecorations?.clear();
 			return;
 		}
 
-		const leading = this._needsLeadingSpace ? 1 : 0;
-		const committedChars = commonPrefixLength(fullText, finalizedText);
-		const splitPosition = this._positionAtOffset(text, leading + committedChars);
-
 		this._processingDecorations ??= this._editor.createDecorationsCollection();
-
-		const processing = Position.equals(splitPosition, this._end) ? [] : [{
-			range: Range.fromPositions(splitPosition, this._end),
+		this._logService.trace(`${LOG_PREFIX} interim decorations ${this._anchor.lineNumber}:${this._anchor.column} -> ${this._end.lineNumber}:${this._end.column}`);
+		this._processingDecorations.set([{
+			range: Range.fromPositions(this._anchor, this._end),
 			options: { description: 'chatSpeechToText-interim', inlineClassName: INTERIM_PROCESSING_CLASS },
-		}];
-		this._logService.trace(`${LOG_PREFIX} interim decorations committedChars=${committedChars} split=${splitPosition.lineNumber}:${splitPosition.column}`);
-		this._processingDecorations.set(processing);
+		}]);
 	}
 
 	/** Drop the interim styling, leaving whatever text is currently inserted as solid. */
@@ -332,7 +307,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 			inserter.clearInterimDecorations();
 			return;
 		}
-		inserter.update(update.text, true, update.finalizedText);
+		inserter.update(update.text);
 	}));
 	disposables.add(editor.onDidChangeModelContent(event => inserter.onDidChangeModelContent(event)));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));

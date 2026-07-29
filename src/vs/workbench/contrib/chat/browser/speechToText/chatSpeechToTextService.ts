@@ -353,9 +353,10 @@ export interface IChatDictationTranscript {
 	/** Full cumulative transcript to display. */
 	readonly text: string;
 	/**
-	 * The leading portion of `text` that is finalized (committed): it is
-	 * rendered as solid text. The remainder is the in-progress interim tail,
-	 * shown in the placeholder color until it is finalized.
+	 * The leading portion of `text` that is finalized (committed) by the
+	 * recognizer. Note that streaming backends endpoint segments almost as fast
+	 * as they are spoken, so this is not a good signal for how much of the
+	 * transcript has settled from the user's point of view.
 	 */
 	readonly finalizedText: string;
 }

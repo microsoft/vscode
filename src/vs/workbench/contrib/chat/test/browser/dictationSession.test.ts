@@ -90,17 +90,20 @@ suite('DictationSession', () => {
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
 	});
 
-	test('renders only the not-yet-committed tail as still processing', async () => {
+	test('renders the whole in-progress transcript as still processing', async () => {
 		const transcript = 'hello world';
 		const { service, onDidUpdateTranscript } = createService(transcript, true);
 		const model = store.add(createTextModel(''));
 		const editor = store.add(createTestCodeEditor(model));
 
 		await startDictation(service, editor, mainWindow, new NullLogService());
-		onDidUpdateTranscript.fire({ text: transcript, finalizedText: 'hello' });
+		// The recognizer reports the whole utterance as already finalized, as
+		// streaming backends do almost as fast as words are spoken. It must still
+		// read as provisional until dictation ends.
+		onDidUpdateTranscript.fire({ text: transcript, finalizedText: transcript });
 		const whileProcessing = processingRanges(model);
 		await stopDictation();
 
-		assert.deepStrictEqual([whileProcessing, processingRanges(model)], [['[1,6 -> 1,12]'], []]);
+		assert.deepStrictEqual([whileProcessing, processingRanges(model)], [['[1,1 -> 1,12]'], []]);
 	});
 });
