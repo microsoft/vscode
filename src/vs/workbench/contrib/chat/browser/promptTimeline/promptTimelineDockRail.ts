@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, EventType, getWindow } from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
+import { $, addDisposableListener, append, clearNode, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { MIN_HOST_WIDTH } from './promptTimelineLayout.js';
 import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout } from './promptTimelineModel.js';
 import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
