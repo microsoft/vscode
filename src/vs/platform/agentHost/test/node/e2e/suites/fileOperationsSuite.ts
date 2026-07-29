@@ -106,11 +106,12 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			.filter(action => action.toolCallId === start.toolCallId) : [];
 		const progressMessages = deltas.map(delta => stringOrMarkdownText(delta.invocationMessage));
 		const fileContent = readFileSync(join(workspace, 'streaming.txt'), 'utf8');
+		const normalizedFileContent = fileContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 		const lineCount = fileContent.split(/\r\n|\r|\n/).length;
 		const readyInputs = ready.map(action => action.toolInput).filter(input => input !== undefined);
 
 		assert.deepStrictEqual({
-			fileContent: fileContent.trimEnd(),
+			fileContent: normalizedFileContent.trimEnd(),
 			hasProgress: deltas.length > 0,
 			hidesPartialInput: deltas.every(delta => delta.content === ''),
 			showsFile: progressMessages.some(message => message?.includes('streaming.txt')),
