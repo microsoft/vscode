@@ -670,7 +670,7 @@ function deduplicateCandidates(
 	for (const candidate of candidates) {
 		const sample = materializeWorkspaceRecordingSample(recording, candidate);
 		const inputDigest = digest(sample.entries.slice(0, sample.pivotEntryIndex + 1));
-		const labelDigest = digest(sample.entries.slice(sample.pivotEntryIndex + 1).filter(entry => entry.kind === 'changed'));
+		const labelDigest = digest(sample.entries.slice(sample.pivotEntryIndex + 1));
 		const group = groups.get(inputDigest);
 		if (!group) {
 			groups.set(inputDigest, { labelDigest, candidate, conflicting: false });

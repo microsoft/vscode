@@ -207,6 +207,26 @@ describe('workspace recording pivot policy', () => {
 			});
 		});
 	});
+
+	it('drops identical inputs with conflicting cursor labels', async () => {
+		const entries: LogEntry[] = [
+			...documentPrefix(),
+			{ kind: 'setContent', id: 0, time: 400_000, content, v: 2 },
+			userEdit(0, 400_100, 0, '', 3),
+			userEdit(0, 400_200, 0, '', 4),
+			{ kind: 'selectionChanged', id: 0, time: 400_500, selection: [[content.indexOf('two'), content.indexOf('two')]] },
+			generatedEdit(0, 499_800, 0, '', 5),
+			{ kind: 'selectionChanged', id: 0, time: 499_900, selection: [[0, 0]] },
+			{ kind: 'setContent', id: 0, time: 800_000, content, v: 6 },
+			userEdit(0, 800_100, 0, '', 7),
+			userEdit(0, 800_200, 0, '', 8),
+			{ kind: 'selectionChanged', id: 0, time: 800_500, selection: [[content.indexOf('three'), content.indexOf('three')]] },
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			expect(selectWorkspaceRecordingSamples(recording, 100)).toEqual([]);
+		});
+	});
 });
 
 describe('workspace recording materialization', () => {
