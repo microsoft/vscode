@@ -13,7 +13,7 @@ import { localize } from '../../../../../../nls.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AuthRequiredReason, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -30,7 +30,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, findProtectedResource, IAgentHostAuthenticationRecoveryService, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -103,6 +103,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
+	private _authenticationRecovery: AgentHostAuthenticationRecovery | undefined;
+	private readonly _pendingAuthenticationRequests = new Map<string, AuthRequiredReason>();
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
@@ -124,6 +126,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentHostAuthenticationRecoveryService private readonly _authenticationRecoveryService: IAgentHostAuthenticationRecoveryService,
 	) {
 		super();
 		this._isSessionsWindow = environmentService.isSessionsWindow;
@@ -142,6 +145,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		this._initialized = true;
 		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
+		const authenticationRecovery = this._register(this._instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			authTokenCache: this._authTokenCache,
+			logPrefix: '[AgentHost]',
+			recoveryKey: 'local',
+			authenticate: request => this._agentHostService.authenticate(request),
+		}));
+		this._authenticationRecovery = authenticationRecovery;
+		this._register(this._authenticationRecoveryService.register(this._agentHostService, authenticationRecovery));
 		this._register(this._agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
 		// React to root state changes (agent discovery / removal)
@@ -153,22 +164,24 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// first post-restart authenticate RPC is never skipped as "unchanged".
 		this._register(this._agentHostService.onAgentHostStart(() => {
 			this._authTokenCache.clear();
+			this._authenticationRecovery?.reset();
 		}));
 
-		// Surface the agent host's lazy, first-use SDK download as a progress
-		// notification. The Agents window renders this via its own sessions
-		// provider (`BaseAgentHostSessionsProvider`), so only wire it up here
-		// for regular editor windows to avoid duplicate notifications (this
-		// contribution runs in both windows). The matching `createSession`
-		// opt-in (`progressToken`) lives in the editor-window session handlers.
-		if (!this._isSessionsWindow) {
-			const downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
-			this._register(this._agentHostService.onDidNotification(n => {
-				if (n.type === NotificationType.Progress) {
-					downloadProgress.handleProgress(n);
-				}
-			}));
-		}
+		const downloadProgress = !this._isSessionsWindow
+			? this._register(this._instantiationService.createInstance(AgentHostDownloadProgress))
+			: undefined;
+		this._register(this._agentHostService.onDidNotification(notification => {
+			if (notification.type === NotificationType.AuthRequired) {
+				const rootState = this._agentHostService.rootState.value;
+				this._handleAuthenticationRequired(
+					notification.resource,
+					notification.reason ?? AuthRequiredReason.Required,
+					rootState && !(rootState instanceof Error) ? rootState : undefined,
+				);
+			} else if (notification.type === NotificationType.Progress) {
+				downloadProgress?.handleProgress(notification);
+			}
+		}));
 
 		// Process initial root state if already available
 		const initialRootState = this._agentHostService.rootState.value;
@@ -192,6 +205,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
+		for (const [resource, reason] of this._pendingAuthenticationRequests) {
+			this._handleAuthenticationRequired(resource, reason, rootState);
+		}
 		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
 		const incoming = new Set(allowed.map(a => a.provider));
 
@@ -220,6 +236,16 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				modelProvider?.updateModels(agent.models);
 			}
 		}
+	}
+
+	private _handleAuthenticationRequired(resource: string, reason: AuthRequiredReason, rootState: RootState | undefined): void {
+		const protectedResource = rootState ? findProtectedResource(rootState.agents, resource) : undefined;
+		if (!protectedResource) {
+			this._pendingAuthenticationRequests.set(resource, reason);
+			return;
+		}
+		this._pendingAuthenticationRequests.delete(resource);
+		void this._authenticationRecovery?.recover(protectedResource, reason);
 	}
 
 	private _registerAgent(agent: AgentInfo): void {
@@ -357,15 +383,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
+			let authenticated = false;
 			for (const resource of protectedResources) {
+				if (resource.required === false) {
+					continue;
+				}
 				await this._authTokenCache.authenticate(
 					resource.resource,
 					resource.scopes_supported,
 					testToken,
-					() => this._agentHostService.authenticate({ resource: resource.resource, token: testToken }),
+					() => this._agentHostService.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token: testToken }),
 				);
+				authenticated = true;
 			}
-			return protectedResources.length > 0;
+			return authenticated;
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
@@ -377,11 +408,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _seedTestToken(agents: readonly AgentInfo[], token: string): Promise<void> {
 		for (const agent of agents) {
 			for (const resource of agent.protectedResources ?? []) {
+				if (resource.required === false) {
+					continue;
+				}
 				await this._authTokenCache.authenticate(
 					resource.resource,
 					resource.scopes_supported,
 					token,
-					() => this._agentHostService.authenticate({ resource: resource.resource, token }),
+					() => this._agentHostService.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token }),
 				);
 			}
 		}

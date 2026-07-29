@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubRepoResource } from '../../common/githubEndpoints.js';
 import type { IAgentService } from '../../common/agentService.js';
-import { readSessionGitHubState, readSessionGitState, withSessionGitState, SessionStatus, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { readSessionGitHubState, readSessionGitState, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
-import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import type { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
+import { AgentHostGitHubApiError, type CreatedPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import type { INotification } from '../../common/state/sessionActions.js';
 
 const SESSION = 'mock:/session-1';
 const WORKING_DIRECTORY = 'file:///wd';
@@ -24,6 +28,12 @@ const WORKING_DIRECTORY = 'file:///wd';
 suite('AgentHostGitStateService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestAgentHostGitStateService extends AgentHostGitStateService {
+		protected override _pullRequestLookupRetryDelay(): number {
+			return 0;
+		}
+	}
 
 	function createHarness() {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -44,20 +54,59 @@ suite('AgentHostGitStateService', () => {
 			},
 		};
 
-		// The octokit and agent services are only used by the GitHub
-		// pull-request flow, which `refreshSessionGitState` does not touch.
-		const service = disposables.add(new AgentHostGitStateService(
+		const authTokens = new Map<string, string>();
+		const agentService = new class extends mock<IAgentService>() {
+			override getAuthToken(request: { resource: string }): string | undefined {
+				return authTokens.get(request.resource);
+			}
+		}();
+		let enterpriseUri: string | undefined;
+		const endpointChangeEmitter = disposables.add(new Emitter<void>());
+		const endpointService: IAgentHostGitHubEndpointService = {
+			_serviceBrand: undefined,
+			onDidChange: endpointChangeEmitter.event,
+			getApiBaseUri: () => deriveGitHubEndpoints(enterpriseUri).apiBaseUri,
+			getGraphQlUri: () => deriveGitHubEndpoints(enterpriseUri).graphQlUri,
+			getEnterpriseHost: () => deriveGitHubEndpoints(enterpriseUri).enterpriseHost,
+			getEnterpriseUri: () => enterpriseUri,
+			getCopilotResource: () => gitHubCopilotResource(deriveGitHubEndpoints(enterpriseUri)),
+			getRepoResource: () => gitHubRepoResource(deriveGitHubEndpoints(enterpriseUri)),
+		};
+		const pullRequestCalls: Array<{ owner: string; repo: string; branch: string; token: string; apiBaseUri: string | undefined }> = [];
+		let pullRequestResults: Array<CreatedPullRequest | Error | undefined> = [];
+		let beforePullRequestResult: (() => void) | undefined;
+		const octoKitService: IAgentHostOctoKitService = {
+			_serviceBrand: undefined,
+			async createPullRequest() {
+				throw new Error('Unexpected createPullRequest call');
+			},
+			async findPullRequestByHeadBranch(owner, repo, branch, token, _signal, apiBaseUri) {
+				pullRequestCalls.push({ owner, repo, branch, token, apiBaseUri });
+				const result = pullRequestResults.shift();
+				beforePullRequestResult?.();
+				if (result instanceof Error) {
+					throw result;
+				}
+				return result;
+			},
+			async enablePullRequestAutoMerge() {
+				throw new Error('Unexpected enablePullRequestAutoMerge call');
+			},
+		};
+		const service = disposables.add(new TestAgentHostGitStateService(
 			stateManager,
 			gitService,
-			{} as unknown as IAgentHostOctoKitService,
-			{} as unknown as IAgentService,
-			createTestGitHubEndpointService(),
+			octoKitService,
+			agentService,
+			endpointService,
 			new NullLogService(),
 			sessionDataService,
 		));
 
 		const runEvents: string[] = [];
+		const notifications: INotification[] = [];
 		disposables.add(service.onDidRefreshSessionGitState(key => runEvents.push(key)));
+		disposables.add(stateManager.onDidEmitNotification(notification => notifications.push(notification)));
 
 		return {
 			stateManager,
@@ -65,12 +114,30 @@ suite('AgentHostGitStateService', () => {
 			service,
 			gitCalls,
 			runEvents,
+			pullRequestCalls,
+			notifications,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
+			setAuthToken: (token: string | undefined) => {
+				const resource = endpointService.getRepoResource().resource;
+				if (token === undefined) {
+					authTokens.delete(resource);
+				} else {
+					authTokens.set(resource, token);
+				}
+			},
+			setEnterpriseUri: (uri: string | undefined, fire = true) => {
+				enterpriseUri = uri;
+				if (fire) {
+					endpointChangeEmitter.fire();
+				}
+			},
+			setBeforePullRequestResult: (callback: (() => void) | undefined) => { beforePullRequestResult = callback; },
+			setPullRequestResults: (...results: Array<CreatedPullRequest | Error | undefined>) => { pullRequestResults = results; },
 		};
 	}
 
-	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; gitState?: ISessionGitState }): void {
+	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState }): void {
 		const summary: SessionSummary = {
 			resource: SESSION,
 			provider: 'mock',
@@ -83,8 +150,12 @@ suite('AgentHostGitStateService', () => {
 		// `restoreSession` materializes the session in `ready` lifecycle so the
 		// persistence path (which skips `creating` sessions) actually runs.
 		stateManager.restoreSession(summary, []);
-		if (options?.gitState) {
-			stateManager.setSessionMeta(SESSION, withSessionGitState(undefined, options.gitState));
+		let metadata = options?.gitState ? withSessionGitState(undefined, options.gitState) : undefined;
+		if (options?.gitHubState) {
+			metadata = withSessionGitHubState(metadata, options.gitHubState);
+		}
+		if (metadata) {
+			stateManager.setSessionMeta(SESSION, metadata);
 		}
 	}
 
@@ -206,6 +277,198 @@ suite('AgentHostGitStateService', () => {
 				github: { owner: 'microsoft', repo: 'vscode' },
 				persistedGit: JSON.stringify(next),
 			});
+		});
+	});
+
+	test('circuit-breaks a rejected token and retries pending sessions after token replacement', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.setAuthToken('rejected-token');
+		h.setPullRequestResults(new AgentHostGitHubApiError('Bad credentials', 401, undefined));
+
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+		const rejectedBeforeReplacement = h.service.isAuthenticationTokenRejected('https://api.github.com/repos', 'rejected-token');
+
+		h.setAuthToken('fresh-token');
+		h.setPullRequestResults({ number: 42, url: 'https://github.com/microsoft/vscode/pull/42' });
+		await h.service.handleAuthenticationTokenUpdated('https://api.github.com/repos');
+
+		assert.deepStrictEqual({
+			pullRequestCalls: h.pullRequestCalls,
+			authRequired: h.notifications.filter(notification => notification.type === 'auth/required'),
+			gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			rejectedBeforeReplacement,
+			oldTokenRejectedAfterReplacement: h.service.isAuthenticationTokenRejected('https://api.github.com/repos', 'rejected-token'),
+			rejectedAfterReplacement: h.service.isAuthenticationTokenRejected('https://api.github.com/repos', 'fresh-token'),
+		}, {
+			pullRequestCalls: [
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'rejected-token', apiBaseUri: 'https://api.github.com' },
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'fresh-token', apiBaseUri: 'https://api.github.com' },
+			],
+			authRequired: [{
+				type: 'auth/required',
+				channel: 'ahp-root://',
+				resource: 'https://api.github.com/repos',
+				reason: 'expired',
+			}],
+			gitHubState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+			},
+			rejectedBeforeReplacement: true,
+			oldTokenRejectedAfterReplacement: true,
+			rejectedAfterReplacement: false,
+		});
+	});
+
+	test('keeps each lookup bound to one GitHub endpoint snapshot', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.setAuthToken('github-token');
+		h.setPullRequestResults(new AgentHostGitHubApiError('Bad credentials', 401, undefined));
+		h.setBeforePullRequestResult(() => {
+			h.setBeforePullRequestResult(undefined);
+			h.setEnterpriseUri('https://ghe.example.com', false);
+		});
+
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+
+		const enterpriseEndpoints = deriveGitHubEndpoints('https://ghe.example.com');
+		const enterpriseResource = gitHubRepoResource(enterpriseEndpoints).resource;
+		h.setAuthToken('enterprise-token');
+		h.setPullRequestResults({ number: 42, url: 'https://ghe.example.com/microsoft/vscode/pull/42' });
+		await h.service.handleAuthenticationTokenUpdated(enterpriseResource);
+
+		assert.deepStrictEqual({
+			pullRequestCalls: h.pullRequestCalls,
+			gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+		}, {
+			pullRequestCalls: [
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'github-token', apiBaseUri: 'https://api.github.com' },
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'enterprise-token', apiBaseUri: 'https://ghe.example.com/api/v3' },
+			],
+			gitHubState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrl: 'https://ghe.example.com/microsoft/vscode/pull/42',
+			},
+		});
+	});
+
+	test('retries when the new endpoint token arrives before the old lookup settles', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.setAuthToken('github-token');
+		h.setPullRequestResults(
+			new AgentHostGitHubApiError('Bad credentials', 401, undefined),
+			{ number: 42, url: 'https://ghe.example.com/microsoft/vscode/pull/42' },
+		);
+		h.setBeforePullRequestResult(() => {
+			h.setBeforePullRequestResult(undefined);
+			h.setEnterpriseUri('https://ghe.example.com');
+			h.setAuthToken('enterprise-token');
+			void h.service.handleAuthenticationTokenUpdated(
+				gitHubRepoResource(deriveGitHubEndpoints('https://ghe.example.com')).resource,
+			);
+		});
+
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+
+		assert.deepStrictEqual({
+			pullRequestCalls: h.pullRequestCalls,
+			gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+		}, {
+			pullRequestCalls: [
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'github-token', apiBaseUri: 'https://api.github.com' },
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'enterprise-token', apiBaseUri: 'https://ghe.example.com/api/v3' },
+			],
+			gitHubState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrl: 'https://ghe.example.com/microsoft/vscode/pull/42',
+			},
+		});
+	});
+
+	test('ignores a stale 401 after a newer token is accepted', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.setAuthToken('old-token');
+		h.setPullRequestResults(
+			new AgentHostGitHubApiError('Bad credentials', 401, undefined),
+			{ number: 42, url: 'https://github.com/microsoft/vscode/pull/42' },
+		);
+		h.setBeforePullRequestResult(() => {
+			h.setBeforePullRequestResult(undefined);
+			h.setAuthToken('new-token');
+		});
+
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+
+		assert.deepStrictEqual({
+			pullRequestCalls: h.pullRequestCalls,
+			authRequired: h.notifications.filter(notification => notification.type === 'auth/required'),
+			gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+		}, {
+			pullRequestCalls: [
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'old-token', apiBaseUri: 'https://api.github.com' },
+				{ owner: 'microsoft', repo: 'vscode', branch: 'feature', token: 'new-token', apiBaseUri: 'https://api.github.com' },
+			],
+			authRequired: [],
+			gitHubState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+			},
+		});
+	});
+
+	test('retries transient pull request lookup failures at most three times', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.setAuthToken('fresh-token');
+		h.setPullRequestResults(
+			new AgentHostGitHubApiError('Secondary rate limit', 403, 0),
+			new AgentHostGitHubApiError('Unavailable', 503, undefined),
+			{ number: 42, url: 'https://github.com/microsoft/vscode/pull/42' },
+		);
+
+		await h.service.attachSessionGitHubPullRequest(SESSION);
+
+		assert.deepStrictEqual({
+			attempts: h.pullRequestCalls.length,
+			gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+		}, {
+			attempts: 3,
+			gitHubState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+			},
 		});
 	});
 

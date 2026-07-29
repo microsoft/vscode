@@ -45,4 +45,19 @@ export interface IAgentHostGitStateService {
 	 * @param sessionKey The key of the session for which to check the GitHub pull request.
 	 */
 	attachSessionGitHubPullRequest(sessionKey: string): Promise<void>;
+
+	/**
+	 * Retries pull-request lookups that were blocked by an invalid token.
+	 */
+	handleAuthenticationTokenUpdated(resource: string): Promise<void>;
+
+	/**
+	 * Whether GitHub rejected this token for the current repository resource.
+	 */
+	isAuthenticationTokenRejected(resource: string, token: string): boolean;
+
+	/**
+	 * Records a GitHub 401 for the current repository token and requests replacement authentication.
+	 */
+	rejectAuthenticationToken(sessionKey: string, resource: string, token: string): boolean;
 }

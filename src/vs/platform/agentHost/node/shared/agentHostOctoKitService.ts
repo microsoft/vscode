@@ -35,6 +35,11 @@ interface GitHubPullRequestResponseItem {
 	readonly node_id?: unknown;
 }
 
+interface ICachedPullRequestSearch {
+	readonly etag: string;
+	readonly pullRequest: CreatedPullRequest | undefined;
+}
+
 export interface IGitHubApiResponse<T> {
 	readonly data: T | undefined;
 	readonly statusCode: number;
@@ -76,10 +81,11 @@ export interface IAgentHostOctoKitService {
 		draft: boolean,
 		token: string,
 		signal: AbortSignal,
+		apiBaseUri?: string,
 	): Promise<CreatedPullRequest>;
 
 	/** Finds the most recently updated pull request for `owner:branch`, if any. */
-	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined>;
+	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, apiBaseUri?: string): Promise<CreatedPullRequest | undefined>;
 
 	/**
 	 * Enables auto-merge on a pull request so GitHub merges it automatically
@@ -91,13 +97,25 @@ export interface IAgentHostOctoKitService {
 	 * including when the repository does not allow the requested merge method or
 	 * auto-merge is not enabled for the repository.
 	 */
-	enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void>;
+	enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal, graphQlUri?: string): Promise<void>;
 }
 
 export const IAgentHostOctoKitService = createDecorator<IAgentHostOctoKitService>('agentHostOctoKitService');
 
 const GITHUB_API_VERSION = '2022-11-28';
 const MAX_ERROR_RESPONSE_BODY_LENGTH = 500;
+
+export class AgentHostGitHubApiError extends Error {
+	constructor(
+		message: string,
+		readonly statusCode: number | undefined,
+		readonly retryAfterMs: number | undefined,
+		options?: ErrorOptions,
+	) {
+		super(message, options);
+		this.name = 'AgentHostGitHubApiError';
+	}
+}
 
 const ENABLE_AUTO_MERGE_MUTATION = `mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
 	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
@@ -114,7 +132,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	/**
 	 * A cache of ETags for pull request search results.
 	 */
-	private readonly pullRequestSearchEtags = new LRUCache<string, string>(100);
+	private readonly pullRequestSearchCache = new LRUCache<string, ICachedPullRequestSearch>(100);
 
 	constructor(
 		fetchFn: FetchFunction | undefined,
@@ -134,6 +152,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		draft: boolean,
 		token: string,
 		signal: AbortSignal,
+		apiBaseUri?: string,
 	): Promise<CreatedPullRequest> {
 		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem>(
 			`repos/${owner}/${repo}/pulls`,
@@ -141,6 +160,8 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			token,
 			signal,
 			{ title, body, head, base, draft },
+			undefined,
+			apiBaseUri,
 		);
 
 		const number = response.data?.number;
@@ -153,21 +174,21 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		return { url: html_url, number, nodeId: typeof node_id === 'string' ? node_id : undefined };
 	}
 
-	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
+	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, apiBaseUri?: string): Promise<CreatedPullRequest | undefined> {
 		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+		const effectiveApiBaseUri = apiBaseUri ?? this._endpoint.getApiBaseUri();
+		const etagKey = `${effectiveApiBaseUri}\0${routeSlug}`;
 
-		const etag = this.pullRequestSearchEtags.get(routeSlug);
-		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, etag);
+		const cached = this.pullRequestSearchCache.get(etagKey);
+		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, cached?.etag, effectiveApiBaseUri);
 
-		if (response.etag) {
-			this.pullRequestSearchEtags.set(routeSlug, response.etag);
+		if (response.statusCode === 304) {
+			return cached?.pullRequest;
 		}
-
-		if (
-			response.statusCode === 304 ||
-			!Array.isArray(response.data) ||
-			response.data.length === 0
-		) {
+		if (!Array.isArray(response.data) || response.data.length === 0) {
+			if (response.etag) {
+				this.pullRequestSearchCache.set(etagKey, { etag: response.etag, pullRequest: undefined });
+			}
 			return undefined;
 		}
 
@@ -175,7 +196,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		const html_url = first?.html_url;
 		const number = first?.number;
 		const node_id = first?.node_id;
-		return typeof html_url === 'string' && typeof number === 'number'
+		const pullRequest = typeof html_url === 'string' && typeof number === 'number'
 			? {
 				number,
 				url: html_url,
@@ -184,10 +205,14 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 					: undefined
 			}
 			: undefined;
+		if (response.etag) {
+			this.pullRequestSearchCache.set(etagKey, { etag: response.etag, pullRequest });
+		}
+		return pullRequest;
 	}
 
-	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void> {
-		await this._makeGraphQLRequest(ENABLE_AUTO_MERGE_MUTATION, { pullRequestId, mergeMethod }, token, signal);
+	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal, graphQlUri?: string): Promise<void> {
+		await this._makeGraphQLRequest(ENABLE_AUTO_MERGE_MUTATION, { pullRequestId, mergeMethod }, token, signal, graphQlUri);
 	}
 
 	private async _makeGHAPIRequest<T>(
@@ -196,9 +221,10 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		token: string,
 		signal: AbortSignal,
 		body?: Record<string, unknown>,
-		etag?: string
+		etag?: string,
+		apiBaseUri?: string,
 	): Promise<IGitHubApiResponse<T>> {
-		const url = `${this._endpoint.getApiBaseUri()}/${routeSlug}`;
+		const url = `${apiBaseUri ?? this._endpoint.getApiBaseUri()}/${routeSlug}`;
 		const headers: Record<string, string> = {
 			'Accept': 'application/vnd.github+json',
 			'Authorization': `Bearer ${token}`,
@@ -224,7 +250,12 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 				throw err;
 			}
 			this._logService.error(`[AgentHostOctoKit] ${method} ${url} - Network error`, err);
-			throw err;
+			throw new AgentHostGitHubApiError(
+				`GitHub API request failed: ${method} ${routeSlug} - Network error`,
+				undefined,
+				undefined,
+				{ cause: err },
+			);
 		}
 
 		// Inspect rate limit header
@@ -250,7 +281,11 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			const errorText = await response.text().catch(() => undefined);
 			const errorDetail = this._formatErrorResponseBody(errorText);
 			this._logService.error(`[AgentHostOctoKit] ${method} ${url} - Status: ${response.status}${errorDetail ? ` - ${errorDetail}` : ''}`);
-			throw new Error(`GitHub API request failed: ${method} ${routeSlug} - ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`);
+			throw new AgentHostGitHubApiError(
+				`GitHub API request failed: ${method} ${routeSlug} - ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`,
+				response.status,
+				parseRetryAfterHeader(response.headers.get('retry-after')),
+			);
 		}
 
 		try {
@@ -267,8 +302,9 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		variables: Record<string, unknown>,
 		token: string,
 		signal: AbortSignal,
+		graphQlUri?: string,
 	): Promise<unknown> {
-		const url = this._endpoint.getGraphQlUri();
+		const url = graphQlUri ?? this._endpoint.getGraphQlUri();
 		const headers: Record<string, string> = {
 			'Accept': 'application/json',
 			'Authorization': `Bearer ${token}`,
@@ -339,4 +375,12 @@ function parseRateLimitHeader(value: string | string[] | undefined): number | un
 	const str = Array.isArray(value) ? value[0] : value;
 	const parsed = parseInt(str, 10);
 	return isNaN(parsed) ? undefined : parsed;
+}
+
+function parseRetryAfterHeader(value: string | null): number | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const seconds = Number(value);
+	return Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : undefined;
 }

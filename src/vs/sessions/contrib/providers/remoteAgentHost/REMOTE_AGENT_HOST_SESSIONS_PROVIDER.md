@@ -75,7 +75,7 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 - `clearConnection()` — Clears the connection when the host disconnects
 - Handles session notifications (`notify/sessionAdded`, `notify/sessionRemoved`) and state changes
 - Fires `onDidChangeSessionTypes` when the host's agent list changes
-- Missing Copilot credentials open the standard product sign-in dialog before tokens are forwarded to the remote host. Authentication and transport failures propagate to the pending request; `false` is reserved for canceled or unavailable authentication.
+- Missing Copilot credentials open the standard product sign-in dialog before tokens are forwarded to the remote host. Root `auth/required` notifications replace an expired token once the owning window is focused; forwarding is retried at most three times with exponential backoff, while repeated rejection reports one error instead of reopening the sign-in flow.
 - Remote-host management options do not expose an IPC output channel; remote diagnostics use the host's forwarded logs when available.
 - SSH connection progress notifications are closed when the connect promise settles; keyboard-interactive prompt cancellation rejects the connect promise as cancellation and does not show an error notification.
 - SSH config host connections use resolved `IdentityFile` and `IdentityAgent` values from `ssh -G`; encrypted private keys are prompted for a passphrase through the same quick-input bridge as keyboard-interactive auth.

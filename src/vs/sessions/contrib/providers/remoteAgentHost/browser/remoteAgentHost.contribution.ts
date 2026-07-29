@@ -15,6 +15,7 @@ import { type AgentProvider, type IAgentConnection } from '../../../../../platfo
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
+import { AuthRequiredReason, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -28,7 +29,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenSessionEventsFileAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
-import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, findProtectedResource, IAgentHostAuthenticationRecoveryService, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -223,12 +224,40 @@ class ConnectionState extends Disposable {
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
+	readonly authenticationRecovery: AgentHostAuthenticationRecovery;
+	private readonly _pendingAuthenticationRequests = new Map<string, AuthRequiredReason>();
 
 	constructor(
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		recoveryKey: string,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentHostAuthenticationRecoveryService authenticationRecoveryService: IAgentHostAuthenticationRecoveryService,
 	) {
 		super();
+		this.authenticationRecovery = this._register(instantiationService.createInstance(AgentHostAuthenticationRecovery, {
+			authTokenCache: this.authTokenCache,
+			logPrefix: '[RemoteAgentHost]',
+			recoveryKey,
+			authenticate: request => this.connection.authenticate(request),
+		}));
+		this._register(authenticationRecoveryService.register(this.connection, this.authenticationRecovery));
+	}
+
+	handleRootState(rootState: RootState): void {
+		for (const [resource, reason] of this._pendingAuthenticationRequests) {
+			this.handleAuthenticationRequired(resource, reason, rootState);
+		}
+	}
+
+	handleAuthenticationRequired(resource: string, reason: AuthRequiredReason, rootState: RootState | undefined): void {
+		const protectedResource = rootState ? findProtectedResource(rootState.agents, resource) : undefined;
+		if (!protectedResource) {
+			this._pendingAuthenticationRequests.set(resource, reason);
+			return;
+		}
+		this._pendingAuthenticationRequests.delete(resource);
+		void this.authenticationRecovery.recover(protectedResource, reason);
 	}
 }
 
@@ -743,7 +772,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		const { address, name } = connectionInfo;
-		const connState = this._instantiationService.createInstance(ConnectionState, name, connection);
+		const connState = this._instantiationService.createInstance(ConnectionState, name, connection, address);
 		this._connections.set(address, connState);
 		const store = connState.store;
 
@@ -767,12 +796,25 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		// React to root state changes (agent discovery)
 		store.add(connection.rootState.onDidChange(rootState => {
+			connState.handleRootState(rootState);
 			this._handleRootStateChange(address, connection, rootState);
+		}));
+		store.add(connection.onDidNotification(notification => {
+			if (notification.type !== NotificationType.AuthRequired) {
+				return;
+			}
+			const rootState = connection.rootState.value;
+			connState.handleAuthenticationRequired(
+				notification.resource,
+				notification.reason ?? AuthRequiredReason.Required,
+				rootState && !(rootState instanceof Error) ? rootState : undefined,
+			);
 		}));
 
 		// If root state is already available, process it immediately
 		const initialRootState = connection.rootState.value;
 		if (initialRootState && !(initialRootState instanceof Error)) {
+			connState.handleRootState(initialRootState);
 			this._handleRootStateChange(address, connection, initialRootState);
 		}
 
