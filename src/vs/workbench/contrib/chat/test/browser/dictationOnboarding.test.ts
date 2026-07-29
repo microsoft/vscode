@@ -167,8 +167,9 @@ suite('Dictation onboarding', () => {
 				visible: host.container.classList.contains('has-dictation-onboarding'),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
 				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
+				microphonePickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
 			},
-			{ visible: true, cards: 1, hasMicrophoneControls: true });
+			{ visible: true, cards: 1, hasMicrophoneControls: true, microphonePickerHidden: true });
 	});
 
 	test('reset shows the introduction on the next dictation', () => {
