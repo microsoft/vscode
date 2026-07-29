@@ -123,7 +123,7 @@ export function createDictationCleanupSystemPrompt(source: 'final' | 'incrementa
 		: 'Add sentence punctuation, capitalization, and paragraph breaks so it reads naturally. Split run-on sentences and group related sentences into paragraphs separated by a blank line.';
 	const listInstruction = source === 'incremental'
 		? ''
-		: 'When the speaker dictates a sequence of items, format it as a Markdown bulleted or numbered list, choosing numbered only when order matters.';
+		: 'When the speaker enumerates two or more items, steps, or options, format them as a Markdown list with one item per line instead of a paragraph. Use a numbered list when the wording implies order or sequence (for example ordinals like "first", "second", "third", "next", "finally", counting like "one", "two", "three", or phrases like "step one" or "step two"); otherwise use a bulleted list with "-". Do not add items the speaker did not dictate.';
 	const continuationInstruction = isContinuation
 		? (source === 'incremental'
 			? 'This input continues earlier text. Do not capitalize its first word or add leading punctuation unless the wording itself clearly contains that punctuation.'
