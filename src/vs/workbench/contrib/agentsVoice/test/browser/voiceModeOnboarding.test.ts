@@ -170,8 +170,8 @@ suite('Voice Mode onboarding', () => {
 				activeElement: card,
 				card,
 				tabIndex: -1,
-				closeIcon: 'codicon codicon-check-compact',
-				listeningNotice: 'Close this when you\'re ready to speak.',
+				closeIcon: 'codicon codicon-close',
+				listeningNotice: undefined,
 			});
 	});
 
@@ -229,15 +229,12 @@ suite('Voice Mode onboarding', () => {
 			});
 	});
 
-	test('holds the microphone shut for as long as the card is up', () => {
+	test('does not suspend Voice Mode while the card is up', () => {
 		const holds: boolean[] = [];
 		const service = createService(disposables, [], holds);
 		const host = createHost(disposables);
 		disposables.add(register(service, host));
 
-		// The card goes up while the session is still connecting, so a plain
-		// `stopListening()` would no-op and hands-free would open the microphone
-		// on `session_init` with the card still on screen.
 		service.showIfNeeded();
 		const heldWhileOpen = holds.slice();
 		const listeningNotice = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-listening-notice')?.textContent;
@@ -246,9 +243,9 @@ suite('Voice Mode onboarding', () => {
 		assert.deepStrictEqual(
 			{ heldWhileOpen, listeningNotice, afterDismiss: holds },
 			{
-				heldWhileOpen: [true],
-				listeningNotice: 'Close this when you\'re ready to speak.',
-				afterDismiss: [true, false],
+				heldWhileOpen: [],
+				listeningNotice: undefined,
+				afterDismiss: [],
 			});
 	});
 

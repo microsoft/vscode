@@ -20,7 +20,6 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
@@ -529,8 +528,7 @@ export interface IVoiceModeOnboardingBannerOptions {
 
 /**
  * The first-run Voice Mode card: what Voice Mode is, that it costs nothing, the
- * voices it can speak with, and the mic as the alternative for anyone who would
- * rather not be spoken to at all.
+ * voices it can speak with.
  *
  * Clicking a voice both plays it and adopts it, so there is nothing to confirm
  * afterwards. The leading icon carries that story: play before the click,
@@ -557,7 +555,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -576,20 +573,10 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
 
-		// Voice Mode is live, but it must not be listening while the user is still
-		// reading and picking a voice. A hold is used rather than `stopListening`
-		// because the card goes up on `isConnecting`, before the session exists:
-		// `stopListening` no-ops until connected, and hands-free would then open
-		// the microphone on `session_init` with the card still on screen.
-		// Released in `finish()`, which is the only way out of the card.
-		this.voiceSessionController.setAutoListenHeld(true);
-		this._register(toDisposable(() => this.voiceSessionController.setAutoListenHeld(false)));
-
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
 		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
 		title.textContent = localize('voiceMode.onboarding.title', "Welcome to Voice Mode");
 		this.renderDescription(copy);
-		this.renderListeningNotice(copy);
 
 		this.renderSharedWaveform(instantiationService);
 
@@ -735,14 +722,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		}
 	}
 
-	private renderListeningNotice(container: HTMLElement): void {
-		const notice = dom.append(container, dom.$('.voice-mode-onboarding-listening-notice'));
-		const icon = dom.append(notice, dom.$(`span.codicon.codicon-${Codicon.mic.id}`));
-		icon.setAttribute('aria-hidden', 'true');
-		const text = dom.append(notice, dom.$('span'));
-		text.textContent = localize('voiceMode.onboarding.closeWhenReady', "Close this when you're ready to speak.");
-	}
-
 	/**
 	 * Dismissal is always available and never gated: a disabled close would trap
 	 * someone in the card. Choosing a voice already commits it, so this is only
@@ -752,7 +731,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.card.addAction({
 			className: 'voice-mode-onboarding-close',
 			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction and continue to Voice Mode"),
-			icon: Codicon.checkCompact,
+			icon: Codicon.close,
 			onActivate: () => this.finish(),
 		});
 	}
@@ -812,9 +791,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.player.stop();
 		this.logAction('close');
 
-		// Releasing the hold is what hands the session back: hands-free picks up
-		// and starts listening, push-to-talk stays quiet until the mic button.
-		// The release itself runs on dispose, below.
 		status(this.configurationService.getValue<boolean>('agents.voice.handsFree') === true
 			? localize('voiceMode.onboarding.listening', "Voice Mode is listening.")
 			: localize('voiceMode.onboarding.ready', "Voice Mode is ready. Press the mic button to start talking."));
