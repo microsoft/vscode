@@ -421,12 +421,32 @@
 	}
 }
 
-.interactive-item-container.interactive-request:not(.show-verbose-details) .value .chat-request-timestamp {
+.interactive-item-container.interactive-request:not(.show-verbose-details):not(.editing):not(.editing-input) .chat-request-timestamp-container {
 	display: none;
 }
 
 .interactive-item-container .value {
 	width: 100%;
+}
+
+.interactive-item-container .chat-request-timestamp-container {
+	width: 100%;
+}
+
+.interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+	align-items: center;
+	height: 22px;
+	margin-top: -22px;
+	pointer-events: none;
+}
+
+.interactive-item-container.interactive-request.editing .chat-request-timestamp {
+	pointer-events: auto;
+}
+
+.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+	box-sizing: border-box;
+	padding-inline-end: var(--vscode-spacing-size160);
 }
 
 .interactive-item-container .completed-response-disclosure {
@@ -3913,7 +3933,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		transition: opacity 0.1s ease-in-out;
 	}
 
-	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp {
+	.interactive-item-container.interactive-request .chat-request-timestamp-container {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.interactive-item-container.interactive-request:not(.group-hovered):not(.editing):not(.editing-input) .chat-request-timestamp {
 		opacity: 0;
 		transition: opacity 0.1s ease-in-out;
 	}
