@@ -58,8 +58,9 @@ export function setupDictationMicGlow(
 	let level = 0;
 
 	// The "Inside Rim" treatment from Voice Mode, locked to the cool (listening)
-	// colors, replacing the former flat blue inner glow.
-	const rim = store.add(createVoiceRim(target, { warm: false }));
+	// colors, replacing the former flat blue inner glow. The dictation cell is a
+	// full pill, so the rim uses the pill radius to hug its rounded ends.
+	const rim = store.add(createVoiceRim(target, { warm: false, pill: true }));
 
 	const stopAnimation = () => {
 		if (animationFrame !== undefined) {

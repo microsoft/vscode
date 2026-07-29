@@ -87,14 +87,14 @@ let beamSeq = 0;
  * the shared pulse loop, so the bloom can be hand-driven for the constrained
  * cool/warm hue and audio-reactive strength.
  */
-function injectBeam(host: HTMLElement, config: IStateConfig): { id: string; driver: PulseDriverConfig | undefined; hueProp: string | undefined; dispose: () => void } {
+function injectBeam(host: HTMLElement, config: IStateConfig, radiusOverride?: number): { id: string; driver: PulseDriverConfig | undefined; hueProp: string | undefined; dispose: () => void } {
 	const id = `voiceglow-${beamSeq++}`;
 	const { size, variant, brightness, saturation, duration } = config;
 	const theme = 'dark';
 	const themeConfig = sizeThemePresets[size][theme];
 	const sizeConfig = sizePresets[size];
 	const staticColors = variant === 'mono';
-	const radius = readRadius(host);
+	const radius = radiusOverride ?? readRadius(host);
 
 	const css = generateBeamCSS({
 		id,
@@ -206,7 +206,7 @@ export interface IVoiceRim extends IDisposable {
  * for symmetry. The rim overlays the target's edge (its center is transparent, so
  * it never obscures the button glyph).
  */
-export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: boolean }): IVoiceRim {
+export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: boolean; readonly pill?: boolean }): IVoiceRim {
 	const store = new DisposableStore();
 	const doc = target.ownerDocument;
 	const host = doc.createElement('div');
@@ -221,8 +221,16 @@ export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: 
 	target.appendChild(host);
 	store.add(toDisposable(() => host.remove()));
 
+	// When the host sits on a fully-rounded (pill) control like the dictation
+	// button, match that shape instead of the small default radius so the rim
+	// hugs the pill ends rather than poking square-ish corners through them.
+	const rect = target.getBoundingClientRect();
+	const pillRadius = Math.max(8, Math.round((rect.height || 22) / 2));
+	const radius = options?.pill ? pillRadius : readRadius(target);
+	host.style.borderRadius = options?.pill ? 'var(--vscode-cornerRadius-circle)' : `${radius}px`;
+
 	const config: IStateConfig = { family: 'rim', size: 'pulse-inner', variant: 'ocean', strength: 0.7, brightness: 1.4, saturation: 0.55, duration: 2.3, warm: options?.warm };
-	const beam = injectBeam(host, config);
+	const beam = injectBeam(host, config, radius);
 	store.add(toDisposable(beam.dispose));
 
 	const center = options?.warm ? WARM_CENTER : COOL_CENTER;
