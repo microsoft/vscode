@@ -128,14 +128,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
 	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
-
+	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
+	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
 		model,
 		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
-			supportsCacheBreakpoints: promptCacheBreakpointsEnabled && modelSupportCacheBreakPoints(endpoint),
+			supportsCacheBreakpoints,
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -148,7 +149,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		top_logprobs: options.postOptions.logprobs ? 3 : undefined,
 		store: false,
 		text: verbosity ? { verbosity } : undefined,
-		prompt_cache_options: { mode: promptCacheBreakpointsEnabled ? 'explicit' : 'implicit' },
+		prompt_cache_options: modelSupportsCacheBreakpoints ? { mode: supportsCacheBreakpoints ? 'explicit' : 'implicit' } : undefined,
 	};
 
 	if (compactThreshold !== undefined) {

@@ -1152,6 +1152,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		const body = buildBody(messages, testEndpoint);
 
+		expect(body.prompt_cache_options).toBeUndefined();
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 });
