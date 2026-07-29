@@ -8,8 +8,7 @@ import { afterEach, beforeEach, suite, test } from 'node:test';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join } from 'path';
-import { checkProgram, createProgram, getRule } from '../../checker/layersChecker.ts';
-import type { ILayerViolation, IRule } from '../../checker/layersChecker.ts';
+import { checkProgram, createProgram, getRule, type ILayerViolation, type IRule } from '../../checker/layersChecker.ts';
 
 suite('layersChecker', () => {
 	let rootPath: string;
