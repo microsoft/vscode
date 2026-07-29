@@ -968,6 +968,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		const body = buildBody(messages, cacheBreakpointEndpoint, false);
 
+		expect(body.prompt_cache_options).toEqual({ mode: 'implicit' });
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
@@ -983,6 +984,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		const body = buildBody(messages);
 
+		expect(body.prompt_cache_options).toEqual(expectedPromptCacheBreakpoint);
 		expect(body.input?.[0]).toMatchObject({
 			type: 'message',
 			role: 'user',

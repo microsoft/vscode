@@ -148,6 +148,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		top_logprobs: options.postOptions.logprobs ? 3 : undefined,
 		store: false,
 		text: verbosity ? { verbosity } : undefined,
+		prompt_cache_options: { mode: promptCacheBreakpointsEnabled ? 'explicit' : 'implicit' },
 	};
 
 	if (compactThreshold !== undefined) {
