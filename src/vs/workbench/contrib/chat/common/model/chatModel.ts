@@ -2404,8 +2404,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			selectedModel: serializedInputState.selectedModel && {
 				identifier: serializedInputState.selectedModel.identifier,
 				metadata: {
-					...serializedInputState.selectedModel.metadata,
-					isDefaultForLocation: serializedInputState.selectedModel.metadata.isDefaultForLocation ?? {},
+					...(serializedInputState.selectedModel.metadata ?? {}),
+					isDefaultForLocation: serializedInputState.selectedModel.metadata?.isDefaultForLocation ?? {},
 				}
 			},
 			contrib: serializedInputState.contrib,
