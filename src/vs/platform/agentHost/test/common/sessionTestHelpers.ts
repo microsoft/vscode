@@ -17,6 +17,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
+	private readonly _turnUsages = new Map<string, string>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -106,6 +107,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async getNextTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 
 	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
+
+	async setTurnUsage(turnId: string, usage: string): Promise<void> {
+		this._turnUsages.set(turnId, usage);
+	}
+
+	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
 
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
