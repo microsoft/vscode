@@ -9,18 +9,11 @@ import { localize } from '../../../../nls.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agentService.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import { buildOpenSessionLinkUri, CREATE_CHAT_TOOL_NAME, CREATE_SESSION_TOOL_NAME, parseOpenSessionLinkChatId, parseOpenSessionLinkUri, SEND_MESSAGE_TOOL_NAME } from '../../common/openSessionLink.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
-
-export const listSessionsToolName = 'list_sessions';
-export const getCurrentSessionToolName = 'get_current_session';
-export const createSessionToolName = CREATE_SESSION_TOOL_NAME;
-export const createChatToolName = CREATE_CHAT_TOOL_NAME;
-export const sendMessageToolName = SEND_MESSAGE_TOOL_NAME;
-export const getSessionContextToolName = 'get_session_context';
-export const deleteSessionToolName = 'delete_session';
 
 /**
  * Maximum `create_session` recursion depth. A user/top-level session is depth 0;
@@ -38,7 +31,7 @@ const maxCreatedChats = 25;
 /** Process-wide backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 50;
 
-const sessionConfirmationToolNames: ReadonlySet<string> = new Set([createSessionToolName, createChatToolName, sendMessageToolName, deleteSessionToolName]);
+const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
 
 /** Whether the given session server tool requires user confirmation before it runs. */
 export function sessionToolRequiresConfirmation(toolName: string): boolean {
@@ -128,49 +121,49 @@ const getSessionContextInputSchema: ToolDefinition['inputSchema'] = {
 /** Protocol tool definitions for the session-management server tools. */
 export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
-		name: listSessionsToolName,
+		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
 		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
 	},
 	{
-		name: getCurrentSessionToolName,
+		name: SessionServerToolName.GetCurrentSession,
 		title: 'Get Current Session',
 		description: 'Get metadata and the open link for the session this conversation is running in. Use this to reference the current session (for example before adding a chat to it).',
 		inputSchema: getCurrentSessionInputSchema,
 		annotations: { readOnlyHint: true },
 	},
 	{
-		name: createSessionToolName,
+		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
 		description: 'Create a session in a workspace and start it with an initial prompt. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
-		name: createChatToolName,
+		name: SessionServerToolName.CreateChat,
 		title: 'Create Chat',
 		description: 'Add a new chat to an existing session and start it with an initial prompt. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the session\'s model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createChatInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
-		name: sendMessageToolName,
+		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
 		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link (a `create_chat` link targets that specific chat). The message is delivered asynchronously — this tool does not wait for or return the reply. The UI shows a confirmation with a button to open the target, so reply with a single short sentence and do NOT print the URL or tell the user to click a button.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
-		name: getSessionContextToolName,
+		name: SessionServerToolName.GetSessionContext,
 		title: 'Get Session Context',
 		description: 'Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
 		inputSchema: getSessionContextInputSchema,
 		annotations: { readOnlyHint: true },
 	},
 	{
-		name: deleteSessionToolName,
+		name: SessionServerToolName.DeleteSession,
 		title: 'Delete Session',
 		description: 'Permanently delete a session (identified by a session URI from `list_sessions`), including its stored data. This cannot be undone. Refuses to delete the current session.',
 		inputSchema: deleteSessionInputSchema,
@@ -294,14 +287,15 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 }
 
 function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
-	const matchingSession = sessions.find(session =>
-		session.workingDirectory?.toString() === workspace || session.workingDirectory?.fsPath === workspace);
-	if (matchingSession?.workingDirectory) {
-		return matchingSession.workingDirectory;
+	for (const session of sessions) {
+		const match = session.workingDirectories?.find(d => d.toString() === workspace || d.fsPath === workspace);
+		if (match) {
+			return match;
+		}
 	}
 	const parsed = parseWorkspaceUri(workspace);
 	if (!parsed) {
-		throw new Error(`Invalid ${createSessionToolName} input: workspace must match a known session workingDirectory, an absolute path, or a valid URI string.`);
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace must match a known session workingDirectory, an absolute path, or a valid URI string.`);
 	}
 	return parsed;
 }
@@ -312,7 +306,7 @@ function resolveModel(modelName: string | undefined, models: readonly IAgentMode
 	}
 	const model = models.find(candidate => candidate.id === modelName || candidate.name === modelName);
 	if (!model) {
-		throw new Error(`Invalid ${createSessionToolName} input: model must match an available model id or name.`);
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name.`);
 	}
 	return model;
 }
@@ -320,9 +314,9 @@ function resolveModel(modelName: string | undefined, models: readonly IAgentMode
 /** Validates and resolves create-session arguments against current sessions and models. */
 export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[]): IResolvedCreateSessionArgs {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
-	const workspace = getRequiredString(args.workspace, 'workspace', createSessionToolName);
-	const prompt = getRequiredString(args.prompt, 'prompt', createSessionToolName);
-	const modelName = getOptionalString(args.model, 'model', createSessionToolName);
+	const workspace = getRequiredString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
+	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
+	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
 	return {
 		workspace: resolveWorkspace(workspace, sessions),
 		prompt,
@@ -423,25 +417,25 @@ export function getListSessionsArgs(rawArgs: unknown): IListSessionsArgs {
 	let status: Set<string> | undefined;
 	if (args.status !== undefined) {
 		if (!Array.isArray(args.status) || args.status.some(value => typeof value !== 'string')) {
-			throw new Error(`Invalid ${listSessionsToolName} input: status must be an array of status names.`);
+			throw new Error(`Invalid ${SessionServerToolName.ListSessions} input: status must be an array of status names.`);
 		}
 		const invalid = (args.status as string[]).filter(value => !(listSessionsStatusValues as readonly string[]).includes(value));
 		if (invalid.length > 0) {
-			throw new Error(`Invalid ${listSessionsToolName} input: unknown status value(s) ${invalid.join(', ')}. Valid values: ${listSessionsStatusValues.join(', ')}.`);
+			throw new Error(`Invalid ${SessionServerToolName.ListSessions} input: unknown status value(s) ${invalid.join(', ')}. Valid values: ${listSessionsStatusValues.join(', ')}.`);
 		}
 		status = new Set(args.status as string[]);
 	}
 
 	return {
-		session: getOptionalString(args.session, 'session', listSessionsToolName),
+		session: getOptionalString(args.session, 'session', SessionServerToolName.ListSessions),
 		status,
-		workspace: getOptionalString(args.workspace, 'workspace', listSessionsToolName),
-		withChanges: getOptionalBoolean(args.withChanges, 'withChanges', listSessionsToolName),
-		unread: getOptionalBoolean(args.unread, 'unread', listSessionsToolName),
-		withPullRequest: getOptionalBoolean(args.withPullRequest, 'withPullRequest', listSessionsToolName),
-		includeArchived: getOptionalBoolean(args.includeArchived, 'includeArchived', listSessionsToolName),
-		createdAfter: getOptionalTimestamp(args.createdAfter, 'createdAfter', listSessionsToolName),
-		createdBefore: getOptionalTimestamp(args.createdBefore, 'createdBefore', listSessionsToolName),
+		workspace: getOptionalString(args.workspace, 'workspace', SessionServerToolName.ListSessions),
+		withChanges: getOptionalBoolean(args.withChanges, 'withChanges', SessionServerToolName.ListSessions),
+		unread: getOptionalBoolean(args.unread, 'unread', SessionServerToolName.ListSessions),
+		withPullRequest: getOptionalBoolean(args.withPullRequest, 'withPullRequest', SessionServerToolName.ListSessions),
+		includeArchived: getOptionalBoolean(args.includeArchived, 'includeArchived', SessionServerToolName.ListSessions),
+		createdAfter: getOptionalTimestamp(args.createdAfter, 'createdAfter', SessionServerToolName.ListSessions),
+		createdBefore: getOptionalTimestamp(args.createdBefore, 'createdBefore', SessionServerToolName.ListSessions),
 	};
 }
 
@@ -456,17 +450,19 @@ function sessionIsArchived(session: IAgentSessionMetadata): boolean {
 	return session.isArchived === true || (session.status !== undefined && (session.status & SessionStatus.IsArchived) !== 0);
 }
 
-/** Whether a session's working directory matches the given folder (absolute path or URI). */
+/** Whether any of a session's working directories matches the given folder (absolute path or URI). */
 function sessionMatchesWorkspace(session: IAgentSessionMetadata, workspace: string): boolean {
-	const dir = session.workingDirectory;
-	if (!dir) {
+	const dirs = session.workingDirectories;
+	if (!dirs || dirs.length === 0) {
 		return false;
 	}
-	if (dir.toString() === workspace || dir.fsPath === workspace) {
-		return true;
-	}
 	const parsed = parseWorkspaceUri(workspace);
-	return !!parsed && parsed.toString() === dir.toString();
+	// Any-root membership: a session matches when the folder is any of its
+	// working directories, not only the primary.
+	return dirs.some(dir =>
+		dir.toString() === workspace
+		|| dir.fsPath === workspace
+		|| (!!parsed && parsed.toString() === dir.toString()));
 }
 
 /** Applies the {@link IListSessionsArgs} filters to a set of sessions. */
@@ -547,7 +543,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.summary !== undefined ? { title: session.summary } : {}),
 		...(status !== undefined ? { status } : {}),
 		...(session.activity !== undefined ? { activity: session.activity } : {}),
-		...(session.workingDirectory !== undefined ? { workingDirectory: session.workingDirectory.toString() } : {}),
+		...(session.workingDirectories?.[0] !== undefined ? { workingDirectory: session.workingDirectories[0].toString() } : {}),
 		...(session.project !== undefined ? { project: session.project.displayName } : {}),
 		...(session.isRead === false ? { unread: true } : {}),
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
@@ -592,7 +588,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const sessions = await accessor.listSessions();
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels());
 	const config: IAgentCreateSessionConfig = {
-		workingDirectory: args.workspace,
+		workingDirectories: args.workspace ? [args.workspace] : undefined,
 		...(args.model !== undefined ? { provider: args.model.provider, model: { id: args.model.id } } : {}),
 	};
 	const session = await accessor.createSession(config);
@@ -644,7 +640,7 @@ function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSess
 function resolveChatSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI {
 	const session = resolveKnownSession(sessionInput, sessions);
 	if (!session) {
-		throw new Error(`Invalid ${createChatToolName} input: session must match the URI of a known session (see list_sessions).`);
+		throw new Error(`Invalid ${SessionServerToolName.CreateChat} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	return session;
 }
@@ -652,18 +648,18 @@ function resolveChatSession(sessionInput: string, sessions: readonly IAgentSessi
 /** Validates and resolves create-chat arguments; defaults the session to {@link currentSession} when omitted. */
 export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[], currentSession?: URI): { session: URI; prompt: string; title?: string; model?: IAgentModelInfo } {
 	const args = (rawArgs ?? {}) as ICreateChatArgs;
-	const prompt = getRequiredString(args.prompt, 'prompt', createChatToolName);
-	const title = getOptionalString(args.title, 'title', createChatToolName);
-	const modelName = getOptionalString(args.model, 'model', createChatToolName);
+	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateChat);
+	const title = getOptionalString(args.title, 'title', SessionServerToolName.CreateChat);
+	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateChat);
 	const model = resolveModel(modelName, models);
-	const sessionInput = getOptionalString(args.session, 'session', createChatToolName);
+	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.CreateChat);
 	let session: URI;
 	if (sessionInput !== undefined) {
 		session = resolveChatSession(sessionInput, sessions);
 	} else if (currentSession) {
 		session = currentSession;
 	} else {
-		throw new Error(`Invalid ${createChatToolName} input: no session provided and the current session could not be determined.`);
+		throw new Error(`Invalid ${SessionServerToolName.CreateChat} input: no session provided and the current session could not be determined.`);
 	}
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
@@ -706,11 +702,11 @@ export interface IResolvedSendMessageArgs {
  */
 export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[]): IResolvedSendMessageArgs {
 	const args = (rawArgs ?? {}) as ISendMessageArgs;
-	const message = getRequiredString(args.message, 'message', sendMessageToolName);
-	const sessionInput = getRequiredString(args.session, 'session', sendMessageToolName);
+	const message = getRequiredString(args.message, 'message', SessionServerToolName.SendMessage);
+	const sessionInput = getRequiredString(args.session, 'session', SessionServerToolName.SendMessage);
 	const session = resolveKnownSession(sessionInput, sessions);
 	if (!session) {
-		throw new Error(`Invalid ${sendMessageToolName} input: session must match the URI of a known session (see list_sessions).`);
+		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
 	const chat = URI.parse(chatId ? buildChatUri(session.toString(), chatId) : buildDefaultChatUri(session.toString()));
@@ -726,7 +722,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	const sessions = await accessor.listSessions();
 	const { session, chat, chatId, message } = getSendMessageArgs(rawArgs, sessions);
 	if (currentChannel && chat.toString() === URI.parse(currentChannel).toString()) {
-		throw new Error(`Invalid ${sendMessageToolName} input: refusing to send a message to the current chat.`);
+		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: refusing to send a message to the current chat.`);
 	}
 	await accessor.startPrompt(session, chat, message);
 	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId));
@@ -769,22 +765,22 @@ export interface IResolvedSessionContextArgs {
 /** Validates and resolves get-session-context arguments against the known sessions. */
 export function getSessionContextArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[]): IResolvedSessionContextArgs {
 	const args = (rawArgs ?? {}) as ISessionContextArgs;
-	const sessionInput = getRequiredString(args.session, 'session', getSessionContextToolName);
+	const sessionInput = getRequiredString(args.session, 'session', SessionServerToolName.GetSessionContext);
 	const session = resolveKnownSession(sessionInput, sessions);
 	if (!session) {
-		throw new Error(`Invalid ${getSessionContextToolName} input: session must match the URI of a known session (see list_sessions).`);
+		throw new Error(`Invalid ${SessionServerToolName.GetSessionContext} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	let detail: SessionContextDetail = 'summary';
 	if (args.detail !== undefined) {
 		if (typeof args.detail !== 'string' || !(sessionContextDetailValues as readonly string[]).includes(args.detail)) {
-			throw new Error(`Invalid ${getSessionContextToolName} input: detail must be one of ${sessionContextDetailValues.join(', ')}.`);
+			throw new Error(`Invalid ${SessionServerToolName.GetSessionContext} input: detail must be one of ${sessionContextDetailValues.join(', ')}.`);
 		}
 		detail = args.detail as SessionContextDetail;
 	}
 	let transcriptLimit = defaultTranscriptLimit;
 	if (args.transcriptLimit !== undefined) {
 		if (typeof args.transcriptLimit !== 'number' || !Number.isFinite(args.transcriptLimit) || args.transcriptLimit < 1) {
-			throw new Error(`Invalid ${getSessionContextToolName} input: transcriptLimit must be a positive number.`);
+			throw new Error(`Invalid ${SessionServerToolName.GetSessionContext} input: transcriptLimit must be a positive number.`);
 		}
 		transcriptLimit = Math.min(Math.floor(args.transcriptLimit), maxTranscriptLimit);
 	}
@@ -956,13 +952,13 @@ interface IDeleteSessionArgs {
  */
 export function getDeleteSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentSession?: URI): URI {
 	const args = (rawArgs ?? {}) as IDeleteSessionArgs;
-	const sessionInput = getRequiredString(args.session, 'session', deleteSessionToolName);
+	const sessionInput = getRequiredString(args.session, 'session', SessionServerToolName.DeleteSession);
 	const session = resolveKnownSession(sessionInput, sessions);
 	if (!session) {
-		throw new Error(`Invalid ${deleteSessionToolName} input: session must match the URI of a known session (see list_sessions).`);
+		throw new Error(`Invalid ${SessionServerToolName.DeleteSession} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	if (currentSession && session.toString() === currentSession.toString()) {
-		throw new Error(`Invalid ${deleteSessionToolName} input: refusing to delete the current session.`);
+		throw new Error(`Invalid ${SessionServerToolName.DeleteSession} input: refusing to delete the current session.`);
 	}
 	return session;
 }
@@ -977,7 +973,7 @@ export async function applyDeleteSessionTool(accessor: ISessionServerToolAccesso
 
 function getSessionToolDisplay(toolName: string, _args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
-		case listSessionsToolName: {
+		case SessionServerToolName.ListSessions: {
 			let pastTenseMessage: StringOrMarkdown;
 			const count = result ? parseListedSessionCount(result.text) : undefined;
 			if (count === undefined) {
@@ -993,37 +989,37 @@ function getSessionToolDisplay(toolName: string, _args: unknown, result?: IServe
 				pastTenseMessage,
 			};
 		}
-		case createSessionToolName:
+		case SessionServerToolName.CreateSession:
 			return {
 				displayName: localize('toolName.createSession', "Create Session"),
 				invocationMessage: localize('toolInvoke.createSession', "Creating session"),
 				pastTenseMessage: localize('toolComplete.createSession', "Created session"),
 			};
-		case createChatToolName:
+		case SessionServerToolName.CreateChat:
 			return {
 				displayName: localize('toolName.createChat', "Create Chat"),
 				invocationMessage: localize('toolInvoke.createChat', "Creating chat"),
 				pastTenseMessage: localize('toolComplete.createChat', "Created chat"),
 			};
-		case sendMessageToolName:
+		case SessionServerToolName.SendMessage:
 			return {
 				displayName: localize('toolName.sendMessage', "Send Message"),
 				invocationMessage: localize('toolInvoke.sendMessage', "Sending message"),
 				pastTenseMessage: localize('toolComplete.sendMessage', "Sent message"),
 			};
-		case getSessionContextToolName:
+		case SessionServerToolName.GetSessionContext:
 			return {
 				displayName: localize('toolName.getSessionContext', "Get Session Context"),
 				invocationMessage: localize('toolInvoke.getSessionContext', "Reading session context"),
 				pastTenseMessage: localize('toolComplete.getSessionContext', "Read session context"),
 			};
-		case getCurrentSessionToolName:
+		case SessionServerToolName.GetCurrentSession:
 			return {
 				displayName: localize('toolName.getCurrentSession', "Get Current Session"),
 				invocationMessage: localize('toolInvoke.getCurrentSession', "Checking current session"),
 				pastTenseMessage: localize('toolComplete.getCurrentSession', "Checked current session"),
 			};
-		case deleteSessionToolName:
+		case SessionServerToolName.DeleteSession:
 			return {
 				displayName: localize('toolName.deleteSession', "Delete Session"),
 				invocationMessage: localize('toolInvoke.deleteSession', "Deleting session"),
@@ -1060,11 +1056,11 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
 			switch (toolName) {
-				case listSessionsToolName:
+				case SessionServerToolName.ListSessions:
 					return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
-				case getCurrentSessionToolName:
+				case SessionServerToolName.GetCurrentSession:
 					return serializeCurrentSession(currentSessionUri(sessionUri), await accessor.listSessions());
-				case createSessionToolName: {
+				case SessionServerToolName.CreateSession: {
 					if (createdSessionCount >= maxCreatedSessions) {
 						throw new Error(`Refusing to create more than ${maxCreatedSessions} sessions from server tools in this process.`);
 					}
@@ -1072,7 +1068,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					createdSessionCount++;
 					return formatCreateSessionResult(result);
 				}
-				case createChatToolName: {
+				case SessionServerToolName.CreateChat: {
 					if (createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
@@ -1080,7 +1076,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					createdChatCount++;
 					return formatCreateChatResult(result);
 				}
-				case sendMessageToolName: {
+				case SessionServerToolName.SendMessage: {
 					if (sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
@@ -1088,9 +1084,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					sentMessageCount++;
 					return result;
 				}
-				case getSessionContextToolName:
+				case SessionServerToolName.GetSessionContext:
 					return applyGetSessionContextTool(accessor, rawArgs);
-				case deleteSessionToolName:
+				case SessionServerToolName.DeleteSession:
 					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(sessionUri));
 				default:
 					throw new Error(`Unknown session server tool: ${toolName}`);

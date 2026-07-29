@@ -8,11 +8,8 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
     response:
-      content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
       stopReason: end_turn
-      usage:
-        inputTokens: 2586
-        outputTokens: 46
   - request:
       model: claude-opus-4.8
       system: ${system}
@@ -20,21 +17,18 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
         - role: assistant
-          content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
-          content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
+          content: 'Run exactly this shell command, with no modifications, in the session current working directory: `node -e "console.log(process.cwd())"`. Do not specify a working-directory override.'
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: Bash
           input:
-            command: pwd
-            description: Print working directory
+            command: node -e "console.log(process.cwd())"
+            description: Print Node.js current working directory
       stopReason: tool_use
-      usage:
-        inputTokens: 2
-        outputTokens: 74
   - request:
       model: claude-opus-4.8
       system: ${system}
@@ -42,24 +36,22 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
         - role: assistant
-          content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
-          content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
+          content: 'Run exactly this shell command, with no modifications, in the session current working directory: `node -e "console.log(process.cwd())"`. Do not specify a working-directory override.'
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: Bash
               input:
-                command: pwd
-                description: Print working directory
+                command: node -e "console.log(process.cwd())"
+                description: Print Node.js current working directory
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+              content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
     response:
-      content: ${workdir}/ahp-wt-test-h3mcIN.worktrees/what-is-your-current-working-directory-reply-wit
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
       stopReason: end_turn
-      usage:
-        inputTokens: 2
-        outputTokens: 46
