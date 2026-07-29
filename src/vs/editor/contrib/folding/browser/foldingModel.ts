@@ -9,6 +9,7 @@ import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from
 import { hash } from '../../../../base/common/hash.js';
 import { SelectedLines } from './folding.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IRange, Range } from '../../../common/core/range.js';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions;
@@ -94,36 +95,26 @@ export class FoldingModel implements IDisposable {
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });
 	}
 
-	public removeManualRanges(ranges: ILineRange[]) {
-		const resolvedRanges: ILineRange[] = [];
+	public removeManualRanges(ranges: readonly IRange[]) {
+		const rangeIndexesToRemove = new Set<number>();
+		let removeAll = false;
 		for (const range of ranges) {
-			if (range.startLineNumber === range.endLineNumber) {
-				// For single-line ranges (cursor position), find the innermost manual
-				// folding range at the cursor. If none found, remove all manual ranges.
+			if (Range.isEmpty(range)) {
 				let index = this._regions.findRange(range.startLineNumber);
-				let found = false;
-				while (index !== -1) {
-					if (this._regions.getSource(index) !== FoldSource.provider) {
-						resolvedRanges.push({
-							startLineNumber: this._regions.getStartLineNumber(index),
-							endLineNumber: this._regions.getEndLineNumber(index)
-						});
-						found = true;
-						break;
-					}
+				while (index !== -1 && this._regions.getSource(index) === FoldSource.provider) {
 					index = this._regions.getParentIndex(index);
 				}
-				if (!found) {
-					resolvedRanges.push({ startLineNumber: 1, endLineNumber: this._textModel.getLineCount() });
+				if (index === -1) {
+					removeAll = true;
+				} else {
+					rangeIndexesToRemove.add(index);
 				}
-			} else {
-				resolvedRanges.push(range);
 			}
 		}
 		const newFoldingRanges: FoldRange[] = new Array();
-		const intersects = (foldRange: FoldRange) => {
-			for (const range of resolvedRanges) {
-				if (!(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
+		const intersectsSelection = (foldRange: FoldRange) => {
+			for (const range of ranges) {
+				if (!Range.isEmpty(range) && !(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
 					return true;
 				}
 			}
@@ -131,7 +122,7 @@ export class FoldingModel implements IDisposable {
 		};
 		for (let i = 0; i < this._regions.length; i++) {
 			const foldRange = this._regions.toFoldRange(i);
-			if (foldRange.source === FoldSource.provider || !intersects(foldRange)) {
+			if (foldRange.source === FoldSource.provider || (!removeAll && !rangeIndexesToRemove.has(i) && !intersectsSelection(foldRange))) {
 				newFoldingRanges.push(foldRange);
 			}
 		}

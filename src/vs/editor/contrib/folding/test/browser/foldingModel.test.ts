@@ -966,11 +966,11 @@ suite('Folding Model', () => {
 			assertRanges(foldingModel, [r(1, 6), r(2, 5), r(3, 4)]);
 
 			// Cursor on line 4 (inside innermost manual range 3-4): should remove only 3-4
-			foldingModel.removeManualRanges([{ startLineNumber: 4, endLineNumber: 4 }]);
+			foldingModel.removeManualRanges([new Range(4, 1, 4, 1)]);
 			assertRanges(foldingModel, [r(1, 6), r(2, 5)]);
 
 			// Cursor on line 3 (inside remaining manual range 2-5): should remove only 2-5
-			foldingModel.removeManualRanges([{ startLineNumber: 3, endLineNumber: 3 }]);
+			foldingModel.removeManualRanges([new Range(3, 1, 3, 1)]);
 			assertRanges(foldingModel, [r(1, 6)]);
 		} finally {
 			textModel.dispose();
@@ -998,8 +998,12 @@ suite('Folding Model', () => {
 			foldingModel.update(FoldingRegions.fromFoldRanges(ranges));
 			assertRanges(foldingModel, [r(2, 4), r(3, 4)]);
 
+			// A single-line selection outside manual ranges should preserve them
+			foldingModel.removeManualRanges([new Range(6, 1, 6, 2)]);
+			assertRanges(foldingModel, [r(2, 4), r(3, 4)]);
+
 			// Cursor on line 6 (not inside any manual range): should remove all manual ranges
-			foldingModel.removeManualRanges([{ startLineNumber: 6, endLineNumber: 6 }]);
+			foldingModel.removeManualRanges([new Range(6, 1, 6, 1)]);
 			assertRanges(foldingModel, [r(2, 4)]);
 		} finally {
 			textModel.dispose();
@@ -1028,7 +1032,7 @@ suite('Folding Model', () => {
 			assertRanges(foldingModel, [r(1, 5), r(2, 3), r(4, 5)]);
 
 			// Selection spanning lines 2-3: removes only the first manual range
-			foldingModel.removeManualRanges([{ startLineNumber: 2, endLineNumber: 3 }]);
+			foldingModel.removeManualRanges([new Range(2, 1, 3, 1)]);
 			assertRanges(foldingModel, [r(1, 5), r(4, 5)]);
 		} finally {
 			textModel.dispose();
