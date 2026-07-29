@@ -63,7 +63,7 @@
     "monaco-compile-check": "tsc --project src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node --max-old-space-size=8192 node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "vscode-dts-compile-check": "tsc --project src/tsconfig.vscode-dts.json && tsc --project src/tsconfig.vscode-proposed-dts.json",
-    "valid-layers-check": "node --max-old-space-size=8192 build/checker/layersChecker.ts && tsc --project build/checker/tsconfig.browser.json && tsc --project build/checker/tsconfig.worker.json && tsc --project build/checker/tsconfig.node.json && tsc --project build/checker/tsconfig.electron-browser.json && tsc --project build/checker/tsconfig.electron-main.json && tsc --project build/checker/tsconfig.electron-utility.json",
+    "valid-layers-check": "node build/checker/layersChecker.ts && node build/checker/layersTypeCheck.ts",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.ts && tsc --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
     "export-policy-data": "node build/lib/policies/exportPolicyData.ts",

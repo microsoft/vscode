@@ -301,6 +301,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
+	private _isInputOnboardingVisible = false;
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -802,7 +803,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
-			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model)));
+			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
+			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, this.inputEditor.onDidChangeModelContent));
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
@@ -1184,6 +1186,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.inputPart || !this.viewModel) {
 			return;
 		}
+		if (this.isInputOnboardingVisible()) {
+			this.clearGettingStartedTip();
+			return;
+		}
 
 		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 
@@ -1233,6 +1239,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 			dom.clearNode(tipContainer);
 			dom.setVisibility(false, tipContainer);
+		}
+	}
+
+	private isInputOnboardingVisible(): boolean {
+		return this._isInputOnboardingVisible;
+	}
+
+	private setInputOnboardingVisible(visible: boolean): void {
+		this._isInputOnboardingVisible = visible;
+		if (visible) {
+			this.clearGettingStartedTip();
+		} else if (this.isEmpty()) {
+			this.renderGettingStartedTipIfNeeded();
 		}
 	}
 
@@ -1738,7 +1757,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.listWidget.onDidRerender(item => {
 			if (isRequestVM(item.currentElement) && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
 				if (!item.rowContainer.contains(this.inputContainer)) {
-					item.rowContainer.appendChild(this.inputContainer);
+					item.requestTimestampContainer.before(this.inputContainer);
 				}
 				this.input.focus();
 			}
@@ -1836,9 +1855,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputPart?.setEditing(!!this.viewModel?.editing && isInput, isEditingSentRequest);
 
 			if (!isInput) {
-				const rowContainer = item.rowContainer;
 				this.inputContainer = dom.$('.chat-edit-input-container');
-				rowContainer.appendChild(this.inputContainer);
+				item.requestTimestampContainer.before(this.inputContainer);
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
@@ -2030,6 +2048,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
 		};
 
 		if (this.viewModel?.editing) {

@@ -11,9 +11,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
-import { type AgentProvider, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { type AgentProvider, type AuthenticateParams, type AuthenticateResult, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -43,6 +44,8 @@ import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, 
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -280,6 +283,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IRemoteAgentHostConnectionCustomizationService private readonly _connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 	) {
 		super();
 
@@ -918,6 +922,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
+			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
 			agentId,
 			sessionType,
 			fullName: displayName,
@@ -972,7 +977,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
 				logPrefix: '[RemoteAgentHost]',
-				authenticate: request => connection.authenticate(request),
+				authenticate: this._authenticateCallback(address, connection),
 			});
 		} catch (err) {
 			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
@@ -982,18 +987,43 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	/**
+	 * Build the `authenticate` callback for a connection. Host-agnostic by default (forwards the
+	 * request unchanged); a connection kind may inject a token transform via
+	 * {@link IRemoteAgentHostConnectionCustomizationService} — e.g. cloud sandbox connections, whose
+	 * host rejects plaintext bearers over the relay (`-32602`) and requires a Mission-Control-sealed
+	 * envelope. The transform owns fail-closed validation, so a raw token can never reach the host.
+	 */
+	private _authenticateCallback(address: string, connection: IAgentConnection): (request: AuthenticateParams) => Promise<AuthenticateResult> {
+		const transform = this._connectionCustomizations.get(address)?.authenticate;
+		if (!transform) {
+			return request => connection.authenticate(request);
+		}
+		return async request => connection.authenticate(await transform(request));
+	}
+
+	/**
 	 * Interactively prompt the user to authenticate when the server requires it.
 	 * Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
+		// When the connection transforms the outgoing token (e.g. sealing), the resolved plaintext
+		// is not the identity that was actually sent, and the sealed envelope has its own lifetime.
+		// A host-requested re-auth (this path) must therefore send a fresh transformed token, so drop
+		// the plaintext-keyed dedupe first — otherwise an unchanged plaintext would be suppressed and
+		// the host would never receive a fresh envelope.
+		if (authTokenCache && this._connectionCustomizations.get(address)?.authenticate) {
+			authTokenCache.clear();
+		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache,
 			logPrefix: '[RemoteAgentHost]',
-			authenticate: request => connection.authenticate(request),
+			authenticate: this._authenticateCallback(address, connection),
 		});
 	}
 }
+
+registerSingleton(IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
 
@@ -1012,6 +1042,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: nls.localize('chat.remoteAgentHosts.autoConnect', "Automatically connect to online dev tunnel and SSH-configured remote agent hosts on startup. When disabled, cached sessions are still shown but connections are established only on demand."),
 			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+		},
+		// Off by default: sandbox tasks currently carry the `copilot-developer-cli` slug, which the
+		// Copilot extension's cloud provider does not list, so the two do not overlap. That slug is
+		// expected to change, at which point both providers would list the same task — see
+		// `CLOUD_SANDBOX_AGENT_SLUG`.
+		[CloudSandboxEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.cloudSandbox.enabled', "Enable connecting to Copilot cloud sandbox sessions over a live Agent Host Protocol relay. When enabled, opening a Copilot CLI cloud session connects to its sandbox for slash commands and a responsive, steerable experience instead of only polling logs."),
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},

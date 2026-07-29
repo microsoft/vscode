@@ -132,7 +132,7 @@ testFamilies.forEach(family => {
 
 			const r = await renderer.render();
 			if (!isMessagesApi) {
-				addCacheBreakpoints(r.messages);
+				addCacheBreakpoints(r.messages, 'chatCompletions');
 			}
 			return r.messages
 				.map(m => messageToMarkdown(m))

@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -19,11 +20,14 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
+import { buildMicrophoneOptions, IMicrophoneOption, indexOfMicrophone } from '../../chat/browser/speechToText/dictationOnboarding.js';
 import './media/voiceModeOnboarding.css';
 
 /** Setting the banner writes when a voice chip is picked. */
@@ -32,14 +36,7 @@ const VOICE_SETTING = 'agents.voice.voice';
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
-/**
- * Where the second link goes: `voice.md`, the customization file sent to the
- * backend as `voice_instructions`. It shapes what the agent *says back*, which
- * is why the link reads "how it responds" rather than naming the file.
- */
-const VOICE_INSTRUCTIONS_COMMAND = 'workbench.action.chat.configureVoiceInstructions';
-
-type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
 
 type VoiceModeOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
@@ -81,7 +78,7 @@ interface IWave {
 const VOICES: readonly IVoiceModeVoice[] = [
 	{
 		id: 'maya_neutral',
-		label: localize('voiceMode.onboarding.voice.maya', "Maya"),
+		label: localize('voiceMode.onboarding.voice.maya', "Maya (Default)"),
 		// Flowing mid-range: even spread, gentle drift.
 		signature: [
 			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
@@ -166,8 +163,8 @@ const WAVE_TEMPO = (2 * Math.PI) / IDLE_CYCLE_SECONDS / Math.abs(RESTING_SIGNATU
 
 /** Amplitude with nothing playing: present, but clearly at rest. */
 const IDLE_GAIN = 0.55;
-/** Extra amplitude at peak loudness while a voice sample plays. */
-const SPEAKING_GAIN = 0.45;
+/** A restrained lift while a sample plays; the voice chips already carry the stronger activity cue. */
+const SPEAKING_GAIN = 0.18;
 /** How quickly the band chases the audio. Low and slow reads as smooth. */
 const LEVEL_EASING = 0.08;
 /** How quickly the trace morphs from one voice's signature to another. */
@@ -425,6 +422,7 @@ class VoiceSamplePlayer extends Disposable {
 
 	constructor(
 		private readonly element: HTMLElement,
+		private readonly audioFactory: (() => HTMLAudioElement) | undefined,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -483,7 +481,7 @@ class VoiceSamplePlayer extends Disposable {
 		}
 
 		const targetWindow = dom.getWindow(this.element);
-		const audio = new targetWindow.Audio();
+		const audio = this.audioFactory?.() ?? new targetWindow.Audio();
 		this.audio = audio;
 		this._register(toDisposable(() => {
 			audio.pause();
@@ -525,6 +523,8 @@ export interface IVoiceModeOnboardingBannerOptions {
 	readonly container: HTMLElement;
 	readonly onDismiss: () => void;
 	readonly source: 'automatic' | 'manual';
+	/** Allows tests to provide a deterministic media element. */
+	readonly audioFactory?: () => HTMLAudioElement;
 }
 
 /**
@@ -543,6 +543,9 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	private readonly card: ChatInputOnboardingCard;
 	private readonly player: VoiceSamplePlayer;
 	private readonly options: IVoiceModeOnboardingBannerOptions;
+	private readonly microphonePicker = this._register(new MutableDisposable<DisposableStore>());
+	private microphoneOptions: IMicrophoneOption[] = [];
+	private microphonePickerContainer: HTMLElement | undefined;
 
 	private readonly voiceElements = new Map<string, HTMLElement>();
 
@@ -553,11 +556,12 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		options: IVoiceModeOnboardingBannerOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -573,25 +577,16 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			},
 		}));
 		this.domNode = this.card.domNode;
-		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode));
+		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode, options.audioFactory));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
-
-		// Voice Mode is live, but it must not be listening while the user is still
-		// reading and picking a voice. A hold is used rather than `stopListening`
-		// because the card goes up on `isConnecting`, before the session exists:
-		// `stopListening` no-ops until connected, and hands-free would then open
-		// the microphone on `session_init` with the card still on screen.
-		// Released in `finish()`, which is the only way out of the card.
-		this.voiceSessionController.setAutoListenHeld(true);
-		this._register(toDisposable(() => this.voiceSessionController.setAutoListenHeld(false)));
 
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
 		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
 		title.textContent = localize('voiceMode.onboarding.title', "Welcome to Voice Mode");
 		this.renderDescription(copy);
-		this.renderListeningNotice(copy);
 
 		this.renderSharedWaveform(instantiationService);
+		this.renderMicrophonePicker();
 
 		const actions = dom.append(this.domNode, dom.$('.voice-mode-onboarding-actions'));
 		this.renderVoices(actions);
@@ -621,20 +616,111 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		}));
 	}
 
+	private renderMicrophonePicker(): void {
+		this.microphonePickerContainer = dom.append(this.domNode, dom.$('.voice-mode-onboarding-microphone-picker'));
+		this.microphoneOptions = [{
+			deviceId: '',
+			label: localize('voiceMode.onboarding.systemDefault', "System default"),
+		}];
+		this.updateMicrophonePicker();
+
+		const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
+		if (mediaDevices) {
+			this._register(dom.addDisposableListener(mediaDevices, 'devicechange', () => void this.refreshMicrophones()));
+			void this.refreshMicrophones();
+		}
+	}
+
+	private async refreshMicrophones(): Promise<void> {
+		const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
+		if (!mediaDevices?.enumerateDevices) {
+			return;
+		}
+
+		let devices: MediaDeviceInfo[];
+		try {
+			devices = await mediaDevices.enumerateDevices();
+		} catch (error) {
+			this.logService.trace(`[voice] could not enumerate microphones: ${error}`);
+			return;
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const options = buildMicrophoneOptions(devices);
+		if (this.microphoneOptions.length > 1 && !options.some(option => option.deviceId && option.label)) {
+			return;
+		}
+		this.microphoneOptions = options;
+		this.updateMicrophonePicker();
+	}
+
+	private updateMicrophonePicker(): void {
+		if (!this.microphonePickerContainer) {
+			return;
+		}
+		this.microphonePicker.clear();
+		dom.clearNode(this.microphonePickerContainer);
+
+		this.microphonePickerContainer.hidden = this.microphoneOptions.length <= 1;
+		if (this.microphonePickerContainer.hidden) {
+			return;
+		}
+
+		dom.append(this.microphonePickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.voice-mode-onboarding-microphone-icon`))
+			.setAttribute('aria-hidden', 'true');
+
+		const selected = indexOfMicrophone(this.microphoneOptions, this.currentMicrophoneId());
+
+		const store = new DisposableStore();
+		const selectBox = store.add(new SelectBox(
+			this.microphoneOptions.map(option => ({ text: option.label })),
+			selected,
+			this.contextViewService,
+			{ ...defaultSelectBoxStyles, selectBackground: undefined, selectBorder: undefined, selectForeground: undefined },
+			{ ariaLabel: localize('voiceMode.onboarding.microphone', "Microphone"), useCustomDrawn: true },
+		));
+		selectBox.render(this.microphonePickerContainer);
+		store.add(selectBox.onDidSelect(event => this.selectMicrophone(event.index)));
+		this.microphonePicker.value = store;
+	}
+
+	private currentMicrophoneId(): string {
+		return this.storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
+	}
+
+	private selectMicrophone(index: number): void {
+		const option = this.microphoneOptions[index];
+		if (!option) {
+			return;
+		}
+		this.logAction('selectMicrophone');
+		if (option.deviceId) {
+			this.storageService.store(AgentsVoiceStorageKeys.MicrophoneDevice, option.deviceId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
+		}
+		status(localize('voiceMode.onboarding.microphoneSelected', "{0} selected.", option.label));
+	}
+
 	/**
 	 * The four voices as real buttons - border, hover lift, pressed feedback -
 	 * because bare text gave no sign it could be clicked at all.
 	 */
 	private renderVoices(container: HTMLElement): void {
+		const labelText = localize('voiceMode.onboarding.voices', "Agent Voice:");
+		const label = dom.append(container, dom.$('.voice-mode-onboarding-voices-label'));
+		label.textContent = labelText;
+
 		const group = dom.append(container, dom.$('.voice-mode-onboarding-voices'));
 		group.setAttribute('role', 'radiogroup');
-		group.setAttribute('aria-label', localize('voiceMode.onboarding.voices', "Voice Mode voice"));
+		group.setAttribute('aria-label', labelText);
 
 		for (const voice of VOICES) {
 			const option = dom.append(group, dom.$('.voice-mode-onboarding-voice'));
 			option.setAttribute('role', 'radio');
-			// Spells out both halves of what a click does: it speaks, and it sticks.
-			option.setAttribute('aria-label', localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label));
+			option.setAttribute('aria-label', this.voiceAriaLabel(voice, false));
 
 			// The icon is the affordance: it says "this will speak" before the
 			// click, and "this is yours" after it.
@@ -660,6 +746,12 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 	// --- Shared behaviour ---
 
+	private voiceAriaLabel(voice: IVoiceModeVoice, playing: boolean): string {
+		return playing
+			? localize('voiceMode.onboarding.voice.stopPreview', "Stop {0} preview.", voice.label)
+			: localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label);
+	}
+
 	private handleOptionKey(event: KeyboardEvent, voice: IVoiceModeVoice): void {
 		const keyboardEvent = new StandardKeyboardEvent(event);
 		if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
@@ -683,35 +775,29 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	/**
-	 * One short paragraph: what Voice Mode does, and the two places to change
-	 * your mind - the settings that control it, and the customization file that
-	 * shapes what it says back.
+	 * One short paragraph: what Voice Mode does, and where to change its
+	 * settings.
 	 *
 	 * `[[...]]` marks each clause that becomes a link, so translators can place
-	 * them naturally in the sentence instead of receiving fixed phrases
-	 * concatenated onto the end. `renderFormattedText` numbers them in source
-	 * order and hands the index to the callback.
+	 * it naturally in the sentence instead of receiving a fixed phrase
+	 * concatenated onto the end.
 	 */
 	private renderDescription(container: HTMLElement): void {
 		const description = dom.append(container, dom.$('.voice-mode-onboarding-description'));
 		const text = localize({
 			key: 'voiceMode.onboarding.description',
 			comment: [
-				'Preserve the double square brackets: they mark the two pieces of text that become links.',
-				'The first link opens Voice Mode settings; the second opens a file for customizing how the agent speaks.',
+				'Preserve the double square brackets: they mark the text that becomes a link.',
+				'The link opens Voice Mode settings.',
 			],
-		}, "Your agent can speak back to you, free of charge. Adjust [[settings]] or [[how it responds]] anytime.");
+		}, "Choose how your agent speaks to you. Adjust [[settings]] anytime.");
 
-		const commands = [VOICE_SETTINGS_COMMAND, VOICE_INSTRUCTIONS_COMMAND];
 		dom.append(description, renderFormattedText(text, {
 			actionHandler: {
-				callback: index => {
-					const command = commands[Number(index)];
-					if (command) {
-						this.logAction(index === '0' ? 'openSettings' : 'openInstructions');
-						this.commandService.executeCommand(command)
-							.catch(error => this.logService.error(`[voice] Failed to run ${command}: ${error}`));
-					}
+				callback: () => {
+					this.logAction('openSettings');
+					this.commandService.executeCommand(VOICE_SETTINGS_COMMAND)
+						.catch(error => this.logService.error(`[voice] Failed to run ${VOICE_SETTINGS_COMMAND}: ${error}`));
 				},
 				disposables: this._store,
 			},
@@ -735,14 +821,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		}
 	}
 
-	private renderListeningNotice(container: HTMLElement): void {
-		const notice = dom.append(container, dom.$('.voice-mode-onboarding-listening-notice'));
-		const icon = dom.append(notice, dom.$(`span.codicon.codicon-${Codicon.mic.id}`));
-		icon.setAttribute('aria-hidden', 'true');
-		const text = dom.append(notice, dom.$('span'));
-		text.textContent = localize('voiceMode.onboarding.closeWhenReady', "Close this when you're ready to speak.");
-	}
-
 	/**
 	 * Dismissal is always available and never gated: a disabled close would trap
 	 * someone in the card. Choosing a voice already commits it, so this is only
@@ -751,8 +829,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	private renderClose(): void {
 		this.card.addAction({
 			className: 'voice-mode-onboarding-close',
-			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction and continue to Voice Mode"),
-			icon: Codicon.checkCompact,
+			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction"),
+			icon: Codicon.closeCompact,
 			onActivate: () => this.finish(),
 		});
 	}
@@ -765,6 +843,11 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
+		if (this.player.playingVoice === voice.id) {
+			this.player.stop();
+			status(localize('voiceMode.onboarding.voice.previewStopped', "{0} preview stopped.", voice.label));
+			return;
+		}
 		this.logAction('selectVoice');
 		this.selectedVoice = voice;
 		this.updateSelection();
@@ -798,27 +881,19 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 	private updatePlaying(playingVoice: string | undefined): void {
 		for (const [id, element] of this.voiceElements) {
-			element.classList.toggle('playing', id === playingVoice);
+			const playing = id === playingVoice;
+			element.classList.toggle('playing', playing);
+			const voice = VOICES.find(candidate => candidate.id === id);
+			if (voice) {
+				element.setAttribute('aria-label', this.voiceAriaLabel(voice, playing));
+			}
 		}
 		this.domNode.classList.toggle('playing', playingVoice !== undefined);
 	}
 
-	/**
-	 * Close the introduction and hand the session back to the user. Voice Mode
-	 * stays connected either way; hands-free starts listening immediately, while
-	 * push-to-talk waits for the mic button so nobody is recorded unexpectedly.
-	 */
 	private finish(): void {
 		this.player.stop();
 		this.logAction('close');
-
-		// Releasing the hold is what hands the session back: hands-free picks up
-		// and starts listening, push-to-talk stays quiet until the mic button.
-		// The release itself runs on dispose, below.
-		status(this.configurationService.getValue<boolean>('agents.voice.handsFree') === true
-			? localize('voiceMode.onboarding.listening', "Voice Mode is listening.")
-			: localize('voiceMode.onboarding.ready', "Voice Mode is ready. Press the mic button to start talking."));
-
 		this.options.onDismiss();
 	}
 
@@ -834,6 +909,7 @@ export const IVoiceModeOnboardingService = createDecorator<IVoiceModeOnboardingS
 
 export interface IVoiceModeOnboardingService {
 	readonly _serviceBrand: undefined;
+	readonly isVisible: boolean;
 
 	/**
 	 * Register a container that can host the banner (a chat input). The most
@@ -846,7 +922,7 @@ export interface IVoiceModeOnboardingService {
 	 * Passed explicitly because `focusRoot` is a container, not a control - the
 	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -864,6 +940,10 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 
 	private readonly onboarding: ChatInputOnboarding;
 
+	get isVisible(): boolean {
+		return this.onboarding.isVisible;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -875,8 +955,8 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, focus);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, focus, tipContainer, onDidChangeVisible);
 	}
 
 	showIfNeeded(): void {

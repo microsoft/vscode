@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { AgentSession } from '../../common/agentService.js';
 import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
+import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -372,7 +372,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		}
 
 		function getStart(events: ReturnType<typeof mapSessionEventsToHistoryRecords> extends Promise<infer R> ? R : never) {
-			return events[0] as { toolInput: string; toolArguments?: string };
+			return events[0] as { toolInput: string };
 		}
 
 		test('strips redundant bash cd prefix matching workingDirectory', async () => {
@@ -381,7 +381,6 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			], cwd);
 			const start = getStart(result);
 			assert.strictEqual(start.toolInput, 'ls -la');
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'ls -la' });
 		});
 
 		test('leaves command unchanged when cd dir does not match', async () => {
@@ -408,8 +407,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				},
 			], cwd);
 			const start = getStart(result);
-			// edit tool's toolInput is derived from filePath, not command — but toolArguments preserves original
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'cd /workspace/proj && ls' });
+			assert.strictEqual(start.toolInput, '{\n  "command": "cd /workspace/proj && ls"\n}');
 		});
 
 		test('handles trailing slash on workingDirectory', async () => {
