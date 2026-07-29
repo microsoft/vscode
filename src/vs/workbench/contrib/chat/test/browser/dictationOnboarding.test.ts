@@ -134,6 +134,22 @@ suite('Dictation onboarding', () => {
 			});
 	});
 
+	test('reset makes the introduction eligible again', () => {
+		const service = createService(disposables);
+		const host = createHost(disposables);
+		disposables.add(service.registerHost(host.container, host.root));
+
+		service.showIfNeeded(() => { });
+		host.container.querySelector<HTMLElement>('.dictation-onboarding-banner')!
+			.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		const beforeReset = service.showIfNeeded(() => { });
+
+		service.reset();
+		const afterReset = service.showIfNeeded(() => { });
+
+		assert.deepStrictEqual({ beforeReset, afterReset }, { beforeReset: false, afterReset: true });
+	});
+
 	test('escape dismisses the card without dictating', async () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);

@@ -875,6 +875,9 @@ export interface IDictationOnboardingService {
 	 * to dock it to, so the caller can explain why nothing happened.
 	 */
 	show(startDictation?: () => void): boolean;
+
+	/** Reset the first-run marker so the card appears on the next dictation. */
+	reset(): void;
 }
 
 export class DictationOnboardingService extends Disposable implements IDictationOnboardingService {
@@ -904,6 +907,10 @@ export class DictationOnboardingService extends Disposable implements IDictation
 
 	show(startDictation?: () => void): boolean {
 		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', startDictation));
+	}
+
+	reset(): void {
+		this.onboarding.reset();
 	}
 
 	private createBanner(container: HTMLElement, dismiss: () => void, source: 'automatic' | 'manual', startDictation?: () => void): DictationOnboardingBanner {

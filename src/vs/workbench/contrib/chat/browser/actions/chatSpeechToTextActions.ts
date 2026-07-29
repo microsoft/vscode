@@ -29,6 +29,7 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
+import { SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/micButtonMenuActions.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
 // hidden (not just disabled) when the user has turned AI features off; without
@@ -353,11 +354,9 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 }
 
 class ShowChatSpeechToTextIntroductionAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.showSpeechToTextIntroduction';
-
 	constructor() {
 		super({
-			id: ShowChatSpeechToTextIntroductionAction.ID,
+			id: SHOW_DICTATION_ONBOARDING_COMMAND,
 			title: localize2('chat.speechToText.showIntroduction', "Dictate: Show Introduction"),
 			category: CHAT_CATEGORY,
 			f1: true,
@@ -374,6 +373,22 @@ class ShowChatSpeechToTextIntroductionAction extends Action2 {
 		// The card docks to a chat input, so there is nothing to show it in when
 		// no chat is open. Say so rather than appearing to do nothing.
 		accessor.get(INotificationService).info(localize('chatStt.introductionNeedsChat', "Open a chat to see the dictation introduction."));
+	}
+}
+
+class ResetChatSpeechToTextIntroductionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.resetSpeechToTextIntroduction',
+			title: localize2('chat.speechToText.resetIntroduction', "Dictate: Reset Introduction"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatSpeechToTextConfigured,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IDictationOnboardingService).reset();
 	}
 }
 
@@ -415,6 +430,7 @@ export function registerChatSpeechToTextActions(): DisposableStore {
 	store.add(registerAction2(HoldToSpeechToTextAction));
 	store.add(registerAction2(CancelChatSpeechToTextAction));
 	store.add(registerAction2(ShowChatSpeechToTextIntroductionAction));
+	store.add(registerAction2(ResetChatSpeechToTextIntroductionAction));
 	store.add(registerAction2(SelectSpeechToTextMicrophoneAction));
 	return store;
 }
