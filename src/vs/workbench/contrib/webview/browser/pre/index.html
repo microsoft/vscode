@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-E+xFrJh8n1SMMtlrX4+1NFsewbPXVmoCZWHS4vCMJxA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-G40+3vu/ZpVWp/n0uD0wcIguNgbWdooqEEQZVMDoVAE=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -588,9 +588,7 @@
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeydown = (e) => {
-			// On web, let the browser handle copy/paste/cut natively; on desktop the
-			// host owns them. Everything else the host owns is blocked here so the
-			// platform does not also act on it.
+			// On web the browser handles copy/paste/cut natively; on desktop the host owns them.
 			if (isCopyPasteOrCut(e) && !onElectron) {
 				return;
 			}
