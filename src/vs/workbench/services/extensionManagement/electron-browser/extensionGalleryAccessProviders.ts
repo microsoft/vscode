@@ -244,12 +244,17 @@ export class ExtensionGalleryMicrosoftAccessProvider extends Disposable implemen
 					this._core.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: false, serviceUrl: configuredServiceUrl });
 					this._core.sink.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 				} else {
-					// 401: the token was missing/expired/invalid (e.g. wrong audience). This
-					// is NOT a durable "ineligible" verdict — re-authentication may fix it —
-					// so do not cache a negative result; ask the user to (re-)sign in. A fresh
-					// sign-in fires onDidChangeSessions and re-runs this check with a new token.
+					// 401: we presented a Microsoft token and it was rejected at the auth layer.
+					// The user is already signed in, so routing back to RequiresSignIn would just
+					// re-prompt the same account for the same (rejected) token — an endless loop
+					// that never tells the user what is wrong. Surface AccessDenied instead so the
+					// condition is communicated (this matches MarketplaceAuthRequiredError's
+					// documented contract: a rejected token is a denial, not a sign-in prompt).
+					// We do NOT cache a negative verdict: unlike a 403 a 401 is not a durable
+					// per-identity denial, so a later config/account/session change re-evaluates
+					// cleanly.
 					this._core.clearCache();
-					this._core.sink.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+					this._core.sink.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 				}
 				return;
 			}
@@ -323,12 +328,14 @@ export class ExtensionGalleryMicrosoftAccessProvider extends Disposable implemen
 					this._core.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: false, serviceUrl: configuredServiceUrl });
 					this._core.sink.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 				} else {
-					// 401: the token was missing/expired/invalid (e.g. wrong audience) at the
-					// eligibility endpoint. This is NOT a durable "ineligible" verdict —
-					// re-authentication may fix it — so do not cache a negative result; ask
-					// the user to (re-)sign in. A fresh sign-in re-runs this check.
+					// 401: the Microsoft token was rejected at the eligibility endpoint. As with
+					// the service-index fetch above, the user is already signed in, so re-prompting
+					// for sign-in would loop on the same rejected token without ever explaining the
+					// condition. Surface AccessDenied so it is communicated. We do NOT cache a
+					// negative verdict: unlike a 403 a 401 is not a durable per-identity denial, so
+					// a later config/account/session change re-evaluates cleanly.
 					this._core.clearCache();
-					this._core.sink.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+					this._core.sink.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 				}
 				return;
 			}
