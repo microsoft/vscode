@@ -134,45 +134,45 @@ suite('CommandDetectionCapability', () => {
 		});
 	});
 
-	test('should report exit code 130 when a command is interrupted with ^C', async () => {
-		// First, run a normal command
+	test('should not inherit the previous exit code when a duplicate command is interrupted', async () => {
 		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
 
-		// Now simulate an interrupted command: the terminal buffer shows the command
-		// text ending with ^C, and the shell reports undefined as the exit code.
-		capability.handlePromptStart();
-		await writeP(xterm, `\r$ `);
-		capability.handleCommandStart();
-		await writeP(xterm, 'echo test^C');
-		capability.handleCommandExecuted();
-		await writeP(xterm, `\r\n`);
-		capability.handleCommandFinished(undefined as any);
-
-		await printCommandStart('$ ');
-
-		assertCommands([
-			{ command: 'echo test^C', exitCode: 130, cwd: undefined, marker: { line: 2 } }
-		]);
-	});
-
-	test('should inherit previous exit code for duplicate commands without ^C', async () => {
-		// Run a command normally
-		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
-
-		// Run the same command with undefined exit code (history merge scenario)
-		// but without ^C - should inherit the previous exit code
 		capability.handlePromptStart();
 		await writeP(xterm, `\r$ `);
 		capability.handleCommandStart();
 		await writeP(xterm, 'echo test');
+		xterm.input('\x03');
+		await writeP(xterm, '^C');
+		capability.setCommandLine('echo test', true);
 		capability.handleCommandExecuted();
-		await writeP(xterm, `\r\ntest\r\n`);
-		capability.handleCommandFinished(undefined as any);
+		await writeP(xterm, `\r\n`);
+		capability.handleCommandFinished(undefined);
 
 		await printCommandStart('$ ');
 
 		assertCommands([
-			{ command: 'echo test', exitCode: 0, cwd: undefined, marker: { line: 2 } }
+			{ command: 'echo test', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo test', exitCode: undefined, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should inherit the previous exit code for duplicate commands without interruption', async () => {
+		await printStandardCommand('$ ', 'echo ^C', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo ^C');
+		capability.setCommandLine('echo ^C', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\ntest\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 2 } }
 		]);
 	});
 
