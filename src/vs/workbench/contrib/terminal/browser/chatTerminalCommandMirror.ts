@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
@@ -68,6 +69,28 @@ export function computeMaxBufferColumnWidth(buffer: { readonly length: number; g
 	return maxWidth;
 }
 
+/**
+ * Checks if two VT strings match around a boundary where we would slice.
+ * This is an efficient O(1) check that verifies a small window of characters
+ * before the slice point to detect if the VT sequences have diverged (common on Windows).
+ *
+ * @param newVT The new VT text to compare.
+ * @param oldVT The old VT text to compare against.
+ * @param slicePoint The point where we would slice. Must be <= both string lengths.
+ * @param windowSize The number of characters before slicePoint to check (default 50).
+ * @returns True if the boundary matches, false if VT sequences have diverged.
+ */
+export function vtBoundaryMatches(newVT: string, oldVT: string, slicePoint: number, windowSize: number = 50): boolean {
+	const start = Math.max(0, slicePoint - windowSize);
+	const end = slicePoint;
+	for (let i = start; i < end; i++) {
+		if (newVT.charCodeAt(i) !== oldVT.charCodeAt(i)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 export interface IDetachedTerminalCommandMirrorRenderResult {
 	lineCount?: number;
 	maxColumnWidth?: number;
@@ -97,6 +120,26 @@ const enum ChatTerminalMirrorMetrics {
  */
 function computeOutputLineCount(startLine: number, endLine: number): number {
 	return Math.max(endLine - startLine, 0);
+}
+
+/**
+ * Computes the number of rendered rows occupied by a terminal snapshot.
+ * The cursor line is included when it contains content and excluded when it
+ * is the empty line after a trailing newline.
+ */
+export function computeSnapshotLineCount(buffer: {
+	readonly baseY: number;
+	readonly cursorY: number;
+	getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined;
+}, lineCount?: number): number {
+	if (lineCount !== undefined) {
+		return lineCount;
+	}
+
+	const cursorLineIndex = buffer.baseY + buffer.cursorY;
+	const hasCursorLineContent = !!buffer.getLine(cursorLineIndex)?.translateToString(true);
+	const endLine = cursorLineIndex + (hasCursorLineContent ? 1 : 0);
+	return computeOutputLineCount(0, endLine);
 }
 
 export async function getCommandOutputSnapshot(
@@ -280,9 +323,16 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		await new Promise<void>(resolve => {
-			if (!this._lastVT) {
-				if (vt.text) {
-					detached.xterm.write(vt.text, resolve);
+			// Only append if the boundary around the slice point matches; otherwise rewrite.
+			// This is an efficient constant-time check (checking up to 50 characters) instead of comparing the entire prefix.
+			// On Windows, VT sequences can differ even for equivalent content, causing corruption
+			// if we blindly append.
+			const canAppend = !!this._lastVT && vt.text.length >= this._lastVT.length && this._vtBoundaryMatches(vt.text, this._lastVT.length);
+			if (!canAppend) {
+				// Use \x1bc (RIS) + new content in one write to avoid a blank frame
+				const payload = this._lastVT ? `\x1bc${vt.text}` : vt.text;
+				if (payload) {
+					detached.xterm.write(payload, resolve);
 				} else {
 					resolve();
 				}
@@ -505,11 +555,16 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return;
 		}
 
-		const canAppend = !!this._lastVT && startLine >= previousCursor;
+		// Only append if: (1) cursor hasn't moved backwards, and (2) boundary around slice point matches.
+		// This is an efficient O(1) check instead of comparing the entire prefix.
+		// On Windows, VT sequences can differ even for equivalent content, so we must verify.
+		const canAppend = !!this._lastVT && startLine >= previousCursor && vt.text.length >= this._lastVT.length && this._vtBoundaryMatches(vt.text, this._lastVT.length);
 		await new Promise<void>(resolve => {
-			if (!this._lastVT || !canAppend) {
-				if (vt.text) {
-					detachedRaw.write(vt.text, resolve);
+			if (!canAppend) {
+				// Use \x1bc (RIS) + new content in one write to avoid a blank frame
+				const payload = this._lastVT ? `\x1bc${vt.text}` : vt.text;
+				if (payload) {
+					detachedRaw.write(payload, resolve);
 				} else {
 					resolve();
 				}
@@ -542,6 +597,13 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	private _getAbsoluteCursorY(raw: RawXtermTerminal): number {
 		return raw.buffer.active.baseY + raw.buffer.active.cursorY;
 	}
+
+	/**
+	 * Checks if the new VT text matches the old VT around the boundary where we would slice.
+	 */
+	private _vtBoundaryMatches(newVT: string, slicePoint: number): boolean {
+		return vtBoundaryMatches(newVT, this._lastVT, slicePoint);
+	}
 }
 
 /**
@@ -554,9 +616,12 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 
 	private _output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined;
 	private _container: HTMLElement | undefined;
-	private _dirty = true;
+	private readonly _renderSequencer = new Sequencer();
+	private _outputVersion = 0;
+	private _renderedVersion = -1;
 	private _lastRenderedLineCount: number | undefined;
 	private _lastRenderedMaxColumnWidth: number | undefined;
+	private _lastRenderedText = '';
 
 	constructor(
 		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
@@ -598,7 +663,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 
 	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
 		this._output = output;
-		this._dirty = true;
+		this._outputVersion++;
 	}
 
 	public async attach(container: HTMLElement): Promise<void> {
@@ -618,11 +683,16 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	}
 
 	public async render(): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
+		return this._renderSequencer.queue(() => this._render());
+	}
+
+	private async _render(): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
 		const output = this._output;
+		const outputVersion = this._outputVersion;
 		if (!output) {
 			return undefined;
 		}
-		if (!this._dirty) {
+		if (outputVersion === this._renderedVersion) {
 			return { lineCount: this._lastRenderedLineCount ?? output.lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
 		}
 		const terminal = await this._getTerminal();
@@ -633,18 +703,29 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			this._applyTheme(this._container);
 		}
 		const text = output.text ?? '';
-		const lineCount = output.lineCount ?? this._estimateLineCount(text);
 		if (!text) {
-			this._dirty = false;
+			if (this._lastRenderedText) {
+				await new Promise<void>(resolve => terminal.xterm.write('\x1b[2J\x1b[3J\x1b[H', resolve));
+			}
+			const lineCount = output.lineCount ?? 0;
+			this._renderedVersion = outputVersion;
+			this._lastRenderedText = '';
 			this._lastRenderedLineCount = lineCount;
 			this._lastRenderedMaxColumnWidth = 0;
-			return { lineCount: 0, maxColumnWidth: 0 };
+			return { lineCount, maxColumnWidth: 0 };
 		}
-		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
+		const write = text.startsWith(this._lastRenderedText)
+			? text.slice(this._lastRenderedText.length)
+			: `\x1b[2J\x1b[3J\x1b[H${text}`;
+		if (write) {
+			await new Promise<void>(resolve => terminal.xterm.write(write, resolve));
+		}
 		if (this._store.isDisposed) {
 			return undefined;
 		}
-		this._dirty = false;
+		const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, output.lineCount);
+		this._renderedVersion = outputVersion;
+		this._lastRenderedText = text;
 		this._lastRenderedLineCount = lineCount;
 		// Only compute max column width for small outputs to avoid performance issues
 		if (this._shouldComputeMaxColumnWidth(lineCount)) {
@@ -655,16 +736,6 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 
 	private _computeMaxColumnWidth(terminal: IDetachedTerminalInstance): number {
 		return computeMaxBufferColumnWidth(terminal.xterm.buffer.active, terminal.xterm.cols);
-	}
-
-	private _estimateLineCount(text: string): number {
-		if (!text) {
-			return 0;
-		}
-		const sanitized = text.replace(/\r/g, '');
-		const segments = sanitized.split('\n');
-		const count = sanitized.endsWith('\n') ? segments.length - 1 : segments.length;
-		return Math.max(count, 1);
 	}
 
 	private _shouldComputeMaxColumnWidth(lineCount: number): boolean {

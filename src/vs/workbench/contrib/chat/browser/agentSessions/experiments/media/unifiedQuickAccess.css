@@ -8,25 +8,23 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 6px 12px;
-	border-top: 1px solid var(--vscode-pickerGroup-border, transparent);
+	padding: 2px 6px 8px;
 	gap: 8px;
-	background: var(--vscode-quickInput-background);
 }
 
 /* Radio tabs styling override for unified quick access */
 .unified-quick-access-tabs .monaco-custom-radio {
 	display: flex;
 	align-items: center;
-	gap: 2px;
+	gap: 4px;
 	flex: 1;
 }
 
 .unified-quick-access-tabs .monaco-custom-radio .monaco-button {
-	padding: 4px 10px;
+	padding: 5px 10px;
 	font-size: 12px;
 	font-weight: 500;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: var(--vscode-quickInput-foreground);
 	opacity: 0.7;
@@ -43,6 +41,10 @@
 	opacity: 1;
 	background: var(--vscode-quickInputList-focusBackground);
 	color: var(--vscode-quickInputList-focusForeground);
+}
+
+.unified-quick-access-tabs .monaco-custom-radio .monaco-button:focus {
+	outline-offset: 0 !important;
 }
 
 /* Send button container */

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
+import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache.js';
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
 	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, FILE_PROTOCOL, DocumentUri
-} from './languageModes';
-import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
-import { HTMLDocumentRegions } from './embeddedSupport';
+} from './languageModes.js';
+import { MarkupKind } from 'vscode-languageserver';
+import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings.js';
+import { HTMLDocumentRegions } from './embeddedSupport.js';
 
 import * as ts from 'typescript';
-import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens.js';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -104,68 +105,6 @@ const ignoredErrors = [
 	2792, /* Cannot_find_module_0_Did_you_mean_to_set_the_moduleResolution_option_to_node_or_to_add_aliases_to_the_paths_option */
 ];
 
-/**
- * Convert TypeScript display parts to markdown, handling {@link} tags for MDN references and other links.
- * This converts {@link https://...} to proper markdown links.
- */
-function displayPartsToMarkdown(parts: ts.SymbolDisplayPart[] | string | undefined): string {
-	if (!parts) {
-		return '';
-	}
-	
-	if (typeof parts === 'string') {
-		return parts;
-	}
-	
-	const result: string[] = [];
-	let currentLink: { name?: string; text?: string } | undefined;
-	
-	for (const part of parts) {
-		switch (part.kind) {
-			case 'link':
-				// Start or end of a link
-				if (currentLink) {
-					// End of link - format it as markdown
-					const text = currentLink.text ?? currentLink.name ?? '';
-					if (text) {
-						// Check if it's a URL
-						if (/^https?:/.test(text)) {
-							const urlParts = text.split(' ');
-							const url = urlParts[0];
-							const linkText = urlParts.length > 1 ? urlParts.slice(1).join(' ') : url;
-							result.push(`[${linkText}](${url})`);
-						} else {
-							result.push(text);
-						}
-					}
-					currentLink = undefined;
-				} else {
-					// Start of link
-					currentLink = {};
-				}
-				break;
-				
-			case 'linkName':
-				if (currentLink) {
-					currentLink.name = part.text;
-				}
-				break;
-				
-			case 'linkText':
-				if (currentLink) {
-					currentLink.text = part.text;
-				}
-				break;
-				
-			default:
-				result.push(part.text);
-				break;
-		}
-	}
-	
-	return result.join('');
-}
-
 export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace): LanguageMode {
 	const jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
@@ -247,30 +186,26 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (info) {
-				const displayString = ts.displayPartsToString(info.displayParts);
-				
-				// Convert documentation display parts to markdown with link support
-				const documentation = displayPartsToMarkdown(info.documentation);
-				
-				// Convert tags to markdown
-				const tags = info.tags?.map(tag => {
-					const tagText = displayPartsToMarkdown(tag.text);
-					return `*@${tag.name}*${tagText ? ` — ${tagText}` : ''}`;
-				}).join('  \n\n') || '';
-				
-				const markdownContent: string[] = ['```typescript', displayString, '```'];
-				
+				const signature = ts.displayPartsToString(info.displayParts);
+				const documentation = ts.displayPartsToString(info.documentation);
+				const tags = tagsToMarkdown(info.tags);
+
+				const parts: string[] = [];
+				if (signature) {
+					parts.push(['```typescript', signature, '```'].join('\n'));
+				}
 				if (documentation) {
-					markdownContent.push('', documentation);
+					parts.push(documentation);
 				}
-				
 				if (tags) {
-					markdownContent.push('', tags);
+					parts.push(tags);
 				}
-				
 				return {
 					range: convertRange(jsDocument, info.textSpan),
-					contents: markdownContent.join('\n')
+					contents: {
+						kind: MarkupKind.Markdown,
+						value: parts.join('\n\n')
+					}
 				};
 			}
 			return null;
@@ -519,7 +454,41 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 }
 
 
+function tagToMarkdown(tag: ts.JSDocTagInfo): string {
+	const text = ts.displayPartsToString(tag.text);
+	switch (tag.name) {
+		case 'param':
+		case 'template':
+		case 'augments':
+		case 'extends': {
+			// Parse out the parameter name, e.g. "name - description" or "name description"
+			const match = text.match(/^(\S+)\s*-?\s*(.*)$/s);
+			if (match) {
+				const param = match[1];
+				const doc = match[2];
+				const label = `*@${tag.name}* \`${param}\``;
+				if (!doc) {
+					return label;
+				}
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` — ${doc}`);
+			}
+			break;
+		}
+	}
 
+	const label = `*@${tag.name}*`;
+	if (!text) {
+		return label;
+	}
+	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
+}
+
+function tagsToMarkdown(tags: ts.JSDocTagInfo[] | undefined): string {
+	if (!tags || tags.length === 0) {
+		return '';
+	}
+	return tags.map(tagToMarkdown).join('  \n\n');
+}
 
 function convertRange(document: TextDocument, span: { start: number | undefined; length: number | undefined }): Range {
 	if (typeof span.start === 'undefined') {

@@ -2,76 +2,81 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import { getLanguageModes, TextDocument, ClientCapabilities } from '../modes/languageModes';
-import { getNodeFileFS } from '../node/nodeFs';
-import { getDocumentContext } from '../utils/documentContext';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
+import { getLanguageModes, TextDocument, ClientCapabilities } from '../modes/languageModes.js';
+import { getNodeFileFS } from '../node/nodeFs.js';
 
 const testUri = 'test://test/test.html';
 
-async function testHoverFor(value: string, expectedHoverContent: string[], uri = testUri): Promise<void> {
+async function getHoverValue(value: string): Promise<string> {
 	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
 	const workspace = {
 		settings: {},
-		folders: [{ name: 'x', uri: uri.substring(0, uri.lastIndexOf('/')) }]
+		folders: [{ name: 'x', uri: testUri.substr(0, testUri.lastIndexOf('/')) }]
 	};
 
-	const document = TextDocument.create(uri, 'html', 0, value);
+	const document = TextDocument.create(testUri, 'html', 0, value);
 	const position = document.positionAt(offset);
-	const context = getDocumentContext(uri, workspace.folders);
 
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
-	const hover = await mode.doHover!(document, position, context);
-
-	assert.ok(hover, 'Hover should not be null');
-	
-	if (hover) {
-		const contents = typeof hover.contents === 'string' ? hover.contents : hover.contents;
-		
-		for (const expected of expectedHoverContent) {
-			assert.ok(
-				contents.includes(expected),
-				`Hover contents should include "${expected}". Actual contents:\n${contents}`
-			);
+	try {
+		const hover = await mode.doHover!(document, position);
+		assert.ok(hover, 'expected a hover result');
+		const contents = hover.contents;
+		if (typeof contents === 'string') {
+			return contents;
 		}
+		if (Array.isArray(contents)) {
+			return contents.map(c => typeof c === 'string' ? c : c.value).join('\n');
+		}
+		return (contents as { value: string }).value;
+	} finally {
+		languageModes.dispose();
 	}
 }
 
-suite('HTML JavaScript Hover', () => {
-	test('Should show JSDoc documentation for DataTransfer', async () => {
-		await testHoverFor(
-			'<html><script>const dt = new DataTrans|fer();</script></html>',
-			[
-				'DataTransfer',
-				'object is used to hold any data transferred between contexts',
-				'MDN Reference',
-				'https://developer.mozilla.org'
-			]
-		);
+suite('HTML Hover', () => {
+	test('JavaScript hover in <script> includes JSDoc description for user-defined class', async () => {
+		const html = [
+			'<html><head><script>',
+			'/**',
+			' * A greeter that says hello.',
+			' * @param name the person to greet',
+			' */',
+			'class Greeter {',
+			'  constructor(name) { this.name = name; }',
+			'}',
+			'new Gree|ter("world");',
+			'</script></head></html>'
+		].join('\n');
+		const value = await getHoverValue(html);
+
+		// The signature should still be present in a typescript code block
+		assert.match(value, /```typescript[\s\S]*Greeter[\s\S]*```/, `signature missing in hover: ${value}`);
+		// The JSDoc summary should also be present (this is the bug fix)
+		assert.ok(value.includes('A greeter that says hello.'), `JSDoc description missing in hover: ${value}`);
 	});
 
-	test('Should show JSDoc documentation for Blob', async () => {
-		await testHoverFor(
-			'<html><script>const blob = new Bl|ob();</script></html>',
-			[
-				'Blob',
-				'https://developer.mozilla.org'
-			]
-		);
-	});
+	test('JavaScript hover in <script> includes JSDoc description for user-defined method', async () => {
+		const html = [
+			'<html><head><script>',
+			'class Greeter {',
+			'  /**',
+			'   * Returns a friendly greeting.',
+			'   */',
+			'  sayHello() { return "hi"; }',
+			'}',
+			'new Greeter().sayHe|llo();',
+			'</script></head></html>'
+		].join('\n');
+		const value = await getHoverValue(html);
 
-	test('Should show documentation for built-in methods', async () => {
-		await testHoverFor(
-			'<html><script>const str = "hello"; str.toUpper|Case();</script></html>',
-			[
-				'toUpperCase',
-				'string'
-			]
-		);
+		assert.match(value, /```typescript[\s\S]*sayHello[\s\S]*```/, `signature missing in hover: ${value}`);
+		assert.ok(value.includes('Returns a friendly greeting.'), `JSDoc description missing in hover: ${value}`);
 	});
 });

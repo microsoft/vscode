@@ -14,17 +14,28 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { basename } from '../../../../../base/common/resources.js';
 
 export const IChatContextService = createDecorator<IChatContextService>('chatContextService');
 
 export interface IChatContextService extends ChatContextService { }
+
+/**
+ * A selector describing which tabs a resource context provider applies to. Either a
+ * {@link LanguageSelector} matched against a resource's URI, or a webview `viewType`.
+ */
+export type ChatTabSelector = { uri: LanguageSelector } | { viewType: string };
+
+function isViewTypeTabSelector(selector: ChatTabSelector): selector is { viewType: string } {
+	return (selector as { viewType?: string }).viewType !== undefined;
+}
 
 interface IChatContextProviderEntry {
 	picker?: { title: string; icon: ThemeIcon };
 	workspaceProvider?: IChatWorkspaceContextProvider;
 	explicitProvider?: IChatExplicitContextProvider;
 	resourceProvider?: {
-		selector: LanguageSelector;
+		selector: ChatTabSelector;
 		provider: IChatResourceContextProvider;
 	};
 }
@@ -85,7 +96,7 @@ export class ChatContextService extends Disposable {
 		this._registerWithPickService(id);
 	}
 
-	registerChatResourceContextProvider(id: string, selector: LanguageSelector, provider: IChatResourceContextProvider): void {
+	registerChatResourceContextProvider(id: string, selector: ChatTabSelector, provider: IChatResourceContextProvider): void {
 		const providerEntry = this._providers.get(id) ?? {};
 		providerEntry.resourceProvider = { selector, provider };
 		this._providers.set(id, providerEntry);
@@ -107,11 +118,13 @@ export class ChatContextService extends Disposable {
 				if (!item.value) {
 					continue;
 				}
+				// Derive label from resourceUri if label is not set
+				const derivedLabel = item.label ?? (item.resourceUri ? basename(item.resourceUri) : 'Unknown');
 				items.push({
 					value: item.value,
-					name: item.label,
+					name: derivedLabel,
 					modelDescription: item.modelDescription,
-					id: item.label,
+					id: derivedLabel,
 					kind: 'workspace'
 				});
 			}
@@ -119,17 +132,20 @@ export class ChatContextService extends Disposable {
 		return items;
 	}
 
-	async contextForResource(uri: URI, language?: string): Promise<StringChatContextValue | undefined> {
-		return this._contextForResource(uri, false, language);
+	async contextForResource(uri: URI, language?: string, viewType?: string): Promise<StringChatContextValue | undefined> {
+		return this._contextForResource(uri, false, language, viewType);
 	}
 
-	private async _contextForResource(uri: URI, withValue: boolean, language?: string): Promise<StringChatContextValue | undefined> {
+	private async _contextForResource(uri: URI, withValue: boolean, language?: string, viewType?: string): Promise<StringChatContextValue | undefined> {
 		const scoredProviders: Array<{ score: number; provider: IChatResourceContextProvider }> = [];
 		for (const providerEntry of this._providers.values()) {
 			if (!providerEntry.resourceProvider) {
 				continue;
 			}
-			const matchScore = score(providerEntry.resourceProvider.selector, uri, language ?? '', true, undefined, undefined);
+			const selector = providerEntry.resourceProvider.selector;
+			const matchScore = isViewTypeTabSelector(selector)
+				? (viewType !== undefined && selector.viewType === viewType ? 10 : 0)
+				: score(selector.uri, uri, language ?? '', true, undefined, undefined);
 			scoredProviders.push({ score: matchScore, provider: providerEntry.resourceProvider.provider });
 		}
 		scoredProviders.sort((a, b) => b.score - a.score);
@@ -137,15 +153,19 @@ export class ChatContextService extends Disposable {
 			return;
 		}
 		const provider = scoredProviders[0].provider;
-		const context = (await provider.provideChatContext(uri, withValue, CancellationToken.None));
+		const context = (await provider.provideChatContext(uri, withValue, viewType, CancellationToken.None));
 		if (!context) {
 			return;
 		}
+		// Derive label from resourceUri if label is not set
+		const effectiveResourceUri = context.resourceUri ?? uri;
+		const derivedLabel = context.label ?? basename(effectiveResourceUri);
 		const contextValue: StringChatContextValue = {
 			value: undefined,
-			name: context.label,
-			icon: context.icon,
+			name: derivedLabel,
+			iconPath: context.iconPath,
 			uri: uri,
+			resourceUri: context.resourceUri,
 			modelDescription: context.modelDescription,
 			tooltip: context.tooltip,
 			commandId: context.command?.id,
@@ -202,23 +222,35 @@ export class ChatContextService extends Disposable {
 
 			return {
 				picks: picks().then(items => {
-					return items.map(item => ({
-						label: item.label,
-						iconClass: ThemeIcon.asClassName(item.icon),
-						asAttachment: async (): Promise<IGenericChatRequestVariableEntry> => {
-							let contextValue = item;
-							if ((contextValue.value === undefined) && providerEntry?.explicitProvider) {
-								contextValue = await providerEntry.explicitProvider.resolveChatContext(item, CancellationToken.None);
+					return items.map(item => {
+						// Derive label from resourceUri if label is not set
+						const derivedLabel = item.label ?? (item.resourceUri ? basename(item.resourceUri) : 'Unknown');
+						const iconPath = item.iconPath;
+						const isThemeIcon = ThemeIcon.isThemeIcon(iconPath);
+						return {
+							label: derivedLabel,
+							iconClass: isThemeIcon ? ThemeIcon.asClassName(iconPath) : undefined,
+							iconPath: (!isThemeIcon && iconPath)
+								? (URI.isUri(iconPath) ? { dark: iconPath, light: iconPath } : { dark: iconPath.dark, light: iconPath.light })
+								: undefined,
+							asAttachment: async (): Promise<IGenericChatRequestVariableEntry> => {
+								let contextValue = item;
+								if ((contextValue.value === undefined) && providerEntry?.explicitProvider) {
+									contextValue = await providerEntry.explicitProvider.resolveChatContext(item, CancellationToken.None);
+								}
+								// Derive label from resourceUri if label is not set
+								const resolvedLabel = contextValue.label ?? (contextValue.resourceUri ? basename(contextValue.resourceUri) : 'Unknown');
+								return {
+									kind: 'generic',
+									id: resolvedLabel,
+									name: resolvedLabel,
+									iconPath: contextValue.iconPath ?? item.iconPath,
+									value: contextValue.value,
+									tooltip: contextValue.tooltip ?? item.tooltip,
+								};
 							}
-							return {
-								kind: 'generic',
-								id: contextValue.label,
-								name: contextValue.label,
-								icon: contextValue.icon,
-								value: contextValue.value,
-							};
-						}
-					}));
+						};
+					});
 				}),
 				placeholder: title
 			};

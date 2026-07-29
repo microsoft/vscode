@@ -36,6 +36,10 @@ export interface IJSONValidation {
 	url: string;
 }
 
+export interface IJSONValidationRegistry {
+	url: string;
+}
+
 export interface IKeyBinding {
 	command: string;
 	key: string;
@@ -203,6 +207,8 @@ export interface IChatFileContribution {
 	readonly path: string;
 	readonly name?: string;
 	readonly description?: string;
+	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface IExtensionContributions {
@@ -212,6 +218,7 @@ export interface IExtensionContributions {
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
+	jsonValidationRegistry?: IJSONValidationRegistry[];
 	keybindings?: IKeyBinding[];
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
@@ -235,6 +242,8 @@ export interface IExtensionContributions {
 	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
 	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
 	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
+	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
+	readonly chatPlugins?: ReadonlyArray<IChatFileContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
@@ -502,9 +511,16 @@ export class ExtensionError extends Error {
 	readonly extension: ExtensionIdentifier;
 
 	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
-		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`, { cause });
+		const detail = message && cause?.message ? `${message}: ${cause.message}` : (message ?? cause?.message);
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${detail}`, { cause });
 		this.name = 'ExtensionError';
 		this.extension = extensionIdentifier;
+		// Adopt the underlying cause's stack so error telemetry buckets by the real
+		// failure site inside the extension instead of the generic event-dispatch
+		// frames. Extension attribution relies on `this.extension`, not this stack.
+		if (cause?.stack) {
+			this.stack = cause.stack;
+		}
 	}
 }
 
@@ -541,13 +557,6 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
-}
-
-export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
-	return enabledApiProposals.map(proposal => {
-		const [proposalName, version] = proposal.split('@');
-		return { proposalName, version: version ? parseInt(version) : undefined };
-	});
 }
 
 export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spawn } from 'child_process';
 import { TestContext } from './context.js';
 
 export function setup(context: TestContext) {
@@ -55,6 +54,7 @@ export function setup(context: TestContext) {
 	context.test('cli-win32-arm64', ['windows', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-arm64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
@@ -62,6 +62,7 @@ export function setup(context: TestContext) {
 	context.test('cli-win32-x64', ['windows', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-x64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
@@ -72,45 +73,7 @@ export function setup(context: TestContext) {
 		}
 
 		const result = context.runNoErrors(entryPoint, '--version');
-		const version = result.stdout.trim();
-		assert.ok(version.includes(`(commit ${context.options.commit})`), `Expected CLI version to include commit ${context.options.commit}, got: ${version}`);
-
-		const workspaceDir = context.createTempDir();
-		process.chdir(workspaceDir);
-		context.log(`Changed current directory to: ${workspaceDir}`);
-
-		const args = [
-			'--cli-data-dir', context.createTempDir(),
-			'--user-data-dir', context.createTempDir(),
-			'tunnel',
-			'--accept-server-license-terms',
-			'--server-data-dir', context.createTempDir(),
-			'--extensions-dir', context.createTempDir(),
-		];
-
-		context.log(`Running CLI ${entryPoint} with args ${args.join(' ')}`);
-		const cli = spawn(entryPoint, args, { detached: true });
-
-		cli.stderr.on('data', (data) => {
-			context.error(`[CLI Error] ${data.toString().trim()}`);
-		});
-
-		cli.stdout.on('data', (data) => {
-			const text = data.toString().trim();
-			text.split('\n').forEach((line: string) => {
-				context.log(`[CLI Output] ${line}`);
-			});
-
-			const match = /Using GitHub for authentication/.exec(text);
-			if (match !== null) {
-				context.log(`CLI started successfully and is waiting for authentication`);
-				context.killProcessTree(cli.pid!);
-			}
-		});
-
-		await new Promise<void>((resolve, reject) => {
-			cli.on('error', reject);
-			cli.on('exit', resolve);
-		});
+		const version = result.stdout.trim().match(/\(commit ([a-f0-9]+)\)/)?.[1];
+		assert.strictEqual(version, context.options.commit, `Expected commit ${context.options.commit} but got ${version}`);
 	}
 }

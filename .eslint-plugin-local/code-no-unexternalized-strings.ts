@@ -62,6 +62,9 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 				doubleQuotedStringLiterals.delete(keyNode);
 				key = keyNode.value;
 
+			} else if (keyNode.type === AST_NODE_TYPES.TemplateLiteral && keyNode.expressions.length === 0 && keyNode.quasis.length === 1) {
+				key = keyNode.quasis[0].value.cooked ?? undefined;
+
 			} else if (keyNode.type === AST_NODE_TYPES.ObjectExpression) {
 				for (const property of keyNode.properties) {
 					if (property.type === AST_NODE_TYPES.Property && !property.computed) {
@@ -69,6 +72,9 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 							if (isStringLiteral(property.value)) {
 								doubleQuotedStringLiterals.delete(property.value);
 								key = property.value.value;
+								break;
+							} else if (property.value.type === AST_NODE_TYPES.TemplateLiteral && property.value.expressions.length === 0 && property.value.quasis.length === 1) {
+								key = property.value.quasis[0].value.cooked ?? undefined;
 								break;
 							}
 						}

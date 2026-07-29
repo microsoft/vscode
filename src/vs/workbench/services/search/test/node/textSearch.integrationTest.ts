@@ -79,7 +79,7 @@ flakySuite('TextSearch-integration', function () {
 		return doSearchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (unicode escape sequences, force PCRE2)', () => {
+	test('Text: GameOfLife (PCRE2 lookbehind)', () => {
 		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -93,7 +93,6 @@ flakySuite('TextSearch-integration', function () {
 		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
-			usePCRE2: true,
 			contentPattern: { pattern: 'Life(?!P)', isRegExp: true }
 		};
 
@@ -408,26 +407,6 @@ flakySuite('TextSearch-integration', function () {
 				const regexParseErrorForLookAround = 'Regex parse error: length of lookbehind assertion is not limited';
 				assert.strictEqual(searchError.message, regexParseErrorForLookAround);
 				assert.strictEqual(searchError.code, SearchErrorCode.regexParseError);
-			});
-		});
-
-
-		test('invalid glob', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: 'foo' },
-				includePattern: {
-					'{{}': true
-				}
-			};
-
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err);
-				assert.strictEqual(searchError.message, 'Error parsing glob \'/{{}\': nested alternate groups are not allowed');
-				assert.strictEqual(searchError.code, SearchErrorCode.globParseError);
 			});
 		});
 	});

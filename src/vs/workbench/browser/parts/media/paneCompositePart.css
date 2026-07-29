@@ -8,12 +8,20 @@
 }
 
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item,
-.monaco-workbench .pane-composite-part > .title.has-composite-bar > .global-actions .monaco-action-bar .action-item {
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .global-actions .monaco-action-bar .action-item,
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .global-actions-left .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
 
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
+}
+
+/* Global left actions toolbar: rendered first visually via CSS order */
+.monaco-workbench .pane-composite-part > .title > .global-actions-left {
+	order: -1;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-label {
@@ -250,6 +258,16 @@
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
 	mask-size: 13px;
 	-webkit-mask-size: 13px;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge.progress-badge .badge-content {
+	min-width: unset;
+	width: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	line-height: 1;
 }
 
 /* active item indicator */

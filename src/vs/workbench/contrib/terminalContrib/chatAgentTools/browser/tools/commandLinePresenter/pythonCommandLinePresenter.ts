@@ -13,7 +13,8 @@ import type { ICommandLinePresenter, ICommandLinePresenterOptions, ICommandLineP
  */
 export class PythonCommandLinePresenter implements ICommandLinePresenter {
 	present(options: ICommandLinePresenterOptions): ICommandLinePresenterResult | undefined {
-		const extractedPython = extractPythonCommand(options.commandLine, options.shell, options.os);
+		const commandLine = options.commandLine.forDisplay;
+		const extractedPython = extractPythonCommand(commandLine, options.shell, options.os);
 		if (extractedPython) {
 			return {
 				commandLine: extractedPython,

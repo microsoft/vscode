@@ -146,7 +146,7 @@ export class InlineSuggestEditSource extends EditSourceBase {
 		public readonly type: 'word' | 'line' | undefined,
 	) { super(); }
 
-	override toString() { return `${this.category}/${this.feature}/${this.kind}/${this.extensionId}/${this.type}`; }
+	override toString() { return `${this.category}/${this.feature}/${this.kind}/${this.extensionId}/${this.providerId}/${this.type}`; }
 
 	public getColor(): string { return '#00ff0033'; }
 }
@@ -330,4 +330,3 @@ export function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnno
 	};
 	return docWithJustReason;
 }
-

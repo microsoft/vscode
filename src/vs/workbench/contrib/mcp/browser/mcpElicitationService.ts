@@ -12,14 +12,15 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ChatElicitationRequestPart } from '../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatQuestionCarouselData } from '../../chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatModel } from '../../chat/common/model/chatModel.js';
-import { ElicitationState, IChatService } from '../../chat/common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';
+import { ElicitationState, IChatQuestion, IChatQuestionAnswers, IChatQuestionValidation, IChatService } from '../../chat/common/chatService/chatService.js';
 import { ElicitationKind, ElicitResult, IFormModeElicitResult, IMcpElicitationService, IMcpServer, IMcpToolCallContext, IUrlModeElicitResult, McpConnectionState, MpcResponseError } from '../common/mcpTypes.js';
 import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
@@ -85,44 +86,55 @@ export class McpElicitationService implements IMcpElicitationService {
 	private async _elicitForm(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<IFormModeElicitResult> {
 		const store = new DisposableStore();
 		const value = await new Promise<MCP.ElicitResult>(resolve => {
-			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+			const chatModel = context?.chatSessionResource && this._chatService.getSession(context.chatSessionResource);
 			if (chatModel instanceof ChatModel) {
 				const request = chatModel.getRequests().at(-1);
 				if (request) {
-					const part = new ChatElicitationRequestPart(
-						localize('mcp.elicit.title', 'Request for Input'),
-						elicitation.message,
-						localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
-						localize('mcp.elicit.accept', 'Respond'),
-						localize('mcp.elicit.reject', 'Cancel'),
-						async () => {
-							const p = this._doElicitForm(elicitation, token);
-							resolve(p);
-							const result = await p;
-							part.acceptedResult = result.content;
-							return result.action === 'accept' ? ElicitationState.Accepted : ElicitationState.Rejected;
-						},
-						() => {
-							resolve({ action: 'decline' });
-							return Promise.resolve(ElicitationState.Rejected);
-						},
-						mcpServerToSourceData(server),
+					const { questions, idToPropertyMap } = this._convertSchemaToQuestions(elicitation);
+					const carousel = new ChatQuestionCarouselData(
+						questions,
+						/* allowSkip */ true,
+						/* resolveId */ undefined,
+						/* data */ undefined,
+						/* isUsed */ undefined,
+						/* message */ new MarkdownString(elicitation.message),
+						/* source */ mcpServerToSourceData(server),
 					);
-					chatModel.acceptResponseProgress(request, part);
+
+					chatModel.acceptResponseProgress(request, carousel);
+
+					store.add(token.onCancellationRequested(() => {
+						carousel.completion.complete({ answers: undefined });
+					}));
+
+					carousel.completion.p.then(result => {
+						if (!result.answers) {
+							resolve({ action: 'cancel' });
+						} else {
+							const content = this._convertCarouselAnswersToElicitResult(
+								result.answers,
+								idToPropertyMap,
+								elicitation.requestedSchema.properties,
+							);
+							resolve({ action: 'accept', content });
+						}
+					});
+					return;
 				}
-			} else {
-				const handle = this._notificationService.notify({
-					message: elicitation.message,
-					source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
-					severity: Severity.Info,
-					actions: {
-						primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicitForm(elicitation, token))))],
-						secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
-					}
-				});
-				store.add(handle.onDidClose(() => resolve({ action: 'cancel' })));
-				store.add(token.onCancellationRequested(() => resolve({ action: 'cancel' })));
 			}
+
+			// Fallback: no chat session → notification + quickpick
+			const handle = this._notificationService.notify({
+				message: elicitation.message,
+				source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
+				severity: Severity.Info,
+				actions: {
+					primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicitForm(elicitation, token))))],
+					secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
+				}
+			});
+			store.add(handle.onDidClose(() => resolve({ action: 'cancel' })));
+			store.add(token.onCancellationRequested(() => resolve({ action: 'cancel' })));
 
 		}).finally(() => store.dispose());
 
@@ -152,7 +164,7 @@ export class McpElicitationService implements IMcpElicitationService {
 
 		const store = new DisposableStore();
 		const value = await new Promise<MCP.ElicitResult>(resolve => {
-			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+			const chatModel = context?.chatSessionResource && this._chatService.getSession(context.chatSessionResource);
 			if (chatModel instanceof ChatModel) {
 				const request = chatModel.getRequests().at(-1);
 				if (request) {
@@ -518,5 +530,192 @@ export class McpElicitationService implements IMcpElicitationService {
 			return { isValid: false, message: localize('mcp.elicit.validation.maximum', 'Maximum value is {0}', schema.maximum) };
 		}
 		return { isValid: true, parsedValue: parsed };
+	}
+
+	/**
+	 * Converts an MCP elicitation schema into IChatQuestion[] for the carousel UI.
+	 * Returns the questions and a map from question ID to schema property name.
+	 */
+	private _convertSchemaToQuestions(elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams): { questions: IChatQuestion[]; idToPropertyMap: Map<string, string> } {
+		const properties = Object.entries(elicitation.requestedSchema.properties);
+		const requiredFields = new Set(elicitation.requestedSchema.required || []);
+		const questions: IChatQuestion[] = [];
+		const idToPropertyMap = new Map<string, string>();
+
+		for (const [propertyName, schema] of properties) {
+			const id = generateUuid();
+			idToPropertyMap.set(id, propertyName);
+
+			const title = schema.title || propertyName;
+			const description = schema.description;
+			const isRequired = requiredFields.has(propertyName);
+
+			if (schema.type === 'boolean') {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: [
+						{ id: 'true', label: localize('mcp.elicit.true', 'True'), value: 'true' },
+						{ id: 'false', label: localize('mcp.elicit.false', 'False'), value: 'false' },
+					],
+					defaultValue: schema.default !== undefined ? String(schema.default) : undefined,
+				});
+			} else if (isLegacyTitledEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.enum.map((v, i) => ({
+						id: v,
+						label: schema.enumNames[i] ? `${v} - ${schema.enumNames[i]}` : v,
+						value: v,
+					})),
+					defaultValue: schema.default,
+				});
+			} else if (isTitledSingleEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.oneOf.map(({ const: value, title: optTitle }) => ({
+						id: value,
+						label: optTitle ? `${value} - ${optTitle}` : value,
+						value,
+					})),
+					defaultValue: schema.default,
+				});
+			} else if (isUntitledEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.enum.map(v => ({ id: v, label: v, value: v })),
+					defaultValue: schema.default,
+				});
+			} else if (isTitledMultiEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'multiSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.items.anyOf.map(({ const: value, title: optTitle }) => ({
+						id: value,
+						label: optTitle ? `${value} - ${optTitle}` : value,
+						value,
+					})),
+					defaultValue: schema.default,
+				});
+			} else if (isUntitledMultiEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'multiSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.items.enum.map(v => ({ id: v, label: v, value: v })),
+					defaultValue: schema.default,
+				});
+			} else {
+				// String, number, integer → text input with validation
+				const validation: IChatQuestionValidation = {};
+				if (schema.type === 'string') {
+					if (schema.minLength !== undefined) { validation.minLength = schema.minLength; }
+					if (schema.maxLength !== undefined) { validation.maxLength = schema.maxLength; }
+					if (schema.format) { validation.format = schema.format; }
+				} else if (schema.type === 'number' || schema.type === 'integer') {
+					if (schema.minimum !== undefined) { validation.minimum = schema.minimum; }
+					if (schema.maximum !== undefined) { validation.maximum = schema.maximum; }
+					if (schema.type === 'integer') { validation.isInteger = true; }
+				}
+
+				questions.push({
+					id,
+					type: 'text',
+					title,
+					description,
+					required: isRequired,
+					defaultValue: schema.default !== undefined ? String(schema.default) : undefined,
+					validation: Object.keys(validation).length > 0 ? validation : undefined,
+				});
+			}
+		}
+
+		return { questions, idToPropertyMap };
+	}
+
+	/**
+	 * Converts carousel answers (keyed by question ID) back into the
+	 * MCP ElicitResult content format (keyed by schema property names),
+	 * coercing types as needed.
+	 */
+	private _convertCarouselAnswersToElicitResult(
+		answers: IChatQuestionAnswers,
+		idToPropertyMap: Map<string, string>,
+		schemaProperties: Record<string, MCP.PrimitiveSchemaDefinition>,
+	): Record<string, string | number | boolean | string[]> {
+		const content: Record<string, string | number | boolean | string[]> = {};
+
+		for (const [questionId, answer] of Object.entries(answers)) {
+			const propertyName = idToPropertyMap.get(questionId);
+			if (!propertyName) {
+				continue;
+			}
+
+			const schema = schemaProperties[propertyName];
+			if (!schema) {
+				continue;
+			}
+
+			// Extract the raw value from structured answers
+			let rawValue: unknown = answer;
+			if (typeof answer === 'object' && answer !== null) {
+				const obj = answer as Record<string, unknown>;
+				if ('selectedValue' in obj) {
+					rawValue = obj.selectedValue;
+				} else if ('selectedValues' in obj) {
+					rawValue = obj.selectedValues;
+				} else if ('freeformValue' in obj && obj.freeformValue) {
+					rawValue = obj.freeformValue;
+				}
+			}
+
+			if (rawValue === undefined || rawValue === null) {
+				continue;
+			}
+
+			// Type coercion based on schema
+			if (schema.type === 'boolean') {
+				content[propertyName] = rawValue === 'true' || rawValue === true;
+			} else if (schema.type === 'number' || schema.type === 'integer') {
+				const num = Number(rawValue);
+				if (!isNaN(num)) {
+					content[propertyName] = num;
+				}
+			} else if (schema.type === 'array') {
+				if (Array.isArray(rawValue)) {
+					content[propertyName] = rawValue.map(v => String(v));
+				}
+			} else {
+				content[propertyName] = String(rawValue);
+			}
+		}
+
+		return content;
 	}
 }

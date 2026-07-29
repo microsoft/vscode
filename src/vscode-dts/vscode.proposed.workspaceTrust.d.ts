@@ -35,6 +35,17 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
+		 * Event fired when the list of workspace trusted folders changes.
+		 */
+		export const onDidChangeWorkspaceTrustedFolders: Event<void>;
+
+		/**
+		 * Check whether the given resource is trusted
+		 * @param resource
+		 */
+		export function isResourceTrusted(resource: Uri): Thenable<boolean>;
+
+		/**
 		 * Prompt the user to chose whether to trust the specified resource (ex: folder)
 		 * @param options Object describing the properties of the resource trust request.
 		 */

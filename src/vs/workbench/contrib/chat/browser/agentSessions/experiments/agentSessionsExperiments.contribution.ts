@@ -6,7 +6,7 @@
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS } from './agentSessionProjectionService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -84,6 +85,14 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 				this._checkSession(currentWidget.viewModel?.sessionResource);
 			}
 		}));
+
+		// Watch for agent sessions model changes - sessions are resolved asynchronously
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			const currentWidget = this.chatWidgetService.getAllWidgets().find(w => w.location === ChatAgentLocation.Chat);
+			if (currentWidget) {
+				this._checkSession(currentWidget.viewModel?.sessionResource);
+			}
+		}));
 	}
 
 	private _watchWidget(widget: IChatWidget): void {
@@ -104,6 +113,21 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		if (sessionResource?.toString() !== this._watchedSessionResource?.toString()) {
 			this._suppressSessionReady = false;
 		}
+
+		// If we're in projection mode and switching to a different session,
+		// automatically enter projection for the new session (if eligible)
+		if (this.agentSessionProjectionService.isActive) {
+			const activeSession = this.agentSessionProjectionService.activeSession;
+			if (sessionResource && activeSession && sessionResource.toString() !== activeSession.resource.toString()) {
+				const newSession = this.agentSessionsService.getSession(sessionResource);
+				if (newSession) {
+					// enterProjection handles session switching and will check eligibility
+					this.agentSessionProjectionService.enterProjection(newSession);
+				}
+			}
+			return;
+		}
+
 		// Update state based on current session
 		this._updateSessionReadyState(sessionResource);
 	}
@@ -123,10 +147,9 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		// Check if already in projection mode
+		// If already in projection mode, don't show session-ready (handled by _checkSession)
 		if (this.agentSessionProjectionService.isActive) {
 			this._clearEntriesWatcher();
-			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
 
@@ -143,6 +166,12 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
+
+		// Trigger a lazy resolve so providers that populate `changes` on
+		// demand (see IAgentSessionsModel.observeSession) deliver fresh data.
+		// Re-evaluation happens via the onDidChangeSessions listener in the
+		// constructor.
+		this.agentSessionsService.model.observeSession(sessionResource);
 
 		// Check if this is a projection-capable provider
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
@@ -213,7 +242,6 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
-registerAction2(ToggleAgentStatusAction);
 registerAction2(ToggleUnifiedAgentsBarAction);
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
@@ -229,10 +257,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false),
+		InEditorZenModeContext.negate()
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -247,9 +274,7 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 		ChatContextKeys.supported,
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
 		),
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
 	order: 1
@@ -261,13 +286,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
-	),
+	when: ChatContextKeys.enabled,
 	group: 'a_open',
 	order: 1
 });

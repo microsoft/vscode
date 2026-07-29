@@ -151,9 +151,9 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscover
 				scope: StorageScope.PROFILE,
 				trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
 				serverDefinitions: observableValue<readonly McpServerDefinition[]>(this, []),
+				order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemoteBoost : 0),
 				presentation: {
 					origin: file,
-					order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemoteBoost : 0),
 				},
 			};
 

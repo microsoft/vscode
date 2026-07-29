@@ -58,7 +58,7 @@ export interface IEnvironmentService {
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
-	builtinWorkbenchModesHome: URI;
+	appSharedDataHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
@@ -72,6 +72,7 @@ export interface IEnvironmentService {
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	skipBuiltinExtensions?: readonly string[];
 	enableExtensions?: readonly string[];
 	extensionDevelopmentLocationURI?: URI[];
 	extensionDevelopmentKind?: ExtensionKind[];
@@ -90,8 +91,7 @@ export interface IEnvironmentService {
 	serviceMachineIdResource: URI;
 
 	// --- agent sessions workspace
-	agentSessionsWorkspace?: URI;
-
+	agentSessionsWorkspace: URI;
 	// --- Policy
 	policyFile?: URI;
 
@@ -150,6 +150,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	crossOriginIsolated?: boolean;
 	exportPolicyData?: string;
+	exportDefaultKeybindings?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
