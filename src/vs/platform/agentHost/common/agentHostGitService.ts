@@ -141,6 +141,12 @@ export interface IDefaultBranch {
 	readonly startPoint: string;
 }
 
+/** How far along a worktree file operation is, in files. */
+export interface IWorktreeFileProgress {
+	readonly filesDone: number;
+	readonly filesTotal: number;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -150,8 +156,21 @@ export interface IAgentHostGitService {
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
-	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[]): Promise<void>;
+	/**
+	 * Creates a worktree for a new branch. `onProgress` receives every checkout
+	 * sample git reports, which can be several per second, so consumers are
+	 * expected to round and rate limit for their own presentation. It may also
+	 * never be called (fast checkouts and git versions that stay silent), so it
+	 * MUST be treated as best-effort.
+	 */
+	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	/**
+	 * Copies the git-ignored files matching `globs` into the worktree.
+	 * `onProgress` counts the individual files covered, but only fires as whole
+	 * entries finish — a wholly-ignored directory such as `node_modules` is
+	 * copied as one recursive unit, so its files all land in a single step.
+	 */
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session

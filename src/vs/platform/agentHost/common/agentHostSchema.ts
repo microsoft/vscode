@@ -475,6 +475,14 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 export const AgentHostCopilotMultiRootEnabledConfigKey = 'copilotMultiRootEnabled';
 
 /**
+ * Root config key forwarded from the renderer that gates multiple-working-directory
+ * support for the Claude provider. When `true`, the Claude provider advertises
+ * the `multipleWorkingDirectories` capability. Mirrors the hidden
+ * `chat.agentHost.claudeAgent.multiRootEnabled` VS Code setting.
+ */
+export const AgentHostClaudeMultiRootEnabledConfigKey = 'claudeMultiRootEnabled';
+
+/**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.terminal.autoApprove` setting changes. Holds the effective
  * terminal auto-approve rule object for agent-host shell permission checks.
@@ -740,6 +748,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.copilotMultiRootEnabled.title', "Copilot Multiple Working Directories"),
 		description: localize('agentHost.config.copilotMultiRootEnabled.description', "Whether the Copilot provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
+		default: false,
+	}),
+	[AgentHostClaudeMultiRootEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.claudeMultiRootEnabled.title', "Claude Multiple Working Directories"),
+		description: localize('agentHost.config.claudeMultiRootEnabled.description', "Whether the Claude provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
 		default: false,
 	}),
 	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { doesChatPetStateTrackCursor, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetSpriteName, isChatPetImageSource } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, isChatPetImageSource } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -13,16 +13,38 @@ suite('ChatPetWidget', () => {
 
 	test('maps chat activity to pet states by priority', () => {
 		assert.deepStrictEqual([
-			getChatPetBaseState(false, false, false),
-			getChatPetBaseState(false, false, true),
-			getChatPetBaseState(true, false, true),
-			getChatPetBaseState(true, true, true),
+			getChatPetBaseState(false, false, false, false),
+			getChatPetBaseState(false, false, false, true),
+			getChatPetBaseState(false, false, true, false),
+			getChatPetBaseState(false, false, true, true),
+			getChatPetBaseState(true, false, true, true),
+			getChatPetBaseState(true, true, true, true),
 		], [
 			'idle',
 			'sleep',
-			'processing',
+			'typing',
+			'sleep',
+			'rendering',
 			'clapping',
 		]);
+	});
+
+	test('gives dragging precedence over base and transient states', () => {
+		assert.deepStrictEqual([
+			getChatPetRenderedState('rendering', undefined, false),
+			getChatPetRenderedState('rendering', 'complete', false),
+			getChatPetRenderedState('rendering', undefined, true),
+			getChatPetRenderedState('rendering', 'complete', true),
+		], [
+			'rendering',
+			'complete',
+			'idle',
+			'idle',
+		]);
+	});
+
+	test('sleeps after twenty seconds of inactivity', () => {
+		assert.strictEqual(CHAT_PET_IDLE_SLEEP_DELAY, 20_000);
 	});
 
 	test('selects the buddy for the product quality', () => {
@@ -76,11 +98,19 @@ suite('ChatPetWidget', () => {
 	test('disables cursor tracking for fixed-eye sprite states', () => {
 		assert.deepStrictEqual([
 			doesChatPetStateTrackCursor('idle'),
+			doesChatPetStateTrackCursor('sleep'),
+			doesChatPetStateTrackCursor('waking'),
+			doesChatPetStateTrackCursor('typing'),
+			doesChatPetStateTrackCursor('rendering'),
 			doesChatPetStateTrackCursor('complete'),
 			doesChatPetStateTrackCursor('love'),
 			doesChatPetStateTrackCursor('yapping'),
 			doesChatPetStateTrackCursor('yappingMouthOpen'),
 		], [
+			true,
+			false,
+			false,
+			false,
 			true,
 			false,
 			false,
@@ -92,10 +122,71 @@ suite('ChatPetWidget', () => {
 	test('keeps automatic completion separate from the yapping sprite', () => {
 		assert.deepStrictEqual([
 			getChatPetSpriteName('complete', 'insider'),
+			getChatPetSpriteName('sleep', 'insider'),
+			getChatPetSpriteName('waking', 'stable'),
+			getChatPetSpriteName('typing', 'insider'),
+			getChatPetSpriteName('rendering', 'stable'),
 			getChatPetSpriteName('yappingMouthOpen', 'insider'),
 		], [
 			'buddy-idle-insiders',
+			'buddy-sleep-insiders',
+			'buddy-waking-stable',
+			'buddy-typing-insiders',
+			'buddy-rendering-stable',
 			'buddy-yapping-insiders',
+		]);
+	});
+
+	test('preserves the source animation timing', () => {
+		assert.deepStrictEqual([
+			getChatPetFrameDurations('idle'),
+			getChatPetFrameDurations('sleep'),
+			getChatPetFrameDurations('waking'),
+			getChatPetFrameDurations('typing'),
+			getChatPetFrameDurations('rendering'),
+			getChatPetFrameDurations('clapping'),
+			getChatPetFrameDurations('love'),
+			getChatPetFrameDurations('yapping'),
+			getChatPetFrameDurations('yappingMouthOpen'),
+			getChatPetSpeechFrameDurations(),
+		], [
+			Array.from({ length: 50 }, () => 40),
+			Array.from({ length: 8 }, () => 300),
+			[160, 100, 80, 90, 90, 90, 100, 170],
+			Array.from({ length: 8 }, () => 120),
+			Array.from({ length: 50 }, () => 40),
+			[80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80],
+			[200, 200, 380, 100, 80, 1_980],
+			[],
+			[300, 240, 1_500, 240, 360],
+			[220, 220, 220, 100, 160, 180],
+		]);
+	});
+
+	test('selects animation frames and completes on the final frame', () => {
+		const frameDurations = [100, 50, 150];
+		assert.deepStrictEqual([
+			getChatPetAnimationFrame([], 0, 1),
+			getChatPetAnimationFrame(frameDurations, -1, 1),
+			getChatPetAnimationFrame(frameDurations, 99, 1),
+			getChatPetAnimationFrame(frameDurations, 100, 1),
+			getChatPetAnimationFrame(frameDurations, 149, 1),
+			getChatPetAnimationFrame(frameDurations, 150, 1),
+			getChatPetAnimationFrame(frameDurations, 299, 1),
+			getChatPetAnimationFrame(frameDurations, 300, 1),
+			getChatPetAnimationFrame(frameDurations, 300, Infinity),
+			getChatPetAnimationFrame(frameDurations, 600, 2),
+		], [
+			{ frameIndex: 0, complete: true },
+			{ frameIndex: 0, complete: false },
+			{ frameIndex: 0, complete: false },
+			{ frameIndex: 1, complete: false },
+			{ frameIndex: 1, complete: false },
+			{ frameIndex: 2, complete: false },
+			{ frameIndex: 2, complete: false },
+			{ frameIndex: 2, complete: true },
+			{ frameIndex: 0, complete: false },
+			{ frameIndex: 2, complete: true },
 		]);
 	});
 
