@@ -86,6 +86,7 @@ import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
+import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -96,6 +97,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
+import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -302,6 +304,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The underlying input editor. Exposed for component fixtures. */
 	get inputEditor(): CodeEditorWidget | undefined { return this._editor; }
 
+	/** The current model-selection state. Exposed so host widgets can react to model changes. */
+	get selectedModelState() { return this._sessionModelSelectionModel.state; }
+
+	/** Opens the model picker dropdown. */
+	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
+
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
@@ -340,8 +348,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		private readonly options: {
 			session: IObservable<IActiveSession | undefined>;
 			getContextFolderUri: () => URI | undefined;
-			sendRequest: (request: INewChatInputSendRequest) => Promise<void>;
+			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
 			canSendRequest: IObservable<boolean>;
+			canSubmitWithoutSession?: IObservable<boolean>;
+			hasAdditionalSendContent?: IObservable<boolean>;
 			loading: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
@@ -368,16 +378,21 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
+		@IDictationOnboardingService private readonly dictationOnboardingService: IDictationOnboardingService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
 		this._canSendRequest = derived(this, reader => {
+			if (this.options.canSubmitWithoutSession?.read(reader)) {
+				return true;
+			}
 			const modelSelection = this._sessionModelSelectionModel.state.read(reader);
 			return this.options.canSendRequest.read(reader) && modelSelection.hasSelectableModel && !modelSelection.pendingSelection;
 		});
@@ -409,6 +424,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 		this._register(autorun(reader => {
 			this._canSendRequest.read(reader);
+			this.options.hasAdditionalSendContent?.read(reader);
 			const isLoading = this.options.loading.read(reader);
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
@@ -444,6 +460,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			},
 		));
 		notificationContainer.appendChild(notificationWidget.domNode);
+
+		// First-run Voice Mode introduction, docked above the input area
+		const voiceOnboardingContainer = dom.append(chatInputContainer, dom.$('.voice-mode-onboarding-container'));
+		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus()));
+
+		// First-run dictation introduction, docked directly above the input area
+		// so it reads as one stack with it - the same slot the chat view uses.
+		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
+		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer));
 
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));
@@ -813,7 +838,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				: localize('send', "Send"),
 			ariaLabel: localize('send', "Send"),
 		}));
-		sendButton.icon = Codicon.newLine;
+		sendButton.icon = Codicon.arrowUpCompact;
 		// Hold Alt while clicking Send to start the session in the background.
 		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 	}
@@ -989,6 +1014,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			speechService: this.chatSpeechToTextService,
 			keybindingService: this.keybindingService,
 			logService: this.logService,
+			onboardingService: this.dictationOnboardingService,
 		}, TOGGLE_DICTATION_COMMAND_ID, this._editor);
 	}
 
@@ -1053,20 +1079,25 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Send ---
 
 
-	private async _send(background = false): Promise<void> {
+	async submit(background = false): Promise<boolean> {
+		return this._send(background);
+	}
+
+	private async _send(background = false): Promise<boolean> {
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
 		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
-		if ((!query && !hasSendableAttachment) || this._sending) {
-			return;
+		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
+		if ((!query && !hasSendableAttachment && !hasAdditionalSendContent) || this._sending) {
+			return false;
 		}
 
 		// Respect the same gate as the send button (e.g. a session with no
 		// usable model). The Enter keybinding and slash-command paths reach
 		// here directly, bypassing the button's disabled state.
 		if (!this._canSendRequest.get()) {
-			return;
+			return false;
 		}
 
 		// Measure any pending dictation accuracy against the text being sent,
@@ -1074,14 +1105,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		notifyDictationSubmitted(this._editor);
 
 		const session = this.options.session.get();
-		if (session && await this.chatSubmitRequestHandlerService.tryHandle({
+		if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
 			sessionResource: session.resource,
 			providerId: session.providerId,
 			sessionId: session.sessionId,
 			input: query,
 		})) {
 			this._editor.getModel()?.setValue('');
-			return;
+			return true;
 		}
 
 		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
@@ -1100,18 +1131,25 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateSendButtonState();
 		this._updateInputLoadingState();
 
+		let sent = false;
 		try {
-			await this.options.sendRequest({ query: request, attachments: attachedContext, background });
+			sent = await this.options.sendRequest({ query: request, attachments: attachedContext, background });
+			if (!sent) {
+				return false;
+			}
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
+			return false;
+		} finally {
+			this._sending = false;
+			this._editor.updateOptions({ readOnly: false });
+			this._updateDraftState();
+			this._updateSendButtonState();
+			this._updateInputLoadingState();
 		}
-
-		this._sending = false;
-		this._editor.updateOptions({ readOnly: false });
-		this._updateSendButtonState();
-		this._updateInputLoadingState();
+		return sent;
 	}
 
 	private _updateSendButtonState(): void {
@@ -1120,7 +1158,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
-		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment) && this._canSendRequest.get();
+		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
+		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment || hasAdditionalSendContent) && this._canSendRequest.get();
 	}
 
 	private _restoreState(): void {

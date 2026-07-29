@@ -10,5 +10,8 @@
  * without crossing the sessions layering rules.
  */
 
+/** Archives a session. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
+
 /** Unarchives a session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';

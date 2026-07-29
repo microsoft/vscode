@@ -83,7 +83,7 @@ focus a slot:   part.onDidFocusSession → view.setActive → updates active vis
 
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
 
-The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes.
+The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer also renders the shared chat-tip content above its input; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
@@ -195,7 +195,7 @@ Chat input history in the Agents Window is scoped by `ISession.sessionId`. Press
 
 Each session operates on an **`ISessionWorkspace`** containing one or more **`ISessionFolder`** instances. Folders encapsulate a working directory and optional git repository information (`ISessionGitRepository`), including branch state, upstream tracking, and GitHub PR info.
 
-Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
+Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants. The picker supplements its own history with VS Code's recently opened folders, excluding folders below a path segment ending in `.worktrees`; explicitly picked session workspace history remains available.
 
 Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
 
@@ -329,6 +329,24 @@ disposed (for example, when navigating to an existing session), and the
 replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
 replacement.
+
+Agent feedback created while the active session is undefined or uncreated uses
+one shared new-session feedback scope, so it follows every undefined/uncreated
+new-session view. The comments belong to the draft's workspace: a draft that has
+already picked one scopes its comments to that workspace's folders exactly like a
+created session, and selecting a different workspace in the picker discards them.
+A draft without a workspace accepts comments on any file and simply adopts the
+first selection. The composer shows a non-dismissible `N comments` banner above
+the input; **Reveal** opens the first comment through the editor feedback UI, and
+normal feedback navigation reaches the others. Comments make an otherwise-empty
+composer sendable. On send, the prompt is followed by one bullet per comment in
+`comment (workspace/relative/path:line:column-line:column)` form, with replies as
+nested `reply:` bullets. The sole comment omits its leading bullet when the typed
+prompt is empty. A successful send removes the comments; a failed foreground send
+keeps them. Editor **Submit Feedback** delegates to this same live composer path,
+opening the composer first when it is not mounted in the grid, and opens the
+workspace picker without clearing input or comments when no concrete draft exists
+yet.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s

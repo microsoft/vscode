@@ -11,6 +11,39 @@
 	display: none;
 }
 
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
+	margin-bottom: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container {
+	margin-top: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container .new-chat-input-area {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+}
+
+.new-session-feedback-banners {
+	width: 100%;
+	max-width: 800px;
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.new-session-feedback-banners .session-input-banner {
+	padding-bottom: var(--vscode-spacing-size100);
+	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	background-color: var(--session-view-background);
+}
+
+.new-session-feedback-banners:not(:has(.session-input-banner)) {
+	margin-top: 0;
+}
+
+.new-session-feedback-banners:has(.session-input-banner) + .new-chat-input-container {
+	margin-top: 0;
+}
+
 /* Ensure the input editor fits properly */
 .new-chat-input-container .interactive-input-part {
 	margin: 0;
@@ -298,6 +331,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
@@ -331,6 +365,7 @@
 .monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
 	display: inline-block;
+	font-size: var(--vscode-codiconFontSize-compact);
 	transform: translateY(0.5px);
 }
 

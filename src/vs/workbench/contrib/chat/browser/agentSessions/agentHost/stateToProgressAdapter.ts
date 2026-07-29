@@ -43,6 +43,7 @@ import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
+import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -871,10 +872,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
  * `undefined` when the message has no convertible attachments.
  */
 export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(message.attachments, connectionAuthority);
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text);
 }
 
-export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string): IChatRequestVariableData | undefined {
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string): IChatRequestVariableData | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
@@ -906,7 +907,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 				: element);
 			continue;
 		}
-		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
+		const v = messageAttachmentToVariableEntry(a, connectionAuthority, messageText);
 		if (v) {
 			variables.push(v);
 		}
@@ -955,7 +956,7 @@ function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly Messa
 	};
 }
 
-function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string, messageText?: string): IChatRequestVariableEntry | undefined {
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {
@@ -1033,6 +1034,10 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			isURL: false,
 			_meta: attachment._meta,
 		};
+	}
+
+	if (attachment.type === MessageAttachmentKind.Chat) {
+		return restoreChatReferenceVariableEntryFromAttachment(attachment, messageText);
 	}
 
 	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);
