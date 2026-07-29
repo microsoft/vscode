@@ -15,7 +15,7 @@ import {
 } from './state/protocol/commands.js';
 
 /** Trusted identity used only by the in-process local agent host. */
-export const LOCAL_AGENT_HOST_RESOURCE_IDENTITY = Symbol('localAgentHostResourceIdentity');
+export const LOCAL_AGENT_HOST_RESOURCE_IDENTITY: unique symbol = Symbol('localAgentHostResourceIdentity');
 
 /** Authorization identity for an agent host requesting client-side resources. */
 export type AgentHostResourceIdentity = string | typeof LOCAL_AGENT_HOST_RESOURCE_IDENTITY;
