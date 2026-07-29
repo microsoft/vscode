@@ -19,6 +19,7 @@ import {
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
 	type AutomationMutationGuard,
+	IAutomationRunClaim,
 	IAutomationService,
 	ICreateAutomationOptions,
 	IGuardedAutomationUpdateResult,
@@ -268,7 +269,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		publishAutomationDeleted(this.telemetryService, existing);
 	}
 
-	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun> {
+	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim> {
 		const now = this._now();
 		const startedAt = now.toISOString();
 		const run: IAutomationRun = Object.freeze({
@@ -279,10 +280,16 @@ export class AutomationService extends Disposable implements IAutomationService 
 			startedAt,
 			leaderWindowId,
 		});
-		await this.mutateLedger(ledger => {
+		return this.mutateLedger<IAutomationRunClaim>(ledger => {
 			const automation = ledger.automations.find(automation => automation.id === automationId);
 			if (!automation) {
 				throw new Error(`Automation not found: ${automationId}`);
+			}
+			// Claiming inside the compare-and-swap keeps at most one active run per
+			// automation even when windows or agents race to start the same one.
+			const activeRun = findActiveRun(ledger.runs, automationId);
+			if (activeRun) {
+				return { kind: 'noChange', result: { claimed: false, run: activeRun } };
 			}
 			let automations = ledger.automations;
 			if (trigger !== 'manual') {
@@ -297,10 +304,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 			return {
 				kind: 'commit',
 				ledger: { automations, runs: [run, ...ledger.runs] },
-				result: undefined,
+				result: { claimed: true, run },
 			};
 		});
-		return run;
 	}
 
 	async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
@@ -328,7 +334,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
-		return this._runs.get().find(r => r.automationId === automationId && (r.status === 'pending' || r.status === 'running'));
+		return findActiveRun(this._runs.get(), automationId);
 	}
 
 	async markStaleRunsFailed(reason: string): Promise<void> {
@@ -664,6 +670,10 @@ function isAutomationWorkspaceIsolation(value: AutomationWorkspaceIsolation | un
 	return value?.kind === 'default'
 		|| value?.kind === 'folder'
 		|| (value?.kind === 'worktree' && typeof value.branch === 'string' && value.branch.length > 0);
+}
+
+function findActiveRun(runs: readonly IAutomationRun[], automationId: string): IAutomationRun | undefined {
+	return runs.find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running'));
 }
 
 function trimRunsPerAutomation(runs: readonly IAutomationRun[], max: number): readonly IAutomationRun[] {

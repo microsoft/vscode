@@ -40,7 +40,7 @@ import { filterHistoryImages } from './imageLimits';
 /**
  * Rewrites tool call IDs into Kimi's native function-indexed format while preserving tool result pairings.
  */
-function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[] {
+export function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[] {
 	let nextIndex = 0;
 	const mappedToolCallIds = new Map<string, string>();
 
