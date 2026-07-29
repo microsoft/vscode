@@ -196,6 +196,12 @@ suite('AgentFeedbackService - Ordering', () => {
 	test('revealFeedback anchors the matching session editor comment so its widget expands', async () => {
 		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
 		const f2 = service.addFeedback(session, fileA, r(20), 'A:20');
+		const reveals: { session: string; commentId: string; resource: string }[] = [];
+		store.add(service.onDidRevealSessionComment(event => reveals.push({
+			session: event.sessionResource.toString(),
+			commentId: event.commentId,
+			resource: event.resourceUri.toString(),
+		})));
 
 		// The editor widget contribution expands the widget whose session
 		// editor comment matches the navigation anchor. revealFeedback must set
@@ -210,6 +216,10 @@ suite('AgentFeedbackService - Ordering', () => {
 		await service.revealFeedback(session, f1.id);
 		const bearingAfter = service.getNavigationBearing(session, comments);
 		assert.strictEqual(comments[bearingAfter.activeIdx]?.sourceId, f1.id);
+		assert.deepStrictEqual(reveals, [
+			{ session: session.toString(), commentId: comments[1].id, resource: fileA.toString() },
+			{ session: session.toString(), commentId: comments[0].id, resource: fileA.toString() },
+		]);
 	});
 
 	test('removing feedback preserves ordering', () => {
@@ -717,4 +727,3 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		});
 	});
 });
-

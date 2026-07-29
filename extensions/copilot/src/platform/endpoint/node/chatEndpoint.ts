@@ -42,7 +42,7 @@ type KimiToolCallIdStyle = 'function-indexed' | 'name-indexed';
 /**
  * Rewrites tool call IDs into the selected Kimi-native indexed format while preserving tool result pairings.
  */
-function normalizeKimiToolCallIds(messages: CAPIChatMessage[], style: KimiToolCallIdStyle): CAPIChatMessage[] {
+export function normalizeKimiToolCallIds(messages: CAPIChatMessage[], style: KimiToolCallIdStyle = 'function-indexed'): CAPIChatMessage[] {
 	let nextIndex = 0;
 	const mappedToolCallIds = new Map<string, string>();
 

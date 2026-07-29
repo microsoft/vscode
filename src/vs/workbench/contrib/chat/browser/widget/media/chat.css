@@ -264,10 +264,6 @@
 	background-color: var(--vscode-inputOption-activeBackground);
 }
 
-.interactive-item-container.interactive-response.chat-most-recent-response {
-	min-height: var(--chat-current-response-min-height);
-}
-
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	/* Complete response only */
@@ -431,6 +427,84 @@
 
 .interactive-item-container .value {
 	width: 100%;
+}
+
+.interactive-item-container .completed-response-disclosure {
+	width: 100%;
+	margin-bottom: var(--vscode-spacing-size80);
+	interpolate-size: allow-keywords;
+
+	&::details-content {
+		block-size: 0;
+		box-sizing: border-box;
+		overflow: hidden;
+		opacity: 0;
+		margin-inline-start: var(--vscode-spacing-size60);
+		padding-inline-start: var(--vscode-spacing-size120);
+		border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+		border-image: linear-gradient(to bottom, var(--vscode-chat-requestBorder) 0 95%, transparent 95%) 1;
+		transition:
+			block-size 180ms cubic-bezier(0.2, 0, 0, 1),
+			opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+			content-visibility 180ms allow-discrete;
+	}
+
+	&[open]::details-content {
+		block-size: auto;
+		opacity: 1;
+	}
+}
+
+.interactive-item-container .completed-response-disclosure:not([open]) {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.interactive-item-container .completed-response-summary {
+	width: fit-content;
+	max-width: 100%;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+	list-style: none;
+}
+
+.interactive-item-container .completed-response-summary * {
+	cursor: inherit;
+}
+
+.interactive-item-container .completed-response-summary::-webkit-details-marker {
+	display: none;
+}
+
+.interactive-item-container .completed-response-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.interactive-item-container .completed-response-disclosure[open] .completed-response-summary .monaco-button {
+	color: var(--vscode-foreground);
+}
+
+.interactive-item-container .completed-response-disclosure[open] .completed-response-summary {
+	padding-bottom: var(--vscode-spacing-size80);
+}
+
+.interactive-item-container .completed-response-disclosure > :last-child,
+.interactive-item-container .completed-response-disclosure > :last-child.rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.monaco-reduce-motion .completed-response-disclosure::details-content,
+.monaco-workbench.monaco-reduce-motion .completed-response-disclosure::details-content {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.completed-response-disclosure::details-content {
+		transition: none;
+	}
 }
 
 .interactive-item-container > .value .chat-used-context {
@@ -652,12 +726,14 @@
 	font-family: var(--monaco-monospace-font);
 }
 
-.interactive-item-container .value > .rendered-markdown p {
+.interactive-item-container .value > .rendered-markdown p,
+.interactive-item-container .value > .completed-response-disclosure > .rendered-markdown p {
 	/* Targetting normal text paras. `p` can also appear in other elements/widgets */
 	margin: 0 0 16px 0;
 }
 
-.interactive-item-container .value > .chat-tool-invocation-part {
+.interactive-item-container .value > .chat-tool-invocation-part,
+.interactive-item-container .value > .completed-response-disclosure > .chat-tool-invocation-part {
 	.rendered-markdown p {
 		margin: 0 0 6px 0;
 	}
@@ -787,7 +863,8 @@
 	}
 }
 
-.interactive-item-container .value > .rendered-markdown li > p {
+.interactive-item-container .value > .rendered-markdown li > p,
+.interactive-item-container .value > .completed-response-disclosure > .rendered-markdown li > p {
 	margin: 0;
 }
 
@@ -892,11 +969,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-height: 0;
 }
 
-.interactive-item-container.interactive-item-compact .value > .rendered-markdown p {
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown p,
+.interactive-item-container.interactive-item-compact .value > .completed-response-disclosure > .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value > .rendered-markdown li > p {
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown li > p,
+.interactive-item-container.interactive-item-compact .value > .completed-response-disclosure > .rendered-markdown li > p {
 	margin: 0;
 }
 
@@ -1196,6 +1275,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize-compact);
 	/* Keep the control corner radius in both states — the enabled rule below only
 		adds the filled background, it shouldn't be what defines the shape. */
 	border-radius: var(--vscode-cornerRadius-small);
@@ -1203,9 +1284,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-newline::before {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-arrow-up-compact::before {
 	display: inline-block;
 	transform: translateY(0.5px);
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-plus::before {
+	transform: translateX(0.5px);
 }
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
@@ -3001,6 +3086,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* The pill header already spaces its children with `gap`, so the label's own
+	margin-right (needed in the standalone checkpoint summary) is redundant here
+	and leaves unwanted trailing space. */
+.interactive-session .chat-turn-pills-part .checkpoint-file-changes-summary-header .chat-file-changes-label {
+	margin-right: 0;
+}
+
 .interactive-session .chat-turn-pills-part .chat-turn-preview {
 	display: flex;
 	align-items: center;
@@ -4577,11 +4669,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 @keyframes chat-voice-icon-glow {
 	0%,
 	100% {
-		box-shadow: 0 0 4px var(--chat-voice-icon-glow-color);
+		box-shadow: 0 0 2px var(--chat-voice-icon-glow-color);
 	}
 
 	50% {
-		box-shadow: 0 0 9px var(--chat-voice-icon-glow-color);
+		box-shadow: 0 0 5px var(--chat-voice-icon-glow-color);
 	}
 }
 
@@ -4589,7 +4681,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	only its color and the pulse change between states, so the control never
 	morphs from a rounded square into a circle mid-session. */
 .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.4);
 	color: var(--vscode-charts-blue, #58a6ff) !important;
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -4600,7 +4692,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Voice mode: purple when speaking */
 .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
+	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.4);
 	color: var(--vscode-charts-purple, #a371f7) !important;
 	border-radius: var(--vscode-cornerRadius-small);
 }

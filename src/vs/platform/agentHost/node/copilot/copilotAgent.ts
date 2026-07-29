@@ -37,7 +37,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, prepareSideChatPrompt, stripSideChatContext, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
@@ -176,6 +176,14 @@ interface IProvisionalSession {
 	 * worktree path that may not exist yet).
 	 */
 	readonly workingDirectory: URI;
+	/**
+	 * The full ordered working-directory set as sent by the client at create
+	 * time (index 0 = primary === {@link workingDirectory}), for a multi-root
+	 * workspace. Undefined for single-folder / legacy clients. The non-primary
+	 * roots are attached to customization discovery immediately (they are stable
+	 * workspace folders, unlike the worktree that resolves only at send).
+	 */
+	readonly workingDirectories?: readonly URI[];
 	/** Most recent model selection. Updated by `changeModel` while provisional. */
 	model: ModelSelection | undefined;
 	/** Most recent custom agent selection. Updated by `changeAgent` while provisional. */
@@ -679,8 +687,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			provider: 'copilotcli',
 			displayName: 'Copilot',
 			description: localize('copilotAgent.description', "Copilot SDK agent running in the local agent host process"),
-			capabilities: { multipleChats: { fork: true, sideChat: true } },
+			capabilities: {
+				multipleChats: { fork: true, sideChat: true },
+				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+			},
 		};
+	}
+
+	private _isMultiRootEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostCopilotMultiRootEnabledConfigKey) === true;
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -739,8 +754,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getSessionCustomizations(session: URI): Promise<readonly Customization[]> {
-		const directory = await this._getSessionCustomizationDirectory(session);
-		const activeClient = this._getOrCreateActiveClient(session, directory);
+		const anchors = await this._getSessionCustomizationAnchors(session);
+		const activeClient = this._getOrCreateActiveClient(session, anchors.directory);
+		if (anchors.applyAdditional) {
+			// Provisional (pre-send) or pre-resume: the anchors carry the full ordered
+			// root set, so anchor discovery to every root instead of caching a
+			// primary-only entry. Skipped for a live session (its tail is already set
+			// by materialize/resume — do not clobber it).
+			activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
+		}
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
 		const sessionId = AgentSession.id(session);
 		const entry = this._findAnySession(sessionId);
@@ -769,18 +791,53 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._findAnySession(sessionId)?.stopMcpServer(id);
 	}
 
-	private async _getSessionCustomizationDirectory(session: URI): Promise<URI | undefined> {
+	/**
+	 * The gated additional (non-primary) customization roots for a session: the
+	 * tail of the ordered working-directory set when multi-root is enabled, else
+	 * empty (so single-root / flag-off is byte-identical).
+	 */
+	private _additionalCustomizationDirectories(workingDirectories: readonly URI[] | undefined): readonly URI[] {
+		if (!this._isMultiRootEnabled() || !workingDirectories || workingDirectories.length <= 1) {
+			return [];
+		}
+		return workingDirectories.slice(1);
+	}
+
+	/**
+	 * Resolves the customization anchor(s) for a session. `directory` is the
+	 * primary (index 0) anchor — the worktree for worktree-isolated sessions.
+	 * `additionalDirectories` are the non-primary roots to attach to discovery,
+	 * and are applied only when `applyAdditional` is true:
+	 * - **provisional** (pre-send) sessions carry the client-supplied set, whose
+	 *   non-primary folders are stable workspace folders that can be discovered
+	 *   immediately (the worktree, if any, only affects index 0 at send);
+	 * - **not-yet-live** sessions carry the persisted set from metadata;
+	 * - **live** (active) sessions manage their own tail via materialize/resume,
+	 *   so `applyAdditional` is false to avoid clobbering it.
+	 */
+	private async _getSessionCustomizationAnchors(session: URI): Promise<{ readonly directory: URI | undefined; readonly additionalDirectories: readonly URI[]; readonly applyAdditional: boolean }> {
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
-			return provisional.workingDirectory;
+			return {
+				directory: provisional.workingDirectory,
+				additionalDirectories: this._additionalCustomizationDirectories(provisional.workingDirectories),
+				applyAdditional: true,
+			};
 		}
 		const entry = this._findAnySession(sessionId);
-		const metadata = entry ? undefined : await this._readSessionMetadata(session);
-		// For non-provisional sessions the anchor follows the working directory
-		// (the worktree). Prefer it over a persisted `customizationDirectory`,
-		// which older sessions stored as the original user-picked folder.
-		return entry?.customizationDirectory ?? metadata?.workingDirectory ?? metadata?.customizationDirectory;
+		if (entry) {
+			// For non-provisional sessions the anchor follows the working directory
+			// (the worktree). Prefer it over a persisted `customizationDirectory`,
+			// which older sessions stored as the original user-picked folder.
+			return { directory: entry.customizationDirectory, additionalDirectories: [], applyAdditional: false };
+		}
+		const metadata = await this._readSessionMetadata(session);
+		return {
+			directory: metadata.workingDirectory ?? metadata.customizationDirectory,
+			additionalDirectories: this._additionalCustomizationDirectories(metadata.workingDirectories),
+			applyAdditional: true,
+		};
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -1875,6 +1932,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// of activeClient state isn't engaged until materialization.
 		if (sessionConfig.activeClient) {
 			const ac = this._getOrCreateActiveClient(sessionUri, workingDirectory);
+			// Multi-root: anchor discovery to the additional (non-primary) roots too, so a
+			// still-provisional (pre-send) chat surfaces customizations from every folder — not
+			// just the primary. Empty when single-root / gated off (byte-identical).
+			ac.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(sessionConfig.workingDirectories));
 			const seeded = sessionConfig.activeClient;
 			ac.toolSet.set(seeded.clientId, seeded.tools);
 			ac.getOrCreateHandle(seeded.clientId, seeded.displayName);
@@ -1897,6 +1958,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionId,
 				sessionUri,
 				workingDirectory,
+				workingDirectories: sessionConfig.workingDirectories,
 				model: sessionConfig.model,
 				agent: sessionConfig.agent,
 				project,
@@ -1998,6 +2060,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Re-anchor in case the provisional active client was already bound to the
 		// user-picked folder before the worktree existed.
 		activeClient.pluginController.reanchor(customizationDirectory);
+		// Multi-root: anchor customization discovery to the additional workspace
+		// roots (index 1..N of the resolved set). Empty when single-root / gated off.
+		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(resolvedWorkingDirectories));
 		const snapshot = await activeClient.snapshot();
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 
@@ -2121,8 +2186,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// session-discovered customizations surface alongside this client's,
 		// mirroring the previous eager resolution in `setClientCustomizations`.
 		if (!activeClient.pluginController.directory) {
-			this._getSessionCustomizationDirectory(session).then(
-				directory => activeClient.pluginController.setDirectory(directory),
+			this._getSessionCustomizationAnchors(session).then(
+				anchors => {
+					activeClient.pluginController.setDirectory(anchors.directory);
+					if (anchors.applyAdditional) {
+						activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
+					}
+				},
 				() => { /* best-effort anchoring */ },
 			);
 		}
@@ -3248,6 +3318,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// registered an active-client handle yet.
 		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
 		activeClient.pluginController.reanchor(customizationDirectory);
+		// Multi-root: re-attach the persisted non-primary roots so discovery spans
+		// every root on resume. Empty when single-root / gated off.
+		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(storedMetadata.workingDirectories));
 		const snapshot = await activeClient.snapshot();
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
@@ -3567,7 +3640,7 @@ class SessionDiscoveredEntry extends Disposable {
 	private _settled: Promise<void>;
 
 	constructor(
-		workingDirectory: URI,
+		workingDirectories: readonly URI[],
 		userHome: URI,
 		private readonly _getClient: () => Promise<CopilotClient>,
 		private readonly _onDidRefresh: () => void,
@@ -3577,7 +3650,7 @@ class SessionDiscoveredEntry extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome, URI.file));
+		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectories, userHome, URI.file));
 		this._settled = this._queueRefresh(false, 0);
 		this._register(this._discovery.onDidChange(() => {
 			this._settled = this._queueRefresh(true);
@@ -4076,6 +4149,14 @@ class SessionPluginController extends Disposable {
 
 	private readonly _sessionDiscovered: MutableDisposable<SessionDiscoveredEntry> = this._register(new MutableDisposable());
 
+	/**
+	 * The additional (non-primary) workspace roots for a multi-root session.
+	 * Index 0 (the process root / worktree) is tracked separately by
+	 * {@link _directory}; this holds roots 1..N, which are stable workspace
+	 * folders that are never worktree-remapped. Empty for single-root sessions.
+	 */
+	private _additionalDirectories: readonly URI[] = [];
+
 	constructor(
 		private readonly _parent: PluginController,
 		private readonly _session: URI,
@@ -4091,6 +4172,11 @@ class SessionPluginController extends Disposable {
 		return this._directory;
 	}
 
+	/** The additional (non-primary) roots attached to customization discovery. */
+	public get additionalDirectories(): readonly URI[] {
+		return this._additionalDirectories;
+	}
+
 	/**
 	 * Anchor (or re-anchor) the session's customization directory.
 	 * Only ever transitions from `undefined` → set; once a directory has
@@ -4102,6 +4188,21 @@ class SessionPluginController extends Disposable {
 			return;
 		}
 		this._directory = directory;
+	}
+
+	/**
+	 * Set the additional (non-primary) workspace roots. Recreates the discovered
+	 * entry when the set actually changes so discovery re-scans every root —
+	 * important when this is set after a primary-only entry was already created
+	 * (e.g. on resume). A no-op for the single-root case (empty tail).
+	 */
+	public setAdditionalDirectories(directories: readonly URI[]): void {
+		if (this._additionalDirectories.length === directories.length
+			&& this._additionalDirectories.every((d, i) => isEqual(d, directories[i]))) {
+			return;
+		}
+		this._additionalDirectories = directories;
+		this._sessionDiscovered.clear();
 	}
 
 	/**
@@ -4354,7 +4455,7 @@ class SessionPluginController extends Disposable {
 		}
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry,
-				this._directory,
+				[this._directory, ...this._additionalDirectories],
 				this._parent.getUserHome(),
 				() => this._parent.getClient(),
 				() => this._onDidPublish.fire({

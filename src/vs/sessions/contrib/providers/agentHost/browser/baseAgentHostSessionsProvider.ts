@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -63,6 +63,16 @@ const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototy
 // new drafts, so they stay visible (disabled) while a draft re-resolves rather
 // than blanking then reappearing.
 const SEEDED_CONFIG_SCHEMA_KEYS = [SessionConfigKey.Isolation, SessionConfigKey.Branch] as const;
+
+/**
+ * {@link SessionConfigKey.Isolation} value that runs a session in its own git worktree.
+ */
+const WORKTREE_ISOLATION_VALUE = 'worktree';
+
+/** Whether the given session config values select worktree isolation. */
+function isWorktreeIsolation(values: Record<string, unknown> | undefined): boolean {
+	return values?.[SessionConfigKey.Isolation] === WORKTREE_ISOLATION_VALUE;
+}
 
 /** Maximum number of cached session summaries persisted per provider. */
 const CACHED_SESSIONS_MAX_PER_HOST = 100;
@@ -408,6 +418,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
+	/** See {@link ISession.worktreePending}. */
+	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
@@ -468,6 +480,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
+	/** Whether this session was created with worktree isolation. */
+	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
 	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
 	private readonly _defaultChatInteractivity = observableValue<ChatInteractivity>('defaultChatInteractivity', ChatInteractivity.Full);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
@@ -519,7 +533,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	get changesSummary(): IObservable<ISessionChangesSummary | undefined> { return this._changesSummary; }
-	setChangesSummary(changes: ChangesSummary | undefined): boolean {
+	/**
+	 * Sets the aggregate change chip. Callers inside a transaction MUST pass it
+	 * — a `set` without one builds and finishes its own transaction, notifying
+	 * observers before the enclosing update has applied its remaining fields.
+	 */
+	setChangesSummary(changes: ChangesSummary | undefined, tx?: ITransaction): boolean {
 		if (!changes) {
 			return false;
 		}
@@ -539,7 +558,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			additions: additions ?? 0,
 			deletions: deletions ?? 0,
 			files: files ?? 0
-		}, undefined);
+		}, tx);
 
 		return true;
 	}
@@ -641,6 +660,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
 		this.isQuickChat = this._isQuickChat;
+		// Until the host reports the worktree, the workspace is still the checkout it was started from.
+		this.worktreePending = derived(this, reader =>
+			this._worktreeIsolation.read(reader)
+			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
 		this.loading = _options.loading;
 		this.description = derived(reader => {
 			const status = this.status.read(reader);
@@ -1115,20 +1138,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			// undefined value means "not included" (e.g. a summary path that
 			// omits it), not "cleared". The authoritative git-state `_meta`
 			// still flows via `setMeta` from `SessionState` subscriptions.
+			//
+			// `setMeta` rebuilds the workspace from the project / working
+			// directories assigned just above plus the incoming `_meta`, so it
+			// fully subsumes the rebuild below — running both would recompute
+			// the same workspace twice for every `_meta`-bearing refresh. The
+			// fallback is only for snapshots that carry no `_meta`.
 			if (metadata._meta !== undefined) {
-				this._meta = metadata._meta;
-				this._metaObs.set(this._meta, tx);
-			}
-			// Promote before recomputing the workspace below, so a session the
-			// listing reports workspace-less never assigns itself a workspace
-			// rooted at its scratch cwd, even transiently.
-			if (this._promoteToQuickChatIfWorkspaceless(tx)) {
-				didChange = true;
-			}
-			const workspace = this._computeWorkspace();
-			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
-				this.workspace.set(workspace, tx);
-				didChange = true;
+				if (this.setMeta(metadata._meta, tx)) {
+					didChange = true;
+				}
+			} else {
+				const workspace = this._computeWorkspace();
+				if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
+					this.workspace.set(workspace, tx);
+					didChange = true;
+				}
 			}
 
 			if (metadata.isArchived !== undefined && metadata.isArchived !== this.isArchived.get()) {
@@ -1143,16 +1168,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 			// `metadata.changes` (aggregate) drives the chip aggregate.
 			// The dropdown content is built separately via `createChangesets`.
-			if (metadata.changes !== undefined && this.setChangesSummary(metadata.changes)) {
+			if (metadata.changes !== undefined && this.setChangesSummary(metadata.changes, tx)) {
 				didChange = true;
 			}
 
 			if (this._activity.get() !== metadata.activity) {
 				this._activity.set(metadata.activity, tx);
-				didChange = true;
-			}
-
-			if (metadata._meta !== undefined && this.setMeta(metadata._meta)) {
 				didChange = true;
 			}
 		});
@@ -1162,11 +1183,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	/**
 	 * Sets the activity text from a `SessionSummaryChanged` notification.
-	 * Returns `true` iff the activity observable changed.
+	 * Returns `true` iff the activity observable changed. Callers inside a
+	 * transaction MUST pass it — see {@link setChangesSummary}.
 	 */
-	setActivity(activity: string | undefined): boolean {
+	setActivity(activity: string | undefined, tx?: ITransaction): boolean {
 		if (this._activity.get() !== activity) {
-			this._activity.set(activity, undefined);
+			this._activity.set(activity, tx);
 			return true;
 		}
 
@@ -1180,11 +1202,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * workspace-less, and rebuild the workspace if the git state changed.
 	 * Returns `true` iff anything observable changed, so the list regroups a
 	 * session that became a quick chat without ever having had a workspace.
+	 *
+	 * Callers that are already inside a transaction MUST pass it: a plain
+	 * `transaction()` here would finish (and therefore notify) mid-way through
+	 * the enclosing one, letting observers of `_meta` / `isQuickChat` /
+	 * `workspace` read a torn snapshot of the fields the caller has not applied
+	 * yet.
 	 */
-	setMeta(meta: SessionMeta | undefined): boolean {
+	setMeta(meta: SessionMeta | undefined, tx?: ITransaction): boolean {
 		this._meta = meta;
 		let didChange = false;
-		transaction(tx => {
+		subtransaction(tx, tx => {
 			this._metaObs.set(this._meta, tx);
 			didChange = this._promoteToQuickChatIfWorkspaceless(tx);
 			const workspace = this._computeWorkspace();
@@ -1194,6 +1222,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 		});
 		return didChange;
+	}
+
+	/** Records that this session runs with worktree isolation. See {@link worktreePending}. */
+	setWorktreeIsolation(isolated: boolean): void {
+		this._worktreeIsolation.set(isolated, undefined);
 	}
 
 	/**
@@ -1363,6 +1396,7 @@ class NewSession extends Disposable {
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
+	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _isActiveSessionObs: IObservable<boolean>;
 	private readonly _loading: ISettableObservable<boolean>;
 	private readonly _mainChat: ISettableObservable<IChat>;
@@ -1480,6 +1514,7 @@ class NewSession extends Disposable {
 			createdAt,
 			workspace: workspaceObs,
 			isQuickChat: constObservable(this._kind.isQuickChat),
+			worktreePending: this._worktreePending,
 			title,
 			updatedAt,
 			status: this._status,
@@ -1504,6 +1539,12 @@ class NewSession extends Disposable {
 				values: { ...ctx.initialConfigValues },
 			};
 		}
+		this._syncWorktreePending();
+	}
+
+	/** Re-reads the isolation pick from the cached config into {@link _worktreePending}. */
+	private _syncWorktreePending(): void {
+		this._worktreePending.set(isWorktreeIsolation(this._config?.values), undefined);
 	}
 
 	// -- Picker mutations ----------------------------------------------------
@@ -1549,6 +1590,7 @@ class NewSession extends Disposable {
 			schema: current?.schema ?? { type: 'object', properties: {} },
 			values: { ...(current?.values ?? {}), [property]: value },
 		};
+		this._syncWorktreePending();
 	}
 
 	/**
@@ -1593,12 +1635,14 @@ class NewSession extends Disposable {
 				return false;
 			}
 			this._config = result;
+			this._syncWorktreePending();
 			return true;
 		} catch (error) {
 			if (seq !== this._configRequestSeq) {
 				return false;
 			}
 			this._config = undefined;
+			this._syncWorktreePending();
 			if (strict) {
 				throw error;
 			}
@@ -3071,6 +3115,40 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.workingDirectories?.[0];
 	}
 
+	getBackendChatResource(chatResource: URI): URI | undefined {
+		// The client resource is `<scheme>:/<rawId>[#chatId]`; drop the fragment to
+		// recover the session resource, whose `sessionId` keys `_lastSessionStates`.
+		const sessionResource = chatResource.with({ fragment: '' });
+		const state = this._lastSessionStates.get(toSessionId(this.id, sessionResource));
+		if (!state) {
+			return undefined;
+		}
+		// Look up the authoritative host-supplied backend chat URI rather than
+		// constructing one: a peer chat's client fragment is exactly the chatId of
+		// its `ChatSummary.resource` (see `_createAdditionalChat`); the default
+		// chat (no fragment) is `SessionState.defaultChat`, falling back to the
+		// summary flagged by `isDefaultChatUri` — mirroring `_applyChatCatalog`.
+		const chatId = chatResource.fragment || undefined;
+		const backendResource = chatId
+			? state.chats.find(c => parseChatUri(c.resource)?.chatId === chatId)?.resource
+			: (state.defaultChat ?? state.chats.find(c => isDefaultChatUri(c.resource))?.resource);
+		if (!backendResource) {
+			return undefined;
+		}
+		// The resource is host-supplied and only parsed here to hand back a URI;
+		// a malformed one must not break the drag gesture that asks for it.
+		try {
+			return URI.parse(backendResource.toString());
+		} catch {
+			return undefined;
+		}
+	}
+
+	getWorkingDirectories(sessionId: string): readonly string[] {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		return sessionState?.workingDirectories ?? [];
+	}
+
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		if (!sessionState) {
@@ -3728,6 +3806,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				values: { ...config.values },
 			});
 		}
+
+		this._applyWorktreeIsolation(committedSessionId, config?.values);
 	}
 
 	protected _rawIdFromChatId(chatId: string): string | undefined {
@@ -4092,7 +4172,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		this._runningSessionConfigs.set(sessionId, seeded);
+		this._applyWorktreeIsolation(sessionId, seeded.values);
 		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	/** Mirrors a session's `isolation` pick onto its adapter. See {@link ISession.worktreePending}. */
+	private _applyWorktreeIsolation(sessionId: string, values: Record<string, unknown> | undefined): void {
+		if (!isWorktreeIsolation(values)) {
+			return;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const adapter = rawId ? this._sessionCache.get(rawId) : undefined;
+		adapter?.setWorktreeIsolation(true);
 	}
 
 	// -- Session cache management --------------------------------------------
@@ -4537,15 +4628,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// itself (label / URI template / `changeKind`) arrives via the
 			// `SessionChangesetsChanged` action, handled by
 			// `_handleChangesetsChanged`.
-			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes)) {
+			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
 				didChange = true;
 			}
 
-			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
+			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity, tx)) {
 				didChange = true;
 			}
 
-			if (changes._meta !== undefined && cached.setMeta(changes._meta)) {
+			if (changes._meta !== undefined && cached.setMeta(changes._meta, tx)) {
 				didChange = true;
 			}
 

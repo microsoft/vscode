@@ -87,6 +87,8 @@ For Agent Host client tools, a call made while the SDK is in **Allow all** mode 
 
 Automation rows use dynamic heights. The management editor propagates both editor-pane and section visibility to the Automations widget; while hidden, the widget updates its view model but defers list splices and layout. Revealing the section commits the latest entries and forces a fresh row measurement so `display:none` cannot cache zero-height rows.
 
+The Automations empty-state CTA is centered and capped to the explanatory copy column while retaining the shared button's responsive width below that cap. A CI-blocking wide management-editor fixture covers this empty state in dark and light themes.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
@@ -125,6 +127,8 @@ Remote agent hosts can also register **external harnesses** dynamically. Each re
 - an `itemProvider` that surfaces plugins already configured on the remote host (or synced into the active remote session),
 - a `disableProvider` that lets users opt out individual files/plugins from auto-sync, and
 - `pluginActions` that add environment-specific commands such as "Add Remote Plugin" to the Plugins section add menu alongside the default install-from-source action. The create action remains a separate toolbar button.
+
+Remote Agent Host registrations auto-sync enabled `PromptsStorage.user` agents, skills, instructions, and prompts from the client in addition to the extension, plugin, and built-in sources shared with local Agent Hosts. Local Agent Hosts exclude user storage from this client bundle because native discovery already reads the same machine's user home. Remote user files are flattened into the existing synthetic Open Plugin, retain their original URI for per-file opt-out, and remain grouped as client-originated after provenance recovery. Host-native user customizations remain separate entries; no client/host precedence or cross-tier deduplication is introduced. Hooks and singleton agent-instruction files such as `~/.claude/CLAUDE.md` and `~/.copilot/copilot-instructions.md` are outside this sync path.
 
 The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
 
@@ -174,6 +178,8 @@ The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri,
 **Core VS Code filter behavior:**
 
 Local harness: all types use `[local, user, extension, plugin, builtin]`. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
+
+Voice customizations follow the same workspace/user split as Copilot instructions but are consumed directly by voice features rather than listed as standard prompt-file sections in the management editor. Voice Mode combines `~/.copilot/voice.md` with each trusted workspace's `.github/voice.md` and sends the result to the backend as `voice_instructions` on both session start and resume. Dictation separately combines `~/.copilot/dictation.md` with each trusted workspace's `.github/dictation.md` and appends the result to its language-model post-processing prompt for terminology and formatting guidance. Separate configure commands create or open either scope and are linked from their respective settings, microphone menus, and the management editor overview.
 
 CLI harness (core):
 

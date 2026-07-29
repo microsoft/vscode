@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -71,8 +71,6 @@ export interface IChatWidgetFixtureOptions {
 	readonly height?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
-	/** Chat list rendering style. Defaults to compact for existing fixtures. */
-	readonly renderStyle?: 'default' | 'compact' | 'minimal';
 	/** Whether to populate the response footer with an action. */
 	readonly responseFooterAction?: boolean;
 	/** Whether to show request and response timing details. */
@@ -97,6 +95,17 @@ export interface IChatWidgetFixtureOptions {
 	 * response.
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
+	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
+	/** Selects the input-height consumer used by the ResizeObserver harness. */
+	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
+}
+
+interface IChatWidgetFixtureHandle {
+	readonly inputPart: ChatInputPart;
+	readonly listWidget: ChatListWidget;
+	readonly model: ChatModel;
+	readonly width: number;
+	readonly addTerminalConfirmation: (request: ReturnType<ChatModel['addRequest']>, command: string) => void;
 }
 
 function makeFileDiff(change: IFixtureFileChange): IEditSessionEntryDiff {
@@ -321,7 +330,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
 	}
 
-	const renderStyle = options.renderStyle === 'default' ? undefined : options.renderStyle ?? 'compact';
 	const inputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -355,7 +363,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
 	const listContainer = dom.$('.interactive-list');
-	listContainer.style.flex = '1 1 auto';
+	listContainer.style.flex = options.hostLayoutMode ? '0 0 auto' : '1 1 auto';
 	listContainer.style.minHeight = '0';
 	listContainer.style.position = 'relative';
 	// Prepend the list before the input so the visual order matches production.
@@ -367,7 +375,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		{
 			currentChatMode: () => ChatModeKind.Agent,
 			defaultElementHeight: 120,
-			renderStyle,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground: 'var(--vscode-editor-background)',
@@ -378,6 +385,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			},
 		},
 	));
+
 	listWidget.setViewModel(viewModel);
 	listWidget.setVisible(true);
 	listWidget.refresh();
@@ -385,6 +393,60 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const listHeight = 420;
 	listWidget.layout(listHeight, width);
 	listWidget.scrollTop = 0;
+
+	if (options.hostLayoutMode && options.hostLayoutMode !== 'none') {
+		let layouting = false;
+		disposableStore.add(autorun(reader => {
+			const inputHeight = inputPart.height.read(reader);
+			if (layouting) {
+				return;
+			}
+
+			layouting = true;
+			try {
+				if (options.hostLayoutMode === 'stackedFull') {
+					// Mirrors ChatViewPane's stacked-sessions convergence path:
+					// the host synchronously lays out the input again.
+					inputPart.setMaxHeight(Math.max(0, height - 50));
+					inputPart.layout(width);
+				}
+
+				const contentHeight = options.hostLayoutMode === 'stackedFull' || options.hostLayoutMode === 'stackedTargeted'
+					? Math.max(0, Math.max(116, inputHeight) - inputHeight)
+					: Math.max(0, height - inputHeight);
+				listContainer.style.height = `${contentHeight}px`;
+				listContainer.dataset['expectedHeight'] = String(contentHeight);
+				listWidget.layout(contentHeight, width);
+			} finally {
+				layouting = false;
+			}
+		}));
+	}
+
+	options.onRendered?.({
+		inputPart,
+		listWidget,
+		model,
+		width,
+		addTerminalConfirmation: (request, command) => {
+			model.acceptResponseProgress(request, new ChatToolInvocation(
+				{
+					invocationMessage: new MarkdownString(`Running \`${command}\``),
+					pastTenseMessage: new MarkdownString(`Ran \`${command}\``),
+					confirmationMessages: { title: 'Run diagnostic command?', message: new MarkdownString(`\`${command}\``) },
+					toolSpecificData: {
+						kind: 'terminal',
+						commandLine: { original: command },
+						language: 'pwsh',
+					},
+				},
+				fixtureToolData,
+				generateUuid(),
+				undefined,
+				{ command },
+			));
+		},
+	});
 }
 
 const SIMPLE_QA: IFixtureMessage[] = [
@@ -400,24 +462,22 @@ const LAST_RESPONSE_HOVER: IFixtureMessage[] = [
 	{
 		user: 'Summarize the changes',
 		assistant: [
-			{ kind: 'markdown', text: 'The response content ends here. The remaining row height is reserved space.' },
+			{ kind: 'markdown', text: 'The response content ends here.' },
 		],
 		details: 'Claude Opus 4.8 - 2 credits',
 	},
 ];
 
-async function renderLastResponseHover(context: ComponentFixtureContext, target: 'content' | 'reserved-space'): Promise<void> {
+async function renderLastResponseHover(context: ComponentFixtureContext): Promise<void> {
 	await renderChatWidget(context, {
 		messages: LAST_RESPONSE_HOVER,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 	});
 
 	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
-	const hoverTarget = target === 'content' ? response?.querySelector<HTMLElement>(':scope > .value') : response;
-	hoverTarget?.dispatchEvent(new MouseEvent('mouseenter'));
+	response?.querySelector<HTMLElement>(':scope > .value')?.dispatchEvent(new MouseEvent('mouseenter'));
 }
 
 const KEYBOARD_FOCUS: IFixtureMessage[] = [
@@ -442,7 +502,6 @@ async function renderKeyboardFocus(context: ComponentFixtureContext, target: 're
 		messages: KEYBOARD_FOCUS,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 		verbose: target === 'request-timestamp',
 	});
@@ -559,17 +618,157 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
+async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
+	const targetWindow = context.container.ownerDocument.defaultView;
+	if (!targetWindow) {
+		throw new Error('ResizeObserver harness requires a window');
+	}
+
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		messages: [{
+			user: [
+				'Investigate ResizeObserver re-entry.',
+				'',
+				'Context (text/plain; no binary upload):',
+				'Issue #316501 tracks chat list and input resize-observer loop warnings.',
+			].join('\n'),
+			assistant: [{
+				kind: 'markdown',
+				text: 'The mocked chat harness is ready.',
+			}],
+		}],
+		width: 720,
+		height: 600,
+		hostLayoutMode,
+		onRendered: value => handle = value,
+	});
+
+	if (!handle) {
+		throw new Error('ResizeObserver harness did not initialize');
+	}
+	const fixtureHandle = handle;
+
+	const controls = dom.$('.resize-observer-loop-harness');
+	const runButton = dom.append(controls, dom.$<HTMLButtonElement>('button.resize-observer-loop-run'));
+	runButton.type = 'button';
+	runButton.textContent = 'Run 20-turn burst';
+	const status = dom.append(controls, dom.$('span.resize-observer-loop-status'));
+	status.role = 'status';
+	status.textContent = 'Ready';
+	const warnings = dom.append(controls, dom.$('span.resize-observer-loop-warnings'));
+	warnings.textContent = 'Warnings: 0';
+	controls.style.position = 'absolute';
+	controls.style.top = '8px';
+	controls.style.right = '8px';
+	controls.style.zIndex = '100';
+	controls.style.display = 'flex';
+	controls.style.gap = '8px';
+	controls.style.alignItems = 'center';
+	controls.style.padding = '6px 8px';
+	controls.style.background = 'var(--vscode-editorWidget-background)';
+	controls.style.border = '1px solid var(--vscode-widget-border)';
+	context.container.style.position = 'relative';
+	context.container.appendChild(controls);
+
+	let warningCount = 0;
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			warningCount++;
+			warnings.textContent = `Warnings: ${warningCount}`;
+			warnings.dataset['lastAttribution'] = dom.getRecentDisposableResizeObserverAttributionForLoopError(event.message) ?? event.message;
+			status.textContent = 'Captured ResizeObserver warning';
+		}
+	}));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	const runBurst = async () => {
+		runButton.disabled = true;
+		status.textContent = 'Adding queued turns...';
+		const responses = [];
+
+		for (let index = 1; index <= 20; index++) {
+			const prompt = [
+				`Queued prompt ${index}`,
+				'',
+				'Context (text/plain; no binary upload):',
+				...Array.from({ length: 12 }, (_, line) => `Resize stress sample ${index}.${line + 1}: ${'layout '.repeat(index % 5 + 1)}`),
+			].join('\n');
+
+			fixtureHandle.inputPart.setValue(prompt, true);
+			fixtureHandle.inputPart.layout(fixtureHandle.width);
+
+			const request = fixtureHandle.model.addRequest(makeUserMessage(prompt), { variables: [] }, 0);
+			fixtureHandle.model.acceptResponseProgress(request, {
+				kind: 'progressMessage',
+				content: new MarkdownString(`Processing queued prompt ${index}...`),
+			});
+			if (index === 1) {
+				fixtureHandle.addTerminalConfirmation(request, 'git status --short');
+			}
+			responses.push(request.response!);
+
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+
+			fixtureHandle.inputPart.setValue('', true);
+			fixtureHandle.inputPart.layout(fixtureHandle.width);
+			fixtureHandle.model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(`Mock streamed output ${index}\n\n${'- response line\n'.repeat(index % 7 + 1)}`),
+			});
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+		}
+
+		status.textContent = 'Completing mocked responses...';
+		for (const response of responses) {
+			response.complete();
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+		}
+
+		status.textContent = warningCount > 0
+			? 'Completed with ResizeObserver warning'
+			: 'Completed without warning';
+		runButton.disabled = false;
+	};
+
+	context.disposableStore.add(dom.addDisposableListener(runButton, dom.EventType.CLICK, () => {
+		void runBurst();
+	}));
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	ResizeObserverLoopHarness: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'stackedFull'),
+	}),
+	ResizeObserverLoopListOnly: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'listOnly'),
+	}),
+	ResizeObserverLoopStackedTargeted: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'stackedTargeted'),
+	}),
+	ResizeObserverLoopNoHostLayout: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
-	LastResponseContentHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'content') }),
-	LastResponseReservedSpaceHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'reserved-space') }),
+	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),
 	ResponseActionKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'response-action') }),
 	RequestTimestampKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'request-timestamp') }),
 });
