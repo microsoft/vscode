@@ -228,6 +228,92 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.internalEvents[1].eventName, 'toolCallDetailsInternal');
 	});
 
+	test('toolApproval emits chat.toolApproval with AH discriminators and reason mapping', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.toolApproval({
+			provider: 'copilot', session, turnId: 'turn-1',
+			toolId: 'grep', toolSourceKind: 'internal',
+			confirmKind: 'confirmationNotNeeded',
+			confirmationNotNeededReason: 'auto-approve-all',
+			requestUnsandboxedExecution: undefined,
+		});
+		reporter.toolApproval({
+			provider: 'copilot', session, turnId: 'turn-2',
+			toolId: 'bash', toolSourceKind: 'internal',
+			confirmKind: 'userAction',
+			confirmationNotNeededReason: undefined,
+			requestUnsandboxedExecution: true,
+		});
+		reporter.toolApproval({
+			provider: 'copilot', session, turnId: 'turn-3',
+			toolId: 'my-mcp-tool', toolSourceKind: 'mcp',
+			confirmKind: 'denied',
+			confirmationNotNeededReason: undefined,
+			requestUnsandboxedExecution: undefined,
+		});
+
+		assert.deepStrictEqual(service.standardEvents, [{
+			eventName: 'chat.toolApproval',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				isSubagentSession: false,
+				chatSessionId: AgentSession.id(session),
+				requestId: 'turn-1',
+				toolId: 'grep',
+				toolExtensionId: undefined,
+				toolSourceKind: 'internal',
+				confirmKind: 'confirmationNotNeeded',
+				settingId: undefined,
+				lmServiceScope: undefined,
+				customButtonKind: undefined,
+				confirmationNotNeededReason: 'auto-approve-all',
+				sandboxWrapped: undefined,
+				requestUnsandboxedExecution: undefined,
+			},
+		}, {
+			eventName: 'chat.toolApproval',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				isSubagentSession: false,
+				chatSessionId: AgentSession.id(session),
+				requestId: 'turn-2',
+				toolId: 'bash',
+				toolExtensionId: undefined,
+				toolSourceKind: 'internal',
+				confirmKind: 'userAction',
+				settingId: undefined,
+				lmServiceScope: undefined,
+				customButtonKind: undefined,
+				confirmationNotNeededReason: undefined,
+				sandboxWrapped: undefined,
+				requestUnsandboxedExecution: true,
+			},
+		}, {
+			eventName: 'chat.toolApproval',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				isSubagentSession: false,
+				chatSessionId: AgentSession.id(session),
+				requestId: 'turn-3',
+				toolId: 'my-mcp-tool',
+				toolExtensionId: undefined,
+				toolSourceKind: 'mcp',
+				confirmKind: 'denied',
+				settingId: undefined,
+				lmServiceScope: undefined,
+				customButtonKind: undefined,
+				confirmationNotNeededReason: undefined,
+				sandboxWrapped: undefined,
+				requestUnsandboxedExecution: undefined,
+			},
+		}]);
+	});
+
 	test('autoModeRouterDecision maps the SDK Hydra and binary score shapes without inventing unavailable fields', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
