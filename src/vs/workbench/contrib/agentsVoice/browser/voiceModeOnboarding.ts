@@ -78,7 +78,7 @@ interface IWave {
 const VOICES: readonly IVoiceModeVoice[] = [
 	{
 		id: 'maya_neutral',
-		label: localize('voiceMode.onboarding.voice.maya', "Maya"),
+		label: localize('voiceMode.onboarding.voice.maya', "Maya (Default)"),
 		// Flowing mid-range: even spread, gentle drift.
 		signature: [
 			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
@@ -422,6 +422,7 @@ class VoiceSamplePlayer extends Disposable {
 
 	constructor(
 		private readonly element: HTMLElement,
+		private readonly audioFactory: (() => HTMLAudioElement) | undefined,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -480,7 +481,7 @@ class VoiceSamplePlayer extends Disposable {
 		}
 
 		const targetWindow = dom.getWindow(this.element);
-		const audio = new targetWindow.Audio();
+		const audio = this.audioFactory?.() ?? new targetWindow.Audio();
 		this.audio = audio;
 		this._register(toDisposable(() => {
 			audio.pause();
@@ -522,6 +523,8 @@ export interface IVoiceModeOnboardingBannerOptions {
 	readonly container: HTMLElement;
 	readonly onDismiss: () => void;
 	readonly source: 'automatic' | 'manual';
+	/** Allows tests to provide a deterministic media element. */
+	readonly audioFactory?: () => HTMLAudioElement;
 }
 
 /**
@@ -574,7 +577,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			},
 		}));
 		this.domNode = this.card.domNode;
-		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode));
+		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode, options.audioFactory));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
 
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
@@ -832,6 +835,11 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
+		if (this.player.playingVoice === voice.id) {
+			this.player.stop();
+			status(localize('voiceMode.onboarding.voice.previewStopped', "{0} preview stopped.", voice.label));
+			return;
+		}
 		this.logAction('selectVoice');
 		this.selectedVoice = voice;
 		this.updateSelection();

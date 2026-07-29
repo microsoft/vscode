@@ -18,7 +18,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { AgentsVoiceStorageKeys } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
+import { VoiceModeOnboardingBanner, VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
 
 suite('Voice Mode onboarding', () => {
 
@@ -118,7 +118,7 @@ suite('Voice Mode onboarding', () => {
 				shown: true,
 				hasMicrophonePicker: true,
 				selectedOnOpen: 0,
-				voices: ['Maya', 'Victoria', 'Kevin', 'Daniel'],
+				voices: ['Maya (Default)', 'Victoria', 'Kevin', 'Daniel'],
 				selectedAfterPick: 1,
 				shownAfterClose: false,
 				shownAgain: false,
@@ -127,6 +127,56 @@ suite('Voice Mode onboarding', () => {
 					{ name: 'voiceModeOnboarding.action', data: { action: 'selectVoice', source: 'automatic' } },
 					{ name: 'voiceModeOnboarding.action', data: { action: 'close', source: 'automatic' } },
 				],
+			});
+	});
+
+	test('clicking the playing voice stops its preview without changing the selection', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override readonly onDidChangeScreenReaderOptimized = Event.None;
+			override readonly onDidChangeReducedMotion = Event.None;
+			override isScreenReaderOptimized(): boolean { return false; }
+			override isMotionReduced(): boolean { return false; }
+		});
+
+		const audio = document.createElement('audio');
+		let playCount = 0;
+		let pauseCount = 0;
+		audio.play = () => {
+			playCount++;
+			return Promise.resolve();
+		};
+		audio.pause = () => pauseCount++;
+
+		const host = createHost(disposables);
+		disposables.add(instantiationService.createInstance(VoiceModeOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => undefined,
+			source: 'manual',
+			audioFactory: () => audio,
+		}));
+
+		const maya = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!;
+		maya.click();
+		const playingAfterFirstClick = maya.classList.contains('playing');
+		maya.click();
+
+		assert.deepStrictEqual(
+			{
+				label: maya.querySelector('.voice-mode-onboarding-voice-label')?.textContent,
+				playCount,
+				pauseCount,
+				playingAfterFirstClick,
+				playingAfterSecondClick: maya.classList.contains('playing'),
+				selectedAfterSecondClick: maya.classList.contains('selected'),
+			},
+			{
+				label: 'Maya (Default)',
+				playCount: 1,
+				pauseCount: 1,
+				playingAfterFirstClick: true,
+				playingAfterSecondClick: false,
+				selectedAfterSecondClick: true,
 			});
 	});
 
