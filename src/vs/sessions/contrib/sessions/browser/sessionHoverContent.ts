@@ -64,7 +64,7 @@ export function buildSessionHoverContent(
 	// Line 2: folder icon + folder path · git branch
 	const workspace = session.workspace.get();
 	const folder = workspace?.folders[0];
-	// A pending worktree still describes the checkout, so path and branch are withheld.
+	// A pending worktree still describes the checkout, so its path, branch and changes are withheld.
 	const worktreePending = session.worktreePending?.get() ?? false;
 	const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim();
 	let appendedDetails = false;
@@ -93,7 +93,7 @@ export function buildSessionHoverContent(
 	}
 
 	// Line 3: file count · diff stats
-	const diffStats = getSessionDiffStats(session);
+	const diffStats = worktreePending ? undefined : getSessionDiffStats(session);
 	if (diffStats) {
 		const fileText = diffStats.files === 1
 			? localize('agentSessions.fileChanged', "1 file changed")

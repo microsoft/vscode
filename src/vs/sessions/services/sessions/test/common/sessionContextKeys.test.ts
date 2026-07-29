@@ -115,7 +115,7 @@ suite('setSessionContextKeys - changes', () => {
 
 	const change: IChatSessionFileChange = { modifiedUri: URI.parse('test:///file.ts'), insertions: 3, deletions: 1 };
 
-	test('hides changes of the checkout a session with a pending worktree was started from', () => {
+	test('hides the changes of the checkout that a session with a pending worktree was started from', () => {
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const worktreePending = observableValue('worktreePending', true);
 		const session = stubSession({ sessionId: 'a', changesets: constObservable(undefined), changes: constObservable([change]), worktreePending });
