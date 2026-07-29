@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe('Copilot CLI state directories', () => {
-	it('uses COPILOT_HOME before XDG_STATE_HOME', () => {
+	it('uses COPILOT_HOME', () => {
 		setEnv('COPILOT_HOME', '/tmp/copilot-home');
 		setEnv('XDG_STATE_HOME', '/tmp/xdg-state');
 
@@ -44,16 +44,16 @@ describe('Copilot CLI state directories', () => {
 		);
 	});
 
-	it('uses XDG_STATE_HOME when COPILOT_HOME is not set', () => {
+	it('does not use the legacy XDG_STATE_HOME location', () => {
 		setEnv('COPILOT_HOME', undefined);
 		setEnv('XDG_STATE_HOME', '/tmp/xdg-state');
 
-		expect(getCopilotHome()).toBe(join('/tmp/xdg-state', '.copilot'));
+		expect(getCopilotHome()).toBe(join(homedir(), '.copilot'));
 		expect(getCopilotCliStateDir()).toBe(
-			join('/tmp/xdg-state', '.copilot', 'ide'),
+			join(homedir(), '.copilot', 'ide'),
 		);
 		expect(getCopilotCLISessionStateDir()).toBe(
-			join('/tmp/xdg-state', '.copilot', 'session-state'),
+			join(homedir(), '.copilot', 'session-state'),
 		);
 	});
 

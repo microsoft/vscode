@@ -1820,8 +1820,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('auto-approves read permission for session-state plan files', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { runtime, signals } = await createAgentSession(disposables);
 				const result = await runtime.handlePermissionRequest({
@@ -1833,17 +1833,17 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(signals.length, 0);
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('resolves native environment through INativeEnvironmentService registration', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			delete process.env['XDG_STATE_HOME'];
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			delete process.env['COPILOT_HOME'];
 			try {
 				const { runtime, signals } = await createAgentSession(disposables, { environmentServiceRegistration: 'native' });
 				const result = await runtime.handlePermissionRequest({
@@ -1855,17 +1855,17 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(signals.length, 0);
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('logs and rethrows permission failures', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			delete process.env['XDG_STATE_HOME'];
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			delete process.env['COPILOT_HOME'];
 			const logService = new CapturingLogService();
 			try {
 				const { runtime } = await createAgentSession(disposables, {
@@ -1886,10 +1886,10 @@ suite('CopilotAgentSession', () => {
 				assert.ok(entry.first instanceof TypeError);
 				assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed to handle permission request: kind=read, toolCallId=tc-read-plan-missing-env');
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
@@ -1944,8 +1944,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('auto-approves write permission for session-state plan files', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { runtime, signals } = await createAgentSession(disposables);
 				const result = await runtime.handlePermissionRequest({
@@ -1957,17 +1957,17 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(signals.length, 0);
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('does not auto-approve session-state files from another session', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 				const resultPromise = runtime.handlePermissionRequest({
@@ -1983,17 +1983,17 @@ suite('CopilotAgentSession', () => {
 				const result = await resultPromise;
 				assert.strictEqual(result.kind, 'approve-once');
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('does not auto-approve traversal paths that escape the session-state directory', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 				const sessionDir = join('/mock-state-home', '.copilot', 'session-state', 'test-session-1');
@@ -2010,10 +2010,10 @@ suite('CopilotAgentSession', () => {
 				const result = await resultPromise;
 				assert.strictEqual(result.kind, 'approve-once');
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});

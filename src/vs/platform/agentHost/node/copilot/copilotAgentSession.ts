@@ -27,6 +27,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
@@ -101,9 +102,7 @@ interface IMcpAuthToolCall {
 	readonly parentToolCallId: string | undefined;
 }
 
-const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = 'session-state';
-const DEFAULT_SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, SESSION_STATE_DIRECTORY);
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 
 function normalizeMcpServerUrl(value: string): string | undefined {
@@ -305,13 +304,7 @@ function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: Ch
 }
 
 function getCopilotCLISessionStateDir(userHome: string): string {
-	const copilotHome = process.env['COPILOT_HOME'];
-	if (copilotHome) {
-		return join(copilotHome, SESSION_STATE_DIRECTORY);
-	}
-
-	const xdgHome = process.env['XDG_STATE_HOME'];
-	return xdgHome ? join(xdgHome, DEFAULT_SESSION_STATE_DIRECTORY) : join(userHome, DEFAULT_SESSION_STATE_DIRECTORY);
+	return join(getCopilotHomePath(userHome, process.env), SESSION_STATE_DIRECTORY);
 }
 
 /**

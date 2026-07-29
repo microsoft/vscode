@@ -9,15 +9,7 @@ import { join } from 'path';
 const COPILOT_HOME_DIRECTORY = '.copilot';
 
 export function getCopilotHome(): string {
-	const copilotHome = process.env.COPILOT_HOME;
-	if (copilotHome) {
-		return copilotHome;
-	}
-
-	const xdgHome = process.env.XDG_STATE_HOME;
-	return xdgHome
-		? join(xdgHome, COPILOT_HOME_DIRECTORY)
-		: join(homedir(), COPILOT_HOME_DIRECTORY);
+	return process.env.COPILOT_HOME || join(homedir(), COPILOT_HOME_DIRECTORY);
 }
 
 export function getCopilotCliStateDir(): string {
