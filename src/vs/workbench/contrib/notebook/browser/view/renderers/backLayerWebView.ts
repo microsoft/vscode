@@ -32,13 +32,14 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { EditorOpenSource, ITextEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { extractSelection, IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { editorFindMatch, editorFindMatchHighlight } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from '../../notebookBrowser.js';
 import { NOTEBOOK_WEBVIEW_BOUNDARY } from '../notebookCellList.js';
 import { preloadsScriptStr } from './webviewPreloads.js';
@@ -1100,7 +1101,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				fragment: `L${lineCol[0].slice(1)}`
 			});
 			lineNumber = parseInt(lineCol[1], 10);
-			column = parseInt(lineCol[2], 10);
+			column = lineCol[2] ? parseInt(lineCol[2], 10) : 1;
 		}
 
 		//#region error renderer migration, remove once done
@@ -1119,25 +1120,45 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 		//#endregion
 
-		let targetGroup: IEditorGroup | undefined = undefined;
+		const extractedSelection = extractSelection(uri);
+		const selection = lineNumber !== undefined && column !== undefined ? { startLineNumber: lineNumber, startColumn: column } : extractedSelection.selection;
+		const resource = extractedSelection.uri;
+
+		if (!this.fileService.hasProvider(resource) || this.workspaceContextService.isInsideWorkspace(resource)) {
+			await this.openerService.open(uri, {
+				fromUserGesture: true,
+				fromWorkspace: true,
+				editorOptions: selection ? { selection } : undefined
+			});
+			return;
+		}
+
+		let match: { group: IEditorGroup; editor: EditorInput } | undefined = undefined;
 
 		for (const group of this.editorGroupService.groups) {
-			const editorInput = group.editors.find(editor => editor.resource && isEqual(editor.resource, uri, true));
+			const editorInput = group.editors.find(editor => editor.resource && isEqual(editor.resource, resource, true));
 			if (editorInput) {
-				targetGroup = group;
+				match = { group, editor: editorInput };
 				break;
 			}
 		}
 
-		const selection = lineNumber !== undefined && column !== undefined ? { startLineNumber: lineNumber, startColumn: column } : undefined;
-		const resource = selection ? uri.with({ fragment: null }) : uri;
-		await this.editorService.openEditors([{
-			resource,
-			options: {
-				selection,
-				source: EditorOpenSource.USER
-			}
-		}], targetGroup, { validateTrust: true });
+		const options = {
+			selection,
+			source: EditorOpenSource.USER
+		};
+
+		if (match) {
+			await this.editorService.openEditors([{
+				editor: match.editor,
+				options
+			}], match.group, { validateTrust: true });
+		} else {
+			await this.editorService.openEditors([{
+				resource,
+				options
+			}], undefined, { validateTrust: true });
+		}
 	}
 
 	private _handleHighlightCodeBlock(codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>) {
