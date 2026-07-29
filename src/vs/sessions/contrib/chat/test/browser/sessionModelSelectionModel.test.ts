@@ -138,6 +138,29 @@ function createConfigurationService(defaultModel?: string): IConfigurationServic
 	} as IConfigurationService;
 }
 
+interface IMutableConfigurationService {
+	readonly service: IConfigurationService;
+	setDefaultModel(value: string | undefined): void;
+	readonly changeEmitter: Emitter<IConfigurationChangeEvent>;
+}
+
+function createMutableConfigurationService(defaultModel?: string): IMutableConfigurationService {
+	const changeEmitter = new Emitter<IConfigurationChangeEvent>();
+	let currentDefault = defaultModel;
+	const service = {
+		getValue: (key: string) => key === ChatConfiguration.DefaultModel ? currentDefault : undefined,
+		onDidChangeConfiguration: changeEmitter.event,
+	} as unknown as IConfigurationService;
+	return {
+		service,
+		changeEmitter,
+		setDefaultModel: value => {
+			currentDefault = value;
+			changeEmitter.fire({ affectsConfiguration: (key: string): boolean => key === ChatConfiguration.DefaultModel } as unknown as IConfigurationChangeEvent);
+		},
+	};
+}
+
 class TestLogService extends NullLogService {
 	readonly messages: string[] = [];
 
@@ -203,6 +226,109 @@ suite('SessionModelSelectionModel', () => {
 
 		assert.deepStrictEqual({ current: selection.state.get().currentModel?.identifier, writes: provider.writes }, {
 			current: second.identifier,
+			writes: [],
+		});
+	});
+
+	test('does not persist a fallback that would reset a running session to the default while the catalog is still loading', () => {
+		const testSession = createSession('provider', SessionStatus.InProgress, second.identifier);
+		const provider = disposables.add(createProvider('provider', identifier => testSession.modelId.set(identifier, undefined)));
+		provider.models = [first]; // catalog transiently missing the running session's model
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
+		const selection = disposables.add(new SessionModelSelectionModel(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(first.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+		const whileLoading = { current: selection.state.get().currentModel?.identifier, writes: [...provider.writes] };
+
+		provider.models = [first, second]; // catalog finishes loading
+		provider.modelChanges.fire();
+
+		assert.deepStrictEqual({
+			whileLoading,
+			afterLoad: { current: selection.state.get().currentModel?.identifier, writes: provider.writes },
+		}, {
+			whileLoading: { current: first.identifier, writes: [] },
+			afterLoad: { current: second.identifier, writes: [] },
+		});
+	});
+
+	test('keeps the running session model when the catalog transiently empties (no flash, no write)', () => {
+		const testSession = createSession('provider', SessionStatus.InProgress, second.identifier);
+		const provider = disposables.add(createProvider('provider', identifier => testSession.modelId.set(identifier, undefined)));
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
+		const selection = disposables.add(new SessionModelSelectionModel(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(first.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+		const initial = selection.state.get().currentModel?.identifier;
+
+		provider.models = []; // transient reconnect / async reload empties the catalog
+		provider.modelChanges.fire();
+		const whileEmpty = { current: selection.state.get().currentModel?.identifier, writes: [...provider.writes] };
+
+		provider.models = [first, second]; // catalog comes back
+		provider.modelChanges.fire();
+
+		assert.deepStrictEqual({
+			initial,
+			whileEmpty,
+			afterReturn: { current: selection.state.get().currentModel?.identifier, writes: provider.writes },
+		}, {
+			initial: second.identifier,
+			whileEmpty: { current: second.identifier, writes: [] },
+			afterReturn: { current: second.identifier, writes: [] },
+		});
+	});
+
+	test('does not adopt the configured default for an existing session', () => {
+		const testSession = createSession('provider', SessionStatus.Completed, second.identifier);
+		const provider = disposables.add(createProvider('provider'));
+		const selection = disposables.add(new SessionModelSelectionModel(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			createConfigurationService(first.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({ current: selection.state.get().currentModel?.identifier, writes: provider.writes }, {
+			current: second.identifier,
+			writes: [],
+		});
+	});
+
+	test('keeps an existing session model when the configured default changes', () => {
+		const testSession = createSession('provider', SessionStatus.Completed, second.identifier);
+		const provider = disposables.add(createProvider('provider'));
+		const config = createMutableConfigurationService(first.metadata.id);
+		disposables.add(config.changeEmitter);
+		const selection = disposables.add(new SessionModelSelectionModel(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			config.service,
+			disposables.add(new NullLogService()),
+		));
+		const beforeChange = selection.state.get().currentModel?.identifier;
+
+		config.setDefaultModel(auto.metadata.id);
+
+		assert.deepStrictEqual({
+			beforeChange,
+			afterChange: selection.state.get().currentModel?.identifier,
+			writes: provider.writes,
+		}, {
+			beforeChange: second.identifier,
+			afterChange: second.identifier,
 			writes: [],
 		});
 	});

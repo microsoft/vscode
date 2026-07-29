@@ -12,7 +12,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel } from '../../../../workbench/contrib/chat/common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IModelSelectionMemory, IModelSelectionSessionContext, IPendingModelSelection, ModelSelectionReason, transitionModelSelection } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { isAuthoritativeModelSelectionReason, IModelSelectionMemory, IModelSelectionSessionContext, IPendingModelSelection, ModelSelectionReason, resolveModelIdentifier, transitionModelSelection } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ChatModelSelectionDiagnostics } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionDiagnostics.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionModelPickerOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -106,6 +106,16 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 	};
 	private _provider: ISessionsProvider | undefined;
 	private _modelTarget: string | undefined;
+	/**
+	 * Last non-empty model catalog seen for {@link _retainedModelTarget}. Async
+	 * providers (agent host) can briefly report an empty model list right after a
+	 * session switch or a reconnect; retaining the previous catalog keeps the
+	 * session's still-desired model selectable so the picker never flashes to a
+	 * default and self-heals without a visible reset. Picker-only — never feeds
+	 * the send path, which keeps treating a resolved-empty list as authoritative.
+	 */
+	private _retainedModels: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+	private _retainedModelTarget: string | undefined;
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
@@ -245,14 +255,31 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 		const snapshot = desiredModelIdentifier !== sessionModelId && session && provider
 			? provider.getModelsSnapshot(session.sessionId, desiredModelIdentifier)
 			: initialSnapshot;
-		const fallbackModel = snapshot.models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) ?? snapshot.models[0];
+		// Catalog retention (picker-only): when the live catalog is transiently
+		// empty but the session still has a desired model, fall back to the last
+		// non-empty catalog for the same target so the selection stays put instead
+		// of flashing to a default. A non-empty (even partial) live list is treated
+		// as authoritative, so genuinely removed models are still repaired.
+		let effectiveSnapshot = snapshot;
+		if (session && provider && snapshot.models.length === 0 && desiredModelIdentifier
+			&& this._retainedModels.length > 0 && this._retainedModelTarget === snapshot.modelTarget) {
+			effectiveSnapshot = {
+				models: this._retainedModels,
+				desiredModelResolution: resolveModelIdentifier(this._retainedModels, desiredModelIdentifier, false),
+				modelTarget: snapshot.modelTarget,
+			};
+		} else if (snapshot.models.length > 0) {
+			this._retainedModels = snapshot.models;
+			this._retainedModelTarget = snapshot.modelTarget;
+		}
+		const fallbackModel = effectiveSnapshot.models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) ?? effectiveSnapshot.models[0];
 		const result = transitionModelSelection({
 			session: sessionContext,
 			models: {
-				available: snapshot.models,
+				available: effectiveSnapshot.models,
 				configuredModel: this._configurationService.getValue<string>(ChatConfiguration.DefaultModel),
 				rememberedModelId,
-				desiredModelResolution: snapshot.desiredModelResolution,
+				desiredModelResolution: effectiveSnapshot.desiredModelResolution,
 				fallbackModel,
 			},
 			previous: { ...this._memory, currentReason },
@@ -263,8 +290,8 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 			currentModel: result.currentModel,
 			currentReason: result.currentReason,
 		};
-		this._modelTarget = snapshot.modelTarget;
-		const models = snapshot.models;
+		this._modelTarget = effectiveSnapshot.modelTarget;
+		const models = effectiveSnapshot.models;
 		const options = normalizeModelPickerOptions(session && provider ? provider.getModelPickerOptions(session.sessionId) : undefined);
 
 		this._state.set({
@@ -277,14 +304,14 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 		this._sharedDiagnostics.report('transition', {
 			trigger,
 			sessionKind: sessionContext.kind,
-			modelTarget: snapshot.modelTarget,
+			modelTarget: effectiveSnapshot.modelTarget,
 			configuredModel: this._configurationService.getValue<string>(ChatConfiguration.DefaultModel),
 			rememberedModel: rememberedModelId,
 			rememberedSource: rememberedSelection?.source,
 			desiredModel: desiredModelIdentifier,
-			desiredResolution: snapshot.desiredModelResolution.kind,
+			desiredResolution: effectiveSnapshot.desiredModelResolution.kind,
 			fallbackModel: fallbackModel?.identifier,
-			availableModels: snapshot.models.map(model => model.identifier).join(','),
+			availableModels: effectiveSnapshot.models.map(model => model.identifier).join(','),
 			previousModel: previousMemory.currentModel?.identifier,
 			previousReason: currentReason,
 			resultModel: result.currentModel?.identifier,
@@ -297,27 +324,53 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 
 		if (result.effect.kind === 'apply' && session && provider) {
 			const effect = result.effect;
-			const providerModelBefore = session.modelId.get();
-			try {
-				provider.setModel(session.sessionId, effect.model.identifier);
-			} catch (error) {
-				this._memory = previousMemory;
-				this._state.set(previousState, undefined);
-				this._sharedDiagnostics.report('provider-automatic-selection-failed', {
+			// Guard against permanently resetting a running/existing session's
+			// model to a bare default while the model catalog is transiently
+			// incomplete after a session switch (agent-host models load
+			// asynchronously, so a still-loading catalog reports the session's
+			// real model as unavailable). Persisting the fallback here would
+			// overwrite the session's model, and because the next refresh reads
+			// that persisted value the reset would become permanent. In that
+			// case we display the fallback but skip the provider write: the
+			// selection self-heals once the catalog finishes loading, and a
+			// genuinely unavailable model is resolved at send time. A genuine
+			// repair to the user's remembered model still persists.
+			const overwritesDesiredModelWithDefault =
+				sessionContext.kind === 'existing'
+				&& !isAuthoritativeModelSelectionReason(effect.reason)
+				&& sessionModelId !== undefined
+				&& effect.model.identifier !== sessionModelId
+				&& effect.model.identifier !== rememberedModelId;
+			if (overwritesDesiredModelWithDefault) {
+				this._sharedDiagnostics.report('provider-automatic-selection-skipped', {
+					model: effect.model.identifier,
+					reason: effect.reason,
+					sessionModelId,
+					rememberedModel: rememberedModelId,
+				}, 'info');
+			} else {
+				const providerModelBefore = session.modelId.get();
+				try {
+					provider.setModel(session.sessionId, effect.model.identifier);
+				} catch (error) {
+					this._memory = previousMemory;
+					this._state.set(previousState, undefined);
+					this._sharedDiagnostics.report('provider-automatic-selection-failed', {
+						model: effect.model.identifier,
+						reason: effect.reason,
+						providerModelBefore,
+						providerModelAfter: session.modelId.get(),
+						error: String(error),
+					}, 'error');
+					throw error;
+				}
+				this._sharedDiagnostics.report('provider-automatic-selection-applied', {
 					model: effect.model.identifier,
 					reason: effect.reason,
 					providerModelBefore,
 					providerModelAfter: session.modelId.get(),
-					error: String(error),
-				}, 'error');
-				throw error;
+				}, 'info');
 			}
-			this._sharedDiagnostics.report('provider-automatic-selection-applied', {
-				model: effect.model.identifier,
-				reason: effect.reason,
-				providerModelBefore,
-				providerModelAfter: session.modelId.get(),
-			}, 'info');
 		}
 	}
 
