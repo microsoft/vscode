@@ -73,6 +73,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	'!src/vs/workbench/contrib/chat/browser/voiceClient/borderBeam/**',
 
 	// Files with licences
 	'!src/vs/platform/endpoint/common/licenseAgreement.ts',
@@ -93,6 +94,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!src/vs/base/common/signals-core/**',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',
+	'!src/vs/workbench/contrib/chat/browser/voiceClient/borderBeam/**',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!src/vs/editor/common/languages/highlights/*.scm',
@@ -248,6 +250,9 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 	'!src/vs/platform/agentHost/node/codex/protocol/generated/**',
+
+	// vendored from border-beam (MIT); kept close to source
+	'!src/vs/workbench/contrib/chat/browser/voiceClient/borderBeam/**',
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',

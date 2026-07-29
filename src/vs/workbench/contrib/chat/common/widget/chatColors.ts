@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
 
@@ -112,3 +112,30 @@ export const chatDictationActiveMicGlow = registerColor(
 	'chat.dictationActiveMicGlow',
 	{ dark: '#58A6FF', light: '#2E8BE6', hcDark: '#8CC6FF', hcLight: '#00539C' },
 	localize('chat.dictationActiveMicGlow', 'Accent color of the glow shown on the microphone while dictation is listening.'));
+
+// --- Voice Mode ambient glow ---
+// The listening / processing / speaking glow (see `voiceGlow.ts`) is derived
+// from a single base accent so it always harmonizes with the active theme, then
+// hue-shifted per state. Each state token is unset by default (the glow derives
+// the color in JS), so themes only need to override these when they want a
+// specific hue; overriding the base retargets the whole triad at once.
+
+export const chatVoiceGlowBaseColor = registerColor(
+	'chat.voiceGlowBaseColor',
+	focusBorder,
+	localize('chat.voiceGlowBaseColor', 'Base accent color the Voice Mode ambient glow is derived from. Listening, processing, and speaking are hue-shifted from this.'), true);
+
+export const chatVoiceListeningGlow = registerColor(
+	'chat.voiceListeningGlow',
+	null,
+	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while listening. Derived from chat.voiceGlowBaseColor when unset.'), true);
+
+export const chatVoiceProcessingGlow = registerColor(
+	'chat.voiceProcessingGlow',
+	null,
+	localize('chat.voiceProcessingGlow', 'Accent color of the Voice Mode glow while the agent is processing between listening and speaking. Derived from chat.voiceGlowBaseColor when unset.'), true);
+
+export const chatVoiceSpeakingGlow = registerColor(
+	'chat.voiceSpeakingGlow',
+	null,
+	localize('chat.voiceSpeakingGlow', 'Accent color of the Voice Mode glow while the agent is speaking. Derived from chat.voiceGlowBaseColor when unset.'), true);

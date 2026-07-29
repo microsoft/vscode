@@ -13,10 +13,13 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
@@ -162,6 +165,9 @@ export class ChatView extends AbstractChatView {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@ISessionChatPillsDebugService private readonly chatPillsDebugService: ISessionChatPillsDebugService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -387,6 +393,9 @@ export class ChatView extends AbstractChatView {
 			micCaptureService: this.micCaptureService,
 			configurationService: this.configurationService,
 			keybindingService: this.keybindingService,
+			themeService: this.themeService,
+			voiceInputModeService: this.voiceInputModeService,
+			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,

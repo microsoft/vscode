@@ -19,7 +19,7 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { breathingIntensity, computeVoiceGlowStyle, computeVoiceMicGlowBoxShadow, DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, voiceGlowStateRgb } from '../../chat/browser/voiceClient/voiceGlow.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
@@ -38,6 +38,11 @@ export interface VoiceWidgetCallbacks {
 	/** Create a new session and set it as transcription target. */
 	newSessionAsTarget(): void;
 	getAnalyserNode(): AnalyserNode | null;
+	/**
+	 * Optional — supplies the theme-derived per-state glow colors. Falls back to
+	 * the default blue/teal/purple triad when not provided.
+	 */
+	getVoiceGlowColors?(): IVoiceGlowColors;
 	onResize(): void;
 	openPttKeySettings(): void;
 	/**
@@ -285,8 +290,8 @@ export class AgentsVoiceWidget extends Disposable {
 				.processing::before {
 					content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px;
 					background: conic-gradient(from var(--voice-processing-angle),
-						transparent 0deg, rgba(88,166,255,0.9) 20deg, rgba(88,166,255,1) 30deg,
-						rgba(88,166,255,0.6) 50deg, transparent 90deg, transparent 360deg);
+						transparent 0deg, rgba(var(--voice-processing-rgb, 88,166,255),0.9) 20deg, rgba(var(--voice-processing-rgb, 88,166,255),1) 30deg,
+						rgba(var(--voice-processing-rgb, 88,166,255),0.6) 50deg, transparent 90deg, transparent 360deg);
 					-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
 					mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
 					-webkit-mask-composite: xor; mask-composite: exclude;
@@ -296,7 +301,7 @@ export class AgentsVoiceWidget extends Disposable {
 				.processing::after {
 					content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 2px;
 					background: conic-gradient(from var(--voice-processing-angle),
-						transparent 0deg, rgba(88,166,255,0.5) 25deg, rgba(88,166,255,0.3) 50deg, transparent 90deg, transparent 360deg);
+						transparent 0deg, rgba(var(--voice-processing-rgb, 88,166,255),0.5) 25deg, rgba(var(--voice-processing-rgb, 88,166,255),0.3) 50deg, transparent 90deg, transparent 360deg);
 					-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
 					mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
 					-webkit-mask-composite: xor; mask-composite: exclude;
@@ -574,12 +579,12 @@ export class AgentsVoiceWidget extends Disposable {
 		}
 
 		// Run the 60Hz waveform/glow loop only while there is something to
-		// animate (onboarding, listening, or speaking). Idle/disconnected render
-		// no glow, so keeping a frame loop alive then would burn CPU for nothing.
+		// animate (onboarding, listening, processing, or speaking). Idle/disconnected
+		// render no glow, so keeping a frame loop alive then would burn CPU for nothing.
 		this._register(autorun(reader => {
 			const onboarding = this._showOnboarding.read(reader);
 			const voiceState = this._voiceState.read(reader);
-			if (onboarding || voiceState === 'listening' || voiceState === 'speaking') {
+			if (onboarding || voiceState === 'listening' || voiceState === 'processing' || voiceState === 'speaking') {
 				this._startWaveformAnimation();
 			} else {
 				this._stopWaveformAnimation();
@@ -657,7 +662,7 @@ export class AgentsVoiceWidget extends Disposable {
 		const hasTranscript = transcriptTurns.some(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 		// Toggle voice-active glow on the input container (base state; wave animation overrides dynamically)
-		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && (voiceState === 'listening' || voiceState === 'speaking'));
+		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && (voiceState === 'listening' || voiceState === 'processing' || voiceState === 'speaking'));
 		if (!shouldShowInputGlow) {
 			this._inputBoxContainer!.style.borderColor = 'var(--vscode-input-border, transparent)';
 			this._inputBoxContainer!.style.boxShadow = 'none';
@@ -665,6 +670,7 @@ export class AgentsVoiceWidget extends Disposable {
 
 		// Toggle processing comet animation when agent is thinking
 		this._inputBoxContainer!.classList.toggle('processing', voiceState === 'processing');
+		this._inputBoxContainer!.style.setProperty('--voice-processing-rgb', voiceGlowStateRgb('processing', this.callbacks.getVoiceGlowColors?.() ?? DEFAULT_VOICE_GLOW_COLORS));
 
 		if (hasTranscript) {
 			if (showExpanded) {
@@ -749,9 +755,9 @@ export class AgentsVoiceWidget extends Disposable {
 				: voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
 					: 'var(--vscode-descriptionForeground)';
 		this._inputBoxMicBtn!.style.color = micColor;
-		const micIsActive = voiceState === 'listening' || voiceState === 'speaking';
+		const micIsActive = voiceState === 'listening' || voiceState === 'processing' || voiceState === 'speaking';
 		this._inputBoxMicBtn!.classList.toggle('agents-voice-mode-active', micIsActive);
-		this._inputBoxMicBtn!.style.setProperty('--agents-voice-input-icon-rgb', voiceState === 'speaking' ? '163,113,247' : '88,166,255');
+		this._inputBoxMicBtn!.style.setProperty('--agents-voice-input-icon-rgb', voiceGlowStateRgb(voiceState, this.callbacks.getVoiceGlowColors?.() ?? DEFAULT_VOICE_GLOW_COLORS));
 		this._inputBoxMicBtn!.style.borderRadius = '50%';
 		if (!micIsActive) {
 			this._inputBoxMicBtn!.style.boxShadow = 'none';
@@ -1055,14 +1061,19 @@ export class AgentsVoiceWidget extends Disposable {
 			// The reactive autorun starts/stops this loop; guard against a frame
 			// that races a transition to a non-glowing state (styles are cleared
 			// by _stopWaveformAnimation()).
-			if (!(onboarding || voiceState === 'listening' || voiceState === 'speaking')) {
+			const glowing = voiceState === 'listening' || voiceState === 'processing' || voiceState === 'speaking';
+			if (!(onboarding || glowing)) {
 				return;
 			}
 
+			const colors = this.callbacks.getVoiceGlowColors?.() ?? DEFAULT_VOICE_GLOW_COLORS;
 			const analyser = this.callbacks.getAnalyserNode();
 			let intensity: number;
 			if (onboarding) {
 				intensity = 0.6;
+			} else if (voiceState === 'processing' && !analyser) {
+				// Processing has no live audio, so it breathes to stay alive.
+				intensity = breathingIntensity(Date.now());
 			} else if (!analyser) {
 				intensity = 0.3;
 			} else {
@@ -1076,19 +1087,15 @@ export class AgentsVoiceWidget extends Disposable {
 			}
 
 			// Animate input box container border/shadow (inputBoxLayout)
-			if (this._inputBoxContainer && (voiceState === 'listening' || voiceState === 'speaking')) {
-				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, false);
+			if (this._inputBoxContainer && glowing) {
+				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, false, colors);
 				this._inputBoxContainer.style.borderColor = borderColor;
 				this._inputBoxContainer.style.boxShadow = boxShadow;
 			}
 
 			if (this._inputBoxMicBtn) {
-				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
-				if (iconGlowActive) {
-					const shadowSpread = 3 + intensity * 8;
-					const shadowAlpha = 0.2 + intensity * 0.45;
-					const glowColor = `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
-					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px ${glowColor}`;
+				if (glowing) {
+					this._inputBoxMicBtn.style.boxShadow = computeVoiceMicGlowBoxShadow(voiceState, intensity, colors);
 				} else {
 					this._inputBoxMicBtn.style.boxShadow = 'none';
 				}
@@ -1097,7 +1104,7 @@ export class AgentsVoiceWidget extends Disposable {
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
 			const baseOpacity = 0.15 + intensity * 0.4;
-			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
+			const r = onboarding ? colors.speaking : voiceGlowStateRgb(voiceState, colors);
 			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);

@@ -71,25 +71,16 @@ so mirror the blue-listening / purple-speaking glow here. `voice-active` /
 	}
 }
 
-/* Blue when listening. The glow keeps the button's resting shape so the control
-never morphs between states — only its color and the pulse change. */
-.new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode-compact {
-	--sessions-voice-icon-glow-color: rgba(88, 166, 255, 0.4);
-	color: var(--vscode-charts-blue, #58a6ff) !important;
+/* Tints itself to the current state's theme-derived color via `--voice-glow-rgb`
+(published by the glow renderer), so listening / processing / speaking all match
+the ambient glow. The glow keeps the button's resting shape so the control never
+morphs between states — only its color and the pulse change. */
+.new-chat-input-area.voice-active .action-label.codicon-voice-mode-compact {
+	--sessions-voice-icon-glow-color: rgba(var(--voice-glow-rgb, 88, 166, 255), 0.4);
+	color: rgb(var(--voice-glow-rgb, 88, 166, 255)) !important;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode-compact {
-	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
-}
-
-/* Purple when speaking */
-.new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode-compact {
-	--sessions-voice-icon-glow-color: rgba(163, 113, 247, 0.4);
-	color: var(--vscode-charts-purple, #a371f7) !important;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode-compact {
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active .action-label.codicon-voice-mode-compact {
 	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
 }

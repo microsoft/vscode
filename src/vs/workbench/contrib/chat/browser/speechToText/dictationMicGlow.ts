@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/dictationMicGlow.css';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
+import { createVoiceRim } from '../voiceClient/voiceGlowController.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
 export type DictationMicGlowPhase = 'off' | 'live' | 'settling';
@@ -57,10 +57,9 @@ export function setupDictationMicGlow(
 	let animationFrame: number | undefined;
 	let level = 0;
 
-	const setLevel = (value: number) => {
-		level = value;
-		target.style.setProperty('--dictation-mic-level', value.toFixed(3));
-	};
+	// The "Inside Rim" treatment from Voice Mode, locked to the cool (listening)
+	// colors, replacing the former flat blue inner glow.
+	const rim = store.add(createVoiceRim(target, { warm: false }));
 
 	const stopAnimation = () => {
 		if (animationFrame !== undefined) {
@@ -75,7 +74,8 @@ export function setupDictationMicGlow(
 		const measured = service.state === ChatSpeechToTextState.Recording && service.analyserNode
 			? readVoiceGlowIntensity(service.analyserNode, dataArray)
 			: RESTING_LEVEL;
-		setLevel(easeDictationMicLevel(level, shapeDictationMicLevel(measured)));
+		level = easeDictationMicLevel(level, shapeDictationMicLevel(measured));
+		rim.drive(level);
 	};
 
 	const update = () => {
@@ -83,10 +83,17 @@ export function setupDictationMicGlow(
 		target.classList.toggle('dictation-mic-active', phase !== 'off');
 		target.classList.toggle('dictation-mic-settling', phase === 'settling');
 
-		// With reduced motion the glow still shows, just held at a steady level.
-		if (phase === 'off' || accessibilityService.isMotionReduced()) {
+		if (phase === 'off') {
 			stopAnimation();
-			setLevel(phase === 'off' ? 0 : REDUCED_MOTION_LEVEL);
+			rim.hide();
+			return;
+		}
+		rim.show();
+		// With reduced motion the rim still shows, just held at a steady level.
+		if (accessibilityService.isMotionReduced()) {
+			stopAnimation();
+			level = REDUCED_MOTION_LEVEL;
+			rim.driveStatic(level);
 			return;
 		}
 		if (animationFrame === undefined) {
@@ -99,7 +106,6 @@ export function setupDictationMicGlow(
 	store.add(toDisposable(() => {
 		stopAnimation();
 		target.classList.remove('dictation-mic-active', 'dictation-mic-settling');
-		target.style.removeProperty('--dictation-mic-level');
 	}));
 	update();
 

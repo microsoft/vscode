@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shared Voice Mode ambient-glow styles, applied by `voiceGlowRenderer.ts` to any
+	voice input container (main chat input, Agents window, sessions composer). The
+	renderer toggles the classes and sets the custom properties below.
+
+	`--voice-glow-rgb` is the current state's "r,g,b" triple (theme-derived); it
+	cascades to descendants so the voice mic glyph can tint itself to match. */
+
+/* --- Beam variation: a traveling comet that re-tints the border-beam language
+	used by the working/progress ring. Rendered on a dedicated overlay child so it
+	never collides with the container's own ::before/::after (which the working
+	comet may be using at the same time). --- */
+
+@property --voice-beam-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@keyframes voice-beam-spin {
+	from {
+		--voice-beam-angle: 135deg;
+	}
+
+	to {
+		--voice-beam-angle: 495deg;
+	}
+}
+
+.voice-beam-overlay {
+	position: absolute;
+	inset: 0;
+	/* Match the host container's corner radius so the hairline follows the curve. */
+	border-radius: inherit;
+	pointer-events: none;
+	opacity: var(--voice-beam-opacity, 0);
+	transition: opacity 250ms ease;
+	z-index: 2;
+}
+
+/* The comet head: a tight bright arc with a short fade on an otherwise
+	transparent ring, clipped to a hairline via the padding + inverted-mask trick
+	so only the border edge lights up. */
+.voice-beam-overlay::before,
+.voice-beam-overlay::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	animation: voice-beam-spin var(--voice-beam-duration, 2s) linear infinite;
+}
+
+.voice-beam-overlay::before {
+	padding: 1px;
+	background: conic-gradient(from var(--voice-beam-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--voice-beam-color, #58a6ff) 85%, transparent) 20deg,
+			var(--voice-beam-color, #58a6ff) 30deg,
+			color-mix(in srgb, var(--voice-beam-color, #58a6ff) 55%, transparent) 55deg,
+			transparent 95deg,
+			transparent 360deg);
+	z-index: 2;
+}
+
+/* The soft halo: a wider, blurred conic sharing the same head angle so it hugs
+	the comet with no gap. */
+.voice-beam-overlay::after {
+	padding: 2px;
+	background: conic-gradient(from var(--voice-beam-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--voice-beam-color, #58a6ff) 55%, transparent) 25deg,
+			color-mix(in srgb, var(--voice-beam-color, #58a6ff) 30%, transparent) 55deg,
+			transparent 95deg,
+			transparent 360deg);
+	filter: blur(1.5px);
+	z-index: 1;
+}
+
+/* Reduced motion: the renderer already falls back to a steady wash and hides the
+	overlay, but halt the travel here too as a safeguard. */
+.monaco-reduce-motion .voice-beam-overlay {
+	display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	.voice-beam-overlay::before,
+	.voice-beam-overlay::after {
+		animation: none;
+	}
+}

@@ -39,6 +39,7 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
@@ -76,7 +77,8 @@ import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
-import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { breathingIntensity, isGlowingVoiceState, readVoiceGlowIntensity, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -156,6 +158,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -447,11 +450,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		transcriptOverlayNode.style.display = 'none';
 		inputContainerEl.append(transcriptOverlayNode);
 
-		// Dynamic audio-reactive glow animation (matches aux window behavior)
+		// Dynamic, theme-aware ambient glow animation (matches aux window behavior).
 		let animFrameId: number | undefined;
 		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 		const win = getWindow(inputContainerEl);
-		let lastGlowTarget: HTMLElement | undefined;
+		const glowController = this._register(createVoiceGlowController(inputContainerEl));
 		// The session this pane's voice UI belongs to, kept in sync by the
 		// transcript ownership autorun below. The glow only renders on the input
 		// of the session voice is actually bound to, so it never lingers on a
@@ -461,7 +464,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// commands drive the input-box glow exactly as a live session would.
 		const getEffectiveVoice = (): { connected: boolean; voiceState: VoiceGlowState; simulating: boolean } => {
 			const sim: SimulatedVoiceState | undefined = this.voiceInputModeService.simulatedVoiceState.get();
-			if (sim === 'idle' || sim === 'listening' || sim === 'speaking') {
+			if (sim === 'idle' || sim === 'listening' || sim === 'processing' || sim === 'speaking') {
 				return { connected: true, voiceState: sim, simulating: true };
 			}
 			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
@@ -486,29 +489,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const isOwner = !voiceUiOwner || !currentSession || isEqual(voiceUiOwner, currentSession);
 				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
-				const target = inputContainerEl;
-
-				// If the target changed, clear styling on the old one
-				if (lastGlowTarget && lastGlowTarget !== target) {
-					lastGlowTarget.style.borderColor = '';
-					lastGlowTarget.style.boxShadow = '';
-					lastGlowTarget.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
-				}
-				lastGlowTarget = target;
 
 				if (!glowActive) {
-					target.style.borderColor = '';
-					target.style.boxShadow = '';
-					target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
+					glowController.clear();
 					return;
 				}
 
-				// Get audio intensity from analyser
+				// Audio intensity from the analyser; processing has no live audio, so
+				// it breathes to signal the turn is still alive.
 				const analyser = this.ttsPlaybackService.analyserNode
 					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 				let intensity: number;
-				if (!analyser && simulating) {
+				if (voiceState === 'processing' && !analyser) {
+					intensity = breathingIntensity(Date.now());
+				} else if (!analyser && simulating) {
 					// No live audio (a simulation): synthesize a lively pulsing intensity
 					// so the walkthrough glow behaves like real speech instead of sitting flat.
 					const t = Date.now() / 1000;
@@ -517,13 +512,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
-				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
-				target.style.borderColor = borderColor;
-				target.style.boxShadow = boxShadow;
-				target.classList.add('voice-active');
-				target.classList.toggle('voice-listening', voiceState === 'listening');
-				target.classList.toggle('voice-speaking', voiceState === 'speaking');
+				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -532,11 +521,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				win.cancelAnimationFrame(animFrameId);
 				animFrameId = undefined;
 			}
-			const target = lastGlowTarget ?? inputContainerEl;
-			target.style.borderColor = '';
-			target.style.boxShadow = '';
-			target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
-			lastGlowTarget = undefined;
+			glowController.clear();
 		};
 
 		this._register(autorun(reader => {
@@ -547,7 +532,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
-			const simGlow = sim === 'listening' || sim === 'speaking';
+			const simGlow = sim === 'listening' || sim === 'processing' || sim === 'speaking';
 			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {

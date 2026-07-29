@@ -4,8 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Color } from '../../../../../../base/common/color.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { computeVoiceGlowStyle, isGlowingVoiceState } from '../../../browser/voiceClient/voiceGlow.js';
+import { ColorIdentifier } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { chatVoiceGlowBaseColor, chatVoiceProcessingGlow } from '../../../common/widget/chatColors.js';
+import { computeVoiceBeamStyle, computeVoiceGlowStyle, isGlowingVoiceState, resolveVoiceGlowColors } from '../../../browser/voiceClient/voiceGlow.js';
+
+/** Minimal theme stub that resolves only the colors mapped in `overrides`. */
+function fakeTheme(overrides: Map<ColorIdentifier, Color>): { getColor(id: ColorIdentifier): Color | undefined } {
+	return { getColor: (id: ColorIdentifier) => overrides.get(id) };
+}
 
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,10 +32,55 @@ suite('VoiceGlow', () => {
 		);
 	});
 
-	test('connected-idle voice mode does not render a glow', () => {
+	test('processing bridges listening and speaking; connected-idle renders no glow', () => {
 		assert.deepStrictEqual(
-			['idle', 'listening', 'speaking', 'processing', 'error'].map(isGlowingVoiceState as (s: string) => boolean),
-			[false, true, true, false, false]
+			['idle', 'listening', 'processing', 'speaking', 'error'].map(isGlowingVoiceState as (s: string) => boolean),
+			[false, true, true, true, false]
+		);
+	});
+
+	test('glow uses the resolved per-state color', () => {
+		const colors = { listening: '1,2,3', processing: '4,5,6', speaking: '7,8,9' };
+		assert.deepStrictEqual(
+			(['listening', 'processing', 'speaking'] as const).map(state => computeVoiceGlowStyle(state, 0, false, colors).borderColor),
+			['rgba(1,2,3,0.3)', 'rgba(4,5,6,0.3)', 'rgba(7,8,9,0.3)']
+		);
+	});
+
+	test('beam travels slower and dimmer while processing than while listening', () => {
+		const colors = { listening: '1,2,3', processing: '4,5,6', speaking: '7,8,9' };
+		assert.deepStrictEqual(
+			{
+				listening: computeVoiceBeamStyle('listening', 1, colors),
+				processing: computeVoiceBeamStyle('processing', 1, colors),
+			},
+			{
+				listening: { color: 'rgb(1,2,3)', opacity: 0.95, durationSeconds: 2 },
+				processing: { color: 'rgb(4,5,6)', opacity: 0.65, durationSeconds: 3.2 },
+			}
+		);
+	});
+
+	test('colors derive a distinct triad from the theme accent and honor overrides', () => {
+		const base = Color.fromHex('#3080ff'); // rgb(48,128,255)
+		const derived = resolveVoiceGlowColors(fakeTheme(new Map([[chatVoiceGlowBaseColor, base]])));
+		const overridden = resolveVoiceGlowColors(fakeTheme(new Map([
+			[chatVoiceGlowBaseColor, base],
+			[chatVoiceProcessingGlow, Color.fromHex('#112233')], // rgb(17,34,51)
+		])));
+		assert.deepStrictEqual(
+			{
+				listeningMatchesBase: derived.listening === '48,128,255',
+				processingDiffersFromListening: derived.processing !== derived.listening,
+				speakingDiffersFromListening: derived.speaking !== derived.listening,
+				overrideApplied: overridden.processing === '17,34,51',
+			},
+			{
+				listeningMatchesBase: true,
+				processingDiffersFromListening: true,
+				speakingDiffersFromListening: true,
+				overrideApplied: true,
+			}
 		);
 	});
 });

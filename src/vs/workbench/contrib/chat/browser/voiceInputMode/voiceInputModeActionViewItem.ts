@@ -38,6 +38,7 @@ import { getDictationPreparingLabel } from '../speechToText/dictationDownloadRin
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
+import { VoiceAnimationVariation } from '../voiceClient/voiceGlow.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
@@ -192,6 +193,7 @@ const SIMULATE_STATES: { readonly id: string; readonly label: string; readonly s
 	{ id: 'connecting', label: 'Connecting', state: 'connecting' },
 	{ id: 'idle', label: 'Connected (Idle)', state: 'idle' },
 	{ id: 'listening', label: 'Listening', state: 'listening' },
+	{ id: 'processing', label: 'Processing (Thinking)', state: 'processing' },
 	{ id: 'speaking', label: 'Speaking', state: 'speaking' },
 	{ id: 'dictating', label: 'Dictating', state: 'dictating' },
 ];
@@ -219,6 +221,29 @@ export function registerVoiceInputModeSimulateActions(): void {
 			}
 			run(accessor: ServicesAccessor): void {
 				accessor.get(IVoiceInputModeService).startVoiceStateWalkthrough(version);
+			}
+		});
+	}
+
+	// Ambient-glow animation variation switch — flip the active design live to
+	// compare them under any theme (the Simulate/Walkthrough states above drive it).
+	const VARIATIONS: { readonly variation: VoiceAnimationVariation; readonly label: string }[] = [
+		{ variation: 'aurora', label: 'Aurora (Ambient Wash)' },
+		{ variation: 'beam', label: 'Beam (Traveling Comet)' },
+	];
+	for (const { variation, label } of VARIATIONS) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.chat.voiceInputMode.animation.${variation}`,
+					title: { value: `Voice Animation: ${label}`, original: `Voice Animation: ${label}` },
+					category: { value: 'Developer', original: 'Developer' },
+					precondition: IsDevelopmentContext,
+					f1: true,
+				});
+			}
+			run(accessor: ServicesAccessor): void {
+				accessor.get(IVoiceInputModeService).setVoiceAnimationVariation(variation);
 			}
 		});
 	}

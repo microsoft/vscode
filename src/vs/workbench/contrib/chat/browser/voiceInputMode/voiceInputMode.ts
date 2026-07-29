@@ -12,6 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { VoiceAnimationVariation } from '../voiceClient/voiceGlow.js';
 
 /**
  * The two mutually-exclusive voice input modes exposed in the chat input.
@@ -24,7 +25,7 @@ export type VoiceInputMode = 'dictation' | 'voice';
  * Simulated voice-cell visual states for development/preview, so the UI can be
  * inspected without a live backend connection. `undefined` = use real state.
  */
-export type SimulatedVoiceState = 'off' | 'connecting' | 'idle' | 'listening' | 'speaking' | 'dictating';
+export type SimulatedVoiceState = 'off' | 'connecting' | 'idle' | 'listening' | 'processing' | 'speaking' | 'dictating';
 
 /**
  * The four push-to-talk interaction designs being compared. Each drives its own
@@ -45,6 +46,7 @@ export type VoiceWalkthroughVersion = 'handsFree' | 'keyboardHold' | 'buttonHold
 export const CHAT_VOICE_INPUT_MODE = new RawContextKey<VoiceInputMode>('chatVoiceInputMode', 'voice', { type: 'string', description: localize('chatVoiceInputMode', "The currently selected voice input mode in the chat input (dictation or voice).") });
 
 const STORAGE_KEY = 'chat.voiceInputMode.selected';
+const ANIMATION_VARIATION_STORAGE_KEY = 'chat.voiceInputMode.animationVariation';
 
 export const IVoiceInputModeService = createDecorator<IVoiceInputModeService>('voiceInputModeService');
 
@@ -53,6 +55,9 @@ export interface IVoiceInputModeService {
 
 	/** The currently selected mode (persisted). */
 	readonly selectedMode: IObservable<VoiceInputMode>;
+
+	/** The active ambient-glow animation variation (persisted). */
+	readonly voiceAnimationVariation: IObservable<VoiceAnimationVariation>;
 
 	/** Whether live Voice Mode is available (feature enabled). */
 	readonly voiceAvailable: IObservable<boolean>;
@@ -77,6 +82,9 @@ export interface IVoiceInputModeService {
 
 	/** Persist a new selected mode and update the context key. */
 	setSelectedMode(mode: VoiceInputMode): void;
+
+	/** Persist the active ambient-glow animation variation. */
+	setVoiceAnimationVariation(variation: VoiceAnimationVariation): void;
 
 	/** Set (or clear) the dev/preview simulated voice-cell state. */
 	setSimulatedVoiceState(state: SimulatedVoiceState | undefined): void;
@@ -103,6 +111,9 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 
 	private readonly _selectedMode: ISettableObservable<VoiceInputMode>;
 	readonly selectedMode: IObservable<VoiceInputMode>;
+
+	private readonly _voiceAnimationVariation: ISettableObservable<VoiceAnimationVariation>;
+	readonly voiceAnimationVariation: IObservable<VoiceAnimationVariation>;
 
 	readonly voiceAvailable: IObservable<boolean>;
 	readonly dictationAvailable: IObservable<boolean>;
@@ -134,6 +145,11 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		const initial: VoiceInputMode = stored === 'dictation' ? 'dictation' : 'voice';
 		this._selectedMode = observableValue<VoiceInputMode>(this, initial);
 		this.selectedMode = this._selectedMode;
+
+		const storedVariation = this.storageService.get(ANIMATION_VARIATION_STORAGE_KEY, StorageScope.PROFILE);
+		const initialVariation: VoiceAnimationVariation = storedVariation === 'beam' ? 'beam' : 'aurora';
+		this._voiceAnimationVariation = observableValue<VoiceAnimationVariation>(this, initialVariation);
+		this.voiceAnimationVariation = this._voiceAnimationVariation;
 
 		this.voiceAvailable = observableFromEvent(this,
 			configurationService.onDidChangeConfiguration,
@@ -169,6 +185,14 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		this.storageService.store(STORAGE_KEY, mode, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
+	setVoiceAnimationVariation(variation: VoiceAnimationVariation): void {
+		if (this._voiceAnimationVariation.get() === variation) {
+			return;
+		}
+		this._voiceAnimationVariation.set(variation, undefined);
+		this.storageService.store(ANIMATION_VARIATION_STORAGE_KEY, variation, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
 	setSimulatedVoiceState(state: SimulatedVoiceState | undefined): void {
 		this._simulatedVoiceState.set(state, undefined);
 	}
@@ -186,6 +210,7 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 				{ state: 'connecting', ms: 1400 },
 				{ state: 'idle', ms: 1400 },
 				{ state: 'listening', ms: 2800 },
+				{ state: 'processing', ms: 1800 },
 				{ state: 'speaking', ms: 2800 },
 				{ state: 'listening', ms: 1600 },   // barge-in
 				{ state: 'speaking', ms: 2400 },
@@ -202,6 +227,7 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 				{ state: 'connecting', ms: 1400 },
 				{ state: 'idle', ms: 2400 },        // "Hold ⌘⇧Space to talk"
 				{ state: 'listening', ms: 2800 },   // key held
+				{ state: 'processing', ms: 1800 },  // thinking
 				{ state: 'speaking', ms: 2800 },    // reply
 				{ state: 'idle', ms: 1800 },
 				{ state: 'listening', ms: 2600 },
@@ -220,6 +246,7 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 				{ state: 'idle', ms: 2200 },
 				{ state: 'idle', hover: true, ms: 1800 },   // tap-to-disconnect preview
 				{ state: 'listening', ms: 2800 },           // button held
+				{ state: 'processing', ms: 1800 },          // thinking
 				{ state: 'speaking', ms: 2800 },
 				{ state: 'idle', ms: 1800 },
 				{ state: 'listening', ms: 2600 },
@@ -238,6 +265,7 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 				{ state: 'listening', ms: 2800 },   // tapped on
 				{ state: 'idle', ms: 1800 },        // tapped off
 				{ state: 'listening', ms: 2600 },
+				{ state: 'processing', ms: 1800 },  // thinking
 				{ state: 'speaking', ms: 2800 },    // reply
 				{ state: 'listening', ms: 1800 },
 				{ state: 'idle', ms: 1600 },
