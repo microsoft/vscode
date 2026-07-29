@@ -1,0 +1,26 @@
+#a {
+	.b {
+		gap: 1px;
+	}
+	--c: 1px;
+}
+
+#d {
+	--e: 1px;
+	.f {
+		gap: 1px;
+	}
+}
+
+.parent {
+	&:hover {
+		color: red;
+	}
+	--after-nested-pseudo: 1px;
+}
+
+@media (min-width: 100px) {
+	.g {
+		color: blue;
+	}
+}
