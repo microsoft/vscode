@@ -112,11 +112,11 @@ suite('AgentHostPromptRegistry', () => {
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['claude'];
 			resolveSectionOverrides(_model: ModelSelection, ctx: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> | undefined {
-				return ctx.getSetting(CopilotCliConfigKey.Opus48Prompt) === true ? { tone: { action: 'append', content: 'GATED' } } : undefined;
+				return ctx.getSetting(CopilotCliConfigKey.RubberDuck) === true ? { tone: { action: 'append', content: 'GATED' } } : undefined;
 			}
 		});
 		assert.deepStrictEqual(
-			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.Opus48Prompt]: true })),
+			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.RubberDuck]: true })),
 			withFileLinkInstructions({ mode: 'customize', sections: { tone: { action: 'append', content: 'GATED' } } })
 		);
 		assert.deepStrictEqual(
@@ -128,14 +128,38 @@ suite('AgentHostPromptRegistry', () => {
 	suite('Opus contributor (registered via allPrompts)', () => {
 		const opusModel: ModelSelection = { id: 'claude-opus-4-8' };
 
-		function resolveOpus(enabled: boolean | undefined) {
-			return agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context(enabled === undefined ? {} : { [CopilotCliConfigKey.Opus48Prompt]: enabled }));
+		function resolveOpus(tools: readonly string[] = []) {
+			const config = agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context({}, tools));
+			assert.strictEqual(config.mode, 'customize');
+			return config;
 		}
 
-		test('applies customize overrides only when enabled', () => {
-			assert.deepStrictEqual(resolveOpus(undefined), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
-			assert.deepStrictEqual(resolveOpus(false), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
-			assert.strictEqual(resolveOpus(true).mode, 'customize');
+		test('replaces every instruction-bearing section, ungated', () => {
+			const config = resolveOpus();
+			assert.deepStrictEqual(
+				Object.entries(config.sections ?? {}).map(([section, override]) => `${section}:${String(override?.action)}`),
+				[
+					'identity:replace',
+					'code_change_rules:replace',
+					'guidelines:replace',
+					'safety:replace',
+					'tool_instructions:replace',
+					'last_instructions:replace',
+				]
+			);
+		});
+
+		test('leaves the sections that carry session facts alone', () => {
+			const sections = resolveOpus().sections ?? {};
+			assert.deepStrictEqual(
+				['environment_context', 'custom_instructions', 'runtime_instructions'].filter(section => Object.prototype.hasOwnProperty.call(sections, section)),
+				[]
+			);
+		});
+
+		test('names the problems tool only when the session has it', () => {
+			assert.ok(!resolveOpus().sections?.code_change_rules?.content?.includes('problems'));
+			assert.ok(resolveOpus(['problems']).sections?.code_change_rules?.content?.includes('problems'));
 		});
 	});
 
@@ -148,7 +172,7 @@ suite('AgentHostPromptRegistry', () => {
 			const overrides = { 'preview-model-x': { family: 'claude-opus-4-8' } };
 			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
 				applyModelFamilyAlias({ id: 'preview-model-x' }, overrides),
-				context({ [CopilotCliConfigKey.Opus48Prompt]: true })
+				context()
 			);
 			assert.strictEqual(result.mode, 'customize');
 		});

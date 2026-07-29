@@ -2263,7 +2263,7 @@ over AHP and persists to `agent-host-config.json`. It is read/written
 through `IAgentConfigurationService` (`getRootValue` / `updateRootConfig`
 / `onDidRootConfigChange`) and described by a JSON schema so clients can
 render and edit it generically. The existing
-`EnableCustomTerminalTool` / `RubberDuck` / `Opus48Prompt` keys are
+`EnableCustomTerminalTool` / `RubberDuck` keys are
 exactly this mechanism.
 
 Why RootConfigState rather than the `claudeAgent.enabled` setting+env

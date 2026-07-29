@@ -18,7 +18,9 @@ data the SDK accepts directly.
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated
   one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's
   `tool_instructions` section. The browser line is the one registered today.
-- `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
+- `anthropicPrompt.ts` — per-model contributor for Claude Opus 4.8. It
+  `replace`s every instruction-bearing section, so it owns the model's behavior
+  end to end while staying in `customize` mode (see "Owning the whole prompt").
 - `allPrompts.ts` — side-effect import hub; importing it registers every
   contributor into the shared `agentHostPromptRegistry`.
 
@@ -112,7 +114,7 @@ the Copilot extension's tool implementation or embeddings plumbing.
 ## Lever 2 — per-model contributor (`promptRegistry.ts` + `allPrompts.ts`)
 
 Guidance scoped to a model or family. Implement `IAgentHostPrompt` and register
-it. Use `anthropicPrompt.ts` as the template.
+it. `anthropicPrompt.ts` is the worked example.
 
 A contributor provides EITHER:
 
@@ -142,6 +144,26 @@ Matching: a contributor matches a model by `static matchesModel(model)` (takes
 precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves
 **exactly one** contributor per model (first match wins) — base + version
 layering is a known follow-up.
+
+### Owning the whole prompt
+
+To replace all of the SDK's guidance, do NOT reach for `replace` mode. Use
+`customize` with `action: 'replace'` on every instruction-bearing section —
+`identity`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`,
+`last_instructions` — which is what `anthropicPrompt.ts` does. Nothing
+SDK-authored survives, and you keep what `replace` mode would silently cost you:
+
+- **Repository custom instructions.** In `replace` mode the CLI never loads
+  them, so `AGENTS.md` / `.github/copilot-instructions.md` stop applying.
+- **Session context and the git co-author trailer.**
+- **This folder's composition layer** — universal `tool_instructions` lines, the
+  file-link contract, and the workspace-less scratch block, all of which only
+  run for `customize` configs.
+
+Leave `environment_context`, `custom_instructions` and `runtime_instructions`
+alone: they carry session facts, not guidance. Note that replacing `identity`
+also drops its sibling members (tone, tool efficiency, task instructions, and
+the version/model banner), so a contributor that replaces it owns that text too.
 
 ## Reference
 
