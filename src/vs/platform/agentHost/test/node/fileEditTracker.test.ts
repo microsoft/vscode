@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,11 +17,12 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest, getFileEditAttributionMarker, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
+import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
-import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
+import { FileEditTracker } from '../../node/shared/fileEditTracker.js';
 
 suite('FileEditTracker', () => {
 
@@ -235,100 +236,5 @@ suite('FileEditTracker', () => {
 		assert.ok(content);
 		assert.strictEqual(new TextDecoder().decode(content.beforeContent), 'original');
 		assert.strictEqual(new TextDecoder().decode(content.afterContent), 'modified');
-	});
-});
-
-suite('buildSessionDbUri / parseSessionDbUri', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('round-trips a simple URI', () => {
-		const uri = buildSessionDbUri('copilot:/abc-123', 'tc-1', '/workspace/file.ts', 'before');
-		const parsed = parseSessionDbUri(uri);
-		assert.ok(parsed);
-		assert.deepStrictEqual(parsed, {
-			sessionUri: 'copilot:/abc-123',
-			toolCallId: 'tc-1',
-			filePath: '/workspace/file.ts',
-			part: 'before',
-		});
-	});
-
-	test('round-trips with special characters in filePath', () => {
-		const uri = buildSessionDbUri('copilot:/s1', 'tc-2', '/work space/file (1).ts', 'after');
-		const parsed = parseSessionDbUri(uri);
-		assert.ok(parsed);
-		assert.strictEqual(parsed.filePath, '/work space/file (1).ts');
-		assert.strictEqual(parsed.part, 'after');
-	});
-
-	test('round-trips with special characters in toolCallId', () => {
-		const uri = buildSessionDbUri('copilot:/s1', 'call_abc=123&x', '/file.ts', 'before');
-		const parsed = parseSessionDbUri(uri);
-		assert.ok(parsed);
-		assert.strictEqual(parsed.toolCallId, 'call_abc=123&x');
-	});
-
-	test('round-trips a backslashed Windows filePath, which the database lookup needs verbatim', () => {
-		const filePath = 'C:\\Code\\vscode\\src\\vs\\file.ts';
-		const parsed = parseSessionDbUri(buildSessionDbUri('copilot:/s1', 'tc-1', filePath, 'before'));
-		assert.ok(parsed);
-		assert.strictEqual(parsed.filePath, filePath);
-	});
-
-	test('parseSessionDbUri returns undefined for non-session-db URIs', () => {
-		assert.strictEqual(parseSessionDbUri('file:///foo/bar'), undefined);
-		assert.strictEqual(parseSessionDbUri('https://example.com'), undefined);
-	});
-
-	test('parseSessionDbUri returns undefined for malformed session-db URIs', () => {
-		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1'), undefined);
-		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1'), undefined);
-		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1&filePath=/f&part=middle'), undefined);
-	});
-
-	test('parseSessionDbUri returns undefined for JSON queries that are not objects', () => {
-		const queries = ['null', '123', '"a string"', 'true', '[]'];
-		assert.deepStrictEqual(
-			queries.map(query => parseSessionDbUri(`session-db:/f.ts?${encodeURIComponent(query)}`)),
-			queries.map(() => undefined),
-		);
-	});
-
-	test('parseSessionDbUri rejects empty lookup keys, which would hit the database', () => {
-		const withField = (field: Partial<Record<'sessionUri' | 'toolCallId' | 'filePath', string>>) =>
-			`session-db:/f.ts?${encodeURIComponent(JSON.stringify({ sessionUri: 's', toolCallId: 't', filePath: '/f.ts', part: 'before', ...field }))}`;
-
-		assert.deepStrictEqual([
-			parseSessionDbUri(withField({ sessionUri: '' })),
-			parseSessionDbUri(withField({ toolCallId: '' })),
-			parseSessionDbUri(withField({ filePath: '' })),
-		], [undefined, undefined, undefined]);
-	});
-
-	test('URI path is the file path, so labels show a real path', () => {
-		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/workspace/src/index.ts', 'before');
-		assert.strictEqual(URI.parse(uri).path, '/workspace/src/index.ts');
-	});
-
-	test('URI path is the file path for files with spaces and special chars', () => {
-		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/work space/file (1).ts', 'after');
-		assert.strictEqual(URI.parse(uri).path, '/work space/file (1).ts');
-	});
-
-	test('parses the legacy hex-encoded layout', () => {
-		const hex = (value: string) => encodeHex(VSBuffer.fromString(value)).toString();
-		const legacy = URI.from({
-			scheme: 'session-db',
-			authority: hex('copilot:/abc-123'),
-			path: `/tc-1/${hex('/workspace/file.ts')}/before/file.ts`,
-		}).toString();
-
-		assert.deepStrictEqual(parseSessionDbUri(legacy), {
-			sessionUri: 'copilot:/abc-123',
-			toolCallId: 'tc-1',
-			filePath: '/workspace/file.ts',
-			part: 'before',
-		});
 	});
 });
