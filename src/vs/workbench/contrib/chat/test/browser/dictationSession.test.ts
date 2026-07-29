@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -18,8 +19,11 @@ suite('DictationSession', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('does not restore dictated text deleted before stopping', async () => {
-		const transcript = 'hello world';
+	/**
+	 * A dictation service that records `transcript` as its final result and lets
+	 * the test drive interim updates through the returned emitter.
+	 */
+	function createService(transcript: string, showTranscriptWhileDictating: boolean): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript> } {
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
 		let state = ChatSpeechToTextState.Idle;
@@ -30,7 +34,7 @@ suite('DictationSession', () => {
 			onDidChangePreparingModel: store.add(new Emitter<boolean>()).event,
 			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
 			get state() { return state; },
-			get showTranscriptWhileDictating() { return true; },
+			get showTranscriptWhileDictating() { return showTranscriptWhileDictating; },
 			get analyserNode() { return undefined; },
 			get isConfigured() { return true; },
 			get isPreparingModel() { return false; },
@@ -48,6 +52,19 @@ suite('DictationSession', () => {
 			cancel() { },
 			logDictationAccuracy() { },
 		};
+		return { service, onDidUpdateTranscript };
+	}
+
+	/** Ranges rendered as still being processed, as `[startLine,startColumn -> endLine,endColumn]`. */
+	function processingRanges(model: ITextModel): string[] {
+		return model.getAllDecorations()
+			.filter(decoration => decoration.options.inlineClassName === 'dictation-interim-processing')
+			.map(decoration => Range.lift(decoration.range).toString());
+	}
+
+	test('does not restore dictated text deleted before stopping', async () => {
+		const transcript = 'hello world';
+		const { service, onDidUpdateTranscript } = createService(transcript, true);
 		const model = store.add(createTextModel(''));
 		const editor = store.add(createTestCodeEditor(model));
 
@@ -61,34 +78,7 @@ suite('DictationSession', () => {
 
 	test('hides interim transcript and inserts final transcript when stopped', async () => {
 		const transcript = 'hello world';
-		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
-		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
-		let state = ChatSpeechToTextState.Idle;
-		const service: IChatSpeechToTextService = {
-			_serviceBrand: undefined,
-			onDidUpdateTranscript: onDidUpdateTranscript.event,
-			onDidChangeState: onDidChangeState.event,
-			onDidChangePreparingModel: store.add(new Emitter<boolean>()).event,
-			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
-			get state() { return state; },
-			get showTranscriptWhileDictating() { return false; },
-			get analyserNode() { return undefined; },
-			get isConfigured() { return true; },
-			get isPreparingModel() { return false; },
-			get modelDownloadProgress() { return undefined; },
-			get currentBackend() { return 'mai' as const; },
-			async start() {
-				state = ChatSpeechToTextState.Recording;
-				onDidChangeState.fire(state);
-			},
-			async stopAndTranscribe() {
-				state = ChatSpeechToTextState.Idle;
-				onDidChangeState.fire(state);
-				return transcript;
-			},
-			cancel() { },
-			logDictationAccuracy() { },
-		};
+		const { service, onDidUpdateTranscript } = createService(transcript, false);
 		const model = store.add(createTextModel(''));
 		const editor = store.add(createTestCodeEditor(model));
 
@@ -98,5 +88,19 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
+	});
+
+	test('renders only the not-yet-committed tail as still processing', async () => {
+		const transcript = 'hello world';
+		const { service, onDidUpdateTranscript } = createService(transcript, true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: transcript, finalizedText: 'hello' });
+		const whileProcessing = processingRanges(model);
+		await stopDictation();
+
+		assert.deepStrictEqual([whileProcessing, processingRanges(model)], [['[1,6 -> 1,12]'], []]);
 	});
 });

@@ -235,7 +235,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 
 	/**
 	 * Run editor dictation through the built-in on-device engine, reusing the
-	 * shared chat dictation renderer (live transcript, interim shimmer, and
+	 * shared chat dictation renderer (live transcript, interim styling, and
 	 * "Listening…" placeholder). A floating stop widget is shown so the mic can
 	 * be stopped by mouse as well as by the Escape keybinding.
 	 */

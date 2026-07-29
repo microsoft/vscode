@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
-import { disposableTimeout } from '../../../../../base/common/async.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
@@ -19,27 +18,13 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
 /**
- * Inline decoration class for the still-processing tail of not-yet-finalized
- * dictation text: placeholder-colored with a shimmer animation.
+ * Inline decoration class for the trailing portion of the transcript the
+ * recognizer has not committed yet: rendered in the placeholder color so it
+ * reads as provisional.
  */
-const INTERIM_SHIMMER_CLASS = 'dictation-interim-shimmer';
-
-/**
- * Inline decoration class for the settled prefix of not-yet-finalized dictation
- * text: placeholder-colored but no longer shimmering, because it has stopped
- * changing between interim transcripts.
- */
-const INTERIM_SETTLED_CLASS = 'dictation-interim-settled';
+const INTERIM_PROCESSING_CLASS = 'dictation-interim-processing';
 
 const LOG_PREFIX = '[chat-stt-dictation]';
-
-/**
- * How long transcription updates must pause before the still-shimmering tail is
- * settled. Foundry keeps the last spoken segment as an interim result until more
- * audio (or `stop`) arrives, so on a trailing silence it never sends a final for
- * it; treat a gap this long as the user having paused and stop the shimmer.
- */
-const IDLE_SETTLE_MS = 700;
 
 /** Number of leading characters `a` and `b` share. */
 function commonPrefixLength(a: string, b: string): number {
@@ -52,20 +37,6 @@ function commonPrefixLength(a: string, b: string): number {
 }
 
 /**
- * Back `index` up to the end of the last whole word at or before it, i.e. the
- * offset just after the previous whitespace. This keeps a partially-transcribed
- * trailing word in the shimmering (processing) region instead of prematurely
- * settling it.
- */
-function wordBoundaryAtOrBefore(text: string, index: number): number {
-	let i = index;
-	while (i > 0 && !/\s/.test(text.charAt(i - 1))) {
-		i--;
-	}
-	return i;
-}
-
-/**
  * Renders the cumulative transcript into a code editor, replacing its own
  * inserted region on each update so dictation appears live as the user speaks.
  */
@@ -73,9 +44,7 @@ class LiveTranscriptInserter {
 	private _anchor: Position | undefined;
 	private _end: Position | undefined;
 	private _needsLeadingSpace = false;
-	private _settledDecorations: IEditorDecorationsCollection | undefined;
-	private _shimmerDecorations: IEditorDecorationsCollection | undefined;
-	private _prevInterimText = '';
+	private _processingDecorations: IEditorDecorationsCollection | undefined;
 	private _finalized = false;
 	private _isApplyingEdit = false;
 	private _userModified = false;
@@ -87,15 +56,15 @@ class LiveTranscriptInserter {
 
 	/**
 	 * Render the cumulative transcript. While `interim` is true the text is not
-	 * yet finalized, so it is rendered in the placeholder color: the settled
-	 * leading portion (unchanged since the previous interim transcript) is shown
-	 * statically, while the still-processing trailing portion shimmers. The final
-	 * update (`interim === false`) clears both decorations, leaving solid text.
+	 * yet fully committed, so the trailing portion the recognizer is still
+	 * working out (everything past `finalizedText`) is rendered in the
+	 * placeholder color. Words turn solid as the recognizer commits them, and
+	 * the final update (`interim === false`) clears the decoration entirely.
 	 *
 	 * Once a final update has been applied, later interim updates are ignored:
 	 * the transcription service can emit a trailing interim transcript as it
 	 * shuts down (after `stopAndTranscribe` resolves), which would otherwise
-	 * overwrite the final text and re-apply the shimmer.
+	 * overwrite the final text and re-apply the interim styling.
 	 */
 	update(fullText: string, interim: boolean = true, finalizedText: string = ''): void {
 		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} userModified=${this._userModified} len=${fullText.length}`);
@@ -156,7 +125,6 @@ class LiveTranscriptInserter {
 		}
 
 		this._updateInterimDecorations(text, fullText, interim, finalizedText);
-		this._prevInterimText = interim ? fullText : '';
 	}
 
 	onDidChangeModelContent(event: IModelContentChangedEvent): void {
@@ -172,7 +140,7 @@ class LiveTranscriptInserter {
 		}
 		this._logService.trace(`${LOG_PREFIX} transcript invalidated by user edit`);
 		this._userModified = true;
-		this.clearShimmer();
+		this.clearInterimDecorations();
 	}
 
 	/** Position of the given character offset within the inserted `text`. */
@@ -187,93 +155,49 @@ class LiveTranscriptInserter {
 	}
 
 	/**
-	 * Render the interim text in the placeholder color, shimmering only the
-	 * still-processing trailing portion. The settled prefix is the longer of two
-	 * measures: the part Foundry has actually finalized (`finalizedText`, which
-	 * stops shimmering as soon as a segment is endpointed — including the last
-	 * one after the user goes silent), and the part that has not changed since
-	 * the previous interim update. Cleared entirely once the text is finalized.
+	 * Render the trailing portion of the interim text — everything past what the
+	 * recognizer reports as committed (`finalizedText`) — in the placeholder
+	 * color. Words turn solid as soon as the recognizer commits them, and the
+	 * decoration is cleared entirely once the transcript is finalized.
 	 */
 	private _updateInterimDecorations(text: string, fullText: string, interim: boolean, finalizedText: string): void {
 		if (!interim || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
 			this._logService.trace(`${LOG_PREFIX} interim decorations clear (interim=${interim})`);
-			this._settledDecorations?.clear();
-			this._shimmerDecorations?.clear();
+			this._processingDecorations?.clear();
 			return;
 		}
 
 		const leading = this._needsLeadingSpace ? 1 : 0;
-		const common = commonPrefixLength(fullText, this._prevInterimText);
-		// When the tail diverges from the previous interim (a word is being
-		// revised) settle only up to the last word boundary so the whole
-		// in-progress word shimmers. But once the transcript stops changing (the
-		// common prefix already covers the entire current text) settle
-		// everything, otherwise the last word would shimmer forever.
-		const heuristicSettled = common >= fullText.length ? fullText.length : wordBoundaryAtOrBefore(fullText, common);
-		// Text Foundry has finalized never shimmers, regardless of the interim
-		// diff — this is what settles the final words during a trailing silence,
-		// where no later interim arrives to confirm they stopped changing.
-		const finalizedChars = finalizedText ? commonPrefixLength(fullText, finalizedText) : 0;
-		const settledChars = Math.min(fullText.length, Math.max(heuristicSettled, finalizedChars));
-		const splitPosition = this._positionAtOffset(text, leading + settledChars);
+		const committedChars = commonPrefixLength(fullText, finalizedText);
+		const splitPosition = this._positionAtOffset(text, leading + committedChars);
 
-		this._settledDecorations ??= this._editor.createDecorationsCollection();
-		this._shimmerDecorations ??= this._editor.createDecorationsCollection();
+		this._processingDecorations ??= this._editor.createDecorationsCollection();
 
-		const settled = Position.equals(this._anchor, splitPosition) ? [] : [{
-			range: Range.fromPositions(this._anchor, splitPosition),
-			options: { description: 'chatSpeechToText-settled', inlineClassName: INTERIM_SETTLED_CLASS },
-		}];
-		const shimmer = Position.equals(splitPosition, this._end) ? [] : [{
+		const processing = Position.equals(splitPosition, this._end) ? [] : [{
 			range: Range.fromPositions(splitPosition, this._end),
-			options: { description: 'chatSpeechToText-interim', inlineClassName: INTERIM_SHIMMER_CLASS },
+			options: { description: 'chatSpeechToText-interim', inlineClassName: INTERIM_PROCESSING_CLASS },
 		}];
-		this._logService.trace(`${LOG_PREFIX} interim decorations settledChars=${settledChars} split=${splitPosition.lineNumber}:${splitPosition.column}`);
-		this._settledDecorations.set(settled);
-		this._shimmerDecorations.set(shimmer);
+		this._logService.trace(`${LOG_PREFIX} interim decorations committedChars=${committedChars} split=${splitPosition.lineNumber}:${splitPosition.column}`);
+		this._processingDecorations.set(processing);
 	}
 
-	/** Stop shimmering, leaving whatever text is currently inserted as solid. */
-	clearShimmer(): void {
-		this._logService.trace(`${LOG_PREFIX} clearShimmer`);
-		this._settledDecorations?.clear();
-		this._shimmerDecorations?.clear();
-	}
-
-	/**
-	 * Settle the whole in-progress region, stopping the shimmer on the trailing
-	 * words while keeping the not-yet-committed (placeholder) styling. Called
-	 * after a pause in speech: Foundry holds the last spoken segment as an
-	 * interim result until more audio (or `stop`) arrives, so without this the
-	 * final words would shimmer indefinitely during a trailing silence. A later
-	 * interim/final update re-applies the shimmer to any new tail.
-	 */
-	settleShimmer(): void {
-		if (this._finalized || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
-			return;
-		}
-		this._logService.trace(`${LOG_PREFIX} settleShimmer`);
-		this._settledDecorations ??= this._editor.createDecorationsCollection();
-		this._shimmerDecorations ??= this._editor.createDecorationsCollection();
-		this._settledDecorations.set([{
-			range: Range.fromPositions(this._anchor, this._end),
-			options: { description: 'chatSpeechToText-settled', inlineClassName: INTERIM_SETTLED_CLASS },
-		}]);
-		this._shimmerDecorations.clear();
+	/** Drop the interim styling, leaving whatever text is currently inserted as solid. */
+	clearInterimDecorations(): void {
+		this._logService.trace(`${LOG_PREFIX} clearInterimDecorations`);
+		this._processingDecorations?.clear();
 	}
 
 	/**
-	 * Lock out further interim updates and stop shimmering immediately. Called
-	 * when the user stops talking, before the (async) final transcription
+	 * Lock out further interim updates and drop the interim styling immediately.
+	 * Called when the user stops talking, before the (async) final transcription
 	 * resolves, so a trailing interim transcript can neither overwrite the text
-	 * nor re-apply the shimmer. The subsequent final `update(text, false)` still
+	 * nor re-apply the styling. The subsequent final `update(text, false)` still
 	 * applies because it is not an interim update.
 	 */
 	beginFinalize(): void {
 		this._logService.trace(`${LOG_PREFIX} beginFinalize`);
 		this._finalized = true;
-		this._settledDecorations?.clear();
-		this._shimmerDecorations?.clear();
+		this._processingDecorations?.clear();
 	}
 
 	/**
@@ -298,8 +222,7 @@ class LiveTranscriptInserter {
 	 * is cancelled so no dictated text is left behind.
 	 */
 	revert(): void {
-		this._settledDecorations?.clear();
-		this._shimmerDecorations?.clear();
+		this._processingDecorations?.clear();
 		const model = this._editor.getModel();
 		if (!model || !this._anchor || !this._end) {
 			return;
@@ -390,31 +313,26 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		}
 	};
 	disposables.add(toDisposable(() => {
-		// Ensure the interim shimmer never lingers, regardless of how the session
+		// Ensure the interim styling never lingers, regardless of how the session
 		// ends (final transcript, cancel, editor disposal, or a service-side error).
-		inserter.clearShimmer();
+		inserter.clearInterimDecorations();
 		if (!editor.getModel() || appliedPlaceholder === undefined) {
 			return;
 		}
 		editor.updateOptions({ placeholder: previousPlaceholder });
 		appliedPlaceholder = undefined;
 	}));
-	const idleSettle = disposables.add(new MutableDisposable());
 	disposables.add(service.onDidUpdateTranscript(update => {
 		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);
 		if (!service.showTranscriptWhileDictating) {
 			// The setting is read live (not snapshotted) so transcript rendering
 			// and the hidden-transcript mic glow always react to configuration
 			// changes together. If the transcript is hidden mid-session, drop any
-			// lingering interim shimmer so hidden mode renders no transcript at all.
-			inserter.clearShimmer();
-			idleSettle.clear();
+			// lingering interim styling so hidden mode renders no transcript at all.
+			inserter.clearInterimDecorations();
 			return;
 		}
 		inserter.update(update.text, true, update.finalizedText);
-		// Restart the idle timer: if no further transcript arrives, the user has
-		// paused, so stop shimmering the trailing (still-interim) words.
-		idleSettle.value = disposableTimeout(() => inserter.settleShimmer(), IDLE_SETTLE_MS);
 	}));
 	disposables.add(editor.onDidChangeModelContent(event => inserter.onDidChangeModelContent(event)));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
@@ -454,23 +372,23 @@ export async function stopDictation(): Promise<void> {
 	}
 	_active = undefined;
 	active.logService.trace(`${LOG_PREFIX} stopDictation begin, state=${active.service.state}`);
-	// Stop shimmering and lock out interim updates right away so a trailing
-	// interim transcript emitted while transcription finalizes cannot re-apply
-	// the shimmer or overwrite the final text.
+	// Drop the interim styling and lock out interim updates right away so a
+	// trailing interim transcript emitted while transcription finalizes cannot
+	// re-apply the styling or overwrite the final text.
 	active.inserter.beginFinalize();
 	try {
 		const text = await active.service.stopAndTranscribe();
 		active.logService.trace(`${LOG_PREFIX} stopAndTranscribe resolved text=${text === undefined ? 'undefined' : `len=${text.length}`}`);
 		if (text !== undefined) {
-			// Final transcript: render it solid (no shimmer).
+			// Final transcript: render it solid (no interim styling).
 			active.inserter.update(text, false);
 			// Track how much of this dictated text the user edits before sending,
 			// as an accuracy signal comparing the backends.
 			trackDictationAccuracy(active, text);
 		} else {
-			// No final transcript to apply; make sure the shimmer does not linger
-			// over the last interim text.
-			active.inserter.clearShimmer();
+			// No final transcript to apply; make sure the interim styling does not
+			// linger over the last interim text.
+			active.inserter.clearInterimDecorations();
 		}
 	} finally {
 		active.logService.trace(`${LOG_PREFIX} stopDictation dispose`);
