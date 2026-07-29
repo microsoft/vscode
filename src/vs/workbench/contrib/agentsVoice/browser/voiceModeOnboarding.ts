@@ -719,7 +719,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.card.addAction({
 			className: 'voice-mode-onboarding-close',
 			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction"),
-			icon: Codicon.close,
+			icon: Codicon.closeCompact,
 			onActivate: () => this.finish(),
 		});
 	}

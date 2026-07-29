@@ -499,8 +499,8 @@ export interface IDictationOnboardingBannerOptions {
 }
 
 /**
- * The first-run dictation card: which microphone dictation will use, live proof
- * that it is working, and one line on what dictation is.
+ * The first-run dictation card explains the feature while recording starts.
+ * When reopened manually, it also previews and selects the microphone.
  *
  * The card runs alongside the first dictation, so it explains the feature
  * without delaying the action the user invoked.
@@ -510,10 +510,10 @@ export class DictationOnboardingBanner extends Disposable {
 	readonly domNode: HTMLElement;
 
 	private readonly card: ChatInputOnboardingCard;
-	private readonly preview: MicrophonePreview;
-	private readonly waveform: MicrophoneWaveform;
-	private readonly hint: HTMLElement;
-	private readonly pickerContainer: HTMLElement;
+	private readonly preview: MicrophonePreview | undefined;
+	private readonly waveform: MicrophoneWaveform | undefined;
+	private readonly hint: HTMLElement | undefined;
+	private readonly pickerContainer: HTMLElement | undefined;
 
 	private readonly picker = this._register(new MutableDisposable<DisposableStore>());
 	private options: IMicrophoneOption[] = [];
@@ -535,7 +535,7 @@ export class DictationOnboardingBanner extends Disposable {
 			ariaLabel: localize('dictation.onboarding.region', "Dictation introduction"),
 			ariaDescription: bannerOptions.previewMicrophone
 				? localize('dictation.onboarding.regionDescription.preview', "Say anything to check your microphone.")
-				: localize('dictation.onboarding.regionDescription.listening', "Dictation is listening."),
+				: localize('dictation.onboarding.regionDescription', "Speak and it becomes text."),
 			onEscape: () => this.dismiss('escape'),
 		}));
 		this.domNode = this.card.domNode;
@@ -545,48 +545,41 @@ export class DictationOnboardingBanner extends Disposable {
 		title.textContent = localize('dictation.onboarding.title', "Dictation");
 		this.renderDescription(header);
 
-		// The device and its level are one group: the bars are *this* microphone's
-		// level, and separating them would leave the meter reading as decoration.
-		const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
-		this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
-		const waveformContainer = dom.append(device, dom.$('.dictation-onboarding-waveform'));
-
-		this.preview = this._register(instantiationService.createInstance(MicrophonePreview, this.domNode));
-		this.waveform = this._register(instantiationService.createInstance(MicrophoneWaveform, waveformContainer, {
-			getLevel: () => this.preview.getLevel(),
-			isAvailable: () => this.preview.error === undefined,
-		}, undefined));
-		this._register(this.preview.onDidChangeError(() => this.updateHint()));
-
-		this.hint = dom.append(this.domNode, dom.$('.dictation-onboarding-hint'));
-		// The hint only appears when the microphone cannot be read, which can
-		// happen well after the card is opened, so it has to reach a screen
-		// reader as it changes rather than only on focus.
-		this.hint.setAttribute('aria-live', 'polite');
-		this.updateHint();
-
 		this.renderClose();
 
-		// Paint the row before the microphone is up. Enumerating devices means
-		// waiting on the OS, and an empty row that fills in a second later reads
-		// as the card still loading; the system default is true no matter what
-		// comes back, so the row can start there and refine itself.
-		this.options = [{
-			deviceId: SYSTEM_DEFAULT_DEVICE_ID,
-			label: localize('dictation.onboarding.systemDefault', "System default"),
-		}];
-		this.renderPicker();
-
-		const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
-		if (mediaDevices) {
-			this._register(dom.addDisposableListener(mediaDevices, 'devicechange', () => void this.refreshDevices()));
-		}
-
-		this.waveform.start();
 		if (this.bannerOptions.previewMicrophone) {
+			// The device and its level are one group: the bars are *this*
+			// microphone's level. Automatic onboarding runs beside an already
+			// active dictation stream, so only the manually opened introduction
+			// owns this independent preview and its device picker.
+			const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
+			this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
+			const waveformContainer = dom.append(device, dom.$('.dictation-onboarding-waveform'));
+
+			const preview = this.preview = this._register(instantiationService.createInstance(MicrophonePreview, this.domNode));
+			this.waveform = this._register(instantiationService.createInstance(MicrophoneWaveform, waveformContainer, {
+				getLevel: () => preview.getLevel(),
+				isAvailable: () => preview.error === undefined,
+			}, undefined));
+			this._register(preview.onDidChangeError(() => this.updateHint()));
+
+			this.hint = dom.append(this.domNode, dom.$('.dictation-onboarding-hint'));
+			this.hint.setAttribute('aria-live', 'polite');
+			this.updateHint();
+
+			this.options = [{
+				deviceId: SYSTEM_DEFAULT_DEVICE_ID,
+				label: localize('dictation.onboarding.systemDefault', "System default"),
+			}];
+			this.renderPicker();
+
+			const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
+			if (mediaDevices) {
+				this._register(dom.addDisposableListener(mediaDevices, 'devicechange', () => void this.refreshDevices()));
+			}
+
+			this.waveform.start();
 			void this.startPreview();
-		} else {
-			void this.refreshDevices();
 		}
 		this.logAction('shown');
 	}
@@ -649,6 +642,9 @@ export class DictationOnboardingBanner extends Disposable {
 	 * labels stay blank until permission has been granted at least once.
 	 */
 	private async startPreview(): Promise<void> {
+		if (!this.preview) {
+			return;
+		}
 		const listening = this.preview.listen(this.currentDeviceId());
 		await Promise.all([listening, this.refreshDevices()]);
 		await this.refreshDevices();
@@ -694,6 +690,9 @@ export class DictationOnboardingBanner extends Disposable {
 	 * open a menu. With a single microphone the card just names it.
 	 */
 	private renderPicker(): void {
+		if (!this.pickerContainer) {
+			return;
+		}
 		this.picker.clear();
 		dom.clearNode(this.pickerContainer);
 
@@ -742,9 +741,7 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 
 		status(localize('dictation.onboarding.microphoneSelected', "{0} selected.", option.label));
-		if (this.bannerOptions.previewMicrophone) {
-			void this.preview.listen(option.deviceId).then(() => this.updateHint());
-		}
+		void this.preview?.listen(option.deviceId).then(() => this.updateHint());
 	}
 
 	/**
@@ -753,6 +750,9 @@ export class DictationOnboardingBanner extends Disposable {
 	 * one the card can do without.
 	 */
 	private updateHint(): void {
+		if (!this.preview || !this.hint) {
+			return;
+		}
 		const error = this.preview.error;
 		this.domNode.classList.toggle('has-error', error !== undefined);
 		this.hint.textContent = error === undefined ? '' : hintForError(error);
@@ -769,8 +769,8 @@ export class DictationOnboardingBanner extends Disposable {
 
 	private dismiss(action: 'close' | 'escape'): void {
 		this.logAction(action);
-		this.waveform.stop();
-		this.preview.releaseMicrophone();
+		this.waveform?.stop();
+		this.preview?.releaseMicrophone();
 		this.bannerOptions.onDismiss();
 	}
 

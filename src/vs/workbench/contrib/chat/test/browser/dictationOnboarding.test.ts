@@ -103,12 +103,14 @@ suite('Dictation onboarding', () => {
 		assert.deepStrictEqual(
 			{
 				shownFirstTime, shown, closeIcon,
+				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
 				visibleAfterClose: host.container.classList.contains('has-dictation-onboarding'),
 				shownAgain,
 				telemetryEvents,
 			},
 			{
 				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close',
+				hasMicrophoneControls: false,
 				visibleAfterClose: false,
 				shownAgain: false,
 				telemetryEvents: [
@@ -148,8 +150,9 @@ suite('Dictation onboarding', () => {
 			{
 				visible: host.container.classList.contains('has-dictation-onboarding'),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
+				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
 			},
-			{ visible: true, cards: 1 });
+			{ visible: true, cards: 1, hasMicrophoneControls: true });
 	});
 
 	test('reset shows the introduction on the next dictation', () => {

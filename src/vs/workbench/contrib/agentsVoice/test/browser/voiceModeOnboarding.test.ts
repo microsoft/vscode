@@ -170,7 +170,7 @@ suite('Voice Mode onboarding', () => {
 				activeElement: card,
 				card,
 				tabIndex: -1,
-				closeIcon: 'codicon codicon-close',
+				closeIcon: 'codicon codicon-close-compact',
 				listeningNotice: null,
 			});
 	});

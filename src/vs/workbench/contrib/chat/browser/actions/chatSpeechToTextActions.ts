@@ -72,7 +72,12 @@ export function getDictationShortcutOperation(dictating: boolean, state: ChatSpe
  * returns `undefined` when not invoked through a held key (e.g. the toolbar mic
  * or the command palette), collapsing the behavior to a plain toggle.
  */
-export async function runDictationShortcut(context: IDictationShortcutContext, commandId: string, editor: ICodeEditor): Promise<void> {
+export async function runDictationShortcut(
+	context: IDictationShortcutContext,
+	commandId: string,
+	editor: ICodeEditor,
+	startDictationFn: typeof startDictation = startDictation,
+): Promise<void> {
 	const { speechService, keybindingService, logService } = context;
 
 	switch (getDictationShortcutOperation(isDictating(), speechService.state, speechService.isPreparingModel)) {
@@ -95,7 +100,7 @@ export async function runDictationShortcut(context: IDictationShortcutContext, c
 	// through a held key (e.g. the toolbar mic or the command palette), which
 	// collapses the behavior to a plain toggle.
 	const holdMode = keybindingService.enableKeybindingHoldMode(commandId);
-	await startDictation(speechService, editor, window, logService);
+	await startDictationFn(speechService, editor, window, logService);
 	if (!holdMode) {
 		return;
 	}
