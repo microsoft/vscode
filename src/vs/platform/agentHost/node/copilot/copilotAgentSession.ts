@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, PermissionResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -104,6 +104,34 @@ interface IMcpAuthToolCall {
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
+
+function isPermissionDeniedKind(kind: PermissionResult['kind'] | undefined): boolean {
+	switch (kind) {
+		case 'cancelled':
+		case 'denied-by-rules':
+		case 'denied-no-approval-rule-and-could-not-request-from-user':
+		case 'denied-interactively-by-user':
+		case 'denied-by-content-exclusion-policy':
+		case 'denied-by-permission-request-hook':
+			return true;
+		default:
+			return false;
+	}
+}
+
+function mapPermissionResultToConfirmKind(kind: PermissionResult['kind'] | undefined, resolvedByHook: boolean): 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied' {
+	if (kind === undefined) {
+		return 'confirmationNotNeeded';
+	}
+	if (isPermissionDeniedKind(kind)) {
+		return 'denied';
+	}
+	if (kind === 'approved-for-session' || kind === 'approved-for-location') {
+		return 'setting';
+	}
+	return resolvedByHook ? 'confirmationNotNeeded' : 'userAction';
+}
+
 
 function normalizeMcpServerUrl(value: string): string | undefined {
 	if (!URL.canParse(value)) {
@@ -498,6 +526,8 @@ class CopilotTurn {
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
 	parallelToolCallsTotal = 0;
+	toolCallDetailsReported = false;
+	messageCharLen: number | undefined;
 	/** Model of the most recent round, reported as the turn's model. */
 	lastModel: string | undefined;
 
@@ -551,8 +581,20 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
 	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAutoApproval | undefined>();
+	/** Correlates tool execution with the SDK permission lifecycle for `chat.toolApproval` telemetry. */
+	private readonly _toolApprovalRecords = new Map<string, {
+		permissionRequested: boolean;
+		resolvedByHook: boolean;
+		requestSandboxBypass: boolean;
+		resultKind: PermissionResult['kind'] | undefined;
+		toolName: string | undefined;
+		mcpServerName: string | undefined;
+		reported: boolean;
+	}>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult>();
+	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult, {
+		readonly managedApprovalRequired: boolean;
+	}>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/**
@@ -636,6 +678,16 @@ export class CopilotAgentSession extends Disposable {
 	 * an LLM turn precedes that turn's `tool_use` events.
 	 */
 	private _lastSeenModelId: string | undefined;
+	/**
+	 * Compaction credits (nano-AIU) billed while no turn was active, carried
+	 * forward onto the next turn. Automatic compaction can run outside a turn
+	 * (e.g. after an abort, or between turns); the `chat/usage` reducer only
+	 * applies usage to the *active* turn, so without this the cost — which is
+	 * at its highest exactly here, since an out-of-turn compaction usually
+	 * finds a cold prompt cache and pays the ~12x cache-write rate — would be
+	 * dropped entirely.
+	 */
+	private _carriedCompactionNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
@@ -869,15 +921,7 @@ export class CopilotAgentSession extends Disposable {
 	 * history.truncate / sessions.fork mapping.
 	 */
 	private _beginSteeringTurn(steering: PendingMessage): string {
-		const previousTurnId = this._turnId;
-		if (previousTurnId) {
-			const previousDuration = this._currentTurn?.duration ?? 0;
-			this._emitAction({
-				type: ActionType.ChatTurnComplete,
-				turnId: previousTurnId,
-				duration: previousDuration,
-			});
-		}
+		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
@@ -894,7 +938,10 @@ export class CopilotAgentSession extends Disposable {
 		// `pending`, otherwise an abort during the steering turn would treat it
 		// as a not-yet-started queued turn and leave it open.
 		this.resetTurnState(newTurnId);
-		this._currentTurn?.markRunning();
+		if (this._currentTurn) {
+			this._currentTurn.messageCharLen = steering.message.text.length;
+			this._currentTurn.markRunning();
+		}
 		return newTurnId;
 	}
 
@@ -997,6 +1044,24 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
+		// Seed the parent scope with any compaction billed while no turn was active so the cost
+		// surfaces on this turn rather than being lost. The bank is deliberately NOT cleared here:
+		// a turn can end without ever reporting usage (it fails before the first SDK usage event,
+		// runs as a purely local slash command, or is replaced by another reset), and clearing on
+		// seed would drop the credits on the floor. It is cleared only once a report actually
+		// carries it — see {@link _onCarriedCompactionReported}.
+		if (this._carriedCompactionNanoAiu > 0) {
+			this._currentTurn.copilotUsageTotalNanoAiuByScope.set('', this._carriedCompactionNanoAiu);
+		}
+	}
+
+	/**
+	 * Clears the out-of-turn compaction bank once a parent-scope usage report has carried it, so
+	 * the credits are billed to exactly one turn. Called from every site that emits a parent-scope
+	 * running total, since any of them can be the one that first reports the carry.
+	 */
+	private _onCarriedCompactionReported(): void {
+		this._carriedCompactionNanoAiu = 0;
 	}
 
 	private _completeActiveTurn(): void {
@@ -1005,22 +1070,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		turn.markCompleted();
-		// Emit the restricted per-turn tool-call aggregate before the turn is cleared. Main agent
-		// only: `_appliedSnapshot.tools` and this turn's accumulator describe the main session's turn.
-		// No-ops (in the reporter) when the turn made no tool calls.
-		void this._telemetryReporter.toolCallDetails({
-			session: this.sessionUri.toString(),
-			turnId: turn.id,
-			clientType: turn.clientType,
-			model: turn.lastModel,
-			responseType: 'success',
-			toolCounts: Object.fromEntries(turn.toolCounts),
-			availableTools: this._appliedSnapshot.tools.map(tool => tool.name),
-			numRequests: turn.toolCallRounds,
-			totalToolCalls: turn.totalToolCalls,
-			parallelToolCallRounds: turn.parallelToolCallRounds,
-			parallelToolCallsTotal: turn.parallelToolCallsTotal,
-		}).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+		this._reportToolCallDetails(turn, 'success');
 		this._emitAction({
 			type: ActionType.ChatTurnComplete,
 			turnId: turn.id,
@@ -1046,6 +1096,67 @@ export class CopilotAgentSession extends Disposable {
 			// `send()` failure path, replace the error we are propagating.
 			this._logService.error(err, `[Copilot:${this.sessionId}] onTurnEnded callback failed`);
 		}
+	}
+
+	private _reportToolCallDetails(turn: CopilotTurn, responseType: 'success' | 'cancelled' | 'failed'): void {
+		if (turn.toolCallDetailsReported) {
+			return;
+		}
+		turn.toolCallDetailsReported = true;
+		void this._telemetryReporter.toolCallDetails({
+			provider: 'copilot',
+			session: this.sessionUri.toString(),
+			turnId: turn.id,
+			clientType: turn.clientType,
+			model: turn.lastModel,
+			responseType,
+			toolCounts: Object.fromEntries(turn.toolCounts),
+			availableTools: this._appliedSnapshot.tools.map(tool => tool.name),
+			numRequests: turn.toolCallRounds,
+			turnIndex: turn.ordinal,
+			turnDuration: turn.duration,
+			messageCharLen: turn.messageCharLen,
+			totalToolCalls: turn.totalToolCalls,
+			parallelToolCallRounds: turn.parallelToolCallRounds,
+			parallelToolCallsTotal: turn.parallelToolCallsTotal,
+		}).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+	}
+
+	private _reportToolApproval(toolCallId: string, toolName: string | undefined, mcpServerName: string | undefined): void {
+		const record = this._toolApprovalRecords.get(toolCallId);
+		if (!toolName || isHiddenTool(toolName) || record?.reported) {
+			return;
+		}
+		const confirmKind = mapPermissionResultToConfirmKind(record?.resultKind, record?.resolvedByHook === true);
+		this._telemetryReporter.toolApproval({
+			provider: 'copilot',
+			session: this.sessionUri.toString(),
+			turnId: this._turnId,
+			toolId: toolName,
+			toolSourceKind: this._toolSourceKindFor(toolName, mcpServerName),
+			confirmKind,
+			confirmationNotNeededReason: confirmKind === 'confirmationNotNeeded' && record?.resolvedByHook ? 'other' : undefined,
+			requestUnsandboxedExecution: record?.requestSandboxBypass ? true : undefined,
+		});
+		if (record) {
+			record.reported = true;
+		}
+	}
+
+	private _reportToolApprovalIfNoPermission(toolCallId: string): void {
+		const record = this._toolApprovalRecords.get(toolCallId);
+		if (record && !record.permissionRequested) {
+			this._reportToolApproval(toolCallId, record.toolName, record.mcpServerName);
+		}
+	}
+	private _toolSourceKindFor(toolName: string, mcpServerName: string | undefined): string {
+		if (mcpServerName) {
+			return 'mcp';
+		}
+		if (this._clientToolNames.has(toolName)) {
+			return 'client';
+		}
+		return 'internal';
 	}
 
 	private _getEditFilePaths(parameters: unknown): string[] {
@@ -1374,7 +1485,9 @@ export class CopilotAgentSession extends Disposable {
 
 		// Still pending permission, so this call may have errored while getting permission.
 		// Go ahead and allow the call which will immediately see the buffered value.
-		this.respondToPermissionRequest(toolCallId, true);
+		if (this._pendingPermissions.getMetadata(toolCallId)?.managedApprovalRequired !== true) {
+			this.respondToPermissionRequest(toolCallId, true);
+		}
 	}
 
 	private _cancelMcpAuthenticationForToolCall(toolCallId: string): boolean {
@@ -1612,6 +1725,9 @@ export class CopilotAgentSession extends Disposable {
 			// direct-send path and is a no-op when the turn already exists.
 			this.resetTurnState(turnId, senderClientId, clientType);
 		}
+		if (this._currentTurn) {
+			this._currentTurn.messageCharLen = prompt.length;
+		}
 		const turn = this._currentTurn;
 		try {
 			await this._send(prompt, attachments, mode);
@@ -1628,7 +1744,6 @@ export class CopilotAgentSession extends Disposable {
 			throw err;
 		}
 	}
-
 	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -1641,10 +1756,22 @@ export class CopilotAgentSession extends Disposable {
 				// `_completeActiveTurn` since the reducer drops usage for a non-active turn.
 				const usedTokens = result.contextWindow?.currentTokens;
 				if (typeof usedTokens === 'number') {
+					// `session.compaction_complete` accumulates the summarization call's credits onto the
+					// turn before this RPC resolves; carry that running total through so the response
+					// footer reports the compaction's cost instead of dropping it.
+					const totalNanoAiu = this._currentTurn?.copilotUsageTotalNanoAiuByScope.get('');
+					if (typeof totalNanoAiu === 'number') {
+						this._onCarriedCompactionReported();
+					}
 					this._emitAction({
 						type: ActionType.ChatUsage,
 						turnId: this._turnId,
-						usage: { inputTokens: usedTokens, outputTokens: 0, model: this._lastSeenModelId },
+						usage: {
+							inputTokens: usedTokens,
+							outputTokens: 0,
+							model: this._lastSeenModelId,
+							...(typeof totalNanoAiu === 'number' ? { _meta: { copilotUsage: { totalNanoAiu } } } : {}),
+						},
 					});
 				}
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
@@ -1756,7 +1883,6 @@ export class CopilotAgentSession extends Disposable {
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
-		this._markEnabledMcpServersStarting();
 		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
@@ -2040,6 +2166,9 @@ export class CopilotAgentSession extends Disposable {
 	 * backstop, since {@link _beginAbort} no-ops when already aborted.
 	 */
 	override dispose(): void {
+		void this._editTracker.flushAttribution().catch(error => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
+		});
 		this._beginAbort();
 		super.dispose();
 	}
@@ -2051,6 +2180,11 @@ export class CopilotAgentSession extends Disposable {
 	 * truncation or fork operations that modify the session files).
 	 */
 	async destroySession(): Promise<void> {
+		try {
+			await this._editTracker.flushAttribution();
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
+		}
 		await this._wrapper.session.disconnect();
 	}
 
@@ -2119,16 +2253,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 		// stopServer leaves inline session MCP servers not_configured; disable->enable is the validated restart path.
 		await this._disableMcpServer(serverName);
-		// The SDK reconnects in the background on enable with no live "starting"
-		// event, so surface Starting optimistically until the seed below settles it.
-		this._mcpCustomizations.markStarting([serverName]);
 		try {
 			await this._wrapper.session.rpc.mcp.enable({ serverName });
 			await this._wrapper.session.rpc.mcp.listTools({ serverName });
 		} finally {
-			// Always reconcile against the SDK's real state -- on success this
-			// settles Starting -> Ready/AuthRequired, and on failure it clears the
-			// optimistic Starting instead of leaving the UI stuck.
+			// Reconcile against the SDK's real state. The live
+			// `session.mcp_server_status_changed` stream already reports the
+			// connect (`pending` -> `connected`/`failed`); this covers the case
+			// where the enable rejects before any status is emitted.
 			this._seedMcpServersFromRpc();
 		}
 	}
@@ -2148,12 +2280,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			try {
 				if (desired) {
-					// Re-enabling restarts the server. The SDK connects it in the
-					// background with no live "starting" event, so surface Starting
-					// optimistically. Mark `changed` now (before the enable) so the
-					// trailing refresh always runs and settles/clears this optimistic
-					// Starting even if the enable rejects.
-					this._mcpCustomizations.markStarting([server.serverName]);
+					// Re-enabling restarts the server. The SDK reports the
+					// connect live (`pending` -> `connected`/`failed`), so no
+					// optimistic state is written here. Mark `changed` now
+					// (before the enable) so the trailing refresh always runs
+					// even if the enable rejects.
 					changed = true;
 					await this._wrapper.session.rpc.mcp.enable({ serverName: server.serverName });
 				} else {
@@ -2166,23 +2297,6 @@ export class CopilotAgentSession extends Disposable {
 		}
 		if (changed) {
 			await this._refreshMcpServersFromRpc();
-		}
-	}
-
-	/**
-	 * Optimistically marks the session's enabled MCP servers as Starting for the
-	 * turn that is about to begin. Sending a message makes the SDK connect
-	 * enabled servers in the background with no live "starting" event, so without
-	 * this a connecting server would read as its last settled state (e.g. the
-	 * seeded Stopped) until the connection resolves. Already-running servers are
-	 * left untouched by the controller; the subsequent SDK status settles each
-	 * server.
-	 */
-	private _markEnabledMcpServersStarting(): void {
-		const customizations = this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
-		const enabled = getEffectiveMcpServerCustomizations(customizations).filter(server => server.enabled);
-		if (enabled.length > 0) {
-			this._mcpCustomizations.markStarting(enabled.map(server => server.name));
 		}
 	}
 
@@ -2286,7 +2400,8 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'reject' };
 			}
 
-			const autoApproval = this._lastAppliedPermissionMode === 'auto'
+			const managedApprovalRequired = request.managedApprovalRequired === true;
+			const autoApproval = !managedApprovalRequired && this._lastAppliedPermissionMode === 'auto'
 				? await this._takeAutoApproval(toolCallId)
 				: undefined;
 			const recommendation = autoApproval?.recommendation;
@@ -2327,14 +2442,14 @@ export class CopilotAgentSession extends Disposable {
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
 			if (approvedSignature !== undefined) {
 				this._approvedDuplicablePermissionSignatures.delete(toolCallId);
-				if ((request.kind === 'write' || request.kind === 'read') && safeStringify(request) === approvedSignature) {
+				if (!managedApprovalRequired && (request.kind === 'write' || request.kind === 'read') && safeStringify(request) === approvedSignature) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving duplicate ${request.kind} permission request for tool call ${toolCallId}`);
 					return { kind: 'approve-once' };
 				}
 			}
 
 			const sessionResourcePath = this._getInternalSessionResourcePath(request);
-			if (sessionResourcePath) {
+			if (!managedApprovalRequired && sessionResourcePath) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving internal session resource ${sessionResourcePath}`);
 				return { kind: 'approve-once' };
 			}
@@ -2346,7 +2461,7 @@ export class CopilotAgentSession extends Disposable {
 			// read those same files back, and prompting the user to
 			// approve a read of bytes they themselves attached is
 			// redundant.
-			if (request.kind === 'read' && typeof request.path === 'string'
+			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string'
 				&& this._isSessionAttachmentPath(request.path)
 			) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving session attachment ${request.path}`);
@@ -2357,7 +2472,7 @@ export class CopilotAgentSession extends Disposable {
 			// Copilot SDK itself. The SDK spills oversized tool results to
 			// `os.tmpdir()/copilot-tool-output-…txt` and then asks the model
 			// to read them back in a follow-up turn — no need to confirm.
-			if (request.kind === 'read' && typeof request.path === 'string') {
+			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string') {
 				if (isCopilotSdkToolOutputTempFile(request.path, this._environmentService.tmpDir.fsPath)) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
 					return { kind: 'approve-once' };
@@ -2369,7 +2484,7 @@ export class CopilotAgentSession extends Disposable {
 			// workspace, shell, or network, so prompting for them is redundant
 			// noise. Tools that explicitly require confirmation (e.g. revealing
 			// unreviewed review comments) are excluded so the user is prompted.
-			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
+			if (!managedApprovalRequired && request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& this._serverToolHost?.toolNames.includes(request.toolName)
 				&& !this._serverToolHost.requiresConfirmation(request.toolName)
 			) {
@@ -2380,7 +2495,7 @@ export class CopilotAgentSession extends Disposable {
 			const isShellRequest = request.kind === 'shell'
 				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
 
-			if (request.kind === 'custom-tool'
+			if (!managedApprovalRequired && request.kind === 'custom-tool'
 				&& typeof request.toolName === 'string'
 				&& this._clientToolNames.has(this._clientToolName(request.toolName))
 				&& this._pendingClientToolCalls.hasBufferedResult(toolCallId)
@@ -2391,7 +2506,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
-			const pendingPermission = this._pendingPermissions.register(toolCallId);
+			const pendingPermission = this._pendingPermissions.register(toolCallId, { managedApprovalRequired });
 
 			// Auto-approve shell commands that run sandboxed by default, since the
 			// sandbox already contains them. Commands that opted OUT of the sandbox
@@ -2399,7 +2514,7 @@ export class CopilotAgentSession extends Disposable {
 			// fall through to the normal confirmation flow — otherwise enabling
 			// `sandbox.allowBypass` would let the model escape the sandbox with no
 			// prompt at all.
-			if (isShellRequest && !request.requestSandboxBypass && await this._isShellSandboxedByDefault()) {
+			if (!managedApprovalRequired && isShellRequest && !request.requestSandboxBypass && await this._isShellSandboxedByDefault()) {
 				// Session may have been disposed while we awaited the engine
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
@@ -2459,13 +2574,14 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				managedApprovalRequired,
 				requestSandboxBypass: request.requestSandboxBypass,
 				parentToolCallId,
 			});
 
 			const result = await pendingPermission;
 			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.kind}`);
-			if (result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read')) {
+			if (!managedApprovalRequired && result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read')) {
 				this._approvedDuplicablePermissionSignatures.set(toolCallId, safeStringify(request));
 			}
 			return result;
@@ -2751,7 +2867,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
-		const pendingPermission = this._pendingPermissions.register(request.toolCallId);
+		const pendingPermission = this._pendingPermissions.register(request.toolCallId, { managedApprovalRequired: false });
 
 		const displayName = getToolDisplayName(request.toolName);
 		const blockedDomains = request.blockedDomains?.length ? request.blockedDomains.join(', ') : undefined;
@@ -3335,8 +3451,42 @@ export class CopilotAgentSession extends Disposable {
 		// TODO@connor4312: Remove this correlation once the SDK permission callback includes auto-approval data.
 		this._register(wrapper.onPermissionRequested(e => {
 			const toolCallId = e.data.permissionRequest.toolCallId;
-			if (toolCallId) {
-				this._recordAutoApproval(toolCallId, e.data.promptRequest?.autoApproval);
+			if (!toolCallId) {
+				return;
+			}
+			this._recordAutoApproval(toolCallId, e.data.promptRequest?.autoApproval);
+			const existing = this._toolApprovalRecords.get(toolCallId);
+			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
+			this._toolApprovalRecords.set(toolCallId, {
+				permissionRequested: true,
+				resolvedByHook: existing?.resolvedByHook || e.data.resolvedByHook === true,
+				requestSandboxBypass: existing?.requestSandboxBypass || permissionRequest.requestSandboxBypass === true,
+				resultKind: existing?.resultKind,
+				toolName: existing?.toolName ?? permissionRequest.toolName,
+				mcpServerName: existing?.mcpServerName,
+				reported: existing?.reported ?? false,
+			});
+		}));
+
+		this._register(wrapper.onPermissionCompleted(e => {
+			const toolCallId = e.data.toolCallId;
+			if (!toolCallId) {
+				return;
+			}
+			const existing = this._toolApprovalRecords.get(toolCallId);
+			const record = {
+				permissionRequested: existing?.permissionRequested ?? true,
+				resolvedByHook: existing?.resolvedByHook ?? false,
+				requestSandboxBypass: existing?.requestSandboxBypass ?? false,
+				resultKind: e.data.result.kind,
+				toolName: existing?.toolName,
+				mcpServerName: existing?.mcpServerName,
+				reported: existing?.reported ?? false,
+			};
+			this._toolApprovalRecords.set(toolCallId, record);
+			this._reportToolApproval(toolCallId, record.toolName, record.mcpServerName);
+			if (isPermissionDeniedKind(record.resultKind)) {
+				this._toolApprovalRecords.delete(toolCallId);
 			}
 		}));
 
@@ -3365,6 +3515,20 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: e.data.mcpServerName, meta: undefined });
+			const existingApproval = this._toolApprovalRecords.get(e.data.toolCallId);
+			const approvalRecord = {
+				permissionRequested: existingApproval?.permissionRequested ?? false,
+				resolvedByHook: existingApproval?.resolvedByHook ?? false,
+				requestSandboxBypass: existingApproval?.requestSandboxBypass ?? false,
+				resultKind: existingApproval?.resultKind,
+				toolName: e.data.toolName,
+				mcpServerName: e.data.mcpServerName,
+				reported: existingApproval?.reported ?? false,
+			};
+			this._toolApprovalRecords.set(e.data.toolCallId, approvalRecord);
+			if (approvalRecord.resultKind !== undefined) {
+				this._reportToolApproval(e.data.toolCallId, e.data.toolName, e.data.mcpServerName);
+			}
 			if (isShellTool(e.data.toolName)) {
 				this._nonPtyShellTerminals.track(e.data.toolCallId, displayName);
 			}
@@ -3445,6 +3609,8 @@ export class CopilotAgentSession extends Disposable {
 			// tool.execution_complete for this id is suppressed.
 			if (isClientTool && !contributor) {
 				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
+				this._reportToolApprovalIfNoPermission(e.data.toolCallId);
+				this._toolApprovalRecords.delete(e.data.toolCallId);
 				this._activeToolCalls.delete(e.data.toolCallId);
 				this._emitAction({
 					type: ActionType.ChatToolCallReady,
@@ -3504,8 +3670,10 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
+			this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 			this._activeToolCalls.delete(e.data.toolCallId);
 			this._autoApprovals.delete(e.data.toolCallId);
+			this._toolApprovalRecords.delete(e.data.toolCallId);
 			this._pendingAutoApprovals.respond(e.data.toolCallId, undefined);
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
@@ -3626,6 +3794,7 @@ export class CopilotAgentSession extends Disposable {
 				this._cancelActiveRepoInfoTelemetry();
 				if (turn.isRunning) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down running turn ${turn.id}`);
+					this._reportToolCallDetails(turn, 'cancelled');
 					turn.markAborted();
 					this._clearActiveTurn();
 				} else {
@@ -3722,6 +3891,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			if (this._currentTurn) {
+				this._reportToolCallDetails(this._currentTurn, 'failed');
+			}
 			// Prefer the structured SDK fields (the Copilot CLI classifies its own
 			// CAPI errors); fall back to decoding a forwarded marker from the message.
 			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
@@ -3750,6 +3922,17 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${sessionId}] Auto mode resolved to ${e.data.chosenModel}${e.data.reasoningBucket ? ` (${e.data.reasoningBucket})` : ''}`);
 			if (!turnId) {
 				return;
+			}
+			if (!e.agentId) {
+				this._telemetryReporter.autoModeRouterDecision({
+					session: this.sessionUri.toString(),
+					turnId,
+					chosenModel: e.data.chosenModel,
+					predictedLabel: e.data.predictedLabel,
+					confidence: e.data.confidence,
+					candidateModels: e.data.candidateModels,
+					categoryScores: e.data.categoryScores,
+				});
 			}
 			autoModeResolved = { turnId, data: e.data };
 			const priorUsage = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
@@ -3786,9 +3969,9 @@ export class CopilotAgentSession extends Disposable {
 			if (!parentToolCallId && !e.agentId && !e.data.parentToolCallId && e.data.model) {
 				this._setPromptCacheState(e.data.cacheExpiresAt ? { modelId: e.data.model, cacheExpiresAt: e.data.cacheExpiresAt } : undefined);
 			}
-			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
+			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
 			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
-			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
+			const copilotUsage = readCopilotUsage(e.data);
 			// `quotaSnapshots` is likewise `asInternal` in the SDK schema (not on the generated type) but is
 			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
 			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
@@ -3827,6 +4010,10 @@ export class CopilotAgentSession extends Disposable {
 				if (turn && typeof copilotUsage?.totalNanoAiu === 'number') {
 					const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get(scope) ?? 0) + copilotUsage.totalNanoAiu;
 					turn.copilotUsageTotalNanoAiuByScope.set(scope, scopedTotal);
+					if (scope === '') {
+						// The parent-scope total includes any seeded out-of-turn compaction credits.
+						this._onCarriedCompactionReported();
+					}
 					metadata.copilotUsage = {
 						...copilotUsage,
 						totalNanoAiu: scopedTotal,
@@ -3927,6 +4114,50 @@ export class CopilotAgentSession extends Disposable {
 			} catch (err) {
 				this._logService.trace(`[Copilot:${sessionId}] contextAttribution RPC failed: ${(err as Error)?.message ?? err}`);
 			}
+		}));
+
+		// Compaction (manual `/compact` or automatic mid-turn) runs its own summarization model call.
+		// The SDK bills it separately and reports it on `session.compaction_complete` rather than as an
+		// `assistant.usage` event, so fold those credits into the turn's parent-scope running total the
+		// same way `buildUsage` does. This makes the turn's response footer include the compaction cost.
+		this._register(wrapper.onSessionCompactionComplete(e => {
+			if (e.agentId || e.data.success === false) {
+				return;
+			}
+			const turn = this._currentTurn;
+			const turnId = this._turnId;
+			const copilotUsage = readCopilotUsage(e.data.compactionTokensUsed);
+			if (!copilotUsage) {
+				return;
+			}
+			if (!turn || !turnId) {
+				// Compaction outside a turn: the reducer would discard usage for a non-active
+				// turn, so bank the credits for the next one instead of losing them.
+				this._carriedCompactionNanoAiu += copilotUsage.totalNanoAiu;
+				return;
+			}
+			const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get('') ?? 0) + copilotUsage.totalNanoAiu;
+			turn.copilotUsageTotalNanoAiuByScope.set('', scopedTotal);
+			// This report carries any credits banked from an earlier out-of-turn compaction.
+			this._onCarriedCompactionReported();
+			// Preserve the parent turn's own model/context tokens: the compaction call's tokens describe
+			// the summarization request, not the conversation, so they must not replace what is shown.
+			const base = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
+			const usage: UsageInfo = {
+				...base,
+				model: base?.model ?? this._lastSeenModelId,
+				_meta: {
+					...(base?._meta ?? {}),
+					copilotUsage: { ...copilotUsage, totalNanoAiu: scopedTotal },
+				},
+			};
+			lastParentUsage = usage;
+			lastParentUsageTurnId = turnId;
+			this._emitAction({
+				type: ActionType.ChatUsage,
+				turnId,
+				usage,
+			});
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {
@@ -4538,6 +4769,9 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
 			this._cancelActiveRepoInfoTelemetry();
+			if (this._currentTurn?.isRunning) {
+				this._reportToolCallDetails(this._currentTurn, 'cancelled');
+			}
 		}));
 
 		this._register(wrapper.onToolUserRequested(e => {
@@ -4754,6 +4988,27 @@ function countUnifiedDiffLines(diff: string): { added: number; removed: number }
 		return undefined;
 	}
 	return { added, removed };
+}
+
+/**
+ * Reads the SDK's internal `copilotUsage` billing payload. It is marked `asInternal` in the SDK
+ * schema, so it is absent from the generated event types (`AssistantUsageData`,
+ * `CompactionCompleteCompactionTokensUsed`) even though it is present at runtime — hence the
+ * dynamic read. Returns `undefined` when the payload carries no usable nano-AIU total.
+ */
+function readCopilotUsage(raw: unknown): { totalNanoAiu: number } & Record<string, unknown> | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const usage = (raw as Record<string, unknown>).copilotUsage;
+	if (!usage || typeof usage !== 'object') {
+		return undefined;
+	}
+	const totalNanoAiu = (usage as Record<string, unknown>).totalNanoAiu;
+	if (typeof totalNanoAiu !== 'number' || !Number.isFinite(totalNanoAiu) || totalNanoAiu < 0) {
+		return undefined;
+	}
+	return { ...(usage as Record<string, unknown>), totalNanoAiu };
 }
 
 /**

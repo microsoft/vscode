@@ -93,6 +93,12 @@ export interface ICreateNewSessionOptions {
 	 * Skipped if the provider does not implement the setter.
 	 */
 	readonly branch?: string;
+	/**
+	 * Optional branch tracking preference to apply via
+	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
+	 * programmatic session creation and is not surfaced in the new-session UI.
+	 */
+	readonly worktreeBranchTrack?: boolean;
 }
 
 /**
@@ -124,6 +130,10 @@ export interface ISendRequestSentEvent {
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	/**
+	 * The exact options object the send was started with, so callers can
+	 * correlate a fire-and-forget (background) send with its completion.
+	 */
 	readonly options: ISendRequestOptions;
 }
 

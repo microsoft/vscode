@@ -104,3 +104,11 @@ export const chatInputWorkingBorderColor3 = registerColor(
 	'chat.inputWorkingBorderColor3',
 	{ dark: lighten(buttonBackground, 0.5), light: lighten(buttonBackground, 0.3), hcDark: '#000000', hcLight: '#000000' },
 	localize('chat.inputWorkingBorderColor3', 'Tertiary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
+
+// Matches Voice Mode's listening glow (see `voiceGlow.ts`). Deliberately not
+// `charts.blue`, which resolves to `editorInfoForeground` — an indigo that reads
+// as purple once softened into a wash.
+export const chatDictationActiveMicGlow = registerColor(
+	'chat.dictationActiveMicGlow',
+	{ dark: '#58A6FF', light: '#2E8BE6', hcDark: '#8CC6FF', hcLight: '#00539C' },
+	localize('chat.dictationActiveMicGlow', 'Accent color of the glow shown on the microphone while dictation is listening.'));

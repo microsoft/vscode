@@ -1190,7 +1190,7 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					workingDirectory: params.workingDirectories?.[0] ? URI.parse(params.workingDirectories[0]) : undefined,
+					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
 					fork,
 					config: params.config,
@@ -1270,24 +1270,16 @@ export class ProtocolServerHandler extends Disposable {
 				if (!provider) {
 					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
 				}
-				// Encode isRead/isArchived as status bitmask flags
-				let status = s.status ?? SessionStatus.Idle;
-				if (s.isRead) {
-					status |= SessionStatus.IsRead;
-				}
-				if (s.isArchived) {
-					status |= SessionStatus.IsArchived;
-				}
 				return {
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
-					status,
+					status: s.status ?? SessionStatus.Idle,
 					activity: s.activity,
 					createdAt: new Date(s.startTime).toISOString(),
 					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					workingDirectories: s.workingDirectory ? [s.workingDirectory.toString()] : undefined,
+					workingDirectories: s.workingDirectories?.map(d => d.toString()),
 					changes: s.changes,
 					// `_meta` carries the workspace-less marker, which seeds or
 					// promotes the client's session kind and cannot be

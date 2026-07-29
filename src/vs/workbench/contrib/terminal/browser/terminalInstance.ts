@@ -16,7 +16,7 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { ISeparator, normalizeDriveLetter, template } from '../../../../base/common/labels.js';
+import { ISeparator, normalizeDriveLetter, template, tildify } from '../../../../base/common/labels.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
@@ -160,6 +160,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _latestXtermWriteData: number = 0;
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
+	private _isDisposing: boolean;
 	private _hadFocusOnExit: boolean;
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
@@ -416,6 +417,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._widgetManager = this._register(instantiationService.createInstance(TerminalWidgetManager));
 
 		this._isExiting = false;
+		this._isDisposing = false;
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
@@ -1295,6 +1297,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
+		this._isDisposing = true;
 		dispose(this._widgetManager);
 
 		if (this.xterm?.raw.element) {
@@ -2035,7 +2038,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _resize(immediate?: boolean): Promise<void> {
-		if (!this.xterm || !this._resizeDebouncer) {
+		if (!this.xterm || !this._resizeDebouncer || this.isDisposed || this._isDisposing) {
 			return;
 		}
 
@@ -2731,7 +2734,7 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
+	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'os'>, reset?: boolean): void {
 		const tabs = this._terminalConfigurationService.config.tabs;
 		const useAgentCliTitle = tabs.allowAgentCliTitle && TerminalLabelComputer.agentCliShellTypes.has(instance.shellType as GeneralShellType);
 		const titleTemplate = instance.shellLaunchConfig.titleTemplate ?? (useAgentCliTitle ? '${sequence}' : tabs.title);
@@ -2743,7 +2746,7 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	computeLabel(
-		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'progressState'>,
+		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'progressState' | 'os'>,
 		labelTemplate: string,
 		labelType: TerminalLabelType,
 		reset?: boolean
@@ -2752,8 +2755,16 @@ export class TerminalLabelComputer extends Disposable {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const promptInputModel = commandDetection?.promptInputModel;
 		const nonTaskSpinner = type === 'Task' ? '' : ' $(loading~spin)';
+
+		let cwd = instance.cwd || instance.initialCwd || '';
+		const os = instance.os ?? OS;
+		cwd = tildify(cwd, instance.userHome || '', os);
+		if (os !== OperatingSystem.Windows && cwd && instance.userHome && cwd === instance.userHome) {
+			cwd = '~';
+		}
+
 		const templateProperties: ITerminalLabelTemplateProperties = {
-			cwd: instance.cwd || instance.initialCwd || '',
+			cwd,
 			cwdFolder: '',
 			workspaceFolderName: instance.workspaceFolder?.name,
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,

@@ -9,11 +9,15 @@
 // otherwise it uses the local utility-process agent host
 // (`LocalAgentHostServiceClient`).
 
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LocalAgentHostServiceClient } from '../../../../platform/agentHost/electron-browser/localAgentHostService.js';
+import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { EditorRemoteAgentHostServiceClient } from '../browser/editorRemoteAgentHostServiceClient.js';
 
@@ -41,8 +45,44 @@ class WorkbenchAgentHostService {
 	}
 }
 
+class AgentHostPrewarmer {
+
+	constructor(
+		@IAgentHostService agentHostService: IAgentHostService,
+	) {
+		agentHostService.startAgentHost();
+	}
+}
+
+export class AgentHostPrewarmContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentHostPrewarm';
+
+	constructor(
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+	) {
+		super();
+		if (environmentService.remoteAuthority) {
+			return;
+		}
+		this._register(autorun(reader => {
+			if (agentHostEnablementService.enabled.read(reader)) {
+				this.start();
+			}
+		}));
+	}
+
+	private start(): void {
+		this.instantiationService.createInstance(AgentHostPrewarmer);
+	}
+}
+
 registerSingleton(
 	IAgentHostService,
 	WorkbenchAgentHostService as unknown as { new(...args: unknown[]): IAgentHostService },
 	InstantiationType.Delayed,
 );
+
+registerWorkbenchContribution2(AgentHostPrewarmContribution.ID, AgentHostPrewarmContribution, WorkbenchPhase.BlockRestore);

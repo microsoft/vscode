@@ -81,6 +81,8 @@ class MockCopilotSession {
 	mcpDisableGate: Promise<unknown> | undefined;
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
+	/** Invoked inside `rpc.history.compact` before it settles, so tests can emit the SDK's in-flight compaction events. */
+	onCompact: (() => void) | undefined = undefined;
 	commandListResult: {
 		commands: Array<{
 			name: string;
@@ -182,6 +184,7 @@ class MockCopilotSession {
 		history: {
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
+				this.onCompact?.();
 				if (this.compactError !== undefined) {
 					throw this.compactError;
 				}
@@ -207,6 +210,9 @@ class MockCopilotSession {
 			},
 			enable: async (params: { serverName: string }) => {
 				this.mcpEnableCalls.push(params);
+				if (this.mcpEnableError !== undefined) {
+					throw this.mcpEnableError;
+				}
 				this.mcpListResult = {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'pending' } : server),
 				};
@@ -253,6 +259,7 @@ class MockCopilotSession {
 
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled' | 'not_configured'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
+	mcpEnableError: unknown = undefined;
 }
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -339,6 +346,27 @@ class CapturingLogService extends NullLogService {
 		this.warnings.push({ message, args });
 		super.warn(message, ...args);
 	}
+}
+
+class CapturingTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sendErrorTelemetry = true;
+	readonly sessionId = 'sessionId';
+	readonly machineId = 'machineId';
+	readonly sqmId = 'sqmId';
+	readonly devDeviceId = 'devDeviceId';
+	readonly firstSessionDate = 'firstSessionDate';
+	readonly events: Array<{ eventName: string; data: unknown }> = [];
+
+	publicLog(): void { }
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+		this.events.push({ eventName, data });
+	}
+	publicLogError(): void { }
+	publicLogError2(): void { }
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -542,6 +570,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session class will read.
 		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectory: () => undefined,
+		getEffectiveWorkingDirectories: () => undefined,
 		isWorkingDirectoryPending: () => false,
 		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		getSessionConfigValues: () => undefined,
@@ -895,7 +924,7 @@ suite('CopilotAgentSession', () => {
 			type: 'user.message',
 			id: 'event-1',
 			parentId: null,
-			timestamp: new Date().toISOString(),
+			timestamp: '2026-07-29T10:00:00.000Z',
 			data: {
 				interactionId: 'message-1',
 				content: '/act-on-feedback',
@@ -910,6 +939,8 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(await session.getMessages(), [{
 			id: 'event-1',
+			startedAt: '2026-07-29T10:00:00.000Z',
+			duration: 0,
 			message: {
 				text: '/act-on-feedback',
 				origin: { kind: MessageKind.User },
@@ -921,7 +952,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('preserves simple attachment display kind through SDK blobs', async () => {
+	test('sends display-kind simple attachments as inline text SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const attachment = {
 			type: MessageAttachmentKind.Simple,
@@ -934,7 +965,7 @@ suite('CopilotAgentSession', () => {
 		const sdkAttachment = {
 			type: 'blob' as const,
 			data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
-			mimeType: 'text/plain; x-vscode-display-kind=workspace',
+			mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=workspace',
 			displayName: attachment.label,
 		};
 		assert.deepStrictEqual(mockSession.sendRequests, [{
@@ -950,7 +981,10 @@ suite('CopilotAgentSession', () => {
 			data: {
 				interactionId: 'message-1',
 				content: 'hello',
-				attachments: [sdkAttachment],
+				attachments: [{
+					...sdkAttachment,
+					mimeType: 'text/plain; x-vscode-display-kind=workspace',
+				}],
 			},
 		}];
 
@@ -1018,7 +1052,7 @@ suite('CopilotAgentSession', () => {
 			attachments: [{
 				type: 'blob',
 				data: encodeBase64(VSBuffer.fromString('Transcript text')),
-				mimeType: 'text/plain; x-vscode-display-kind=paste',
+				mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=paste',
 				displayName: 'Previous conversation',
 			}],
 		}]);
@@ -1034,7 +1068,7 @@ suite('CopilotAgentSession', () => {
 				attachments: [{
 					type: 'blob',
 					data: encodeBase64(VSBuffer.fromString('Transcript text')),
-					mimeType: 'text/plain; x-vscode-display-kind=paste',
+					mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=paste',
 					displayName: 'Previous conversation',
 				}],
 			},
@@ -1126,6 +1160,155 @@ suite('CopilotAgentSession', () => {
 
 		const usage = getActions(signals).reverse().find(a => a.type === ActionType.ChatUsage) as ChatUsageAction | undefined;
 		assert.deepStrictEqual(usage?.usage, { inputTokens: 4500, outputTokens: 0, model: 'claude-sonnet-4.6' });
+	});
+
+	test('`/compact` reports the compaction call credits on the post-compaction usage', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: true, tokensRemoved: 1200, messagesRemoved: 3, contextWindow: { currentTokens: 4500, tokenLimit: 128000, messagesLength: 7 } };
+		// The SDK bills the summarization call on `session.compaction_complete` (emitted while the
+		// history RPC is still in flight) rather than as an `assistant.usage` event.
+		mockSession.onCompact = () => mockSession.fire('session.compaction_complete', {
+			success: true,
+			tokensRemoved: 1200,
+			// `copilotUsage` is `asInternal` in the SDK schema, so it is absent from the public type but present at runtime.
+			compactionTokensUsed: { model: 'claude-sonnet-4.6', inputTokens: 9000, outputTokens: 400, copilotUsage: { totalNanoAiu: 250_000_000 } },
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		assert.deepStrictEqual(usageActions.map(a => ({ turnId: a.turnId, usage: a.usage })), [
+			{
+				turnId: 'turn-compact',
+				usage: { model: undefined, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } },
+			},
+			{
+				turnId: 'turn-compact',
+				usage: { inputTokens: 4500, outputTokens: 0, model: undefined, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } },
+			},
+		]);
+	});
+
+	test('automatic compaction folds its credits into the turn running total', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-auto-compact');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			tokensRemoved: 1200,
+			compactionTokensUsed: { model: 'claude-sonnet-4.6', copilotUsage: { totalNanoAiu: 250_000_000 } },
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		// The compaction credits add to the turn total while the parent turn's own model and
+		// context tokens are preserved, so the response footer shows the full turn cost.
+		assert.deepStrictEqual(usageActions.at(-1)?.usage, {
+			inputTokens: 10,
+			outputTokens: 20,
+			model: 'claude-sonnet-4.6',
+			cacheReadTokens: undefined,
+			_meta: { copilotUsage: { totalNanoAiu: 750_000_000 } },
+		});
+	});
+
+	test('failed compaction does not report credits', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-failed-compact');
+		mockSession.fire('session.compaction_complete', {
+			success: false,
+			error: 'boom',
+			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 250_000_000 } },
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+
+		assert.deepStrictEqual(getActions(signals).filter(a => a.type === ActionType.ChatUsage), []);
+	});
+
+	test('compaction billed outside a turn is carried onto the next turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		// Automatic compaction can run with no turn active (e.g. after an abort). The reducer only
+		// applies usage to the active turn, so the credits must be banked rather than dropped.
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			compactionTokensUsed: { model: 'claude-opus-4.6', copilotUsage: { totalNanoAiu: 133_468_375_000 } },
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+		assert.deepStrictEqual(getActions(signals).filter(a => a.type === ActionType.ChatUsage), []);
+
+		session.resetTurnState('turn-after-compact');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		assert.deepStrictEqual(usageActions.at(-1)?.usage, {
+			inputTokens: 10,
+			outputTokens: 20,
+			model: 'claude-opus-4.6',
+			cacheReadTokens: undefined,
+			_meta: { copilotUsage: { totalNanoAiu: 133_968_375_000 } },
+		});
+	});
+
+	test('carried compaction credits survive a turn that never reports usage', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 2_000_000_000 } },
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+
+		// `turn-1` is started and then replaced without ever reporting usage — the same shape as a
+		// turn that fails before its first SDK usage event or runs as a purely local slash command.
+		// The credits must roll forward rather than dying with it.
+		session.resetTurnState('turn-1');
+		session.resetTurnState('turn-2');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 1,
+			outputTokens: 1,
+			copilotUsage: { totalNanoAiu: 1_000_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, { copilotUsage: { totalNanoAiu: 3_000_000_000 } });
+	});
+
+	test('carried compaction credits are billed to only one turn once reported', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 2_000_000_000 } },
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 1,
+			outputTokens: 1,
+			copilotUsage: { totalNanoAiu: 1_000_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		session.resetTurnState('turn-2');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 1,
+			outputTokens: 1,
+			copilotUsage: { totalNanoAiu: 1_000_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		// `turn-1` reported the carry, so `turn-2` bills only its own model call.
+		assert.deepStrictEqual(usageActions.map(a => a.usage._meta?.copilotUsage), [{ totalNanoAiu: 3_000_000_000 }, { totalNanoAiu: 1_000_000_000 }]);
 	});
 
 	test('`/compact` completes the turn even when compaction reports failure', async () => {
@@ -2302,6 +2485,126 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('managed approval requires confirmation despite an approve recommendation', async () => {
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+			mockSession.fire('permission.requested', {
+				requestId: 'request-managed',
+				permissionRequest: {
+					kind: 'read',
+					path: '/workspace/src/file.ts',
+					intention: 'Read the file',
+					toolCallId: 'tc-managed',
+					managedApprovalRequired: true,
+				},
+				promptRequest: {
+					kind: 'path',
+					accessKind: 'read',
+					paths: ['/workspace/src/file.ts'],
+					toolCallId: 'tc-managed',
+					managedApprovalRequired: true,
+					autoApproval: { recommendation: 'approve', reason: 'Low risk' },
+				},
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'read',
+				path: '/workspace/src/file.ts',
+				toolCallId: 'tc-managed',
+				managedApprovalRequired: true,
+			});
+
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+			assert.strictEqual(signals[0].kind === 'pending_confirmation' && signals[0].managedApprovalRequired, true);
+			assert.ok(session.respondToPermissionRequest('tc-managed', true));
+			assert.strictEqual((await resultPromise).kind, 'approve-once');
+		});
+
+		test('managed approval requires confirmation under global and session allow-all modes', async () => {
+			const testCases = [
+				{
+					name: 'global',
+					options: { rootValues: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true } },
+				},
+				{
+					name: 'session',
+					options: { configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } },
+				},
+			];
+
+			for (const testCase of testCases) {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, testCase.options);
+				await session.syncPermissionMode('turn-start');
+				const toolCallId = `tc-managed-${testCase.name}`;
+				const resultPromise = runtime.handlePermissionRequest({
+					kind: 'read',
+					path: '/workspace/src/file.ts',
+					toolCallId,
+					managedApprovalRequired: true,
+				});
+
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.deepStrictEqual({
+					managedApprovalRequired: signals[0].kind === 'pending_confirmation' ? signals[0].managedApprovalRequired : undefined,
+					responded: session.respondToPermissionRequest(toolCallId, false),
+					result: await resultPromise,
+				}, {
+					managedApprovalRequired: true,
+					responded: true,
+					result: { kind: 'denied-interactively-by-user' },
+				}, testCase.name);
+				disposables.clear();
+			}
+		});
+
+		test('managed read and write approvals do not auto-approve duplicate requests', async () => {
+			const testCases = [
+				{
+					name: 'read',
+					request: {
+						kind: 'read' as const,
+						path: '/workspace/src/file.ts',
+						toolCallId: 'tc-managed-duplicate-read',
+						managedApprovalRequired: true,
+					},
+				},
+				{
+					name: 'write',
+					request: {
+						kind: 'write' as const,
+						fileName: '/workspace/src/file.ts',
+						toolCallId: 'tc-managed-duplicate-write',
+						managedApprovalRequired: true,
+					},
+				},
+			];
+
+			for (const testCase of testCases) {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				const firstResultPromise = runtime.handlePermissionRequest(testCase.request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(testCase.request.toolCallId, true));
+				const firstResult = await firstResultPromise;
+
+				const duplicateResultPromise = runtime.handlePermissionRequest({ ...testCase.request });
+				await timeout(0);
+				const pendingConfirmationCount = signals.filter(signal => signal.kind === 'pending_confirmation').length;
+				assert.ok(session.respondToPermissionRequest(testCase.request.toolCallId, false));
+
+				assert.deepStrictEqual({
+					results: [firstResult, await duplicateResultPromise],
+					pendingConfirmationCount,
+				}, {
+					results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+					pendingConfirmationCount: 2,
+				}, testCase.name);
+				disposables.clear();
+			}
+		});
+
 		test('Approve When Safe correlates a recommendation event that arrives after the permission callback', async () => {
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -2747,6 +3050,52 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatResponsePart);
 			assert.ok(responseParts.length > 0, 'expected delta to allocate a response part');
 			assert.strictEqual(responseParts[0].turnId, turnStarted.turnId, 'response part should land in the steering turn, not the original');
+		});
+
+		test('reports tool-call details for the turn completed by steering', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-original');
+			await session.send('hello agent', undefined, 'turn-original');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-tools',
+				content: '',
+				model: 'gpt-x',
+				toolRequests: [{ toolCallId: 'tc-1', name: 'grep', arguments: {} }],
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events
+				.filter(event => event.eventName === 'toolCallDetails')
+				.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return {
+						requestId: data.requestId,
+						responseType: data.responseType,
+						toolCounts: data.toolCounts,
+						model: data.model,
+						numRequests: data.numRequests,
+						messageCharLen: data.messageCharLen,
+						totalToolCalls: data.totalToolCalls,
+					};
+				}), [{
+					requestId: 'turn-original',
+					responseType: 'success',
+					toolCounts: JSON.stringify({ grep: 1 }),
+					model: 'gpt-x',
+					numRequests: 1,
+					messageCharLen: 11,
+					totalToolCalls: 1,
+				}]);
 		});
 
 		test('does not flip turns for SDK-injected user messages (non-user source)', async () => {
@@ -3994,6 +4343,121 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatTurnComplete));
 		});
 
+		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-tool-details');
+			await session.send('hello agent', undefined, 'turn-tool-details');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-tools',
+				content: '',
+				model: 'gpt-x',
+				toolRequests: [
+					{ toolCallId: 'tc-1', name: 'grep', arguments: {} },
+					{ toolCallId: 'tc-2', name: 'edit', arguments: {} },
+				],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-final',
+				content: 'done',
+				model: 'gpt-x',
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events.map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					eventName: event.eventName,
+					provider: data.provider,
+					requestId: data.requestId,
+					responseType: data.responseType,
+					toolCounts: data.toolCounts,
+					model: data.model,
+					numRequests: data.numRequests,
+					turnIndex: data.turnIndex,
+					messageCharLen: data.messageCharLen,
+					availableToolCount: data.availableToolCount,
+					totalToolCalls: data.totalToolCalls,
+					parallelToolCallRounds: data.parallelToolCallRounds,
+					parallelToolCallsTotal: data.parallelToolCallsTotal,
+				};
+			}), [{
+				eventName: 'toolCallDetails',
+				provider: 'copilot',
+				requestId: 'turn-tool-details',
+				responseType: 'cancelled',
+				toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
+				model: 'gpt-x',
+				numRequests: 2,
+				turnIndex: 0,
+				messageCharLen: 11,
+				availableToolCount: 2,
+				totalToolCalls: 2,
+				parallelToolCallRounds: 1,
+				parallelToolCallsTotal: 2,
+			}]);
+		});
+
+		test('tool approval waits for permission outcome and falls back only at completion', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('turn-approval');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-approved', toolName: 'bash', arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			assert.strictEqual(telemetryService.events.length, 0);
+			mockSession.fire('permission.requested', {
+				requestId: 'permission-approved',
+				permissionRequest: { kind: 'custom-tool', toolCallId: 'tc-approved', toolName: 'bash' },
+			} as SessionEventPayload<'permission.requested'>['data']);
+			assert.strictEqual(telemetryService.events.length, 0);
+			mockSession.fire('permission.completed', {
+				requestId: 'permission-approved', toolCallId: 'tc-approved', result: { kind: 'approved' },
+			} as SessionEventPayload<'permission.completed'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-approved', success: true, result: { content: 'done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-denied', toolName: 'edit', arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('permission.requested', {
+				requestId: 'permission-denied',
+				permissionRequest: { kind: 'custom-tool', toolCallId: 'tc-denied', toolName: 'edit' },
+			} as SessionEventPayload<'permission.requested'>['data']);
+			mockSession.fire('permission.completed', {
+				requestId: 'permission-denied', toolCallId: 'tc-denied', result: { kind: 'denied-interactively-by-user' },
+			} as SessionEventPayload<'permission.completed'>['data']);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-no-permission', toolName: 'grep', arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			assert.strictEqual(telemetryService.events.filter(event => event.eventName === 'chat.toolApproval').length, 2);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-no-permission', success: true, result: { content: 'done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'chat.toolApproval').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					toolId: data.toolId,
+					confirmKind: data.confirmKind,
+					confirmationNotNeededReason: data.confirmationNotNeededReason,
+				};
+			}), [{
+				toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined,
+			}, {
+				toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined,
+			}, {
+				toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
+			}]);
+		});
 		test('idle event without an active turn is ignored', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
@@ -5673,6 +6137,44 @@ suite('CopilotAgentSession', () => {
 			await resultPromise;
 		});
 
+		test('client tool completion does not approve a pending managed permission', async () => {
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot,
+				activeClientToolSet: activeClientToolSetWith('test-client'),
+			});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-managed-client',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const permissionPromise = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-managed-client',
+				toolName: 'my_tool',
+				managedApprovalRequired: true,
+			});
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+
+			session.handleClientToolCallComplete('tc-managed-client', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+			let permissionResult: Awaited<typeof permissionPromise> | undefined;
+			void permissionPromise.then(result => permissionResult = result);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				permissionResult,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				permissionResult: undefined,
+				pendingConfirmations: 1,
+			});
+			assert.ok(session.respondToPermissionRequest('tc-managed-client', false));
+			assert.deepStrictEqual(await permissionPromise, { kind: 'denied-interactively-by-user' });
+		});
+
 		test('handleClientToolCallComplete with content containing embedded resources', async () => {
 			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
@@ -5840,6 +6342,43 @@ suite('CopilotAgentSession', () => {
 					binaryResultsForLlm: undefined,
 				},
 			});
+		});
+
+		test('buffered client tool completion does not approve a managed permission', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-managed-buffered',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			session.handleClientToolCallComplete('tc-managed-buffered', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'buffered result' }],
+			});
+
+			const permissionPromise = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-managed-buffered',
+				toolName: 'my_tool',
+				managedApprovalRequired: true,
+			});
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			let permissionResult: Awaited<typeof permissionPromise> | undefined;
+			void permissionPromise.then(result => permissionResult = result);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				permissionResult,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				permissionResult: undefined,
+				pendingConfirmations: 1,
+			});
+			assert.ok(session.respondToPermissionRequest('tc-managed-buffered', false));
+			assert.deepStrictEqual(await permissionPromise, { kind: 'denied-interactively-by-user' });
 		});
 	});
 
@@ -6529,7 +7068,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('sending a message optimistically marks an enabled server as Starting', async () => {
+		test('sending a message does not mark an enabled server as Starting', async () => {
 			const serverName = 'db';
 			const id = 'mcp-top-level:copilot:test-session-1:db';
 			const { session } = await createAgentSession(disposables, {
@@ -6541,8 +7080,9 @@ suite('CopilotAgentSession', () => {
 					enabled: true,
 					state: { kind: McpServerStatus.Stopped },
 				}],
-				// The server is settled (failed) before the turn; the SDK reconnects
-				// enabled servers in the background on send without a live event.
+				// The server is settled (failed) before the turn. Sending does not
+				// reconnect it, so its state must stay put until the SDK reports a
+				// live `pending` of its own.
 				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
 			});
 
@@ -6552,14 +7092,14 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual({ beforeSend, afterSend }, {
 				beforeSend: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
-				afterSend: { kind: McpServerStatus.Starting },
+				afterSend: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
 			});
 		});
 
-		test('startMcpServer optimistically marks the server Starting before the blocking reconnect', async () => {
+		test('startMcpServer reports Starting only once the SDK reports the reconnect', async () => {
 			const serverName = 'db';
 			const id = 'mcp-top-level:copilot:test-session-1:db';
-			const { session } = await createAgentSession(disposables, {
+			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
 					id,
@@ -6568,20 +7108,31 @@ suite('CopilotAgentSession', () => {
 					enabled: true,
 					state: { kind: McpServerStatus.Stopped },
 				}],
-				// Settled (failed) before the explicit restart; the disable->enable
-				// reconnect is a background SDK operation with no live "starting" event.
-				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
+				// Settled (failed) before the explicit restart, and the enable
+				// rejects, so the SDK never reports a connect attempt.
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] };
+					mock.mcpEnableError = new Error('enable failed');
+				},
 			});
 
 			const beforeStart = session.topLevelMcpCustomizations()[0]?.state;
-			await session.startMcpServer(id);
-			// The trailing inventory refresh is fire-and-forget, so right after the
-			// awaited enable the optimistic Starting is observable.
-			const afterStart = session.topLevelMcpCustomizations()[0]?.state;
+			await session.startMcpServer(id).catch(() => { });
+			// Let the fire-and-forget inventory refresh settle: the disable
+			// landed but the enable rejected, so the server reads as stopped
+			// rather than optimistically Starting.
+			await timeout(0);
+			const afterFailedStart = session.topLevelMcpCustomizations()[0]?.state;
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			const afterSdkPending = session.topLevelMcpCustomizations()[0]?.state;
 
-			assert.deepStrictEqual({ beforeStart, afterStart }, {
+			assert.deepStrictEqual({ beforeStart, afterFailedStart, afterSdkPending }, {
 				beforeStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
-				afterStart: { kind: McpServerStatus.Starting },
+				afterFailedStart: { kind: McpServerStatus.Stopped },
+				afterSdkPending: { kind: McpServerStatus.Starting },
 			});
 		});
 
@@ -7130,6 +7681,45 @@ suite('CopilotAgentSession', () => {
 				{ destination: 'enhanced', headerRequestId: 'client-request-id' },
 				{ destination: 'internal', headerRequestId: 'client-request-id' },
 			]);
+		});
+
+		test('emits automode.routerDecisionRestricted from root Auto mode resolution', async () => {
+			const telemetryService = new CapturingRestrictedTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				restrictedTelemetryContext: {
+					restrictedTelemetryEnabled: true,
+					trackingId: 'tracking-id',
+					telemetryEndpoint: 'https://telemetry.example',
+				},
+			});
+			session.resetTurnState('turn-auto');
+
+			mockSession.fire('session.auto_mode_resolved', {
+				chosenModel: 'subagent-model',
+			} as SessionEventPayload<'session.auto_mode_resolved'>['data'], { agentId: 'subagent-1' });
+			mockSession.fire('session.auto_mode_resolved', {
+				chosenModel: 'gpt-5',
+				predictedLabel: 'needs_reasoning',
+				confidence: 0.91,
+				candidateModels: ['gpt-5', 'gpt-4.1'],
+				categoryScores: { needs_reasoning: 0.9, no_reasoning: 0.1 },
+			} as SessionEventPayload<'session.auto_mode_resolved'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events
+				.filter(event => event.eventName === 'automode.routerDecisionRestricted')
+				.map(event => ({ destination: event.destination, properties: event.properties })), [{
+					destination: 'enhanced',
+					properties: {
+						conversationId: 'test-session-1',
+						vscodeRequestId: 'turn-auto',
+						predictedLabel: 'needs_reasoning',
+						candidateModel: 'gpt-5',
+						chosenModel: 'gpt-5',
+						candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
+						binaryScores: JSON.stringify({ needs_reasoning: 0.9, no_reasoning: 0.1 }),
+					},
+				}]);
 		});
 	});
 

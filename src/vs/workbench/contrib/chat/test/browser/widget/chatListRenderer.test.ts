@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithSubagentContent, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { IChatMcpServersStartingSlow, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
@@ -48,6 +48,59 @@ suite('ChatListRenderer', () => {
 				true,
 				true,
 			]);
+		});
+
+		suite('getFinalResponseStartIndex', () => {
+			test('finds the trailing markdown response while leaving trailing adjuncts in place', () => {
+				assert.deepStrictEqual([
+					getFinalResponseStartIndex([
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('Final response') },
+						{ kind: 'references', references: [] },
+					]),
+					getFinalResponseStartIndex([
+						{ kind: 'markdownContent', content: new MarkdownString('Earlier response') },
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('First segment') },
+						{ kind: 'markdownContent', content: new MarkdownString('Second segment') },
+					]),
+					getFinalResponseStartIndex([
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('') },
+					]),
+				], [
+					1,
+					2,
+					undefined,
+				]);
+			});
+
+			test('formats completed response disclosure step count and timing', () => {
+				assert.deepStrictEqual([
+					formatCompletedResponseDisclosureLabel(1, 83_000),
+					formatCompletedResponseDisclosureLabel(6, 83_000),
+					formatCompletedResponseDisclosureLabel(6, undefined),
+				], [
+					'Completed 1 step in 1m 23s',
+					'Completed 6 steps in 1m 23s',
+					'Completed 6 steps',
+				]);
+			});
+
+			test('counts visible completed response items', () => {
+				const hidden = document.createElement('div');
+				hidden.style.display = 'none';
+				const first = document.createElement('div');
+				const second = document.createElement('div');
+
+				assert.deepStrictEqual([
+					getVisibleCompletedResponseItemCount([hidden, first]),
+					getVisibleCompletedResponseItemCount([hidden, first, second]),
+				], [
+					1,
+					2,
+				]);
+			});
 		});
 	});
 
