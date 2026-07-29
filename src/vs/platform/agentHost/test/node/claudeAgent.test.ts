@@ -1843,6 +1843,39 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('createSession({ fork }) ignores requested working directories and inherits the live source set', async () => {
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourcePrimary = URI.file('/source-a');
+		const sourceAdditional = URI.file('/source-b');
+		const requestedPrimary = URI.file('/requested-a');
+		const requestedAdditional = URI.file('/requested-b');
+		const source = await agent.createSession({ workingDirectories: [sourcePrimary, sourceAdditional] });
+		const sourceId = AgentSession.id(source.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sourceId), makeResultSuccess(sourceId)];
+		await agent.chats.sendMessage(defaultChatUri(source.session), 'seed', [sourcePrimary, sourceAdditional], undefined, 'turn-source');
+
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: sourcePrimary.fsPath }];
+
+		const forked = await agent.createSession({
+			workingDirectories: [requestedPrimary, requestedAdditional],
+			fork: { session: source.session, turnIndex: 0, turnId: 'u1' },
+		});
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.chats.sendMessage(defaultChatUri(forked.session), 'continue', undefined, undefined, 'turn-fork');
+
+		assert.deepStrictEqual({
+			cwd: sdk.capturedStartupOptions[1]?.cwd,
+			additionalDirectories: sdk.capturedStartupOptions[1]?.additionalDirectories,
+		}, {
+			cwd: sourcePrimary.fsPath,
+			additionalDirectories: [sourceAdditional.fsPath],
+		});
+	});
+
 	test('createSession({ fork }) at the last turn anchors on that turn\'s assistant', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

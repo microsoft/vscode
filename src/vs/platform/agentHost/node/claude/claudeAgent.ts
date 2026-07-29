@@ -1009,17 +1009,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// fast (rather than at the first `sendMessage` when `_resumeSession`
 			// requires a cwd). The Query itself starts lazily — see the JSDoc.
 			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
-			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectories?.[0];
+			const workingDirectory = sdkInfo?.cwd
+				? URI.file(sdkInfo.cwd)
+				: existingSource?.workingDirectory ?? sourceOverlay.workingDirectories?.[0];
 			if (!workingDirectory) {
-				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd missing and none supplied)`);
+				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd and source working directory missing)`);
 			}
 
-			// The fork inherits the additional roots from the create config (a
-			// re-fork with an explicit set) or, failing that, the source session's
-			// persisted tail, so the forked session spans the same directories.
-			const additionalDirectories = (config.workingDirectories && config.workingDirectories.length > 1)
-				? config.workingDirectories.slice(1)
-				: sourceOverlay.workingDirectories?.slice(1) ?? [];
+			// The protocol ignores request-time workingDirectories for forks:
+			// inherit the live source set, or its persisted overlay when unloaded.
+			const additionalDirectories = existingSource?.workingDirectories?.slice(1)
+				?? sourceOverlay.workingDirectories?.slice(1)
+				?? [];
 			await this._metadataStore.write(newSessionUri, {
 				...(model ? { model } : {}),
 				...(permissionMode ? { permissionMode } : {}),
@@ -1805,8 +1806,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// Plan section 3.3.2: SDK is the source of truth; we deliberately do
 		// NOT filter entries that lack a per-session DB — external Claude Code
 		// CLI sessions have no DB and must still surface (Phase-5 exit
-		// criterion). The projected metadata is derived purely from the SDK
-		// entry, so no per-session overlay read is needed here.
+		// criterion). The SDK entry supplies the authoritative primary directory;
+		// an optional per-session overlay hydrates the additional-directory tail.
+		// External sessions without an overlay remain valid single-root entries.
 		//
 		// `AgentService.listSessions` fans out across all providers via
 		// `Promise.all` (agentService.ts:202-204). If our SDK dynamic
@@ -1843,10 +1845,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * sidecar (the way Copilot's variant does). The SDK is the source
 	 * of truth for existence.
 	 *
-	 * The projected metadata is derived purely from the SDK entry, so no
-	 * per-session overlay read is needed. Failures in the SDK lookup
-	 * propagate (the caller is doing a single targeted fetch and should
-	 * learn that the SDK module is broken).
+	 * The SDK entry supplies the authoritative primary directory; an optional
+	 * per-session overlay hydrates the additional-directory tail. External
+	 * sessions without an overlay remain valid single-root entries. Failures in
+	 * the SDK lookup propagate (the caller is doing a single targeted fetch and
+	 * should learn that the SDK module is broken).
 	 */
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		// Don't trigger a cold SDK download just to hydrate session metadata
