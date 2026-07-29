@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IObservable } from '../../../base/common/observable.js';
 import { isWeb } from '../../../base/common/platform.js';
 import * as nls from '../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
@@ -22,10 +23,10 @@ export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementS
 export interface IAgentHostEnablementService {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Whether the local agent host process is enabled in this runtime.
-	 * Returns `false` on web. This value is fixed at startup and never changes.
+	 * Whether Agent Host features are enabled in this runtime.
+	 * This can transition from `false` to `true` when a startup experiment is applied or AI features are explicitly enabled.
 	 */
-	readonly enabled: boolean;
+	readonly enabled: IObservable<boolean>;
 }
 
 // Register `chat.agentHost.enabled` and related settings.

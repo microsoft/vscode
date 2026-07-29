@@ -62,6 +62,7 @@ export function buildAutomationsHelpContent(keybindingService: IKeybindingServic
 
 	lines.push(nls.localize('automations.help.header', 'Accessibility Help: Automations'));
 	lines.push(nls.localize('automations.help.intro', 'Automations let you schedule agent sessions to run on a cadence you choose. When an automation is due, a fresh chat session is created in the background and the prompt is sent automatically.'));
+	lines.push(nls.localize('automations.help.agentProposals', 'Agents can list, create, update, run, or delete automations using the current tool approval policy. Create, update, and run requests use normal tool confirmation when approval is required, while delete requests show Delete and Cancel options. Agent-triggered runs start a new session in the background and return after dispatch. Successful create and update requests include a chat button that opens the affected automation. Cancelling or denying a request makes no changes.'));
 	lines.push('');
 
 	lines.push(nls.localize('automations.help.layoutHeader', 'Layout:'));

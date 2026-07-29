@@ -45,10 +45,18 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(plugin: IAgentPlugin) {
+	constructor(plugin: IAgentPlugin & { remove(): void }) {
 		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true,
-			() => { plugin.remove?.(); return Promise.resolve(); });
+			() => { plugin.remove(); return Promise.resolve(); });
 	}
+}
+
+function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & { remove(): void } {
+	return plugin.remove !== undefined;
+}
+
+export function createUninstallPluginAction(plugin: IAgentPlugin): UninstallPluginAction | undefined {
+	return isRemovableAgentPlugin(plugin) ? new UninstallPluginAction(plugin) : undefined;
 }
 
 export class OpenPluginFolderAction extends Action {
@@ -124,8 +132,9 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 			instantiationService.createInstance(OpenPluginFolderAction, plugin),
 			instantiationService.createInstance(OpenPluginReadmeAction, joinPath(plugin.uri, 'README.md')),
 		]);
-		if (plugin.fromMarketplace) {
-			groups.push([new UninstallPluginAction(plugin)]);
+		const uninstallAction = createUninstallPluginAction(plugin);
+		if (uninstallAction) {
+			groups.push([uninstallAction]);
 		}
 		return groups;
 	});

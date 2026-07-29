@@ -1208,10 +1208,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 
+			const wasResolved = this._modelsGroups.has(vendorId);
 			const oldGroups = this._modelsGroups.get(vendorId) ?? [];
 			this._modelsGroups.set(vendorId, languageModelsGroups);
 			const oldModels = this._clearModelCache(vendorId);
-			let hasChanges = false;
+			let hasChanges = !wasResolved;
 			for (const model of allModels) {
 				if (this._modelCache.has(model.identifier)) {
 					this._logService.warn(`[LM] Model ${model.identifier} is already registered. Skipping.`);
@@ -2150,7 +2151,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			let value = configuration[key];
 			if (schema.properties?.[key]?.secret && isString(value)) {
 				const secretKey = `${LanguageModelsService.SECRET_KEY_PREFIX}${hash(generateUuid()).toString(16)}`;
-				await this._secretStorageService.set(secretKey, value);
+				await this._secretStorageService.set(secretKey, key === 'apiKey' ? value.trim() : value);
 				value = this.encodeSecretKey(secretKey);
 			}
 			result[key] = value;

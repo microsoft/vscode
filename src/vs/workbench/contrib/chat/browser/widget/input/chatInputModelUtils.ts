@@ -5,7 +5,9 @@
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
-import { resolveModelIdentifier } from '../../../common/modelSelection.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localChatSessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
  * Describes the context needed for model selection decisions.
@@ -150,29 +152,17 @@ export function shouldDropAgnosticDraftModel(
 }
 
 /**
- * Whether an {@link ILanguageModelChatMetadataAndIdentifier} selection should be written to the
- * persisted per-(location, sessionType) model storage key.
+ * Whether the input should treat a session as a brand-new conversation, which is what unlocks the
+ * shared new-chat draft, the default mode/permission level, and `chat.defaultModel`.
  *
- * A model selection is only persisted for an explicit request (`storeSelection`) that is NOT
- * happening while the input is switching to a session (`suppressDuringSessionSwitch`). While
- * switching, the model may be set in-memory (for the picker) and restored from the key, but must
- * never WRITE the key — only an explicit user action may. This is the single guard on
- * `chatInputPart`'s sole storage writer (`setCurrentLanguageModel`).
+ * `hasNoRequests` is sampled when the input binds, and a contributed session's requests load after
+ * that — so on its own it reports a started agent-host session as new. A contributed session's
+ * resource keeps its `untitled-` path until the session is started, so it stays accurate
+ * regardless of load timing. Local sessions have no such marker and rely on `hasNoRequests`.
  */
-export function shouldPersistModelSelection(storeSelection: boolean, suppressDuringSessionSwitch: boolean): boolean {
-	return storeSelection && !suppressDuringSessionSwitch;
-}
-
-/**
- * Whether model-selection persistence must be suppressed while the input switches to a session.
- *
- * True for every empty session of an own-pool (agent-host) session type: the per-type key holds
- * the user's last explicit pick, and switching to the session must not clobber it via any of the
- * paths that run during the switch (draft sync, empty-state seeding, autorun default).
- * General/local (no own pool) is unaffected.
- */
-export function shouldSuppressModelPersistenceOnSessionSwitch(isEmpty: boolean, sessionOwnsPool: boolean): boolean {
-	return isEmpty && sessionOwnsPool;
+export function isNewConversation(sessionResource: URI, hasNoRequests: boolean): boolean {
+	return hasNoRequests
+		&& (getChatSessionType(sessionResource) === localChatSessionType || isUntitledChatSession(sessionResource));
 }
 
 /**
@@ -181,9 +171,7 @@ export function shouldSuppressModelPersistenceOnSessionSwitch(isEmpty: boolean, 
  *
  * True only for a FRESH untitled own-pool session — one with no incoming `selectedModel` in its
  * own input state. A session that already carries its own model (a transferred/handoff or
- * startup-restored draft) keeps that model in-memory and is left alone. Distinct from
- * {@link shouldSuppressModelPersistenceOnSessionSwitch}, which suppresses the STORAGE write for
- * ALL empty own-pool sessions regardless.
+ * startup-restored draft) keeps that model in-memory and is left alone.
  */
 export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessionOwnsPool: boolean, hadIncomingModel: boolean): boolean {
 	return isEmpty && sessionOwnsPool && !hadIncomingModel;
@@ -241,49 +229,6 @@ export function findDefaultModel(
 	location: ChatAgentLocation,
 ): ILanguageModelChatMetadataAndIdentifier | undefined {
 	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
-}
-
-export function findReplacementForProvisionalModel(
-	currentModelId: string | undefined,
-	provisionalModelId: string | undefined,
-	models: readonly ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	if (!provisionalModelId || currentModelId !== provisionalModelId) {
-		return undefined;
-	}
-	return models.find(model => model.metadata.isDefaultForLocation[location]);
-}
-
-/**
- * Determine whether a persisted model selection should be restored.
- *
- * A persisted model should be restored if:
- * 1. The model still exists in the available models list
- * 2. Either the model wasn't the default at the time it was persisted,
- *    OR it is currently the default for the location
- *
- * This prevents scenarios where a user's explicit model choice gets overridden
- * when the default model changes, while still tracking default model changes
- * for users who never explicitly chose a model.
- */
-export function shouldRestorePersistedModel(
-	persistedModelId: string,
-	persistedAsDefault: boolean,
-	availableModels: ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): { shouldRestore: boolean; model: ILanguageModelChatMetadataAndIdentifier | undefined } {
-	const resolution = resolveModelIdentifier(availableModels, persistedModelId, true);
-	if (resolution.kind !== 'available') {
-		return { shouldRestore: false, model: undefined };
-	}
-	const model = resolution.model;
-
-	if (!persistedAsDefault || model.metadata.isDefaultForLocation[location]) {
-		return { shouldRestore: true, model };
-	}
-
-	return { shouldRestore: false, model };
 }
 
 /**

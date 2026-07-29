@@ -30,11 +30,12 @@ suite('SessionPermissionManager', () => {
 	// Real (symlink-resolved) temp directories so that the symlink-resolution
 	// checks compare like-for-like (e.g. macOS `/var` -> `/private/var`).
 	let workDir: string;
+	let workDir2: string;
 	let outsideDir: string;
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/s' }).toString();
 	const directoryLinkType = isWindows ? 'junction' : 'dir';
 
-	function makeSummary(resource: string, workingDirectory?: string): SessionSummary {
+	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary {
 		return {
 			resource,
 			provider: 'copilot',
@@ -43,7 +44,7 @@ suite('SessionPermissionManager', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
-			workingDirectory,
+			workingDirectories: workingDirectories.length > 0 ? workingDirectories : undefined,
 		};
 	}
 
@@ -71,6 +72,7 @@ suite('SessionPermissionManager', () => {
 		// checks compare like-for-like.
 		const baseTmp = process.env.AGENT_TEMPDIRECTORY || process.env.RUNNER_TEMP || tmpdir();
 		workDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work-')));
+		workDir2 = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-work2-')));
 		outsideDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')));
 
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -84,6 +86,7 @@ suite('SessionPermissionManager', () => {
 	teardown(() => {
 		disposables.clear();
 		rmSync(workDir, { recursive: true, force: true });
+		rmSync(workDir2, { recursive: true, force: true });
 		rmSync(outsideDir, { recursive: true, force: true });
 	});
 
@@ -101,6 +104,21 @@ suite('SessionPermissionManager', () => {
 
 	test('requires confirmation for protected files inside the working directory', async () => {
 		const files = ['.env', 'package.json', join('.git', 'config'), 'deps.lock', join('.vscode', 'settings.json')];
+		const results: (ToolCallConfirmationReason | undefined)[] = [];
+		for (const file of files) {
+			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
+		}
+		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	test('requires confirmation for files that can register lifecycle hooks', async () => {
+		const files = [
+			join('.github', 'agents', 'dev-helper.md'),
+			join('.github', 'hooks', 'say-hi.json'),
+			join('.claude', 'agents', 'dev-helper.md'),
+			join('.claude', 'settings.json'),
+			join('.claude', 'settings.local.json'),
+		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
@@ -292,5 +310,66 @@ suite('SessionPermissionManager', () => {
 		// session's own approval level (the permissions picker stays at default).
 		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), true);
 		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
+	});
+
+	// ---- Multi-root auto-approval ------------------------------------------
+	// A session with multiple working directories auto-approves a read/write/
+	// shell destination when it is contained by *any* root (index 0 = primary).
+	// The multi-root path is otherwise dormant today (the create-time length
+	// guard keeps sessions single-root), so these tests synthesize a two-root
+	// session state directly.
+	suite('multi-root', () => {
+		const multiUri = URI.from({ scheme: 'copilot', path: '/multi' }).toString();
+
+		setup(() => {
+			// Index 0 (`workDir`) is the primary/process cwd; `workDir2` is a peer root.
+			manager.createSession(makeSummary(multiUri, URI.file(workDir).toString(), URI.file(workDir2).toString()));
+		});
+
+		test('auto-approves reads and writes under any root, confirms outside all roots', async () => {
+			const results = [
+				await permissions.getAutoApproval(readEvent(join(workDir, 'a.txt'), multiUri), multiUri),
+				await permissions.getAutoApproval(readEvent(join(workDir2, 'a.txt'), multiUri), multiUri),
+				await permissions.getAutoApproval(readEvent(join(outsideDir, 'a.txt'), multiUri), multiUri),
+				await permissions.getAutoApproval(writeEvent(join(workDir, 'x.txt')), multiUri),
+				await permissions.getAutoApproval(writeEvent(join(workDir2, 'x.txt')), multiUri),
+				await permissions.getAutoApproval(writeEvent(join(outsideDir, 'x.txt')), multiUri),
+			];
+			assert.deepStrictEqual(results, [
+				ToolCallConfirmationReason.NotNeeded,
+				ToolCallConfirmationReason.NotNeeded,
+				undefined,
+				ToolCallConfirmationReason.NotNeeded,
+				ToolCallConfirmationReason.NotNeeded,
+				undefined,
+			]);
+		});
+
+		test('a relative shell redirect resolves against the primary root (index 0)', async () => {
+			// `out.txt` resolves against the single process cwd = `workDir`, so it
+			// is contained by the primary root and auto-approves.
+			const result = await permissions.getAutoApproval(shellEvent('echo hi > out.txt'), multiUri);
+			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+		});
+
+		(isWindows ? test.skip : test)('an absolute shell redirect auto-approves under a non-primary root but confirms outside', async () => {
+			// POSIX-only: embedding absolute paths in the command string avoids
+			// Windows backslash/drive-colon parsing pitfalls. The containment rule
+			// itself is platform-agnostic and covered by the read/write test above.
+			const intoPeer = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(workDir2, 'out.txt')}`), multiUri);
+			const outside = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(outsideDir, 'out.txt')}`), multiUri);
+			assert.deepStrictEqual([intoPeer, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
+		});
+
+		test('requires confirmation for a symlink that crosses from one root into another (fail-closed)', async () => {
+			// A symlink inside `workDir` pointing at the peer root `workDir2`: the
+			// literal path is under root A and the real path under root B, so no
+			// single root contains both the literal and resolved path. Fail-closed
+			// ⇒ confirmation for both read and write.
+			symlinkSync(workDir2, join(workDir, 'cross-link'), directoryLinkType);
+			const read = await permissions.getAutoApproval(readEvent(join(workDir, 'cross-link', 'note.txt'), multiUri), multiUri);
+			const write = await permissions.getAutoApproval(writeEvent(join(workDir, 'cross-link', 'note.txt')), multiUri);
+			assert.deepStrictEqual([read, write], [undefined, undefined]);
+		});
 	});
 });

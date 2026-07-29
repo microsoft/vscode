@@ -387,6 +387,18 @@ export function migrateLegacyAutopilotConfig<T extends Record<string, unknown> |
  */
 export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 
+/** Whether Agent Host edit attribution telemetry is enabled. */
+export const AgentHostEditTelemetryEnabledConfigKey = 'editTelemetryEnabled';
+
+/** VS Code setting forwarded into {@link AgentHostEditTelemetryEnabledConfigKey}. */
+export const EDIT_TELEMETRY_ENABLED_SETTING_ID = 'telemetry.editStats.enabled';
+
+/** Legacy Copilot Chat debug switch that disables `request.repoInfo` collection. */
+export const AgentHostDisableRepoInfoTelemetryConfigKey = 'disableRepoInfoTelemetry';
+
+/** VS Code setting forwarded into {@link AgentHostDisableRepoInfoTelemetryConfigKey}. */
+export const DISABLE_REPO_INFO_TELEMETRY_SETTING_ID = 'chat.advanced.debug.disableRepoInfoTelemetry';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.sessionSync.enabled` setting changes. Controls the `remote` flag
@@ -453,6 +465,14 @@ export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongCon
 
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
+
+/**
+ * Root config key forwarded from the renderer that gates multiple-working-directory
+ * support for the Copilot provider. When `true`, the Copilot provider advertises
+ * the `multipleWorkingDirectories` capability. Mirrors the hidden
+ * `chat.agentHost.copilotAgent.multiRootEnabled` VS Code setting.
+ */
+export const AgentHostCopilotMultiRootEnabledConfigKey = 'copilotMultiRootEnabled';
 
 /**
  * Root config key forwarded from the renderer when VS Code's
@@ -655,12 +675,24 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.disableRepoInfoTelemetry.title', "Disable Repository Information Telemetry"),
+		description: localize('agentHost.config.disableRepoInfoTelemetry.description', "Whether repository information telemetry is disabled for Agent Host sessions."),
+		default: false,
+	}),
 	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
 		type: 'string',
 		title: localize('agentHost.config.telemetryLevel.title', "Telemetry Level"),
 		description: localize('agentHost.config.telemetryLevel.description', "Most restrictive telemetry level requested by connected clients."),
 		enum: [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.CRASH, TelemetryConfiguration.OFF],
 		default: TelemetryConfiguration.ON,
+	}),
+	[AgentHostEditTelemetryEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.editTelemetryEnabled.title', "Edit Telemetry"),
+		description: localize('agentHost.config.editTelemetryEnabled.description', "Whether edit attribution telemetry is enabled for Agent Host sessions."),
+		default: true,
 	}),
 	[AgentHostSessionSyncEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -703,6 +735,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
 		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
 		default: true,
+	}),
+	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.copilotMultiRootEnabled.title', "Copilot Multiple Working Directories"),
+		description: localize('agentHost.config.copilotMultiRootEnabled.description', "Whether the Copilot provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
+		default: false,
 	}),
 	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({
 		type: 'object',

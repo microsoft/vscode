@@ -10,7 +10,6 @@ import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -23,8 +22,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -33,6 +31,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
@@ -42,7 +41,6 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -70,6 +68,25 @@ export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boole
 	return isMobilePickerSheetTarget(relatedTarget) || !!relatedTarget.closest(
 		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content'
 	);
+}
+
+export async function canSelectAutomationWorkspace(
+	folderUri: URI,
+	preferredProviderId: string | undefined,
+	sessionsManagementService: ISessionsManagementService,
+	workspaceTrustRequestService: IWorkspaceTrustRequestService,
+): Promise<boolean> {
+	const resolved = sessionsManagementService.resolveWorkspace(folderUri, preferredProviderId);
+	if (!resolved) {
+		return false;
+	}
+	if (!resolved.workspace.requiresWorkspaceTrust) {
+		return true;
+	}
+	return !!await workspaceTrustRequestService.requestResourcesTrust({
+		uri: folderUri,
+		message: localize('automation.form.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+	});
 }
 
 interface IAutomationDialogKeyboardNavigation extends IDisposable {
@@ -179,17 +196,30 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 }
 
+export function resolveAutomationModelIdentifier(
+	languageModelsService: Pick<ILanguageModelsService, 'getLanguageModelIds' | 'lookupLanguageModel'>,
+	identifier: string,
+	logicalSessionType: string | undefined,
+	modelTarget: string | undefined,
+): string {
+	if (!logicalSessionType || !modelTarget) {
+		return identifier;
+	}
+	const sourceModel = languageModelsService.lookupLanguageModel(identifier);
+	if (sourceModel?.targetChatSessionType !== logicalSessionType) {
+		return identifier;
+	}
+	return languageModelsService.getLanguageModelIds().find(candidateIdentifier => {
+		const candidate = languageModelsService.lookupLanguageModel(candidateIdentifier);
+		return candidate?.targetChatSessionType === modelTarget && candidate.id === sourceModel.id;
+	}) ?? identifier;
+}
 
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
 const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
 const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
 
 type BranchLoadState = 'noFolder' | 'loadingRepository' | 'noRepository' | 'loadingBranches' | 'ready' | 'empty' | 'error';
-
-interface IIsolationPickerItem {
-	readonly mode: 'workspace' | 'worktree';
-	readonly checked?: boolean;
-}
 
 function setAutomationControlVisible(container: HTMLElement, visible: boolean): void {
 	container.style.display = visible ? '' : 'none';
@@ -205,13 +235,11 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private readonly branchRepoDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly branchRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private branchRequestId = 0;
-	private folderChip: HTMLSpanElement | undefined;
 	private readonly branchPicker: BranchPicker;
 	private branchLoadState: BranchLoadState = 'noFolder';
 	private repository: IGitRepository | undefined;
 	private branches: readonly string[] = [];
 	private detachedCommit: string | undefined;
-	private isolationPickerOpen = false;
 	private worktreeCapabilityResolved = false;
 
 	constructor(
@@ -223,7 +251,6 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		private readonly revalidate: () => void,
 		options: IBaseActionViewItemOptions | undefined,
 		private readonly visible: IObservable<boolean> | undefined,
-		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IGitService private readonly gitService: IGitService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ILogService private readonly pickerLogService: ILogService,
@@ -246,11 +273,18 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			onRetry: () => {
 				void this.reloadRepository(this.isolationModel.folderUri);
 			},
+			isolation: {
+				label: localize('automation.form.isolation.worktree', "New Worktree"),
+				ariaLabel: localize('automation.form.isolation.checkboxAriaLabel', "Worktree isolation"),
+				onToggle: checked => {
+					this.isolationModel.selectIsolationMode(checked ? 'worktree' : 'workspace');
+					this.renderBranchControl();
+				},
+			},
 		}));
 	}
 
 	override render(container: HTMLElement): void {
-		super.render(container);
 		this.renderDisposables.clear();
 		this.branchRepoDisposable.clear();
 		this.cancelBranchRequest();
@@ -264,15 +298,9 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		}
 
 		const isolationGroup = DOM.append(container, $('span.automation-form-isolation-group'));
-		this.folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip')) as HTMLSpanElement;
-		this.folderChip.setAttribute('role', 'button');
-		this.folderChip.setAttribute('aria-haspopup', 'listbox');
-		this.folderChip.setAttribute('aria-expanded', 'false');
-		this.folderChip.tabIndex = 0;
 		this.branchPicker.render(isolationGroup);
 
 		this.refreshTargetCapability();
-		this.renderIsolationChip();
 		this.renderBranchControl();
 		this.renderDisposables.add(autorun(reader => {
 			const folderUri = this.workspaceFolder.read(reader);
@@ -283,31 +311,11 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			this.refreshTargetAndRender();
 		}));
 		this.renderDisposables.add(this.sessionsManagementService.onDidChangeSessionTypes(() => this.refreshTargetAndRender()));
-		this.registerTrigger(this.folderChip, () => this.showIsolationPicker());
 		this.renderDisposables.add({
 			dispose: () => {
 				this.cancelBranchRequest();
-				if (this.isolationPickerOpen) {
-					this.actionWidgetService.hide(true);
-				}
 			}
 		});
-	}
-
-	private registerTrigger(trigger: HTMLElement, run: () => void): void {
-		this.renderDisposables.add(Gesture.addTarget(trigger));
-		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
-			this.renderDisposables.add(DOM.addDisposableListener(trigger, eventType, e => {
-				DOM.EventHelper.stop(e, true);
-				run();
-			}));
-		}
-		this.renderDisposables.add(DOM.addDisposableListener(trigger, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				DOM.EventHelper.stop(e, true);
-				run();
-			}
-		}));
 	}
 
 	private refreshTargetCapability(): void {
@@ -337,25 +345,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 
 	private refreshTargetAndRender(): void {
 		this.refreshTargetCapability();
-		this.renderIsolationChip();
 		this.renderBranchControl();
-	}
-
-	private renderIsolationChip(): void {
-		if (!this.folderChip) {
-			return;
-		}
-		DOM.clearNode(this.folderChip);
-		const isWorktree = this.state.isolationMode === 'worktree';
-		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
-		const modeLabel = isWorktree
-			? localize('automation.form.isolation.worktree', "Worktree")
-			: localize('automation.form.isolation.folder', "Folder");
-		this.folderChip.setAttribute('aria-label', localize('automation.form.isolation.pickerAriaLabel', "Pick Isolation Mode, {0}", modeLabel));
-		this.folderChip.title = modeLabel;
-		const icon = DOM.append(this.folderChip, renderIcon(modeIcon));
-		icon.setAttribute('aria-hidden', 'true');
-		DOM.append(this.folderChip, $('span.automation-form-isolation-label', undefined, modeLabel));
 	}
 
 	private renderBranchControl(): void {
@@ -373,6 +363,10 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				unavailable: true,
 			});
 		}
+		const worktreeUnavailableReason = this.getWorktreeUnavailableReason();
+		const isolationState: 'enabled' | 'disabled' | 'hidden' =
+			worktreeUnavailableReason === undefined ? 'enabled' : 'disabled';
+
 		this.branchPicker.update({
 			label: presentation.label,
 			branches,
@@ -387,6 +381,11 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			disabledReason: presentation.reason,
 			missing: presentation.missing,
 			showChevron: this.isolationModel.branchPickerAvailable || this.branchLoadState === 'error',
+			isolation: {
+				checked: this.isolationModel.isolationMode === 'worktree',
+				state: isolationState,
+				disabledReason: worktreeUnavailableReason,
+			},
 		});
 		this.revalidate();
 	}
@@ -504,64 +503,6 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			case 'noFolder':
 				return localize('automation.form.isolation.worktreeNoFolder', "Select a folder to use Worktree isolation.");
 		}
-	}
-
-	private showIsolationPicker(): void {
-		if (!this.folderChip || this.actionWidgetService.isVisible) {
-			return;
-		}
-		const currentMode = this.state.isolationMode ?? 'workspace';
-		const worktreeUnavailableReason = this.getWorktreeUnavailableReason();
-		const worktreeDisabled = worktreeUnavailableReason !== undefined;
-		const items: IActionListItem<IIsolationPickerItem>[] = [
-			{
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.isolation.worktree', "Worktree"),
-				group: { title: '', icon: Codicon.worktree },
-				disabled: worktreeDisabled,
-				detail: worktreeUnavailableReason,
-				item: { mode: 'worktree', checked: currentMode === 'worktree' || undefined },
-			},
-			{
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.isolation.folder', "Folder"),
-				group: { title: '', icon: Codicon.folder },
-				item: { mode: 'workspace', checked: currentMode === 'workspace' || undefined },
-			},
-		];
-		const trigger = this.folderChip;
-		const delegate: IActionListDelegate<IIsolationPickerItem> = {
-			onSelect: ({ mode }) => {
-				this.actionWidgetService.hide();
-				this.isolationModel.selectIsolationMode(mode);
-				this.renderIsolationChip();
-				this.renderBranchControl();
-			},
-			onHide: () => {
-				if (this.isolationPickerOpen) {
-					this.isolationPickerOpen = false;
-					trigger.setAttribute('aria-expanded', 'false');
-					if (trigger.isConnected) {
-						trigger.focus();
-					}
-				}
-			},
-		};
-		this.isolationPickerOpen = true;
-		trigger.setAttribute('aria-expanded', 'true');
-		this.actionWidgetService.show(
-			'automationIsolationPicker',
-			false,
-			items,
-			delegate,
-			this.folderChip,
-			undefined,
-			[],
-			{
-				getAriaLabel: item => item.label ?? '',
-				getWidgetAriaLabel: () => localize('automation.form.isolation.widgetAriaLabel', "Isolation Mode"),
-			},
-		);
 	}
 
 	private cancelBranchRequest(): void {
@@ -732,7 +673,6 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 export function renderForm(
 	form: HTMLElement,
 	state: IFormState,
-	options: IShowAutomationDialogOptions,
 	disposables: DisposableStore,
 	validation: IValidationState,
 	revalidate: () => void,
@@ -740,9 +680,12 @@ export function renderForm(
 	contextKeyService: IContextKeyService,
 	contextViewService: IContextViewService,
 	configurationService: IConfigurationService,
+	languageModelsService: ILanguageModelsService,
 	layoutService: IWorkbenchLayoutService,
 	logService: ILogService,
 	productService: IProductService,
+	sessionsManagementService: ISessionsManagementService,
+	workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	initialPrompt: string,
 	initialMode: string | undefined,
 	initialPermissionLevel: string | undefined,
@@ -832,29 +775,32 @@ export function renderForm(
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader));
 	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker' }));
+	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
 		initialPick: state.sessionTypeId
 			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
 			: undefined,
 		preserveUnavailableInitialPick: true,
 	});
-	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	// The dialog has no session, so the input part reads the active session type from the picker via this delegate.
 	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
 	const onDidChangeSessionTarget = disposables.add(new Emitter<void>());
 	const sessionTypeDelegate: ISessionTypePickerDelegate = {
-		getActiveSessionProvider: () => sessionTypePicker.selectedPick?.sessionTypeId as AgentSessionTarget | undefined,
+		getActiveSessionProvider: () => sessionTypePicker.modelTargetChatSessionType.get(),
 		onDidChangeActiveSessionProvider: onDidChangeSessionType.event,
 	};
 	const syncStateFromPicker = () => {
 		const pick = sessionTypePicker.selectedPick;
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
-		if (pick?.sessionTypeId) {
-			onDidChangeSessionType.fire(pick.sessionTypeId as AgentSessionTarget);
-		}
 		onDidChangeSessionTarget.fire();
 	};
+	disposables.add(autorun(reader => {
+		const modelTarget = sessionTypePicker.modelTargetChatSessionType.read(reader);
+		if (modelTarget) {
+			onDidChangeSessionType.fire(modelTarget);
+		}
+	}));
 	// Seed state from the picker's initial default (edit: saved type; create: folder default).
 	syncStateFromPicker();
 	// Covers both explicit user picks and recomputes (e.g. an agent host
@@ -865,12 +811,15 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker));
+	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker, {
+		canSelectWorkspace: (folderUri, preferredProviderId) =>
+			canSelectAutomationWorkspace(folderUri, preferredProviderId, sessionsManagementService, workspaceTrustRequestService),
+	}));
 	workspacePicker.setTargetModel(isolationModel);
 	workspacePicker.setLayoutService(layoutService);
 
 	if (state.folderUri) {
-		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false });
+		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false, persist: false });
 	}
 
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
@@ -993,8 +942,13 @@ export function renderForm(
 		}
 		// Retry on cold-start when extension-contributed modes arrive late.
 		if (chatInput.currentModeObs.get().id !== initialMode && !isHiddenCustomInitialMode()) {
+			const baseline = chatInput.currentModeObs.get().id;
 			const retry = disposables.add(new MutableDisposable<IDisposable>());
 			const tryApply = () => {
+				if (chatInput.currentModeObs.get().id !== baseline) {
+					retry.clear();
+					return;
+				}
 				if (isHiddenCustomInitialMode()) {
 					logService.trace(`[AutomationDialog] Skipping hidden custom initial mode "${initialMode}" after modes updated. Falling back to the default mode.`);
 					retry.clear();
@@ -1019,18 +973,28 @@ export function renderForm(
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
 	// On edit, apply the saved model with late-arrival retry if needed.
-	chatInput.resetLanguageModelToDefault(/* storeSelection */ false);
+	chatInput.resetLanguageModelToDefault();
 
-	if (initialModelId && !chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
-		const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
+	const resolveInitialModelId = () => initialModelId ? resolveAutomationModelIdentifier(
+		languageModelsService,
+		initialModelId,
+		state.sessionTypeId,
+		sessionTypePicker.modelTargetChatSessionType.get(),
+	) : undefined;
+	const resolvedInitialModelId = resolveInitialModelId();
+	if (resolvedInitialModelId && !chatInput.switchModelByIdentifier(resolvedInitialModelId, /* storeSelection */ false)) {
 		const baseline = chatInput.selectedLanguageModel.get()?.identifier;
 		const retry = disposables.add(new MutableDisposable<IDisposable>());
-		retry.value = languageModelsService.onDidChangeLanguageModels(() => {
+		retry.value = Event.any(
+			languageModelsService.onDidChangeLanguageModels,
+			Event.fromObservableLight(sessionTypePicker.modelTargetChatSessionType),
+		)(() => {
 			if (chatInput.selectedLanguageModel.get()?.identifier !== baseline) {
 				retry.clear();
 				return;
 			}
-			if (chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
+			const modelIdentifier = resolveInitialModelId();
+			if (modelIdentifier && chatInput.switchModelByIdentifier(modelIdentifier, /* storeSelection */ false)) {
 				retry.clear();
 			}
 		});
@@ -1168,6 +1132,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return false;
 	}
 
+	protected override _shouldPersistSelection(): boolean {
+		return false;
+	}
+
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items = super._buildItems();
 		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
@@ -1192,10 +1160,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			this.targetModel?.setQuickChat(false, selectedFolder);
 		}
 		return applied;
-	}
-
-	protected override async _executeBrowseAction(actionIndex: number): Promise<URI | undefined> {
-		return super._executeBrowseAction(actionIndex);
 	}
 
 	protected override _isSelectedFolder(folderUri: URI | undefined): boolean {
