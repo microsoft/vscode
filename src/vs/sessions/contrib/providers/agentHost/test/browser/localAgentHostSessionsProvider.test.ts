@@ -56,6 +56,10 @@ const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.session
 
 type SubscriptionState = SessionState | ChangesetState | ChatState;
 
+class InspectableEmitter<T> extends Emitter<T> {
+	get listenerCount(): number { return this._size; }
+}
+
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
 
@@ -63,7 +67,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
-	private readonly _onDidRootStateChange = new Emitter<RootState>();
+	private readonly _onDidRootStateChange = new InspectableEmitter<RootState>();
 	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
 
@@ -75,6 +79,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
+	get rootStateListenerCount(): number { return this._onDidRootStateChange.listenerCount; }
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -543,6 +548,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'copilotcli', label: 'Copilot' },
 			{ id: 'openai', label: 'OpenAI' },
 		]);
+	});
+
+	test('shares the root-state listener across session adapters', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
+		const provider = createProvider(disposables, agentHost);
+		const listenerCountBeforeSessions = agentHost.rootStateListenerCount;
+
+		for (let i = 0; i < 200; i++) {
+			fireSessionAdded(agentHost, `listener-${i}`);
+		}
+
+		const listenerCountAfterSessions = agentHost.rootStateListenerCount;
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+
+		assert.deepStrictEqual({
+			listenerCountBeforeSessions,
+			listenerCountAfterSessions,
+			sessionCount: provider.getSessions().length,
+			supportsMultipleChats: provider.getSessions()[0].capabilities.get().supportsMultipleChats,
+		}, {
+			listenerCountBeforeSessions: 1,
+			listenerCountAfterSessions: 1,
+			sessionCount: 200,
+			supportsMultipleChats: true,
+		});
 	});
 
 	test('reports no session types before rootState hydrates', () => {

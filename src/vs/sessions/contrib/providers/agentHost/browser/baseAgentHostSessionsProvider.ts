@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -220,17 +220,10 @@ function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
 }
 
 /**
- * Resolves the {@link AgentCapabilities} an agent provider advertises in a root
- * state. Returns `undefined` when the root state is unavailable/errored or the
- * agent is not advertised — callers treat every absent flag as unsupported.
- * This replaces the previous provider-id allow-list so feature gating follows
- * the capabilities each agent declares for itself.
+ * Resolves the {@link AgentCapabilities} an agent provider advertises.
  */
-function agentCapabilitiesForProvider(rootState: RootState | Error | undefined, agentProvider: string): AgentCapabilities | undefined {
-	if (!rootState || rootState instanceof Error) {
-		return undefined;
-	}
-	return rootState.agents.find(agent => agent.provider === agentProvider)?.capabilities;
+function agentCapabilitiesForProvider(agents: readonly AgentInfo[] | undefined, agentProvider: string): AgentCapabilities | undefined {
+	return agents?.find(agent => agent.provider === agentProvider)?.capabilities;
 }
 
 /**
@@ -264,6 +257,8 @@ export interface IAgentHostAdapterOptions {
 	 * Returns the agent connection for the session, if it exists.
 	 */
 	readonly getConnection: () => IAgentConnection | undefined;
+	/** Agent catalog shared by every adapter owned by this provider. */
+	readonly agentCatalog: IObservable<readonly AgentInfo[] | undefined>;
 }
 
 /**
@@ -741,12 +736,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.mainChat = this._mainChatObs;
 		this.chats = this._chatsObs;
 
-		const connection = this._options.getConnection();
-		const rootStateObs: IObservable<RootState | Error | undefined> = connection
-			? observableFromEvent(this, connection.rootState.onDidChange, () => connection.rootState.value)
-			: constObservable(undefined);
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const agentCapabilities = agentCapabilitiesForProvider(rootStateObs.read(reader), this.agentProvider);
+			const agentCapabilities = agentCapabilitiesForProvider(this._options.agentCatalog.read(reader), this.agentProvider);
 			return {
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
@@ -1854,7 +1845,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 	protected _sessionTypes: ISessionType[] = [];
 
-	private _lastAgents: AgentInfo[] | undefined;
+	private readonly _agentCatalog = observableValue<readonly AgentInfo[] | undefined>(this, undefined);
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -2141,6 +2132,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
+			agentCatalog: this._agentCatalog,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
@@ -2187,8 +2179,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * id/label set actually changed.
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
-		if (this._lastAgents !== rootState.agents) {
-			this._lastAgents = rootState.agents;
+		if (this._agentCatalog.get() !== rootState.agents) {
+			this._agentCatalog.set(rootState.agents, undefined);
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
@@ -2431,6 +2423,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
+			agentCatalog: this._agentCatalog,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions);
 		this._newSessions.set(newSession.sessionId, newSession);
