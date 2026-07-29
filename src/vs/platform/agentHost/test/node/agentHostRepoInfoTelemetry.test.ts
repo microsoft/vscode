@@ -89,7 +89,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		}, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.EditorWindow, root, undefined, () => true);
-		await collector.reportEnd(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.EditorWindow, root, undefined, () => true);
+		await collector.reportEnd(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
 
 		assert.deepStrictEqual({
 			patches,
@@ -183,7 +183,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.AgentsWindow, root, undefined, () => true);
-		await collector.reportEnd(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.AgentsWindow, root, undefined, () => true);
+		await collector.reportEnd(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
 
 		assert.deepStrictEqual({ snapshots, results: reports.map(report => report.result) }, { snapshots: 1, results: ['tooManyChanges'] });
 	});

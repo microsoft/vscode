@@ -114,7 +114,7 @@ export function measureRepoInfoDiffsJSON(diffsJSON: string): { readonly diffSize
 }
 
 export class AgentHostRepoInfoTelemetry extends Disposable {
-	private readonly _beginResults = new Map<string, Promise<AgentHostRepoInfoResult | undefined>>();
+	private readonly _beginResults = new Map<string, { readonly clientType: AgentHostClientType; readonly result: Promise<AgentHostRepoInfoResult | undefined> }>();
 	private _isDisposed = false;
 
 	constructor(
@@ -127,23 +127,26 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 	}
 
 	async reportBegin(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean): Promise<void> {
-		let result = this._beginResults.get(telemetryMessageId);
-		if (!result) {
-			result = this._captureSafely(context, sessionUri, telemetryMessageId, clientType, 'begin', workingDirectory, baseBranch, isContextCurrent);
-			this._beginResults.set(telemetryMessageId, result);
+		let begin = this._beginResults.get(telemetryMessageId);
+		if (!begin) {
+			begin = {
+				clientType,
+				result: this._captureSafely(context, sessionUri, telemetryMessageId, clientType, 'begin', workingDirectory, baseBranch, isContextCurrent),
+			};
+			this._beginResults.set(telemetryMessageId, begin);
 		}
-		await result;
+		await begin.result;
 	}
 
-	async reportEnd(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, clientType: AgentHostClientType, workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean): Promise<void> {
+	async reportEnd(context: IAgentHostRestrictedTelemetryContext, sessionUri: string, telemetryMessageId: string, workingDirectory: URI | undefined, baseBranch: string | undefined, isContextCurrent: () => boolean): Promise<void> {
 		const begin = this._beginResults.get(telemetryMessageId);
 		if (!begin) {
 			return;
 		}
 		try {
-			const beginResult = await begin;
+			const beginResult = await begin.result;
 			if (beginResult === 'success' || beginResult === 'noChanges') {
-				await this._captureSafely(context, sessionUri, telemetryMessageId, clientType, 'end', workingDirectory, baseBranch, isContextCurrent);
+				await this._captureSafely(context, sessionUri, telemetryMessageId, begin.clientType, 'end', workingDirectory, baseBranch, isContextCurrent);
 			}
 		} finally {
 			this._beginResults.delete(telemetryMessageId);
