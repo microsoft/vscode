@@ -985,15 +985,26 @@ export class AgentSubscriptionManager extends Disposable {
 	private async _refreshSubscription(resource: URI, triggeringCreate?: object): Promise<void> {
 		const entry = this._subscriptions.get(resource);
 		if (!entry) {
+			// No component currently holds this resource, so there is no client
+			// subscription whose pre-create state needs to be replaced.
 			return;
 		}
 
 		if (entry.sub.value === undefined) {
 			if (triggeringCreate && entry.initialSubscribeAfterCreate === triggeringCreate) {
+				// This initial subscribe already waits for the same raw create
+				// request that triggered this refresh. Its first snapshot is
+				// therefore post-create; another subscribe would be redundant.
 				return;
 			}
+			// The pending initial subscribe started before this create (or was
+			// not gated by one). Let it settle before fetching a post-create
+			// snapshot so the two snapshot requests cannot race each other.
 			await entry.initialSubscribePromise;
 			if (this._subscriptions.get(resource) !== entry) {
+				// The last holder may have disposed this entry while we waited,
+				// and another holder may now own a different entry for the same
+				// URI. Never apply this refresh operation to that replacement.
 				return;
 			}
 		}
@@ -1004,6 +1015,8 @@ export class AgentSubscriptionManager extends Disposable {
 			snapshot = await this._subscribe(resource);
 		} catch (error) {
 			if (this._subscriptions.get(resource) === entry) {
+				// Only cancel buffering on the entry that began this refresh.
+				// A replacement entry for the same URI has its own lifecycle.
 				entry.sub.cancelSnapshotRefresh();
 				const message = error instanceof Error ? error.message : String(error);
 				this._log(`Failed to refresh subscription ${resource.toString()}: ${message}`);
@@ -1012,6 +1025,8 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 
 		if (this._subscriptions.get(resource) === entry) {
+			// As above, the entry could have been disposed or replaced while the
+			// subscribe request was in flight.
 			this._replaceSubscriptionSnapshot(entry, snapshot.state, snapshot.fromSeq);
 		}
 	}
