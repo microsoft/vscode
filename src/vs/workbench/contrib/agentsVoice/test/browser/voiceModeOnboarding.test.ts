@@ -93,6 +93,7 @@ suite('Voice Mode onboarding', () => {
 		// rather than arriving with an answer already filled in.
 		const selectedOnOpen = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 		const voices = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-voice-label')].map(element => element.textContent);
+		const hasMicrophonePicker = host.container.querySelector('.voice-mode-onboarding-microphone-picker') !== null;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
 		const selectedAfterPick = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 
@@ -103,9 +104,19 @@ suite('Voice Mode onboarding', () => {
 		const shownAgain = host.container.classList.contains('has-voice-mode-onboarding');
 
 		assert.deepStrictEqual(
-			{ shown, selectedOnOpen, voices, selectedAfterPick, shownAfterClose, shownAgain, telemetryEvents },
+			{
+				shown,
+				hasMicrophonePicker,
+				selectedOnOpen,
+				voices,
+				selectedAfterPick,
+				shownAfterClose,
+				shownAgain,
+				telemetryEvents,
+			},
 			{
 				shown: true,
+				hasMicrophonePicker: true,
 				selectedOnOpen: 0,
 				voices: ['Maya', 'Victoria', 'Kevin', 'Daniel'],
 				selectedAfterPick: 1,
