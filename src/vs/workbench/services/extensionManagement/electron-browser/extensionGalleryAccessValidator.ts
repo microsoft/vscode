@@ -394,7 +394,15 @@ export class ExtensionGalleryAccessValidator extends Disposable implements IExte
 
 			return extensionGalleryManifest;
 		} catch (error) {
-			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
+			if (error instanceof MarketplaceAuthRequiredError) {
+				// Not a failure: an auth-gated service index rejected an unauthenticated (or
+				// stale-token) request. Callers translate this into a RequiresSignIn/AccessDenied
+				// state and the workbench surfaces the corresponding sign-in affordance, so logging
+				// it at `error` would misrepresent the normal "not signed in yet" flow as a fault.
+				this.logService.trace('[Marketplace] Extension gallery manifest requires authentication', error.statusCode);
+			} else {
+				this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
+			}
 			throw error;
 		}
 	}

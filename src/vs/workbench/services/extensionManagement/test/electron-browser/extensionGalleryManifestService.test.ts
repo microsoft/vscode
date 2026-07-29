@@ -489,18 +489,19 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
-	test('Microsoft provider — auth-gated service index, token rejected (401) → RequiresSignIn (not cached)', async () => {
+	test('Microsoft provider — auth-gated service index, token rejected (401) → AccessDenied (not cached)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
-		// A token is presented but the server returns 401 — the token was missing/expired/
-		// invalid (e.g. wrong audience). This is NOT a durable "ineligible" verdict, so we
-		// ask the user to re-authenticate and must NOT cache a negative result.
+		// A token is presented but the server returns 401 — the user is already signed in, so
+		// re-prompting for sign-in would loop on the same rejected token without ever explaining
+		// the condition. Surface AccessDenied instead. Unlike a 403, a 401 is not a durable
+		// per-identity denial, so we must NOT cache a negative result.
 		requestHandler = () => mockResponse(401, { message: 'auth required' });
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
@@ -524,12 +525,13 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(JSON.parse(storageData.get('marketplace.cachedAccess')!).eligible, false);
 	});
 
-	test('Microsoft provider — eligibility endpoint rejects token (401) → RequiresSignIn (not cached)', async () => {
+	test('Microsoft provider — eligibility endpoint rejects token (401) → AccessDenied (not cached)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
-		// The index is readable, but the eligibility endpoint returns 401 — the token was
-		// missing/expired/wrong-audience for that endpoint. This is NOT a durable verdict
-		// (re-auth may fix it), so we ask the user to (re-)sign in and must NOT cache it.
+		// The index is readable, but the eligibility endpoint returns 401 — the user is already
+		// signed in, so re-prompting for sign-in would loop on the same rejected token. Surface
+		// AccessDenied so the condition is communicated. Unlike a 403, a 401 is not a durable
+		// per-identity denial, so we must NOT cache it.
 		requestHandler = (options) => {
 			if (options.url?.includes('eligibility')) {
 				return mockResponse(401, { message: 'auth required' });
@@ -540,7 +542,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
