@@ -15,6 +15,10 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
+const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
+const MIN_LATIN_LETTER_RATIO = 0.8;
+const HAN_CHARACTER = /\p{sc=Han}/u;
+const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 
 /**
  * Soft upper bound, in characters, for the first-turn context fed to the
@@ -370,7 +374,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			}, {
 				signal: abortController.signal,
 			});
-			return this._cleanTitle(rawTitle);
+			return this._cleanTitle(rawTitle, promptContent);
 		} catch (err) {
 			if (token.isCancellationRequested) {
 				return undefined;
@@ -409,7 +413,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		];
 	}
 
-	private _cleanTitle(rawTitle: string): string | undefined {
+	private _cleanTitle(rawTitle: string, promptContent: string): string | undefined {
 		let title = rawTitle.trim();
 		const firstLine = title.split(/\r?\n/).map(line => line.trim()).find(line => line.length > 0);
 		title = firstLine ?? '';
@@ -421,7 +425,27 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (!title || title.includes('can\'t assist with that')) {
 			return undefined;
 		}
-		return title.slice(0, MAX_TITLE_LENGTH);
+		return this._stripUnexpectedTrailingHanSuffix(title, promptContent).slice(0, MAX_TITLE_LENGTH);
+	}
+
+	private _stripUnexpectedTrailingHanSuffix(title: string, promptContent: string): string {
+		if (HAN_CHARACTER.test(promptContent)) {
+			return title;
+		}
+
+		const suffix = TRAILING_HAN_SUFFIX.exec(title);
+		if (!suffix) {
+			return title;
+		}
+
+		const prefix = title.slice(0, suffix.index).trimEnd();
+		const letterCount = prefix.match(/\p{L}/gu)?.length ?? 0;
+		const latinLetterCount = prefix.match(/\p{sc=Latin}/gu)?.length ?? 0;
+		if (latinLetterCount < MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX || latinLetterCount / letterCount < MIN_LATIN_LETTER_RATIO) {
+			return title;
+		}
+
+		return prefix;
 	}
 
 	/**

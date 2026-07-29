@@ -121,6 +121,49 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	});
 
+	test('seedTitleFromFirstMessage strips an unexpected trailing Han suffix from a Latin title', async () => {
+		const cases = [
+			{ response: 'Fix chat title\u7f16\u7801', expected: 'Fix chat title' },
+			{ response: 'Fix chat title \u7f16\u7801\u95ee', expected: 'Fix chat title' },
+		];
+		const titles: string[] = [];
+
+		for (const testCase of cases) {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = testCase.response;
+			const { controller, stateManager, session, db } = setup(copilotApiService);
+
+			controller.seedTitleFromFirstMessage(session.toString(), 'Fix chat title generation');
+			await waitForCondition(async () => await db.getMetadata('customTitle') === testCase.expected, 'cleaned title should be persisted');
+			titles.push(stateManager.getSessionState(session.toString())?.title ?? '');
+		}
+
+		assert.deepStrictEqual(titles, cases.map(testCase => testCase.expected));
+	});
+
+	test('seedTitleFromFirstMessage preserves intentional or ambiguous Han suffixes', async () => {
+		const cases = [
+			{ prompt: 'Explain \u7f16\u7801 naming', response: 'Explain code\u7f16\u7801' },
+			{ prompt: 'Fix chat title generation', response: 'Fix chat title\u7f16' },
+			{ prompt: 'Fix chat title generation', response: 'Fix chat title\u7f16\u7801\u95ee\u9898' },
+			{ prompt: 'Fix chat title generation', response: '\u4fee\u590d\u6807\u9898' },
+			{ prompt: 'Fix chat title generation', response: 'Code \u041e\u0448\u0438\u0431\u043a\u0430\u7f16\u7801' },
+		];
+		const titles: string[] = [];
+
+		for (const testCase of cases) {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = testCase.response;
+			const { controller, stateManager, session, db } = setup(copilotApiService);
+
+			controller.seedTitleFromFirstMessage(session.toString(), testCase.prompt);
+			await waitForCondition(async () => await db.getMetadata('customTitle') === testCase.response, 'unchanged title should be persisted');
+			titles.push(stateManager.getSessionState(session.toString())?.title ?? '');
+		}
+
+		assert.deepStrictEqual(titles, cases.map(testCase => testCase.response));
+	});
+
 	test('seedTitleFromFirstMessage does not clobber a changed title', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		let resolveTitle!: (title: string) => void;
