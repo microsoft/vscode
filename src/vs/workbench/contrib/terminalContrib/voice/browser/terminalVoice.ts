@@ -399,7 +399,9 @@ export class TerminalVoiceSession extends Disposable {
 		this._decorationDisposables.add(addDisposableListener(element, EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.stop(true);
+			if (!this._builtinFinalizing) {
+				this.stop(true);
+			}
 		}));
 		const keybindingLabel = this._keybindingService.lookupKeybinding(TerminalCommandId.StopVoice)?.getLabel();
 		const title = keybindingLabel
