@@ -146,8 +146,9 @@ export interface IShouldAutoApproveOptions {
 	readonly autoApproveRules?: AgentHostTerminalAutoApproveRules;
 	/**
 	 * Shell grammar to parse the command line with. PowerShell commands are
-	 * parsed with the PowerShell grammar and matched against rules
-	 * case-insensitively, like PowerShell itself. Defaults to `bash`.
+	 * parsed with the PowerShell grammar. Sub-command rules and full-command
+	 * deny rules are matched case-insensitively, like PowerShell itself;
+	 * full-command allow rules retain their configured casing. Defaults to `bash`.
 	 */
 	readonly language?: 'bash' | 'powershell';
 }
@@ -232,7 +233,7 @@ export class CommandAutoApprover extends Disposable {
 		const rules = this._compileRules(options?.autoApproveRules);
 		const isPowerShell = options?.language === 'powershell';
 
-		if (this._matchesRule(trimmed, rules.denyCommandLineRules)) {
+		if (this._matchesCommandLineRule(trimmed, rules.denyCommandLineRules, isPowerShell)) {
 			return { result: 'denied', autoApproveRuleResolvable: false };
 		}
 
@@ -245,7 +246,7 @@ export class CommandAutoApprover extends Disposable {
 		const hasUnapprovedRedirect = () => parsed.unsafeWriteDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
 
 		let result = this._matchSubCommands(parsed.subCommands, rules, isPowerShell);
-		if (result !== 'denied' && this._matchesRule(trimmed, rules.allowCommandLineRules)) {
+		if (result !== 'denied' && this._matchesCommandLineRule(trimmed, rules.allowCommandLineRules)) {
 			result = 'approved';
 		}
 		if (result === 'approved' && hasUnapprovedRedirect()) {
@@ -286,6 +287,15 @@ export class CommandAutoApprover extends Disposable {
 		}
 
 		return 'noMatch';
+	}
+
+	private _matchesCommandLineRule(commandLine: string, rules: readonly IAutoApproveRule[], caseInsensitive = false): boolean {
+		for (const rule of rules) {
+			if ((caseInsensitive ? rule.regexCaseInsensitive : rule.regex).test(commandLine)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _matchesRule(command: string, rules: readonly IAutoApproveRule[], isPowerShell?: boolean): boolean {

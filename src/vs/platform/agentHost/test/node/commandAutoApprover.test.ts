@@ -337,12 +337,25 @@ suite('CommandAutoApprover', () => {
 			], ['approved', 'denied']);
 		});
 
-		test('matchCommandLine rules stay case-sensitive', () => {
+		test('PowerShell matchCommandLine allow rules stay case-sensitive', () => {
 			const autoApproveRules = { '/^Get-ChildItem$/': { approve: true, matchCommandLine: true } };
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('Get-ChildItem', { language: 'powershell', autoApproveRules }),
 				approver.shouldAutoApprove('get-childitem', { language: 'powershell', autoApproveRules }),
 			], ['approved', 'noMatch']);
+		});
+
+		test('PowerShell matchCommandLine deny rules are case-insensitive', () => {
+			const autoApproveRules = {
+				'Get-ChildItem': true,
+				'/^Get-ChildItem -Force$/': { approve: false, matchCommandLine: true },
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'powershell', autoApproveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules }),
+				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'bash', autoApproveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'bash', autoApproveRules }),
+			], ['denied', 'denied', 'denied', 'noMatch']);
 		});
 
 		test('reports rule resolvability', () => {
