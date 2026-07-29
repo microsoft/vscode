@@ -201,6 +201,7 @@ export interface IAgentHostToolCallDetailsReport {
 export interface IAgentHostAutoModeRouterDecisionReport {
 	session: string;
 	turnId: string;
+	clientType: AgentHostClientType;
 	chosenModel: string;
 	predictedLabel: string | undefined;
 	confidence: number | undefined;
@@ -209,6 +210,7 @@ export interface IAgentHostAutoModeRouterDecisionReport {
 }
 
 export interface IAgentHostSkillContentReadReport {
+	clientType: AgentHostClientType;
 	/** The skill name. */
 	name: string;
 	/** Path to the SKILL.md file. */
@@ -227,6 +229,7 @@ export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge
 
 export interface IAgentHostRepoInfoReport {
 	telemetryMessageId: string;
+	clientType: AgentHostClientType;
 	location: 'begin' | 'end';
 	remoteUrl: string;
 	repoId: string;
@@ -499,6 +502,7 @@ export class AgentHostTelemetryReporter {
 		const properties = {
 			conversationId: AgentSession.id(report.session),
 			vscodeRequestId: report.turnId,
+			initiatorClientType: report.clientType,
 			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
 			candidateModel: candidateModels[0] ?? '',
 			chosenModel: report.chosenModel,
@@ -538,6 +542,7 @@ export class AgentHostTelemetryReporter {
 		// never emit a `skillExtensionVersion` without a corresponding `skillExtensionId`.
 		const skillExtensionVersion = report.pluginName ? (report.pluginVersion ?? '') : '';
 		const plaintextProps = {
+			initiatorClientType: report.clientType,
 			skillName: report.name,
 			skillPath: report.path,
 			skillExtensionId: report.pluginName ?? '',
@@ -546,6 +551,7 @@ export class AgentHostTelemetryReporter {
 			skillContentHash: contentHash,
 		};
 		restricted.sendGHTelemetryEvent('skillContentRead', {
+			initiatorClientType: report.clientType,
 			skillNameHash: String(hash(report.name)),
 			skillExtensionIdHash: report.pluginName ? String(hash(report.pluginName)) : '',
 			skillExtensionVersion,
@@ -562,6 +568,7 @@ export class AgentHostTelemetryReporter {
 			return;
 		}
 		const properties = {
+			initiatorClientType: report.clientType,
 			remoteUrl: report.remoteUrl,
 			repoId: report.repoId,
 			repoType: report.repoType,

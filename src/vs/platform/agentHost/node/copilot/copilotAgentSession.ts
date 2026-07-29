@@ -746,6 +746,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _repoInfoTelemetry: AgentHostRepoInfoTelemetry;
 	private _activeRepoInfoTurn: {
 		readonly telemetryMessageId: string;
+		readonly clientType: AgentHostClientType;
 		cancelled: boolean;
 		begin: Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined>;
 	} | undefined;
@@ -3105,7 +3106,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _beginRepoInfoTelemetry(telemetryMessageId: string, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
+	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
 		let resolved: { readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined;
 		try {
 			resolved = await this._resolveRepoInfoTelemetryContext();
@@ -3116,15 +3117,15 @@ export class CopilotAgentSession extends Disposable {
 		if (!resolved || this._store.isDisposed || !isCurrent()) {
 			return undefined;
 		}
-		await this._repoInfoTelemetry.reportBegin(resolved.context, this.sessionUri.toString(), telemetryMessageId, this._workingDirectory, resolved.baseBranch, isCurrent);
+		await this._repoInfoTelemetry.reportBegin(resolved.context, this.sessionUri.toString(), telemetryMessageId, clientType, this._workingDirectory, resolved.baseBranch, isCurrent);
 		return resolved;
 	}
 
-	private async _endRepoInfoTelemetry(telemetryMessageId: string, resolved: { readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined, isCurrent: () => boolean): Promise<void> {
+	private async _endRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, resolved: { readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined, isCurrent: () => boolean): Promise<void> {
 		if (!resolved || this._store.isDisposed || !isCurrent()) {
 			return;
 		}
-		await this._repoInfoTelemetry.reportEnd(resolved.context, this.sessionUri.toString(), telemetryMessageId, this._workingDirectory, resolved.baseBranch, isCurrent);
+		await this._repoInfoTelemetry.reportEnd(resolved.context, this.sessionUri.toString(), telemetryMessageId, clientType, this._workingDirectory, resolved.baseBranch, isCurrent);
 	}
 
 	private _completeActiveRepoInfoTelemetry(): void {
@@ -3134,7 +3135,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._activeRepoInfoTurn = undefined;
 		const isCurrent = () => !turn.cancelled && this._isLaunchTokenCurrent();
-		void turn.begin.then(resolved => this._endRepoInfoTelemetry(turn.telemetryMessageId, resolved, isCurrent));
+		void turn.begin.then(resolved => this._endRepoInfoTelemetry(turn.telemetryMessageId, turn.clientType, resolved, isCurrent));
 	}
 
 	private _cancelActiveRepoInfoTelemetry(): void {
@@ -3657,6 +3658,7 @@ export class CopilotAgentSession extends Disposable {
 			// Restricted `skillContentRead`: which skill file was loaded. Main-agent only, like the other restricted events.
 			if (!e.agentId) {
 				this._telemetryReporter.skillContentRead({
+					clientType: this._currentTurn?.clientType ?? AgentHostClientType.Unknown,
 					name: e.data.name,
 					path: e.data.path,
 					content: e.data.content,
@@ -3761,6 +3763,7 @@ export class CopilotAgentSession extends Disposable {
 				this._telemetryReporter.autoModeRouterDecision({
 					session: this.sessionUri.toString(),
 					turnId,
+					clientType: this._currentTurn?.clientType ?? AgentHostClientType.Unknown,
 					chosenModel: e.data.chosenModel,
 					predictedLabel: e.data.predictedLabel,
 					confidence: e.data.confidence,
@@ -4522,11 +4525,12 @@ export class CopilotAgentSession extends Disposable {
 				this._cancelActiveRepoInfoTelemetry();
 				const turn: NonNullable<CopilotAgentSession['_activeRepoInfoTurn']> = {
 					telemetryMessageId,
+					clientType: this._currentTurn?.clientType ?? AgentHostClientType.Unknown,
 					cancelled: false,
 					begin: Promise.resolve(undefined),
 				};
 				const isCurrent = () => !turn.cancelled && this._isLaunchTokenCurrent();
-				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, isCurrent);
+				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, turn.clientType, isCurrent);
 				this._activeRepoInfoTurn = turn;
 			}
 		}));
