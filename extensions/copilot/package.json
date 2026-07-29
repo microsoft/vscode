@@ -3550,14 +3550,10 @@
             "type": "string",
             "default": "high",
             "enum": [
-              "auto",
-              "low",
               "high",
               "original"
             ],
             "enumDescriptions": [
-              "%github.copilot.config.imageDetail.auto%",
-              "%github.copilot.config.imageDetail.low%",
               "%github.copilot.config.imageDetail.high%",
               "%github.copilot.config.imageDetail.original%"
             ],

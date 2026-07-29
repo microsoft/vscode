@@ -139,7 +139,7 @@ describe('FileVariable', () => {
 
 	test('uses the configured image detail', async () => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
-		const mockEndpoint = createMockEndpoint();
+		const mockEndpoint = createMockEndpoint({ family: 'gpt-5.4', model: 'gpt-5.4' });
 		const mockFs = new MockFileSystemService();
 		const imageUri = Uri.parse('file:///workspace/image.png');
 		mockFs.mockFile(imageUri, '\x89PNG');
@@ -147,7 +147,7 @@ describe('FileVariable', () => {
 		testingServiceCollection.define(IFileSystemService, mockFs);
 
 		const accessor = testingServiceCollection.createTestingAccessor();
-		await accessor.get(IConfigurationService).setConfig(ConfigKey.ChatImageDetail, 'low');
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.ChatImageDetail, 'original');
 		const renderer = PromptRenderer.create(
 			accessor.get(IInstantiationService),
 			mockEndpoint,
@@ -159,7 +159,7 @@ describe('FileVariable', () => {
 		const { messages } = await renderer.render();
 		const image = messages.flatMap(message => message.content).find(part => part.type === Raw.ChatCompletionContentPartKind.Image);
 
-		expect(image?.imageUrl.detail).toBe('low');
+		expect(image?.imageUrl.detail).toBe('original');
 	});
 });
 

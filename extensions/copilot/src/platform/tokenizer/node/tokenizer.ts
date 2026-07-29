@@ -341,8 +341,7 @@ export function calculateImageTokenCost(imageUrl: string, detail: 'low' | 'high'
 		return 85;
 	}
 
-	// `auto` may resolve to `original`; use the conservative patch-based estimate.
-	if (detail === 'original' || detail === 'auto') {
+	if (detail === 'original') {
 		return Math.ceil(width / 32) * Math.ceil(height / 32);
 	}
 

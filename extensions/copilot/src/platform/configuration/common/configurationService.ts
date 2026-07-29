@@ -991,7 +991,7 @@ export namespace ConfigKey {
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
-	export const ChatImageDetail = defineSetting<'auto' | 'low' | 'high' | 'original'>('chat.imageDetail', ConfigType.Simple, 'high');
+	export const ChatImageDetail = defineSetting<'high' | 'original'>('chat.imageDetail', ConfigType.Simple, 'high');
 	/** Enable Anthropic web search tool for BYOK Claude models */
 	export const AnthropicWebSearchToolEnabled = defineSetting<boolean>('chat.anthropic.tools.websearch.enabled', ConfigType.ExperimentBased, false);
 	/** Maximum number of web searches allowed per request */

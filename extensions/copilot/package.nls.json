@@ -159,8 +159,6 @@
 	"github.copilot.config.notebook.enhancedNextEditSuggestions": "Controls whether to use an enhanced approach for generating next edit suggestions in notebook cells.",
 	"github.copilot.config.imageUpload.enabled": "Enables the use of image upload URLs in chat requests instead of raw base64 strings.",
 	"github.copilot.config.imageDetail": "Controls the detail level used when sending image attachments to language models. Higher detail can use more input tokens.",
-	"github.copilot.config.imageDetail.auto": "Let the language model choose the image detail level.",
-	"github.copilot.config.imageDetail.low": "Use lower image detail to reduce input token usage.",
 	"github.copilot.config.imageDetail.high": "Use higher image detail for more precise image understanding.",
 	"github.copilot.config.imageDetail.original": "Use original image detail when supported by the language model.",
 	"github.copilot.config.setupTests.enabled": "Enables the `/setupTests` intent and prompting in `/tests` generation.",

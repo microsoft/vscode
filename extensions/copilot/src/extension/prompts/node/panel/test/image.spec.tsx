@@ -93,8 +93,8 @@ test('Image falls back to high when original detail is unsupported', async () =>
 test('tool result image uses the configured image detail', async () => {
 	const testingServiceCollection = createExtensionUnitTestingServices();
 	const accessor = testingServiceCollection.createTestingAccessor();
-	const endpoint = createMockEndpoint();
-	await accessor.get(IConfigurationService).setConfig(ConfigKey.ChatImageDetail, 'low');
+	const endpoint = createMockEndpoint('gpt-5.4');
+	await accessor.get(IConfigurationService).setConfig(ConfigKey.ChatImageDetail, 'original');
 	const renderer = PromptRenderer.create(
 		accessor.get(IInstantiationService),
 		endpoint,
@@ -105,5 +105,5 @@ test('tool result image uses the configured image detail', async () => {
 	const { messages } = await renderer.render();
 	const image = messages.flatMap(message => message.content).find(part => part.type === Raw.ChatCompletionContentPartKind.Image);
 
-	expect(image?.imageUrl.detail).toBe('low');
+	expect(image?.imageUrl.detail).toBe('original');
 });
