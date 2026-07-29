@@ -37,10 +37,12 @@ import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from '
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
 
+type KimiToolCallIdStyle = 'function-indexed' | 'name-indexed';
+
 /**
- * Rewrites tool call IDs into Kimi's native function-indexed format while preserving tool result pairings.
+ * Rewrites tool call IDs into the selected Kimi-native indexed format while preserving tool result pairings.
  */
-export function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[] {
+export function normalizeKimiToolCallIds(messages: CAPIChatMessage[], style: KimiToolCallIdStyle = 'function-indexed'): CAPIChatMessage[] {
 	let nextIndex = 0;
 	const mappedToolCallIds = new Map<string, string>();
 
@@ -52,7 +54,7 @@ export function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatM
 					return toolCall;
 				}
 
-				const id = `functions.${toolName}:${nextIndex++}`;
+				const id = `${style === 'function-indexed' ? 'functions.' : ''}${toolName}:${nextIndex++}`;
 				if (toolCall.id) {
 					mappedToolCallIds.set(toolCall.id, id);
 				}
@@ -454,7 +456,10 @@ export class ChatEndpoint implements IChatEndpoint {
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
 			if (body.messages) {
-				body.messages = normalizeKimiToolCallIds(body.messages);
+				const toolCallIdStyle = this.family.toLowerCase().includes('kimi-k3') || this.model.toLowerCase().includes('kimi-k3')
+					? 'name-indexed'
+					: 'function-indexed';
+				body.messages = normalizeKimiToolCallIds(body.messages, toolCallIdStyle);
 			}
 			body.temperature = 1;
 			body.top_p = 0.95;
