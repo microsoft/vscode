@@ -225,10 +225,9 @@ export interface IChatSessionItem {
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
 	/**
-	 * Authoritative read state, when the owning controller owns it (see
-	 * {@link IChatSessionItemController.setChatSessionItemRead}). Left
-	 * `undefined` by controllers that do not, in which case the host falls back
-	 * to its own locally-tracked read state.
+	 * Authoritative read state, set by controllers that own it (see
+	 * {@link IChatSessionItemController.setChatSessionItemRead}). Otherwise
+	 * `undefined`, and the workbench falls back to its own read tracking.
 	 */
 	readonly isRead?: boolean;
 	readonly metadata?: IChatSessionItemMetadata;
@@ -644,11 +643,9 @@ export interface IChatSessionItemController {
 
 	/**
 	 * Set the authoritative read state for the session identified by `resource`.
-	 * Implementing this declares that the controller — not the workbench — owns
-	 * read state for its sessions, so it can be shared with other clients (e.g.
-	 * the agent window, or another window connected to the same agent host).
-	 * The controller is expected to reflect the new value back through
-	 * {@link IChatSessionItem.isRead}.
+	 * Implementing this declares that the controller, not the workbench, owns read
+	 * state — letting it be shared with other clients on the same backend. The
+	 * controller reflects the new value back via {@link IChatSessionItem.isRead}.
 	 */
 	setChatSessionItemRead?(resource: URI, isRead: boolean): void;
 }

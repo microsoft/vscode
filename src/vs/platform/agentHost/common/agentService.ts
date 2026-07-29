@@ -736,13 +736,7 @@ export interface IAgentSessionMetadata {
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
-	/**
-	 * Session status bitset. Carries both the activity bits and the
-	 * session-scoped flag bits ({@link SessionStatus.IsRead} /
-	 * {@link SessionStatus.IsArchived}) — the flags have no separate boolean
-	 * representation so producers and consumers cannot disagree about which
-	 * field is authoritative.
-	 */
+	/** Activity bits plus the session-scoped {@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived} flags. */
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;

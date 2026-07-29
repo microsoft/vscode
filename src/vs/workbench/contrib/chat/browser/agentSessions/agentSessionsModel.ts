@@ -146,11 +146,9 @@ interface IInternalAgentSessionData extends IAgentSessionData {
 	readonly archived: boolean | undefined;
 
 	/**
-	 * Read state as reported by the session's provider. Only meaningful for
-	 * providers that own read state (see
-	 * {@link IChatSessionsService.canSetChatSessionItemRead}); for those it is
-	 * authoritative and shared with every other client connected to the same
-	 * backend. Kept internal — use `isRead()` / `setRead()`.
+	 * Read state as reported by the session's provider, authoritative for
+	 * providers that own it (see {@link ownsReadState}). Kept internal — use
+	 * `isRead()` / `setRead()`.
 	 */
 	readonly providerIsRead: boolean | undefined;
 }
@@ -830,11 +828,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	/**
-	 * Whether the session's provider owns read state. When it does, the
-	 * provider-reported value is authoritative and shared with every other
-	 * client connected to the same backend (e.g. the agent window, or another
-	 * window on the same agent host), so the local timestamp heuristics below
-	 * must not second-guess it.
+	 * Whether the session's provider owns read state. When it does the value is
+	 * shared with every other client on the same backend (the agent window, or
+	 * another window on the same agent host), so the local heuristics below must
+	 * not second-guess it.
 	 */
 	private ownsReadState(session: IInternalAgentSessionData): boolean {
 		return this.chatSessionsService.canSetChatSessionItemRead(session.resource);
@@ -846,8 +843,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		if (this.ownsReadState(session)) {
-			// A session the provider has not reported on yet (e.g. one just
-			// created in this window) has no backend opinion; treat as read.
+			// Not yet reported (e.g. just created in this window): treat as read.
 			return session.providerIsRead ?? true;
 		}
 
@@ -879,9 +875,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			if (read === (session.providerIsRead ?? true)) {
 				return; // no change
 			}
-			// The provider echoes the new value back through a session-item
-			// change event, which refreshes the model — no local state to write
-			// and no event to fire here.
+			// The provider echoes the value back through a session-item change
+			// event, so there is no local state to write and no event to fire.
 			this.chatSessionsService.setChatSessionItemRead(session.resource, read);
 			return;
 		}
@@ -916,14 +911,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private readonly migratedReadResources = new ResourceSet();
 
 	/**
-	 * One-time, additive hand-off of locally-tracked read state to providers that
-	 * own it. Without this, sessions that were read before their provider took
-	 * ownership would all resurface as unread, since the backend has no record of
-	 * them ever having been viewed.
-	 *
-	 * Only ever promotes a session to read, never back to unread, and runs at
-	 * most once per session (tracked in storage) so a deliberate "Mark as Unread"
-	 * afterwards is not undone on the next refresh.
+	 * One-time hand-off of locally-tracked read state to providers that own it,
+	 * so sessions read before the provider took ownership don't all resurface as
+	 * unread. Only ever promotes to read, and runs at most once per session so a
+	 * later "Mark as Unread" is not undone on the next refresh.
 	 */
 	private migrateReadStateToProvider(sessions: Iterable<IInternalAgentSessionData>): void {
 		let changed = false;
@@ -932,10 +923,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				continue;
 			}
 
-			// `undefined` means the provider has not reported yet — a session
-			// carried over from a cache written before it tracked read state, or
-			// one this resolve pass didn't cover. Consuming the one-shot flag now
-			// would drop the hand-off when the real value arrives, so wait.
+			// Not reported yet (e.g. carried over from a cache predating this
+			// field). Consuming the one-shot flag now would drop the hand-off when
+			// the real value arrives.
 			if (session.providerIsRead === undefined) {
 				continue;
 			}
@@ -947,8 +937,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				continue; // already read on the backend — nothing to hand off
 			}
 
-			// Consult the local heuristics directly: `isRead()` already defers to
-			// the provider for these sessions.
+			// `isRead()` can't be used here — it already defers to the provider.
 			const storedReadDate = this.resolveStateEntry(session)?.read;
 			if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
 				continue; // explicitly marked unread locally — leave it unread

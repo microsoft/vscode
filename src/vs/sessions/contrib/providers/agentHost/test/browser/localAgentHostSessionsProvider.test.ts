@@ -1165,9 +1165,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			status: ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsArchived,
 		}]);
 
-		// Fresh launch with authentication pending, so nothing corrects the
-		// hydrated state: a stale spinner here would stick around indefinitely
-		// for an unreachable remote host.
+		// Authentication pending, so nothing corrects the hydrated state — a stale
+		// spinner here would stick around indefinitely for an unreachable remote host.
 		const nextHost = new MockAgentHostService();
 		disposables.add(toDisposable(() => nextHost.dispose()));
 		nextHost.setAuthenticationPending(true);

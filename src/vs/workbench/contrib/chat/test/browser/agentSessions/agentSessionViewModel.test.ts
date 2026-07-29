@@ -2156,12 +2156,7 @@ suite('AgentSessions', () => {
 		let instantiationService: TestInstantiationService;
 		let viewModel: AgentSessionsModel;
 
-		/**
-		 * A controller that owns read state, mirroring the Agent Host controller:
-		 * `setChatSessionItemRead` records the mutation and reflects it back
-		 * through `IChatSessionItem.isRead`, the way the host echoes a summary
-		 * change to every connected client.
-		 */
+		/** Mirrors the Agent Host controller: records the mutation, then echoes it back. */
 		class ReadOwningController implements IChatSessionItemController {
 			private readonly _onDidChangeChatSessionItems = disposables.add(new Emitter<IChatSessionItemsDelta>());
 			readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
@@ -2258,13 +2253,10 @@ suite('AgentSessions', () => {
 				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 				await viewModel.resolve(undefined);
-				// The migration dispatches to the provider; the provider echoes the
-				// new value back and the model picks it up on the next resolve.
-				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined); // pick up the provider echo
 
-				// The one-time migration hands the locally-read state to the
-				// provider rather than silently overriding it, so the provider
-				// stays the single source of truth.
+				// The migration hands the locally-read state to the provider rather
+				// than overriding it locally, keeping the provider authoritative.
 				assert.deepStrictEqual({
 					mutations: controller.mutations,
 					isRead: viewModel.sessions[0].isRead(),
@@ -2295,9 +2287,9 @@ suite('AgentSessions', () => {
 
 		test('defers migration until the provider has reported a value', async () => {
 			return runWithFakedTimers({}, async () => {
-				// A session carried over from a cache written before the provider
-				// tracked read state reports `undefined`. Consuming the one-shot
-				// migration flag here would drop the hand-off for good.
+				// A session carried over from a cache predating the field reports
+				// `undefined`; consuming the one-shot flag here would lose the
+				// hand-off for good.
 				const controller = new ReadOwningController([{
 					resource: URI.parse('test-type://owned-session'),
 					label: 'Owned Session',
@@ -2311,7 +2303,6 @@ suite('AgentSessions', () => {
 
 				const beforeReport = controller.mutations.length;
 
-				// The provider now reports the session as unread.
 				controller.setItems([{
 					resource: URI.parse('test-type://owned-session'),
 					label: 'Owned Session',

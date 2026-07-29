@@ -138,11 +138,9 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	/**
-	 * Optimistically flips a session-scoped status flag on the cached summary and
-	 * dispatches the owning action so the host — the source of truth — fans the
-	 * change out to every other connected client. When the session isn't cached
-	 * the action is still dispatched; the resulting summary notification seeds
-	 * the entry.
+	 * Optimistically flips a session-scoped status flag and dispatches the owning
+	 * action, so the host can fan the change out to other connected clients. An
+	 * uncached session still dispatches; the summary notification seeds the entry.
 	 */
 	private _setSessionFlag(provider: string, rawId: string, flag: SessionStatus, set: boolean, action: IIsArchivedChangedAction | IIsReadChangedAction): void {
 		const session = AgentSession.uri(provider, rawId);
@@ -331,7 +329,6 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const rawId = AgentSession.id(session.session);
-		// `status` is the sole carrier for read/archived state; no booleans to fold in.
 		const status = session.status ?? SessionStatus.Idle;
 
 		return {

@@ -245,12 +245,9 @@ export class AgentSideEffects extends Disposable {
 					this._persistSessionFlag(envelope.channel, 'configValues', JSON.stringify(values));
 				}
 			}
-			// Read/archived are session-scoped flags whose durable home is the
-			// session database. Persisting here rather than in `handleAction`
-			// covers both client-dispatched and server-dispatched changes (e.g.
-			// the unread marking after a turn completes) from one place, so no
-			// dispatch path can silently skip persistence. Rejected actions were
-			// never applied to state and must not be written.
+			// Persisting here rather than in `handleAction` covers client- and
+			// server-dispatched changes alike, so no dispatch path can skip it.
+			// Rejected actions never reached state and must not be written.
 			if (!envelope.rejectionReason) {
 				if (envelope.action.type === ActionType.SessionIsReadChanged) {
 					this._persistSessionFlag(envelope.channel, AH_META_IS_READ_DB_KEY, envelope.action.isRead ? 'true' : '');
@@ -849,7 +846,7 @@ export class AgentSideEffects extends Disposable {
 		if (!(status & SessionStatus.IsRead)) {
 			return;
 		}
-		// Persistence rides the envelope observer registered in the constructor.
+		// Persistence rides the envelope observer set up in the constructor.
 		this._stateManager.dispatchServerAction(session, { type: ActionType.SessionIsReadChanged, isRead: false });
 	}
 
@@ -1388,8 +1385,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionIsArchivedChanged: {
-				// Persistence rides the envelope observer registered in the
-				// constructor; only the non-persistence side effects live here.
+				// Persistence rides the envelope observer set up in the constructor.
 				// Host-owned worktree lifecycle (agents stay unaware): remove the
 				// clean, branch-preserved worktree on archive and recreate it on
 				// unarchive. Serialized per session inside the controller so it can't

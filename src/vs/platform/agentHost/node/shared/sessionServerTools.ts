@@ -438,7 +438,6 @@ function sessionHasChanges(session: IAgentSessionMetadata): boolean {
 	return !!changes && ((changes.files ?? 0) > 0 || (changes.additions ?? 0) > 0 || (changes.deletions ?? 0) > 0);
 }
 
-/** Whether a session is archived. */
 function sessionIsArchived(session: IAgentSessionMetadata): boolean {
 	return isSessionStatusArchived(session.status);
 }

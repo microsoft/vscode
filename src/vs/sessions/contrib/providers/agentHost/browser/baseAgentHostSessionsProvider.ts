@@ -89,12 +89,7 @@ interface ISerializedSessionMetadata {
 	readonly modifiedTime: number;
 	readonly summary?: string;
 	readonly workingDirectory?: string;
-	/**
-	 * Session-scoped flag bits (`IsRead` / `IsArchived`) only — see
-	 * {@link SESSION_STATUS_FLAG_MASK}. Caches written before those flags moved
-	 * onto `status` instead carry {@link isRead} / {@link isArchived} /
-	 * {@link isDone}.
-	 */
+	/** Session-scoped flag bits only — see {@link SESSION_STATUS_FLAG_MASK}. */
 	readonly status?: ProtocolSessionStatus;
 	/** @deprecated Superseded by the `IsRead` bit on {@link status}. */
 	readonly isRead?: boolean;
@@ -113,11 +108,9 @@ interface ISerializedSessionMetadata {
 }
 
 /**
- * The session-scoped flag bits of {@link ProtocolSessionStatus}. Only these are
- * cached: the activity bits (`InProgress` / `InputNeeded` / `Error`) are live
- * state, and restoring them would show a stale spinner or error until the next
- * `listSessions()` lands — indefinitely for a remote host that is unreachable
- * and therefore keeps republishing its cached snapshot.
+ * Only these bits are cached. The activity bits are live state, and restoring them
+ * would show a stale spinner until the next `listSessions()` lands — indefinitely
+ * for an unreachable remote host, which keeps republishing its cached snapshot.
  */
 const SESSION_STATUS_FLAG_MASK = ProtocolSessionStatus.IsRead | ProtocolSessionStatus.IsArchived;
 
@@ -151,11 +144,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 	}
 }
 
-/**
- * Reads the cached flag bits, folding in the legacy standalone read/archived
- * booleans so a cache written before those flags moved onto `status` still
- * restores with the right flag bits.
- */
+/** Reads the cached flag bits, folding in the legacy standalone booleans. */
 function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStatus | undefined {
 	const legacyArchived = raw.isArchived ?? raw.isDone;
 	if (raw.isRead === undefined && legacyArchived === undefined) {
@@ -4301,8 +4290,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...base,
 				summary: adapter.title.get() || base.summary,
 				modifiedTime: adapter.updatedAt.get().getTime(),
-				// Fold the adapter's live read/archived state back onto the status
-				// bitset, which is the sole carrier for those flags.
 				status: withSessionStatusFlag(
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,

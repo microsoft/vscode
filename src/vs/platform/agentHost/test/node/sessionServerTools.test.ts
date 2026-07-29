@@ -40,10 +40,7 @@ suite('SessionServerTools', () => {
 	const workspace = URI.parse('file:///workspace/app');
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
 
-	/**
-	 * Sessions default to read (`IsRead` set); tests that care about unread
-	 * clear the bit explicitly so the two are never ambiguous.
-	 */
+	/** Defaults to read; tests that care about unread clear the `IsRead` bit. */
 	function sessionMeta(id: string, status: SessionStatus, dir: URI): IAgentSessionMetadata {
 		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status: status | SessionStatus.IsRead, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
 	}

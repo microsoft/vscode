@@ -1274,8 +1274,6 @@ export class ProtocolServerHandler extends Disposable {
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
-					// `status` already carries the session-scoped `IsRead` /
-					// `IsArchived` flag bits; there is no separate boolean to fold in.
 					status: s.status ?? SessionStatus.Idle,
 					activity: s.activity,
 					createdAt: new Date(s.startTime).toISOString(),

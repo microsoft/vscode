@@ -213,9 +213,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
-			// Read state is host-owned and shared with every other connected
-			// client. A session with no status yet (a pending new session the
-			// host hasn't acknowledged) has no host opinion, so leave it unset.
+			// A pending new session the host hasn't acknowledged has no status, and
+			// so no host opinion on read state — leave it unset.
 			isRead: opts.status !== undefined ? (opts.status & SessionStatus.IsRead) === SessionStatus.IsRead : undefined,
 			metadata: this._buildMetadata(opts.workingDirectory),
 			timing: {

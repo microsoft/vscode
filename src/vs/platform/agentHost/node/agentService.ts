@@ -852,9 +852,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
 					}
-					// Fold the persisted flags into `status`, which is the sole
-					// carrier for read/archived state. `isDone` is the legacy
-					// key for `isArchived`.
+					// `isDone` is the legacy key for `isArchived`.
 					if (m[AH_META_IS_READ_DB_KEY] !== undefined) {
 						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, m[AH_META_IS_READ_DB_KEY] === 'true') };
 					}
@@ -930,11 +928,9 @@ export class AgentService extends Disposable implements IAgentService {
 				return {
 					...s,
 					summary: liveSummary.title || s.summary,
-					// The live summary owns the whole status bitset, including the
-					// `IsRead` / `IsArchived` flag bits: the state manager seeded
-					// them from the same session database on restore and has
-					// applied every mutation since, so it is strictly fresher than
-					// the values folded in above.
+					// Supersedes the flags folded in above: the state manager seeded
+					// them from the same database on restore and has applied every
+					// mutation since.
 					status: liveSummary.status,
 					activity: liveSummary.activity,
 					modifiedTime: Date.parse(liveSummary.modifiedAt),
