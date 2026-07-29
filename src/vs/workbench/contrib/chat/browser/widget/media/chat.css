@@ -264,10 +264,6 @@
 	background-color: var(--vscode-inputOption-activeBackground);
 }
 
-.interactive-item-container.interactive-response.chat-most-recent-response {
-	min-height: var(--chat-current-response-min-height);
-}
-
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	/* Complete response only */
