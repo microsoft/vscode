@@ -13,7 +13,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -282,6 +282,8 @@ export function registerVoiceInputModeSimulateActions(): void {
 export interface IVoiceInputModePillOptions {
 	/** Toggle dictation for the host surface (defaults to the shared toggle command). */
 	readonly toggleDictation?: () => void;
+	/** Whether this is the focused or last-focused chat input that owns live state. */
+	readonly isActive?: IObservable<boolean>;
 }
 
 /**
@@ -378,7 +380,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
 		));
-		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService));
+		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
@@ -476,6 +478,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const simHandsFree = this.voiceInputModeService.simulatedHandsFree.read(reader);
 			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			const isActive = sim !== undefined || (this._options?.isActive?.read(reader) ?? true);
 
 			// Resolve the effective state — a simulation override wins over live state.
 			let isDictating: boolean;
@@ -490,9 +493,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				listening = sim === 'listening';
 				speaking = sim === 'speaking';
 			} else {
-				isDictating = dictationActive.read(reader);
-				connected = this.voiceSessionController.isConnected.read(reader);
-				connecting = this.voiceSessionController.isConnecting.read(reader);
+				isDictating = isActive && dictationActive.read(reader);
+				connected = isActive && this.voiceSessionController.isConnected.read(reader);
+				connecting = isActive && this.voiceSessionController.isConnecting.read(reader);
 				const voiceState = this.voiceSessionController.voiceState.read(reader);
 				listening = connected && voiceState === 'listening';
 				speaking = connected && voiceState === 'speaking';
@@ -501,7 +504,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const voiceOn = connected || connecting;
 			this._voiceLive = voiceLive;
 			// First-use model download/load (real state only; simulations never prepare).
-			const dictationBusy = sim === undefined && dictationPreparing.read(reader);
+			const dictationBusy = sim === undefined && isActive && dictationPreparing.read(reader);
 
 			// The dedicated listen (start/stop speaking) toggle shows in manual
 			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
