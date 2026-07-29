@@ -277,6 +277,11 @@ export interface IAgentHostAdapterOptions {
 	readonly getConnection: () => IAgentConnection | undefined;
 	/** Agent capability lookup shared by every adapter owned by this provider. */
 	readonly agentCapabilities: IObservable<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>;
+	/**
+	 * The scheme the host addresses this session under, when it differs from the agent provider
+	 * (cloud sandbox: provider `copilot`, sessions `ahp-session:/<id>`). Defaults to the provider.
+	 */
+	readonly backendSessionScheme?: string;
 }
 
 /**
@@ -513,6 +518,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _resourceScheme: string;
 
 	readonly agentProvider: string;
+	/**
+	 * This session's URI as the host's registry is keyed by it, which may use a different scheme
+	 * than {@link agentProvider} (cloud sandbox: provider `copilot`, backend `ahp-session:/<id>`).
+	 * Every backend call must address the session by this URI.
+	 */
+	readonly backendUri: URI;
 
 	// Retained so we can rebuild `workspace` when only `_meta` changes via
 	// a `SessionMetaChanged` action dispatched on session open (without a full
@@ -595,6 +606,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			throw new Error(`Agent session URI has no provider scheme: ${metadata.session.toString()}`);
 		}
 		this.agentProvider = agentProvider;
+		this.backendUri = AgentSession.uri(_options.backendSessionScheme ?? agentProvider, rawId);
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
 		this._rawId = rawId;
 		this._resourceScheme = resourceScheme;
@@ -1334,6 +1346,14 @@ interface INewSessionConstructionContext {
 	readonly providerId: string;
 	readonly icon: ThemeIcon;
 	readonly resourceScheme: string;
+	/**
+	 * The URI scheme used to reconstruct this draft's backend (wire) session URI,
+	 * when it differs from the agent provider ({@link sessionType}.id). Defaults to
+	 * the agent provider. Cloud sandbox creates sessions under `ahp-session:/<id>`
+	 * while the agent provider is `copilot`; the eager backend `createSession`/
+	 * subscribe must use this scheme so it matches the handler's create path.
+	 */
+	readonly backendSessionScheme?: string;
 	readonly authenticationPending: IObservable<boolean>;
 	readonly logService: ILogService;
 	/**
@@ -1397,6 +1417,8 @@ class NewSession extends Disposable {
 	readonly session: ISession;
 	readonly sessionId: string;
 	readonly agentProvider: string;
+	/** This draft's URI as the host's registry would key it. See {@link AgentHostSessionAdapter.backendUri}. */
+	private readonly _backendSessionUri: URI;
 	readonly workspaceUri: URI | undefined;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
@@ -1484,6 +1506,9 @@ class NewSession extends Disposable {
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
+		// Defaults to scheme == provider; only hosts that address sessions under a different
+		// scheme (cloud sandbox: provider `copilot`, scheme `ahp-session`) override it.
+		this._backendSessionUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		this._title = observableValue<string>(this, '');
 		const title = this._title;
@@ -1702,7 +1727,7 @@ class NewSession extends Disposable {
 	 * no session state exists at send time.
 	 */
 	eagerCreate(connection: IAgentConnection): void {
-		const backendUri = AgentSession.uri(this.agentProvider, this.session.resource.path.substring(1));
+		const backendUri = this._backendSessionUri;
 		if (this._backendUri?.toString() === backendUri.toString() || this._subscription) {
 			return;
 		}
@@ -2140,6 +2165,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace'>;
 
+	/**
+	 * Hook to normalize a session's metadata before it is cached, keyed, or
+	 * persisted. The default is identity. Subclasses override this when the host
+	 * addresses sessions under a scheme that differs from the agent provider
+	 * (e.g. a cloud sandbox host that lists sessions as `ahp-session:/<id>` while
+	 * its agent provider is `copilot`), so that routing, persistence, and content
+	 * resolution all agree on a single scheme. Must preserve the raw session id
+	 * (URI path) so cache keys remain stable.
+	 */
+	protected _adoptSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+		return meta;
+	}
+
+	/**
+	 * The backend (wire) session URI scheme for a given agent provider. Default is
+	 * identity (scheme == provider), which holds for every host except the Copilot
+	 * host used by cloud sandbox, whose sessions are addressed under
+	 * `ahp-session:/<id>` while the agent provider is `copilot`. Subclasses
+	 * override this so all backend `AgentSession.uri(...)` reconstructions on the
+	 * adapter and provider use the host's real scheme. Must be a stable per-provider
+	 * mapping.
+	 */
+	protected _backendSessionScheme(agentProvider: string): string {
+		return agentProvider;
+	}
+
 	/** Build an adapter for the given metadata. */
 	protected createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
 		const provider = AgentSession.provider(meta.session);
@@ -2156,6 +2207,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
 			agentCapabilities: this._agentCapabilities,
+			backendSessionScheme: this._backendSessionScheme(provider),
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
@@ -2453,6 +2505,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			providerId: this.id,
 			icon: sessionType.icon,
 			resourceScheme,
+			backendSessionScheme: this._backendSessionScheme(sessionType.id),
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
 			initialConfigValues: this._initialNewSessionConfig(workspace),
@@ -2800,7 +2853,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
-			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const sessionUri = cached.backendUri;
 			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: normalizedValue } };
 			connection.dispatch(sessionUri.toString(), action);
 			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
@@ -2847,7 +2900,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
-			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const sessionUri = cached.backendUri;
 			const action = {
 				type: ActionType.SessionConfigChanged as const,
 				config: nextValues,
@@ -3204,7 +3257,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId) {
 			return [];
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		return (sessionState.customizations ?? [])
 			.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
@@ -3261,7 +3314,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId) {
 			return undefined;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
 		return { connection, annotationsUri };
 	}
@@ -3276,7 +3329,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const sessionUri = cached.backendUri;
 				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: true };
 				connection.dispatch(sessionUri.toString(), action);
 			}
@@ -3291,7 +3344,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const sessionUri = cached.backendUri;
 				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: false };
 				connection.dispatch(sessionUri.toString(), action);
 			}
@@ -3306,7 +3359,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const sessionUri = cached.backendUri;
 				const action = { type: ActionType.SessionIsReadChanged as const, isRead };
 				connection.dispatch(sessionUri.toString(), action);
 			}
@@ -3334,7 +3387,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		for (const { rawId, sessionId, cached } of targets) {
-			await connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
+			await connection.disposeSession(cached.backendUri);
 			this._sessionCache.delete(rawId);
 			this._runningSessionConfigs.delete(sessionId);
 			this._runningSessionConfigResolveSeq.delete(sessionId);
@@ -3353,7 +3406,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId || !connection) {
 			return;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const chatId = chatUri.fragment;
 		const action = { type: ActionType.SessionTitleChanged as const, title };
 		if (chatId) {
@@ -3377,7 +3430,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached && rawId && connection) {
 			cached.title.set(title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const sessionUri = cached.backendUri;
 			const action = { type: ActionType.SessionTitleChanged as const, title };
 			connection.dispatch(sessionUri.toString(), action);
 		}
@@ -3396,7 +3449,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached || !connection) {
 			return false;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const ahpChatUri = URI.parse(buildChatUri(sessionUri, chatId));
 
 		if (!options?.skipConfirmation) {
@@ -3447,7 +3500,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Session '${chatId}' does not support multiple chats`);
 		}
 
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const newChatId = generateUuid();
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
 		const selectedModelId = cached.modelId.get() ?? (cached.modelSelection ? `${cached.resource.scheme}:${cached.modelSelection.id}` : undefined);
@@ -3490,7 +3543,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Session '${sessionId}' does not support multiple chats`);
 		}
 
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const newChatId = generateUuid();
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
 		const sourceBackendUri = this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, sourceChat);
@@ -3975,7 +4028,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
 		const store = new DisposableStore();
 		store.add(ref);
@@ -4273,10 +4326,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
-			const meta = deserializeMetadata(entry);
-			if (!meta) {
+			const deserialized = deserializeMetadata(entry);
+			if (!deserialized) {
 				continue;
 			}
+			const meta = this._adoptSessionMeta(deserialized);
 			const rawId = AgentSession.id(meta.session);
 			if (this._sessionCache.has(rawId)) {
 				continue;
@@ -4361,7 +4415,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const added: ISession[] = [];
 			const changed: ISession[] = [];
 
-			for (const meta of sessions) {
+			for (const rawMeta of sessions) {
+				const meta = this._adoptSessionMeta(rawMeta);
 				const rawId = AgentSession.id(meta.session);
 				currentKeys.add(rawId);
 

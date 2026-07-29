@@ -20,7 +20,7 @@ import { ConfigurationTarget, type IConfigurationValue } from '../../../configur
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -796,10 +796,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 		}, {
-			protocolVersions: [PROTOCOL_VERSION],
+			// Every negotiable version is offered so an older host can negotiate down,
+			// newest first so a current host still picks it.
+			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: 'renderer-client-id',
 			clientInfo,
 		});
+		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.
