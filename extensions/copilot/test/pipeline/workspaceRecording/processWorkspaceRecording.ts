@@ -7,11 +7,9 @@ import type { IAlternativeAction } from '../../../src/extension/inlineEdits/node
 import { ErrorUtils } from '../../../src/util/common/errors';
 import { Result } from '../../../src/util/common/result';
 import type { IInputRow } from '../parseInput';
-import { processRecordingAtIndex } from '../replayRecording';
-import type { IProcessedRow } from '../replayRecording';
+import { processRecordingAtIndex, type IProcessedRow } from '../replayRecording';
 import type { WithRowIndex } from '../withRowIndex';
-import { materializeWorkspaceRecordingSample } from './workspaceRecording';
-import type { IWorkspaceRecording, IWorkspaceRecordingSampleDescriptor } from './workspaceRecording';
+import { materializeWorkspaceRecordingSample, type IWorkspaceRecording, type IWorkspaceRecordingSampleDescriptor } from './workspaceRecording';
 
 export const WORKSPACE_RECORDING_SUGGESTION_STATUS = 'workspace-recording';
 

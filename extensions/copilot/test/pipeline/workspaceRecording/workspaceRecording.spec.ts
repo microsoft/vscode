@@ -13,9 +13,9 @@ import {
 	loadWorkspaceRecording,
 	materializeWorkspaceRecordingSample,
 	selectWorkspaceRecordingSamples,
+	type IWorkspaceRecordingSampleDescriptor,
 	WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT,
 } from './workspaceRecording';
-import type { IWorkspaceRecordingSampleDescriptor } from './workspaceRecording';
 
 const header: HeaderLogEntry = {
 	kind: 'header',
