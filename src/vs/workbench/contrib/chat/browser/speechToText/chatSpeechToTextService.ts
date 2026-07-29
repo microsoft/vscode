@@ -1393,22 +1393,22 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			// text on a mid-stream failure, which could replace the complete raw
 			// transcript with a truncated one. Any error here falls through to the
 			// catch and yields `undefined` (raw-transcript fallback).
+			// Bound response consumption so cancellation can release a stalled stream or result wait.
 			let cleaned = '';
-			for await (const part of response.stream) {
-				if (cts.token.isCancellationRequested) {
-					this._logService.info(`[chat-stt] cancelled language model cleanup during stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
-					return undefined;
-				}
-				const parts = Array.isArray(part) ? part : [part];
-				for (const item of parts) {
-					if (item.type === 'text') {
-						cleaned += item.value;
+			const consumed = await raceCancellation((async () => {
+				for await (const part of response.stream) {
+					const parts = Array.isArray(part) ? part : [part];
+					for (const item of parts) {
+						if (item.type === 'text') {
+							cleaned += item.value;
+						}
 					}
 				}
-			}
-			await response.result;
-			if (cts.token.isCancellationRequested) {
-				this._logService.info(`[chat-stt] cancelled language model cleanup after stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
+				await response.result;
+				return true;
+			})(), cts.token);
+			if (consumed === undefined || cts.token.isCancellationRequested) {
+				this._logService.info(`[chat-stt] cancelled language model cleanup while consuming response (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
 				return undefined;
 			}
 			cleaned = cleaned.trim();
