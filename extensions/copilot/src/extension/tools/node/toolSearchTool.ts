@@ -79,7 +79,7 @@ ToolRegistry.registerModelSpecificTool(
 		displayName: l10n.t('Search Tools'),
 		toolReferenceName: 'toolSearch',
 		userDescription: l10n.t('Search for relevant tools by describing what you need'),
-		description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the availableDeferredTools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
+		description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
 		tags: [],
 		source: undefined,
 		toolSet: 'vscode',
