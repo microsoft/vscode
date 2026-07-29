@@ -306,6 +306,10 @@ export type IChatSessionHistoryItem = {
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
 export interface IChatSessionServerRequest {
+	/**
+	 * Identifier of the backing provider turn.
+	 */
+	readonly id: string;
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;

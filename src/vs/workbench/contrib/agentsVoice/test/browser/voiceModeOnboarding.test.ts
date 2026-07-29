@@ -93,6 +93,7 @@ suite('Voice Mode onboarding', () => {
 		// rather than arriving with an answer already filled in.
 		const selectedOnOpen = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 		const voices = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-voice-label')].map(element => element.textContent);
+		const hasMicrophonePicker = host.container.querySelector('.voice-mode-onboarding-microphone-picker') !== null;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
 		const selectedAfterPick = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 
@@ -103,9 +104,19 @@ suite('Voice Mode onboarding', () => {
 		const shownAgain = host.container.classList.contains('has-voice-mode-onboarding');
 
 		assert.deepStrictEqual(
-			{ shown, selectedOnOpen, voices, selectedAfterPick, shownAfterClose, shownAgain, telemetryEvents },
+			{
+				shown,
+				hasMicrophonePicker,
+				selectedOnOpen,
+				voices,
+				selectedAfterPick,
+				shownAfterClose,
+				shownAgain,
+				telemetryEvents,
+			},
 			{
 				shown: true,
+				hasMicrophonePicker: true,
 				selectedOnOpen: 0,
 				voices: ['Maya', 'Victoria', 'Kevin', 'Daniel'],
 				selectedAfterPick: 1,
@@ -164,14 +175,14 @@ suite('Voice Mode onboarding', () => {
 				card,
 				tabIndex: card?.tabIndex,
 				closeIcon: host.container.querySelector('.voice-mode-onboarding-close .codicon')?.className,
-				listeningNotice: host.container.querySelector('.voice-mode-onboarding-listening-notice')?.textContent,
+				listeningNotice: host.container.querySelector('.voice-mode-onboarding-listening-notice'),
 			},
 			{
 				activeElement: card,
 				card,
 				tabIndex: -1,
-				closeIcon: 'codicon codicon-check-compact',
-				listeningNotice: 'Close this when you\'re ready to speak.',
+				closeIcon: 'codicon codicon-close-compact',
+				listeningNotice: null,
 			});
 	});
 
@@ -207,7 +218,7 @@ suite('Voice Mode onboarding', () => {
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), true);
 	});
 
-	test('each link in the sentence routes to its own command', () => {
+	test('the settings link opens Voice Mode settings', () => {
 		const executed: string[] = [];
 		const service = createService(disposables, executed);
 		const host = createHost(disposables);
@@ -219,37 +230,24 @@ suite('Voice Mode onboarding', () => {
 			link.click();
 		}
 
-		// Order matters: `renderFormattedText` numbers the `[[...]]` segments in
-		// source order, and the callback dispatches on that index.
 		assert.deepStrictEqual(
 			{ labels: links.map(link => link.textContent), executed },
 			{
-				labels: ['settings', 'how it responds'],
-				executed: ['agentsVoice.openSettings', 'workbench.action.chat.configureVoiceInstructions'],
+				labels: ['settings'],
+				executed: ['agentsVoice.openSettings'],
 			});
 	});
 
-	test('holds the microphone shut for as long as the card is up', () => {
+	test('does not block Voice Mode from listening while the card is up', () => {
 		const holds: boolean[] = [];
 		const service = createService(disposables, [], holds);
 		const host = createHost(disposables);
 		disposables.add(register(service, host));
 
-		// The card goes up while the session is still connecting, so a plain
-		// `stopListening()` would no-op and hands-free would open the microphone
-		// on `session_init` with the card still on screen.
 		service.showIfNeeded();
-		const heldWhileOpen = holds.slice();
-		const listeningNotice = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-listening-notice')?.textContent;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
 
-		assert.deepStrictEqual(
-			{ heldWhileOpen, listeningNotice, afterDismiss: holds },
-			{
-				heldWhileOpen: [true],
-				listeningNotice: 'Close this when you\'re ready to speak.',
-				afterDismiss: [true, false],
-			});
+		assert.deepStrictEqual(holds, []);
 	});
 
 	test('the one appearance is only spent once the card is really up', () => {

@@ -27,6 +27,8 @@ import {
 	IVoiceBargeIn,
 	IVoiceNarrationAck,
 	IVoiceNarrationSignal,
+	IVoiceDispatchResult,
+	VoiceNarrationKind,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -726,13 +728,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._lastSentActive = context.active_session ? stableStringify(context.active_session) : '';
 	}
 
-	sendToolResult(callId: string, result: string): void {
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -740,7 +742,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
 			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
-			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: id }));
+			this._ws.send(JSON.stringify({
+				type: 'request_narration',
+				coding_session_id: codingSessionId,
+				kind,
+				text,
+				narration_id: id,
+				...(pending ? { pending_id: pending.pendingId } : {}),
+			}));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
 			return id;
 		}
