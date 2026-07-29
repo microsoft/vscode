@@ -832,6 +832,7 @@ export class SCMInputWidget {
 		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.clearValidation();
+		clearTimeout(this._validationTimer);
 		this.disposables.dispose();
 	}
 }
@@ -847,7 +848,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.SCMInputBox,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabled.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 					ChatContextKeys.Setup.completed.negate(),
 					ContextKeyExpr.equals('scmProvider', 'git')
 				)

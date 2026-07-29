@@ -7,7 +7,9 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostStarter } from '../common/agent.js';
+import { reportAgentHostProcessError } from '../common/agentHostProcessTelemetry.js';
 import { AgentHostIpcChannels } from '../common/agentService.js';
 
 enum Constants {
@@ -30,6 +32,7 @@ export class AgentHostProcessManager extends Disposable {
 		private readonly _starter: IAgentHostStarter,
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -51,30 +54,52 @@ export class AgentHostProcessManager extends Disposable {
 		}
 	}
 
-	private _start(): void {
-		const connection = this._starter.start();
-
-		this._logService.info('AgentHostProcessManager: agent host started');
-
-		// Connect logger channel so agent host logs appear in the output channel
-		this._register(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
-
-		// Handle unexpected exit
-		this._register(connection.onDidProcessExit(e => {
-			if (!this._wasQuitRequested && !this._store.isDisposed) {
-				if (this._restartCount <= Constants.MaxRestarts) {
-					this._logService.error(`AgentHostProcessManager: agent host terminated unexpectedly with code ${e.code}`);
-					this._restartCount++;
-					this._started = false;
-					connection.store.dispose();
-					this._start();
-				} else {
-					this._logService.error(`AgentHostProcessManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
-				}
-			}
-		}));
-
-		this._register(toDisposable(() => connection.store.dispose()));
+	private async _start(): Promise<void> {
 		this._started = true;
+		try {
+			const connection = await this._starter.start();
+
+			if (this._store.isDisposed) {
+				connection.store.dispose();
+				return;
+			}
+
+			this._logService.info('AgentHostProcessManager: agent host started');
+
+			// Connect logger channel so agent host logs appear in the output channel
+			this._register(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
+
+			// Handle unexpected exit
+			this._register(connection.onDidProcessExit(e => {
+				if (!this._wasQuitRequested && !this._store.isDisposed) {
+					const willRestart = this._restartCount <= Constants.MaxRestarts;
+					reportAgentHostProcessError(this._telemetryService, {
+						kind: 'unexpectedExit',
+						code: e.code,
+						restartCount: this._restartCount,
+						willRestart,
+					});
+					if (willRestart) {
+						this._logService.error(`AgentHostProcessManager: agent host terminated unexpectedly with code ${e.code}`);
+						this._restartCount++;
+						this._started = false;
+						connection.store.dispose();
+						this._start();
+					} else {
+						this._logService.error(`AgentHostProcessManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
+					}
+				}
+			}));
+
+			this._register(toDisposable(() => connection.store.dispose()));
+		} catch (error) {
+			this._started = false;
+			this._logService.error('AgentHostProcessManager: failed to start agent host', error);
+			reportAgentHostProcessError(this._telemetryService, {
+				kind: 'startFailed',
+				restartCount: this._restartCount,
+				willRestart: false,
+			}, error);
+		}
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, ResponseError, LSPErrorCodes } from 'vscode-languageserver';
-import { RuntimeEnvironment } from '../jsonServer';
+import { RuntimeEnvironment } from '../jsonServer.js';
 
 export function formatError(message: string, err: any): string {
 	if (err instanceof Error) {

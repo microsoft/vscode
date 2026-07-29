@@ -353,7 +353,7 @@ export class Transform extends Marker {
 	}
 
 	toTextmateString(): string {
-		return `/${this.regexp.source}/${this.children.map(c => c.toTextmateString())}/${(this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : '')}`;
+		return `/${this.regexp.source}/${this.children.map(c => c.toTextmateString()).join('')}/${(this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : '')}`;
 	}
 
 	clone(): Transform {
@@ -636,7 +636,7 @@ export class TextmateSnippet extends Marker {
 
 	clone(): TextmateSnippet {
 		const ret = new TextmateSnippet();
-		this._children = this.children.map(child => child.clone());
+		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
 

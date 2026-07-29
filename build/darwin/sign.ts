@@ -11,10 +11,6 @@ import { spawn } from '@malept/cross-spawn-promise';
 const root = path.dirname(path.dirname(import.meta.dirname));
 const baseDir = path.dirname(import.meta.dirname);
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const helperAppBaseName = product.nameShort;
-const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
-const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
-const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
 
 function getElectronVersion(): string {
 	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
@@ -23,12 +19,14 @@ function getElectronVersion(): string {
 }
 
 function getEntitlementsForFile(filePath: string): string {
-	if (filePath.includes(gpuHelperAppName)) {
+	if (filePath.includes(' Helper (GPU).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist');
-	} else if (filePath.includes(rendererHelperAppName)) {
+	} else if (filePath.includes(' Helper (Renderer).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist');
-	} else if (filePath.includes(pluginHelperAppName)) {
+	} else if (filePath.includes(' Helper (Plugin).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
+	} else if (filePath.includes(' Helper.app')) {
+		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-entitlements.plist');
 	}
 	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
 }
@@ -122,6 +120,13 @@ async function main(buildDir?: string): Promise<void> {
 			'NSAudioCaptureUsageDescription',
 			'-string',
 			'An application in Visual Studio Code wants to use Audio Capture.',
+			`${infoPlistPath}`
+		]);
+		await spawn('plutil', [
+			'-insert',
+			'NSLocalNetworkUsageDescription',
+			'-string',
+			'The app uses your local network for DNS resolution and to connect to locally running services.',
 			`${infoPlistPath}`
 		]);
 	}

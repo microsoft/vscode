@@ -8,6 +8,7 @@ use crate::constants::{
 	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
 };
 use crate::download_cache::DownloadCache;
+use crate::log;
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
@@ -23,9 +24,6 @@ use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::util::prereqs::skip_requirements_check;
-use crate::{debug, info, log, spanf, trace, warning};
-use lazy_static::lazy_static;
-use opentelemetry::KeyValue;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
@@ -33,6 +31,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -40,11 +39,10 @@ use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
 
-lazy_static! {
-	static ref LISTENING_PORT_RE: Regex =
-		Regex::new(r"Extension host agent listening on (.+)").unwrap();
-	static ref WEB_UI_RE: Regex = Regex::new(r"Web UI available at (.+)").unwrap();
-}
+static LISTENING_PORT_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
+static WEB_UI_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -76,6 +74,14 @@ pub struct CodeServerArgs {
 	pub without_connection_token: bool,
 	// reconnection
 	pub reconnection_grace_time: Option<u32>,
+	// agent-host bridge: tells the spawned VS Code server where the
+	// canonical agent host is listening so it can register the
+	// `agentHostProxy` IPC channel and let renderers reach the agent
+	// host over the remote-agent connection. The server does NOT spawn
+	// an agent host of its own when these are set.
+	pub agent_host_bridge_host: Option<String>,
+	pub agent_host_bridge_port: Option<u16>,
+	pub agent_host_bridge_connection_token: Option<String>,
 }
 
 impl CodeServerArgs {
@@ -160,6 +166,15 @@ impl CodeServerArgs {
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
+		}
+		if let Some(port) = self.agent_host_bridge_port {
+			args.push(format!("--agent-host-bridge-port={port}"));
+			if let Some(host) = &self.agent_host_bridge_host {
+				args.push(format!("--agent-host-bridge-host={host}"));
+			}
+			if let Some(token) = &self.agent_host_bridge_connection_token {
+				args.push(format!("--agent-host-bridge-connection-token={token}"));
+			}
 		}
 		args
 	}
@@ -333,6 +348,28 @@ pub struct ServerBuilder<'a> {
 	launcher_paths: &'a LauncherPaths,
 	server_paths: ServerPaths,
 	http: BoxedHttp,
+}
+
+/// Ensures the given path has execute permissions on Unix.
+/// This is a self-healing measure for cases where the binary was extracted
+/// without execute permissions or where permissions were lost (e.g. on
+/// network filesystems or after interrupted downloads).
+#[cfg(unix)]
+fn ensure_executable(path: &std::path::Path) -> Result<(), std::io::Error> {
+	use std::os::unix::fs::PermissionsExt;
+
+	let metadata = std::fs::metadata(path)?;
+	let mut permissions = metadata.permissions();
+	if permissions.mode() & 0o111 == 0 {
+		permissions.set_mode(permissions.mode() | 0o111);
+		std::fs::set_permissions(path, permissions)?;
+	}
+	Ok(())
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_path: &std::path::Path) -> Result<(), std::io::Error> {
+	Ok(())
 }
 
 impl<'a> ServerBuilder<'a> {
@@ -551,14 +588,7 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	pub async fn listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
-		Ok(spanf!(
-			self.logger,
-			self.logger.span("server.start").with_attributes(vec! {
-				KeyValue::new("commit_id", self.server_params.release.commit.to_string()),
-				KeyValue::new("quality", format!("{}", self.server_params.release.quality)),
-			}),
-			self._listen_on_socket(socket)
-		)?)
+		self._listen_on_socket(socket).await
 	}
 
 	async fn _listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
@@ -612,11 +642,25 @@ impl<'a> ServerBuilder<'a> {
 		let cmd = cmd.creation_flags(
 			winapi::um::winbase::CREATE_NO_WINDOW
 				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
-				| get_should_use_breakaway_from_job()
-					.await
-					.then_some(winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB)
-					.unwrap_or_default(),
+				| if get_should_use_breakaway_from_job().await {
+					winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB
+				} else {
+					Default::default()
+				},
 		);
+
+		// Self-heal: if the server binary lost execute permissions (e.g. on a
+		// network filesystem or after a partial extraction), try to restore them
+		// before attempting to spawn. If this fails, report it clearly so that
+		// the UI does not treat it as generic "corruption" and loop re-downloading.
+		if let Err(e) = ensure_executable(&self.server_paths.executable) {
+			return Err(CodeError::ServerNotExecutable(format!(
+				"{} is not executable and permissions could not be restored: {}",
+				self.server_paths.executable.display(),
+				e
+			))
+			.into());
+		}
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
@@ -803,6 +847,9 @@ fn parse_port_from(text: &str) -> Option<u16> {
 }
 
 pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
+	use crate::commands::output;
+	use console::style;
+
 	debug!(
 		log,
 		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
@@ -835,8 +882,25 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {addr}\n");
-	log.result(message);
+	let arrow = style("➜").green().bold();
+	let product = QUALITYLESS_PRODUCT_NAME;
+	let version = crate::constants::VSCODE_CLI_VERSION.unwrap_or("dev");
+
+	println!();
+	println!(
+		"  {} {}",
+		style(format!("{product} Tunnel")).cyan().bold(),
+		style(format!("v{version}")).dim(),
+	);
+	println!();
+	output::print_banner_line("Tunnel", tunnel_name);
+	println!(
+		"  {}  {}  {}",
+		arrow,
+		style("Open:").bold(),
+		style(&addr).cyan(),
+	);
+	output::print_banner_footer();
 }
 
 pub async fn download_cli_into_cache(

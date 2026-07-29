@@ -97,9 +97,6 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, this._languageConfigurationService, this._logService, languageFeaturesService)));
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public canComputeUnicodeHighlights(uri: URI): boolean {
 		return canSyncModel(this._modelService, uri);

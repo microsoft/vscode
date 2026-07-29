@@ -6,7 +6,7 @@
 				"git": {
 					"name": "jeff-hykin/better-cpp-syntax",
 					"repositoryUrl": "https://github.com/jeff-hykin/better-cpp-syntax",
-					"commitHash": "f1d127a8af2b184db570345f0bb179503c47fdf6"
+					"commitHash": "06f4011c0b5ccb85fcbcbaebbb73d2fda93365bf"
 				}
 			},
 			"license": "MIT",
@@ -35,7 +35,7 @@
 					"SOFTWARE."
 				]
 			],
-			"version": "1.17.4",
+			"version": "1.27.1",
 			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{

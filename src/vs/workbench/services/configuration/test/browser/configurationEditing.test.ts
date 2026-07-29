@@ -38,7 +38,7 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { joinPath } from '../../../../../base/common/resources.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { RemoteAgentService } from '../../../remote/browser/remoteAgentService.js';
-import { getSingleFolderWorkspaceIdentifier } from '../../../workspaces/browser/workspaces.js';
+import { getSingleFolderWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { IUserDataProfilesService, UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';

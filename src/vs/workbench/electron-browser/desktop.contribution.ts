@@ -9,8 +9,8 @@ import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/co
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing } from './actions/developerActions.js';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing, StartHeapTracing } from './actions/developerActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, SwitchToMainWindowAction, FocusWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -41,6 +41,8 @@ import product from '../../platform/product/common/product.js';
 	// Actions: Window
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
+	registerAction2(SwitchToMainWindowAction);
+	registerAction2(FocusWindowAction);
 	registerAction2(CloseWindowAction);
 	registerAction2(CloseOtherWindowsAction);
 	registerAction2(ToggleWindowAlwaysOnTopAction);
@@ -117,6 +119,7 @@ import product from '../../platform/product/common/product.js';
 	registerAction2(ShowContentTracingAction);
 	registerAction2(StopTracing);
 	registerAction2(StartTracing);
+	registerAction2(StartHeapTracing);
 })();
 
 // Menu
@@ -283,13 +286,15 @@ import product from '../../platform/product/common/product.js';
 				'markdownDescription': isMacintosh ?
 					localize('window.menuStyle.mac', "Adjust the context menu appearances to either be native by the OS, custom, or inherited from the title bar style defined in {0}.", '`#window.titleBarStyle#`') :
 					localize('window.menuStyle', "Adjust the menu style to either be native by the OS, custom, or inherited from the title bar style defined in {0}. This also affects the context menu appearance. Changes require a full restart to apply.", '`#window.titleBarStyle#`'),
+				agentsWindow: { default: 'custom' },
 			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
 				'default': 'native',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom.")
+				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom."),
+				agentsWindow: { default: 'custom' },
 			},
 			'window.nativeTabs': {
 				'type': 'boolean',
