@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
-import { Action } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize } from '../../../../nls.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { $, addDisposableListener, append, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize } from '../../../../../nls.js';
+import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import './media/promptTimeline.css';
 
 const PREVIOUS_ACTION_ID = 'promptTimeline.sticky.previous';
 const NEXT_ACTION_ID = 'promptTimeline.sticky.next';
