@@ -1706,6 +1706,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		const sess = context.target;
 		if (sess && !sess.isPipelineReady) {
+			// Provisional session: the SDK chat has never been materialized, so
+			// there is no on-disk transcript to read. Logged because an empty
+			// transcript is otherwise indistinguishable from a failed read.
+			this._logService.info(`[Claude] getSessionMessages: chat ${chat.toString()} is not materialized yet; returning no turns`);
 			return [];
 		}
 		// Default chat: its SDK chat id is the session id.
@@ -1736,6 +1740,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// blow up the entire transcript read.
 			this._logService.warn(`[Claude] replay mapper threw for ${sdkSessionId}`, err);
 			return [];
+		}
+		// Always a bug: the SDK handed back a transcript but replay produced
+		// nothing, which surfaces to the user as a chat that opens completely
+		// empty. Warn so the next report is diagnosable from the log alone.
+		if (turns.length === 0 && messages.length > 0) {
+			this._logService.warn(`[Claude] replay produced no turns from ${messages.length} transcript message(s) for ${sdkSessionId}; chat will render empty`);
 		}
 		// A bug in `primeFromTranscript` MUST NOT break an otherwise-successful
 		// transcript read.
