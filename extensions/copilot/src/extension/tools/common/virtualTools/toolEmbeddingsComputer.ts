@@ -237,8 +237,8 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 		// Get embeddings for all tools
 		const toolEmbeddings = await this.getAvailableToolEmbeddings(tools, token);
 		if (toolEmbeddings.length === 0) {
-			this._logService.trace('[virtual-tools] No embeddings available for tools, returning empty groups');
-			return [];
+			this._logService.trace('[virtual-tools] No embeddings available for tools, falling back to positional grouping');
+			return chunkIntoGroups(tools, limit);
 		}
 
 		// Create nodes for the EmbeddingsGrouper
@@ -269,9 +269,11 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 		const targetClusters = Math.min(limit, Math.ceil(nodes.length / 4));
 
 		if (targetClusters >= nodes.length) {
-			// If we need as many clusters as tools, just return individual tools
+			// If we need as many clusters as tools, just return individual tools. `tools`
+			// can still outnumber the nodes when embeddings were unavailable, so this goes
+			// through the chunker rather than emitting one group per tool unbounded.
 			this._logService.trace(`[virtual-tools] Target clusters (${targetClusters}) >= tool count (${nodes.length}), returning individual tools`);
-			return tools.map(tool => [tool]);
+			return chunkIntoGroups(tools, limit);
 		}
 
 		const tuneResult = grouper.tuneThresholdForTargetClusters(targetClusters);
@@ -283,41 +285,95 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 
 		// Convert clusters to tool arrays, filtering out small groups
 		const groups: LanguageModelToolInformation[][] = [];
-		const singletons: LanguageModelToolInformation[] = [];
+		const leftovers: LanguageModelToolInformation[] = [];
+		const clustered = new Set<string>();
 
 		for (const cluster of clusters) {
 			const toolsInCluster = cluster.nodes.map(node => node.value);
+			for (const tool of toolsInCluster) {
+				clustered.add(tool.name);
+			}
 
 			if (toolsInCluster.length >= MIN_TOOLSET_SIZE_TO_GROUP) {
 				groups.push(toolsInCluster);
 			} else {
-				// Small groups become singletons unless expanding would exceed limit
-				singletons.push(...toolsInCluster);
+				leftovers.push(...toolsInCluster);
 			}
 		}
 
-		// Check if adding singletons as individual groups would exceed limit
-		const totalGroupsAndSingletons = groups.length + singletons.length;
-		if (totalGroupsAndSingletons <= limit) {
-			// We have room, add singletons as individual groups
-			for (const singleton of singletons) {
-				groups.push([singleton]);
-			}
-		} else {
-			// Try to merge singletons into existing groups if possible
-			// If we can't, keep them as individual groups up to the limit
-			const remainingSlots = limit - groups.length;
-			for (let i = 0; i < Math.min(singletons.length, remainingSlots); i++) {
-				groups.push([singletons[i]]);
-			}
+		// Tools whose embedding was unavailable never became nodes, so no cluster holds them.
+		leftovers.push(...tools.filter(tool => !clustered.has(tool.name)));
 
-			// Log if we had to drop some tools
-			if (singletons.length > remainingSlots) {
-				this._logService.warn(`[virtual-tools] Had to drop ${singletons.length - remainingSlots} tools due to limit constraints`);
-			}
-		}
+		placeLeftovers(groups, leftovers, limit);
+		mergeDownToLimit(groups, limit);
 
 		this._logService.trace(`[virtual-tools] Created ${groups.length} groups from ${tools.length} tools`);
 		return groups;
 	}
+}
+
+/** Splits tools into at most `limit` groups, preserving order. */
+function chunkIntoGroups(tools: readonly LanguageModelToolInformation[], limit: number): LanguageModelToolInformation[][] {
+	if (tools.length === 0) {
+		return [];
+	}
+
+	const groupCount = Math.max(1, Math.min(limit, tools.length));
+	const perGroup = Math.ceil(tools.length / groupCount);
+	const groups: LanguageModelToolInformation[][] = [];
+	for (let i = 0; i < tools.length; i += perGroup) {
+		groups.push(tools.slice(i, i + perGroup));
+	}
+
+	return groups;
+}
+
+/** Places every leftover into `groups`, using its own slot when one is free. */
+function placeLeftovers(groups: LanguageModelToolInformation[][], leftovers: readonly LanguageModelToolInformation[], limit: number): void {
+	if (leftovers.length === 0) {
+		return;
+	}
+
+	const remainingSlots = Math.max(0, limit - groups.length);
+	if (leftovers.length <= remainingSlots) {
+		for (const leftover of leftovers) {
+			groups.push([leftover]);
+		}
+		return;
+	}
+
+	if (remainingSlots > 0) {
+		// All but the last free slot go to one leftover each; the last one takes the rest.
+		for (let i = 0; i < remainingSlots - 1; i++) {
+			groups.push([leftovers[i]]);
+		}
+		groups.push(leftovers.slice(remainingSlots - 1));
+		return;
+	}
+
+	if (groups.length === 0) {
+		groups.push(leftovers.slice());
+		return;
+	}
+
+	groups[indexOfSmallest(groups)].push(...leftovers);
+}
+
+/** Clustering only approximates the target count, so it can overshoot `limit`. */
+function mergeDownToLimit(groups: LanguageModelToolInformation[][], limit: number): void {
+	while (groups.length > limit && groups.length > 1) {
+		const [smallest] = groups.splice(indexOfSmallest(groups), 1);
+		groups[indexOfSmallest(groups)].push(...smallest);
+	}
+}
+
+function indexOfSmallest(groups: readonly LanguageModelToolInformation[][]): number {
+	let index = 0;
+	for (let i = 1; i < groups.length; i++) {
+		if (groups[i].length < groups[index].length) {
+			index = i;
+		}
+	}
+
+	return index;
 }

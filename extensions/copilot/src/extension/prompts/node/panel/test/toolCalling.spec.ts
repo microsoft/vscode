@@ -222,6 +222,49 @@ class ParallelAwareToolsService implements IToolsService {
 }
 
 describe('ChatToolCalls (toolCalling.tsx)', () => {
+	test('reports a registered tool missing from the request as not in the request toolset', async () => {
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: 'grouped_tool',
+			description: 'grouped tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const telemetryService = new SpyingTelemetryService();
+		testingServiceCollection.define(IToolsService, new CapturingToolsService(toolInfo));
+		testingServiceCollection.define(ITelemetryService, telemetryService);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-123' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [],
+			},
+		};
+
+		await renderPromptElement(accessor.get(IInstantiationService), endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [{
+				id: 'round-1',
+				response: 'calling grouped tool',
+				toolInputRetry: 0,
+				toolCalls: [{ name: toolInfo.name, arguments: '{}', id: 'call-1' }],
+			}],
+			toolCallResults: undefined,
+		});
+
+		const event = telemetryService.getEvents().telemetryServiceEvents.find(event => event.eventName === 'toolInvoke');
+		expect(event).toMatchObject({ properties: { invokeOutcome: 'notInRequestToolset' } });
+		accessor.dispose();
+	});
+
 	test('starts multiple sub-agent tool calls in parallel', async () => {
 		const toolName = ToolName.CoreRunSubagent;
 		const firstCallId = 'subagent-call-1';

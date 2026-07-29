@@ -40,7 +40,6 @@ export class VirtualTool {
 		this.isExpanded = other.isExpanded;
 		this.metadata.wasExpandedByDefault = other.metadata.wasExpandedByDefault;
 		this.metadata.canBeCollapsed = other.metadata.canBeCollapsed;
-		this.metadata.wasEmbeddingsMatched = other.metadata.wasEmbeddingsMatched;
 		this.lastUsedOnTurn = other.lastUsedOnTurn;
 	}
 

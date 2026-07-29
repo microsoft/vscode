@@ -6,7 +6,7 @@
 
 import { Raw, RenderPromptResult } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
-import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat, LanguageModelToolInformation } from 'vscode';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { toTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
@@ -29,6 +29,7 @@ import { ChatLocation, ChatResponseConfirmationPart, ChatResponseMarkdownPart, L
 import { ToolCallingLoop } from '../../../intents/node/toolCallingLoop';
 import { ToolResultMetadata } from '../../../prompts/node/panel/toolCalling';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { IToolGroupingService } from '../../../tools/common/virtualTools/virtualToolTypes';
 import { Conversation, Turn } from '../../common/conversation';
 import { IBuildPromptContext } from '../../common/intents';
 import { ToolCallRound } from '../../common/toolCallRound';
@@ -46,6 +47,7 @@ suite('defaultIntentRequestHandler', () => {
 	let endpoint: IChatEndpoint;
 	let turnIdCounter = 0;
 	let builtPrompts: IBuildPromptContext[] = [];
+	let availableTools: LanguageModelToolInformation[] | undefined;
 	const sessionId = 'some-session-id';
 
 	const getTurnId = () => `turn-id-${turnIdCounter}`;
@@ -62,6 +64,7 @@ suite('defaultIntentRequestHandler', () => {
 		accessor = services.createTestingAccessor();
 		endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
 		builtPrompts = [];
+		availableTools = undefined;
 		response = [];
 		promptResult = nullRenderPromptResult();
 		turnIdCounter = 0;
@@ -117,6 +120,10 @@ suite('defaultIntentRequestHandler', () => {
 			}
 
 			return promptResult;
+		}
+
+		getAvailableTools(): LanguageModelToolInformation[] | undefined {
+			return availableTools;
 		}
 	}
 
@@ -303,6 +310,49 @@ suite('defaultIntentRequestHandler', () => {
 				response: 'response to tool call',
 			},
 		]);
+	});
+
+	test('expands a pending called tool before regrouping captures the next prompt toolset', async () => {
+		const tool = {
+			name: 'pending_tool',
+			description: 'pending tool',
+			inputSchema: undefined,
+			source: undefined,
+			tags: [],
+		} satisfies LanguageModelToolInformation;
+		availableTools = [tool];
+		let computeCount = 0;
+		let pendingToolExpanded = false;
+		const grouping = {
+			tools: availableTools,
+			didCall: () => undefined,
+			didTakeTurn: () => { },
+			didInvalidateCache: () => { },
+			getContainerFor: () => undefined,
+			ensureExpanded: (toolName: string) => pendingToolExpanded ||= toolName === tool.name,
+			compute: async () => ++computeCount <= 2 || pendingToolExpanded ? [tool] : [],
+			computeAll: async () => [tool],
+		};
+		vi.spyOn(accessor.get(IToolGroupingService), 'create').mockReturnValue(grouping);
+
+		chatResponse[0] = [{
+			text: 'calling pending tool',
+			copilotToolCalls: [{ arguments: '{}', name: tool.name, id: 'pending_call' }],
+		}];
+		chatResponse[1] = 'done';
+		const toolResult = new LanguageModelToolResult([new LanguageModelTextPart('tool-result')]);
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+			metadata: promptResultMetadata([new ToolResultMetadata('pending_call__vscode-0', toolResult)])
+		};
+
+		await makeHandler().getResult();
+
+		expect({
+			pendingToolExpanded,
+			secondPromptTools: builtPrompts[1].tools?.availableTools.map(tool => tool.name),
+		}).toEqual({ pendingToolExpanded: true, secondPromptTools: [tool.name] });
 	});
 
 	function fillWithToolCalls(insertN = 20) {
