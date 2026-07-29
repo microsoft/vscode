@@ -257,6 +257,12 @@ export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
 	shimmer?: boolean;
+	/**
+	 * Stable identity for a progress message that is updated over time. When
+	 * set, a later message with the same id replaces this one instead of being
+	 * appended, so live progress doesn't stack up rows.
+	 */
+	id?: string;
 }
 
 export interface IChatSystemNotificationPart {
@@ -631,6 +637,8 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
+	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */

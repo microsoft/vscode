@@ -34,14 +34,14 @@ import { IVoiceSessionController, VoiceSessionController } from '../../../browse
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind, IVoiceDispatchResult } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
-	readonly requests: { sessionId: string; kind: 'response' | 'confirmation'; text: string; narrationId: string }[] = [];
+	readonly requests: { sessionId: string; kind: VoiceNarrationKind; text: string; narrationId: string; pendingId?: string }[] = [];
 	private readonly audioResponseEmitter = new Emitter<IVoiceAudioResponse>();
 	override readonly onAudioResponse = this.audioResponseEmitter.event;
 	private readonly bargeInEmitter = new Emitter<IVoiceBargeIn>();
@@ -78,9 +78,9 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.toolResultResolver?.();
 	}
 
-	override requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
+	override requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
 		const id = narrationId ?? `narration-${++this.narrationCounter}`;
-		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id });
+		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id, ...(pending ? { pendingId: pending.pendingId } : {}) });
 		return id;
 	}
 
@@ -243,6 +243,14 @@ class ControllableChatService extends mock<IChatService>() {
 	}
 }
 
+/** Minimal chat model whose last request carries one unanswered question form. */
+function questionCarouselModel(part: object, requestId = 'req-1'): IChatModel {
+	const lastRequest = { id: requestId, response: { response: { value: [part] } } };
+	return {
+		getRequests: () => [lastRequest],
+	} as unknown as IChatModel;
+}
+
 /**
  * Minimal chat model that the tracker reads as having one pending tool
  * confirmation on its last request.
@@ -261,10 +269,11 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
-function completedResponseModel(markdown: string, errorMessage?: string): IChatModel {
+function completedResponseModel(markdown: string, errorMessage?: string, isCanceled = false): IChatModel {
 	const response = {
 		isPendingConfirmation: observableValue('pending', undefined),
 		isIncomplete: observableValue('incomplete', false),
+		isCanceled,
 		response: {
 			value: [],
 			getMarkdown: () => markdown,
@@ -339,6 +348,7 @@ suite('VoiceSessionController', () => {
 			ttsPlaybackService,
 			new class extends mock<IVoiceToolDispatchService>() {
 				override setDelegate(): void { }
+				override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
 			}(),
 			new class extends mock<IVoicePlaybackService>() {
 				override notifyPlaybackStart(): void { }
@@ -380,6 +390,16 @@ suite('VoiceSessionController', () => {
 			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
 			{ state: 'idle', last_response_summary: 'The rebase completed.' },
 		]);
+	});
+
+	test('does not narrate a summary for a cancelled turn', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+
+		assert.deepStrictEqual(
+			getAgentStateInfo.call(controller, completedResponseModel('Some partial work the user interrupted.', undefined, true)),
+			{ state: 'idle' },
+		);
 	});
 
 	test('does not finish connecting after voice instructions resolve for a stale attempt', async () => {
@@ -444,6 +464,83 @@ suite('VoiceSessionController', () => {
 		// repopulate the snapshot from the still-pending old session.
 		chatService.setModels([pendingConfirmationModel(URI.parse('agent-host-copilot:/session-1'))]);
 		assert.strictEqual(controller.pendingToolConfirmations.get().length, 0);
+	});
+
+	test('reports only genuine approvals as approvals', async () => {
+		// One tool now carries approve, reject, answer and skip. Widening the
+		// approval event to match would silently change what it counts.
+		const voiceClientService = new TestVoiceClientService();
+		const telemetryService = new TestTelemetryService();
+		const controller = createController(voiceClientService, undefined, undefined, telemetryService);
+		await controller.connect(mainWindow);
+
+		for (const type of ['approve', 'reject', 'answer', 'skip']) {
+			voiceClientService.fireToolCall({
+				callId: `call-${type}`,
+				name: 'respond_to_session',
+				args: { coding_session_id: 'session-1', response: { type } },
+			});
+			await voiceClientService.toolResultReceived;
+		}
+
+		assert.deepStrictEqual(
+			telemetryService.events.filter(event => event.name === 'voiceToolApproval').map(event => (event.data as { approved: boolean }).approved),
+			[true, false],
+		);
+	});
+
+	test('publishes a question form as a structured pending payload', () => {
+		// The whole point of the typed payload: `agent_state_detail` can say a form
+		// is up, but only this carries the ids, values and displayed order a
+		// spoken answer needs to land on.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
+		const part = {
+			kind: 'questionCarousel',
+			allowSkip: true,
+			questions: [{
+				id: 'region',
+				type: 'singleSelect',
+				title: 'Deploy settings',
+				message: 'Which region should this deploy to?',
+				defaultValue: 'east',
+				options: [
+					{ id: 'west', label: 'West US', value: 'westus' },
+					{ id: 'east', label: 'East US', value: 'eastus' },
+				],
+			}],
+		};
+
+		const payload = buildPendingPayload.call(controller, questionCarouselModel(part));
+
+		assert.deepStrictEqual(payload, {
+			type: 'questions',
+			pending_id: derivePendingId('req-1', part),
+			request_id: 'req-1',
+			allow_skip: true,
+			questions: [{
+				id: 'region',
+				type: 'singleSelect',
+				// The question the widget shows, not its header.
+				title: 'Which region should this deploy to?',
+				allow_freeform: true,
+				// Default first, matching what the widget renders and the user hears.
+				options: [
+					{ label: 'East US', value: 'eastus' },
+					{ label: 'West US', value: 'westus' },
+				],
+			}],
+		});
+	});
+
+	test('does not publish a question form that has already been answered', () => {
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
+		const questions = [{ id: 'region', type: 'singleSelect', title: 'Which region?', options: [{ id: 'west', label: 'West US', value: 'westus' }] }];
+
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', isUsed: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', answeredExternally: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', questions: [] })), undefined);
 	});
 
 	test('fatal disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {

@@ -8,7 +8,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agentService.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -348,16 +348,9 @@ function describeSessionStatusBits(status: SessionStatus): string[] {
 /**
  * Decodes a session's status into readable names, used by both filtering and
  * serialization so they agree on which sessions are considered `archived`.
- * This combines the {@link SessionStatus} bit-flags with the `isArchived`
- * metadata flag (see {@link sessionIsArchived}), since a session can be
- * archived through either mechanism.
  */
 function describeSessionStatusNames(session: IAgentSessionMetadata): string[] {
-	const names = session.status !== undefined ? describeSessionStatusBits(session.status) : [];
-	if (sessionIsArchived(session) && !names.includes('archived')) {
-		names.push('archived');
-	}
-	return names;
+	return session.status !== undefined ? describeSessionStatusBits(session.status) : [];
 }
 
 /** Renders a session's status names as the compact string used in tool results. */
@@ -445,9 +438,17 @@ function sessionHasChanges(session: IAgentSessionMetadata): boolean {
 	return !!changes && ((changes.files ?? 0) > 0 || (changes.additions ?? 0) > 0 || (changes.deletions ?? 0) > 0);
 }
 
-/** Whether a session is archived (either the metadata flag or the status bit). */
 function sessionIsArchived(session: IAgentSessionMetadata): boolean {
-	return session.isArchived === true || (session.status !== undefined && (session.status & SessionStatus.IsArchived) !== 0);
+	return isSessionStatusArchived(session.status);
+}
+
+/**
+ * Whether a session is *known* to be unread. A session with no status has no
+ * recorded read state — cold sessions from agents that don't project one, such
+ * as Claude — and must not be reported as unread.
+ */
+function sessionIsUnread(session: IAgentSessionMetadata): boolean {
+	return session.status !== undefined && !isSessionStatusRead(session.status);
 }
 
 /** Whether any of a session's working directories matches the given folder (absolute path or URI). */
@@ -486,7 +487,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.withChanges && !sessionHasChanges(session)) {
 			return false;
 		}
-		if (args.unread && session.isRead !== false) {
+		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
 		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrl) {
@@ -545,7 +546,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.activity !== undefined ? { activity: session.activity } : {}),
 		...(session.workingDirectories?.[0] !== undefined ? { workingDirectory: session.workingDirectories[0].toString() } : {}),
 		...(session.project !== undefined ? { project: session.project.displayName } : {}),
-		...(session.isRead === false ? { unread: true } : {}),
+		...(sessionIsUnread(session) ? { unread: true } : {}),
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
 		...(session.modifiedTime > 0 ? { modifiedAt: new Date(session.modifiedTime).toISOString() } : {}),
 		...(session.changes !== undefined ? { changes: session.changes } : {}),

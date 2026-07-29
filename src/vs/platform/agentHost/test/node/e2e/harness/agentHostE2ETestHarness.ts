@@ -158,27 +158,56 @@ function fixturePathFor(provider: string, testTitle: string): string {
 }
 
 /**
+ * Tests whose recorded capture is allowed to contain POSIX-only commands.
+ *
+ * Keyed by provider and test title, since a capture exists per provider and an
+ * exception must only ever silence the one it was written for. Each entry must
+ * correspond to a test that is *also* scoped away from Windows at its call
+ * site, with the reason stated there. This list exists so the exceptions are
+ * countable in one place; adding to it should be rare and deliberate. See
+ * `harness/posixCommandLint.ts`.
+ */
+const POSIX_COMMAND_EXCEPTIONS = new Set<string>([]);
+
+/**
+ * Captures that are allowed to disagree with the request the host now sends.
+ *
+ * Keyed by provider and test title for the same reason as
+ * {@link POSIX_COMMAND_EXCEPTIONS}: the same test runs against every provider
+ * that supports it, and each has its own capture. The capture stops being an
+ * assertion for an entry here, so one is only justified when it *cannot* be
+ * refreshed, and it must have a `KNOWN_ISSUES.md` entry recording why. See
+ * `harness/modelRequestProjection.ts`.
+ */
+const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
+	// Re-recording drives a real provider-context fork, which Claude rejects
+	// with "Invalid upToMessageId: turn-source" — the same defect that gates
+	// `supportsChatForkE2E`. The capture predates the host's
+	// `<side-chat-context>` preamble and cannot be refreshed until that is
+	// fixed. Claude only: the other providers fork fine and their captures are
+	// current.
+	'claude:side chat receives bounded source context without copied history',
+]);
+
+/** Identifies one provider's capture of a test, matching `fixturePathFor`. */
+function captureKey(provider: string, testTitle: string): string {
+	return `${provider}:${testTitle}`;
+}
+
+/**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-/**
- * Tests whose recorded capture is allowed to contain POSIX-only commands.
- *
- * Each entry must correspond to a test that is *also* scoped away from Windows
- * at its call site, with the reason stated there. This list exists so the
- * exceptions are countable in one place; adding to it should be rare and
- * deliberate. See `harness/posixCommandLint.ts`.
- */
-const POSIX_COMMAND_EXCEPTIONS = new Set<string>([]);
-
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean } {
-	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(testTitle);
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean } {
+	const key = captureKey(provider, testTitle);
+	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
+	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
 	if (modelTraffic === 'none') {
-		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands };
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest };
 }
 
 // #endregion
@@ -737,7 +766,7 @@ export class AgentHostE2EServerLease {
 			if (!proxy) {
 				throw new Error('[agent-host-e2e] shared replay server has no capiReplay proxy to reset');
 			}
-			proxy.resetForReplay(capiReplay.fixturePath);
+			proxy.resetForReplay(capiReplay.fixturePath, capiReplay.allowStaleRecordedRequest);
 		} else {
 			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
 			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
@@ -749,7 +778,7 @@ export class AgentHostE2EServerLease {
 		}
 		this._client = new TestProtocolClient(
 			this._server.port,
-			() => this._server?.capiReplay?.takeCacheMissError(),
+			() => this._server?.capiReplay?.takeReplayError(),
 			workingDirectory => this._server?.capiReplay?.setWorkingDirectory(workingDirectory),
 		);
 		await this._client.connect();
@@ -866,9 +895,9 @@ export class AgentHostE2EServerLease {
 		this._client = undefined;
 
 		if (this._shared && !forceRestart) {
-			// Surface this test's strict cache-misses but keep the server (and its
-			// cached SDK client) alive for the next test.
-			this._server?.capiReplay?.assertNoCacheMisses();
+			// Surface this test's strict replay failures but keep the server (and
+			// its cached SDK client) alive for the next test.
+			this._server?.capiReplay?.assertNoReplayMismatches();
 		} else {
 			// Per-test server, or a shared server being restarted after a failure.
 			// Flush the recording / surface strict replay cache-misses (unless the
