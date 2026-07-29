@@ -1408,7 +1408,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				return true;
 			})(), cts.token);
 			if (consumed === undefined || cts.token.isCancellationRequested) {
-				this._logService.info(`[chat-stt] cancelled language model cleanup during stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
+				this._logService.info(`[chat-stt] cancelled language model cleanup while consuming response (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
 				return undefined;
 			}
 			cleaned = cleaned.trim();
