@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-E+xFrJh8n1SMMtlrX4+1NFsewbPXVmoCZWHS4vCMJxA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -588,21 +588,19 @@
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeydown = (e) => {
-			// If the keypress would trigger a browser event, such as copy or paste,
-			// make sure we block the browser from dispatching it. Instead VS Code
-			// handles these events and will dispatch a copy/paste back to the webview
-			// if needed
-			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e) || isSaveEvent(e)) {
-				e.preventDefault();
-			} else if (isCopyPasteOrCut(e)) {
-				if (onElectron) {
-					e.preventDefault();
-				} else {
-					return; // let the browser handle this
-				}
-			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e))) {
-				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
-				// (No effect in a regular browser tab.)
+			// On web, let the browser handle copy/paste/cut natively; on desktop the
+			// host owns them. Everything else the host owns is blocked here so the
+			// platform does not also act on it.
+			if (isCopyPasteOrCut(e) && !onElectron) {
+				return;
+			}
+
+			if (
+				isUndoRedo(e) || isPrint(e) || isFindEvent(e) || isSaveEvent(e) ||
+				isCopyPasteOrCut(e) ||
+				// Ctrl+W / Ctrl+N / F1 / F5 only matter in a PWA (no effect in a tab).
+				(!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e)))
+			) {
 				e.preventDefault();
 			}
 
