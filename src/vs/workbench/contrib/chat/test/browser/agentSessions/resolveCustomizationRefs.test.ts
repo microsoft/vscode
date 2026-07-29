@@ -9,11 +9,12 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { resolveCustomizationRefs } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
-import { type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -81,6 +82,7 @@ function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; mcpS
 	const { label = 'Plugin', enabled = true, mcpServers = 0 } = options;
 	return {
 		uri,
+		format: PluginFormat.Copilot,
 		label,
 		enablement: observableValue('enablement', enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile),
 		mcpServerDefinitions: observableValue('mcpServers', new Array(mcpServers).fill({})),
@@ -148,13 +150,11 @@ const stdioLaunchWithFolder: McpServerLaunch = {
 	sandbox: undefined,
 };
 
-type LocalSyncableFile = { readonly uri: URI; readonly type: PromptsType };
-
 class FakeBundler {
-	readonly received: LocalSyncableFile[][] = [];
+	readonly received: ISyncableFile[][] = [];
 	readonly receivedMcp: ISyncableMcpServer[][] = [];
 	constructor(private readonly _result: { uri: string; name: string } | undefined = { uri: 'open-plugin://bundle', name: 'Open Plugin' }) { }
-	async bundle(files: readonly LocalSyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []) {
+	async bundle(files: readonly ISyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []) {
 		this.received.push([...files]);
 		this.receivedMcp.push([...mcpServers]);
 		if (!this._result) {
@@ -247,6 +247,50 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 				{ uri: userAgent.toString(), type: PromptsType.agent },
 			].sort((a, b) => a.uri.localeCompare(b.uri)),
 		);
+	});
+
+	test('includes enabled user files only when user storage is enabled', async () => {
+		const enabled = URI.file('/home/user/.copilot/instructions/enabled.instructions.md');
+		const disabled = URI.file('/home/user/.claude/rules/disabled.instructions.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.instructions}/${PromptsStorage.user}`, [
+				makePromptPath(enabled, PromptsType.instructions, PromptsStorage.user),
+				makePromptPath(disabled, PromptsType.instructions, PromptsStorage.user),
+			]],
+		]));
+		const syncProvider = new FakeSyncProvider(new Set([disabled.toString()]));
+		const localBundler = new FakeBundler();
+		const remoteBundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			syncProvider,
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			localBundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			syncProvider,
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			remoteBundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			{ includeUserStorage: true },
+		);
+
+		assert.deepStrictEqual({
+			local: localBundler.received,
+			remote: remoteBundler.received[0].map(file => ({ uri: file.uri.toString(), source: file.source })),
+		}, {
+			local: [],
+			remote: [{ uri: enabled.toString(), source: PromptsStorage.user }],
+		});
 	});
 
 	test('skips bundler call entirely when only disabled built-ins exist', async () => {

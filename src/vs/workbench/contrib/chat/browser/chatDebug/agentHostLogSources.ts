@@ -32,6 +32,15 @@ export const MAX_COPILOT_LOG_FILE_SIZE = 10 * 1024 * 1024;
 export const DEFAULT_RAW_LOG_VIEW_CAP_BYTES = 2 * 1024 * 1024;
 
 /**
+ * A matching Copilot process log that can be read lazily.
+ */
+export interface ICopilotLogFile {
+	readonly path: string;
+	readonly resource: URI;
+	readonly size: number;
+}
+
+/**
  * Discriminates the kind of agent-host log a {@link IAgentHostLogSource}
  * points at, so the viewer can pick the appropriate reader and syntax.
  */
@@ -366,6 +375,28 @@ export async function readCopilotLogsForSession(
 	fileService: IFileService,
 	logService: ILogService,
 ): Promise<{ path: string; contents: string }[]> {
+	const matchingLogs = await findCopilotLogsForSession(logsDir, rawSessionId, fileService, logService);
+	const files: { path: string; contents: string }[] = [];
+	for (const log of matchingLogs) {
+		try {
+			const content = await fileService.readFile(log.resource, { limits: { size: MAX_COPILOT_LOG_FILE_SIZE } });
+			files.push({ path: log.path, contents: content.value.toString() });
+		} catch (error) {
+			logService.warn(`[AgentHostLogSources] Failed to read Copilot log '${log.resource.path}': ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	return files;
+}
+
+/**
+ * Finds bounded Copilot process logs whose contents mention the session id.
+ */
+export async function findCopilotLogsForSession(
+	logsDir: URI,
+	rawSessionId: string,
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<ICopilotLogFile[]> {
 	let children: IFileStatWithMetadata[] | undefined;
 	try {
 		children = (await fileService.resolve(logsDir, { resolveMetadata: true })).children;
@@ -373,7 +404,7 @@ export async function readCopilotLogsForSession(
 		return [];
 	}
 
-	const files: { path: string; contents: string }[] = [];
+	const files: ICopilotLogFile[] = [];
 	const candidateLogs = (children ?? [])
 		.filter(child => !child.isDirectory && child.name.endsWith('.log') && child.size <= MAX_COPILOT_LOG_FILE_SIZE)
 		.sort((a, b) => b.mtime - a.mtime)
@@ -381,11 +412,10 @@ export async function readCopilotLogsForSession(
 	for (const child of candidateLogs) {
 		try {
 			if (await logStreamContains(child.resource, rawSessionId, fileService)) {
-				const content = await fileService.readFile(child.resource, { limits: { size: MAX_COPILOT_LOG_FILE_SIZE } });
-				files.push({ path: `copilot-logs/${child.name}`, contents: content.value.toString() });
+				files.push({ path: `copilot-logs/${child.name}`, resource: child.resource, size: child.size });
 			}
 		} catch (error) {
-			logService.warn(`[AgentHostLogSources] Failed to read Copilot log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
+			logService.warn(`[AgentHostLogSources] Failed to scan Copilot log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 	return files;

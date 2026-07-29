@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
@@ -25,6 +26,7 @@ import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVo
  * - `_chat.voice.acceptInput` injects transcribed text into the focused chat widget.
  * - `_chat.voice.getCurrentSession` reports the active session's chat resource.
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
+ * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
  */
 class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,6 +40,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -75,7 +78,8 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
 				} else {
-					widget.acceptInput(text, { preserveFocus: true });
+					// Preserve any text the user already typed in the input.
+					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 				}
 			}
 		}));
@@ -135,6 +139,25 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			} catch {
 				return false;
 			}
+		}));
+
+		// Explicitly narrate a session's pending voice item (e.g. the user clicked
+		// its pending-voice indicator). Deterministic - activates even when the
+		// session is already the active one, where no focus/view-model change fires.
+		// The resource is passed straight through so it matches the key the pending
+		// indicator was set under (see IVoicePlaybackService.setPendingResponse).
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.activateSession', (_accessor, resourceStr: string): boolean => {
+			if (!resourceStr || resourceStr === NEW_CHAT_VOICE_SENTINEL.toString()) {
+				return false;
+			}
+			let resource: URI;
+			try {
+				resource = URI.parse(resourceStr);
+			} catch {
+				return false;
+			}
+			this.voiceSessionController.activateSession(resource);
+			return true;
 		}));
 	}
 
@@ -204,8 +227,9 @@ registerWorkbenchContribution2(SessionsVoiceActiveSessionContribution.ID, Sessio
 
 /**
  * Keeps hands-free listening anchored to the dictation session.
- * If the active session changes mid-dictation, stop to avoid misrouting;
- * otherwise follow the new session, mirroring `ChatViewPane`.
+ * If the active session changes while listening, stop following it: submit
+ * anything already dictated to the original session, or discard an empty turn,
+ * so voice mode doesn't keep recording against a newly focused session.
  */
 class SessionsVoiceListeningContribution extends Disposable implements IWorkbenchContribution {
 
@@ -219,10 +243,10 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 
 		let listeningSession: URI | undefined;
 		this._register(autorun(reader => {
-			const turns = voiceSessionController.transcriptTurns.read(reader);
 			const connected = voiceSessionController.isConnected.read(reader);
 			const voiceState = voiceSessionController.voiceState.read(reader);
 			const targetSession = voiceSessionController.targetSession.read(reader);
+			const turns = voiceSessionController.transcriptTurns.read(reader);
 			const activeSession = sessionsService.activeSession.read(reader);
 			const currentSession = activeSession?.activeChat.read(reader)?.resource;
 
@@ -240,14 +264,18 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 			if (!listeningSession) {
 				listeningSession = targetSession ?? currentSession;
 			} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
-				// Stop only mid-dictation; otherwise follow the new session.
+				const dictationSession = listeningSession;
 				const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
 				if (activelyDictating) {
-					voiceSessionController.stopListening();
-					listeningSession = undefined;
+					// The user already spoke — submit their words to the session
+					// they were dictating into rather than losing them or
+					// misrouting to the newly focused session.
+					voiceSessionController.finishListeningAndSubmitTo(dictationSession);
 				} else {
-					listeningSession = currentSession;
+					// Nothing dictated yet — just stop, discarding the empty turn.
+					voiceSessionController.discardListening();
 				}
+				listeningSession = undefined;
 			}
 		}));
 	}

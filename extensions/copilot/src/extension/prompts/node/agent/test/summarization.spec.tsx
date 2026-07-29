@@ -10,12 +10,14 @@ import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { StaticChatMLFetcher } from '../../../../../platform/chat/test/common/staticChatMLFetcher';
 import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { rawPartAsThinkingData } from '../../../../../platform/endpoint/common/thinkingDataContainer';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
 import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
+import { ThinkingData } from '../../../../../platform/thinking/common/thinking';
 import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
@@ -521,6 +523,73 @@ suite('Agent Summarization', () => {
 		}
 	});
 
+	test('foreground compaction strips the <analysis> scratchpad and <summary> wrapper #321200', async () => {
+		chatResponse[0] = '<analysis>\nChronological review scratchpad that must not be kept.\n</analysis>\n<summary>\n1. Conversation Overview: the real summary.\n</summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		const result = await renderer.render();
+
+		const summaryMeta = result.metadata.get(SummarizedConversationHistoryMetadata);
+		expect(summaryMeta!.text).toBe('1. Conversation Overview: the real summary.');
+	});
+
+	test('foreground compaction keeps the raw response when the model omits <summary> tags #321200', async () => {
+		chatResponse[0] = 'A bare summary with no tags at all.';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		const result = await renderer.render();
+
+		const summaryMeta = result.metadata.get(SummarizedConversationHistoryMetadata);
+		expect(summaryMeta!.text).toBe('A bare summary with no tags at all.');
+	});
+
+	test('summarization request explicitly opts out of the stateful marker #323554', async () => {
+		// Call-site contract only: MockEndpoint skips ChatEndpoint's defaulting, which is
+		// itself why this must be explicit (true on ChatEndpoint, false on OpenAIEndpoint).
+		chatResponse[0] = '<summary>summarized successfully!</summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const capturedRequests: IMakeChatRequestOptions[] = [];
+		const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+		endpoint.makeChatRequest2 = (options, token) => {
+			capturedRequests.push(options);
+			return originalMakeChatRequest2(options, token);
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedRequests.length).toBeGreaterThan(0);
+		for (const request of capturedRequests) {
+			expect(request.ignoreStatefulMarker).toBe(true);
+		}
+	});
+
+	test('large <analysis> block does not push an in-budget summary over the token limit #321200', async () => {
+		// The budget check must count the extracted summary, not the raw response.
+		chatResponse[0] = `<analysis>${'verbose scratchpad '.repeat(200)}</analysis>\n<summary>short summary</summary>`;
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, {
+			...historyProps,
+			maxSummaryTokens: 20,
+		});
+		const result = await renderer.render();
+
+		expect(result.metadata.get(SummarizedConversationHistoryMetadata)!.text).toBe('short summary');
+	});
+
+	test('empty <summary> fails rather than silently compacting to nothing', async () => {
+		// Empty summaries are ignored by the truthy round.summary checks on the next render.
+		chatResponse[0] = '<analysis>reasoning</analysis>\n<summary>   </summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await expect(renderer.render()).rejects.toThrow();
+	});
+
 	test('failed summarization does not set round.summary', async () => {
 		chatResponse[0] = 'summary that is definitely too large for one token';
 		const { instaService, endpoint, toolCallRounds, historyProps } = createSummarizationTestContext();
@@ -535,6 +604,71 @@ suite('Agent Summarization', () => {
 		for (const round of toolCallRounds) {
 			expect(round.summary).toBeUndefined();
 		}
+	});
+
+	async function renderThinkingAfterSummarization(supportsAdaptiveThinking: boolean) {
+		chatResponse[0] = 'summarized successfully!';
+		const instaService = accessor.get(IInstantiationService);
+		const endpoint = instaService.createInstance(MockEndpoint, undefined);
+		(endpoint as { model: string }).model = 'claude-opus-5';
+		(endpoint as { family: string }).family = 'claude-opus-5';
+		(endpoint as { supportsAdaptiveThinking?: boolean }).supportsAdaptiveThinking = supportsAdaptiveThinking;
+
+		const makeRound = (response: string, idx: number, thinking?: ThinkingData) => ToolCallRound.create({
+			response,
+			toolCalls: [createEditFileToolCall(idx)],
+			toolInputRetry: 0,
+			modelId: 'claude-opus-5',
+			thinking,
+		});
+		const toolCallRounds = [
+			makeRound('ok', 1, { id: 'th1', text: 'thoughts 1', encrypted: 'sig-1' }),
+			makeRound('ok 2', 2, { id: 'th2', text: 'thoughts 2', encrypted: 'sig-2' }),
+			makeRound('ok 3', 3),
+		];
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
+				history: [],
+				query: 'edit this file',
+				toolCallRounds,
+				toolCallResults: createEditFileToolResult(1, 2, 3),
+				tools,
+				conversation: new Conversation('sessionId', [new Turn('turnId', { type: 'user', message: 'hello' })]),
+			},
+			maxToolResultLength: Infinity,
+			enableCacheBreakpoints: true,
+			triggerSummarize: true,
+		});
+		const result = await renderer.render();
+
+		return {
+			thinkingParts: result.messages
+				.flatMap(m => Array.isArray(m.content) ? m.content : [])
+				.map(c => c.type === Raw.ChatCompletionContentPartKind.Opaque ? rawPartAsThinkingData(c) : undefined)
+				.filter(t => !!t),
+			toolCallRounds,
+		};
+	}
+
+	test('manual-mode thinking carries onto the first round after the summary', async () => {
+		const { thinkingParts } = await renderThinkingAfterSummarization(false);
+		expect(thinkingParts).toEqual([{ id: 'th2', text: 'thoughts 2', encrypted: 'sig-2' }]);
+	});
+
+	test('adaptive-mode thinking is not replayed on a round that never had it (#327646)', async () => {
+		const { thinkingParts, toolCallRounds } = await renderThinkingAfterSummarization(true);
+		expect(thinkingParts).toEqual([]);
+		expect(toolCallRounds[2].thinking).toBeUndefined();
+	});
+
+	test('summarization does not clear the summarized round\'s own thinking', async () => {
+		const { toolCallRounds } = await renderThinkingAfterSummarization(true);
+		expect(toolCallRounds[1].thinking).toEqual({ id: 'th2', text: 'thoughts 2', encrypted: 'sig-2' });
 	});
 
 	test('simple mode summarization with small token budget renders zero messages (repro for No messages provided)', async () => {

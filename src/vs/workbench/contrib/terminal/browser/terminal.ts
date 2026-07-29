@@ -130,6 +130,13 @@ export interface IChatTerminalToolProgressPart {
 	getCommandAndOutputAsText(): string | undefined;
 }
 
+/** A read-only output stream rendered by chat without a workbench terminal instance. */
+export interface IChatTerminalOutputSource {
+	readonly onDidChange: Event<void>;
+	readonly output: string;
+	readonly exitCode: number | undefined;
+}
+
 export interface ITerminalChatService {
 	readonly _serviceBrand: undefined;
 
@@ -138,6 +145,7 @@ export interface ITerminalChatService {
 	 * the chat UI first renders, enabling late binding of the focus action.
 	 */
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
+	readonly onDidRegisterOutputSource: Event<string>;
 
 	/**
 	 * Associate a tool session id with a terminal instance. The association is automatically
@@ -200,6 +208,9 @@ export interface ITerminalChatService {
 	 * @returns True if the terminal is a background terminal, false otherwise
 	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
+
+	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable;
+	getOutputSource(terminalToolSessionId: string | undefined): IChatTerminalOutputSource | undefined;
 
 	/**
 	 * Register a chat terminal tool progress part for tracking and focus management.
@@ -974,7 +985,16 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
-	 * An event that fires when the terminal instance is disposed.
+	 * An event that fires just before the terminal instance is disposed, while `xterm.js` and
+	 * other instance-owned resources are still alive. Subscribe here if you need to clean up
+	 * state that depends on those resources (e.g. xterm.js addons). For "the instance is gone"
+	 * notifications, use {@link onDisposed} instead.
+	 */
+	readonly onWillDispose: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when the terminal instance is disposed, after `xterm.js` has been
+	 * disposed.
 	 */
 	readonly onDisposed: Event<ITerminalInstance>;
 

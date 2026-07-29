@@ -223,6 +223,17 @@ export function setup(logger: Logger) {
 		this.timeout(5 * 60 * 1000);
 
 		let mockServer: MockLlmServer;
+		let claudeModelPrepared = false;
+
+		const prepareClaudeModel = async (app: Application, label: string): Promise<void> => {
+			if (claudeModelPrepared) {
+				await app.workbench.agentsWindow.selectSessionType('Claude');
+				return;
+			}
+
+			await warmUpClaudeModel(app, logger, label);
+			claudeModelPrepared = true;
+		};
 
 		// Shell-tool scenarios for each session type. Each entry carries
 		// everything the registration step and the corresponding test need —
@@ -286,7 +297,7 @@ export function setup(logger: Logger) {
 				scenarioFactory: shellEchoScenario,
 				// Pre-pay the Claude cold-start cost so the real assertion
 				// below runs against a warm pipeline (see warmUpClaudeModel).
-				warmUp: (app, label) => warmUpClaudeModel(app, logger, label),
+				warmUp: prepareClaudeModel,
 			},
 			// Note: there is intentionally no "Local" entry. The Local agent
 			// in the Agents Window does not include `run_in_terminal` in its
@@ -390,6 +401,10 @@ export function setup(logger: Logger) {
 				// (`isolationEnabled: false, worktreePath: undefined`),
 				// which keeps the test flow deterministic.
 				['sessions.github.copilot.multiChatSessions', 'false'],
+				// Force the Copilot runtime to verbose logging so the captured
+				// `process-*.log` (see dumpFailureDiagnostics) has enough detail
+				// to diagnose a hang/timeout in CI.
+				['chat.agentHost.copilotSdk.logLevel', '"trace"'],
 			]);
 			logger.log(`[Agents Window] user settings written; requestCount=${mockServer.requestCount()}`);
 
@@ -432,7 +447,7 @@ export function setup(logger: Logger) {
 						// spawn the SDK subprocess and load plugins — collectively often
 						// >60s on macOS arm64 CI. A throwaway prompt absorbs that cost so
 						// the real assertion below runs against a warm pipeline.
-						await warmUpClaudeModel(app, logger, 'Agents Window/Claude');
+						await prepareClaudeModel(app, 'Agents Window/Claude');
 					}
 
 					logger.log(`[Agents Window/${session.name}] selecting session type '${session.name}'`);
@@ -688,6 +703,8 @@ export function setup(logger: Logger) {
 				// Show the context-usage gauge so the test can verify the denominator
 				// (context window) reflects the selected Context Size.
 				['chat.contextUsage.enabled', 'true'],
+				// Verbose Copilot runtime logging for capturable failure diagnostics.
+				['chat.agentHost.copilotSdk.logLevel', '"trace"'],
 			]);
 
 			const windowsBefore = app.code.driver.getAllWindows().length;
@@ -1312,6 +1329,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.enabled': true,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
+				// Verbose Copilot runtime logging for capturable failure diagnostics.
+				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				...config.settings,
 			}, null, 2);
 			for (const settingsPath of [

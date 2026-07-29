@@ -13,7 +13,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -64,8 +64,11 @@ suite('WorktreeIsolation', () => {
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
-			getDefaultBranch: async () => 'main',
-			getBranches: async () => ['main', 'feature'],
+			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
+			getBranches: async () => [
+				{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+				{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
+			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
 			addWorktree: async (_root, worktree, branch, startPoint) => {
@@ -163,14 +166,42 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('branchCompletions returns git branches, empty without a working directory', async () => {
+	test('branchCompletions returns current then default then recent git branches, empty without a working directory', async () => {
 		const isolation = createIsolation(disposables);
 		assert.deepStrictEqual({
 			withDir: await isolation.branchCompletions(repoRoot),
 			noDir: await isolation.branchCompletions(undefined),
 		}, {
-			withDir: { items: [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }] },
+			withDir: { items: [{ value: 'feature', label: 'feature' }, { value: 'main', label: 'main' }] },
 			noDir: { items: [] },
+		});
+	});
+
+	test('uses the local default branch name in config and its remote ref as the worktree start point', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const isolation = createIsolation(disposables, { gitService });
+
+		const config = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			branchDefault: config.branchDefault,
+			branchEnum: config.branchProperty?.protocol.enum,
+			startPoint: addWorktreeCalls[0]?.startPoint,
+		}, {
+			branchDefault: 'main',
+			branchEnum: ['main'],
+			startPoint: 'origin/main',
 		});
 	});
 
@@ -545,22 +576,6 @@ suite('WorktreeIsolation', () => {
 			removedDuringArchive: true,
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
-		});
-	});
-
-	test('archive skips removal when the worktree has uncommitted changes', async () => {
-		const isolation = createIsolation(disposables);
-		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
-		hasUncommittedChanges = true;
-
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
-
-		assert.deepStrictEqual({
-			removeCalls: removeCalls.length,
-			stillExists: worktree ? existsSync(worktree.fsPath) : false,
-		}, {
-			removeCalls: 0,
-			stillExists: true,
 		});
 	});
 

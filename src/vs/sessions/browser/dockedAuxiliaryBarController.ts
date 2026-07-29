@@ -6,6 +6,7 @@
 import { Disposable } from '../../base/common/lifecycle.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation as SashOrientation } from '../../base/browser/ui/sash/sash.js';
 import { Part } from '../../workbench/browser/part.js';
+import { SESSIONS_LIST_MINIMUM_WIDTH } from './parts/sidebarPart.js';
 
 /** Accessors the controller uses to read/write the docked panel width and query visibility. */
 export interface IDockedAuxiliaryBarHost {
@@ -45,6 +46,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 	static readonly EDITOR_MIN_WIDTH = 300;
 	static readonly DEFAULT_WIDTH = 300;
 	static readonly COLLAPSE_WIDTH = 4;
+	static readonly NO_EDITOR_MIN_WIDTH = SESSIONS_LIST_MINIMUM_WIDTH;
 
 	private _docked = false;
 	private _sash: Sash | undefined;
@@ -103,7 +105,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 		this.auxiliaryBarPart.layout(auxWidth, height, top, editorRect.width - auxWidth);
 
 		this._ensureSash();
-		this._sash!.state = SashState.Enabled;
+		// The real grid sash owns resizing/collapsing when editor content is hidden.
+		this._sash!.state = editorContentHidden ? SashState.Disabled : SashState.Enabled;
 		this._sash!.layout();
 	}
 
@@ -148,10 +151,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 			const delta = e.startX - e.currentX;
 			const width = editorPartContainer.clientWidth;
 			const requestedWidth = this._sashStartWidth + delta;
-			const collapseWidth = this.host.isEditorVisible()
-				? DockedAuxiliaryBarController.COLLAPSE_WIDTH
-				: DockedAuxiliaryBarController.MIN_WIDTH;
-			if (requestedWidth < collapseWidth) {
+			if (requestedWidth < DockedAuxiliaryBarController.COLLAPSE_WIDTH) {
 				this._sashCollapsed = true;
 				this.host.hideAuxiliaryBar();
 				return;

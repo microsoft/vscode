@@ -501,6 +501,8 @@ suite('AccountPolicyService', () => {
 
 	class FakeFileManagedSettingsService implements IFileManagedSettingsService {
 		readonly _serviceBrand: undefined;
+		readonly rawManagedSettings = {};
+		readonly onDidChangeRawManagedSettings = Event.None;
 		private readonly _onDidChangeManagedSettings = new Emitter<ManagedSettingsData>();
 		readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 

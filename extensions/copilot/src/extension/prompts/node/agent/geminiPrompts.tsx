@@ -33,9 +33,16 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 	async render(state: void, sizing: PromptSizing) {
 		const tools = detectToolCapabilities(this.props.availableTools);
 
-		// Experiment to reduce Gemini 3.5 Flash's proactive tool usage by instructing it to minimize tool calls.
-		const reduceToolUse = this.props.modelFamily?.toLowerCase().includes('gemini-3.5-flash')
-			&& this.configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini35FlashReducedToolUsePrompt, this.experimentationService);
+		// Experiment to reduce Gemini models' proactive tool usage by instructing them to minimize tool calls.
+		// Applies to all Gemini models except the gemini-3-flash and gemini-2 families.
+		const modelFamily = this.props.modelFamily?.toLowerCase();
+		const isExcludedGeminiFamily = !!modelFamily && (
+			modelFamily.includes('gemini-3-flash')
+			|| modelFamily.includes('gemini-2')
+		);
+		const reduceToolUse = !!modelFamily?.includes('gemini')
+			&& !isExcludedGeminiFamily
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini3ReducedToolUsePrompt, this.experimentationService);
 
 		return <InstructionMessage>
 			<Tag name='instructions'>

@@ -9,11 +9,11 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
 import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -71,7 +71,7 @@ interface ITestRig {
 	readonly delegate: AgentHostPermissionPickerDelegate;
 	readonly provider: FakeProvider;
 	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
-	readonly setAutoApprovalsEnabled: (enabled: boolean) => void;
+	readonly setAssistedPermissionsEnabled: (enabled: boolean) => void;
 }
 
 function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string): ITestRig {
@@ -89,14 +89,14 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		}
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	let autoApprovalsEnabled = true;
+	let assistedPermissionsEnabled = true;
 	const configurationService = new class extends mock<IConfigurationService>() {
 		override getValue<T>(): T;
 		override getValue<T>(section: string): T;
 		override getValue<T>(overrides: IConfigurationOverrides): T;
 		override getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 		override getValue<T>(section?: string | IConfigurationOverrides): T {
-			return (section === ChatConfiguration.AutoApprovalsEnabled ? autoApprovalsEnabled : undefined) as T;
+			return (section === ChatConfiguration.AssistedPermissionsEnabled ? assistedPermissionsEnabled : undefined) as T;
 		}
 	}();
 	const sessionsManagementService = new (class extends mock<ISessionsService>() {
@@ -109,7 +109,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	insta.set(IConfigurationService, configurationService);
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
-	return { delegate, provider, activeSessionObs, setAutoApprovalsEnabled: enabled => autoApprovalsEnabled = enabled };
+	return { delegate, provider, activeSessionObs, setAssistedPermissionsEnabled: enabled => assistedPermissionsEnabled = enabled };
 }
 
 function makeActiveSession(): IActiveSession {
@@ -207,9 +207,9 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('hides and rejects Approve When Safe when the experimental setting is disabled', () => {
-		const { delegate, provider, setAutoApprovalsEnabled } = setup(store, makeActiveSession(), 'default');
-		setAutoApprovalsEnabled(false);
+	test('hides and rejects Assisted permissions when the setting is disabled', () => {
+		const { delegate, provider, setAssistedPermissionsEnabled } = setup(store, makeActiveSession(), 'default');
+		setAssistedPermissionsEnabled(false);
 
 		delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
 
@@ -352,6 +352,20 @@ suite('isWellKnownModeSchema', () => {
 		assert.strictEqual(isWellKnownModeSchema(schema({ type: 'number' as 'string' })), false);
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: undefined })), false);
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: [] })), false);
+	});
+
+	test('accepts only values still present in the current schema', () => {
+		assert.deepStrictEqual({
+			interactive: isWellKnownModeValue(schema(), 'interactive'),
+			plan: isWellKnownModeValue(schema(), 'plan'),
+			removed: isWellKnownModeValue(schema({ enum: ['interactive'] }), 'plan'),
+			unknownSchema: isWellKnownModeValue(schema({ enum: ['plan'] }), 'plan'),
+		}, {
+			interactive: true,
+			plan: true,
+			removed: false,
+			unknownSchema: false,
+		});
 	});
 });
 

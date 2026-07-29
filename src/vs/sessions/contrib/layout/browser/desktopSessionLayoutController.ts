@@ -13,7 +13,7 @@ import product from '../../../../platform/product/common/product.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, sessionHasChanges } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
@@ -226,14 +226,13 @@ export class LayoutController extends BaseLayoutController {
 			return;
 		}
 
+		// [D4] Preserve the draft's visible container; a hidden pane uses the reveal-time default.
 		this._viewStateBySession.set(to.resource, {
 			auxiliaryBarVisible,
-			auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+			auxiliaryBarActiveViewContainerId: replacedSessionIsActive && auxiliaryBarVisible
+				? this._paneCompositePartService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId()
+				: undefined,
 		});
-
-		if (replacedSessionIsActive && auxiliaryBarVisible) {
-			void this._viewsService.openView(CHANGES_VIEW_ID, false);
-		}
 	}
 
 	/**
@@ -524,19 +523,20 @@ export class LayoutController extends BaseLayoutController {
 
 	/**
 	 * [D4] When a new (uncreated) session is submitted it becomes a real session
-	 * while staying active. Keep the auxiliary bar as the user left it: if open,
-	 * keep it open and switch to the Changes view; if closed, keep it closed. The
-	 * resulting state is persisted so later syncs don't fall back to hidden.
+	 * while staying active. Keep the auxiliary bar exactly as the user left it: if
+	 * open, keep it open on the container it is already showing; if closed, keep it
+	 * closed and record no container so opening the side pane later picks the
+	 * default for the session's change state at that time ([D3d]). The resulting
+	 * state is persisted so later syncs don't fall back to hidden.
 	 */
-	private _onNewSessionSubmitted(sessionResource: URI): void | Promise<unknown> {
+	private _onNewSessionSubmitted(sessionResource: URI): void {
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		this._viewStateBySession.set(sessionResource, {
 			auxiliaryBarVisible,
-			auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+			auxiliaryBarActiveViewContainerId: auxiliaryBarVisible
+				? this._paneCompositePartService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId()
+				: undefined,
 		});
-		if (auxiliaryBarVisible) {
-			return this._viewsService.openView(CHANGES_VIEW_ID, false);
-		}
 	}
 
 	// [D3] Restore the auxiliary bar in strict priority order.
@@ -556,7 +556,7 @@ export class LayoutController extends BaseLayoutController {
 				this._hideAuxiliaryBarForRestore();
 				return;
 			}
-			void this._openDefaultAuxiliaryBarContainer(false);
+			void this._openDefaultAuxiliaryBarContainer();
 			return;
 		}
 
@@ -575,16 +575,37 @@ export class LayoutController extends BaseLayoutController {
 			return;
 		}
 
-		void this._openDefaultAuxiliaryBarContainer(true);
+		void this._openDefaultAuxiliaryBarContainer();
 	}
 
-	/** [D3d] Prefer Changes for created sessions and Files for new sessions. */
-	private _openDefaultAuxiliaryBarContainer(isCreated: boolean): Promise<unknown> {
-		if (isCreated || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
-			return this._viewsService.openView(CHANGES_VIEW_ID, false);
-		} else {
-			return this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+	/**
+	 * [D3d] The container the side pane defaults to for the active session:
+	 * Changes once the session has produced at least one change (in any of its
+	 * chats), Files until then. Falls back to Changes when the user has unpinned
+	 * the Files pane, since there is nothing else to show.
+	 *
+	 * Read untracked on purpose: the default is evaluated at the moment the side
+	 * pane is opened, so a change landing later never switches a pane the user is
+	 * already looking at.
+	 */
+	private _defaultAuxiliaryBarContainerId(): string {
+		if (!this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
+			return CHANGES_VIEW_CONTAINER_ID;
 		}
+		const activeSession = this._sessionsService.activeSession.get();
+		return activeSession && sessionHasChanges(activeSession, undefined)
+			? CHANGES_VIEW_CONTAINER_ID
+			: SESSIONS_FILES_CONTAINER_ID;
+	}
+
+	/** [D3d] Opens the container chosen by {@link _defaultAuxiliaryBarContainerId}. */
+	private _openDefaultAuxiliaryBarContainer(containerId: string = this._defaultAuxiliaryBarContainerId()): Promise<unknown> {
+		// Changes is opened through its view so the view is revealed inside the
+		// container rather than leaving the container on a stale sub-view.
+		if (containerId === CHANGES_VIEW_CONTAINER_ID) {
+			return this._viewsService.openView(CHANGES_VIEW_ID, false);
+		}
+		return this._viewsService.openViewContainer(containerId, false);
 	}
 
 	private _restoreSavedAuxiliaryBarContainerOnReveal(sessionResource: URI): boolean {
@@ -598,11 +619,12 @@ export class LayoutController extends BaseLayoutController {
 			this._viewStateBySession.set(sessionResource, { ...savedState, auxiliaryBarVisible: true });
 			void this._viewsService.openViewContainer(savedContainerId, false);
 		} else {
+			const defaultContainerId = this._defaultAuxiliaryBarContainerId();
 			this._viewStateBySession.set(sessionResource, {
 				auxiliaryBarVisible: true,
-				auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+				auxiliaryBarActiveViewContainerId: defaultContainerId,
 			});
-			void this._openDefaultAuxiliaryBarContainer(true);
+			void this._openDefaultAuxiliaryBarContainer(defaultContainerId);
 		}
 		return true;
 	}

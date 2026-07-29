@@ -215,6 +215,7 @@
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon {
 	font-size: 16px;
 	line-height: 12px;
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 /*
@@ -309,7 +310,7 @@
 
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon,
 .style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 /* Space the composite items apart with a small gap in the auxiliary bar and base panel. */
@@ -333,6 +334,27 @@
 	right: 2px;
 }
 
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator {
+	overflow: visible;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	bottom: 8px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+	bottom: 0;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-radius: var(--vscode-cornerRadius-small);
+	top: 3px;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+	top: 0;
+}
 .style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
 	top: 16px;
 }

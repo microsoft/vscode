@@ -56,7 +56,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -64,11 +64,12 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -96,6 +97,13 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * already disposed/rebound away.
 	 */
 	get(sessionResource: URI): URI | undefined;
+
+	/**
+	 * Initial config the editor window applies to every new Agent Host session.
+	 * Returns `undefined` in the Agents window, where the sessions provider owns
+	 * the initial config supplied on the request.
+	 */
+	getInitialSessionConfig(): Record<string, unknown> | undefined;
 
 	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
@@ -221,6 +229,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 	) {
@@ -259,6 +268,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	get(sessionResource: URI): URI | undefined {
 		return this._entries.get(sessionResource)?.backendSession;
+	}
+
+	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
+		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._agentHostService.rootState.value, provider);
+	}
+
+	getInitialSessionConfig(): Record<string, unknown> | undefined {
+		return this._getInitialConfig();
 	}
 
 	async waitForPending(sessionResource: URI): Promise<URI | undefined> {
@@ -307,7 +324,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const created = await this._agentHostService.createSession({
 					provider,
 					session: backendSession,
-					workingDirectory,
+					workingDirectories: this._computeWorkingDirectories(workingDirectory, provider),
 					config: initialConfig,
 					progressToken: generateUuid(),
 				});
@@ -386,7 +403,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			created = await this._agentHostService.createSession({
 				provider,
 				session: newBackendSession,
-				workingDirectory,
+				workingDirectories: this._computeWorkingDirectories(workingDirectory, provider),
 				config,
 				...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
 				progressToken: generateUuid(),
@@ -450,7 +467,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				created = await this._agentHostService.createSession({
 					provider,
 					session: entry.backendSession,
-					workingDirectory: newWorkingDirectory,
+					workingDirectories: this._computeWorkingDirectories(newWorkingDirectory, provider),
 					config,
 					progressToken: generateUuid(),
 				});
@@ -660,8 +677,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
 		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
 
-		const configuredApprovals = configuredDefaults?.approvals;
-		if (typeof configuredApprovals === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configuredApprovals)) {
+		const configuredApprovals = getChatPermissionLevelFromDefaultConfiguration(configuredDefaults?.approvals);
+		if (configuredApprovals) {
 			const policyRestricted = policyValue === false;
 			// Bypass and (legacy) Autopilot auto-approve at least some tool
 			// calls, so clamp anything but Default under policy.

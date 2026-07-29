@@ -6,7 +6,6 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -22,6 +21,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { getAgentHostModeIcon } from './agentHostModeIcon.js';
 import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 
 export interface IAgentHostSessionEnumPickerItem {
@@ -29,15 +29,6 @@ export interface IAgentHostSessionEnumPickerItem {
 	readonly label: string;
 	readonly description?: string;
 	readonly checked?: boolean;
-}
-
-function getModeIcon(value: string | undefined): ThemeIcon | undefined {
-	switch (value) {
-		case 'plan': return Codicon.checklist;
-		case 'autopilot': return Codicon.rocket;
-		case 'interactive': return Codicon.comment;
-		default: return undefined;
-	}
 }
 
 /**
@@ -315,11 +306,11 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected _getTriggerIcon(value: string | undefined): ThemeIcon | undefined {
-		return getModeIcon(value);
+		return getAgentHostModeIcon(value);
 	}
 
 	protected _getActionItemIcon(item: IAgentHostSessionEnumPickerItem): ThemeIcon | undefined {
-		return getModeIcon(item.value);
+		return getAgentHostModeIcon(item.value);
 	}
 
 	protected _getTriggerAriaLabel(label: string): string {

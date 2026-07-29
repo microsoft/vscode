@@ -6,9 +6,11 @@
 import assert from 'assert';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatRequestModeInstructions, IconPath } from '../../common/extHostTypeConverters.js';
-import { ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatPromptReference, ChatRequestModeInstructions, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatReferenceBinaryData, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { IElementVariableEntry } from '../../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
@@ -119,6 +121,42 @@ suite('extHostTypeConverters', function () {
 				assert.ok(URI.isUri(result.dark));
 				assert.strictEqual(result.dark.toString(), URI.revive(input.dark).toString());
 				assert.strictEqual(result.light.toString(), URI.revive(input.light).toString());
+			});
+		});
+	});
+
+	suite('ChatPromptReference', function () {
+		test('expands an element with a screenshot into text and binary references', async function () {
+			const variable: IElementVariableEntry = {
+				id: 'element-1',
+				name: 'button#submit',
+				kind: 'element',
+				value: '<button id="submit">Submit</button>',
+				imageData: new Uint8Array([1, 2, 3]),
+				imageMimeType: 'image/jpeg',
+			};
+
+			const references = ChatPromptReference.toReferences(variable, [], new NullLogService());
+			const binaryReference = references[1].value;
+			assert.ok(binaryReference instanceof ChatReferenceBinaryData);
+
+			assert.deepStrictEqual({
+				references: references.map(reference => ({
+					id: reference.id,
+					name: reference.name,
+					value: typeof reference.value === 'string'
+						? reference.value
+						: reference.value instanceof ChatReferenceBinaryData ? 'ChatReferenceBinaryData' : undefined,
+				})),
+				mimeType: binaryReference.mimeType,
+				data: Array.from(await binaryReference.data()),
+			}, {
+				references: [
+					{ id: 'element-1', name: 'button#submit', value: '<button id="submit">Submit</button>' },
+					{ id: 'element-1-screenshot', name: 'button#submit screenshot', value: 'ChatReferenceBinaryData' },
+				],
+				mimeType: 'image/jpeg',
+				data: [1, 2, 3],
 			});
 		});
 	});
@@ -245,6 +283,24 @@ suite('extHostTypeConverters', function () {
 			assert.strictEqual(backToApi.toolReferences?.[0].range, undefined);
 			assert.strictEqual(backToApi.toolReferences?.[1].name, 'tool2');
 			assert.deepStrictEqual(backToApi.toolReferences?.[1].range, [10, 20]);
+		});
+	});
+
+	suite('ChatToolInvocationPart', function () {
+		test('converts subagent data with its model name', function () {
+			const data = new ChatSubagentToolInvocationData('Run tests', 'execution', 'npm test', 'Passed');
+			data.modelName = 'Execution Model';
+			const part = new ExtHostChatToolInvocationPart('execution_subagent', 'tool-call-id');
+			(part as unknown as { toolSpecificData: ChatSubagentToolInvocationData }).toolSpecificData = data;
+
+			assert.deepStrictEqual(ChatToolInvocationPart.from(part as unknown as Parameters<typeof ChatToolInvocationPart.from>[0]).toolSpecificData, {
+				kind: 'subagent',
+				description: 'Run tests',
+				agentName: 'execution',
+				prompt: 'npm test',
+				result: 'Passed',
+				modelName: 'Execution Model',
+			});
 		});
 	});
 });

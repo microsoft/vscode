@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { alert } from '../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../base/browser/window.js';
 import { Emitter, Event } from '../../base/common/event.js';
+import { localize } from '../../nls.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../common/dockedEditorInput.js';
@@ -67,6 +70,26 @@ export class SinglePaneWorkbench extends Workbench {
 		return this.workbenchGrid
 			? this.workbenchGrid.isViewVisible(this.editorPartView)
 			: super.isEditorPaneVisible();
+	}
+
+	override toggleSecondarySideBar(): void {
+		this.toggleEditorPane();
+	}
+
+	override isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.EDITOR_PART, mainWindow);
+	}
+
+	toggleEditorPane(): void {
+		const visible = !this.isSecondarySideBarVisible();
+		const editorHadFocus = !visible && this.hasFocus(Parts.EDITOR_PART);
+		this.setEditorHidden(!visible, /* explicit */ true);
+		if (editorHadFocus) {
+			this.focusPart(this.isVisible(Parts.AUXILIARYBAR_PART) ? Parts.AUXILIARYBAR_PART : Parts.SESSIONS_PART);
+		}
+		alert(visible
+			? localize('editorPaneVisible', "Editor pane shown")
+			: localize('editorPaneHidden', "Editor pane hidden"));
 	}
 
 	protected override _onSidePaneRevealed(): void {
@@ -323,15 +346,24 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	/**
-	 * No-op: the editor-part grid view hosts the docked auxiliary bar, so its
-	 * visibility flips whenever the *detail* opens/closes (not the editor content).
-	 * Editor-content visibility and its part-visibility events are driven directly
-	 * by `setEditorHidden` / `_applyEditorVisibility` / `_applyAuxiliaryBarVisibility`
-	 * / `_syncEditorVisibility`, so mapping the shared node's grid visibility to
-	 * `setEditorHidden` here would wrongly reveal the editor when only the detail is
-	 * shown.
+	 * No-op unless detail-only (editor content hidden): there the shared node is a
+	 * snap view, so sash-drag collapse/reveal maps onto hiding/showing the auxiliary bar.
 	 */
-	protected override _onEditorPartGridVisibilityChange(_visible: boolean): void { }
+	protected override _onEditorPartGridVisibilityChange(visible: boolean): void {
+		if (this.partVisibility.editor) {
+			return;
+		}
+		if (!visible) {
+			const suppression = this.suppressEditorPartAutoVisibility();
+			try {
+				this.setAuxiliaryBarHiddenForResize(true);
+			} finally {
+				suppression.dispose();
+			}
+			return;
+		}
+		this.setAuxiliaryBarHiddenForResize(false);
+	}
 
 	protected override _applyAuxiliaryBarVisibility(hidden: boolean, source?: 'resize'): void {
 		// The auxiliary bar is docked inside the editor part (not a grid view), so

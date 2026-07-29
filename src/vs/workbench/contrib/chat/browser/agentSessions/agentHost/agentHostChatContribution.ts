@@ -6,6 +6,8 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -31,6 +33,7 @@ import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
@@ -43,7 +46,10 @@ Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncAct
 
 async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
 	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
-	if (!agentHostEnablementService.enabled) {
+	const agentHostService = accessor.get(IAgentHostService);
+	const configurationService = accessor.get(IConfigurationService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	if (!agentHostEnablementService.enabled.get()) {
 		return false;
 	}
 
@@ -52,9 +58,6 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 		return false;
 	}
 
-	const agentHostService = accessor.get(IAgentHostService);
-	const configurationService = accessor.get(IConfigurationService);
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 	while (true) {
 		const rootState = agentHostService.rootState.value;
 		if (rootState instanceof Error) {
@@ -103,6 +106,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
+	private _initialized = false;
+	private _didStartInitialAuthentication = false;
+	private _promptCacheNotification: AgentHostPromptCacheNotification | undefined;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -112,7 +118,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
+		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -123,11 +129,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
-		if (!agentHostEnablementService.enabled) {
+		this._register(autorun(reader => {
+			if (agentHostEnablementService.enabled.read(reader)) {
+				this._initialize();
+			}
+		}));
+	}
+
+	private _initialize(): void {
+		if (this._initialized) {
 			return;
 		}
-
-		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
+		this._initialized = true;
+		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
+		this._register(this._agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -268,6 +283,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connection: this._agentHostService,
 			connectionAuthority: 'local',
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
+			promptCacheNotification: this._promptCacheNotification,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -305,6 +321,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Resolves tokens via the standard VS Code authentication service.
 	 */
 	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
+		const isInitialAuthentication = agents.length > 0 && !this._didStartInitialAuthentication;
+		if (isInitialAuthentication) {
+			this._didStartInitialAuthentication = true;
+			mark('code/agentHost/willAuthenticate');
+		}
 		this._agentHostService.setAuthenticationPending(true);
 		try {
 			const testToken = this._getScenarioAutomationToken();
@@ -312,17 +333,18 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				await this._seedTestToken(agents, testToken);
 				return;
 			}
-			await authenticateProtectedResources(agents, {
+			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache: this._authTokenCache,
-				authenticationService: this._authenticationService,
 				logPrefix: '[AgentHost]',
-				logService: this._logService,
 				authenticate: request => this._agentHostService.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
 		} finally {
 			this._agentHostService.setAuthenticationPending(false);
+			if (isInitialAuthentication) {
+				mark('code/agentHost/didAuthenticate');
+			}
 		}
 	}
 
@@ -336,37 +358,31 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
 			for (const resource of protectedResources) {
-				await this._agentHostService.authenticate({ resource: resource.resource, token: testToken });
-				this._authTokenCache.updateAndIsChanged(resource.resource, resource.scopes_supported, testToken);
+				await this._authTokenCache.authenticate(
+					resource.resource,
+					resource.scopes_supported,
+					testToken,
+					() => this._agentHostService.authenticate({ resource: resource.resource, token: testToken }),
+				);
 			}
 			return protectedResources.length > 0;
 		}
-		try {
-			return await resolveAuthenticationInteractively(protectedResources, {
-				authTokenCache: this._authTokenCache,
-				authenticationService: this._authenticationService,
-				logPrefix: '[AgentHost]',
-				logService: this._logService,
-				authenticate: request => this._agentHostService.authenticate(request),
-			});
-		} catch (err) {
-			this._logService.error('[AgentHost] Interactive authentication failed', err);
-		}
-		return false;
+		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
+			authTokenCache: this._authTokenCache,
+			logPrefix: '[AgentHost]',
+			authenticate: request => this._agentHostService.authenticate(request),
+		});
 	}
 
 	private async _seedTestToken(agents: readonly AgentInfo[], token: string): Promise<void> {
 		for (const agent of agents) {
 			for (const resource of agent.protectedResources ?? []) {
-				if (!this._authTokenCache.updateAndIsChanged(resource.resource, resource.scopes_supported, token)) {
-					continue;
-				}
-				try {
-					await this._agentHostService.authenticate({ resource: resource.resource, token });
-				} catch (err) {
-					this._authTokenCache.clear(resource.resource);
-					throw err;
-				}
+				await this._authTokenCache.authenticate(
+					resource.resource,
+					resource.scopes_supported,
+					token,
+					() => this._agentHostService.authenticate({ resource: resource.resource, token }),
+				);
 			}
 		}
 	}

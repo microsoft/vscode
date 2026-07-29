@@ -43,6 +43,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 
 		this.domNode = dom.$(`span.${RISK_BADGE_CLASS}`);
 		this._iconEl = dom.$('span.tool-risk-icon');
+		this._iconEl.setAttribute('aria-hidden', 'true');
 		this._textEl = dom.$('span.tool-risk-text');
 		this._detailsIconEl = dom.$('span.tool-risk-details-icon');
 		this._detailsIconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
@@ -93,7 +94,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 				break;
 			case ToolRiskLevel.Red:
 				this._setVariant('red');
-				this._setText('!');
+				this._setIcon(Codicon.error);
 				break;
 		}
 		this.domNode.style.display = '';
@@ -127,11 +128,6 @@ export class ToolRiskBadgeWidget extends Disposable {
 	private _setIcon(icon: ThemeIcon): void {
 		this._iconEl.textContent = '';
 		this._iconEl.className = 'tool-risk-icon ' + ThemeIcon.asClassName(icon);
-	}
-
-	private _setText(text: string): void {
-		this._iconEl.className = 'tool-risk-icon';
-		this._iconEl.textContent = text;
 	}
 
 	private _setHover(content: string): void {
