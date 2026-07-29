@@ -119,6 +119,8 @@ export interface ISessionEventAbort {
 export interface ISessionEventAssistantTurn {
 	type: 'assistant.turn_start' | 'assistant.turn_end';
 	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
 	data: {
 		turnId: string;
 		interactionId?: string;
@@ -143,7 +145,7 @@ export type ISessionEvent =
 	| ISessionEventAbort
 	| ISessionEventAssistantTurn
 	| ISessionEventSystemNotification
-	| { type: string; data?: unknown };
+	| { type: string; timestamp?: string; data?: unknown };
 
 /**
  * Widens ergonomic {@link ISessionEvent} test fixtures to the real SDK

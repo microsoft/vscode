@@ -132,6 +132,8 @@ interface ITurnBuilder {
 	message: Message;
 	/** ISO 8601 timestamp of the SDK event that opened this turn, when known. */
 	startedAt: string | undefined;
+	/** ISO 8601 timestamp of the most recent SDK event that belonged to this turn. */
+	lastEventAt: string | undefined;
 	readonly responseParts: ResponsePart[];
 	usage: UsageInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
@@ -152,15 +154,10 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, startedAt: options?.startedAt, responseParts: [], usage: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, pendingTools: new Map() };
 }
 
-/**
- * Reads the SDK envelope's ISO 8601 `timestamp`, which every session event
- * carries. Returns `undefined` when it is missing or unparseable, so a
- * malformed (or older, timestamp-less) event log degrades to "no known time"
- * rather than producing a bogus one.
- */
+/** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
 function readEventTimestamp(event: SessionEvent): string | undefined {
 	const timestamp: unknown = event.timestamp;
 	return isString(timestamp) && Number.isFinite(Date.parse(timestamp)) ? timestamp : undefined;
@@ -228,15 +225,10 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	};
 }
 
-/**
- * Seals a turn builder into a {@link Turn}, restoring its wall-clock timing
- * from the SDK event envelopes. `endedAt` is the timestamp of the last event
- * that belonged to this turn; the duration is only emitted when both ends are
- * known and consistent, so consumers never render a negative elapsed time.
- */
-function finalizeTurn(builder: ITurnBuilder, state: TurnState, endedAt: string | undefined): Turn {
+/** Seals a turn builder into a {@link Turn}, deriving `duration` from its first and last event timestamps. */
+function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 	const startedAtMs = builder.startedAt === undefined ? undefined : Date.parse(builder.startedAt);
-	const endedAtMs = endedAt === undefined ? undefined : Date.parse(endedAt);
+	const endedAtMs = builder.lastEventAt === undefined ? undefined : Date.parse(builder.lastEventAt);
 	const duration = startedAtMs !== undefined && endedAtMs !== undefined && Number.isFinite(startedAtMs) && Number.isFinite(endedAtMs)
 		? Math.max(0, endedAtMs - startedAtMs)
 		: undefined;
@@ -361,19 +353,19 @@ export async function mapSessionEvents(
 
 	/** Envelope timestamp of the event currently being processed. */
 	let currentEventTimestamp: string | undefined;
-	/**
-	 * Envelope timestamp of the previously processed event. A parent turn is
-	 * flushed while handling the event that *starts* the next turn, so this is
-	 * its end time — using the current event's timestamp instead would fold the
-	 * user's idle time between turns into the previous turn's duration.
-	 */
-	let previousEventTimestamp: string | undefined;
 
-	const flushParent = (endedAt: string | undefined): void => {
+	/** Records the current event as belonging to `builder`, so it bounds that turn's duration. */
+	const touch = (builder: ITurnBuilder | undefined): void => {
+		if (builder && currentEventTimestamp !== undefined) {
+			builder.lastEventAt = currentEventTimestamp;
+		}
+	};
+
+	const flushParent = (): void => {
 		if (!parentBuilder) {
 			return;
 		}
-		turns.push(finalizeTurn(parentBuilder, parentTurnState, endedAt));
+		turns.push(finalizeTurn(parentBuilder, parentTurnState));
 		parentBuilder = undefined;
 		parentTurnState = TurnState.Cancelled;
 		parentTurnAborted = false;
@@ -392,9 +384,7 @@ export async function mapSessionEvents(
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
-		// A subagent turn is flushed by the event that completes its spawning
-		// tool call, so the current event's timestamp is its end time.
-		list.push(finalizeTurn(builder, state, currentEventTimestamp));
+		list.push(finalizeTurn(builder, state));
 		subagentTurns.set(parentToolCallId, list);
 	};
 
@@ -407,6 +397,7 @@ export async function mapSessionEvents(
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
 			}
 		}
+		touch(builder);
 		return builder;
 	};
 
@@ -414,21 +405,23 @@ export async function mapSessionEvents(
 		if (parentToolCallId) {
 			return ensureSubagentBuilder(parentToolCallId);
 		}
+		touch(parentBuilder);
 		return parentBuilder;
 	};
 
 	for (const e of events) {
-		previousEventTimestamp = currentEventTimestamp;
 		currentEventTimestamp = readEventTimestamp(e);
 		switch (e.type) {
 			case 'assistant.turn_start':
 				if (!e.agentId) {
 					rootAssistantTurnActive = true;
+					touch(parentBuilder);
 				}
 				break;
 			case 'assistant.turn_end':
 				if (!e.agentId) {
 					rootAssistantTurnActive = false;
+					touch(parentBuilder);
 				}
 				break;
 			case 'session.model_change': {
@@ -474,7 +467,7 @@ export async function mapSessionEvents(
 					// `setTurnEventId` records as `event_id`) so the restored
 					// turn id round-trips back to the SDK boundary id that
 					// fork / truncate RPCs operate on.
-					flushParent(previousEventTimestamp);
+					flushParent();
 					const turnId = e.id ?? messageId;
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent, startedAt: currentEventTimestamp });
 					if (pendingAutoModeResolved) {
@@ -497,6 +490,7 @@ export async function mapSessionEvents(
 				if (!content && !reasoningText && !hasToolRequests) {
 					if (!parentToolCallId && parentBuilder && !parentTurnAborted) {
 						parentTurnState = TurnState.Complete;
+						touch(parentBuilder);
 					}
 					break;
 				}
@@ -540,8 +534,9 @@ export async function mapSessionEvents(
 						kind: ResponsePartKind.SystemNotification,
 						content: notification.messageText,
 					});
+					touch(parentBuilder);
 				} else if (notification.startsTurn) {
-					flushParent(previousEventTimestamp);
+					flushParent();
 					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification, startedAt: currentEventTimestamp });
 				}
 				break;
@@ -559,6 +554,7 @@ export async function mapSessionEvents(
 				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
 				if (!parentToolCallId && parentBuilder) {
 					parentTurnState = TurnState.Cancelled;
+					touch(parentBuilder);
 				}
 				break;
 			}
@@ -635,6 +631,7 @@ export async function mapSessionEvents(
 					if (parentBuilder) {
 						parentTurnState = TurnState.Cancelled;
 						parentTurnAborted = true;
+						touch(parentBuilder);
 					}
 				}
 				break;
@@ -644,7 +641,7 @@ export async function mapSessionEvents(
 		}
 	}
 
-	flushParent(currentEventTimestamp);
+	flushParent();
 	for (const parentToolCallId of [...subagentBuilders.keys()]) {
 		flushSubagent(parentToolCallId);
 	}

@@ -150,13 +150,7 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 	};
 }
 
-/**
- * Restores wall-clock turn timing from codex's persisted thread. Codex stores
- * Unix seconds, which we widen to the protocol's ISO 8601 `startedAt` plus a
- * millisecond `duration`, preferring its own `durationMs` when present.
- * Mirrors the live mapper (`mapTurnStarted` / `mapTurnCompleted`) so restored
- * turns display the same time as they did while streaming.
- */
+/** Restores turn timing from codex's persisted thread: Unix-second stamps widen to ISO 8601 `startedAt` plus a millisecond `duration`. */
 function codexTurnTiming(codexTurn: CodexTurn): { startedAt?: string; duration?: number } {
 	const startedAtSeconds = codexTurn.startedAt;
 	if (typeof startedAtSeconds !== 'number' || !Number.isFinite(startedAtSeconds)) {
