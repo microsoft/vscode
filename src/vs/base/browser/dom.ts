@@ -1912,7 +1912,12 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 		}, true));
 
 		disposables.add(addDisposableListener(window, 'blur', () => {
-			this.resetKeyStatus();
+			// Defer the reset so iframe focus is reflected by document.hasFocus() (#199998).
+			window.setTimeout(() => {
+				if (!window.document.hasFocus()) {
+					this.resetKeyStatus();
+				}
+			}, 0);
 		}));
 	}
 
