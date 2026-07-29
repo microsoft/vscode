@@ -15,7 +15,7 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 
 /**
  * Bridges {@link IVoiceSessionController} to Agents window chat surfaces.
@@ -282,3 +282,56 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(SessionsVoiceListeningContribution.ID, SessionsVoiceListeningContribution, WorkbenchPhase.Eventually);
+
+/**
+ * Ends the voice session when the user opens a fresh new-session composer.
+ *
+ * Voice Mode is a global singleton tied to the surface that started it. When the
+ * user creates a session by voice and then opens another new-session view (e.g.
+ * `Cmd+N`), a brand-new welcome composer becomes the active voice surface. The
+ * existing connection is still bound to the surface that started it and can't
+ * route to the fresh composer, so the toolbar/pill would show Voice Mode as
+ * enabled even though talking to it does nothing (clicking merely disconnects).
+ * Disconnect it so the new composer starts from a clean, off state.
+ *
+ * In-session composers opt out via {@link INewChatVoiceComposer.routesWhileSessionActive}:
+ * they deliberately keep routing an active session's voice, so switching to one
+ * must not disconnect.
+ */
+export class SessionsVoiceNewComposerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.voiceNewComposer';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
+	) {
+		super();
+
+		// The composer that owns the current voice connection. Tracked across the
+		// transient `undefined` gap while one composer is disposed and the next
+		// mounts, so a genuine surface change is distinguished from that churn.
+		let voiceComposer: INewChatVoiceComposer | undefined;
+		this._register(autorun(reader => {
+			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
+			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
+			if (!connected) {
+				// Idle: remember which composer a fresh connection would belong to.
+				voiceComposer = activeComposer;
+				return;
+			}
+			if (!voiceComposer) {
+				// Connection appeared without a prior owner - adopt the active composer.
+				voiceComposer = activeComposer;
+				return;
+			}
+			// A different welcome composer took over while voice is connected: the
+			// connection is bound to the previous surface and can't route here.
+			if (activeComposer && activeComposer !== voiceComposer && !activeComposer.routesWhileSessionActive) {
+				voiceSessionController.disconnect('internal');
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(SessionsVoiceNewComposerContribution.ID, SessionsVoiceNewComposerContribution, WorkbenchPhase.AfterRestored);
