@@ -970,13 +970,13 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('attaches prompt_cache_breakpoint to the last content block of a user message', () => {
+	it('attaches prompt_cache_breakpoint only to the content block immediately before the marker', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.User,
 			content: [
 				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first' },
-				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second' },
 				cacheBreakpoint(),
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second' },
 			],
 		}];
 
@@ -987,11 +987,11 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 			type: 'message',
 			role: 'user',
 			content: [
-				{ type: 'input_text', text: 'first' },
-				{ type: 'input_text', text: 'second', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
+				{ type: 'input_text', text: 'first', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
+				{ type: 'input_text', text: 'second' },
 			],
 		});
-		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+		expect((body.input?.[0] as { content: unknown[] }).content[1]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
 	it('attaches prompt_cache_breakpoint to the last content block of a system message', () => {
@@ -1012,7 +1012,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		});
 	});
 
-	it('attaches prompt_cache_breakpoint to the last output_text of a terminal assistant message', () => {
+	it('does not attach prompt_cache_breakpoint to assistant output_text', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.Assistant,
 			content: [
@@ -1023,14 +1023,10 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		const body = buildBody(messages);
 
-		expect(body.input?.[0]).toMatchObject({
-			role: 'assistant',
-			type: 'message',
-			content: [{ type: 'output_text', text: 'final answer', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
-		});
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('attaches prompt_cache_breakpoint at item level to a tool result (function_call_output)', () => {
+	it('does not attach prompt_cache_breakpoint to function_call_output', () => {
 		const messages: Raw.ChatMessage[] = [
 			{
 				role: Raw.ChatRole.Assistant,
@@ -1053,11 +1049,11 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 			type: 'function_call_output',
 			call_id: 'call_1',
 			output: 'result',
-			prompt_cache_breakpoint: expectedPromptCacheBreakpoint,
 		});
+		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('attaches prompt_cache_breakpoint at item level to the last function_call when the assistant has tool calls', () => {
+	it('does not attach prompt_cache_breakpoint to assistant messages or function calls', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.Assistant,
 			content: [
@@ -1074,7 +1070,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		const input = body.input as OpenAI.Responses.ResponseInputItem[];
 
 		const lastCall = input.find(item => isFunctionCallInputItem(item, 'tool_b'));
-		expect(lastCall).toMatchObject({ prompt_cache_breakpoint: expectedPromptCacheBreakpoint });
+		expect(lastCall).not.toHaveProperty('prompt_cache_breakpoint');
 
 		const firstCall = input.find(item => isFunctionCallInputItem(item, 'tool_a'));
 		expect(firstCall).not.toHaveProperty('prompt_cache_breakpoint');
