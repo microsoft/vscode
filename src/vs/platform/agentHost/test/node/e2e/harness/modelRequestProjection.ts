@@ -52,32 +52,34 @@ const RUNTIME_ID_PLACEHOLDER = '${uuid}';
 const RAW_UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const ORDINAL_UUID_RE = /\$\{uuid_\d+\}/g;
 
-/** Stands in for the directory part of a path, whose spelling is per-machine. */
+/** Stands in for a path, whose spelling is per-machine. */
 const PATH_PLACEHOLDER = '${path}';
 
 /**
- * A path with at least one separator: a recorder placeholder root
- * (`${workdir}/x`), a Windows absolute path (`C:\x\y`), or a POSIX absolute
+ * A path: a recorder placeholder root (`${workdir}`, with or without a
+ * trailing segment), a Windows absolute path (`C:\x\y`), or a POSIX absolute
  * path (`/x/y`). Stops at whitespace and at the punctuation that typically
  * closes a path in prose or JSON.
  */
-const PATH_RE = /(?:\$\{(?:workdir|homedir)\}|(?<![A-Za-z])[A-Za-z]:|(?<![A-Za-z0-9])(?=[/\\]))(?:[/\\][^\s"'`,;:*?<>|)\]}]+)+/g;
+const PATH_RE = /(?:\$\{(?:workdir|homedir)\}|(?<![A-Za-z])[A-Za-z]:|(?<![A-Za-z0-9])(?=[/\\]))(?:[/\\][^\s"'`,;:*?<>|)\]}]+)*/g;
 
 /**
- * Collapses a path to `${path}/<basename>`.
+ * Replaces a path with a single placeholder.
  *
- * Which file the host referenced is host-authored and worth asserting; where
- * that file happens to live is not. The directory spelling differs on every
- * axis that matters here — separator (`\` vs `/`), drive letter, 8.3 short
- * names, `/var` vs `/private/var`, and whether the recorder's placeholder
- * substitution matched at all — so a capture recorded on one platform can
- * never match a live run on another if the directory is compared literally.
+ * A path has too many per-machine spellings to compare literally across
+ * platforms: separator (`\` vs `/`), drive letter, 8.3 short names, `/var` vs
+ * `/private/var`, whether the recorder's `${workdir}` / `${homedir}`
+ * substitution matched at all, and whether the value is a file or the
+ * workspace directory itself. Two rounds of Windows CI failures came from
+ * exactly these differences, none of them a real regression.
+ *
+ * So the path is treated as environment-derived, like a `tool_result` payload:
+ * its presence and position stay asserted, its spelling does not. What file
+ * an operation actually touched is asserted directly against the filesystem by
+ * the tests that care, which is a stronger oracle than the prompt text anyway.
  */
-function elidePathDirectories(text: string): string {
-	return text.replace(PATH_RE, match => {
-		const basename = match.split(/[/\\]/).pop();
-		return basename ? `${PATH_PLACEHOLDER}/${basename}` : PATH_PLACEHOLDER;
-	});
+function elidePaths(text: string): string {
+	return text.replace(PATH_RE, PATH_PLACEHOLDER);
 }
 
 /**
@@ -103,7 +105,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return elidePathDirectories(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
+	return elidePaths(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
 }
 
 function projectValue(value: unknown): unknown {

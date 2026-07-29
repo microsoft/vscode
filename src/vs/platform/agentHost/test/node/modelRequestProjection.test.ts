@@ -105,26 +105,28 @@ suite('modelRequestProjection', () => {
 		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
 	});
 
-	test('a path keeps its filename but not its directory', () => {
-		// Windows CI recorded these three shapes against captures made on
-		// macOS. Each is the same file addressed differently: an unsubstituted
-		// workdir, an unsubstituted homedir, and a `\` separator.
+	test('a path matches however it is spelled', () => {
+		// Windows CI recorded all of these against captures made on macOS. Each
+		// pair is the same location addressed differently: an unsubstituted
+		// workdir, an unsubstituted homedir, a `\` separator, and the workspace
+		// directory itself with no trailing file.
 		const pairs: [string, string][] = [
 			['Read the file at ${workdir}/peer-note.txt.', 'Read the file at C:\\Users\\CLOUDT~1\\Temp\\ws\\peer-note.txt.'],
 			['${homedir}/.copilot/session-state/${uuid_0}/plan.md', 'C:\\Users\\CLOUDT~1\\Temp\\home-x/.copilot/session-state/${uuid_0}/plan.md'],
 			['* ${workdir}/calculator.py (2 lines)', '* ${workdir}\\calculator.py (2 lines)'],
+			['cd ${workdir} && echo hi', 'cd C:\\Users\\CLOUDT~1\\Temp\\ahp-cd-strip-test-kWEDtO && echo hi'],
 		];
 		assert.deepStrictEqual(pairs.map(([recorded, live]) => modelRequestsMatch(
 			projectModelRequest(request([{ role: 'user', content: recorded }])),
 			projectModelRequest(request([{ role: 'user', content: live }])),
-		)), [true, true, true]);
+		)), [true, true, true, true]);
 	});
 
-	test('a different filename is still a mismatch', () => {
-		// Eliding the directory must not elide which file was referenced.
+	test('the surrounding text still has to match', () => {
+		// Eliding the path must not elide the instruction wrapped around it.
 		assert.strictEqual(modelRequestsMatch(
-			projectModelRequest(request([{ role: 'user', content: 'Read ${workdir}/wanted.txt' }])),
-			projectModelRequest(request([{ role: 'user', content: 'Read ${workdir}/other.txt' }])),
+			projectModelRequest(request([{ role: 'user', content: 'Read ${workdir}/a.txt' }])),
+			projectModelRequest(request([{ role: 'user', content: 'Delete ${workdir}/a.txt' }])),
 		), false);
 	});
 

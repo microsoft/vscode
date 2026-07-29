@@ -162,9 +162,9 @@ Both sides go through the same projection, so captures keep their existing shape
 |---|---|
 | Message roles and ordering | `tool_result` payloads |
 | Retained history | Run-time identifiers (`${uuid_0}`, real UUIDs) |
-| Whether a system prompt was sent | Reasoning blocks |
+| Whether a system prompt was sent | Filesystem paths |
 | Text and attachment content | The model id |
-| Tool names, inputs, and `tool_use_id` wiring | |
+| Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
 
 Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red — see [KNOWN_ISSUES](./KNOWN_ISSUES.md#recorded-model-requests-are-asserted-as-a-projection). Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
 
