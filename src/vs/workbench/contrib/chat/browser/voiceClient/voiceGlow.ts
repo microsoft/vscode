@@ -47,9 +47,10 @@ export interface IVoiceGlowStyle {
 }
 
 /**
- * Compute the glow border color and box-shadow. Blue while listening (flashier
- * when the transcript is hidden) and purple while speaking. Connected-idle voice
- * mode renders no glow and never reaches this function.
+ * Compute the glow border color and box-shadow. Blue while listening (a little
+ * stronger when the transcript is hidden) and purple while speaking. The glow is
+ * intentionally subtle. Connected-idle voice mode renders no glow and never
+ * reaches this function.
  */
 export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: number, transcriptHidden: boolean): IVoiceGlowStyle {
 	// Blue when listening, purple when speaking.
@@ -59,20 +60,17 @@ export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: num
 	let shadowSpread: number;
 	let shadowAlpha: number;
 	if (flashy) {
-		// Flashy audio-reactive glow while speaking with no transcript visible.
-		borderAlpha = 0.6 + intensity * 0.4;
-		shadowSpread = 6 + intensity * 20;
-		shadowAlpha = 0.25 + intensity * 0.55;
+		// Slightly stronger audio-reactive glow while listening with no transcript visible.
+		borderAlpha = 0.4 + intensity * 0.3;
+		shadowSpread = 4 + intensity * 10;
+		shadowAlpha = 0.15 + intensity * 0.3;
 	} else {
-		// Standard glow (transcript visible or TTS playback).
-		borderAlpha = 0.4 + intensity * 0.5;
-		shadowSpread = 4 + intensity * 12;
-		shadowAlpha = 0.15 + intensity * 0.35;
+		// Standard subtle glow (transcript visible or TTS playback).
+		borderAlpha = 0.3 + intensity * 0.3;
+		shadowSpread = 3 + intensity * 6;
+		shadowAlpha = 0.1 + intensity * 0.2;
 	}
 	const borderColor = `rgba(${rgb},${borderAlpha})`;
-	const boxShadow = flashy
-		// Double-layer glow for extra presence when listening without transcript.
-		? `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), 0 0 ${shadowSpread * 2}px rgba(${rgb},${shadowAlpha * 0.3}), inset 0 0 ${shadowSpread * 0.5}px rgba(${rgb},${shadowAlpha * 0.4})`
-		: `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
+	const boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
 	return { borderColor, boxShadow };
 }

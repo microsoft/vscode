@@ -1051,6 +1051,8 @@ export function tryStringify(value: unknown): string | undefined {
 export interface ITypedPermissionRequest {
 	/** Permission kind discriminator from the SDK. */
 	kind: PermissionRequest['kind'];
+	/** Whether managed policy requires a human response and forbids host auto-approval. */
+	managedApprovalRequired?: boolean;
 	/** Tool call ID that triggered this permission request, when available. */
 	toolCallId?: string;
 	/** File path — set for `read` permission requests. */

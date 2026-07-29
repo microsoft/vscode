@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,6 +13,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -52,7 +54,7 @@ const HEIGHT = 360;
  * specific rules (`chatWidget.css` vs `newChatInSession.css`) that source order
  * decides between.
  */
-async function renderNewChatWidget(context: ComponentFixtureContext, commentCount: number): Promise<void> {
+async function renderNewChatWidget(context: ComponentFixtureContext, commentCount: number, showTip: boolean): Promise<void> {
 	const { container, disposableStore } = context;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -68,6 +70,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, commentCoun
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
+				override readonly onDidDismissTip = Event.None;
+				override readonly onDidNavigateTip = Event.None;
+				override readonly onDidHideTip = Event.None;
+				override readonly onDidDisableTips = Event.None;
+				override getWelcomeTip() {
+					return showTip ? { id: 'fixture-tip', content: new MarkdownString('**Tip:** Reference files or folders with # to give the agent more context.') } : undefined;
+				}
+				override resetSession(): void { }
+				override hasMultipleTips(): boolean { return false; }
+			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override readonly onShow = Event.None;
 				override readonly onHide = Event.None;
@@ -181,6 +194,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, commentCoun
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionComments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderNewChatWidget(context, 3),
+		render: context => renderNewChatWidget(context, 3, false),
+	}),
+	NewSessionTip: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, 0, true),
 	}),
 });
