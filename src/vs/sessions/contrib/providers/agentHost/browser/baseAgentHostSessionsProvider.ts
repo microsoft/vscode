@@ -3115,6 +3115,35 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.workingDirectories?.[0];
 	}
 
+	getBackendChatResource(chatResource: URI): URI | undefined {
+		// The client resource is `<scheme>:/<rawId>[#chatId]`; drop the fragment to
+		// recover the session resource, whose `sessionId` keys `_lastSessionStates`.
+		const sessionResource = chatResource.with({ fragment: '' });
+		const state = this._lastSessionStates.get(toSessionId(this.id, sessionResource));
+		if (!state) {
+			return undefined;
+		}
+		// Look up the authoritative host-supplied backend chat URI rather than
+		// constructing one: a peer chat's client fragment is exactly the chatId of
+		// its `ChatSummary.resource` (see `_createAdditionalChat`); the default
+		// chat (no fragment) is `SessionState.defaultChat`, falling back to the
+		// summary flagged by `isDefaultChatUri` — mirroring `_applyChatCatalog`.
+		const chatId = chatResource.fragment || undefined;
+		const backendResource = chatId
+			? state.chats.find(c => parseChatUri(c.resource)?.chatId === chatId)?.resource
+			: (state.defaultChat ?? state.chats.find(c => isDefaultChatUri(c.resource))?.resource);
+		if (!backendResource) {
+			return undefined;
+		}
+		// The resource is host-supplied and only parsed here to hand back a URI;
+		// a malformed one must not break the drag gesture that asks for it.
+		try {
+			return URI.parse(backendResource.toString());
+		} catch {
+			return undefined;
+		}
+	}
+
 	getWorkingDirectories(sessionId: string): readonly string[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.workingDirectories ?? [];

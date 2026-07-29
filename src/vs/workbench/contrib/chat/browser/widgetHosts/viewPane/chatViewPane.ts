@@ -55,7 +55,7 @@ import { LocalChatSessionUri, getChatSessionType, isUntitledChatSession } from '
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { ChatWidget } from '../../widget/chatWidget.js';
+import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
@@ -683,7 +683,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						?? this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
-						? localize('voiceMode.bargeInHint', "Press {0} to barge in", kbLabel)
+						? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
 						: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
 					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
@@ -1089,7 +1089,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.relayout();
+				this.relayoutForInputHeight();
 			}
 		}));
 
@@ -1183,11 +1183,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -1223,7 +1223,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
@@ -1452,6 +1452,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	private relayoutForInputHeight(): void {
+		if (this.layoutingBody || !this._widget?.visible || !this.lastDimensions) {
+			return;
+		}
+
+		this.layoutChatAndSessions(this.lastDimensions.height, this.lastDimensions.width, false);
+	}
+
 	protected override layoutBody(height: number, width: number): void {
 		if (this.layoutingBody) {
 			return; // prevent re-entrancy
@@ -1469,7 +1477,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		super.layoutBody(height, width);
 
 		this.lastDimensions = { height, width };
+		this.layoutChatAndSessions(height, width, true);
+	}
 
+	private layoutChatAndSessions(height: number, width: number, layoutInput: boolean): void {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
@@ -1488,10 +1499,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// the sessions viewer deduction) so the input can grow freely. As the input
 		// grows, an autorun triggers relayout which shrinks the sessions viewer,
 		// giving the widget more space and converging to the right sizes.
-		this._widget.setInputPartMaxHeightOverride(this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined);
+		const inputMaxHeight = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined;
 
 		// Chat Widget
-		this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
+		if (layoutInput) {
+			this._widget.setInputPartMaxHeightOverride(inputMaxHeight);
+			this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
+		} else {
+			layoutChatWidgetForInputHeight(this._widget, inputMaxHeight, remainingHeight - heightReduction, remainingWidth - widthReduction);
+		}
 
 		// Remember last dimensions per orientation
 		this.lastDimensionsPerOrientation.set(this.sessionsViewerOrientation, { height, width });

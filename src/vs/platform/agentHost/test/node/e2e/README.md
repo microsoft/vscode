@@ -100,6 +100,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `conformance/` | The conformance-tier entry point. Registered once; names a reference provider. |
 | `providers/` | Deterministic provider entry points and provider-specific scenarios. Live Codex scenarios are isolated in `codexAgentHostLive.integrationTest.ts`. |
 | `suites/` | Scenario modules, each of which may contribute to either tier. Add new scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
+| `suites/clientFilesystemSuite.ts` | The `resource*` family in both directions, including the host's reverse requests for client-side files. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
 | `harness/agentHostTarget.ts` | The portability seam: the only code that knows how to launch a concrete AHP implementation. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
@@ -323,6 +324,18 @@ Tests that need imperative setup or filesystem assertions can drive AHP in code 
 
 ---
 
+## The filesystem, in both directions
+
+`suites/clientFilesystemSuite.ts` covers the `resource*` family, which travels both ways over the same connection.
+
+**Client to server** — the host executes the command against the filesystem it runs on. Note that resource commands are only routed once the connection has a registered client: call `initialize` first, or the server answers `Method not found` rather than a filesystem error.
+
+**Server to client** — the host addresses client-side files through the `vscode-agent-client` scheme (`vscode-agent-client://<clientId>/<scheme>/<authority>/<path>`) and serves them by sending *reverse* JSON-RPC requests back down the connection. `TestProtocolClient` answers those against the real local filesystem, and records them on `servedReverseRequests` so a test can assert the host actually reached back rather than resolving a path locally.
+
+Getting the host into that configuration needs a feature that genuinely reaches for client-side files. The suite uses plugin sync: a client publishes a `CustomizationType.Plugin` in the `activeClient` of `session/activeClientSet`, and the host materializes it by copying the directory out of the client. Both processes share a filesystem in the test environment, so what proves the reverse path was used is the assertion on `servedReverseRequests`, not where the directory sits. `session/customizationUpdated` fires on both the success and failure paths, so assert the resulting `load.kind` too — otherwise a sync that reverse-reads and *then* fails still looks green.
+
+---
+
 ## Provider config & per-test gates
 
 `IAgentHostE2EProviderConfig` (in `harness/agentHostE2ETestHarness.ts`) parameterizes the shared suite. Notable flags and the gates that use them:
@@ -421,14 +434,14 @@ A one-off union measurement (protocol + E2E vs. E2E alone) put the protocol suit
 
 | Area | Only tested in | Uncovered protocol symbols |
 |---|---|---|
-| Client-hosted filesystem (reverse requests) | `resourceOperations` | `resourceRead/Write/List/Resolve/Mkdir/Delete/Move/Copy`, `resourceRequest`, `createResourceWatch`, `resourceWatch/changed` |
+| Client-hosted filesystem (reverse requests) | *migrated* — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` |
 | Turn history paging | `turnExecution` | `fetchTurns`, `chat/turnsLoaded` |
 | Reconnect and multi-client fan-out | `multiClient` | `reconnect` |
 | Changeset lifecycle | `sessionDiffs` | all 8 `changeset/*` actions |
 | OTLP export | `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` |
 | Liveness | `handshake`, several others | `ping` |
 
-Ten of the 29 commands being uncovered is all one thing: no E2E test ever puts the host in a configuration where it asks the *client* for filesystem access. That is the single largest contract gap and the best first migration.
+The filesystem family was the largest of these and is now covered by `suites/clientFilesystemSuite.ts` in the conformance tier — both the `resource*` command surface the host executes against its own filesystem, and the reverse direction where the host asks the *client* for a file it cannot otherwise reach. See [The filesystem, in both directions](#the-filesystem-in-both-directions).
 
 Some contracts are covered by **neither** suite and need new tests outright: the entire `annotations/*` channel (5 actions), `invokeChangesetOperation`, `auth/required`, `root/progress`, and `chat/toolCallAuthRequired` / `chat/toolCallAuthResolved`.
 
