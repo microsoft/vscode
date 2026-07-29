@@ -369,6 +369,17 @@
 	color: var(--vscode-icon-foreground);
 }
 
+.sessions-chat-picker-slot.resolving .action-label,
+.sessions-chat-config-resolving {
+	cursor: default;
+	pointer-events: none;
+}
+
+.sessions-chat-picker-slot.resolving .action-label:hover {
+	background-color: transparent;
+	color: var(--vscode-icon-foreground);
+}
+
 .sessions-chat-picker-slot.loading .action-label {
 	opacity: 0.5;
 	cursor: default;

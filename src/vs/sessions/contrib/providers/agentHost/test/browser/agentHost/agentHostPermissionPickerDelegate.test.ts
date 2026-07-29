@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -49,12 +49,13 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 
 	config: ResolveSessionConfigResult | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
+	readonly resolving = observableValue<boolean>('resolving', false);
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.config;
 	}
 	isSessionConfigResolving(_sessionId: string) {
-		return constObservable(false);
+		return this.resolving;
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
@@ -139,6 +140,15 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		provider.config = makeWellKnownConfig('default');
 		provider.fireChange();
 		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Default);
+	});
+
+	test('reflects whether the active session config is resolving', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		assert.strictEqual(delegate.isResolving.get(), false);
+
+		provider.resolving.set(true, undefined);
+
+		assert.strictEqual(delegate.isResolving.get(), true);
 	});
 
 	test('maps a legacy autoApprove=autopilot value to Default (Autopilot moved onto the mode axis)', () => {
