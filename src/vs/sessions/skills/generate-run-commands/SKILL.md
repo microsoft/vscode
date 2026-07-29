@@ -11,7 +11,7 @@ Help the user set up run commands for the current Agent Session workspace. Run c
 ## Understanding the task schema
 
 A run command is a `tasks.json` task with:
-- `"inSessions": true` — required: makes the task appear in the Sessions run button
+- `"inAgents": true` — required: makes the task appear in the Agents run button
 - `"runOptions": { "runOn": "worktreeCreated" }` — optional: auto-runs the task whenever a new worktree is created (use for setup/install commands)
 
 ```json
@@ -21,14 +21,14 @@ A run command is a `tasks.json` task with:
       "label": "Install dependencies",
       "type": "shell",
       "command": "npm install",
-      "inSessions": true,
+      "inAgents": true,
       "runOptions": { "runOn": "worktreeCreated" }
     },
     {
       "label": "Start dev server",
       "type": "shell",
       "command": "npm run dev",
-      "inSessions": true
+      "inAgents": true
     }
   ]
 }
@@ -36,14 +36,14 @@ A run command is a `tasks.json` task with:
 
 ## Decision logic
 
-**First, read the existing `.vscode/tasks.json`** to check for existing run commands (`inSessions: true` tasks).
+**First, read the existing `.vscode/tasks.json`** to check for existing run commands (`inAgents: true` tasks).
 
 **If run commands already exist:** treat this as a modify request — ask the user what they'd like to change (add, remove, or update a command).
 
 **If no run commands exist:** try to infer the right commands from the workspace:
 - Check `package.json`, `Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `.nvmrc`, or other project files to understand the stack and common commands.
 - If it's clear what the setup command is (e.g., `npm install`, `pip install -r requirements.txt`), add it with `"runOptions": { "runOn": "worktreeCreated" }` — no need to ask.
-- If it's clear what the primary run/dev command is (e.g., `npm run dev`, `cargo run`), add it with just `"inSessions": true`.
+- If it's clear what the primary run/dev command is (e.g., `npm run dev`, `cargo run`), add it with just `"inAgents": true`.
 - **Only ask the user** if the commands are ambiguous (e.g., multiple equally valid options, no recognizable project structure, or the project uses a non-standard setup).
 
 ## Writing the file

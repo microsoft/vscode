@@ -5,7 +5,6 @@
 
 import { mark } from '../../base/common/performance.js';
 import { domContentLoaded, detectFullscreen, getCookieValue, getWindow } from '../../base/browser/dom.js';
-import { assertReturnsDefined } from '../../base/common/types.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, ConsoleLogger, getLogLevel, ILoggerService, ILogger } from '../../platform/log/common/log.js';
 import { ConsoleLogInAutomationLogger } from '../../platform/log/browser/log.js';
@@ -25,7 +24,7 @@ import { FileService } from '../../platform/files/common/fileService.js';
 import { Schemas, connectionTokenCookieName } from '../../base/common/network.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, isTemporaryWorkspace, isWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
-import { onUnexpectedError } from '../../base/common/errors.js';
+import { onUnexpectedError, ErrorNoTelemetry } from '../../base/common/errors.js';
 import { setFullscreen } from '../../base/browser/browser.js';
 import { URI, UriComponents } from '../../base/common/uri.js';
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
@@ -37,7 +36,7 @@ import { BrowserStorageService } from '../services/storage/browser/storageServic
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { toLocalISOString } from '../../base/common/date.js';
 import { isWorkspaceToOpen, isFolderToOpen } from '../../platform/window/common/window.js';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../services/workspaces/browser/workspaces.js';
+import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ICommandService } from '../../platform/commands/common/commands.js';
 import { IndexedDBFileSystemProvider } from '../../platform/files/browser/indexedDBFileSystemProvider.js';
@@ -98,7 +97,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { INotificationService, Severity } from '../../platform/notification/common/notification.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
-import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
+import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
 
 export interface IBrowserMainWorkbench {
 	startup(): IInstantiationService;
@@ -219,7 +218,7 @@ export class BrowserMain extends Disposable {
 						await remoteAuthorityResolverService.resolveAuthority(this.configuration.remoteAuthority);
 					},
 					openTunnel: async tunnelOptions => {
-						const tunnel = assertReturnsDefined(await remoteExplorerService.forward({
+						const tunnel = await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,
 							local: tunnelOptions.localAddressPort,
 							name: tunnelOptions.label,
@@ -235,7 +234,11 @@ export class BrowserMain extends Disposable {
 							onAutoForward: undefined,
 							requireLocalPort: undefined,
 							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http
-						}));
+						});
+
+						if (tunnel === undefined) {
+							throw new ErrorNoTelemetry(`Could not open tunnel to ${tunnelOptions.remoteAddress.host}:${tunnelOptions.remoteAddress.port}.`);
+						}
 
 						if (typeof tunnel === 'string') {
 							throw new Error(tunnel);
@@ -366,28 +369,29 @@ export class BrowserMain extends Disposable {
 		// Policies
 		const policyService = new AccountPolicyService(logService, defaultAccountService);
 		serviceCollection.set(IPolicyService, policyService);
+		serviceCollection.set(IAccountPolicyGateService, policyService);
 
-		// Long running services (workspace, config, storage)
-		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService).then(service => {
+		const configurationService = await this.createWorkspaceAndDependentServices(serviceCollection, workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService, loggerService, remoteAuthorityResolverService, productService);
 
-				// Workspace
-				serviceCollection.set(IWorkspaceContextService, service);
+		return { serviceCollection, configurationService, logService };
+	}
 
-				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service);
-
-				return service;
-			}),
-
-			this.createStorageService(workspace, logService, userDataProfileService).then(service => {
-
-				// Storage
-				serviceCollection.set(IStorageService, service);
-
-				return service;
-			})
-		]);
+	private async createWorkspaceAndDependentServices(
+		serviceCollection: ServiceCollection,
+		workspace: IAnyWorkspaceIdentifier,
+		environmentService: IBrowserWorkbenchEnvironmentService,
+		userDataProfileService: IUserDataProfileService,
+		userDataProfilesService: BrowserUserDataProfilesService,
+		fileService: FileService,
+		remoteAgentService: IRemoteAgentService,
+		uriIdentityService: IUriIdentityService,
+		policyService: IPolicyService,
+		logService: ILogService,
+		loggerService: ILoggerService,
+		remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		productService: IProductService,
+	): Promise<IWorkbenchConfigurationService> {
+		const { configurationService, storageService } = await this.createWorkspaceConfigAndStorageServices(serviceCollection, workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService, remoteAuthorityResolverService);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -397,17 +401,6 @@ export class BrowserMain extends Disposable {
 		//       is web only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-		// Workspace Trust Service
-		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
-		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
-
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, fileService);
-		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
-
-		// Update workspace trust so that configuration is updated accordingly
-		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
 
 		// Request Service
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, loggerService);
@@ -435,7 +428,7 @@ export class BrowserMain extends Disposable {
 		// Userdata Initialize Service
 		const userDataInitializers: IUserDataInitializer[] = [];
 		userDataInitializers.push(new UserDataSyncInitializer(environmentService, secretStorageService, userDataSyncStoreManagementService, fileService, userDataProfilesService, storageService, productService, requestService, logService, uriIdentityService));
-		if (environmentService.options.profile) {
+		if (environmentService.options?.profile) {
 			userDataInitializers.push(new UserDataProfileInitializer(environmentService, fileService, userDataProfileService, storageService, logService, uriIdentityService, requestService));
 		}
 		const userDataInitializationService = new UserDataInitializationService(userDataInitializers);
@@ -451,10 +444,55 @@ export class BrowserMain extends Disposable {
 			logService.error(error);
 		}
 
-		return { serviceCollection, configurationService, logService };
+		return configurationService;
 	}
 
-	private async initializeUserData(userDataInitializationService: UserDataInitializationService, configurationService: WorkspaceService) {
+	/**
+	 * Creates and registers the workspace context, configuration, storage,
+	 * and workspace trust services. Override this to provide different
+	 * workspace/configuration implementations (e.g., sessions in-memory
+	 * workspace). Overrides must also register workspace trust services.
+	 */
+	protected async createWorkspaceConfigAndStorageServices(
+		serviceCollection: ServiceCollection,
+		workspace: IAnyWorkspaceIdentifier,
+		environmentService: IBrowserWorkbenchEnvironmentService,
+		userDataProfileService: IUserDataProfileService,
+		userDataProfilesService: BrowserUserDataProfilesService,
+		fileService: FileService,
+		remoteAgentService: IRemoteAgentService,
+		uriIdentityService: IUriIdentityService,
+		policyService: IPolicyService,
+		logService: ILogService,
+		remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+	): Promise<{ configurationService: IWorkbenchConfigurationService; storageService: IStorageService }> {
+		const [configurationService, storageService] = await Promise.all([
+			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService).then(service => {
+				serviceCollection.set(IWorkspaceContextService, service);
+				serviceCollection.set(IWorkbenchConfigurationService, service);
+				return service;
+			}),
+			this.createStorageService(workspace, logService, userDataProfileService).then(service => {
+				serviceCollection.set(IStorageService, service);
+				return service;
+			})
+		]);
+
+		// Workspace Trust Service
+		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
+		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
+
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, fileService);
+		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+
+		// Update workspace trust so that configuration is updated accordingly
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
+
+		return { configurationService, storageService };
+	}
+
+	private async initializeUserData(userDataInitializationService: UserDataInitializationService, configurationService: IWorkbenchConfigurationService) {
 		if (await userDataInitializationService.requiresInitialization()) {
 			mark('code/willInitRequiredUserData');
 
@@ -463,7 +501,9 @@ export class BrowserMain extends Disposable {
 
 			// Important: Reload only local user configuration after initializing
 			// Reloading complete configuration blocks workbench until remote configuration is loaded.
-			await configurationService.reloadLocalUserConfiguration();
+			if (configurationService instanceof WorkspaceService) {
+				await configurationService.reloadLocalUserConfiguration();
+			}
 
 			mark('code/didInitRequiredUserData');
 		}
@@ -554,7 +594,7 @@ export class BrowserMain extends Disposable {
 		}));
 	}
 
-	private async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {
+	protected async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {
 		const storageService = new BrowserStorageService(workspace, userDataProfileService, logService);
 
 		try {

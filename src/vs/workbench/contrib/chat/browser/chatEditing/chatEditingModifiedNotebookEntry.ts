@@ -605,6 +605,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		transaction((tx) => {
+			this._waitsForLastEdits.set(!isLastEdits, tx);
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 			if (!isLastEdits) {
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
@@ -615,6 +616,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
+
+		if (isLastEdits && this._shouldAutoSave()) {
+			await this.modifiedResourceRef.object.save({
+				reason: SaveReason.AUTO,
+				skipSaveParticipants: true,
+			});
+		}
 	}
 
 	private disposeDeletedCellEntries() {
@@ -1096,6 +1104,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		return edits;
+	}
+
+	private _shouldAutoSave() {
+		return this.modifiedURI.scheme !== Schemas.untitled;
 	}
 
 	async save(): Promise<void> {

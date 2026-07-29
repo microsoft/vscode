@@ -1,0 +1,53 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+    response:
+      content:
+        - type: text
+          text: Running `echo "hello from test"` now and I’ll return the output directly.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: echo "hello from test"
+      stopReason: tool_use
+      usage:
+        inputTokens: 9417
+        outputTokens: 71
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+        - role: assistant
+          content: Running `echo "hello from test"` now and I’ll return the output directly.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: echo "hello from test"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 0f585f
+                Wall time: 1.1521 seconds
+                Process exited with code 0
+                Original token count: 4
+                Output:
+                hello from test
+    response:
+      content: hello from test
+      stopReason: end_turn
+      usage:
+        inputTokens: 9538
+        outputTokens: 7

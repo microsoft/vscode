@@ -9,7 +9,7 @@ import eventStream from 'event-stream';
 import File from 'vinyl';
 import sm from 'source-map';
 import path from 'path';
-import sort from 'gulp-sort';
+import { sort } from './gulp/facade.ts';
 import { type ISpan, analyzeLocalizeCalls, TextModel, parseLocalizeKeyOrValue } from './nls-analysis.ts';
 
 type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };

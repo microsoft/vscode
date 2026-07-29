@@ -5,20 +5,24 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OS } from '../../../../base/common/platform.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatDebugCustomizationLogEntry, IChatDebugEventFileListContent, IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
+import { isAgentHostTarget } from '../common/chatSessionsService.js';
+import { getChatSessionType } from '../common/model/chatUri.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { ChatRequestHooks } from '../common/promptSyntax/hookSchema.js';
+import { ChatRequestHooks, formatHookCommandLabel } from '../common/promptSyntax/hookSchema.js';
 import { HookType } from '../common/promptSyntax/hookTypes.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IHookDiscoveryInfo, type InstructionsCollectionEvent, IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { IHookDiscoveryInfo, type InstructionsCollectionDebugInfo, IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { lastInstructionsCollectionResult } from '../common/promptSyntax/computeAutomaticInstructions.js';
 
 interface ICustomizationEventData {
-	readonly collectionEvent: InstructionsCollectionEvent;
+	readonly debugInfo: InstructionsCollectionDebugInfo;
 	readonly hooks: ChatRequestHooks | undefined;
 }
 
@@ -66,7 +70,16 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			if (isFirstInvocation) {
 				const cts = new CancellationTokenSource();
 				try {
-					const discoveryInfos = await Promise.all([PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook].map(type => this.promptsService.getDiscoveryInfo(type, cts.token)));
+					// For agent-host (Copilot CLI) sessions, VS Code core still collects
+					// instructions and hooks and passes them into the agent-host request,
+					// so those discovery events are relevant. Agent / skill / slash-command
+					// discovery reflects VS Code's own chat-participant discovery, which the
+					// agent host does not consume (the agent host surfaces its actually loaded
+					// customizations separately), so we suppress those to avoid noise.
+					const discoveryTypes = isAgentHostTarget(getChatSessionType(sessionResource))
+						? [PromptsType.instructions, PromptsType.hook]
+						: [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook];
+					const discoveryInfos = await Promise.all(discoveryTypes.map(type => this.promptsService.getDiscoveryInfo(type, cts.token)));
 					for (const discoveryInfo of discoveryInfos) {
 						const { name, details } = this.getDiscoveryLogEntry(discoveryInfo);
 						const eventId = generateUuid();
@@ -123,35 +136,36 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			}
 
 			// Log resolved customizations from the last instructions collection.
-			const collectionEvent = this.promptsService.lastInstructionsCollectionEvent;
-			if (!isFirstInvocation && collectionEvent) {
-				// Also fetch the resolved hooks so they appear in the customization summary.
+			const lastResult = lastInstructionsCollectionResult;
+			if (!isFirstInvocation && lastResult) {
+				const { telemetryEvent: collectionEvent, debugInfo } = lastResult;
+				// Fetch the cached hook discovery info.
 				let resolvedHooks: ChatRequestHooks | undefined;
 				try {
-					const hooksInfo = await this.promptsService.getHooks(CancellationToken.None);
-					resolvedHooks = hooksInfo?.hooks;
+					const hookDiscoveryInfo = await this.promptsService.getDiscoveryInfo(PromptsType.hook, CancellationToken.None) as IHookDiscoveryInfo;
+					resolvedHooks = hookDiscoveryInfo.hooksInfo?.hooks;
 				} catch (error) {
 					logService.warn('Error while fetching hooks for customization debug event', error);
 				}
 
 				const parts: string[] = [];
 				if (collectionEvent.applyingInstructionsCount > 0) {
-					parts.push(`${collectionEvent.applyingInstructionsCount} applying`);
+					parts.push(localize('customizations.applying', '{0} applying', collectionEvent.applyingInstructionsCount));
 				}
 				if (collectionEvent.referencedInstructionsCount > 0) {
-					parts.push(`${collectionEvent.referencedInstructionsCount} referenced`);
+					parts.push(localize('customizations.referenced', '{0} referenced', collectionEvent.referencedInstructionsCount));
 				}
 				if (collectionEvent.agentInstructionsCount > 0) {
-					parts.push(`${collectionEvent.agentInstructionsCount} agent`);
+					parts.push(localize('customizations.agent', '{0} agent', collectionEvent.agentInstructionsCount));
 				}
 				if (collectionEvent.listedInstructionsCount > 0) {
-					parts.push(`${collectionEvent.listedInstructionsCount} listed`);
+					parts.push(localize('customizations.listed', '{0} listed', collectionEvent.listedInstructionsCount));
 				}
-				const durationStr = collectionEvent.durationInMillis.toFixed(1);
+				const durationStr = debugInfo.durationInMillis.toFixed(1);
 				const summary = parts.length > 0
 					? localize('customizationsResolved.details', 'Resolved {0} customizations ({1}) in {2}ms', collectionEvent.totalInstructionsCount, parts.join(', '), durationStr)
 					: localize('customizationsResolved.none', 'No customizations resolved');
-				const detailSummaries = collectionEvent.debugDetails.map(e => {
+				const detailSummaries = debugInfo.debugDetails.map(e => {
 					const detail = e.reason ? `${e.name} — ${e.reason}` : e.name;
 					return `[${e.category}] ${detail}`;
 				});
@@ -160,7 +174,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 					: summary;
 
 				const customizationEventId = generateUuid();
-				this._customizationEventDetails.set(customizationEventId, { collectionEvent, hooks: resolvedHooks });
+				this._customizationEventDetails.set(customizationEventId, { debugInfo, hooks: resolvedHooks });
 
 				// Evict oldest entries when the map exceeds the cap.
 				if (this._customizationEventDetails.size > PromptsDebugContribution.MAX_DISCOVERY_DETAILS) {
@@ -198,28 +212,28 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 		switch (discoveryInfo.type) {
 			case PromptsType.prompt:
 				return {
-					name: localize('promptsService.loadSlashCommands', 'Load Slash Commands'),
+					name: localize('promptsService.loadSlashCommands', 'Slash Commands Discovery'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedSlashCommand', 'Resolved {0} slash command in {1}ms', loadedCount, durationInMillis)
 						: localize('promptsDebugContribution.resolvedSlashCommands', 'Resolved {0} slash commands in {1}ms', loadedCount, durationInMillis)
 				};
 			case PromptsType.agent:
 				return {
-					name: localize('promptsService.loadAgents', 'Load Agents'),
+					name: localize('promptsService.loadAgents', 'Agent Discovery'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedAgent', 'Resolved {0} agent in {1}ms', loadedCount, durationInMillis)
 						: localize('promptsDebugContribution.resolvedAgents', 'Resolved {0} agents in {1}ms', loadedCount, durationInMillis)
 				};
 			case PromptsType.skill:
 				return {
-					name: localize('promptsService.loadSkills', 'Load Skills'),
+					name: localize('promptsService.loadSkills', 'Skill Discovery'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedSkill', 'Resolved {0} skill in {1}ms', loadedCount, durationInMillis)
 						: localize('promptsDebugContribution.resolvedSkills', 'Resolved {0} skills in {1}ms', loadedCount, durationInMillis)
 				};
 			case PromptsType.instructions:
 				return {
-					name: localize('promptsService.loadInstructions', 'Load Instructions'),
+					name: localize('promptsService.loadInstructions', 'Instructions Discovery'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedInstruction', 'Resolved {0} instruction in {1}ms', loadedCount, durationInMillis)
 						: localize('promptsDebugContribution.resolvedInstructions', 'Resolved {0} instructions in {1}ms', loadedCount, durationInMillis)
@@ -235,7 +249,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 						? localize('promptsDebugContribution.resolvedHook', 'Resolved {0} hook in {1}ms', hookCount, durationInMillis)
 						: localize('promptsDebugContribution.resolvedHooks', 'Resolved {0} hooks in {1}ms', hookCount, durationInMillis);
 				return {
-					name: localize('promptsService.loadHooks', 'Load Hooks'),
+					name: localize('promptsService.loadHooks', 'Hook Discovery'),
 					details
 				};
 			}
@@ -257,20 +271,21 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			return undefined;
 		}
 
-		const { collectionEvent, hooks } = data;
-		const logs: IChatDebugCustomizationLogEntry[] = [...collectionEvent.debugDetails];
+		const { debugInfo, hooks } = data;
+		const logs: IChatDebugCustomizationLogEntry[] = [...debugInfo.debugDetails];
 
-		// Add hook entries from the resolved hooks.
+		// Add hook entries from the resolved hooks — each command carries its sourceUri.
 		if (hooks) {
 			for (const hookType of Object.values(HookType)) {
 				const commands = hooks[hookType];
 				if (commands && commands.length > 0) {
 					for (const cmd of commands) {
-						const commandStr = cmd.command ?? cmd.osx ?? cmd.linux ?? cmd.windows ?? 'unknown';
+						const commandLabel = formatHookCommandLabel(cmd, OS) || localize('hook.unknownCommand', '(unknown command)');
 						logs.push({
 							category: 'hook',
-							name: hookType,
-							reason: commandStr,
+							name: commandLabel,
+							reason: hookType,
+							uri: cmd.sourceUri,
 						});
 					}
 				}
@@ -280,7 +295,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 		return {
 			kind: 'customizationSummary',
 			resolutionLogs: logs,
-			durationInMillis: collectionEvent.durationInMillis,
+			durationInMillis: debugInfo.durationInMillis,
 			counts: {
 				instructions: logs.filter(e => e.category === 'applying' || e.category === 'referenced').length,
 				skills: logs.filter(e => e.category === 'skill').length,

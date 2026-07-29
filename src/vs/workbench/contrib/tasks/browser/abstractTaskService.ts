@@ -2064,7 +2064,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return false;
 			}
 		}
-		await this._editorService.saveAll({ reason: SaveReason.AUTO });
+		await this._editorService.saveAll({ reason: SaveReason.EXPLICIT });
 		return true;
 	}
 
@@ -2132,7 +2132,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._notificationService.warn(nls.localize('TaskSystem.InstancePolicy.warn', 'The instance limit for this task has been reached.'));
 				break;
 			case InstancePolicy.prompt:
-			default:
+			default: {
+				if (this._environmentService.isSessionsWindow) {
+					this._logService.warn(`[tasks] InstancePolicy.prompt hit in sessions window for task '${task._label}'\n${new Error().stack}`);
+				}
 				this._showQuickPick(this._taskSystem!.getActiveTasks().filter(t => task._id === t._id),
 					nls.localize('TaskService.instanceToTerminate', 'Select an instance to terminate'),
 					{
@@ -2148,6 +2151,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 					this._restart(task);
 				});
+			}
 		}
 	}
 
@@ -2629,8 +2633,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await ProblemMatcherRegistry.onReady();
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
 		const problemReporter = new ProblemReporter(this._outputChannel);
-		this._register(problemReporter.onDidError(error => this._showOutput(runSource, undefined, error)));
+		const problemReporterListener = problemReporter.onDidError(error => this._showOutput(runSource, undefined, error));
 		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
+		problemReporterListener.dispose();
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
 			hasErrors = true;
@@ -3230,7 +3235,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _reRunTaskCommand(onlyRerun?: boolean): void {
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this._editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
+			return this._editorService.saveAll({ reason: SaveReason.EXPLICIT }).then(() => { // make sure all dirty editors are saved
 				const executeResult = this._getTaskSystem().rerun();
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);

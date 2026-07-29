@@ -127,10 +127,7 @@ end
 # Backslashes are doubled and non-alphanumeric characters are hex encoded.
 function __vsc_escape_value
 	# Escape backslashes and semi-colons
-	echo $argv \
-	| string replace --all '\\' '\\\\' \
-	| string replace --all ';' '\\x3b' \
-	;
+	echo $argv | string replace --all '\\' '\\\\' | string replace --all ';' '\\x3b'
 end
 
 # Sent right after an interactive command has finished executing.
