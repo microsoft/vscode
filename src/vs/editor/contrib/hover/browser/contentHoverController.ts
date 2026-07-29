@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement, shouldShowHover, isTriggerModifierPressed } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover, isTriggerModifierPressed, isMaybeChoosingColor } from './hoverUtils.js';
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
@@ -147,7 +147,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _isMaybeChoosingColor(): boolean {
-		return !!this._contentWidget?.isColorPickerVisible && this._isMouseDown;
+		return isMaybeChoosingColor(!!this._contentWidget?.isColorPickerVisible, this._isMouseDown);
 	}
 
 	private _shouldKeepHoverWidgetVisible(mouseEvent: IPartialEditorMouseEvent): boolean {

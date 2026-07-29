@@ -57,3 +57,11 @@ export function isTriggerModifierPressed(
 	}
 	return event.altKey; // multiCursorModifier is ctrlKey or metaKey
 }
+
+/**
+ * Returns true if the user may still be dragging inside the color picker to choose a color,
+ * i.e. the color picker is visible and the mouse button is currently held down.
+ */
+export function isMaybeChoosingColor(isColorPickerVisible: boolean, isMouseDown: boolean): boolean {
+	return isColorPickerVisible && isMouseDown;
+}
