@@ -4779,10 +4779,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transition: stroke-dashoffset 120ms ease;
 }
 
-/* Indeterminate: spin a fixed arc while the download fraction is unknown or the
-	model is loading into memory. Gated on enable-motion to respect reduced
-	motion. */
-.monaco-workbench.monaco-enable-motion .action-item.dictation-download-item > .dictation-download-ring.indeterminate {
+/* Keep the progress arc moving while the model downloads or loads so the
+	affordance reads as active even between percentage updates. Gated on
+	enable-motion to respect reduced motion. */
+.monaco-workbench.monaco-enable-motion .dictation-download-ring {
 	animation: dictation-download-ring-spin 1.2s linear infinite;
 }
 

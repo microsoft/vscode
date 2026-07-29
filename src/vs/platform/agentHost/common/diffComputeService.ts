@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
 
 export interface IDiffCountResult {
 	added: number;
@@ -15,6 +16,13 @@ export interface IOffsetEdit {
 	startOffset: number;
 	endOffsetExclusive: number;
 	newText: string;
+}
+
+export interface IDetailedDiffResult {
+	added: number;
+	removed: number;
+	replacements: readonly IArcTextReplacement[];
+	hitTimeout: boolean;
 }
 
 export const IDiffComputeService = createDecorator<IDiffComputeService>('diffComputeService');
@@ -37,4 +45,9 @@ export interface IDiffComputeService {
 	 * @param timeoutMs - Maximum time in milliseconds before aborting. Defaults to {@link DEFAULT_DIFF_TIMEOUT_MS}.
 	 */
 	computeDiffCounts(original: string, modified: string, timeoutMs?: number): Promise<IDiffCountResult>;
+
+	/**
+	 * Computes whitespace-sensitive offset replacements between two text strings.
+	 */
+	computeDetailedDiff(original: string, modified: string, timeoutMs?: number): Promise<IDetailedDiffResult>;
 }
