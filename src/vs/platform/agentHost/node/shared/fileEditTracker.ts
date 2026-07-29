@@ -15,7 +15,7 @@ import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } f
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
-import { extractArcTextEdit } from './arcToolEdit.js';
+import { createArcTextEditFromDiff, extractArcTextEdit } from './arcToolEdit.js';
 
 /**
  * Tracks file edits made by tools in a session by snapshotting file content
@@ -193,33 +193,22 @@ export class FileEditTracker {
 			this._logService.warn(`[FileEditTracker] Failed to record edit attribution for ${filePath}: ${error}`);
 		}
 
-		try {
-			let initialEdit = extractArcTextEdit(toolName, toolInput, beforeText, afterText);
-			if (!initialEdit) {
-				const detailed = await this._diffComputeService.computeDetailedDiff(beforeText, afterText);
-				if (detailed.hitTimeout) {
-					this._logService.warn(`[FileEditTracker] Detailed diff timed out; ARC telemetry will not start: ${filePath}`);
-				} else {
-					initialEdit = { replacements: detailed.replacements };
-				}
-			}
-			if (initialEdit) {
-				await this._editArcReporterService.reportEdit({
-					sessionUri: this._sessionUri,
-					turnId,
-					toolCallId,
-					filePath,
-					beforeText,
-					afterText,
-					initialEdit,
-					modelId,
-					toolName,
-					completionTime,
-				});
-			}
-		} catch (error) {
+		const initialEdit = extractArcTextEdit(toolName, toolInput, beforeText, afterText)
+			?? createArcTextEditFromDiff(changes, beforeText, afterText);
+		this._editArcReporterService.reportEdit({
+			sessionUri: this._sessionUri,
+			turnId,
+			toolCallId,
+			filePath,
+			beforeText,
+			afterText,
+			initialEdit,
+			modelId,
+			toolName,
+			completionTime,
+		}).catch(error => {
 			this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);
-		}
+		});
 
 		if (!marker) {
 			return content;

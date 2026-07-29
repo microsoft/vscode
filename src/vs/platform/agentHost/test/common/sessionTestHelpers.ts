@@ -184,6 +184,7 @@ export class TestDiffComputeService implements IDiffComputeService {
 	declare readonly _serviceBrand: undefined;
 
 	callCount = 0;
+	detailedCallCount = 0;
 
 	constructor(private readonly _result?: IDiffCountResult) { }
 
@@ -193,6 +194,7 @@ export class TestDiffComputeService implements IDiffComputeService {
 	}
 
 	async computeDetailedDiff(original: string, modified: string): Promise<IDetailedDiffResult> {
+		this.detailedCallCount++;
 		const counts = this._computeDiffCounts(original, modified);
 		return {
 			added: counts.added,

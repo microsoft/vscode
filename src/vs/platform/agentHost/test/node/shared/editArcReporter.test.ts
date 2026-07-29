@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
+import { IFileSystemWatcher, IWatchOptionsWithoutCorrelation } from '../../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { TelemetryMeasurements, TelemetryProps } from '../../../node/agentHostRestrictedTelemetry.js';
@@ -21,6 +22,16 @@ import { TestDiffComputeService, createNoopGitService } from '../../common/sessi
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { buildSubagentChatUri } from '../../../common/state/sessionState.js';
+import { IDetailedDiffResult, IDiffComputeService } from '../../../common/diffComputeService.js';
+
+class CountingFileService extends FileService {
+	watcherCount = 0;
+
+	override createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation & { recursive: false }): IFileSystemWatcher {
+		this.watcherCount++;
+		return super.createWatcher(resource, options);
+	}
+}
 
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ name: string; data: Record<string, unknown> }> = [];
@@ -44,12 +55,12 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 
 suite('Agent Host Edit ARC Reporter', () => {
 	const disposables = new DisposableStore();
-	let fileService: FileService;
+	let fileService: CountingFileService;
 	let telemetry: RecordingTelemetryService;
 	let config: TestAgentConfigurationService;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
+		fileService = disposables.add(new CountingFileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 		telemetry = new RecordingTelemetryService();
 		config = createConfigurationService(true);
@@ -179,6 +190,76 @@ suite('Agent Host Edit ARC Reporter', () => {
 			{ timeDelayMs: 60, arc: 1 },
 		]);
 		assert.deepStrictEqual(telemetry.githubEvents, []);
+	});
+
+	test('does not create a reporter after reconciliation state is disposed', async () => {
+		const detailedStarted = new DeferredPromise<void>();
+		const detailedResult = new DeferredPromise<IDetailedDiffResult>();
+		const diffComputeService: IDiffComputeService = {
+			_serviceBrand: undefined,
+			computeDiffCounts: async () => ({ added: 0, removed: 0, changes: [] }),
+			computeDetailedDiff: async () => {
+				detailedStarted.complete();
+				return detailedResult.p;
+			},
+		};
+		const resource = URI.file('/workspace/stale.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('AIbase'));
+		const service = disposables.add(new EditArcReporterService([0, 60_000], fileService, diffComputeService, createNoopGitService(), config, new NullLogService(), telemetry));
+		await service.reportEdit({
+			sessionUri: 'claude:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'base',
+			afterText: 'AIbase',
+			initialEdit: { replacements: [{ start: 0, endExclusive: 0, text: 'AI' }] },
+			completionTime: Date.now(),
+		});
+		await timeout(10);
+
+		const secondReport = service.reportEdit({
+			sessionUri: 'claude:/session-1',
+			turnId: 'turn-2',
+			toolCallId: 'tool-2',
+			filePath: resource.fsPath,
+			beforeText: 'unrelated',
+			afterText: 'newbase',
+			initialEdit: { replacements: [{ start: 0, endExclusive: 9, text: 'newbase' }] },
+			completionTime: Date.now(),
+		});
+		await detailedStarted.p;
+		config.setEnabled(false);
+		config.setEnabled(true);
+		detailedResult.complete({
+			added: 1,
+			removed: 1,
+			replacements: [{ start: 0, endExclusive: 6, text: 'newbase' }],
+			hitTimeout: false,
+		});
+		await secondReport;
+		await timeout(10);
+
+		assert.deepStrictEqual(telemetry.events.map(event => event.data.requestId), ['turn-1']);
+	});
+
+	test('does not create resource watchers after the host reporter limit is reached', async () => {
+		const service = disposables.add(new EditArcReporterService([60_000], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
+
+		for (let index = 0; index <= 200; index++) {
+			await service.reportEdit({
+				sessionUri: 'claude:/session-1',
+				turnId: `turn-${index}`,
+				toolCallId: `tool-${index}`,
+				filePath: `/workspace/file-${index}.ts`,
+				beforeText: '',
+				afterText: 'AI',
+				initialEdit: { replacements: [{ start: 0, endExclusive: 0, text: 'AI' }] },
+				completionTime: Date.now(),
+			});
+		}
+
+		assert.strictEqual(fileService.watcherCount, 200);
 	});
 
 	test('disposes active reporters when edit telemetry is disabled', async () => {

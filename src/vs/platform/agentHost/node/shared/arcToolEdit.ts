@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IArcTextEdit, IArcTextReplacement } from '../../../../base/common/editArcTracker.js';
+import { IOffsetEdit } from '../../common/diffComputeService.js';
 
 export function extractArcTextEdit(toolName: string, input: unknown, beforeText: string, afterText: string): IArcTextEdit | undefined {
 	const object = asObject(input);
@@ -33,6 +34,19 @@ export function extractArcTextEdit(toolName: string, input: unknown, beforeText:
 	}
 
 	return edit && applyEdit(beforeText, edit) === afterText ? edit : undefined;
+}
+
+export function createArcTextEditFromDiff(changes: readonly IOffsetEdit[], beforeText: string, afterText: string): IArcTextEdit {
+	const edit: IArcTextEdit = {
+		replacements: changes.map(change => ({
+			start: change.startOffset,
+			endExclusive: change.endOffsetExclusive,
+			text: change.newText,
+		}))
+	};
+	return applyEdit(beforeText, edit) === afterText ? edit : {
+		replacements: [{ start: 0, endExclusive: beforeText.length, text: afterText }]
+	};
 }
 
 function fullReplacement(beforeText: string, text: string | undefined): IArcTextEdit | undefined {

@@ -45,6 +45,34 @@ suite('Agent Host Diff Worker', () => {
 		});
 	});
 
+	test('detailed diff reconstructs line-ending-only changes', () => {
+		const original = 'first\r\nsecond\r\n';
+		const modified = 'first\nsecond\n';
+		const result = computeDetailedDiff(original, modified, 5000);
+
+		assert.deepStrictEqual({
+			content: applyReplacements(original, result.replacements),
+			hitTimeout: result.hitTimeout,
+		}, {
+			content: modified,
+			hitTimeout: false,
+		});
+	});
+
+	test('detailed diff reconstructs mixed content and line-ending changes', () => {
+		const original = 'first\r\nsecond\r\nthird\r\n';
+		const modified = 'first\nchanged\nthird\n';
+		const result = computeDetailedDiff(original, modified, 5000);
+
+		assert.deepStrictEqual({
+			content: applyReplacements(original, result.replacements),
+			hitTimeout: result.hitTimeout,
+		}, {
+			content: modified,
+			hitTimeout: false,
+		});
+	});
+
 	test('line counts retain whitespace-insensitive behavior', () => {
 		assert.deepStrictEqual(computeDiffCounts('first  \n', 'first \n', 5000), {
 			added: 0,

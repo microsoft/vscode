@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -22,8 +23,8 @@ import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
-import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
-import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
+import { FileEditTracker } from '../../node/shared/fileEditTracker.js';
+import { IEditArcReporterLaunchParams, IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 
 suite('FileEditTracker', () => {
 
@@ -192,6 +193,62 @@ suite('FileEditTracker', () => {
 		}, {
 			type: ToolResultContentType.FileEdit,
 			marker: undefined,
+		});
+	});
+
+	test('reuses the existing diff and does not wait for ARC reporting', async () => {
+		const reportStarted = new DeferredPromise<IEditArcReporterLaunchParams>();
+		const releaseReport = new DeferredPromise<void>();
+		const services = new ServiceCollection();
+		const localDiffComputeService = new TestDiffComputeService();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, fileService);
+		services.set(IDiffComputeService, localDiffComputeService);
+		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IEditArcReporterService, {
+			_serviceBrand: undefined,
+			reportEdit: async params => {
+				reportStarted.complete(params);
+				await releaseReport.p;
+			},
+		});
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
+		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('before'));
+
+		await localTracker.trackEditStart('/workspace/non-blocking.txt');
+		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('after'));
+		await localTracker.completeEdit('/workspace/non-blocking.txt');
+		const resultPromise = localTracker.takeCompletedEdit('turn-1', 'tc-non-blocking', '/workspace/non-blocking.txt', 'apply_patch', undefined, 'model');
+		const report = await reportStarted.p;
+		let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+		const completion = await Promise.race([
+			resultPromise.then(() => 'complete' as const),
+			new Promise<'timeout'>(resolve => {
+				timeoutHandle = setTimeout(() => resolve('timeout'), 100);
+			}),
+		]);
+		if (timeoutHandle) {
+			clearTimeout(timeoutHandle);
+		}
+		releaseReport.complete();
+		const result = await resultPromise;
+
+		assert.deepStrictEqual({
+			completion,
+			resultType: result?.type,
+			diffCallCount: localDiffComputeService.callCount,
+			detailedDiffCallCount: localDiffComputeService.detailedCallCount,
+			initialEdit: report.initialEdit,
+		}, {
+			completion: 'complete',
+			resultType: ToolResultContentType.FileEdit,
+			diffCallCount: 1,
+			detailedDiffCallCount: 0,
+			initialEdit: {
+				replacements: [{ start: 0, endExclusive: 6, text: 'after' }]
+			},
 		});
 	});
 

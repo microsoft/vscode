@@ -111,11 +111,12 @@ export class EditArcReporterService extends Disposable implements IEditArcReport
 				if (!await this._applyCompletedEdit(state, params)) {
 					return;
 				}
-			} else {
-				state = this._createResourceState(key, resource, params.afterText);
+				if (!this._isEnabled() || this._resources.get(key) !== state) {
+					return;
+				}
 			}
 
-			if (state.reporters.size >= MAX_REPORTERS_PER_RESOURCE) {
+			if (state && state.reporters.size >= MAX_REPORTERS_PER_RESOURCE) {
 				this._logService.warn(`[EditArcReporter] Skipping edit: per-resource reporter limit reached for ${params.filePath}`);
 				return;
 			}
@@ -124,15 +125,17 @@ export class EditArcReporterService extends Disposable implements IEditArcReport
 				return;
 			}
 
-			const reporter = new EditArcReporter(params, this._sampleScheduleMs, state.gitWorkingDirectory, this._gitService, this._telemetryService, this._logService, timeDelayMs => this.reconcileAndSample(state!, reporter, timeDelayMs), () => {
-				state!.reporters.delete(reporter);
+			state ??= this._createResourceState(key, resource, params.afterText);
+			const resourceState = state;
+			const reporter: EditArcReporter = new EditArcReporter(params, this._sampleScheduleMs, resourceState.gitWorkingDirectory, this._gitService, this._telemetryService, this._logService, (timeDelayMs): Promise<void> => this.reconcileAndSample(resourceState, reporter, timeDelayMs), () => {
+				resourceState.reporters.delete(reporter);
 				this._reporterCount--;
 				this._retainedCharacters -= retainedCharacters;
-				if (!state!.isDisposing && state!.reporters.size === 0) {
+				if (!resourceState.isDisposing && resourceState.reporters.size === 0) {
 					this._resources.deleteAndDispose(key);
 				}
 			});
-			state.reporters.add(reporter);
+			resourceState.reporters.add(reporter);
 			this._reporterCount++;
 			this._retainedCharacters += retainedCharacters;
 		});

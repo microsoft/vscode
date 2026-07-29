@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parentPort } from 'worker_threads';
+import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
 import { DefaultLinesDiffComputer } from '../../../editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import type { ILinesDiffComputerOptions } from '../../../editor/common/diff/linesDiffComputer.js';
 import type { RangeMapping } from '../../../editor/common/diff/rangeMapping.js';
@@ -78,7 +79,7 @@ export function computeDetailedDiff(originalText: string, modifiedText: string, 
 
 	let added = 0;
 	let removed = 0;
-	const replacements = [];
+	let replacements: IArcTextReplacement[] = [];
 	const originalOffsets = new LineOffsetConverter(originalText);
 	const modifiedOffsets = new LineOffsetConverter(modifiedText);
 	for (const change of result.changes) {
@@ -88,6 +89,10 @@ export function computeDetailedDiff(originalText: string, modifiedText: string, 
 		for (const mapping of mappings) {
 			replacements.push(toReplacement(mapping, originalText, modifiedText, originalOffsets, modifiedOffsets));
 		}
+	}
+
+	if (applyReplacements(originalText, replacements) !== modifiedText) {
+		replacements = [{ start: 0, endExclusive: originalText.length, text: modifiedText }];
 	}
 
 	return { added, removed, replacements, hitTimeout: result.hitTimeout };
@@ -109,6 +114,17 @@ function toReplacement(
 		endExclusive,
 		text: modifiedText.substring(modifiedStart, modifiedEndExclusive),
 	};
+}
+
+function applyReplacements(value: string, replacements: readonly IArcTextReplacement[]): string {
+	let result = '';
+	let offset = 0;
+	for (const replacement of replacements) {
+		result += value.substring(offset, replacement.start);
+		result += replacement.text;
+		offset = replacement.endExclusive;
+	}
+	return result + value.substring(offset);
 }
 
 class LineOffsetConverter {

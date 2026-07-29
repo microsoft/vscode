@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { extractArcTextEdit } from '../../../node/shared/arcToolEdit.js';
+import { createArcTextEditFromDiff, extractArcTextEdit } from '../../../node/shared/arcToolEdit.js';
 
 suite('Agent Host ARC Tool Edit', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,5 +32,21 @@ suite('Agent Host ARC Tool Edit', () => {
 			old_string: 'before',
 			new_string: 'after',
 		}, 'const value = before;', 'formatter changed this'), undefined);
+	});
+
+	test('creates verified ARC edits from existing diff changes', () => {
+		assert.deepStrictEqual(createArcTextEditFromDiff([{
+			startOffset: 6,
+			endOffsetExclusive: 12,
+			newText: 'after',
+		}], 'value=before', 'value=after'), {
+			replacements: [{ start: 6, endExclusive: 12, text: 'after' }]
+		});
+	});
+
+	test('falls back to a full replacement when diff changes do not reconstruct the result', () => {
+		assert.deepStrictEqual(createArcTextEditFromDiff([], 'first\r\nsecond', 'first\nsecond'), {
+			replacements: [{ start: 0, endExclusive: 13, text: 'first\nsecond' }]
+		});
 	});
 });
