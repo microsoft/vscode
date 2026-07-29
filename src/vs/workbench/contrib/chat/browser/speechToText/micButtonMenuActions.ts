@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
+import { SHOW_DICTATION_ONBOARDING_COMMAND } from './dictationOnboarding.js';
 
 /** Command that opens the microphone picker shared by dictation and Voice Mode. */
 export const SELECT_MICROPHONE_COMMAND = 'workbench.action.chat.selectSpeechToTextMicrophone';
@@ -58,6 +59,14 @@ function createDisableDictationAction(commandService: ICommandService, configura
 	});
 }
 
+function createShowDictationOnboardingAction(commandService: ICommandService): IAction {
+	return toAction({
+		id: SHOW_DICTATION_ONBOARDING_COMMAND,
+		label: localize('dictation.showIntroduction', "Show Introduction"),
+		run: () => commandService.executeCommand(SHOW_DICTATION_ONBOARDING_COMMAND),
+	});
+}
+
 /**
  * "Disable Voice Mode" entry. Tears down any active session first so disabling
  * the setting doesn't leave the microphone capturing while the toolbar
@@ -84,6 +93,7 @@ export function getDictationContextMenuActions(commandService: ICommandService, 
 	return [
 		createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
 		createConfigureInstructionsAction(commandService, CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, localize('dictation.configureInstructions', "Configure Dictation Instructions")),
+		createShowDictationOnboardingAction(commandService),
 		createSelectMicrophoneAction(commandService),
 		createDisableDictationAction(commandService, configurationService),
 	];

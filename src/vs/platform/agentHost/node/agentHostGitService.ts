@@ -41,6 +41,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
+	async getCurrentBranchName(workingDirectory: URI): Promise<string | undefined> {
+		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim() || undefined;
+	}
+
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
 		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();
@@ -132,19 +136,28 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
-	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
+	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
-		// Pass --no-track so the new agent branch never picks up upstream
-		// tracking from the start point (e.g. when starting from
-		// 'origin/main', without --no-track git would set the new branch's
-		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		//
+
+		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
+
+		if (!track) {
+			// Pass --no-track so the new agent branch never picks up upstream
+			// tracking from the start point (e.g. when starting from
+			// 'origin/main', without --no-track git would set the new branch's
+			// upstream to origin/main, which would mis-attribute pushes/pulls).
+			args.push('--no-track');
+		}
+
+		args.push('-b', branchName, worktree.fsPath, resolvedStartPoint);
+
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
 		// parsed for live feedback. GIT_PROGRESS_DELAY=0 lifts git's default
 		// two-second suppression so the first sample arrives immediately.
 		const progressParser = onProgress ? new GitCheckoutProgressParser(onProgress) : undefined;
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], {
+
+		await this._runGit(repositoryRoot, args, {
 			timeout: 180_000,
 			throwOnError: true,
 			...(progressParser ? { env: { GIT_PROGRESS_DELAY: '0' }, onStderr: chunk => progressParser.push(chunk) } : {}),

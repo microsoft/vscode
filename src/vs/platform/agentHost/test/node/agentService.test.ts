@@ -377,6 +377,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeBranchTrack]: false,
 				providerSetting: 'selected',
 			},
 		});
@@ -393,6 +394,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeBranchTrack]: false,
 				providerSetting: 'completion',
 			},
 			property: 'providerSetting',
@@ -412,6 +414,7 @@ suite('AgentService (node dispatcher)', () => {
 				branch: selected.values[SessionConfigKey.Branch],
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
+				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
 				providerSetting: selected.values.providerSetting,
 			},
 			folder: {
@@ -427,7 +430,7 @@ suite('AgentService (node dispatcher)', () => {
 			],
 			providerCompletionConfigs: [{ providerSetting: 'completion' }],
 			initial: { isolation: 'worktree', branchDefault: 'main', branch: 'main', providerSetting: 'initial' },
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
 		});
 	});
@@ -2228,6 +2231,50 @@ suite('AgentService (node dispatcher)', () => {
 				readToken: 'read-token',
 				profileToken: 'profile-token',
 				supersetToken: 'profile-token',
+			});
+		});
+
+		test('accepts an already handled MCP token after retrying session handlers', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => ++handlerCalls === 1;
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['write', 'read'], token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-1' });
+			const replacement = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-2' });
+
+			assert.deepStrictEqual({ first, duplicate, replacement, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: true },
+				replacement: { authenticated: false },
+				handlerCalls: 3,
+			});
+		});
+
+		test('does not hide a session handler rejection with an accepted token', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => {
+				handlerCalls++;
+				if (handlerCalls === 1) {
+					return true;
+				}
+				throw new Error('failed');
+			};
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+
+			assert.deepStrictEqual({ first, duplicate, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: false },
+				handlerCalls: 2,
 			});
 		});
 

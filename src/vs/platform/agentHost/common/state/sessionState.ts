@@ -1312,6 +1312,28 @@ export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
 /**
+ * Session-database metadata key recording whether a session has been read. This is
+ * the only durable representation of read state; the in-memory truth is
+ * {@link SessionStatus.IsRead}. The host owns it — no agent SDK tracks read state.
+ */
+export const AH_META_IS_READ_DB_KEY = 'isRead';
+
+/** Returns `status` with `flag` set or cleared. */
+export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
+	return set ? (status | flag) : (status & ~flag);
+}
+
+/** Whether the {@link SessionStatus.IsRead} flag bit is set. */
+export function isSessionStatusRead(status: SessionStatus | undefined): boolean {
+	return status !== undefined && (status & SessionStatus.IsRead) !== 0;
+}
+
+/** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
+export function isSessionStatusArchived(status: SessionStatus | undefined): boolean {
+	return status !== undefined && (status & SessionStatus.IsArchived) !== 0;
+}
+
+/**
  * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
  * `true` only when the well-known key is present and set to boolean `true`.
  */
