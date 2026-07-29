@@ -710,15 +710,18 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	 * because bare text gave no sign it could be clicked at all.
 	 */
 	private renderVoices(container: HTMLElement): void {
+		const labelText = localize('voiceMode.onboarding.voices', "Agent Voice:");
+		const label = dom.append(container, dom.$('.voice-mode-onboarding-voices-label'));
+		label.textContent = labelText;
+
 		const group = dom.append(container, dom.$('.voice-mode-onboarding-voices'));
 		group.setAttribute('role', 'radiogroup');
-		group.setAttribute('aria-label', localize('voiceMode.onboarding.voices', "Voice Mode voice"));
+		group.setAttribute('aria-label', labelText);
 
 		for (const voice of VOICES) {
 			const option = dom.append(group, dom.$('.voice-mode-onboarding-voice'));
 			option.setAttribute('role', 'radio');
-			// Spells out both halves of what a click does: it speaks, and it sticks.
-			option.setAttribute('aria-label', localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label));
+			option.setAttribute('aria-label', this.voiceAriaLabel(voice, false));
 
 			// The icon is the affordance: it says "this will speak" before the
 			// click, and "this is yours" after it.
@@ -743,6 +746,12 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	// --- Shared behaviour ---
+
+	private voiceAriaLabel(voice: IVoiceModeVoice, playing: boolean): string {
+		return playing
+			? localize('voiceMode.onboarding.voice.stopPreview', "Stop {0} preview.", voice.label)
+			: localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label);
+	}
 
 	private handleOptionKey(event: KeyboardEvent, voice: IVoiceModeVoice): void {
 		const keyboardEvent = new StandardKeyboardEvent(event);
@@ -873,7 +882,12 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 	private updatePlaying(playingVoice: string | undefined): void {
 		for (const [id, element] of this.voiceElements) {
-			element.classList.toggle('playing', id === playingVoice);
+			const playing = id === playingVoice;
+			element.classList.toggle('playing', playing);
+			const voice = VOICES.find(candidate => candidate.id === id);
+			if (voice) {
+				element.setAttribute('aria-label', this.voiceAriaLabel(voice, playing));
+			}
 		}
 		this.domNode.classList.toggle('playing', playingVoice !== undefined);
 	}

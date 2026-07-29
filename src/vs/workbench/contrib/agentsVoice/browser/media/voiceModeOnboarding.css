@@ -189,6 +189,13 @@
 
 /* --- Voice options --- */
 
+.voice-mode-onboarding-voices-label {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	white-space: nowrap;
+}
+
 /*
  * The options are buttons and have to look like it. Bare text gave no sign it
  * could be clicked, let alone that clicking would speak *and* stick.

@@ -93,6 +93,7 @@ suite('Voice Mode onboarding', () => {
 		// rather than arriving with an answer already filled in.
 		const selectedOnOpen = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 		const voices = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-voice-label')].map(element => element.textContent);
+		const voicesLabel = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voices-label')?.textContent;
 		const hasMicrophonePicker = host.container.querySelector('.voice-mode-onboarding-microphone-picker') !== null;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
 		const selectedAfterPick = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
@@ -109,6 +110,7 @@ suite('Voice Mode onboarding', () => {
 				hasMicrophonePicker,
 				selectedOnOpen,
 				voices,
+				voicesLabel,
 				selectedAfterPick,
 				shownAfterClose,
 				shownAgain,
@@ -119,6 +121,7 @@ suite('Voice Mode onboarding', () => {
 				hasMicrophonePicker: true,
 				selectedOnOpen: 0,
 				voices: ['Maya (Default)', 'Victoria', 'Kevin', 'Daniel'],
+				voicesLabel: 'Agent Voice:',
 				selectedAfterPick: 1,
 				shownAfterClose: false,
 				shownAgain: false,
@@ -159,6 +162,7 @@ suite('Voice Mode onboarding', () => {
 		const maya = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!;
 		maya.click();
 		const playingAfterFirstClick = maya.classList.contains('playing');
+		const ariaLabelAfterFirstClick = maya.getAttribute('aria-label');
 		maya.click();
 
 		assert.deepStrictEqual(
@@ -167,7 +171,9 @@ suite('Voice Mode onboarding', () => {
 				playCount,
 				pauseCount,
 				playingAfterFirstClick,
+				ariaLabelAfterFirstClick,
 				playingAfterSecondClick: maya.classList.contains('playing'),
+				ariaLabelAfterSecondClick: maya.getAttribute('aria-label'),
 				selectedAfterSecondClick: maya.classList.contains('selected'),
 			},
 			{
@@ -175,7 +181,9 @@ suite('Voice Mode onboarding', () => {
 				playCount: 1,
 				pauseCount: 1,
 				playingAfterFirstClick: true,
+				ariaLabelAfterFirstClick: 'Stop Maya (Default) preview.',
 				playingAfterSecondClick: false,
+				ariaLabelAfterSecondClick: 'Maya (Default). Hear this voice and use it for every conversation.',
 				selectedAfterSecondClick: true,
 			});
 	});
