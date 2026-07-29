@@ -505,6 +505,33 @@ suite('ChatStateSubscription', () => {
 			turns: [{ id: 'turn-1', state: TurnState.Complete }],
 		});
 	});
+
+	test('cancelSnapshotRefresh retires a buffered own acknowledgement without applying it', () => {
+		const sub = createSub();
+		const confirmed = makeChatState(chatUri);
+		sub.handleSnapshot(confirmed, 0);
+		const action = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+		const clientSeq = sub.applyOptimistic(action);
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+		sub.cancelSnapshotRefresh();
+
+		assert.deepStrictEqual({
+			pending: sub.getPendingActions(),
+			value: sub.value,
+			verifiedValue: sub.verifiedValue,
+		}, {
+			pending: [],
+			value: confirmed,
+			verifiedValue: confirmed,
+		});
+	});
 });
 
 // TerminalStateSubscription
@@ -1118,7 +1145,10 @@ suite('AgentSubscriptionManager', () => {
 		mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Pending title' });
 
 		const refresh = mgr.refreshSubscription(uri);
-		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'New-session envelope' }, 6));
+		const acknowledgedAction = { type: ActionType.SessionTitleChanged, title: 'Acknowledged during refresh' } as const;
+		const acknowledgedClientSeq = mgr.dispatchOptimistic(sessionUri, acknowledgedAction);
+		mgr.receiveEnvelope(makeEnvelope(acknowledgedAction, 6, { clientId: 'c1', clientSeq: acknowledgedClientSeq }));
+		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'New-session envelope' }, 7));
 		refreshSnapshot.error(new Error('refresh failed'));
 		await refresh;
 

@@ -156,13 +156,18 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	}
 
 	/**
-	 * Abandon a replacement snapshot and discard envelopes received during it.
-	 * They may belong to the replacement resource and cannot be safely reduced
-	 * onto the retained pre-refresh state.
+	 * Abandon a replacement snapshot. Buffered actions are not reduced onto the
+	 * retained pre-refresh state because they may belong to the replacement
+	 * resource. Subclasses can still consume acknowledgements for their pending
+	 * optimistic actions via {@link _onSnapshotRefreshCancelled}.
 	 */
 	cancelSnapshotRefresh(): void {
+		const bufferedEnvelopes = this._bufferedEnvelopes;
 		this._isRefreshingSnapshot = false;
 		this._bufferedEnvelopes = undefined;
+		if (bufferedEnvelopes) {
+			this._onSnapshotRefreshCancelled(bufferedEnvelopes);
+		}
 	}
 
 	/**
@@ -211,6 +216,13 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 		return undefined; // No write-ahead by default
 	}
 
+	/**
+	 * Called when a replacement snapshot fails. Buffered actions must not update
+	 * the retained confirmed state, but optimistic subscriptions can retire
+	 * pending entries that the server already acknowledged.
+	 */
+	protected _onSnapshotRefreshCancelled(_bufferedEnvelopes: readonly ActionEnvelope[]): void { }
+
 	/** Hook called after a snapshot is applied. Replays buffered actions. */
 	protected _onSnapshotApplied(_fromSeq: number): void {
 		// Replay any actions that arrived before the snapshot
@@ -235,6 +247,20 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 		this._confirmedState = this._applyReducer(this._confirmedState!, envelope.action);
 		this._onDidChange.fire(this.value as T);
 	}
+}
+
+function dropBufferedAcknowledgedPendingActions(
+	bufferedEnvelopes: readonly ActionEnvelope[],
+	clientId: string,
+	dropPendingByClientSeq: (clientSeq: number) => boolean,
+): boolean {
+	let didDropPending = false;
+	for (const envelope of bufferedEnvelopes) {
+		if (envelope.origin?.clientId === clientId && envelope.origin.clientSeq !== undefined) {
+			didDropPending = dropPendingByClientSeq(envelope.origin.clientSeq) || didDropPending;
+		}
+	}
+	return didDropPending;
 }
 
 // --- Root State Subscription -------------------------------------------------
@@ -330,6 +356,12 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		super._onSnapshotApplied(fromSeq);
 		// Re-apply pending actions on top of new confirmed state
 		this._recomputeOptimistic();
+	}
+
+	protected override _onSnapshotRefreshCancelled(bufferedEnvelopes: readonly ActionEnvelope[]): void {
+		if (dropBufferedAcknowledgedPendingActions(bufferedEnvelopes, this._clientId, clientSeq => this.dropPendingByClientSeq(clientSeq))) {
+			this._recomputeOptimistic();
+		}
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
@@ -476,6 +508,12 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	protected override _onSnapshotApplied(fromSeq: number): void {
 		super._onSnapshotApplied(fromSeq);
 		this._recomputeOptimistic();
+	}
+
+	protected override _onSnapshotRefreshCancelled(bufferedEnvelopes: readonly ActionEnvelope[]): void {
+		if (dropBufferedAcknowledgedPendingActions(bufferedEnvelopes, this._clientId, clientSeq => this.dropPendingByClientSeq(clientSeq))) {
+			this._recomputeOptimistic();
+		}
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
