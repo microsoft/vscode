@@ -15,6 +15,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { getAppNodeModulesDirName } from '../appNodeModules.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
@@ -49,7 +50,12 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	async getRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
 		const appRoot = dirname(FileAccess.asFileUri('').path);
 		const runAsNode = !!process.versions['electron'];
-		return { appRoot, execPath: process.execPath, runAsNode };
+		// In the desktop app the native binaries (ripgrep-universal, mxc-sdk) are
+		// unpacked from the ASAR archive into `node_modules.asar.unpacked`; in dev
+		// and on the server (which has no ASAR) they remain in a plain
+		// `node_modules`.
+		const nativeModulesDir = getAppNodeModulesDirName();
+		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir };
 	}
 
 	async getUserHome(): Promise<URI | undefined> {
@@ -103,9 +109,7 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		// The agent host stores sandbox settings nested under a single
 		// top-level `sandbox` object with prefix-free sub-keys (e.g.
 		// `sandbox.enabled` rather than `chat.agent.sandbox.enabled`). Map
-		// from the engine's modern setting ID into that sub-key namespace;
-		// unknown IDs (which include all deprecated keys — handled host-side
-		// by the workbench client) resolve to undefined.
+		// from the engine's setting ID into that sub-key namespace.
 		const innerKey = sandboxSettingIdToAgentHostKey[settingId];
 		if (innerKey === undefined) {
 			return undefined;

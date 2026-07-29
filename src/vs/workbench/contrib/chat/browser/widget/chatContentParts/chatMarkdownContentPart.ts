@@ -47,6 +47,7 @@ import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '..
 import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -131,6 +132,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -223,6 +225,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				breaks: true,
 			};
 
+			const configuredUriTransformer = markdownRenderOptions?.transformUri;
+			const transformUri = isResponseVM(element)
+				? (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, configuredUriTransformer?.(href, kind) ?? href, kind)
+				: configuredUriTransformer;
 			const result = store.add(renderer.render(this.markdown.content, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
@@ -356,6 +362,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedOptions: markedOpts,
 				markedExtensions,
 				...markdownRenderOptions,
+				transformUri,
 			}, this.domNode));
 
 			// Ideally this would happen earlier, but we need to parse the markdown.

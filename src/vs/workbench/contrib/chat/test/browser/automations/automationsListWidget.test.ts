@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -27,15 +29,20 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { AutomationsListWidget } from '../../../browser/aiCustomization/automationsListWidget.js';
-import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger } from '../../../common/automations/automation.js';
-import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
-import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
+import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../common/automations/automation.js';
+import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../common/automations/automationRunner.js';
+import { IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../common/automations/automationDialogService.js';
 
 const FOLDER = URI.parse('file:///workspace');
+const SESSION_RESOURCE = 'vscode-chat-session://copilot/sess-1';
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+}
+
+function workspaceTarget(): AutomationTarget {
+	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
 }
 
 /**
@@ -80,9 +87,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			name: options.name,
 			prompt: options.prompt,
 			schedule: options.schedule,
-			folderUri: options.folderUri,
-			providerId: options.providerId,
-			sessionTypeId: options.sessionTypeId,
+			target: options.target,
 			modelId: options.modelId,
 			mode: options.mode,
 			permissionLevel: options.permissionLevel,
@@ -109,6 +114,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			name: patch.name ?? current.name,
 			prompt: patch.prompt ?? current.prompt,
 			schedule: patch.schedule ?? current.schedule,
+			target: patch.target ?? current.target,
 			enabled: patch.enabled ?? current.enabled,
 			updatedAt: new Date().toISOString(),
 		});
@@ -116,12 +122,24 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return updated;
 	}
 
+	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult> {
+		const current = this.getAutomation(id);
+		if (current !== expected) {
+			return { kind: 'conflict', current };
+		}
+		return { kind: 'updated', automation: await this.updateAutomation(id, patch) };
+	}
+
 	override async deleteAutomation(id: string): Promise<void> {
 		this._automations.set(this._automations.get().filter(a => a.id !== id), undefined);
 		this._runsForCache.delete(id);
 	}
 
-	override async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun> {
+	override async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim> {
+		const activeRun = this._runs.get().find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running'));
+		if (activeRun) {
+			return { claimed: false, run: activeRun };
+		}
 		const run: IAutomationRun = Object.freeze({
 			id: generateUuid(),
 			automationId,
@@ -131,7 +149,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			leaderWindowId,
 		});
 		this._runs.set([run, ...this._runs.get()], undefined);
-		return run;
+		return { claimed: true, run };
 	}
 
 	override async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
@@ -142,7 +160,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		const merged: IAutomationRun = Object.freeze({
 			...current,
 			status: patch.status ?? current.status,
-			sessionId: patch.sessionId ?? current.sessionId,
+			sessionResource: patch.sessionResource ?? current.sessionResource,
 			completedAt: patch.completedAt ?? current.completedAt,
 			errorMessage: patch.errorMessage ?? current.errorMessage,
 		});
@@ -154,17 +172,21 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class RecordingRunner extends mock<IAutomationRunner>() {
 	readonly calls: { automationId: string; trigger: AutomationRunTrigger }[] = [];
 	error: Error | undefined;
+	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
+	whenCompleted: Promise<void> = Promise.resolve();
 
-	override async runOnce(
+	override runOnce(
 		automation: IAutomation,
 		trigger: AutomationRunTrigger,
 		_leaderWindowId: number,
 		_token?: CancellationToken,
-	): Promise<void> {
+	): IAutomationRunOperation {
 		this.calls.push({ automationId: automation.id, trigger });
 		if (this.error) {
-			throw this.error;
+			const failure = Promise.reject(this.error);
+			return { whenDispatched: failure, whenCompleted: failure };
 		}
+		return { whenDispatched: this.whenDispatched, whenCompleted: this.whenCompleted };
 	}
 }
 
@@ -256,6 +278,7 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(IConfigurationService, configService);
 
 		const widget = teardown.add(instantiation.createInstance(AutomationsListWidget));
+		widget.setVisible(true);
 		return { widget, service, runner, dialog, workspace, configService, automationDialogService };
 	}
 
@@ -275,8 +298,8 @@ suite('AutomationsListWidget', () => {
 
 	test('exposes one display entry per automation', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'First', prompt: 'p1', schedule: hourly(), folderUri: FOLDER });
-		await service.createAutomation({ name: 'Second', prompt: 'p2', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'First', prompt: 'p1', schedule: hourly(), target: workspaceTarget() });
+		await service.createAutomation({ name: 'Second', prompt: 'p2', schedule: hourly(), target: workspaceTarget() });
 
 		assert.strictEqual(widget.itemCount, 2);
 
@@ -286,18 +309,76 @@ suite('AutomationsListWidget', () => {
 		assert.deepStrictEqual(names, ['First', 'Second']);
 	});
 
+	test('defers list updates while hidden and commits the latest entries when shown', async () => {
+		const { widget, service } = setup();
+		await service.createAutomation({ name: 'First', prompt: 'p1', schedule: hourly(), target: workspaceTarget() });
+
+		widget.setVisible(false);
+		await service.createAutomation({ name: 'Second', prompt: 'p2', schedule: hourly(), target: workspaceTarget() });
+		const committedItemCountWhileHidden = widget.itemCount;
+
+		widget.setVisible(true);
+
+		assert.deepStrictEqual({
+			committedItemCountWhileHidden,
+			visibleItemCount: widget.itemCount,
+			names: widget.getDisplayEntriesForTest().map(entry => entry.automation.name),
+		}, {
+			committedItemCountWhileHidden: 1,
+			visibleItemCount: 2,
+			names: ['Second', 'First'],
+		});
+	});
+
 	test('disabled automations surface in the view-model as not enabled', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'D', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: false });
+		await service.createAutomation({ name: 'D', prompt: 'p', schedule: hourly(), target: workspaceTarget(), enabled: false });
 
 		const entries = widget.getDisplayEntriesForTest();
 		assert.strictEqual(entries.length, 1);
 		assert.strictEqual(entries[0].automation.enabled, false, 'disabled badge is rendered from this flag');
 	});
 
+	test('workspace-less automations retain explicit quick-chat intent in the view-model', async () => {
+		const { widget, service } = setup();
+		await service.createAutomation({
+			name: 'Quick',
+			prompt: 'p',
+			schedule: hourly(),
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+
+		const automation = widget.getDisplayEntriesForTest()[0].automation;
+		assert.deepStrictEqual(automation.target, {
+			kind: 'quickChat',
+			providerId: 'local-agent-host',
+			sessionTypeId: 'copilotcli',
+		});
+	});
+
+	test('accessible row labels include workspace-less and workspace targets', async () => {
+		const { widget, service } = setup();
+		const workspace = await service.createAutomation({ name: 'Workspace', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const quickChat = await service.createAutomation({
+			name: 'Quick',
+			prompt: 'p',
+			schedule: hourly(),
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			enabled: false,
+		});
+
+		assert.deepStrictEqual({
+			workspace: widget.formatAriaLabel(workspace),
+			quickChat: widget.formatAriaLabel(quickChat),
+		}, {
+			workspace: 'Workspace, Hourly, in folder-0',
+			quickChat: 'Quick, disabled, Hourly, without a workspace',
+		});
+	});
+
 	test('runNow invokes the runner with trigger=manual', async () => {
 		const { widget, service, runner } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		await widget.runNow(a);
 
@@ -306,10 +387,50 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(runner.calls[0].trigger, 'manual');
 	});
 
+	test('runNow announces start after dispatch before lifecycle completion', async () => {
+		const { widget, service, runner } = setup();
+		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+		const completed = new DeferredPromise<void>();
+		runner.whenDispatched = dispatched.p;
+		runner.whenCompleted = completed.p;
+		const ariaParent = document.createElement('div');
+		setARIAContainer(ariaParent);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		const runNowPromise = widget.runNow(automation);
+		const claim = await service.recordRunStart(automation.id, 'manual', 0);
+		const run = await service.updateRun(claim.run.id, { status: 'running' }) ?? claim.run;
+		await dispatched.complete({ kind: 'started', run, sessionResource: SESSION_RESOURCE });
+		await Promise.resolve();
+
+		assert.deepStrictEqual(
+			Array.from(ariaParent.querySelectorAll('.monaco-status')).map(element => element.textContent),
+			['Started automation A', ''],
+		);
+
+		await completed.complete(undefined);
+		await runNowPromise;
+	});
+
+	test('runNow does not announce a start when dispatch never created a session', async () => {
+		const { widget, service, runner } = setup();
+		runner.whenDispatched = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
+		const ariaParent = document.createElement('div');
+		setARIAContainer(ariaParent);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		await widget.runNow(automation);
+
+		assert.deepStrictEqual(
+			Array.from(ariaParent.querySelectorAll('.monaco-status')).map(element => element.textContent),
+			['', ''],
+		);
+	});
+
 	test('runNow clears inFlight when the runner fails', async () => {
 		const { widget, service, runner } = setup();
 		runner.error = new Error('boom');
-		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		await widget.runNow(automation);
 
@@ -319,7 +440,7 @@ suite('AutomationsListWidget', () => {
 
 	test('mutating actions short-circuit when chat.automations.enabled is off', async () => {
 		const { widget, service, runner, configService, dialog } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: true });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget(), enabled: true });
 
 		// Flip the setting off, then drive each mutating action through the
 		// public API. None of them should reach the service / runner.
@@ -338,7 +459,7 @@ suite('AutomationsListWidget', () => {
 
 	test('toggleEnabled flips the enabled state', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: true });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget(), enabled: true });
 
 		await widget.toggleEnabled(a);
 
@@ -349,7 +470,7 @@ suite('AutomationsListWidget', () => {
 
 	test('openEditDialog surfaces update errors without crashing', async () => {
 		const { widget, service, dialog, automationDialogService } = setup();
-		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 		automationDialogService.result = { kind: 'update', id: automation.id, value: { name: 'Updated' } };
 		service.updateError = new Error('update failed');
 
@@ -366,7 +487,7 @@ suite('AutomationsListWidget', () => {
 		const { widget, automationDialogService } = setup();
 		automationDialogService.result = {
 			kind: 'create',
-			value: { name: 'Created', prompt: 'p', schedule: hourly(), folderUri: FOLDER }
+			value: { name: 'Created', prompt: 'p', schedule: hourly(), target: workspaceTarget() }
 		};
 
 		const openCreateDialog = Reflect.get(widget, 'openCreateDialog') as (() => Promise<void>) | undefined;
@@ -381,7 +502,7 @@ suite('AutomationsListWidget', () => {
 		const { widget, service, dialog, automationDialogService } = setup();
 		automationDialogService.result = {
 			kind: 'create',
-			value: { name: 'Created', prompt: 'p', schedule: hourly(), folderUri: FOLDER }
+			value: { name: 'Created', prompt: 'p', schedule: hourly(), target: workspaceTarget() }
 		};
 		service.createError = new Error('create failed');
 
@@ -398,7 +519,7 @@ suite('AutomationsListWidget', () => {
 
 	test('deleteAutomation only deletes when the confirmation is accepted', async () => {
 		const { widget, service, dialog } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		dialog.confirmResult = false;
 		await widget.deleteAutomation(a);
@@ -409,7 +530,7 @@ suite('AutomationsListWidget', () => {
 
 	test('deleteAutomation removes the automation when the confirmation is accepted', async () => {
 		const { widget, service, dialog } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		dialog.confirmResult = true;
 		await widget.deleteAutomation(a);
@@ -424,8 +545,8 @@ suite('AutomationsListWidget', () => {
 		const seen: number[] = [];
 		teardown.add(widget.onDidChangeItemCount(c => seen.push(c)));
 
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
-		await service.createAutomation({ name: 'B', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		await service.createAutomation({ name: 'B', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		assert.ok(seen.length >= 2, `expected at least 2 emissions, got ${seen.length}`);
 		assert.strictEqual(seen[seen.length - 1], 2);
@@ -433,7 +554,7 @@ suite('AutomationsListWidget', () => {
 
 	test('fireItemCount reflects current service size', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		let captured = -1;
 		teardown.add(widget.onDidChangeItemCount(c => { captured = c; }));
@@ -444,7 +565,7 @@ suite('AutomationsListWidget', () => {
 
 	test('history is collapsed by default and toggleExpanded flips the row expansion', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		assert.strictEqual(widget.getDisplayEntriesForTest()[0].expanded, false);
 
@@ -456,9 +577,24 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(widget.getDisplayEntriesForTest()[0].expanded, false);
 	});
 
+	test('focusAutomation reveals and expands the requested automation', async () => {
+		const { widget, service } = setup();
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		assert.deepStrictEqual({
+			found: widget.focusAutomation(automation.id),
+			expanded: widget.getDisplayEntriesForTest()[0].expanded,
+			missing: widget.focusAutomation('missing'),
+		}, {
+			found: true,
+			expanded: true,
+			missing: false,
+		});
+	});
+
 	test('expanded row exposes no runs when there are none', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		widget.toggleExpanded(a.id);
 
@@ -469,13 +605,13 @@ suite('AutomationsListWidget', () => {
 
 	test('expanded row exposes runs newest-first with status and error message', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		// Record three runs in different states.
-		const r1 = await service.recordRunStart(a.id, 'schedule', 1);
+		const r1 = (await service.recordRunStart(a.id, 'schedule', 1)).run;
 		await service.updateRun(r1.id, { status: 'completed', completedAt: new Date().toISOString() });
 
-		const r2 = await service.recordRunStart(a.id, 'manual', 1);
+		const r2 = (await service.recordRunStart(a.id, 'manual', 1)).run;
 		await service.updateRun(r2.id, { status: 'failed', errorMessage: 'boom', completedAt: new Date().toISOString() });
 
 		await service.recordRunStart(a.id, 'catch_up', 1);
@@ -499,7 +635,7 @@ suite('AutomationsListWidget', () => {
 
 	test('expanded row re-derives its runs when a run is added', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		widget.toggleExpanded(a.id);
 		assert.strictEqual(widget.getDisplayEntriesForTest()[0].runs.length, 0);

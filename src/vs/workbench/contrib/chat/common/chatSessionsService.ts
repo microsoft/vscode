@@ -83,6 +83,12 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly longContextCacheCost?: number;
 	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly capabilities?: {
@@ -277,14 +283,18 @@ export type IChatSessionHistoryItem = {
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
+	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	isTerminalRequest?: boolean;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
 	participant: string;
 	details?: string;
+	elapsedMs?: number;
+	completedAt?: number;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -298,8 +308,20 @@ export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { 
 export interface IChatSessionServerRequest {
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly isTerminalRequest?: boolean;
+}
+
+/**
+ * Whether `text` runs as a terminal command for the given command `prefix`
+ * (e.g. `!`) — it starts with the prefix and has a non-empty command after it.
+ * Mirrors the agent host's bang parser, where a lone `!` (or `!` followed only
+ * by whitespace) is forwarded to the agent rather than executed.
+ */
+export function isTerminalCommandPrompt(text: string, prefix: string | undefined): boolean {
+	return !!prefix && text.startsWith(prefix) && text.slice(prefix.length).trim().length > 0;
 }
 
 /**
@@ -364,6 +386,7 @@ export interface IChatSession extends IDisposable {
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
+	readonly isReadOnly?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
 	/**
@@ -409,6 +432,9 @@ export interface IChatSession extends IDisposable {
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
+	/** Resolves a parsed response Markdown URI before it is sanitized and rendered. */
+	resolveChatResponseUri?(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
+
 	/**
 	 * Optional. Compute completion items for an input being composed in this
 	 * session. Returning `undefined` lets the workbench fall back to its
@@ -453,6 +479,13 @@ export interface IChatInputCompletionItem {
 	/** Text inserted into the input when this item is accepted. */
 	readonly insertText: string;
 	/**
+	 * Optional display label shown in the completion picker. When omitted, the
+	 * workbench displays {@link insertText}. Set this when the inserted text
+	 * differs from the label — e.g. an action item that inserts nothing
+	 * (`insertText: ''`) but should still be shown to the user.
+	 */
+	readonly label?: string;
+	/**
 	 * Half-open range `[start, end)` in the *current* input text that
 	 * {@link insertText} replaces. Positions use 1-based `lineNumber` and
 	 * `column` to match Monaco. When omitted, the workbench replaces the
@@ -461,7 +494,7 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment;
+	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
 }
 
 /**
@@ -505,6 +538,40 @@ export interface IChatInputCompletionSkillAttachment {
 	readonly uri: URI;
 	readonly displayName?: string;
 	readonly description?: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Chat attachment associated with a completion item. References another chat's
+ * transcript through a fixed completed turn. The workbench adds it to the
+ * input's variable model when the item is accepted so it round-trips back to
+ * the provider as a chat attachment on the outgoing user message.
+ */
+export interface IChatInputCompletionChatAttachment {
+	readonly kind: 'chat';
+	/**
+	 * The opaque **backend** chat URI of the referenced chat — the exact value
+	 * carried on `MessageChatAttachment.resource`. The workbench stores it
+	 * verbatim on the accepted reference entry (`value`) and round-trips it back
+	 * on send; it never parses or constructs it.
+	 */
+	readonly uri: URI;
+	/**
+	 * The last completed turn included in the referenced transcript, when the
+	 * reference is pinned to a specific turn. Omitted for references that resolve
+	 * to the referenced chat's latest completed turn at accept time (e.g. a
+	 * reference produced by dragging a chat into the input).
+	 */
+	readonly endTurn?: string;
+	/** The chat title, used as the display label. */
+	readonly title: string;
+	/** Display label shown in the completion picker; defaults to {@link title}. */
+	readonly displayName?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a
@@ -562,6 +629,11 @@ export interface IChatSessionItemController {
 	 * as a result of the deletion.
 	 */
 	deleteChatSessionItem?(resource: URI, token: CancellationToken): Promise<void>;
+
+	/**
+	 * Set the authoritative archived state for the session identified by `resource`.
+	 */
+	setChatSessionItemArchived?(resource: URI, archived: boolean): void;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -703,6 +775,16 @@ export interface IChatSessionsService {
 	 */
 	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
+	/**
+	 * Whether the registered item controller owns archived state for the session.
+	 */
+	canSetChatSessionItemArchived(sessionResource: URI): boolean;
+
+	/**
+	 * Sets archived state by delegating to the registered item controller.
+	 */
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void;
+
 	// #endregion
 
 	// #region Content provider support
@@ -713,6 +795,8 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+	/** Resolves a parsed response Markdown URI through its session content provider. */
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
 	/**
 	 * Compute completion items for an input being composed in the chat

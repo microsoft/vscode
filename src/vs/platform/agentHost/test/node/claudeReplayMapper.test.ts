@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState } from '../../common/state/protocol/state.js';
-import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from '../../node/claude/claudeReplayMapper.js';
+import { mapSessionMessagesToTurns, missingPromptPlaceholder, resolveForkAnchorUuid } from '../../node/claude/claudeReplayMapper.js';
 
 suite('claudeReplayMapper', () => {
 
@@ -17,51 +17,60 @@ suite('claudeReplayMapper', () => {
 
 	const logService = new NullLogService();
 	const session = URI.parse('claude:/sess-1');
+	type TimestampedSessionMessage = SessionMessage & { readonly timestamp?: string };
 
-	function makeUser(uuid: string, text: string): SessionMessage {
+	function makeUser(uuid: string, text: string, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'user',
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { role: 'user', content: [{ type: 'text', text }] },
+			timestamp,
 		};
 	}
 
-	function makeAssistantText(uuid: string, text: string): SessionMessage {
+	function makeAssistantText(uuid: string, text: string, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'assistant',
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'text', text }] },
+			timestamp,
 		};
 	}
 
-	function makeAssistantToolUse(uuid: string, toolUseId: string, name: string, input: unknown = {}): SessionMessage {
+	function makeAssistantToolUse(uuid: string, toolUseId: string, name: string, input: unknown = {}, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'assistant',
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: {
 				id: `msg_${uuid}`,
 				role: 'assistant',
 				content: [{ type: 'tool_use', id: toolUseId, name, input }],
 			},
+			timestamp,
 		};
 	}
 
-	function makeUserToolResult(uuid: string, toolUseId: string, text: string, isError = false): SessionMessage {
+	function makeUserToolResult(uuid: string, toolUseId: string, text: string, isError = false, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'user',
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: {
 				role: 'user',
 				content: [{ type: 'tool_result', tool_use_id: toolUseId, content: text, ...(isError ? { is_error: true } : {}) }],
 			},
+			timestamp,
 		};
 	}
 
@@ -71,6 +80,7 @@ suite('claudeReplayMapper', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { subtype, ...(text !== undefined ? { text } : {}) },
 		};
 	}
@@ -94,6 +104,40 @@ suite('claudeReplayMapper', () => {
 		if (part.kind === ResponsePartKind.Markdown) {
 			assert.strictEqual(part.content, 'world');
 		}
+	});
+
+	test('restores turn timing from persisted message timestamps', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'hello', '2026-07-09T18:00:00.000Z'),
+			makeAssistantText('a1', 'world', '2026-07-09T18:00:02.500Z'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.deepStrictEqual({
+			startedAt: turns[0].startedAt,
+			duration: turns[0].duration,
+		}, {
+			startedAt: '2026-07-09T18:00:00.000Z',
+			duration: 2_500,
+		});
+	});
+
+	test('leaves turn timing unknown when persisted timestamps are missing or invalid', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'hello', 'invalid'),
+			makeAssistantText('a1', 'world'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.deepStrictEqual({
+			startedAt: turns[0].startedAt,
+			duration: turns[0].duration,
+		}, {
+			startedAt: undefined,
+			duration: undefined,
+		});
 	});
 
 	test('Fixture 2: tool_use + tool_result is one Turn with one Completed ToolCall', () => {
@@ -219,6 +263,20 @@ suite('claudeReplayMapper', () => {
 		assert.strictEqual(turns[1].state, TurnState.Complete, 'turn 2 has no orphan');
 	});
 
+	test('late tool results do not extend the active turn duration', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'first', '2026-07-09T18:00:00.000Z'),
+			makeAssistantToolUse('a1', 'tu-late', 'Bash', {}, '2026-07-09T18:00:01.000Z'),
+			makeUser('u2', 'second', '2026-07-09T18:00:10.000Z'),
+			makeAssistantText('a2', 'clean reply', '2026-07-09T18:00:12.000Z'),
+			makeUserToolResult('late-result', 'tu-late', 'done', false, '2026-07-09T18:00:20.000Z'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.deepStrictEqual(turns.map(turn => turn.duration), [1_000, 2_000]);
+	});
+
 	test('Fixture 7: non-allowlisted system subtypes are dropped', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'go'),
@@ -246,6 +304,7 @@ suite('claudeReplayMapper', () => {
 				uuid: 'echo-1',
 				session_id: 'sess-1',
 				parent_tool_use_id: null,
+				parent_agent_id: null,
 				message: { role: 'user', content: '<command-name>/model</command-name>\n            <command-message>model</command-message>\n            <command-args>claude-opus-4.7</command-args>' },
 			},
 			{
@@ -253,6 +312,7 @@ suite('claudeReplayMapper', () => {
 				uuid: 'echo-2',
 				session_id: 'sess-1',
 				parent_tool_use_id: null,
+				parent_agent_id: null,
 				message: { role: 'user', content: '<local-command-stdout>Set model to claude-opus-4.7</local-command-stdout>' },
 			},
 			makeUser('u2', 'how about now'),
@@ -278,19 +338,19 @@ suite('claudeReplayMapper', () => {
 		const parent = 'toolu_parent';
 		const messages: SessionMessage[] = [
 			{
-				type: 'assistant', uuid: 'sa1', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'assistant', uuid: 'sa1', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { id: 'msg_sa1', role: 'assistant', content: [{ type: 'thinking', thinking: 'planning', signature: 'sig' }] },
 			},
 			{
-				type: 'assistant', uuid: 'sa2', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'assistant', uuid: 'sa2', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { id: 'msg_sa2', role: 'assistant', content: [{ type: 'tool_use', id: 'tu_inner', name: 'Bash', input: { command: 'ls' } }] },
 			},
 			{
-				type: 'user', uuid: 'sa3', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'user', uuid: 'sa3', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu_inner', content: 'file-a.txt\nfile-b.txt' }] },
 			},
 			{
-				type: 'assistant', uuid: 'sa4', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'assistant', uuid: 'sa4', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { id: 'msg_sa4', role: 'assistant', content: [{ type: 'text', text: 'Done. SUBAGENT_ONLY_MARKER_xyz' }] },
 			},
 		];
@@ -309,20 +369,41 @@ suite('claudeReplayMapper', () => {
 			'inner Bash tool call must be reconstructed as Completed');
 	});
 
-	test('Fixture 10b: top-level assistant before any user message is still dropped', () => {
-		// Guard the narrow behavior: a top-level (non-inner) assistant envelope
-		// arriving before any user message remains anomalous and is dropped, so
-		// the synthesize-on-open path is scoped strictly to subagent transcripts.
+	test('Fixture 10b: top-level assistant before any user message is recovered under a placeholder prompt', () => {
+		// A truncated transcript slice (the SDK returns only the bytes after
+		// the last compact boundary for large sessions) can open mid-turn,
+		// with the user prompt cut off. The reply must still be recovered —
+		// dropping it empties the whole chat when the slice contains no user
+		// message at all.
 		const messages: SessionMessage[] = [
-			makeAssistantText('a1', 'orphan reply'),
+			makeAssistantText('a1', 'promptless reply'),
 			makeUser('u1', 'hello'),
 			makeAssistantText('a2', 'world'),
 		];
 
 		const turns = mapSessionMessagesToTurns(messages, session, logService);
 
-		assert.strictEqual(turns.length, 1, 'the orphan top-level assistant must NOT synthesize a turn');
-		assert.strictEqual(turns[0].id, 'u1');
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, text: turn.message.text })), [
+			{ id: 'a1', text: missingPromptPlaceholder() },
+			{ id: 'u1', text: 'hello' },
+		]);
+	});
+
+	test('a transcript slice with no user message at all still yields turns', () => {
+		// The reported failure mode: every envelope in the slice belonged to
+		// one long agentic turn whose prompt was truncated away, so the whole
+		// session replayed as zero turns and the chat rendered empty.
+		const messages: SessionMessage[] = [
+			makeAssistantToolUse('a1', 'tu1', 'Bash', { command: 'ls' }),
+			makeUserToolResult('r1', 'tu1', 'file.txt'),
+			makeAssistantText('a2', 'done'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].message.text, missingPromptPlaceholder());
+		assert.strictEqual(turns[0].state, TurnState.Complete);
 	});
 });
 
@@ -336,6 +417,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { role: 'user', content: [{ type: 'text', text }] },
 		};
 	}
@@ -346,6 +428,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'text', text }] },
 		};
 	}
@@ -356,6 +439,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'tool_use', id: toolUseId, name, input }] },
 		};
 	}
@@ -366,6 +450,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: text }] },
 		};
 	}
@@ -376,6 +461,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { subtype, ...(text !== undefined ? { text } : {}) },
 		};
 	}
@@ -437,17 +523,29 @@ suite('resolveForkAnchorUuid', () => {
 		assert.strictEqual(resolveForkAnchorUuid(messages, 'u1'), 'a1', 'system notification must not end the turn');
 	});
 
-	test('user-only target turn (no assistant) falls back to the user-text uuid', () => {
+	test('user-only target turn (no assistant) has no valid fork anchor', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'apple'),
 			makeAssistantText('a1', 'apple!'),
 			makeUser('u2', 'unanswered'),
 		];
-		assert.strictEqual(resolveForkAnchorUuid(messages, 'u2'), 'u2', 'fall back to the user-text envelope uuid');
+		assert.strictEqual(resolveForkAnchorUuid(messages, 'u2'), undefined);
 	});
 
 	test('turnId not found → undefined', () => {
 		assert.strictEqual(resolveForkAnchorUuid(threeTurns, 'nope'), undefined);
+	});
+
+	test('a promptless leading turn is anchorable, mirroring the replay builder', () => {
+		// The builder opens a turn keyed on the leading assistant envelope when
+		// the prompt is missing from the slice; the resolver must agree or a
+		// fork from that turn cannot be anchored.
+		const messages: SessionMessage[] = [
+			makeAssistantText('a1', 'promptless reply'),
+			makeUser('u1', 'next'),
+			makeAssistantText('a2', 'ok'),
+		];
+		assert.strictEqual(resolveForkAnchorUuid(messages, 'a1'), 'a1');
 	});
 
 	test('empty transcript → undefined', () => {
@@ -462,6 +560,7 @@ suite('resolveForkAnchorUuid', () => {
 				uuid: 'echo-1',
 				session_id: 'sess-1',
 				parent_tool_use_id: null,
+				parent_agent_id: null,
 				message: { role: 'user', content: '<command-name>/model</command-name>' },
 			},
 			makeAssistantText('a1', 'opus'),

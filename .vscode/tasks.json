@@ -104,7 +104,8 @@
 					"beginsPattern": "Starting transpilation\\.\\.\\.",
 					"endsPattern": "Finished transpilation with"
 				}
-			}
+			},
+			"inAgents": true,
 		},
 		{
 			"type": "npm",

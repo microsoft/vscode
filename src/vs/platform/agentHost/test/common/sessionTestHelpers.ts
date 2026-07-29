@@ -22,6 +22,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	getFileEditsByTurnCalls = 0;
 	deleteTurnsAfterCalls: string[] = [];
 	deleteAllTurnsCalls = 0;
+	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -96,7 +97,9 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	dispose(): void { }
 
-	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }
+	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
+		this.setTurnEventIdCalls.push({ turnId, eventId });
+	}
 
 	async getTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 
@@ -188,12 +191,17 @@ export class TestDiffComputeService implements IDiffComputeService {
 		return {
 			added: Math.max(0, modifiedLines.length - originalLines.length),
 			removed: Math.max(0, originalLines.length - modifiedLines.length),
+			changes: original === modified ? [] : [{
+				startOffset: 0,
+				endOffsetExclusive: original.length,
+				newText: modified,
+			}],
 		};
 	}
 }
 
 export function createZeroDiffComputeService(): IDiffComputeService {
-	return new TestDiffComputeService({ added: 0, removed: 0 });
+	return new TestDiffComputeService({ added: 0, removed: 0, changes: [] });
 }
 
 export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase()): ISessionDataService {
@@ -238,10 +246,13 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		_serviceBrand: undefined,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
+		getBranch: async () => undefined,
+		getRefs: async () => [],
 		getBranches: async () => [],
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
 		addWorktree: async () => { },
+		copyWorktreeIncludeFiles: async () => { },
 		addExistingWorktree: async () => { },
 		removeWorktree: async () => { },
 		branchExists: async () => false,
@@ -263,6 +274,10 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		overlayPathIntoTree: async () => undefined,
 		diffTreePaths: async () => undefined,
 		computeFileDiffsBetweenRefs: async () => undefined,
+		getFetchRemoteUrls: async () => undefined,
+		getUntrackedPaths: async () => [],
+		getBranchDiffSafetyInfo: async () => undefined,
+		getDiffPatchBetweenRefs: async () => undefined,
 	};
 }
 

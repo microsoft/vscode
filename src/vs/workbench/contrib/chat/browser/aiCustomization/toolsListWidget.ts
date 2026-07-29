@@ -146,7 +146,7 @@ export class ToolsListWidget extends Disposable {
 	private _searchRow!: HTMLElement;
 	private _treeContainer!: HTMLElement;
 	private _treeScrollable!: DomScrollableElement;
-	private _browseButtonContainer!: HTMLElement;
+	private _browseButtonContainer: HTMLElement | undefined;
 	private _backButtonContainer!: HTMLElement;
 	private _galleryContainer!: HTMLElement;
 	private _galleryEmpty!: HTMLElement;
@@ -262,11 +262,13 @@ export class ToolsListWidget extends Disposable {
 			}).catch(() => { /* delayer disposed */ });
 		}));
 
-		const browseLabel = localize('toolsBrowseMarketplace', "Browse Marketplace");
-		this._browseButtonContainer = DOM.append(this._searchRow, $('.tools-list-browse-button-container'));
-		const browseButton = this._register(new Button(this._browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: browseLabel, ariaLabel: browseLabel }));
-		browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
-		this._register(browseButton.onDidClick(() => this._setBrowseMode(true)));
+		if (!this._environmentService.isSessionsWindow) {
+			const browseLabel = localize('toolsBrowseMarketplace', "Browse Marketplace");
+			this._browseButtonContainer = DOM.append(this._searchRow, $('.tools-list-browse-button-container'));
+			const browseButton = this._register(new Button(this._browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: browseLabel, ariaLabel: browseLabel }));
+			browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
+			this._register(browseButton.onDidClick(() => this._setBrowseMode(true)));
+		}
 
 		const backLabel = localize('toolsBrowseBack', "Back");
 		this._backButtonContainer = DOM.append(this._searchRow, $('.tools-list-browse-button-container'));
@@ -411,6 +413,9 @@ export class ToolsListWidget extends Disposable {
 
 	/** Enters/leaves marketplace browse mode, swapping the tree for the gallery list. */
 	private _setBrowseMode(browse: boolean): void {
+		if (browse && this._environmentService.isSessionsWindow) {
+			return;
+		}
 		if (this._browseMode === browse) {
 			return;
 		}
@@ -418,7 +423,9 @@ export class ToolsListWidget extends Disposable {
 
 		this._treeScrollable.getDomNode().style.display = browse ? 'none' : '';
 		this._galleryContainer.style.display = browse ? '' : 'none';
-		this._browseButtonContainer.style.display = browse ? 'none' : '';
+		if (this._browseButtonContainer) {
+			this._browseButtonContainer.style.display = browse ? 'none' : '';
+		}
 		this._backButtonContainer.style.display = browse ? '' : 'none';
 
 		this._searchInput.setPlaceHolder(browse

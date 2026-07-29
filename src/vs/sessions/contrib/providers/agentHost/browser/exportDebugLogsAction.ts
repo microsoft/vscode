@@ -6,7 +6,7 @@
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
@@ -30,7 +30,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			category: Categories.Developer,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true)),
+				ContextKeyExpr.or(IsSessionsWindowContext, AGENT_HOST_ENABLED_CONTEXT_KEY),
 			),
 		});
 	}

@@ -13,17 +13,6 @@
 	overflow: hidden;
 }
 
-@keyframes voiceTextPulse {
-	0%,
-	100% {
-		opacity: 0.9;
-	}
-
-	50% {
-		opacity: 0.4;
-	}
-}
-
 .voice-transcript-overlay-scrollable {
 	position: absolute !important;
 	top: 0;
@@ -62,7 +51,12 @@
 	color: var(--vscode-foreground);
 	opacity: 0.6;
 	font-style: italic;
-	animation: voiceTextPulse 1.5s ease-in-out infinite;
+}
+
+/* Placeholder text while listening: static, no shimmer animation. */
+.voice-transcript-overlay .listening {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
 }
 
 .voice-transcript-overlay .assistant-text {

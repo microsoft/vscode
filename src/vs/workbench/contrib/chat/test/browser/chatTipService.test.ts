@@ -22,7 +22,9 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { storeSelectedModel } from '../../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
@@ -401,7 +403,7 @@ suite('ChatTipService', () => {
 	});
 
 	test('returns Auto switch tip when current model is persisted and context key is empty', () => {
-		storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1-2025-04-14', StorageScope.APPLICATION, StorageTarget.USER);
+		storeSelectedModel(storageService, ChatAgentLocation.Chat, undefined, 'copilot/gpt-4.1-2025-04-14');
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, '');
 
@@ -506,6 +508,15 @@ suite('ChatTipService', () => {
 
 		const tip = service.getWelcomeTip(contextKeyService);
 		assert.strictEqual(tip, undefined, 'Should not return a tip when no foreground chat sessions are visible');
+	});
+
+	test('returns a tip for the Agents new-session composer when foreground session count is zero', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 0);
+		contextKeyService.createKey(IsSessionsWindowContext.key, true);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip, 'Should return a tip for the Agents new-session composer');
 	});
 
 	test('returns undefined when foreground session count is greater than one', () => {

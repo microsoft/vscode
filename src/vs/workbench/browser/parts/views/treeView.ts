@@ -1681,6 +1681,12 @@ class Aligner extends Disposable {
 		if (icon) {
 			return true;
 		}
+		// `file` and `folder` ThemeIcons defer to the file icon theme only when the item has a resource.
+		// Any other ThemeIcon, or a `file`/`folder` ThemeIcon on an item without a resource, is always
+		// rendered as a codicon and therefore always has an icon regardless of the file icon theme.
+		if (node.themeIcon && (!node.resourceUri || (node.themeIcon.id !== FileThemeIcon.id && node.themeIcon.id !== FolderThemeIcon.id))) {
+			return true;
+		}
 		if (node.resourceUri || node.themeIcon) {
 			const fileIconTheme = this.themeService.getFileIconTheme();
 			const isFolder = node.themeIcon ? node.themeIcon.id === FolderThemeIcon.id : node.collapsibleState !== TreeItemCollapsibleState.None;

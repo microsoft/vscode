@@ -232,13 +232,16 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 									? IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })
 									: IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
 								if (confirmed) {
-									break;
+									return toolCall.name === 'approve_confirmation' ? 'approved' : 'rejected';
 								}
 							}
 						}
 					}
+					// Found a model but no tool invocation was awaiting confirmation.
+					return 'no pending confirmation';
 				}
-				break;
+				// No target session could be resolved for the confirmation.
+				return 'no session';
 			}
 			case 'auto_approve_session': {
 				delegate.addAllAutoApprovedSessions();

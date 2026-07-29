@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -239,6 +239,38 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private left = 0;
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
+
+	private _contentRightInset = 0;
+
+	/**
+	 * Reserves an inset (px) on the right of the editor content of the group(s) at the
+	 * right edge of the editor part, while the title stays full width, so a docked panel
+	 * can sit beside the editor content under one full-width tab bar. Only the right-edge
+	 * groups (no neighbor to the right) are inset; interior groups in a split layout keep
+	 * full-width content. Recomputed when the group topology changes. `0` (default)
+	 * restores full-width content for all groups.
+	 */
+	setContentRightInset(inset: number): void {
+		this._contentRightInset = Math.max(0, Math.round(inset));
+		this.applyContentRightInset();
+	}
+
+	private applyContentRightInset(): void {
+		if (!this.gridWidget) {
+			return;
+		}
+
+		for (const group of this.groupViews.values()) {
+			if (!(group instanceof EditorGroupView)) {
+				continue;
+			}
+
+			// Only groups at the right edge of the editor part (no neighbor to the right)
+			// sit under the docked panel overlay; interior groups keep full-width content.
+			const atRightEdge = this._contentRightInset > 0 && this.gridWidget.getNeighborViews(group, Direction.Right).length === 0;
+			group.setContentRightInset(atRightEdge ? this._contentRightInset : 0);
+		}
+	}
 
 	private _activeGroup!: IEditorGroupView;
 	get activeGroup(): IEditorGroupView {
@@ -645,16 +677,26 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
+	/**
+	 * Base {@link IEditorGroupViewOptions} applied to every group this part creates.
+	 * Subclasses override to configure part-wide group behavior (e.g. header menus).
+	 */
+	protected getGroupViewOptions(): IEditorGroupViewOptions | undefined {
+		return undefined;
+	}
+
 	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null, options?: IEditorGroupViewOptions): IEditorGroupView {
+
+		const resolvedOptions: IEditorGroupViewOptions | undefined = { ...this.getGroupViewOptions(), ...options };
 
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
+			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, resolvedOptions);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
+			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, resolvedOptions);
 		} else {
-			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
+			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, resolvedOptions);
 		}
 
 		// Keep in map
@@ -1109,14 +1151,22 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this._register(this.onDidAddGroup(() => {
 			updateContextKeys();
 			updateTopRightGroupContextKey();
+			this.applyContentRightInset();
 		}));
 		this._register(this.onDidRemoveGroup(() => {
 			updateContextKeys();
 			updateTopRightGroupContextKey();
+			this.applyContentRightInset();
 		}));
-		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
+		this._register(this.onDidChangeGroupMaximized(() => {
+			updateContextKeys();
+			this.applyContentRightInset();
+		}));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
-		this._register(this.onDidMoveGroup(() => updateTopRightGroupContextKey()));
+		this._register(this.onDidMoveGroup(() => {
+			updateTopRightGroupContextKey();
+			this.applyContentRightInset();
+		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
 	}
 
@@ -1389,7 +1439,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const outerRight = owners.right === Parts.EDITOR_PART;
 
 			const leftMargin = outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
-			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			const { topMargin, bottomMargin } = this.getFloatingPanelHeightInsets();
@@ -1430,7 +1480,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// card (not the window edge), so keep the normal inter-card gap.
 		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
 		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) && !panelAtBottom
-			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
 		return { topMargin: panelAtTop ? FLOATING_PANEL_MARGIN : 0, bottomMargin };
 	}
 

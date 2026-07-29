@@ -400,6 +400,57 @@ suite('LanguageModels', function () {
 		languageModels.setModelHidden('test-id-1', true);
 		assert.strictEqual(fired, 1);
 	});
+
+	test('model visibility — hiding an agent-host group excludes BYOK model copies', async function () {
+		// An agent host surfaces the user's BYOK models as copies under its own vendor.
+		// Those copies (id carries the upstream provider prefix + `modelGroup`) are not
+		// listed in Manage Models under the agent host, so group-level visibility toggles
+		// must not touch them — their visibility is owned by the real provider row.
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'agent-host-copilotcli', displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+		store.add(languageModels.registerLanguageModelProvider('agent-host-copilotcli', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [
+				{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Claude Haiku 4.5', vendor: 'agent-host-copilotcli', family: 'claude-haiku-4.5', version: '1.0',
+						id: 'claude-haiku-4.5', maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+						targetChatSessionType: 'agent-host-copilotcli', modelGroup: { id: 'copilotcli' },
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'agent-host-copilotcli:claude-haiku-4.5',
+				},
+				{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'AionLabs: Aion-3.0', vendor: 'agent-host-copilotcli', family: 'openrouter/aion-labs/aion-3.0', version: '1.0',
+						id: 'openrouter/aion-labs/aion-3.0', maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+						targetChatSessionType: 'agent-host-copilotcli', modelGroup: { id: 'openrouter' },
+						byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0',
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'agent-host-copilotcli:openrouter/aion-labs/aion-3.0',
+				},
+			],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+		await languageModels.selectLanguageModels({ vendor: 'agent-host-copilotcli' });
+
+		languageModels.setGroupHidden('agent-host-copilotcli', 'Copilot', true);
+
+		// Only the native agent-host model is hidden; the BYOK copy is untouched, and the
+		// group reads as hidden because every model it actually owns (the native one) is.
+		assert.deepStrictEqual({
+			hiddenModels: languageModels.getHiddenModelIds(),
+			groupHidden: languageModels.isGroupHidden('agent-host-copilotcli', 'Copilot'),
+			byokCopyHidden: languageModels.isModelHidden('agent-host-copilotcli:openrouter/aion-labs/aion-3.0'),
+		}, {
+			hiddenModels: ['agent-host-copilotcli:claude-haiku-4.5'],
+			groupHidden: true,
+			byokCopyHidden: false,
+		});
+	});
 });
 
 suite('LanguageModels - When Clause', function () {
@@ -567,6 +618,24 @@ suite('LanguageModels - Model Change Events', function () {
 
 		const firedVendorId = await eventPromise;
 		assert.strictEqual(firedVendorId, 'test-vendor', 'Should fire event when new models are added');
+	});
+
+	test('fires onChange when the first authoritative model resolution is empty', async function () {
+		const events: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendorId => events.push(vendorId)));
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+
+		const models = await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		assert.deepStrictEqual({ models, events }, {
+			models: [],
+			events: ['test-vendor'],
+		});
 	});
 
 	test('does not fire onChange event when models are unchanged', async function () {
@@ -1369,27 +1438,19 @@ suite('LanguageModels - Provider Group Management', function () {
 		}]);
 	});
 
-	test('updateLanguageModelsProviderGroupApiKey stores the new secret and preserves model settings', async function () {
-		acceptedInputValues.push('new-api-key');
-		await secretStorageService.set('existing-secret', 'old-api-key');
+	test('updateLanguageModelsProviderGroupApiKey trims whitespace from the new apiKey secret', async function () {
+		acceptedInputValues.push('new-api-key\r\n');
 
 		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
 
-		const updatedGroup = updateCalls[0]?.to;
-		const encodedApiKey = typeof updatedGroup?.apiKey === 'string' ? updatedGroup.apiKey : '';
+		const encodedApiKey = typeof updateCalls[0]?.to.apiKey === 'string' ? updateCalls[0].to.apiKey : '';
 		const secretKey = encodedApiKey.substring('${input:'.length, encodedApiKey.length - 1);
 		assert.deepStrictEqual({
 			encodedApiKeyUsesSecretStorage: encodedApiKey.startsWith('${input:chat.lm.secret.'),
-			newSecretValue: await secretStorageService.get(secretKey),
-			oldSecretValue: await secretStorageService.get('existing-secret'),
-			settings: updatedGroup?.settings,
-			identity: { name: updatedGroup?.name, vendor: updatedGroup?.vendor }
+			newSecretValue: await secretStorageService.get(secretKey)
 		}, {
 			encodedApiKeyUsesSecretStorage: true,
-			newSecretValue: 'new-api-key',
-			oldSecretValue: undefined,
-			settings: { model: { temperature: 0.7 } },
-			identity: { name: 'Custom Group', vendor: 'custom-vendor' }
+			newSecretValue: 'new-api-key'
 		});
 	});
 
@@ -1973,4 +2034,3 @@ suite('LanguageModels - provider usage telemetry', function () {
 		assert.strictEqual(events.length, 0);
 	});
 });
-

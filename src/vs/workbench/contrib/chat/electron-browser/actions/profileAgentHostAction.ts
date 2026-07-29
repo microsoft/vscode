@@ -13,7 +13,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -252,7 +253,7 @@ export class ProfileAgentHostAction extends Action2 {
 					IsSessionsWindowContext,
 					ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true),
+						AGENT_HOST_ENABLED_CONTEXT_KEY,
 					),
 				),
 				CONTEXT_AGENT_HOST_PROFILE_STATE.notEqualsTo(AgentHostProfileState.Starting),

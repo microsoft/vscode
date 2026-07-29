@@ -10,48 +10,48 @@ import type { IByokLmBridgeConnection, IByokLmChatResult, IByokLmModelInfo } fro
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 
 /**
- * Pins the behaviour of {@link ByokLmBridgeRegistry}: it surfaces the models of a
- * single *serving* connection (preferring one that actually has models), routes
- * inference there, excludes connections whose enumeration rejects, and notifies
- * listeners on model/connection changes.
+ * Pins the behaviour of {@link ByokLmBridgeRegistry}: it caches the model
+ * snapshots pushed by each connection, surfaces the models of a single *serving*
+ * connection (preferring one that actually has models), routes inference there,
+ * excludes connections that never push, and notifies listeners on
+ * model/connection changes.
  */
 suite('ByokLmBridgeRegistry', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/** A scripted bridge connection; `chat` is unused by these tests. */
-	function connectionOf(listModels: () => Promise<IByokLmModelInfo[]>, onDidChangeModels?: Emitter<void>): IByokLmBridgeConnection {
+	/**
+	 * A scripted bridge connection whose model snapshots are pushed on demand via
+	 * the returned `push`. A connection that never pushes stays non-serving.
+	 * `chat` is unused by these tests.
+	 */
+	function pushable(): { connection: IByokLmBridgeConnection; push: (models: IByokLmModelInfo[]) => void } {
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>());
 		return {
-			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
-			listModels,
-			...(onDidChangeModels ? { onDidChangeModels: onDidChangeModels.event } : {}),
+			connection: {
+				chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
+				onDidChangeModels: emitter.event,
+			},
+			push: models => emitter.fire(models),
 		};
 	}
 
-	/** Resolves once every microtask-queued registry refresh has settled. */
-	const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
-
-	test('surfaces the serving window\'s models and routes inference to it; a non-serving window is excluded', async () => {
+	test('surfaces the serving window\'s models and routes inference to it; a non-serving window is excluded', () => {
 		const registry = new ByokLmBridgeRegistry();
-		// A serving window (its listModels resolves) and a window that connected
-		// without a BYOK handler, whose bridge rejects.
-		const serving = connectionOf(async () => [{ vendor: 'acme', id: 'claude' }, { vendor: 'acme', id: 'gpt' }]);
-		const nonServing: IByokLmBridgeConnection = {
-			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
-			listModels: async () => { throw new Error('no BYOK handler in this window'); },
-		};
-		const regServing = registry.register('editor', serving);
-		const regNonServing = registry.register('no-handler', nonServing);
+		// A serving window (it pushes a snapshot) and a window that connected
+		// without a BYOK handler, which never pushes.
+		const serving = pushable();
+		const nonServing = pushable();
+		const regServing = registry.register('editor', serving.connection);
+		const regNonServing = registry.register('no-handler', nonServing.connection);
 
-		const models = await registry.listModels();
+		serving.push([{ vendor: 'acme', id: 'claude' }, { vendor: 'acme', id: 'gpt' }]);
 
 		assert.deepStrictEqual({
-			models,
-			cached: registry.getModels(),
-			serving: registry.getServingConnection() === serving,
+			models: registry.getModels(),
+			serving: registry.getServingConnection() === serving.connection,
 		}, {
 			models: [{ vendor: 'acme', id: 'claude' }, { vendor: 'acme', id: 'gpt' }],
-			cached: [{ vendor: 'acme', id: 'claude' }, { vendor: 'acme', id: 'gpt' }],
 			serving: true,
 		});
 
@@ -59,35 +59,36 @@ suite('ByokLmBridgeRegistry', () => {
 		regNonServing.dispose();
 	});
 
-	test('a window that answers with an empty list is still a valid serving target', async () => {
+	test('a window that pushes an empty list is still a valid serving target', () => {
 		const registry = new ByokLmBridgeRegistry();
-		const only = connectionOf(async () => []);
-		const reg = registry.register('client-only', only);
-		await registry.listModels();
+		const only = pushable();
+		const reg = registry.register('client-only', only.connection);
+		only.push([]);
 
 		assert.deepStrictEqual({
 			models: registry.getModels(),
-			serving: registry.getServingConnection() === only,
+			serving: registry.getServingConnection() === only.connection,
 		}, { models: [], serving: true });
 
 		reg.dispose();
 	});
 
-	test('a window that answered empty does not shadow a peer that has models, even when it connected first', async () => {
+	test('a window that pushed empty does not shadow a peer that has models, even when it connected first', () => {
 		const registry = new ByokLmBridgeRegistry();
-		// The Agents app connects first and answers empty (its BYOK extension has
-		// not registered models yet); a peer window answers with models. The peer
-		// must win — an empty-but-serving window must never shadow a populated one.
-		const empty = connectionOf(async () => []);
-		const withModels = connectionOf(async () => [{ vendor: 'acme', id: 'claude' }]);
-		const regEmpty = registry.register('agents', empty);
-		const regWithModels = registry.register('editor', withModels);
+		// The Agents app connects first and pushes empty (its BYOK extension has
+		// not registered models yet); a peer window pushes models. The peer must
+		// win — an empty-but-serving window must never shadow a populated one.
+		const empty = pushable();
+		const withModels = pushable();
+		const regEmpty = registry.register('agents', empty.connection);
+		const regWithModels = registry.register('editor', withModels.connection);
 
-		await registry.listModels();
+		empty.push([]);
+		withModels.push([{ vendor: 'acme', id: 'claude' }]);
 
 		assert.deepStrictEqual({
 			models: registry.getModels(),
-			serving: registry.getServingConnection() === withModels,
+			serving: registry.getServingConnection() === withModels.connection,
 		}, {
 			models: [{ vendor: 'acme', id: 'claude' }],
 			serving: true,
@@ -97,13 +98,14 @@ suite('ByokLmBridgeRegistry', () => {
 		regWithModels.dispose();
 	});
 
-	test('unregistering the serving connection drops its models and notifies listeners', async () => {
+	test('unregistering the serving connection drops its models and notifies listeners', () => {
 		const registry = new ByokLmBridgeRegistry();
 		let changes = 0;
 		store.add(registry.onDidChangeModels(() => { changes++; }));
 
-		const reg = registry.register('client-a', connectionOf(async () => [{ vendor: 'acme', id: 'claude' }]));
-		await registry.listModels();
+		const conn = pushable();
+		const reg = registry.register('client-a', conn.connection);
+		conn.push([{ vendor: 'acme', id: 'claude' }]);
 		assert.strictEqual(registry.getModels().length, 1);
 
 		const changesBeforeDispose = changes;
@@ -120,28 +122,41 @@ suite('ByokLmBridgeRegistry', () => {
 		});
 	});
 
-	test('re-enumerates and notifies when a connection reports onDidChangeModels', async () => {
+	test('caches and notifies when a connection pushes a new snapshot', () => {
 		const registry = new ByokLmBridgeRegistry();
-		const onDidChange = store.add(new Emitter<void>());
-		let models: IByokLmModelInfo[] = [];
-		const connection: IByokLmBridgeConnection = {
-			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
-			listModels: async () => models,
-			onDidChangeModels: onDidChange.event,
-		};
-		const reg = registry.register('client-a', connection);
-		await registry.listModels();
+		const conn = pushable();
+		const reg = registry.register('client-a', conn.connection);
+		conn.push([]);
 		assert.strictEqual(registry.getModels().length, 0);
 
 		let changed = false;
 		store.add(registry.onDidChangeModels(() => { changed = true; }));
-		models = [{ vendor: 'acme', id: 'claude' }];
-		onDidChange.fire();
-		await flush();
+		conn.push([{ vendor: 'acme', id: 'claude' }]);
 
 		assert.deepStrictEqual({ changed, models: registry.getModels() }, {
 			changed: true,
 			models: [{ vendor: 'acme', id: 'claude' }],
+		});
+
+		reg.dispose();
+	});
+
+	test('treats a change in only the model identifier as a model change (re-publishes)', () => {
+		const registry = new ByokLmBridgeRegistry();
+		const conn = pushable();
+		const reg = store.add(registry.register('client-a', conn.connection));
+		conn.push([{ vendor: 'openrouter', id: 'aion-labs/aion-3.0', modelIdentifier: 'openrouter/OpenRouter 1/aion-labs/aion-3.0' }]);
+
+		let changes = 0;
+		store.add(registry.onDidChangeModels(() => { changes++; }));
+
+		// Only the carried identifier changed (e.g. the user renamed the provider group) — the
+		// registry must still notice and re-publish so the picker keys visibility by the new id.
+		conn.push([{ vendor: 'openrouter', id: 'aion-labs/aion-3.0', modelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }]);
+
+		assert.deepStrictEqual({ changes, models: registry.getModels() }, {
+			changes: 1,
+			models: [{ vendor: 'openrouter', id: 'aion-labs/aion-3.0', modelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }],
 		});
 
 		reg.dispose();

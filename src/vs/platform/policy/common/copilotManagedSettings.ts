@@ -14,6 +14,8 @@ import { PolicyDefinition } from './policy.js';
 
 export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
+export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
@@ -35,8 +37,19 @@ export const COPILOT_EXTRA_MARKETPLACES_KEY = 'extraKnownMarketplaces';
 /** Managed-settings key for the strict-marketplace allowlist (carried as a JSON-encoded array of source entries; absent = no restrictions, `[]` = lockdown). */
 export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 
-/** Managed-settings key for the default chat model (carried as a plain string: `auto`, a model family name, or a full model id). */
-export const COPILOT_MODEL_KEY = 'model';
+/** Managed-settings key for the per-server MCP allowlist (carried as a JSON-encoded array of matcher entries; absent = no allow restriction, `[]` = only servers matching an entry, i.e. block all). */
+export const COPILOT_ALLOWED_MCP_SERVERS_KEY = 'allowedMcpServers';
+
+/** Managed-settings key for the per-server MCP denylist (carried as a JSON-encoded array of matcher entries; deny always takes precedence over allow). */
+export const COPILOT_DENIED_MCP_SERVERS_KEY = 'deniedMcpServers';
+
+/**
+ * Managed-settings key for the default chat model (carried as a plain string: `auto`, a model
+ * family name, or a full model id). Nested under `permissions` in the managed-settings schema
+ * (alongside {@link COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY}), so it flattens to the dot-path
+ * `permissions.model` in the normalized bag — the key policy `value()` callbacks must read.
+ */
+export const COPILOT_MODEL_KEY = 'permissions.model';
 
 /**
  * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
@@ -424,6 +437,14 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 		encode: encodeArray,
 	},
 	{
+		key: COPILOT_ALLOWED_MCP_SERVERS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_DENIED_MCP_SERVERS_KEY,
+		encode: encodeArray,
+	},
+	{
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,
 		encode: encodeExtraMarketplaces,
 	},
@@ -559,12 +580,16 @@ export const IFileManagedSettingsService = createDecorator<IFileManagedSettingsS
 
 export interface IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData;
 	readonly managedSettings: ManagedSettingsData;
+	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData = {};
 	readonly managedSettings: ManagedSettingsData = {};
+	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
 }

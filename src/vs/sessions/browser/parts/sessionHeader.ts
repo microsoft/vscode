@@ -14,7 +14,6 @@ import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
 import { ActionRunner, IAction } from '../../../base/common/actions.js';
@@ -35,7 +34,7 @@ import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewIt
 /**
  * An action runner for the session header toolbars that promotes the header's
  * session to be the active session before running any contributed command. This
- * ensures commands (e.g. View Changes) operate on the clicked session even when
+ * ensures commands (e.g. View All Changes) operate on the clicked session even when
  * a different session is currently active.
  */
 class SessionActivatingActionRunner extends ActionRunner {
@@ -92,7 +91,6 @@ export class SessionHeader extends Disposable {
 
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
-	private readonly _readStateSignal: IObservable<void>;
 	private readonly _metaActionsSignal: IObservable<void>;
 
 	private readonly _statusIcon: SessionStatusIcon;
@@ -115,12 +113,9 @@ export class SessionHeader extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
-
-		this._readStateSignal = observableSignalFromEvent(this, this._sessionsListModelService.onDidChange);
 
 		this._container = $('.chat-composite-bar.session-header-bar');
 
@@ -183,7 +178,7 @@ export class SessionHeader extends Disposable {
 		// SessionHeaderMetaActionViewItem.
 		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
 		this._metaRow.appendChild(metaToolbarContainer);
-		// Commands contributed into the header meta toolbar (e.g. View Changes)
+		// Commands contributed into the header meta toolbar (e.g. View All Changes)
 		// operate on this view's session. Promote it to the active session before
 		// running any of them via a custom action runner, so the command always
 		// targets the clicked session even when another session is active.
@@ -309,7 +304,6 @@ export class SessionHeader extends Disposable {
 		}
 
 		store.add(autorun(reader => {
-			this._readStateSignal.read(reader);
 			this._updateHeader(session, reader);
 		}));
 
@@ -324,7 +318,7 @@ export class SessionHeader extends Disposable {
 		// The pull request is surfaced in the meta row, so in terminal/default states the
 		// title shows the read/unread dot indicator (no session type or PR icon).
 		const status = session.status.read(reader);
-		const isRead = this._sessionsListModelService.isSessionRead(session);
+		const isRead = session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
