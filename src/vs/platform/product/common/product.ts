@@ -90,4 +90,8 @@ else {
 	}
 }
 
+if (product.requestFeatureUrl === 'https://go.microsoft.com/fwlink/?LinkID=533482') {
+	product = { ...product, requestFeatureUrl: 'https://github.com/microsoft/vscode/issues?q=is%3Aissue%20state%3Aopen%20label%3Afeature-request' };
+}
+
 export default product;
