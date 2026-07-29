@@ -66,7 +66,9 @@ import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { SessionDataService } from './sessionDataService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
@@ -270,6 +272,9 @@ async function main(): Promise<void> {
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
+		const editAttributionService = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+		diServices.set(IAgentEditAttributionService, editAttributionService);
+		agentService.setEditAttributionService(editAttributionService);
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);

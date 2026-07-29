@@ -25,6 +25,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
+import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -59,7 +60,7 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
@@ -142,6 +143,8 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
+	/** Managed confirmations are human-only and must never seed host-side session permissions. */
+	private readonly _managedApprovalToolCalls = new Set<string>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
 
 	private readonly _permissionManager: SessionPermissionManager;
@@ -1109,34 +1112,44 @@ export class AgentSideEffects extends Disposable {
 			toolInput: e.state.toolInput,
 			requestSandboxBypass: e.requestSandboxBypass,
 		};
-		const autoApproval = await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+		const autoApproval = e.managedApprovalRequired
+			? undefined
+			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 		if (toolCall
 			&& toolCall.status !== ToolCallStatus.Streaming
 			&& toolCall.status !== ToolCallStatus.Running
 			&& toolCall.status !== ToolCallStatus.PendingConfirmation) {
-			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
+			const toolCallKey = `${sessionKey}:${e.state.toolCallId}`;
+			this._toolCallAgents.delete(toolCallKey);
+			this._managedApprovalToolCalls.delete(toolCallKey);
 			this._logService.trace(`[AgentSideEffects] Dropping stale tool ready for ${e.state.toolCallId}: status=${toolCall.status}`);
 			return;
 		}
 		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
+		const toolCallKey = `${sessionKey}:${e.state.toolCallId}`;
+		if (e.managedApprovalRequired) {
+			this._managedApprovalToolCalls.add(toolCallKey);
+		} else {
+			this._managedApprovalToolCalls.delete(toolCallKey);
+		}
 		const clientShouldAutoApprove = autoApproval !== undefined
 			&& contributor?.kind === ToolCallContributorKind.Client
 			&& !!e.state.confirmationTitle;
 		if (clientShouldAutoApprove) {
-			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
+			this._toolCallAgents.set(toolCallKey, agent.id);
 			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
 		} else if (autoApproval !== undefined) {
-			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
+			this._toolCallAgents.delete(toolCallKey);
 			agent.respondToPermissionRequest(e.state.toolCallId, true);
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
 		} else if (effective.state.confirmationTitle) {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
-			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
+			this._toolCallAgents.set(toolCallKey, agent.id);
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,
@@ -1205,6 +1218,7 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
 				}
 				const toolCallKey = `${channel}:${action.toolCallId}`;
+				const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
 				const agentId = this._toolCallAgents.get(toolCallKey);
 				if (agentId) {
 					this._toolCallAgents.delete(toolCallKey);
@@ -1216,7 +1230,7 @@ export class AgentSideEffects extends Disposable {
 
 				// When the user chose "Allow in this Session", add the tool
 				// to the session's permissions so future calls are auto-approved.
-				if (action.approved) {
+				if (action.approved && !managedApprovalRequired) {
 					this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
 				}
 				break;
@@ -1665,7 +1679,7 @@ export class AgentSideEffects extends Disposable {
 			await Promise.all(selectionUpdates);
 
 			failureStage = 'sendMessage';
-			const resolvedAttachments = await this._resolveChatAttachments(sessionChannel, message.attachments);
+			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
@@ -1683,7 +1697,7 @@ export class AgentSideEffects extends Disposable {
 		}
 	}
 
-	private async _resolveChatAttachments(sessionChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
+	private async _resolveChatAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
 		if (!attachments?.some(attachment => attachment.type === MessageAttachmentKind.Chat)) {
 			return attachments;
 		}
@@ -1691,35 +1705,49 @@ export class AgentSideEffects extends Disposable {
 			if (attachment.type !== MessageAttachmentKind.Chat) {
 				return attachment;
 			}
-			const sourceSession = isAhpChatChannel(attachment.resource)
-				? parseRequiredSessionUriFromChatUri(attachment.resource)
-				: URI.parse(attachment.resource).toString();
-			if (sourceSession !== URI.parse(sessionChannel).toString()) {
-				throw new Error(`Chat attachment source must belong to the target session: ${attachment.resource}`);
+			// An `agent-host-session://` link that identifies the referenced chat.
+			// The default chat is addressed by its session (no chat id); peer chats
+			// carry their chat id so the link opens that specific chat. A resource
+			// that cannot be mapped to a link yields a pointer that names the chat
+			// by its raw resource instead — a bad reference must never fail the
+			// user's turn.
+			const openLink = buildOpenSessionLinkForChatResource(attachment.resource);
+			// A cross-session reference may point at a chat this host never
+			// subscribed to; restoring it can throw when no provider owns it or
+			// the backend no longer has it. A stale reference must not fail the
+			// user's whole turn, so an unresolvable source (`undefined`) degrades
+			// to a pointer without an excerpt and drops the `endTurn` pin — the
+			// empty transcript would otherwise trip endTurn validation.
+			const sourceTurns = await this._resolveChatAttachmentSourceTurns(attachment.resource);
+			if (sourceTurns === undefined) {
+				return resolveChatAttachment({ ...attachment, endTurn: undefined }, [], openLink);
 			}
-			const sourceState = this._resolveSourceChatState(attachment.resource);
-			if (sourceState?.activeTurn?.id === attachment.endTurn) {
+			const sourceState = resolveChatStateForUri(this._stateManager, attachment.resource);
+			if (attachment.endTurn !== undefined && sourceState?.activeTurn?.id === attachment.endTurn) {
 				throw new Error(`Chat attachment endTurn must reference a completed turn: ${attachment.resource}#${attachment.endTurn}`);
 			}
-			const sourceTurns = await this._options.resolveChatAttachmentTurns?.(attachment.resource)
-				?? sourceState?.turns
-				?? [];
-			return resolveChatAttachment(attachment, sourceTurns);
+			return resolveChatAttachment(attachment, sourceTurns, openLink);
 		}));
 	}
 
-	private _resolveSourceChatState(sourceUri: string) {
-		const peerState = this._stateManager.getChatState(sourceUri);
-		if (peerState) {
-			return peerState;
+	/**
+	 * Resolves the referenced chat's turns, returning `undefined` when the source
+	 * is unresolvable — e.g. a cross-session reference to a chat this host never
+	 * subscribed to and cannot restore (the resolver throws
+	 * `ProtocolError(AHP_SESSION_NOT_FOUND)` when no provider owns it or the
+	 * backend no longer has it). Such failures are logged rather than rethrown so
+	 * a stale reference degrades gracefully instead of failing the user's turn.
+	 */
+	private async _resolveChatAttachmentSourceTurns(resource: ProtocolURI): Promise<readonly Turn[] | undefined> {
+		try {
+			if (this._options.resolveChatAttachmentTurns) {
+				return await this._options.resolveChatAttachmentTurns(resource);
+			}
+			return resolveChatStateForUri(this._stateManager, resource)?.turns ?? [];
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] Unable to resolve chat attachment source ${resource}; degrading to a pointer without an excerpt`, err);
+			return undefined;
 		}
-		if (!isAhpChatChannel(sourceUri)) {
-			return this._stateManager.getDefaultChatState(sourceUri);
-		}
-		if (isDefaultChatUri(sourceUri)) {
-			return this._stateManager.getDefaultChatState(parseRequiredSessionUriFromChatUri(sourceUri));
-		}
-		return undefined;
 	}
 
 	/**
@@ -1761,6 +1789,7 @@ export class AgentSideEffects extends Disposable {
 
 	override dispose(): void {
 		this._toolCallAgents.clear();
+		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();
 		super.dispose();
 	}

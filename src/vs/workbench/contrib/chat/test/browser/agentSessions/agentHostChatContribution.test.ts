@@ -30,7 +30,7 @@ import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } fr
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -44,7 +44,7 @@ import { IAuthenticationMcpService } from '../../../../../services/authenticatio
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -104,7 +104,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IInputModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
-import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -758,7 +758,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		...languageModelToolsServiceOverride,
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) });
 	instantiationService.stub(IProgressService, { withProgress: <R,>(_options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => task({ report: () => { } }) });
 	instantiationService.stub(IWorkspaceContextService, { getWorkbenchState: () => WorkbenchState.EMPTY, getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null, onDidChangeWorkspaceFolders: Event.None });
 	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0 };
@@ -1128,7 +1128,7 @@ suite('AgentHostChatContribution', () => {
 			// AI features must be enabled (AIDisabled === false) or the download
 			// progress handler suppresses the notification; the default config
 			// stub returns `true` for every key, so override just this one.
-			const services = createTestServices(disposables, undefined, undefined, undefined, undefined, isSessionsWindow, undefined, { [ChatConfiguration.AIDisabled]: false });
+			const services = createTestServices(disposables, undefined, undefined, undefined, undefined, isSessionsWindow, undefined, { [ChatAIDisabledSettingId]: false });
 			const openedTitles: (string | undefined)[] = [];
 			services.instantiationService.stub(IProgressService, {
 				withProgress: <R,>(options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => {
@@ -1572,6 +1572,36 @@ suite('AgentHostChatContribution', () => {
 				language: undefined,
 				pastedLines: undefined,
 				fileName: undefined,
+			}]);
+		});
+
+		test('restores chat attachments as chat reference variable entries', () => {
+			// A chat attachment carries the opaque backend chat URI both on the
+			// wire and on the rebuilt entry — restore is pure identity, so the
+			// entry's id and value are that same backend URI verbatim.
+			const backendResource = 'ahp-chat://chat-2/base64session';
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Chat,
+				label: 'Design chat',
+				resource: backendResource,
+				endTurn: 'turn-5',
+				_meta: { source: 'test' },
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				id: variable.id,
+				name: variable.name,
+				value: URI.isUri(variable.value) ? variable.value.toString() : variable.value,
+				endTurn: isChatReferenceVariableEntry(variable) ? variable.endTurn : undefined,
+				_meta: variable._meta,
+			})), [{
+				kind: 'chatReference',
+				id: `agent-host-chat:${URI.parse(backendResource).toString()}\u0000turn-5`,
+				name: 'Design chat',
+				value: URI.parse(backendResource).toString(),
+				endTurn: 'turn-5',
+				_meta: { source: 'test' },
 			}]);
 		});
 
@@ -5696,6 +5726,84 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
+		test('restores chat references to a never-opened cross-session chat as the opaque backend URI', async () => {
+			// The referenced chats live in another same-host session that was
+			// never opened in this window. Restore is now pure identity: each
+			// entry simply carries the backend chat URI from the wire verbatim —
+			// the client-side chat is resolved lazily only if the pill is clicked.
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'driven');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/driven' });
+
+			const otherBackend = AgentSession.uri('copilot', 'other-sess').toString();
+			const otherDefaultBackend = buildDefaultChatUri(otherBackend);
+			const otherPeerBackend = buildChatUri(otherBackend, 'peer-9');
+
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					message: {
+						text: 'compare these chats',
+						origin: { kind: MessageKind.User },
+						attachments: [
+							{ type: MessageAttachmentKind.Chat, label: 'Other default chat', resource: otherDefaultBackend, endTurn: 'turn-3' },
+							{ type: MessageAttachmentKind.Chat, label: 'Other peer chat', resource: otherPeerBackend },
+						],
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			} as SessionState);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const request = session.history[0];
+			assert.strictEqual(request.type, 'request');
+			if (request.type === 'request') {
+				assert.deepStrictEqual(request.variableData?.variables.filter(isChatReferenceVariableEntry).map(variable => ({
+					value: variable.value.toString(),
+					endTurn: variable.endTurn,
+				})), [
+					{ value: URI.parse(otherDefaultBackend).toString(), endTurn: 'turn-3' },
+					{ value: URI.parse(otherPeerBackend).toString(), endTurn: undefined },
+				]);
+			}
+		});
+
+		test('re-sends a restored cross-session (never-opened) chat reference back to the same backend chat URI', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Round-trip completion for the never-opened case: an entry whose
+			// value is the opaque backend chat URI of a chat in another same-host
+			// session (never subscribed here) re-sends as that exact URI — send is
+			// pure identity, so restore + re-send is trivially lossless.
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const otherBackend = AgentSession.uri('copilot', 'other-sess').toString();
+			const otherDefaultBackend = buildDefaultChatUri(otherBackend);
+			const otherPeerBackend = buildChatUri(otherBackend, 'peer-9');
+			const defaultEntry = createChatReferenceVariableEntry(URI.parse(otherDefaultBackend), undefined, 'Other default chat');
+			const peerEntry = createChatReferenceVariableEntry(URI.parse(otherPeerBackend), 'turn-3', 'Other peer chat');
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'compare #chat:Other default chat and #chat:Other peer chat',
+				variables: { variables: [upcastPartial(defaultEntry), upcastPartial(peerEntry)] },
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments?.map(attachment => ({
+				type: attachment.type,
+				resource: (attachment as MessageChatAttachment).resource,
+				endTurn: (attachment as MessageChatAttachment).endTurn,
+			})), [
+				{ type: MessageAttachmentKind.Chat, resource: URI.parse(otherDefaultBackend).toString(), endTurn: undefined },
+				{ type: MessageAttachmentKind.Chat, resource: URI.parse(otherPeerBackend).toString(), endTurn: 'turn-3' },
+			]);
+		}));
+
 		test('untitled sessions have empty history', async () => {
 			const { sessionHandler } = createContribution(disposables);
 
@@ -6781,6 +6889,84 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		}));
 
+		test('chat reference variable entry becomes a chat attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			// The entry already holds the opaque backend chat URI, so send is pure
+			// identity — the outgoing attachment carries that same URI verbatim.
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' });
+			const backendChatResource = URI.parse('ahp-chat://backend-session/design-chat');
+			const chatEntry = createChatReferenceVariableEntry(backendChatResource, 'turn-5', 'Design chat', { source: 'test' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				sessionResource,
+				message: 'compare with #chat:Design chat',
+				variables: {
+					variables: [
+						upcastPartial({ ...chatEntry, range: { start: 13, endExclusive: 30 } }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Chat,
+				resource: backendChatResource.toString(),
+				endTurn: 'turn-5',
+				label: 'Design chat',
+				range: {
+					start: { line: 0, character: 13 },
+					end: { line: 0, character: 30 },
+				},
+				_meta: { source: 'test' },
+			}]);
+
+			// Re-round-trip: replaying the outgoing attachment restores an entry
+			// with an identical, stable (backend-resource) id and the same flat
+			// _meta — both directions are now pure identity.
+			const restored = messageAttachmentsToVariableData([turnAction.message.attachments[0]], 'test')?.variables[0];
+			assert.deepStrictEqual({ id: restored?.id, _meta: restored?._meta }, {
+				id: chatEntry.id,
+				_meta: { source: 'test' },
+			});
+		}));
+
+		test('chat reference attachment round-trips its reference range back into an offset range', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' });
+			const backendChatResource = URI.parse('ahp-chat://backend-session/circuit');
+			const chatEntry = createChatReferenceVariableEntry(backendChatResource, 'turn-5', 'circuit-breaker testing coverage summary');
+			const message = 'what did I ask about in #chat:circuit-breaker testing coverage summary ?';
+			const start = message.indexOf('#chat:');
+			const endExclusive = start + '#chat:circuit-breaker testing coverage summary'.length;
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				sessionResource,
+				message,
+				variables: {
+					variables: [
+						upcastPartial({ ...chatEntry, range: { start, endExclusive } }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			const outgoingAttachment = turnAction.message.attachments![0];
+
+			// The outgoing attachment carries the reference span as a text range.
+			assert.ok(outgoingAttachment.range, 'outgoing chat attachment should carry a reference range');
+
+			// Restoring the attachment (e.g. rehydrating a draft) with the message
+			// text must map that text range back onto the entry's offset range so
+			// the inline `#chat:` highlight is not lost on the next send.
+			const restored = messageAttachmentsToVariableData([outgoingAttachment], 'test', message)?.variables[0];
+			assert.deepStrictEqual(restored?.range, { start, endExclusive });
+		}));
+
 		test('extension host Copilot CLI session reference becomes simple and trajectory attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const sessionReference = URI.from({ scheme: 'copilotcli', path: '/session-123' });
@@ -7744,7 +7930,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('setting gate prevents registration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService } = createTestServices(disposables);
-			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: false });
+			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false) });
 
 			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 			// Contribution should exist but not have registered any agents
@@ -10532,6 +10718,47 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(result?.items[0].label, '/yolo on');
 			assert.strictEqual(result?.items[0].insertText, '');
+		});
+
+		test('surfaces a chat completion backend URI verbatim on the completion attachment', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			// The host advertises the peer chat by its opaque backend chat URI.
+			// Completion accept is now pure identity: the completion attachment
+			// carries that exact backend URI, which becomes the reference entry's
+			// value verbatim.
+			const backendChatUri = buildChatUri(AgentSession.uri('copilot', 'abc').toString(), 'peer-1');
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [
+					{
+						insertText: '#chat:Design chat ',
+						rangeStart: 0,
+						rangeEnd: 6,
+						attachment: {
+							type: MessageAttachmentKind.Chat,
+							resource: backendChatUri,
+							label: 'Design chat',
+							endTurn: 'turn-5',
+						},
+					},
+				],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/abc' });
+			const result = await sessionHandler.provideChatInputCompletions(
+				sessionResource,
+				{ text: '#chat:', offset: 6 },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(result?.items.length, 1);
+			assert.deepStrictEqual(result?.items[0].attachment, {
+				kind: 'chat',
+				uri: URI.parse(backendChatUri),
+				endTurn: 'turn-5',
+				title: 'Design chat',
+				displayName: 'Design chat',
+			});
 		});
 
 		test('returns undefined when the request is cancelled', async () => {

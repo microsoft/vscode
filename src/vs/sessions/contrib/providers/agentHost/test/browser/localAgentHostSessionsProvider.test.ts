@@ -345,7 +345,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IAgentHostService, agentHostService);
 	const configurationService = options?.configurationService ?? new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: options?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(options?.agentHostEnabled ?? true) });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
@@ -1718,6 +1718,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 			ActionType.SessionMcpServerStopRequested,
 		]);
 		assert.deepStrictEqual(actions.map(({ action }) => (action as { id: string }).id), ['mcp://docs', 'mcp://docs']);
+	});
+
+	test('getBackendChatResource looks up the host-supplied backend chat URI', () => {
+		const provider = createProvider(disposables, agentHost);
+
+		fireSessionAdded(agentHost, 'chat-lookup', { title: 'Chat Lookup' });
+		fireSessionAdded(agentHost, 'no-state', { title: 'No State' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Chat Lookup');
+		const unhydrated = provider.getSessions().find(s => s.title.get() === 'No State');
+		assert.ok(session);
+		assert.ok(unhydrated);
+
+		// The backend chat URIs are host-supplied and independent of the client
+		// resources; the lookup returns them verbatim rather than constructing them.
+		// On the wire they are strings.
+		const backendSession = AgentSession.uri('copilotcli', 'backend-abc').toString();
+		const defaultBackend = buildDefaultChatUri(backendSession);
+		const peerBackend = buildChatUri(backendSession, 'peer-1');
+		const fakeState: SessionState = {
+			provider: 'copilotcli',
+			title: 'Chat Lookup',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [
+				{ resource: defaultBackend, title: 'Default', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+				{ resource: peerBackend, title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+			],
+			defaultChat: defaultBackend,
+		};
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('chat-lookup', 'copilotcli', fakeState);
+
+		assert.deepStrictEqual({
+			// Default chat (client resource has no fragment) resolves via `defaultChat`.
+			defaultChat: provider.getBackendChatResource(session.resource)?.toString(),
+			// Peer chat (client fragment) resolves via its `ChatSummary.resource`.
+			peerChat: provider.getBackendChatResource(session.resource.with({ fragment: 'peer-1' }))?.toString(),
+			// A peer chat absent from hydrated state has no backend URI.
+			missingPeer: provider.getBackendChatResource(session.resource.with({ fragment: 'ghost' }))?.toString(),
+			// A session whose state has not hydrated yields nothing.
+			notHydrated: provider.getBackendChatResource(unhydrated.resource),
+		}, {
+			defaultChat: URI.parse(defaultBackend).toString(),
+			peerChat: URI.parse(peerBackend).toString(),
+			missingPeer: undefined,
+			notHydrated: undefined,
+		});
 	});
 
 	test('getCustomAgents returns no agents when the session has no SessionState', () => {
