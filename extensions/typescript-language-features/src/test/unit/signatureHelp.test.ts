@@ -5,119 +5,118 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import * as vscode from 'vscode';
-import type * as Proto from '../../tsServer/protocol/protocol';
-import { ITypeScriptServiceClient } from '../../typescriptService';
-import { _TypeScriptSignatureHelpProvider } from '../../languageFeatures/signatureHelp';
+import type * as vscode from 'vscode';
+import { SignatureHelpState } from '../../languageFeatures/signatureHelpState';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+function createSignatures(...labels: string[]): vscode.SignatureInformation[] {
+	return labels.map(label => ({ label, parameters: [] }));
+}
 
-function makeSigItem(): Proto.SignatureHelpItem {
+function createContext(signatures?: vscode.SignatureInformation[], activeSignature = 0): vscode.SignatureHelpContext {
 	return {
-		prefixDisplayParts: [],
-		suffixDisplayParts: [],
-		separatorDisplayParts: [],
-		parameters: [],
-		documentation: [],
-		tags: [],
-		isVariadic: false,
+		triggerKind: 2,
+		triggerCharacter: ',',
+		isRetrigger: signatures !== undefined,
+		activeSignatureHelp: signatures ? {
+			signatures,
+			activeSignature,
+			activeParameter: 0,
+		} : undefined,
 	};
 }
 
-function makeClient(selectedItemIndex: number): ITypeScriptServiceClient {
-	return {
-		toOpenTsFilePath: () => '/test.ts',
-		interruptGetErr: (fn: () => unknown) => fn(),
-		execute: () => Promise.resolve({
-			type: 'response' as const,
-			success: true,
-			message: '',
-			body: {
-				items: [makeSigItem(), makeSigItem()],
-				selectedItemIndex,
-				argumentIndex: 1,
-				argumentCount: 2,
-			} as Proto.SignatureHelpItems,
-		}),
-	} as unknown as ITypeScriptServiceClient;
+function getActiveSignature(
+	state: SignatureHelpState,
+	document: vscode.TextDocument,
+	context: vscode.SignatureHelpContext,
+	typeScriptSelectedSignatureIndex: number,
+	signatures: readonly vscode.SignatureInformation[],
+): number {
+	const requestId = state.startRequest(document);
+	return state.getActiveSignature(document, requestId, context, typeScriptSelectedSignatureIndex, signatures);
 }
 
-function makeContext(opts: { isRetrigger: boolean; previousActiveSignature?: number }): vscode.SignatureHelpContext {
-	return {
-		triggerKind: vscode.SignatureHelpTriggerKind.TriggerCharacter,
-		triggerCharacter: ',',
-		isRetrigger: opts.isRetrigger,
-		activeSignatureHelp: opts.previousActiveSignature !== undefined
-			? {
-				signatures: [
-					new vscode.SignatureInformation('foo(a: number): number'),
-					new vscode.SignatureInformation('foo(a: string): string'),
-				],
-				activeSignature: opts.previousActiveSignature,
-				activeParameter: 0,
-			}
-			: undefined,
-	} as vscode.SignatureHelpContext;
-}
+suite('SignatureHelpState', () => {
+	const document = {} as vscode.TextDocument;
 
-const doc = { uri: vscode.Uri.parse('file:///test.ts') } as vscode.TextDocument;
-const pos = new vscode.Position(0, 0);
+	test('updates the active signature when TypeScript changes its recommendation (#268728)', () => {
+		const state = new SignatureHelpState();
+		const signatures = createSignatures('foo(x: number, y: number)', 'foo(x: string, y: string)');
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+		const initial = getActiveSignature(state, document, createContext(), 0, signatures);
+		const retrigger = getActiveSignature(state, document, createContext(signatures, initial), 1, signatures);
 
-suite('TypeScriptSignatureHelpProvider', () => {
-	suite('provideSignatureHelp — activeSignature selection', () => {
-		let tokenSource: vscode.CancellationTokenSource;
+		assert.deepStrictEqual([initial, retrigger], [0, 1]);
+	});
 
-		setup(() => { tokenSource = new vscode.CancellationTokenSource(); });
-		teardown(() => { tokenSource.dispose(); });
+	test('preserves an overload selected by the user (#94834)', () => {
+		const state = new SignatureHelpState();
+		const signatures = createSignatures('foo(x: number, y: "abc")', 'foo(x: number, y: "xyz")');
 
-		test('fresh trigger uses TypeScript selectedItemIndex', async () => {
-			const provider = new _TypeScriptSignatureHelpProvider(makeClient(0));
-			const result = await provider.provideSignatureHelp(doc, pos, tokenSource.token, makeContext({ isRetrigger: false }));
-			assert.strictEqual(result?.activeSignature, 0);
-		});
+		const initial = getActiveSignature(state, document, createContext(), 0, signatures);
+		const afterUserSelection = getActiveSignature(state, document, createContext(signatures, 1), 0, signatures);
+		const matchingTypeScriptSelection = getActiveSignature(state, document, createContext(signatures, afterUserSelection), 1, signatures);
+		const retrigger = getActiveSignature(state, document, createContext(signatures, matchingTypeScriptSelection), 0, signatures);
 
-		test('BUG (#268728): old retrigger guard returned stale index when TS updated selectedItemIndex', () => {
-			// The original getActiveSignature found the previously-shown overload by label
-			// and returned its index unconditionally, regardless of what TS now recommended.
-			// Reproduced here to document what the old code did.
-			const oldGetActiveSignature = (
-				context: { isRetrigger: boolean; activeSignatureHelp?: { signatures: vscode.SignatureInformation[]; activeSignature: number } },
-				tsSelectedItemIndex: number,
-				signatures: vscode.SignatureInformation[],
-			): number => {
-				const prev = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
-				if (prev && context.isRetrigger) {
-					const idx = signatures.findIndex(s => s.label === prev.label);
-					if (idx >= 0) { return idx; }
-				}
-				return tsSelectedItemIndex;
-			};
+		assert.deepStrictEqual([initial, afterUserSelection, matchingTypeScriptSelection, retrigger], [0, 1, 1, 1]);
+	});
 
-			const ctx = makeContext({ isRetrigger: true, previousActiveSignature: 0 });
-			const sigs = ctx.activeSignatureHelp!.signatures;
-			// TS updated selectedItemIndex to 1 (string overload), but old code returned 0.
-			assert.strictEqual(oldGetActiveSignature(ctx, 1, sigs), 0);
-		});
+	test('tracks automatic and user selections across signature reordering', () => {
+		const state = new SignatureHelpState();
+		const initialSignatures = createSignatures('foo(x: number)', 'foo(x: string)');
+		const reorderedSignatures = createSignatures('foo(x: string)', 'foo(x: number)');
 
-		test('FIX (#268728): retrigger now follows TypeScript when arguments narrow the overload set', async () => {
-			// Previously showing overload 0 (number). TS now returns selectedItemIndex=1 (string).
-			// Fixed code sets result.activeSignature = info.selectedItemIndex → must return 1.
-			const provider = new _TypeScriptSignatureHelpProvider(makeClient(1));
-			const result = await provider.provideSignatureHelp(doc, pos, tokenSource.token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
-			assert.strictEqual(result?.activeSignature, 1);
-		});
+		const initial = getActiveSignature(state, document, createContext(), 0, initialSignatures);
+		const automaticSelection = getActiveSignature(state, document, createContext(initialSignatures, initial), 1, reorderedSignatures);
 
-		test('retrigger with unchanged TypeScript selection uses selectedItemIndex', async () => {
-			// TS still recommends overload 0 — result should be 0.
-			const provider = new _TypeScriptSignatureHelpProvider(makeClient(0));
-			const result = await provider.provideSignatureHelp(doc, pos, tokenSource.token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
-			assert.strictEqual(result?.activeSignature, 0);
-		});
+		const newState = new SignatureHelpState();
+		getActiveSignature(newState, document, createContext(), 0, initialSignatures);
+		const userSelection = getActiveSignature(newState, document, createContext(initialSignatures, 1), 1, reorderedSignatures);
+
+		assert.deepStrictEqual([automaticSelection, userSelection], [1, 0]);
+	});
+
+	test('uses the TypeScript recommendation when the user-selected signature is removed', () => {
+		const state = new SignatureHelpState();
+		const initialSignatures = createSignatures('foo(x: number)', 'foo(x: string)');
+		const updatedSignatures = createSignatures('foo(x: number)');
+
+		getActiveSignature(state, document, createContext(), 0, initialSignatures);
+		const actual = getActiveSignature(state, document, createContext(initialSignatures, 1), 0, updatedSignatures);
+
+		assert.strictEqual(actual, 0);
+	});
+
+	test('does not infer a user selection without previous state for the document', () => {
+		const state = new SignatureHelpState();
+		const signatures = createSignatures('foo(x: number)', 'foo(x: string)');
+
+		const actual = getActiveSignature(state, document, createContext(signatures, 1), 0, signatures);
+
+		assert.strictEqual(actual, 0);
+	});
+
+	test('does not infer a user selection from unrelated previous signature help', () => {
+		const state = new SignatureHelpState();
+		const initialSignatures = createSignatures('foo(x: number)', 'foo(x: string)');
+		const unrelatedSignatures = createSignatures('bar(x: number)', 'bar(x: string)');
+
+		getActiveSignature(state, document, createContext(), 0, initialSignatures);
+		const actual = getActiveSignature(state, document, createContext(unrelatedSignatures, 1), 0, unrelatedSignatures);
+
+		assert.strictEqual(actual, 0);
+	});
+
+	test('does not update state from an obsolete request', () => {
+		const state = new SignatureHelpState();
+		const signatures = createSignatures('foo(x: number)', 'foo(x: string)');
+
+		getActiveSignature(state, document, createContext(), 0, signatures);
+		const obsoleteRequestId = state.startRequest(document);
+		const currentRequestId = state.startRequest(document);
+		state.getActiveSignature(document, obsoleteRequestId, createContext(signatures, 0), 1, signatures);
+		const actual = state.getActiveSignature(document, currentRequestId, createContext(signatures, 0), 1, signatures);
+
+		assert.strictEqual(actual, 1);
 	});
 });
