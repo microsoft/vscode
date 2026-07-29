@@ -20,6 +20,21 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
  * LM API (`ILanguageModelsService`).
  */
 
+/**
+ * Provider-neutral "thinking"/continuation part carrying opaque state some BYOK
+ * providers (e.g. Gemini, Claude) require replayed verbatim before the tool call
+ * it preceded. Plain and serializable so it survives the bridge and OpenAI wire.
+ */
+export interface IByokLmThinkingPart {
+	readonly type: 'thinking';
+	/** Reasoning text (or the ordered chunks the provider emitted). */
+	readonly value: string | string[];
+	/** Provider-supplied id for the reasoning block, when present. */
+	readonly id?: string;
+	/** Opaque continuation metadata (e.g. `signature`, `redactedData`); passed through, never interpreted. */
+	readonly metadata?: Record<string, unknown>;
+}
+
 /** A single tool/function call requested by the assistant. */
 export interface IByokLmToolCall {
 	/** Stable id correlating the call with its later `tool` result message. */
@@ -28,6 +43,8 @@ export interface IByokLmToolCall {
 	readonly name: string;
 	/** JSON-encoded tool input, which may be an object or a freeform string. */
 	readonly argumentsJson: string;
+	/** Opaque LM parts (provider reasoning/continuation state) replayed immediately before this call; cached by the proxy per tool-call id. */
+	readonly continuationParts?: readonly IByokLmThinkingPart[];
 }
 
 /** A tool/function the model may call. */

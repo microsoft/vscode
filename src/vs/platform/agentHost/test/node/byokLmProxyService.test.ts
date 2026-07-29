@@ -57,8 +57,8 @@ suite('ByokLmProxyService', () => {
 		return `${handle.providerBaseUrl(vendor)}/chat/completions`;
 	}
 
-	function authHeaders(handle: IByokLmProxyHandle): Record<string, string> {
-		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${sessionId}` };
+	function authHeaders(handle: IByokLmProxyHandle, session: string = sessionId): Record<string, string> {
+		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${session}` };
 	}
 
 	test('serves the unauthenticated health check', async () => {
@@ -335,6 +335,74 @@ suite('ByokLmProxyService', () => {
 			assert.notStrictEqual(second.nonce, firstNonce);
 		} finally {
 			second.dispose();
+			registration.dispose();
+			service.dispose();
+		}
+	});
+
+	test('remembers tool-call continuation metadata and restores it on replay, isolated per session', async () => {
+		const requests: IByokLmChatRequest[] = [];
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', servingConnection(async (request) => {
+			requests.push(request);
+			// The first turn produces a tool call carrying opaque continuation
+			// metadata; later replays should be rehydrated with it by the proxy.
+			if (requests.length === 1) {
+				return {
+					content: '',
+					toolCalls: [{
+						id: 'call_1',
+						name: 'getWeather',
+						argumentsJson: '{"city":"NYC"}',
+						continuationParts: [{ type: 'thinking', value: 'reasoning', id: 'th1', metadata: { signature: 'sig-abc' } }],
+					}],
+				};
+			}
+			return { content: 'done' };
+		}));
+		const service = new ByokLmProxyService(new NullLogService(), registry);
+		const handle = await service.start();
+
+		// Copilot replays the assistant tool call + tool result with the same id
+		// but no metadata (the OpenAI wire cannot carry it).
+		const replayBody = JSON.stringify({
+			model: 'claude',
+			messages: [
+				{ role: 'user', content: 'weather?' },
+				{ role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'getWeather', arguments: '{"city":"NYC"}' } }] },
+				{ role: 'tool', tool_call_id: 'call_1', content: 'sunny' },
+			],
+		});
+
+		try {
+			// 1) First turn: the proxy caches the returned continuation metadata.
+			await (await fetch(chatUrl(handle, 'acme'), {
+				method: 'POST', headers: authHeaders(handle),
+				body: JSON.stringify({ model: 'claude', messages: [{ role: 'user', content: 'weather?' }] }),
+			})).text();
+
+			// 2) Same session replays the tool call: metadata must be restored.
+			await (await fetch(chatUrl(handle, 'acme'), {
+				method: 'POST', headers: authHeaders(handle), body: replayBody,
+			})).text();
+
+			// 3) A different authenticated session replays the same call id: it
+			// must not inherit the first session's cached metadata.
+			await (await fetch(chatUrl(handle, 'acme'), {
+				method: 'POST',
+				headers: authHeaders(handle, 'sess-2'),
+				body: replayBody,
+			})).text();
+
+			assert.deepStrictEqual({
+				restored: requests[1].messages[1].toolCalls?.[0].continuationParts,
+				isolated: requests[2].messages[1].toolCalls?.[0].continuationParts,
+			}, {
+				restored: [{ type: 'thinking', value: 'reasoning', id: 'th1', metadata: { signature: 'sig-abc' } }],
+				isolated: undefined,
+			});
+		} finally {
+			handle.dispose();
 			registration.dispose();
 			service.dispose();
 		}
