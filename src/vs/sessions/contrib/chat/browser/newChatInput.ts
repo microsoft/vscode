@@ -861,6 +861,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// chat widget (this composer isn't an `IChatWidget`).
 			toggleDictation: () => { void this.toggleDictation(); },
 			isActive: isVoiceInputActive,
+			activateInput: () => this._editor.focus(),
 		}));
 		pill.render(pillContainer);
 

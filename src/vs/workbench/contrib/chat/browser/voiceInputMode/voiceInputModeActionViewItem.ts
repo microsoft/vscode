@@ -284,6 +284,8 @@ export interface IVoiceInputModePillOptions {
 	readonly toggleDictation?: () => void;
 	/** Whether this is the focused or last-focused chat input that owns live state. */
 	readonly isActive?: IObservable<boolean>;
+	/** Make the host surface the active voice input before interacting with the pill. */
+	readonly activateInput?: () => void;
 }
 
 /**
@@ -376,6 +378,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell,
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
+			this._options?.activateInput,
 		));
 		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive));
 
@@ -405,6 +408,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._voiceCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
 			this.contextMenuService,
+			this._options?.activateInput,
 		));
 		// Pause the audio-reactive bars while hovering so the CSS "silent" preview shows.
 		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.MOUSE_ENTER, () => {
@@ -427,6 +431,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
 			this.contextMenuService,
+			this._options?.activateInput,
 		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell,
 			() => this.voiceSessionController.voiceState.get() === 'listening'
@@ -656,6 +661,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	}
 
 	private _onClickDictation(): void {
+		this._options?.activateInput?.();
 		this.voiceInputModeService.setSelectedMode('dictation');
 
 		// Mutual exclusion: stop live Voice Mode before starting dictation.
@@ -668,6 +674,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 	/** The voice button connects or disconnects; hands-free mode starts listening after connect. */
 	private _onClickVoicePowerToggle(): void {
+		this._options?.activateInput?.();
 		this.voiceInputModeService.setSelectedMode('voice');
 
 		// Mutual exclusion: stop dictation before entering Voice Mode.

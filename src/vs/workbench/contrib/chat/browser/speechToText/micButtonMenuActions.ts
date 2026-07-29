@@ -142,10 +142,11 @@ export function getVoiceModeContextMenuActions(commandService: ICommandService, 
  * shown instead. Works for both `MenuEntryActionViewItem` containers and the
  * Agents-window custom mic `<div>`s.
  */
-export function addMicButtonContextMenuListener(container: HTMLElement, getActions: () => IAction[], contextMenuService: IContextMenuService): IDisposable {
+export function addMicButtonContextMenuListener(container: HTMLElement, getActions: () => IAction[], contextMenuService: IContextMenuService, onContextMenu?: () => void): IDisposable {
 	return addDisposableListener(container, 'contextmenu', e => {
 		e.preventDefault();
 		e.stopPropagation();
+		onContextMenu?.();
 		const event = new StandardMouseEvent(getWindow(container), e);
 		contextMenuService.showContextMenu({
 			getAnchor: () => event,
