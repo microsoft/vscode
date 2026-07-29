@@ -977,6 +977,30 @@ suite('Folding Model', () => {
 		}
 	});
 
+	test('removeManualRanges - cursor skips provider ranges to remove nearest manual range', () => {
+		const lines = [
+		/* 1*/	'class A {',
+		/* 2*/	'  void foo() {',
+		/* 3*/	'    return;',
+		/* 4*/	'  }',
+		/* 5*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const ranges: FoldRange[] = [
+				{ startLineNumber: 1, endLineNumber: 5, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+				{ startLineNumber: 2, endLineNumber: 4, type: undefined, isCollapsed: false, source: FoldSource.provider },
+			];
+			foldingModel.update(FoldingRegions.fromFoldRanges(ranges));
+
+			foldingModel.removeManualRanges([new Range(3, 1, 3, 1)]);
+			assertRanges(foldingModel, [r(2, 4)]);
+		} finally {
+			textModel.dispose();
+		}
+	});
+
 	test('removeManualRanges - cursor not on manual range removes all manual ranges', () => {
 		const lines = [
 		/* 1*/	'// header',
@@ -1005,6 +1029,33 @@ suite('Folding Model', () => {
 			// Cursor on line 6 (not inside any manual range): should remove all manual ranges
 			foldingModel.removeManualRanges([new Range(6, 1, 6, 1)]);
 			assertRanges(foldingModel, [r(2, 4)]);
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('removeManualRanges - single-line selection removes all intersecting manual ranges', () => {
+		const lines = [
+		/* 1*/	'class A {',
+		/* 2*/	'  void foo() {',
+		/* 3*/	'    if (true) {',
+		/* 4*/	'      return;',
+		/* 5*/	'    }',
+		/* 6*/	'  }',
+		/* 7*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const ranges: FoldRange[] = [
+				{ startLineNumber: 1, endLineNumber: 6, type: undefined, isCollapsed: false, source: FoldSource.provider },
+				{ startLineNumber: 2, endLineNumber: 5, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+				{ startLineNumber: 3, endLineNumber: 4, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+			];
+			foldingModel.update(FoldingRegions.fromFoldRanges(ranges));
+
+			foldingModel.removeManualRanges([new Range(4, 1, 4, 2)]);
+			assertRanges(foldingModel, [r(1, 6)]);
 		} finally {
 			textModel.dispose();
 		}
