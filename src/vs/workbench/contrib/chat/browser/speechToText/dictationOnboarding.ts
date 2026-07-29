@@ -715,10 +715,7 @@ export class DictationOnboardingBanner extends Disposable {
 		this.renderPicker();
 	}
 
-	/**
-	 * A picker with one entry is not a choice - it is a label that happens to
-	 * open a menu. With a single microphone the card just names it.
-	 */
+	/** A picker with one entry is not a choice, so only show this row for multiple microphones. */
 	private renderPicker(): void {
 		if (!this.pickerContainer) {
 			return;
@@ -726,17 +723,15 @@ export class DictationOnboardingBanner extends Disposable {
 		this.picker.clear();
 		dom.clearNode(this.pickerContainer);
 
+		this.pickerContainer.hidden = this.options.length <= 1;
+		if (this.pickerContainer.hidden) {
+			return;
+		}
+
 		dom.append(this.pickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.dictation-onboarding-picker-icon`))
 			.setAttribute('aria-hidden', 'true');
 
 		const selected = indexOfMicrophone(this.options, this.currentDeviceId());
-
-		if (this.options.length <= 1) {
-			const label = dom.append(this.pickerContainer, dom.$('span.dictation-onboarding-picker-label'));
-			label.textContent = this.options[selected]?.label ?? localize('dictation.onboarding.noMicrophone', "No microphone found");
-			label.title = label.textContent;
-			return;
-		}
 
 		const store = new DisposableStore();
 		// Custom-drawn rather than the platform control, and with the face colors
@@ -829,6 +824,7 @@ export const IDictationOnboardingService = createDecorator<IDictationOnboardingS
 
 export interface IDictationOnboardingService {
 	readonly _serviceBrand: undefined;
+	readonly isVisible: boolean;
 
 	/**
 	 * Register a container that can host the card (a chat input). The most
@@ -838,7 +834,7 @@ export interface IDictationOnboardingService {
 	 * @param focusRoot the element whose focus marks this host as the active one
 	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -863,6 +859,10 @@ export class DictationOnboardingService extends Disposable implements IDictation
 
 	private readonly onboarding: ChatInputOnboarding;
 
+	get isVisible(): boolean {
+		return this.onboarding.isVisible;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -875,8 +875,8 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, undefined, tipContainer, onDidChangeVisible);
 	}
 
 	showIfNeeded(): boolean {
