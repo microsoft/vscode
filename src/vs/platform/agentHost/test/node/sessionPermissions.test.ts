@@ -266,6 +266,25 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, undefined);
 	});
 
+	test('canFutureRuleSuppressPrompt is true only when a missing allow rule is the sole blocker', () => {
+		const cases: [name: string, event: IToolApprovalEvent, expected: boolean][] = [
+			['unknown command', shellEvent('my-custom-script'), true],
+			['already approved', shellEvent('echo hello'), false],
+			['denied', shellEvent('rm file.txt'), false],
+			['unapproved write redirect', shellEvent('my-custom-script > /etc/passwd'), false],
+			['sandbox bypass', { ...shellEvent('my-custom-script'), requestSandboxBypass: true }, false],
+			['non-shell', writeEvent('/outside/app.ts'), false],
+		];
+		assert.deepStrictEqual(
+			cases.map(([name, e]) => `${name}=${permissions.canFutureRuleSuppressPrompt(e, sessionUri)}`),
+			cases.map(([name, , expected]) => `${name}=${expected}`));
+	});
+
+	test('canFutureRuleSuppressPrompt is false when terminal auto-approve is disabled', () => {
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveEnabledConfigKey]: false });
+		assert.strictEqual(permissions.canFutureRuleSuppressPrompt(shellEvent('my-custom-script'), sessionUri), false);
+	});
+
 	test('does not affect session bypass permission mode when terminal auto-approve is disabled', async () => {
 		configService.updateRootConfig({
 			[AgentHostTerminalAutoApproveEnabledConfigKey]: false,
