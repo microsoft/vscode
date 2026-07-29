@@ -25,8 +25,6 @@ const VOICE_DISCONNECT_COMMAND = 'agentsVoice.disconnect';
 const VOICE_OPEN_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 /** Command that shows the Voice Mode onboarding card again. */
 export const SHOW_VOICE_MODE_ONBOARDING_COMMAND = 'agentsVoice.showOnboarding';
-/** Command that shows the Dictation onboarding card in the active chat input. */
-export const SHOW_DICTATION_ONBOARDING_COMMAND = 'workbench.action.chat.showSpeechToTextIntroduction';
 /** Setting that enables dictation; toggled off by "Disable Dictation". */
 const DICTATION_ENABLED_SETTING = 'dictation.enabled';
 /** Setting that enables Voice Mode; toggled off by "Disable Voice Mode". */
@@ -86,7 +84,6 @@ export function getDictationContextMenuActions(commandService: ICommandService, 
 	return [
 		createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
 		createConfigureInstructionsAction(commandService, CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, localize('dictation.configureInstructions', "Configure Dictation Instructions")),
-		createShowDictationOnboardingAction(commandService),
 		createSelectMicrophoneAction(commandService),
 		createDisableDictationAction(commandService, configurationService),
 	];
@@ -120,14 +117,6 @@ function createConfigureInstructionsAction(commandService: ICommandService, comm
 	});
 }
 
-function createShowDictationOnboardingAction(commandService: ICommandService): IAction {
-	return toAction({
-		id: SHOW_DICTATION_ONBOARDING_COMMAND,
-		label: localize('dictation.showIntroduction', "Show Introduction"),
-		run: () => commandService.executeCommand(SHOW_DICTATION_ONBOARDING_COMMAND),
-	});
-}
-
 /**
  * Actions for the Voice Mode mic button context menu, mirroring
  * {@link getDictationContextMenuActions} but with "Disable Voice Mode". The
@@ -153,11 +142,10 @@ export function getVoiceModeContextMenuActions(commandService: ICommandService, 
  * shown instead. Works for both `MenuEntryActionViewItem` containers and the
  * Agents-window custom mic `<div>`s.
  */
-export function addMicButtonContextMenuListener(container: HTMLElement, getActions: () => IAction[], contextMenuService: IContextMenuService, onContextMenu?: () => void): IDisposable {
+export function addMicButtonContextMenuListener(container: HTMLElement, getActions: () => IAction[], contextMenuService: IContextMenuService): IDisposable {
 	return addDisposableListener(container, 'contextmenu', e => {
 		e.preventDefault();
 		e.stopPropagation();
-		onContextMenu?.();
 		const event = new StandardMouseEvent(getWindow(container), e);
 		contextMenuService.showContextMenu({
 			getAnchor: () => event,

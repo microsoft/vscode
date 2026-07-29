@@ -87,10 +87,6 @@ export class ChatInputOnboarding extends Disposable {
 		return this.show(createOnboarding);
 	}
 
-	reset(): void {
-		this.storageService.remove(this.options.storageKey, StorageScope.APPLICATION);
-	}
-
 	show(createOnboarding: (context: IChatInputOnboardingContext) => IDisposable): boolean {
 		const host = this.getActiveHost();
 		if (!host) {
