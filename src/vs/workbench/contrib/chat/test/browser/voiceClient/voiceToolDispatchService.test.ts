@@ -149,6 +149,27 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.deepStrictEqual(part.data, { region: { selectedValue: 'westus' } });
 	});
 
+	test('refuses an answer that leaves a required question blank', async () => {
+		// The widget will not submit this form; neither may a spoken answer.
+		const part = new ChatQuestionCarouselData([
+			{ id: 'region', type: 'singleSelect', title: 'Region', options: [{ id: 'west', label: 'West US', value: 'westus' }] },
+			{ id: 'tier', type: 'singleSelect', title: 'Tier', required: true, options: [{ id: 'std', label: 'Standard', value: 'standard' }] },
+		], true, 'resolve-1');
+		const call = answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'westus' }] });
+
+		assert.deepStrictEqual(await serviceFor(part).respondToSession(call), { ok: false, reason: 'invalid_answer' });
+		assert.strictEqual(part.isUsed, undefined);
+	});
+
+	test('skipping may leave a required question blank', async () => {
+		// Skip is the user declining the form, not an incomplete submission.
+		const part = new ChatQuestionCarouselData([
+			{ id: 'tier', type: 'singleSelect', title: 'Tier', required: true, options: [{ id: 'std', label: 'Standard', value: 'standard' }] },
+		], true, 'resolve-1');
+
+		assert.deepStrictEqual(await serviceFor(part).respondToSession(answerCall(part, { type: 'skip' })), { ok: true });
+	});
+
 	test('refuses a malformed answers field rather than reading it as empty', async () => {
 		// Coercing a present non-array to empty would let a skip succeed while
 		// silently discarding whatever the call actually carried.

@@ -392,6 +392,14 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		} else if (!skip) {
 			return { ok: false, reason: 'invalid_answer' };
 		}
+		// The widget refuses to submit while a required question is blank, so a
+		// spoken answer must not be able to submit what a click cannot. Absence is
+		// the only blank possible: `resolveQuestionAnswers` rejects rather than
+		// emitting an empty value. The backend only dispatches a fully answered
+		// form, so this is a backstop.
+		if (!skip && carousel.questions.some(question => question.required && answers?.[question.id] === undefined)) {
+			return { ok: false, reason: 'invalid_answer' };
+		}
 		// Checked before mutating: a form with neither a deferred completion nor
 		// an id to notify cannot be resolved, and marking it used would leave it
 		// answered on screen while the assistant reports that it did not land.
