@@ -77,9 +77,12 @@ function themeHueBaseDeg(ctx: ComponentFixtureContext): number {
 
 /**
  * Mock input geometry.
- * - `tall`: the multi-row composer (placeholder + mode pills + send).
- * - `wide`: a short, wide single-row bar — placeholder and send only, so the
- *   glow is judged against a long, thin frame instead of a card.
+ * - `tall`: the multi-row composer (empty text area + mode pills + send).
+ * - `wide`: a short, wide single-row bar — just the send icon, so the glow is
+ *   judged against a long, thin frame instead of a card.
+ *
+ * The text area is deliberately empty: placeholder copy competes with the glow,
+ * which is the thing these fixtures exist to judge.
  */
 type MockInputLayout = 'tall' | 'wide';
 
@@ -100,9 +103,9 @@ function renderMockInput(layout: MockInputLayout = 'tall'): HTMLElement {
 		'font-family:var(--vscode-font-family)', 'color:var(--vscode-input-foreground)',
 	].join(';');
 
-	const placeholder = $('span');
-	placeholder.textContent = 'Build anything\u2026';
-	placeholder.style.cssText = `color:var(--vscode-input-placeholderForeground);font-size:13px;${wide ? 'flex:1;' : ''}`;
+	// Empty text area — holds the composer's shape without drawing the eye.
+	const textArea = $('span');
+	textArea.style.cssText = 'flex:1;';
 
 	// Icon only — no filled button — so the glow is judged against the input
 	// frame rather than competing with a saturated blue block.
@@ -116,7 +119,7 @@ function renderMockInput(layout: MockInputLayout = 'tall'): HTMLElement {
 	].join(';');
 
 	if (wide) {
-		box.append(placeholder, send);
+		box.append(textArea, send);
 		return box;
 	}
 
@@ -130,7 +133,7 @@ function renderMockInput(layout: MockInputLayout = 'tall'): HTMLElement {
 	}
 	send.style.marginLeft = 'auto';
 	row.appendChild(send);
-	box.append(placeholder, row);
+	box.append(textArea, row);
 	return box;
 }
 
