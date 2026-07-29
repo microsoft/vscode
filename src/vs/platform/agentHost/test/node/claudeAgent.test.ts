@@ -6933,10 +6933,11 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const result = await agent.chats.createChat(chatUri, {
 			sideChat: { source: sourceChat, turnId, sourceContext },
 		});
+		assert.ok(result?.providerData);
 
 		assert.deepStrictEqual({
 			forked: sdk.forkSessionCalls.length,
-			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+			sideChat: JSON.parse(result.providerData).sideChat,
 		}, {
 			forked: 0,
 			sideChat: {

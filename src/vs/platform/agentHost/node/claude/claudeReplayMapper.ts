@@ -64,7 +64,7 @@ export function mapSessionMessagesToTurns(
  * SDK envelope `uuid` that `forkSession({ upToMessageId })` accepts
  * (INCLUSIVE). Returns the `uuid` of turn N's last `'assistant'` envelope,
  * or `undefined` when `turnId` is not in the transcript or the turn has no
- * assistant envelope yet. AHP request turn IDs are not valid SDK fork UUIDs.
+ * assistant envelope yet. Agent Host Protocol request turn IDs are not valid SDK fork UUIDs.
  * Reuses {@link parseSessionMessage} so the turn-boundary rule matches
  * {@link ReplayBuilder}; always returns an envelope `uuid`, never a `msg_…` id.
  */
