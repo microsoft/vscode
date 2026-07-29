@@ -1228,6 +1228,59 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('a peer client genuinely selecting the stand-in supersedes the model being awaited', () => {
+		// The echo guard keys on the local round-trip of our own stand-in. A state pushed in by
+		// another connected client carries `ChatInputStateOrigin.Remote`, and that IS a real statement
+		// about the session even when it names the very model we happen to be displaying — so it must
+		// not be discarded as an echo.
+		const sessionType = 'agent-host-copilotcli';
+		const hostModel = (identifier: string): ILanguageModelChatMetadataAndIdentifier => {
+			const base = targetedModel(identifier, sessionType);
+			return { ...base, metadata: { ...base.metadata, vendor: sessionType } };
+		};
+		const desired = hostModel('agent-host-copilotcli:gpt-5.6-sol');
+		const bridged = hostModel('agent-host-copilotcli:openrouter/ai21/jamba-large-1.7');
+		const modelChanges = disposables.add(new Emitter<string>());
+		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => sessionType,
+			isEmpty: () => false,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => true,
+			getConfiguredModelValue: () => undefined,
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => {
+				applied.push(selected.identifier);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
+
+		controller.syncFromConversationState(desired, undefined, sessionType, 'chat:one');
+		models = [bridged];
+		modelChanges.fire('byok-bridge');
+		// A peer picks the model we are showing as a stand-in.
+		controller.syncFromConversationState(bridged, undefined, sessionType, 'chat:one', true);
+		const awaitingAfterPeerPick = controller.isAwaitingRememberedModel();
+		// The originally awaited model finally publishes — it must NOT reclaim the selection.
+		models = [bridged, desired];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			awaitingAfterPeerPick,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			awaitingAfterPeerPick: false,
+			current: bridged.identifier,
+		});
+	});
+
 	test('initialize keeps remembered intent through empty catalog updates', () => {
 		const sessionType = 'test-session';
 		const remembered = targetedModel('test:remembered', sessionType);

@@ -1010,11 +1010,23 @@ export class CopilotAgentSession extends Disposable {
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
 		// Seed the parent scope with any compaction billed while no turn was active so the cost
-		// surfaces on this turn rather than being lost.
+		// surfaces on this turn rather than being lost. The bank is deliberately NOT cleared here:
+		// a turn can end without ever reporting usage (it fails before the first SDK usage event,
+		// runs as a purely local slash command, or is replaced by another reset), and clearing on
+		// seed would drop the credits on the floor. It is cleared only once a report actually
+		// carries it — see {@link _onCarriedCompactionReported}.
 		if (this._carriedCompactionNanoAiu > 0) {
 			this._currentTurn.copilotUsageTotalNanoAiuByScope.set('', this._carriedCompactionNanoAiu);
-			this._carriedCompactionNanoAiu = 0;
 		}
+	}
+
+	/**
+	 * Clears the out-of-turn compaction bank once a parent-scope usage report has carried it, so
+	 * the credits are billed to exactly one turn. Called from every site that emits a parent-scope
+	 * running total, since any of them can be the one that first reports the carry.
+	 */
+	private _onCarriedCompactionReported(): void {
+		this._carriedCompactionNanoAiu = 0;
 	}
 
 	private _completeActiveTurn(): void {
@@ -1665,6 +1677,9 @@ export class CopilotAgentSession extends Disposable {
 					// turn before this RPC resolves; carry that running total through so the response
 					// footer reports the compaction's cost instead of dropping it.
 					const totalNanoAiu = this._currentTurn?.copilotUsageTotalNanoAiuByScope.get('');
+					if (typeof totalNanoAiu === 'number') {
+						this._onCarriedCompactionReported();
+					}
 					this._emitAction({
 						type: ActionType.ChatUsage,
 						turnId: this._turnId,
@@ -3856,6 +3871,10 @@ export class CopilotAgentSession extends Disposable {
 				if (turn && typeof copilotUsage?.totalNanoAiu === 'number') {
 					const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get(scope) ?? 0) + copilotUsage.totalNanoAiu;
 					turn.copilotUsageTotalNanoAiuByScope.set(scope, scopedTotal);
+					if (scope === '') {
+						// The parent-scope total includes any seeded out-of-turn compaction credits.
+						this._onCarriedCompactionReported();
+					}
 					metadata.copilotUsage = {
 						...copilotUsage,
 						totalNanoAiu: scopedTotal,
@@ -3980,6 +3999,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get('') ?? 0) + copilotUsage.totalNanoAiu;
 			turn.copilotUsageTotalNanoAiuByScope.set('', scopedTotal);
+			// This report carries any credits banked from an earlier out-of-turn compaction.
+			this._onCarriedCompactionReported();
 			// Preserve the parent turn's own model/context tokens: the compaction call's tokens describe
 			// the summarization request, not the conversation, so they must not replace what is shown.
 			const base = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;

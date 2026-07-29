@@ -382,8 +382,9 @@ export class ChatInputModelSelectionController extends Disposable {
 		modelConfiguration: Record<string, unknown> | undefined,
 		sessionType: string | undefined,
 		conversationKey: string,
+		isRemoteEdit = false,
 	): void {
-		if (this._isEchoOfStandIn(desiredModel.identifier, conversationKey)) {
+		if (!isRemoteEdit && this._isEchoOfStandIn(desiredModel.identifier, conversationKey)) {
 			this._diagnostics.report('conversation-restore-echo-ignored', {
 				desiredModel: desiredModel.identifier,
 				awaitingModel: this._rememberedSelection?.modelId,
@@ -429,12 +430,17 @@ export class ChatInputModelSelectionController extends Disposable {
 	/**
 	 * Whether a conversation-state sync is merely this controller's own stand-in coming back.
 	 *
-	 * Applying a model writes it into the conversation's input state, which the agent host
-	 * publishes as the session's draft and hands straight back. While the real model is still
-	 * missing from the catalog, that echo would otherwise be mistaken for the session's model and
-	 * overwrite the very selection being waited for — the loop that makes a transient stand-in
-	 * stick permanently. Only the exact model this controller put on screen as a stand-in qualifies,
-	 * so a model the session genuinely moved to still supersedes the one being awaited.
+	 * Applying a model writes it into the conversation's input state, which the local sync then
+	 * hands straight back. While the real model is still missing from the catalog, that echo would
+	 * otherwise be mistaken for the session's model and overwrite the very selection being waited
+	 * for — the loop that makes a transient stand-in stick permanently.
+	 *
+	 * Two things keep this from swallowing a real change. Only the exact model this controller put
+	 * on screen as a stand-in qualifies, and only a *local* write does: a state pushed in by
+	 * another client carries {@link ChatInputStateOrigin.Remote}, so a peer that genuinely selects
+	 * the stand-in still supersedes the model being awaited. A local change cannot be mistaken for
+	 * an echo either, since every deliberate local choice updates {@link _rememberedSelection}
+	 * before the state is written.
 	 */
 	private _isEchoOfStandIn(desiredModelId: string, conversationKey: string): boolean {
 		const remembered = this._rememberedSelection;

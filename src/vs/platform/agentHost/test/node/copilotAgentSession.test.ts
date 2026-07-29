@@ -1236,7 +1236,7 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('carried compaction credits are only applied to one turn', async () => {
+	test('carried compaction credits survive a turn that never reports usage', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		mockSession.fire('session.compaction_complete', {
@@ -1244,6 +1244,9 @@ suite('CopilotAgentSession', () => {
 			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 2_000_000_000 } },
 		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
 
+		// `turn-1` is started and then replaced without ever reporting usage — the same shape as a
+		// turn that fails before its first SDK usage event or runs as a purely local slash command.
+		// The credits must roll forward rather than dying with it.
 		session.resetTurnState('turn-1');
 		session.resetTurnState('turn-2');
 		mockSession.fire('assistant.usage', {
@@ -1254,8 +1257,35 @@ suite('CopilotAgentSession', () => {
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
-		// `turn-1` consumed the carry-forward, so `turn-2` bills only its own model call.
-		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, { copilotUsage: { totalNanoAiu: 1_000_000_000 } });
+		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, { copilotUsage: { totalNanoAiu: 3_000_000_000 } });
+	});
+
+	test('carried compaction credits are billed to only one turn once reported', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 2_000_000_000 } },
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 1,
+			outputTokens: 1,
+			copilotUsage: { totalNanoAiu: 1_000_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		session.resetTurnState('turn-2');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 1,
+			outputTokens: 1,
+			copilotUsage: { totalNanoAiu: 1_000_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		// `turn-1` reported the carry, so `turn-2` bills only its own model call.
+		assert.deepStrictEqual(usageActions.map(a => a.usage._meta?.copilotUsage), [{ totalNanoAiu: 3_000_000_000 }, { totalNanoAiu: 1_000_000_000 }]);
 	});
 
 	test('`/compact` completes the turn even when compaction reports failure', async () => {
