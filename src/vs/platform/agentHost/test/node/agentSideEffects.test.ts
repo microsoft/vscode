@@ -2979,6 +2979,54 @@ suite('AgentSideEffects', () => {
 				'only the rule-resolvable shell confirmation is marked; sandbox-bypass and managed confirmations are not');
 		});
 
+		test('tool_ready forwards the signal shell language into shell approval', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			await sideEffects.initialize();
+
+			// `get-childitem` only matches the default `Get-ChildItem` allow rule
+			// under PowerShell's case-insensitive matching: the powershell
+			// confirmation auto-approves while the bash one stays rule-resolvable.
+			const cases = [
+				['tc-shell-lang-1', 'powershell'],
+				['tc-shell-lang-2', undefined],
+			] as const;
+			for (const [toolCallId, shellLanguage] of cases) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'shell', displayName: 'Shell', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+						_meta: { toolKind: undefined, language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId, toolName: '', displayName: '',
+						invocationMessage: 'Run command', toolInput: 'get-childitem',
+						confirmationTitle: 'Run in terminal?', edits: undefined,
+					},
+					permissionKind: 'shell', permissionPath: undefined,
+					shellLanguage,
+				});
+			}
+
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const parts = s?.activeTurn?.responseParts;
+				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+			});
+			assert.deepStrictEqual(
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
+					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
+					: undefined),
+				[[true, undefined], [undefined, true]],
+				'the powershell confirmation auto-approves by setting; the bash one is only rule-resolvable');
+		});
+
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {
 			setupSession();
 			startTurn('turn-1');

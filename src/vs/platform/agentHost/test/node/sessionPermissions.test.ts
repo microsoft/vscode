@@ -285,6 +285,19 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(permissions.isAutoApproveRuleResolvable(shellEvent('my-custom-script'), sessionUri), false);
 	});
 
+	// `get-childitem` only matches the default `Get-ChildItem` allow rule under
+	// PowerShell's case-insensitive matching, so it distinguishes which grammar
+	// the approver used.
+	test('shell approval and rule eligibility respect the event shell language', async () => {
+		const pwshEvent: IToolApprovalEvent = { ...shellEvent('get-childitem'), shellLanguage: 'powershell' };
+		assert.deepStrictEqual([
+			await permissions.getAutoApproval(pwshEvent, sessionUri),
+			await permissions.getAutoApproval(shellEvent('get-childitem'), sessionUri),
+			permissions.isAutoApproveRuleResolvable(pwshEvent, sessionUri),
+			permissions.isAutoApproveRuleResolvable(shellEvent('get-childitem'), sessionUri),
+		], [ToolCallConfirmationReason.NotNeeded, undefined, false, true]);
+	});
+
 	test('does not affect session bypass permission mode when terminal auto-approve is disabled', async () => {
 		configService.updateRootConfig({
 			[AgentHostTerminalAutoApproveEnabledConfigKey]: false,

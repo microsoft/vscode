@@ -46,6 +46,7 @@ export interface IToolApprovalEvent {
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
 	readonly requestSandboxBypass?: boolean;
+	readonly shellLanguage?: IAgentToolPendingConfirmationSignal['shellLanguage'];
 }
 
 /** Standard per-tool confirmation options presented to the user. */
@@ -313,6 +314,7 @@ export class SessionPermissionManager extends Disposable {
 			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
 				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
 				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+				language: e.shellLanguage,
 			});
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
@@ -340,6 +342,7 @@ export class SessionPermissionManager extends Disposable {
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
 			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+			language: e.shellLanguage,
 		}).autoApproveRuleResolvable;
 	}
 

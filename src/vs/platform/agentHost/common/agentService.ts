@@ -1361,6 +1361,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	 */
 	readonly requestSandboxBypass?: boolean;
 	/**
+	 * Host-only shell grammar hint for terminal auto-approval (not part of the
+	 * dispatched action). Set by shell tools so PowerShell commands are parsed
+	 * with the PowerShell grammar instead of bash.
+	 */
+	readonly shellLanguage?: 'bash' | 'powershell';
+	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting
 	 * `ChatToolCallReady` to the subagent session — otherwise the

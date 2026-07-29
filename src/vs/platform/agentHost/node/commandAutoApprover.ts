@@ -30,7 +30,7 @@ const SAFE_REDIRECT_TARGETS: ReadonlySet<string> = new Set([
  * either a known-safe /dev sink or a file-descriptor duplication target
  * like `&1` (used in `2>&1`).
  */
-function isSafeRedirectDestination(dest: string): boolean {
+function isSafeRedirectDestination(dest: string, isPowerShell?: boolean): boolean {
 	let cleaned = dest.trim();
 	if (cleaned.length === 0) {
 		return false;
@@ -41,6 +41,11 @@ function isSafeRedirectDestination(dest: string): boolean {
 	}
 	// File-descriptor duplication: `&N`, optionally followed by `-` to close.
 	if (/^&[0-9]+-?$/.test(cleaned)) {
+		return true;
+	}
+	// `$null` discards output in PowerShell like /dev/null; variable names are
+	// case-insensitive.
+	if (isPowerShell && cleaned.toLowerCase() === '$null') {
 		return true;
 	}
 	return SAFE_REDIRECT_TARGETS.has(cleaned);
@@ -59,16 +64,16 @@ type FileRedirectClassification =
 	| { kind: 'safeWrite' }
 	| { kind: 'unsafeWrite'; dest: string | undefined };
 
-function classifyFileRedirect(redirectText: string): FileRedirectClassification {
+function classifyFileRedirect(redirectText: string, isPowerShell?: boolean): FileRedirectClassification {
 	if (!redirectText.includes('>')) {
 		return { kind: 'read' };
 	}
-	const destMatch = redirectText.match(/(?:[0-9]+|&)?>>?\|?\s*(.+)$/);
+	const destMatch = redirectText.match(/(?:[0-9]+|&|\*)?>>?\|?\s*(.+)$/);
 	if (!destMatch) {
 		return { kind: 'unsafeWrite', dest: undefined };
 	}
 	const rawDest = destMatch[1].trim();
-	if (isSafeRedirectDestination(rawDest)) {
+	if (isSafeRedirectDestination(rawDest, isPowerShell)) {
 		return { kind: 'safeWrite' };
 	}
 	let dest = rawDest;
@@ -78,6 +83,31 @@ function classifyFileRedirect(redirectText: string): FileRedirectClassification 
 	}
 	return { kind: 'unsafeWrite', dest };
 }
+
+/**
+ * Matches a PowerShell command token of the form `-flag=` or `--flag=` at the
+ * start of input or following whitespace. Used to work around a tree-sitter
+ * PowerShell grammar limitation where POSIX-style `--flag=value` arguments
+ * (e.g. `git log --format="a|b"`) are parsed as assignment expressions and
+ * truncate the surrounding command. Mirrors the workbench's
+ * `TreeSitterCommandParser` workaround.
+ *
+ * See https://github.com/microsoft/vscode/issues/294010
+ * TODO: Remove once upstream tree-sitter PowerShell grammar is updated.
+ */
+const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
+
+// TODO: Remove once upstream tree-sitter PowerShell grammar is updated.
+function maskPwshFlagEquals(commandLine: string): string {
+	return commandLine.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `);
+}
+
+/**
+ * Matches PowerShell redirects glued to their target (`2>$null`, `>out.txt`,
+ * `*>>log.txt`). The grammar parses these as `generic_token` command arguments
+ * rather than `redirection` nodes, which only cover the spaced form.
+ */
+const pwshNoSpaceRedirectRegex = /^[0-9*]?>>?/;
 
 /**
  * Result of a command auto-approval check.
@@ -114,10 +144,18 @@ export interface IShouldAutoApproveOptions {
 	 * default rules for compatibility with older clients.
 	 */
 	readonly autoApproveRules?: AgentHostTerminalAutoApproveRules;
+	/**
+	 * Shell grammar to parse the command line with. PowerShell commands are
+	 * parsed with the PowerShell grammar and matched against rules
+	 * case-insensitively, like PowerShell itself. Defaults to `bash`.
+	 */
+	readonly language?: 'bash' | 'powershell';
 }
 
 interface IAutoApproveRule {
 	readonly regex: RegExp;
+	/** Case-insensitive variant of {@link regex}, used for PowerShell matching. */
+	readonly regexCaseInsensitive: RegExp;
 }
 
 interface IAutoApproveRules {
@@ -152,6 +190,7 @@ export class CommandAutoApprover extends Disposable {
 	private _cachedRules: IAutoApproveRules | undefined;
 	private _parser: Parser | undefined;
 	private _bashLanguage: Language | undefined;
+	private _powershellLanguage: Language | undefined;
 	private _queryClass: typeof Query | undefined;
 	private readonly _initPromise: Promise<void>;
 
@@ -191,8 +230,9 @@ export class CommandAutoApprover extends Disposable {
 		}
 
 		const rules = this._compileRules(options?.autoApproveRules);
+		const isPowerShell = options?.language === 'powershell';
 
-		const parsed = this._extractSubCommands(trimmed);
+		const parsed = this._extractSubCommands(trimmed, isPowerShell);
 		if (!parsed) {
 			this._logService.trace('[CommandAutoApprover] Tree-sitter unavailable, requiring confirmation');
 			return { result: 'noMatch', autoApproveRuleResolvable: false };
@@ -204,7 +244,7 @@ export class CommandAutoApprover extends Disposable {
 
 		const hasUnapprovedRedirect = () => parsed.unsafeWriteDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
 
-		let result = this._matchSubCommands(parsed.subCommands, rules);
+		let result = this._matchSubCommands(parsed.subCommands, rules, isPowerShell);
 		if (result !== 'denied' && this._matchesRule(trimmed, rules.allowCommandLineRules)) {
 			result = 'approved';
 		}
@@ -215,7 +255,7 @@ export class CommandAutoApprover extends Disposable {
 		return { result, autoApproveRuleResolvable: result === 'noMatch' && !hasUnapprovedRedirect() };
 	}
 
-	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules): CommandApprovalResult {
+	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules, isPowerShell: boolean): CommandApprovalResult {
 		let allApproved = true;
 		for (const subCommand of subCommands) {
 			// Deny transient env var assignments
@@ -223,7 +263,7 @@ export class CommandAutoApprover extends Disposable {
 				return 'denied';
 			}
 
-			const result = this._matchSingleCommand(subCommand, rules);
+			const result = this._matchSingleCommand(subCommand, rules, isPowerShell);
 			if (result === 'denied') {
 				return 'denied';
 			}
@@ -234,23 +274,29 @@ export class CommandAutoApprover extends Disposable {
 		return allApproved ? 'approved' : 'noMatch';
 	}
 
-	private _matchSingleCommand(command: string, rules: IAutoApproveRules): CommandApprovalResult {
+	private _matchSingleCommand(command: string, rules: IAutoApproveRules, isPowerShell: boolean): CommandApprovalResult {
 		// Check deny rules first
-		if (this._matchesRule(command, rules.denyRules)) {
+		if (this._matchesRule(command, rules.denyRules, isPowerShell)) {
 			return 'denied';
 		}
 
 		// Then check allow rules
-		if (this._matchesRule(command, rules.allowRules)) {
+		if (this._matchesRule(command, rules.allowRules, isPowerShell)) {
 			return 'approved';
 		}
 
 		return 'noMatch';
 	}
 
-	private _matchesRule(command: string, rules: readonly IAutoApproveRule[]): boolean {
+	private _matchesRule(command: string, rules: readonly IAutoApproveRule[], isPowerShell?: boolean): boolean {
 		for (const rule of rules) {
-			if (rule.regex.test(command)) {
+			// PowerShell rule matching is case-insensitive, like the shell itself.
+			if ((isPowerShell ? rule.regexCaseInsensitive : rule.regex).test(command)) {
+				return true;
+			}
+			// Ignore a leading ( for PowerShell commands: it's a command pattern
+			// operating on the output of a command, e.g. `(Get-Content README.md) ...`.
+			if (isPowerShell && command.startsWith('(') && rule.regexCaseInsensitive.test(command.slice(1))) {
 				return true;
 			}
 		}
@@ -259,30 +305,48 @@ export class CommandAutoApprover extends Disposable {
 
 	// ---- Tree-sitter --------------------------------------------------------
 
-	private _extractSubCommands(commandLine: string): { subCommands: string[]; unsafeWriteDests: (string | undefined)[] } | undefined {
-		if (!this._parser || !this._bashLanguage || !this._queryClass) {
+	private _extractSubCommands(commandLine: string, isPowerShell: boolean): { subCommands: string[]; unsafeWriteDests: (string | undefined)[] } | undefined {
+		const language = isPowerShell ? this._powershellLanguage : this._bashLanguage;
+		if (!this._parser || !language || !this._queryClass) {
 			return undefined;
 		}
 
 		try {
-			this._parser.setLanguage(this._bashLanguage);
-			const tree = this._parser.parse(commandLine);
+			this._parser.setLanguage(language);
+			// The PowerShell grammar truncates commands around `--flag=value`
+			// arguments, so they are masked before parsing (positions are
+			// preserved) and capture text is sliced from the original.
+			const masked = isPowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
+			const tree = this._parser.parse(masked);
 			if (!tree) {
 				return undefined;
 			}
 
 			try {
-				const query = new this._queryClass(this._bashLanguage, '(command) @command (file_redirect) @file_redirect (heredoc_redirect) @heredoc_redirect (herestring_redirect) @herestring_redirect');
+				if (isPowerShell && tree.rootNode.hasError) {
+					// An erroring parse can produce truncated captures that hide
+					// part of the command line from rule matching, so require
+					// confirmation instead of judging the partial parse.
+					this._logService.trace('[CommandAutoApprover] PowerShell parse contains errors, requiring confirmation');
+					return undefined;
+				}
+				// No-space PowerShell redirects (`2>$null`) parse as generic_token
+				// command arguments rather than redirection nodes, so both are
+				// captured and filtered by shape below.
+				const query = new this._queryClass(language, isPowerShell
+					? '(command) @command (redirection) @redirection (generic_token) @generic_token'
+					: '(command) @command (file_redirect) @file_redirect (heredoc_redirect) @heredoc_redirect (herestring_redirect) @herestring_redirect');
 				const captures: QueryCapture[] = query.captures(tree.rootNode);
 				const subCommands: string[] = [];
 				const unsafeWriteDests: (string | undefined)[] = [];
 				for (const capture of captures) {
+					const text = masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex);
 					if (capture.name === 'command') {
-						subCommands.push(capture.node.text);
-					} else if (capture.name === 'file_redirect') {
-						// Writes to known-safe sinks (e.g. `> /dev/null`) and
-						// file-descriptor duplications (e.g. `2>&1`) are allowed.
-						const cls = classifyFileRedirect(capture.node.text);
+						subCommands.push(text);
+					} else if (capture.name === 'file_redirect' || capture.name === 'redirection' || (capture.name === 'generic_token' && pwshNoSpaceRedirectRegex.test(text))) {
+						// Writes to known-safe sinks (e.g. `> /dev/null`, `2>$null`)
+						// and file-descriptor duplications (e.g. `2>&1`) are allowed.
+						const cls = classifyFileRedirect(text, isPowerShell);
 						if (cls.kind === 'unsafeWrite') {
 							unsafeWriteDests.push(cls.dest);
 						}
@@ -336,15 +400,15 @@ export class CommandAutoApprover extends Disposable {
 				}
 			}));
 
-			// Load bash grammar
-			const bashWasmPath = URI.joinPath(moduleRoot, 'tree-sitter-bash.wasm').fsPath;
-			const bashWasm = await fs.promises.readFile(bashWasmPath);
-
-			if (this._store.isDisposed) {
-				return;
-			}
-
-			const bashLanguage = await TreeSitter.Language.load(new Uint8Array(bashWasm.buffer, bashWasm.byteOffset, bashWasm.byteLength));
+			// Load the bash and PowerShell grammars
+			const loadGrammar = async (fileName: string) => {
+				const grammarWasm = await fs.promises.readFile(URI.joinPath(moduleRoot, fileName).fsPath);
+				return TreeSitter.Language.load(new Uint8Array(grammarWasm.buffer, grammarWasm.byteOffset, grammarWasm.byteLength));
+			};
+			const [bashLanguage, powershellLanguage] = await Promise.all([
+				loadGrammar('tree-sitter-bash.wasm'),
+				loadGrammar('tree-sitter-powershell.wasm'),
+			]);
 
 			if (this._store.isDisposed) {
 				return;
@@ -352,6 +416,7 @@ export class CommandAutoApprover extends Disposable {
 
 			this._parser = parser;
 			this._bashLanguage = bashLanguage;
+			this._powershellLanguage = powershellLanguage;
 			this._queryClass = TreeSitter.Query;
 			this._logService.info('[CommandAutoApprover] Tree-sitter initialized successfully');
 		} catch (err) {
@@ -385,23 +450,23 @@ export class CommandAutoApprover extends Disposable {
 		const denyCommandLineRules: IAutoApproveRule[] = [];
 
 		for (const [key, value] of Object.entries(ruleConfig)) {
-			const regex = convertAutoApproveEntryToRegex(key);
+			const rule = convertAutoApproveEntryToRule(key);
 			if (value === true) {
-				allowRules.push({ regex });
+				allowRules.push(rule);
 			} else if (value === false) {
-				denyRules.push({ regex });
+				denyRules.push(rule);
 			} else if (value && typeof value === 'object' && typeof value.approve === 'boolean') {
 				if (value.approve) {
 					if (value.matchCommandLine === true) {
-						allowCommandLineRules.push({ regex });
+						allowCommandLineRules.push(rule);
 					} else {
-						allowRules.push({ regex });
+						allowRules.push(rule);
 					}
 				} else {
 					if (value.matchCommandLine === true) {
-						denyCommandLineRules.push({ regex });
+						denyCommandLineRules.push(rule);
 					} else {
-						denyRules.push({ regex });
+						denyRules.push(rule);
 					}
 				}
 			}
@@ -412,6 +477,14 @@ export class CommandAutoApprover extends Disposable {
 }
 
 // ---- Regex conversion -------------------------------------------------------
+
+function convertAutoApproveEntryToRule(value: string): IAutoApproveRule {
+	const regex = convertAutoApproveEntryToRegex(value);
+	if (regex.flags.includes('i')) {
+		return { regex, regexCaseInsensitive: regex };
+	}
+	return { regex, regexCaseInsensitive: new RegExp(regex.source, regex.flags + 'i') };
+}
 
 function convertAutoApproveEntryToRegex(value: string): RegExp {
 	// If wrapped in `/`, treat as regex

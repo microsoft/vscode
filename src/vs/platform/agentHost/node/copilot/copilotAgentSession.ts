@@ -2494,6 +2494,13 @@ export class CopilotAgentSession extends Disposable {
 
 			const isShellRequest = request.kind === 'shell'
 				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
+			// Tell the auto-approver which grammar the command is written in.
+			// `shell` requests carry no tool name, so fall back to the tracked
+			// tool call's SDK tool name.
+			const shellToolName = typeof request.toolName === 'string' ? request.toolName : this._activeToolCalls.get(toolCallId)?.toolName;
+			const shellLanguage = isShellRequest
+				? (shellToolName && getShellLanguage(shellToolName) === 'powershell' ? 'powershell' as const : 'bash' as const)
+				: undefined;
 
 			if (!managedApprovalRequired && request.kind === 'custom-tool'
 				&& typeof request.toolName === 'string'
@@ -2576,6 +2583,7 @@ export class CopilotAgentSession extends Disposable {
 				permissionPath,
 				managedApprovalRequired,
 				requestSandboxBypass: request.requestSandboxBypass,
+				shellLanguage,
 				parentToolCallId,
 			});
 
