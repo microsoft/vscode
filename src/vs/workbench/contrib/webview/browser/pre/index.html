@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-IsHVcRjd+MiEm0tHYrcvKUS8oPCVnVaPERo8BOxeu0I=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-M6pdmP3iARx8MZG9opsw69xUdqV6xq/fl0YUcd78/2o=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -600,9 +600,8 @@
 				} else {
 					return; // let the browser handle this
 				}
-			} else if (isCloseTab(e) || isNewWindow(e)) {
-				// The host handles these, so the real event must not reach the platform:
-				// a PWA acts on it, and on desktop the menu accelerator dispatches again.
+			} else if (isHostBoundShortcut(e)) {
+				// The host handles these, so the platform must not act on them as well.
 				e.preventDefault();
 			} else if (!onElectron && (isHelp(e) || isRefresh(e))) {
 				// Prevent F1 opening browser help / F5 reloading the PWA.
@@ -712,6 +711,24 @@
 			const hasMeta = e.ctrlKey || e.metaKey;
 			// 78: keyCode of "N"
 			return hasMeta && e.keyCode === 78;
+		}
+
+		/**
+		 * Shortcuts the workbench binds itself, so the webview has to consume the real
+		 * event: in a PWA the browser acts on it, and on desktop it reaches the native
+		 * menu whose accelerator dispatches the command a second time.
+		 *
+		 * AltGr is excluded because it reports as Ctrl+Alt, so layouts that type a
+		 * character with AltGr+W or AltGr+N would otherwise lose that input.
+		 *
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isHostBoundShortcut(e) {
+			if (e.altKey || e.getModifierState('AltGraph')) {
+				return false;
+			}
+			return isCloseTab(e) || isNewWindow(e);
 		}
 
 		/**

@@ -127,13 +127,16 @@ suite('vscode API - webview', () => {
 	test('consumes Ctrl/Cmd+W and Ctrl/Cmd+N so the platform cannot act on them too', async () => {
 		const timeout = 20_000;
 
-		// 'plain a' must stay un-prevented so webview content keeps receiving keys.
+		// The altGr cases report as Ctrl+Alt and type a character on some layouts, so
+		// they and 'plain a' must stay un-prevented for webview content to receive them.
 		const cases = [
-			{ name: 'ctrl+w', keyCode: 87, ctrlKey: true, metaKey: false },
-			{ name: 'meta+w', keyCode: 87, ctrlKey: false, metaKey: true },
-			{ name: 'ctrl+n', keyCode: 78, ctrlKey: true, metaKey: false },
-			{ name: 'meta+n', keyCode: 78, ctrlKey: false, metaKey: true },
-			{ name: 'plain a', keyCode: 65, ctrlKey: false, metaKey: false },
+			{ name: 'ctrl+w', keyCode: 87, ctrlKey: true, metaKey: false, altKey: false },
+			{ name: 'meta+w', keyCode: 87, ctrlKey: false, metaKey: true, altKey: false },
+			{ name: 'ctrl+n', keyCode: 78, ctrlKey: true, metaKey: false, altKey: false },
+			{ name: 'meta+n', keyCode: 78, ctrlKey: false, metaKey: true, altKey: false },
+			{ name: 'altgr+w', keyCode: 87, ctrlKey: true, metaKey: false, altKey: true },
+			{ name: 'altgr+n', keyCode: 78, ctrlKey: true, metaKey: false, altKey: true },
+			{ name: 'plain a', keyCode: 65, ctrlKey: false, metaKey: false, altKey: false },
 		];
 
 		const panel = vscode.window.createWebviewPanel(webviewViewType, 'Webview Keydown Test', vscode.ViewColumn.Active, {
@@ -173,6 +176,7 @@ suite('vscode API - webview', () => {
 						keyCode: testCase.keyCode,
 						ctrlKey: testCase.ctrlKey,
 						metaKey: testCase.metaKey,
+						altKey: testCase.altKey,
 						bubbles: true,
 						cancelable: true,
 					});
@@ -205,6 +209,8 @@ suite('vscode API - webview', () => {
 			{ name: 'meta+w', keyCode: 87, defaultPrevented: true },
 			{ name: 'ctrl+n', keyCode: 78, defaultPrevented: true },
 			{ name: 'meta+n', keyCode: 78, defaultPrevented: true },
+			{ name: 'altgr+w', keyCode: 87, defaultPrevented: false },
+			{ name: 'altgr+n', keyCode: 78, defaultPrevented: false },
 			{ name: 'plain a', keyCode: 65, defaultPrevented: false },
 		]);
 	});
