@@ -647,15 +647,18 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	/**
 	 * Called by the session handler when a server-initiated turn starts.
 	 * Resets the progress observable and signals listeners to create a new
-	 * request+response pair in the chat model.
+	 * request+response pair in the chat model. `turnId` is the provider's turn
+	 * id and is adopted as the chat request id, so features that address a turn
+	 * by request id (side chats, forks) can resolve it against the host.
 	 */
-	startServerRequest(prompt: string, variableData?: IChatRequestVariableData, options?: IStartServerRequestOptions): void {
+	startServerRequest(turnId: string, prompt: string, variableData?: IChatRequestVariableData, options?: IStartServerRequestOptions): void {
 		this._logService.info('[AgentHost] Server-initiated request started');
 		transaction(tx => {
 			this.progressObs.set([], tx);
 			this.isCompleteObs.set(false, tx);
 		});
 		this._onDidStartServerRequest.fire({
+			id: turnId,
 			prompt,
 			variableData,
 			isSystemInitiated: options?.isSystemInitiated,
@@ -1104,6 +1107,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							activeTurnId = sessionState.activeTurn.id;
 							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
 							history.push({
+								id: sessionState.activeTurn.id,
 								type: 'request',
 								prompt: sessionState.activeTurn.message.text,
 								participant: this._config.agentId,
@@ -1847,6 +1851,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Signal the session to create a new request+response pair
 			chatSession.startServerRequest(
+				activeTurn.id,
 				activeTurn.message.text,
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
