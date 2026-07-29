@@ -417,7 +417,8 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
-.extension-editor > .body > .content > .monaco-scrollable-element {
+.extension-editor > .body > .content > .monaco-scrollable-element,
+.extension-editor > .body > .content > .details > .content-container > .monaco-scrollable-element {
 	height: 100%;
 }
 
@@ -592,7 +593,8 @@
 	box-sizing: border-box;
 }
 
-.extension-editor > .body > .content > .monaco-scrollable-element > .subcontent {
+.extension-editor > .body > .content > .monaco-scrollable-element > .subcontent,
+.extension-editor > .body > .content > .details > .content-container > .monaco-scrollable-element > .subcontent {
 	height: 100%;
 	padding: 20px;
 	overflow-y: scroll;

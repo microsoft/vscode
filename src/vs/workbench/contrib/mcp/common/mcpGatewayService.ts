@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -10,13 +11,26 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const IWorkbenchMcpGatewayService = createDecorator<IWorkbenchMcpGatewayService>('IWorkbenchMcpGatewayService');
 
 /**
+ * A single server entry exposed by the gateway at the workbench layer.
+ */
+export interface IMcpGatewayResultServer {
+	readonly label: string;
+	readonly address: URI;
+}
+
+/**
  * Result of creating an MCP gateway, which is itself disposable.
  */
 export interface IMcpGatewayResult extends IDisposable {
 	/**
-	 * The address of the HTTP endpoint for this gateway.
+	 * The servers currently exposed by this gateway.
 	 */
-	readonly address: URI;
+	readonly servers: readonly IMcpGatewayResultServer[];
+
+	/**
+	 * Event that fires when the set of servers changes.
+	 */
+	readonly onDidChangeServers: Event<readonly IMcpGatewayResultServer[]>;
 }
 
 /**
@@ -39,8 +53,11 @@ export interface IWorkbenchMcpGatewayService {
 	 * @param inRemote Whether to create the gateway in the remote environment.
 	 * If true, the gateway is created on the remote server (requires a remote connection).
 	 * If false, the gateway is created locally (requires a local Node process, e.g., desktop).
+	 * @param chatSessionResource Optional chat session resource URI to associate with this
+	 * gateway. When provided, MCP tool calls made through this gateway will be associated
+	 * with the chat session, enabling inline elicitation UI instead of notification fallback.
 	 * @returns A promise that resolves to the gateway result if successful,
 	 * or `undefined` if the requested environment is not available.
 	 */
-	createGateway(inRemote: boolean): Promise<IMcpGatewayResult | undefined>;
+	createGateway(inRemote: boolean, chatSessionResource?: URI): Promise<IMcpGatewayResult | undefined>;
 }

@@ -76,6 +76,7 @@
       editedFileEvents: undefined,
       modelId: undefined,
       modeInfo: undefined,
+      terminalExecutionId: undefined,
       responseId: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
       responseMarkdownInfo: undefined,

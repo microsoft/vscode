@@ -1,0 +1,16 @@
+[
+    {
+        "question": "/explain",
+        "description": "includes method definitions from same file",
+        "stateFile": "./explain.1.state.json",
+        "keywords": {
+            "allOf": [
+                "bar",
+                "console"
+            ],
+            "not": [
+                "qux"
+            ]
+        }
+    }
+]

@@ -9,17 +9,15 @@ EventEmitter.defaultMaxListeners = 100;
 
 import es from 'event-stream';
 import fancyLog from 'fancy-log';
+import * as fs from 'fs';
 import glob from 'glob';
-import gulp from 'gulp';
-import filter from 'gulp-filter';
-import plumber from 'gulp-plumber';
-import sourcemaps from 'gulp-sourcemaps';
+import { gulp, filter, plumber, sourcemaps } from './lib/gulp/facade.ts';
 import * as path from 'path';
 import * as nodeUtil from 'util';
 import * as ext from './lib/extensions.ts';
 import { getVersion } from './lib/getVersion.ts';
 import { createReporter } from './lib/reporter.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as tsb from './lib/tsb/index.ts';
 import { createTsgoStream, spawnTsgo } from './lib/tsgo.ts';
 import * as util from './lib/util.ts';
@@ -76,7 +74,7 @@ const compilations = [
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',
 	'extensions/merge-conflict/tsconfig.json',
-	'extensions/mermaid-chat-features/tsconfig.json',
+	'extensions/mermaid-markdown-features/tsconfig.json',
 	'extensions/terminal-suggest/tsconfig.json',
 	'extensions/microsoft-authentication/tsconfig.json',
 	'extensions/notebook-renderers/tsconfig.json',
@@ -96,6 +94,7 @@ const compilations = [
 	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 	'.vscode/extensions/vscode-extras/tsconfig.json',
+	'.vscode/extensions/vscode-pr-pinger/tsconfig.json',
 ];
 
 const getBaseUrl = (out: string) => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
@@ -172,7 +171,12 @@ const tasks = compilations.map(function (tsconfigFile) {
 		return pipeline;
 	}
 
-	const cleanTask = task.define(`clean-extension-${name}`, util.rimraf(out));
+	const tsBuildInfoFile = path.join(path.dirname(absolutePath), path.basename(absolutePath, '.json') + '.tsbuildinfo');
+
+	const cleanTask = task.define(`clean-extension-${name}`, async () => {
+		await util.rimraf(out)();
+		fs.rmSync(tsBuildInfoFile, { force: true });
+	});
 
 	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true, true);
@@ -221,32 +225,32 @@ const tasks = compilations.map(function (tsconfigFile) {
 	}));
 
 	// Tasks
-	gulp.task(transpileTask);
-	gulp.task(compileTask);
-	gulp.task(watchTask);
+	task.task(transpileTask);
+	task.task(compileTask);
+	task.task(watchTask);
 
 	return { transpileTask, compileTask, watchTask };
 });
 
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
-gulp.task(transpileExtensionsTask);
+task.task(transpileExtensionsTask);
 
 export const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
-gulp.task(compileExtensionsTask);
+task.task(compileExtensionsTask);
 
 export const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
-gulp.task(watchExtensionsTask);
+task.task(watchExtensionsTask);
 
 //#region Extension media
 
 export const compileExtensionMediaTask = task.define('compile-extension-media', () => ext.buildExtensionMedia(false));
-gulp.task(compileExtensionMediaTask);
+task.task(compileExtensionMediaTask);
 
 export const watchExtensionMedia = task.define('watch-extension-media', () => ext.buildExtensionMedia(true));
-gulp.task(watchExtensionMedia);
+task.task(watchExtensionMedia);
 
 export const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
-gulp.task(compileExtensionMediaBuildTask);
+task.task(compileExtensionMediaBuildTask);
 
 //#endregion
 
@@ -270,14 +274,21 @@ export const compileNonNativeExtensionsBuildTask = task.define('compile-non-nati
 	bundleMarketplaceExtensionsBuildTask,
 	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')))
 ));
-gulp.task(compileNonNativeExtensionsBuildTask);
+task.task(compileNonNativeExtensionsBuildTask);
 
 /**
  * Compiles the native extensions for the build
  * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
  */
 export const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')));
-gulp.task(compileNativeExtensionsBuildTask);
+task.task(compileNativeExtensionsBuildTask);
+
+/**
+ * Compiles the built-in copilot extension for the build.
+ * Used by non-CI local builds where copilot is not downloaded as a VSIX.
+ */
+export const compileCopilotExtensionBuildTask = task.define('compile-copilot-extension-build', () => ext.packageCopilotExtensionStream(false).pipe(gulp.dest('.build')));
+task.task(compileCopilotExtensionBuildTask);
 
 /**
  * Compiles the extensions for the build.
@@ -288,17 +299,17 @@ export const compileAllExtensionsBuildTask = task.define('compile-extensions-bui
 	bundleMarketplaceExtensionsBuildTask,
 	task.define('bundle-extensions-build', () => ext.packageAllLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
 ));
-gulp.task(compileAllExtensionsBuildTask);
+task.task(compileAllExtensionsBuildTask);
 
 
 
 //#endregion
 
 export const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));
-gulp.task(compileWebExtensionsTask);
+task.task(compileWebExtensionsTask);
 
 export const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
-gulp.task(watchWebExtensionsTask);
+task.task(watchWebExtensionsTask);
 
 async function buildWebExtensions(isWatch: boolean): Promise<void> {
 	const extensionsPath = path.join(root, 'extensions');
@@ -308,13 +319,6 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 		path.join(extensionsPath, '**', 'esbuild.browser.mts'),
 		{ ignore: ['**/node_modules'] }
 	);
-
-	// Find all webpack configs, excluding those that will be esbuilt
-	const esbuildExtensionDirs = new Set(esbuildConfigLocations.map(p => path.dirname(p)));
-	const webpackConfigLocations = (await nodeUtil.promisify(glob)(
-		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
-		{ ignore: ['**/node_modules'] }
-	)).filter(configPath => !esbuildExtensionDirs.has(path.dirname(configPath)));
 
 	const promises: Promise<unknown>[] = [];
 
@@ -328,11 +332,6 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 				return roots.map(root => ext.typeCheckExtension(root, true));
 			})
 		);
-	}
-
-	// Run webpack for remaining extensions
-	if (webpackConfigLocations.length > 0) {
-		promises.push(ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath }))));
 	}
 
 	await Promise.all(promises);

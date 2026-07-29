@@ -7,9 +7,9 @@ import { constObservable, derived, IObservable, observableFromEventOpts } from '
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import {
@@ -54,17 +54,15 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.HarnessSettings,
 	];
 
-	private static readonly _defaultFilter: IStorageSourceFilter = {
-		sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
-	};
-
-	getStorageSourceFilter(_type: PromptsType): IStorageSourceFilter {
-		return AICustomizationWorkspaceService._defaultFilter;
-	}
-
 	readonly isSessionsWindow = false;
+
+	readonly welcomePageFeatures = {
+		showGettingStartedBanner: true,
+	};
 
 	readonly hasOverrideProjectRoot = constObservable(false);
 	setOverrideProjectRoot(_root: URI): void { }
@@ -94,6 +92,12 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		return this.promptsService.getPromptSlashCommands(token);
+	}
+
+	private static readonly _emptyIntegrations: ReadonlyMap<string, string> = new Map();
+
+	getSkillUIIntegrations(): ReadonlyMap<string, string> {
+		return AICustomizationWorkspaceService._emptyIntegrations;
 	}
 }
 

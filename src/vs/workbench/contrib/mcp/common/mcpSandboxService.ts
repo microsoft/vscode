@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { arch } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -57,6 +58,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 	private _sandboxSettingsId: string | undefined;
 	private _remoteEnvDetailsPromise: Promise<IRemoteAgentEnvironment | null>;
 	private readonly _defaultAllowedDomains: readonly string[] = ['registry.npmjs.org']; // Default allowed domains that are commonly needed for MCP servers, even if the user doesn't specify them in their sandbox config
+	private _defaultAllowWritePaths: string[] = ['~/.npm'];
 	private _sandboxConfigPerConfigurationTarget: Map<string, string> = new Map();
 
 	constructor(
@@ -87,7 +89,9 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
 			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launch.cwd);
-			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
+			const quotedCommand = this._quoteShellArgument(launch.command);
+			const quotedArgs = launch.args.map(arg => this._quoteShellArgument(arg));
+			const sandboxArgs = this._getSandboxCommandArgs(quotedCommand, quotedArgs, launchDetails.sandboxConfigPath);
 			const sandboxEnv = await this._getSandboxEnvVariables(launch.env, launchDetails.tempDir, launchDetails.rgPath, remoteAuthority);
 			if (launchDetails.srtPath) {
 				if (launchDetails.execPath) {
@@ -259,8 +263,11 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const appRoot = await this._getAppRoot(remoteAuthority);
 		const execPath = await this._getExecPath(os, appRoot, remoteAuthority);
 		const tempDir = await this._getTempDir(remoteAuthority);
-		const srtPath = this._pathJoin(os, appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
-		const rgPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
+		const srtPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
+		// @vscode/ripgrep-universal ships per-platform-arch binaries under bin/{platform}-{arch}/{rg|rg.exe}
+		// Windows is handled by the early return above, so os is narrowed to Mac/Linux here.
+		const rgPlatform = os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
+		const rgPath = this._pathJoin(os, appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, 'rg');
 		const sandboxConfigPath = tempDir ? await this._updateSandboxConfig(tempDir, configTarget, sandboxConfig, launchCwd) : undefined;
 		this._logService.debug(`McpSandboxService: Updated sandbox config path: ${sandboxConfigPath}`);
 		return { execPath, srtPath, rgPath, sandboxConfigPath, tempDir };
@@ -294,6 +301,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const result: string[] = [];
 		if (sandboxConfigPath) {
 			result.push('--settings', sandboxConfigPath);
+			result.push('--');
 		}
 		result.push(command, ...args);
 		return result;
@@ -381,14 +389,13 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 	}
 
 	private _getDefaultAllowWrite(directories?: string[]): readonly string[] {
-		const defaultAllowWrite: string[] = ['~/.npm'];
 		for (const launchCwd of directories ?? []) {
 			const trimmed = launchCwd.trim();
 			if (trimmed) {
-				defaultAllowWrite.push(trimmed);
+				this._defaultAllowWritePaths.push(trimmed);
 			}
 		}
-		return defaultAllowWrite;
+		return this._defaultAllowWritePaths;
 	}
 
 	private _pathJoin = (os: OperatingSystem, ...segments: string[]) => {
@@ -400,5 +407,9 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const os = await this._getOperatingSystem(remoteAuthority);
 		return os === OperatingSystem.Windows ? win32.delimiter : posix.delimiter;
 	};
+
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
+	}
 
 }

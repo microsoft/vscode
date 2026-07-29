@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatDebugFilterState } from '../../browser/chatDebug/chatDebugFilters.js';
+import { parseTimeToken } from '../../common/chatDebugEvents.js';
 
 suite('ChatDebugFilterState', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -15,38 +16,38 @@ suite('ChatDebugFilterState', () => {
 		suite('before: prefix', () => {
 
 			test('year only — rounds to end of year', () => {
-				const result = ChatDebugFilterState.parseTimeToken('before:2026', 'before');
+				const result = parseTimeToken('before:2026', 'before');
 				assert.strictEqual(result, new Date(2026, 11, 31, 23, 59, 59, 999).getTime());
 			});
 
 			test('year-month — rounds to end of month', () => {
-				const result = ChatDebugFilterState.parseTimeToken('before:2026-03', 'before');
+				const result = parseTimeToken('before:2026-03', 'before');
 				// new Date(2026, 3, 0) gives last day of March
 				assert.strictEqual(result, new Date(2026, 3, 0, 23, 59, 59, 999).getTime());
 			});
 
 			test('year-month (February, non-leap) — rounds to end of Feb', () => {
-				const result = ChatDebugFilterState.parseTimeToken('before:2025-02', 'before');
+				const result = parseTimeToken('before:2025-02', 'before');
 				assert.strictEqual(result, new Date(2025, 2, 0, 23, 59, 59, 999).getTime());
 			});
 
 			test('year-month-day — rounds to end of day', () => {
-				const result = ChatDebugFilterState.parseTimeToken('before:2026-03-03', 'before');
+				const result = parseTimeToken('before:2026-03-03', 'before');
 				assert.strictEqual(result, new Date(2026, 2, 3, 23, 59, 59, 999).getTime());
 			});
 
 			test('date with hour only — rounds to end of hour', () => {
-				const result = ChatDebugFilterState.parseTimeToken('before:2026-03-03t14', 'before');
+				const result = parseTimeToken('before:2026-03-03t14', 'before');
 				assert.strictEqual(result, new Date(2026, 2, 3, 14, 59, 59, 999).getTime());
 			});
 
 			test('date with hour:minute — rounds to end of minute', () => {
-				const result = ChatDebugFilterState.parseTimeToken('before:2026-03-03t14:30', 'before');
+				const result = parseTimeToken('before:2026-03-03t14:30', 'before');
 				assert.strictEqual(result, new Date(2026, 2, 3, 14, 30, 59, 999).getTime());
 			});
 
 			test('full date-time with seconds', () => {
-				const result = ChatDebugFilterState.parseTimeToken('before:2026-03-03t14:30:45', 'before');
+				const result = parseTimeToken('before:2026-03-03t14:30:45', 'before');
 				assert.strictEqual(result, new Date(2026, 2, 3, 14, 30, 45, 999).getTime());
 			});
 		});
@@ -54,32 +55,32 @@ suite('ChatDebugFilterState', () => {
 		suite('after: prefix', () => {
 
 			test('year only — start of year', () => {
-				const result = ChatDebugFilterState.parseTimeToken('after:2026', 'after');
+				const result = parseTimeToken('after:2026', 'after');
 				assert.strictEqual(result, new Date(2026, 0, 1, 0, 0, 0, 0).getTime());
 			});
 
 			test('year-month — start of month', () => {
-				const result = ChatDebugFilterState.parseTimeToken('after:2026-03', 'after');
+				const result = parseTimeToken('after:2026-03', 'after');
 				assert.strictEqual(result, new Date(2026, 2, 1, 0, 0, 0, 0).getTime());
 			});
 
 			test('year-month-day — start of day', () => {
-				const result = ChatDebugFilterState.parseTimeToken('after:2026-03-03', 'after');
+				const result = parseTimeToken('after:2026-03-03', 'after');
 				assert.strictEqual(result, new Date(2026, 2, 3, 0, 0, 0, 0).getTime());
 			});
 
 			test('date with hour only — start of hour', () => {
-				const result = ChatDebugFilterState.parseTimeToken('after:2026-03-03t14', 'after');
+				const result = parseTimeToken('after:2026-03-03t14', 'after');
 				assert.strictEqual(result, new Date(2026, 2, 3, 14, 0, 0, 0).getTime());
 			});
 
 			test('date with hour:minute — start of minute', () => {
-				const result = ChatDebugFilterState.parseTimeToken('after:2026-03-03t14:30', 'after');
+				const result = parseTimeToken('after:2026-03-03t14:30', 'after');
 				assert.strictEqual(result, new Date(2026, 2, 3, 14, 30, 0, 0).getTime());
 			});
 
 			test('full date-time with seconds', () => {
-				const result = ChatDebugFilterState.parseTimeToken('after:2026-03-03t14:30:45', 'after');
+				const result = parseTimeToken('after:2026-03-03t14:30:45', 'after');
 				assert.strictEqual(result, new Date(2026, 2, 3, 14, 30, 45, 0).getTime());
 			});
 		});
@@ -87,33 +88,33 @@ suite('ChatDebugFilterState', () => {
 		suite('no match', () => {
 
 			test('returns undefined for empty string', () => {
-				assert.strictEqual(ChatDebugFilterState.parseTimeToken('', 'before'), undefined);
+				assert.strictEqual(parseTimeToken('', 'before'), undefined);
 			});
 
 			test('returns undefined for unrelated text', () => {
-				assert.strictEqual(ChatDebugFilterState.parseTimeToken('hello world', 'before'), undefined);
+				assert.strictEqual(parseTimeToken('hello world', 'before'), undefined);
 			});
 
 			test('returns undefined for wrong prefix', () => {
-				assert.strictEqual(ChatDebugFilterState.parseTimeToken('after:2026', 'before'), undefined);
+				assert.strictEqual(parseTimeToken('after:2026', 'before'), undefined);
 			});
 
 			test('returns undefined for bare time without date', () => {
-				assert.strictEqual(ChatDebugFilterState.parseTimeToken('before:14:30', 'before'), undefined);
+				assert.strictEqual(parseTimeToken('before:14:30', 'before'), undefined);
 			});
 		});
 
 		suite('embedded in text', () => {
 
 			test('extracts token from surrounding text', () => {
-				const result = ChatDebugFilterState.parseTimeToken('some text before:2026-03-03 more text', 'before');
+				const result = parseTimeToken('some text before:2026-03-03 more text', 'before');
 				assert.strictEqual(result, new Date(2026, 2, 3, 23, 59, 59, 999).getTime());
 			});
 
 			test('handles both before and after in same string', () => {
 				const text = 'after:2026-01 before:2026-03';
-				const after = ChatDebugFilterState.parseTimeToken(text, 'after');
-				const before = ChatDebugFilterState.parseTimeToken(text, 'before');
+				const after = parseTimeToken(text, 'after');
+				const before = parseTimeToken(text, 'before');
 				assert.strictEqual(after, new Date(2026, 0, 1, 0, 0, 0, 0).getTime());
 				assert.strictEqual(before, new Date(2026, 3, 0, 23, 59, 59, 999).getTime());
 			});

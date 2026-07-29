@@ -47,6 +47,8 @@ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/e
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -1176,6 +1178,15 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 
 	private registerConfigurationSchemas(): void {
+		// Ensure deprecationMessage is plain text for properties where it was derived from
+		// markdownDeprecationMessage, since the JSON editor diagnostics don't support markdown.
+		for (const key of Object.keys(allSettings.properties)) {
+			const prop = allSettings.properties[key];
+			if (prop.markdownDeprecationMessage && prop.deprecationMessage === prop.markdownDeprecationMessage) {
+				prop.deprecationMessage = renderAsPlaintext({ value: fixSettingLinks(prop.markdownDeprecationMessage) });
+			}
+		}
+
 		const allSettingsSchema: IJSONSchema = {
 			properties: allSettings.properties,
 			patternProperties: allSettings.patternProperties,
@@ -1348,6 +1359,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: WorkspaceService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -1396,14 +1408,24 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
-				if (!isUndefined(value) && !equals(value, schema.default)) {
+				if (this.shouldOverride(value, schema)) {
 					overrides[property] = value;
 				}
 			} catch (error) {/*ignore */ }
 		}
 		if (Object.keys(overrides).length) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides, source: 'experiments' }]);
 		}
+	}
+
+	private shouldOverride(value: unknown, schema: IConfigurationPropertySchema): boolean {
+		if (isUndefined(value)) {
+			return false;
+		}
+		if (this.environmentService.isSessionsWindow && schema.agentsWindow?.default !== undefined) {
+			return !equals(value, schema.agentsWindow?.default);
+		}
+		return !equals(value, schema.default);
 	}
 }
 

@@ -4,146 +4,109 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from './codeReviewService.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
+import { Menus } from '../../../browser/menus.js';
+import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
-const canRunSessionCodeReviewContextKey = new RawContextKey<boolean>('sessions.canRunCodeReview', true, {
-	type: 'boolean',
-	description: localize('sessions.canRunCodeReview', "True when a new code review can be started for the active session version."),
-});
+const CODE_REVIEW_QUERY = '/code-review';
 
-function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disposable {
-	class RunSessionCodeReviewAction extends Action2 {
-		static readonly ID = 'sessions.codeReview.run';
+const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
 
-		constructor() {
-			super({
-				id: RunSessionCodeReviewAction.ID,
-				title: localize('sessions.runCodeReview', "Run Code Review"),
-				tooltip,
-				category: CHAT_CATEGORY,
-				icon,
-				precondition: canRunSessionCodeReviewContextKey,
-				menu: [
-					{
-						id: MenuId.ChatEditingSessionChangesToolbar,
-						group: 'navigation',
-						order: 7,
-						when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.hasAgentSessionChanges),
-					},
-				],
-			});
-		}
+// Code review is shown next to the diff-stats action in the single-pane Changes
+// editor header, so it is only contributed to the classic changes button bar
+// when single-pane is off.
+const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	SessionWorkspaceIsVirtualContext.toNegated(),
+	IsPhoneLayoutContext.negate(),
+	SessionIsCreatedContext,
+	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+	singlePaneDetailPanel.negate(),
+);
 
-		override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
-			const sessionManagementService = accessor.get(ISessionsManagementService);
-			const agentSessionsService = accessor.get(IAgentSessionsService);
-			const codeReviewService = accessor.get(ICodeReviewService);
+// Code review in the single-pane Changes editor header: on the left
+// (SessionsEditorHeaderPrimary), in its own group right after the diff-stats
+// action (separated by a divider), whether the editor area is visible or
+// collapsed.
+class RunSessionCodeReviewAction extends Action2 {
 
-			const resource = URI.isUri(sessionResource)
-				? sessionResource
-				: sessionManagementService.getActiveSession()?.resource;
+	static readonly ID = 'sessions.codeReview.run';
 
-			if (!resource) {
-				return;
-			}
-
-			const session = agentSessionsService.getSession(resource);
-			if (!(session?.changes instanceof Array) || session.changes.length === 0) {
-				return;
-			}
-
-			const files = getCodeReviewFilesFromSessionChanges(session.changes);
-			const version = getCodeReviewVersion(files);
-
-			codeReviewService.requestReview(resource, version, files);
-		}
+	constructor() {
+		super({
+			id: RunSessionCodeReviewAction.ID,
+			title: localize2('sessions.runCodeReview', "Run Code Review"),
+			tooltip: localize('sessions.runCodeReview.tooltip', "Run Code Review"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.codeReview,
+			precondition: ChatContextKeys.hasAgentSessionChanges,
+			menu: [
+				{
+					id: MenuId.AgentsChangesToolbar,
+					group: 'navigation',
+					order: 7,
+					when: codeReviewChangesToolbarWhen,
+				},
+				{
+					// A separate group (rather than 'navigation', which holds the Branch
+					// Changes picker + diff-stats) so a separator renders before it.
+					id: Menus.SessionsEditorHeaderPrimary,
+					group: '1_codeReview',
+					order: 1,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+						singlePaneDetailPanel,
+						IsAuxiliaryWindowContext.toNegated(),
+						IsTopRightEditorGroupContext,
+						SessionWorkspaceIsVirtualContext.toNegated(),
+						SessionIsCreatedContext,
+						SessionHasChangesContext,
+					),
+				},
+			],
+		});
 	}
 
-	return registerAction2(RunSessionCodeReviewAction) as Disposable;
-}
+	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
+		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-class CodeReviewToolbarContribution extends Disposable implements IWorkbenchContribution {
+		const resource = URI.isUri(sessionResource)
+			? sessionResource
+			: sessionsService.activeSession.get()?.resource;
+		if (!resource) {
+			return;
+		}
 
-	static readonly ID = 'sessions.contrib.codeReviewToolbar';
+		const session = sessionManagementService.getSession(resource);
+		if (!session) {
+			return;
+		}
 
-	private readonly _actionRegistration = this._register(new MutableDisposable<Disposable>());
-
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
-		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
-		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
-	) {
-		super();
-
-		const canRunCodeReviewContext = canRunSessionCodeReviewContextKey.bindTo(contextKeyService);
-		const sessionsChangedSignal = observableFromEvent(this, this._agentSessionsService.model.onDidChangeSessions, () => undefined);
-
-		this._register(autorun(reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
-			sessionsChangedSignal.read(reader);
-			this._actionRegistration.clear();
-
-			const sessionResource = activeSession?.resource;
-			if (!sessionResource) {
-				canRunCodeReviewContext.set(false);
-				this._actionRegistration.value = registerSessionCodeReviewAction(localize('sessions.runCodeReview.noSession', "No active session available for code review."), Codicon.codeReview);
-				return;
-			}
-
-			const session = this._agentSessionsService.getSession(sessionResource);
-			if (!(session?.changes instanceof Array) || session.changes.length === 0) {
-				canRunCodeReviewContext.set(false);
-				this._actionRegistration.value = registerSessionCodeReviewAction(localize('sessions.runCodeReview.noChanges', "No changes available for code review."), Codicon.codeReview);
-				return;
-			}
-
-			const files = getCodeReviewFilesFromSessionChanges(session.changes);
-			const version = getCodeReviewVersion(files);
-			const reviewState = this._codeReviewService.getReviewState(sessionResource).read(reader);
-
-			let canRunCodeReview = true;
-			let tooltip = localize('sessions.runCodeReview.tooltip.default', "Run Code Review");
-			let icon = Codicon.codeReview;
-
-			if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === version) {
-				canRunCodeReview = false;
-				tooltip = localize('sessions.runCodeReview.tooltip.loading', "Creating code review...");
-				icon = Codicon.commentDraft;
-			} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version) {
-				canRunCodeReview = false;
-				if (reviewState.comments.length === 0) {
-					tooltip = localize('sessions.runCodeReview.tooltip.allResolved', "All review comments have been addressed.");
-					icon = Codicon.comment;
-				} else {
-					icon = Codicon.commentUnresolved;
-					tooltip = reviewState.comments.length === 1
-						? localize('sessions.runCodeReview.tooltip.oneUnresolved', "1 review comment unresolved.")
-						: localize('sessions.runCodeReview.tooltip.manyUnresolved', "{0} review comments unresolved.", reviewState.comments.length);
-				}
-			}
-
-			canRunCodeReviewContext.set(canRunCodeReview);
-			this._actionRegistration.value = registerSessionCodeReviewAction(tooltip, icon);
-		}));
+		if (session.capabilities.get().supportsMultipleChats) {
+			await sessionManagementService.sendNewChatRequest(session, { query: CODE_REVIEW_QUERY });
+		} else {
+			chatWidgetService.getWidgetBySessionResource(session.resource)?.acceptInput(CODE_REVIEW_QUERY);
+		}
 	}
 }
 
-registerWorkbenchContribution2(CodeReviewToolbarContribution.ID, CodeReviewToolbarContribution, WorkbenchPhase.AfterRestored);
+registerAction2(RunSessionCodeReviewAction);

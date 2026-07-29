@@ -707,7 +707,7 @@ export namespace Event {
 	 * Creates an {@link Event} from a node event emitter.
 	 */
 	export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
+		const fn = (...args: unknown[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.on(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
 		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });
@@ -724,7 +724,7 @@ export namespace Event {
 	 * Creates an {@link Event} from a DOM event emitter.
 	 */
 	export function fromDOMEventEmitter<T>(emitter: DOMEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
+		const fn = (...args: unknown[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeEventListener(eventName, fn);
 		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });
@@ -932,6 +932,11 @@ export interface EmitterOptions {
 	 */
 	leakWarningThreshold?: number;
 	/**
+	 * Human-readable name for the emitter, included in leak warning error
+	 * messages to help identify which emitter is leaking in telemetry.
+	 */
+	leakWarningName?: string;
+	/**
 	 * Pass in a delivery queue, which is useful for ensuring
 	 * in order event delivery across multiple emitters.
 	 */
@@ -1025,11 +1030,13 @@ class LeakageMonitor {
 			this._warnCountdown = threshold * 0.5;
 
 			const [topStack, topCount] = this.getMostFrequentStack()!;
+			const emitterName = /^[0-9a-f]+$/i.test(this.name) ? undefined : this.name;
 			const message = `[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`;
 			console.warn(message);
 			console.warn(topStack);
 
-			const error = new ListenerLeakError(message, topStack);
+			const kind = topCount / listenerCount > 0.3 ? 'dominated' : 'popular';
+			const error = new ListenerLeakError(kind, message, topStack, listenerCount, emitterName);
 			this._errorHandler(error);
 		}
 
@@ -1071,20 +1078,38 @@ class Stacktrace {
 
 // error that is logged when going over the configured listener threshold
 export class ListenerLeakError extends Error {
-	constructor(message: string, stack: string) {
-		super(message);
+	readonly kind: string;
+	readonly listenerCount: number;
+	/**
+	 * The detailed message including listener count and most frequent stack.
+	 * Available locally for debugging but intentionally not used as the error
+	 * `message`. When `emitterName` is provided, errors group by emitter name
+	 * and kind in telemetry; otherwise they group by kind alone.
+	 */
+	readonly details: string;
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string, listenerCount: number, emitterName?: string) {
+		super(emitterName
+			? `[${emitterName}] potential listener LEAK detected, ${kind}`
+			: `potential listener LEAK detected, ${kind}`);
 		this.name = 'ListenerLeakError';
+		this.kind = kind;
+		this.listenerCount = listenerCount;
+		this.details = details;
 		this.stack = stack;
+	}
+
+	static is(err: unknown): err is ListenerLeakError {
+		return err instanceof ListenerLeakError
+			|| (err instanceof Error && typeof (err as Error & { kind: unknown; listenerCount: unknown }).kind === 'string' && typeof (err as Error & { kind: unknown; listenerCount: unknown }).listenerCount === 'number');
 	}
 }
 
 // SEVERE error that is logged when having gone way over the configured listener
 // threshold so that the emitter refuses to accept more listeners
-export class ListenerRefusalError extends Error {
-	constructor(message: string, stack: string) {
-		super(message);
+export class ListenerRefusalError extends ListenerLeakError {
+	constructor(kind: 'dominated' | 'popular', details: string, stack: string, listenerCount: number, emitterName?: string) {
+		super(kind, details, stack, listenerCount, emitterName);
 		this.name = 'ListenerRefusalError';
-		this.stack = stack;
 	}
 }
 
@@ -1171,7 +1196,7 @@ export class Emitter<T> {
 	constructor(options?: EmitterOptions) {
 		this._options = options;
 		this._leakageMon = (_globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold)
-			? new LeakageMonitor(options?.onListenerError ?? onUnexpectedError, this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold) :
+			? new LeakageMonitor(options?.onListenerError ?? onUnexpectedError, this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold, this._options?.leakWarningName) :
 			undefined;
 		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
 		this._deliveryQueue = this._options?.deliveryQueue as EventDeliveryQueuePrivate | undefined;
@@ -1221,7 +1246,8 @@ export class Emitter<T> {
 				console.warn(message);
 
 				const tuple = this._leakageMon.getMostFrequentStack() ?? ['UNKNOWN stack', -1];
-				const error = new ListenerRefusalError(`${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
+				const kind = tuple[1] / this._size > 0.3 ? 'dominated' : 'popular';
+				const error = new ListenerRefusalError(kind, `${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0], this._size, this._options?.leakWarningName);
 				const errorHandler = this._options?.onListenerError || onUnexpectedError;
 				errorHandler(error);
 

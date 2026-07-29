@@ -7,6 +7,31 @@ import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../.
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 
+export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
+}
+
+export function isAskQuestionsToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.toolId === 'copilot_askQuestions' || toolInvocation.toolId === 'vscode_askQuestions';
+}
+
+/**
+ * Determines whether a tool invocation's progress text should shimmer.
+ */
+export function shouldShimmerForTool(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, content: string | IMarkdownString | undefined): boolean {
+	if (!isAskQuestionsToolInvocation(toolInvocation) || IChatToolInvocation.isComplete(toolInvocation)) {
+		return false;
+	}
+
+	return getMarkdownValue(content) === getMarkdownValue(toolInvocation.invocationMessage);
+}
+
+function getMarkdownValue(content: string | IMarkdownString | undefined): string | undefined {
+	return (typeof content === 'string' ? content : content?.value)
+		?.replaceAll('&nbsp;', ' ')
+		.replace(/\\[\\`*_{}\[\]()#+\-!~]/g, escaped => escaped.slice(1));
+}
+
 /**
  * Creates a markdown message explaining why a tool was auto-approved.
  * @param toolInvocation The tool invocation to get the approval message for

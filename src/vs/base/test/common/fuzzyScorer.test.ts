@@ -1239,7 +1239,7 @@ suite('Fuzzy Scorer', () => {
 		let [multiScore, multiMatches] = _doScore2(target, 'HelLo World');
 
 		function assertScore() {
-			assert.ok(multiScore ?? 0 >= ((firstSingleScore ?? 0) + (secondSingleScore ?? 0)));
+			assert.ok((multiScore ?? 0) >= ((firstSingleScore ?? 0) + (secondSingleScore ?? 0)));
 			for (let i = 0; multiMatches && i < multiMatches.length; i++) {
 				const multiMatch = multiMatches[i];
 				const firstAndSecondSingleMatch = firstAndSecondSingleMatches[i];

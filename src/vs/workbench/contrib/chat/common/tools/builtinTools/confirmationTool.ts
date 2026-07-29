@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatModifiedFilesConfirmationData, IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../languageModelToolsService.js';
 
@@ -187,7 +188,11 @@ export class ConfirmationTool implements IToolImpl {
 				title: parameters.title,
 				message: new MarkdownString(parameters.message),
 				allowAutoConfirm: (parameters.buttons || []).length ? false : true, // We cannot auto confirm if there are custom buttons, as we don't know which one to select
-				customButtons: parameters.buttons,
+				customOptions: parameters.buttons?.map((label, index) => ({
+					id: label,
+					label,
+					kind: index === 0 ? ConfirmationOptionKind.Approve : ConfirmationOptionKind.Deny,
+				})),
 			},
 			toolSpecificData,
 			presentation: ToolInvocationPresentation.HiddenAfterComplete
@@ -251,14 +256,21 @@ export class ModifiedFilesConfirmationTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		if (!invocation.selectedCustomButton) {
-			throw new Error('ModifiedFilesConfirmationTool requires a selected option');
+		// If a custom button was selected, return the button label
+		if (invocation.selectedCustomButton) {
+			return {
+				content: [{
+					kind: 'text',
+					value: invocation.selectedCustomButton
+				}]
+			};
 		}
 
+		// Default: return 'yes' for standard Allow confirmation
 		return {
 			content: [{
 				kind: 'text',
-				value: invocation.selectedCustomButton
+				value: 'yes' // Consumers should check for this label to know whether the tool was confirmed or skipped
 			}]
 		};
 	}

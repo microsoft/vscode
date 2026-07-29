@@ -8,6 +8,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { isLocation, Location, SymbolKind } from '../../../../../editor/common/languages.js';
@@ -17,9 +18,46 @@ import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
+import type { ILanguageModelChatMetadata } from '../languageModels.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Mutable } from '../../../../../base/common/types.js';
 
+
+/**
+ * An icon for a chat context item. Mirrors the `IconPath` type from the extension API:
+ * either a {@link ThemeIcon theme icon}, a single {@link URI} or separate light/dark {@link URI uris}.
+ */
+export type ChatContextIconPath = ThemeIcon | URI | { light: URI; dark: URI };
+
+/**
+ * Type guard for {@link ChatContextIconPath}. Accepts a {@link ThemeIcon theme icon}, a single
+ * {@link URI} or an object with both `light` and `dark` {@link URI uris}. Rejects `null`, `undefined`
+ * and partially-specified light/dark objects.
+ */
+export function isChatContextIconPath(value: unknown): value is ChatContextIconPath {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	if (ThemeIcon.isThemeIcon(value) || URI.isUri(value)) {
+		return true;
+	}
+	const asDualPath = value as { light?: unknown; dark?: unknown };
+	return URI.isUri(asDualPath.light) && URI.isUri(asDualPath.dark);
+}
+
+/**
+ * Resolve a {@link ChatContextIconPath} into a value that can be passed to the `iconPath`
+ * option of an icon label, picking the light or dark uri based on the current theme.
+ *
+ * @param iconPath The icon path to resolve.
+ * @param useDark Whether the current theme is a dark theme.
+ */
+export function resolveChatContextIcon(iconPath: ChatContextIconPath, useDark: boolean): ThemeIcon | URI {
+	if (ThemeIcon.isThemeIcon(iconPath) || URI.isUri(iconPath)) {
+		return iconPath;
+	}
+	return useDark ? iconPath.dark : iconPath.light;
+}
 
 interface IBaseChatRequestVariableEntry {
 	readonly id: string;
@@ -36,16 +74,116 @@ interface IBaseChatRequestVariableEntry {
 	readonly value: IChatRequestVariableValue;
 	readonly references?: IChatContentReference[];
 
+	/**
+	 * Implementation-defined metadata that providers attach to a variable
+	 * entry. Used to round-trip provider-specific data (e.g. agent-host
+	 * `_meta`) when an entry is sent back to the provider as part of a
+	 * request attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+
 	omittedState?: OmittedState;
 }
 
 export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
 	kind: 'generic';
 	tooltip?: IMarkdownString;
+	/**
+	 * A provider-supplied icon that may be a {@link ThemeIcon theme icon}, a single uri or light/dark uris.
+	 * Takes precedence over the {@link IBaseChatRequestVariableEntry.icon base theme icon} when rendering.
+	 */
+	iconPath?: ChatContextIconPath;
 }
+
+export const ChatPasteAttachmentMetadata = {
+	Kind: 'vscode.chat.attachment.kind',
+	Language: 'vscode.chat.attachment.language',
+	FileName: 'vscode.chat.attachment.fileName',
+	PastedLines: 'vscode.chat.attachment.pastedLines',
+} as const;
+
+export interface IRestorablePasteAttachment {
+	readonly label: string;
+	readonly displayKind?: string;
+	readonly modelRepresentation?: string;
+	readonly _meta?: Record<string, unknown>;
+}
+
+export const enum AgentHostCompletionReferenceKind {
+	Skill = 'skill',
+	Command = 'command',
+}
+
+export interface IAgentHostCompletionVariableValue {
+	readonly $mid: 'agentHostCompletion';
+	readonly kind: AgentHostCompletionReferenceKind;
+}
+
+function agentHostCompletionVariableValue(kind: AgentHostCompletionReferenceKind): IAgentHostCompletionVariableValue {
+	return { $mid: 'agentHostCompletion', kind };
+}
+
+function agentHostCompletionVariableId(kind: AgentHostCompletionReferenceKind, reference: URI | string): string {
+	switch (kind) {
+		case AgentHostCompletionReferenceKind.Skill:
+			return reference.toString();
+		case AgentHostCompletionReferenceKind.Command:
+			return 'agent-host-command:' + reference.toString();
+	}
+}
+
+export function toAgentHostCompletionVariableEntry(kind: AgentHostCompletionReferenceKind, name: string, reference: URI | string | undefined, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
+	return {
+		kind: 'generic',
+		id: reference !== undefined ? agentHostCompletionVariableId(kind, reference) : generateUuid(),
+		name,
+		value: agentHostCompletionVariableValue(kind),
+		_meta,
+	};
+}
+
+export function toAgentHostCompletionVariableEntryFromMetadata(kind: AgentHostCompletionReferenceKind, name: string, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
+	switch (kind) {
+		case AgentHostCompletionReferenceKind.Skill:
+			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.uri === 'string' ? _meta.uri : undefined, _meta);
+		case AgentHostCompletionReferenceKind.Command:
+			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.command === 'string' ? _meta.command : undefined, _meta);
+	}
+}
+
+export function getAgentHostCompletionReferenceKind(entry: IChatRequestVariableEntry): AgentHostCompletionReferenceKind | undefined {
+	if (entry.kind !== 'generic') {
+		return undefined;
+	}
+	return getAgentHostCompletionReferenceKindFromValue(entry.value);
+}
+
+export function getAgentHostCompletionReferenceKindFromValue(value: IChatRequestVariableValue): AgentHostCompletionReferenceKind | undefined {
+	if (typeof value !== 'object' || value === null) {
+		return undefined;
+	}
+
+	const record = value as Record<string, unknown>;
+	if (record.$mid !== 'agentHostCompletion') {
+		return undefined;
+	}
+
+	switch (record.kind) {
+		case AgentHostCompletionReferenceKind.Skill:
+		case AgentHostCompletionReferenceKind.Command:
+			return record.kind;
+	}
+	return undefined;
+}
+
+export function isAgentHostCompletionVariableEntry(entry: IChatRequestVariableEntry): entry is IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
+	return getAgentHostCompletionReferenceKind(entry) !== undefined;
+}
+
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
 	kind: 'directory';
+	imageCount?: number;
 }
 
 export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
@@ -56,6 +194,33 @@ export const enum OmittedState {
 	NotOmitted,
 	Partial,
 	Full,
+	ImageLimitExceeded,
+}
+
+const CLAUDE_MESSAGES_MAX_IMAGES_PER_REQUEST = 20;
+const GEMINI_MAX_IMAGES_PER_REQUEST = 10;
+
+/**
+ * Returns the image-attachment limit for the selected model.
+ *
+ * Claude-family models use a max of 20 (Messages API), Gemini-family models use
+ * a max of 10. Other models do not have a UI-enforced image count limit.
+ */
+export function getImageAttachmentLimit(model: Pick<ILanguageModelChatMetadata, 'family'> | undefined): number | undefined {
+	if (!model) {
+		return undefined;
+	}
+
+	const family = model.family.toLowerCase();
+	if (family.startsWith('gemini')) {
+		return GEMINI_MAX_IMAGES_PER_REQUEST;
+	}
+
+	if (family.startsWith('claude') || family.startsWith('anthropic')) {
+		return CLAUDE_MESSAGES_MAX_IMAGES_PER_REQUEST;
+	}
+
+	return undefined;
 }
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
@@ -73,7 +238,7 @@ export interface StringChatContextValue {
 	value?: string;
 	name?: string;
 	modelDescription?: string;
-	icon?: ThemeIcon;
+	iconPath?: ChatContextIconPath;
 	uri: URI;
 	resourceUri?: URI;
 	tooltip?: IMarkdownString;
@@ -97,7 +262,7 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly kind: 'string';
 	readonly value: string | undefined;
 	readonly modelDescription?: string;
-	readonly icon?: ThemeIcon;
+	readonly iconPath?: ChatContextIconPath;
 	readonly uri: URI;
 	readonly resourceUri?: URI;
 	readonly tooltip?: IMarkdownString;
@@ -129,6 +294,60 @@ export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariable
 		readonly uri: URI;
 		readonly range: IRange;
 	} | undefined;
+}
+
+export function toPasteVariableEntry(
+	name: string,
+	code: string,
+	options?: {
+		readonly id?: string;
+		readonly icon?: ThemeIcon;
+		readonly language?: string;
+		readonly fileName?: string;
+		readonly pastedLines?: string;
+		readonly _meta?: Record<string, unknown>;
+	}
+): IChatRequestPasteVariableEntry {
+	const language = options?.language ?? 'markdown';
+	const fileName = options?.fileName ?? name;
+	const pastedLines = options?.pastedLines ?? name;
+	return {
+		kind: 'paste',
+		id: options?.id ?? `chat-paste-${generateUuid()}`,
+		name,
+		icon: options?.icon,
+		value: code,
+		code,
+		language,
+		pastedLines,
+		fileName,
+		copiedFrom: undefined,
+		_meta: {
+			...options?._meta,
+			[ChatPasteAttachmentMetadata.Kind]: 'paste',
+			[ChatPasteAttachmentMetadata.Language]: language,
+			[ChatPasteAttachmentMetadata.FileName]: fileName,
+			[ChatPasteAttachmentMetadata.PastedLines]: pastedLines,
+		},
+	};
+}
+
+export function restorePasteVariableEntryFromAttachment(attachment: IRestorablePasteAttachment): IChatRequestPasteVariableEntry | undefined {
+	const modelRepresentation = attachment.modelRepresentation;
+	if (typeof modelRepresentation !== 'string' || attachment._meta?.[ChatPasteAttachmentMetadata.Kind] !== 'paste') {
+		return undefined;
+	}
+
+	const stringMetadata = (key: string, fallback: string): string => {
+		const value = attachment._meta?.[key];
+		return typeof value === 'string' ? value : fallback;
+	};
+	return toPasteVariableEntry(attachment.label, modelRepresentation, {
+		language: stringMetadata(ChatPasteAttachmentMetadata.Language, 'markdown'),
+		fileName: stringMetadata(ChatPasteAttachmentMetadata.FileName, attachment.label),
+		pastedLines: stringMetadata(ChatPasteAttachmentMetadata.PastedLines, attachment.label),
+		_meta: attachment._meta,
+	});
 }
 
 export interface ISymbolVariableEntry extends IBaseChatRequestVariableEntry {
@@ -230,6 +449,9 @@ export interface IElementAncestorData {
 
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
+	readonly value: string;
+	readonly imageData?: IChatRequestVariableValue;
+	readonly imageMimeType?: string;
 	readonly ancestors?: IElementAncestorData[];
 	readonly attributes?: Record<string, string>;
 	readonly computedStyles?: Record<string, string>;
@@ -300,12 +522,24 @@ export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
 export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'agentFeedback';
 	readonly sessionResource: URI;
+	/**
+	 * The agent-host annotations channel URI that backs these feedback items
+	 * (each item id is an annotation id on this channel). Set only for
+	 * agent-host sessions; used to emit {@link MessageAnnotationsAttachment}s
+	 * referencing the specific comments on the wire.
+	 */
+	readonly annotationsResource?: URI;
 	readonly feedbackItems: ReadonlyArray<{
 		readonly id: string;
 		readonly text: string;
 		readonly resourceUri: URI;
 		readonly range: IRange;
 		readonly codeSelection?: string;
+		readonly diffHunks?: string;
+		/** When this item was converted from a PR review comment, the original thread ID. */
+		readonly sourcePRReviewCommentId?: string;
+		/** Additional replies that belong to the same comment thread as {@link text}. */
+		readonly replies?: readonly string[];
 	}>;
 }
 
@@ -317,6 +551,166 @@ export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVa
 	readonly sessionResource: URI;
 }
 
+export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'sessionReference';
+	readonly value: URI;
+}
+
+export interface IBrowserViewVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'browserView';
+	readonly value: URI;
+	readonly browserId: string;
+}
+
+export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): entry is IBrowserViewVariableEntry {
+	return entry.kind === 'browserView';
+}
+
+/**
+ * A first-class reference to another agent-host chat, produced when the user
+ * types `#chat:<title>` in an agent-host chat input or drops a chat tab onto the
+ * input. Carries everything needed to render the reference chip and to send an
+ * agent-host chat attachment: the referenced chat's opaque backend chat URI
+ * ({@link value}) and, when pinned, the {@link endTurn last completed turn}
+ * included in the transcript. The display title lives on
+ * {@link IBaseChatRequestVariableEntry.name name}.
+ */
+export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'chatReference';
+	/**
+	 * The referenced chat's **opaque backend chat URI** — the exact value carried
+	 * on `MessageChatAttachment.resource` on the wire. It is provider-defined and
+	 * opaque: generic code MUST only store it, compare it by equality, and pass it
+	 * to agent-host-owned helpers (e.g. the chat-reference widget's link builder);
+	 * it MUST NOT parse or construct it. Send and restore are therefore pure
+	 * identity, and the client-side chat is resolved lazily (only when the user
+	 * clicks the reference chip). Because a reference can never cross agent hosts,
+	 * the URI always names a chat on a connected host.
+	 */
+	readonly value: URI;
+	/**
+	 * Last completed turn included in the referenced transcript. Omitted for
+	 * references that do not pin a turn (e.g. a dropped chat/session), in which
+	 * case the host resolves the referenced chat's latest completed turn when it
+	 * accepts the message.
+	 */
+	readonly endTurn?: string;
+}
+
+/**
+ * Type guard for a {@link IChatRequestChatReferenceVariableEntry chat-reference entry}.
+ */
+export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): entry is IChatRequestChatReferenceVariableEntry {
+	return entry.kind === 'chatReference';
+}
+
+/**
+ * Stable, dedupe-friendly id for a chat reference, derived from the referenced
+ * chat resource and — when the reference pins a turn — the last completed turn.
+ * Re-accepting the same reference therefore produces the same id. A pinned
+ * reference (with {@link endTurn}) and an unpinned one to the same chat produce
+ * distinct ids so they never collide.
+ *
+ * @param chatResource The opaque backend chat URI of the referenced chat. Stored
+ * verbatim in the id; never parsed.
+ * @param endTurn The last completed turn included in the referenced transcript, if pinned.
+ */
+export function chatReferenceVariableEntryId(chatResource: URI, endTurn?: string): string {
+	return endTurn === undefined
+		? `agent-host-chat:${chatResource.toString()}`
+		: `agent-host-chat:${chatResource.toString()}\u0000${endTurn}`;
+}
+
+/**
+ * Build the first-class {@link IChatRequestChatReferenceVariableEntry chat-reference entry}
+ * (the input pill) for a referenced chat.
+ *
+ * @param chatResource The opaque backend chat URI of the referenced chat (the
+ * value carried on `MessageChatAttachment.resource`). Stored verbatim; never parsed.
+ * @param endTurn The last completed turn included in the referenced transcript, if pinned.
+ * @param title The chat title used as the display label.
+ * @param _meta Provider-supplied `_meta` to preserve on the entry.
+ * @param range The offset-range of the reference in the prompt, when typed out.
+ */
+export function createChatReferenceVariableEntry(chatResource: URI, endTurn: string | undefined, title: string, _meta?: Record<string, unknown>, range?: IOffsetRange): IChatRequestChatReferenceVariableEntry {
+	return {
+		kind: 'chatReference',
+		id: chatReferenceVariableEntryId(chatResource, endTurn),
+		name: title,
+		value: chatResource,
+		endTurn,
+		range,
+		_meta,
+	};
+}
+
+/**
+ * Transient value carried on a chat-reference dynamic variable (via its `data`
+ * channel) so the request parser can rebuild the first-class
+ * {@link IChatRequestChatReferenceVariableEntry} without an out-of-band `_meta`
+ * bag. This never becomes the entry's `value` — see
+ * {@link chatReferenceVariableEntryFromDynamicValue}.
+ */
+export interface IChatReferenceDynamicVariableValue {
+	readonly $mid: 'agentHostChatReference';
+	/**
+	 * The referenced chat's **opaque backend chat URI** as a string — the exact
+	 * value carried on `MessageChatAttachment.resource`. Becomes the rebuilt
+	 * entry's {@link IChatRequestChatReferenceVariableEntry.value}. Never parsed
+	 * by generic code.
+	 */
+	readonly chatResource: string;
+	/** Last completed turn included in the referenced transcript, if pinned. */
+	readonly endTurn?: string;
+}
+
+/**
+ * Build the {@link IChatReferenceDynamicVariableValue dynamic-variable transport}
+ * for a chat reference.
+ */
+export function toChatReferenceDynamicVariableValue(chatResource: URI, endTurn?: string): IChatReferenceDynamicVariableValue {
+	return endTurn === undefined
+		? { $mid: 'agentHostChatReference', chatResource: chatResource.toString() }
+		: { $mid: 'agentHostChatReference', chatResource: chatResource.toString(), endTurn };
+}
+
+/**
+ * Type guard for a {@link IChatReferenceDynamicVariableValue}.
+ */
+export function isChatReferenceDynamicVariableValue(value: IChatRequestVariableValue): value is IChatReferenceDynamicVariableValue {
+	return typeof value === 'object' && value !== null && (value as { $mid?: unknown }).$mid === 'agentHostChatReference';
+}
+
+/**
+ * Rebuild a first-class {@link IChatRequestChatReferenceVariableEntry} from a
+ * chat-reference {@link IChatReferenceDynamicVariableValue dynamic-variable value}
+ * carried through the request parser. Returns `undefined` when the resource
+ * cannot be parsed.
+ *
+ * @param value The dynamic-variable transport value.
+ * @param id The stable dynamic-variable id.
+ * @param name The display title for the reference.
+ * @param range The offset-range of the reference in the prompt.
+ * @param _meta Provider-supplied `_meta` to preserve on the entry.
+ */
+export function chatReferenceVariableEntryFromDynamicValue(value: IChatReferenceDynamicVariableValue, id: string, name: string, range: IOffsetRange | undefined, _meta: Record<string, unknown> | undefined): IChatRequestChatReferenceVariableEntry | undefined {
+	let chatResource: URI;
+	try {
+		chatResource = URI.parse(value.chatResource);
+	} catch {
+		return undefined;
+	}
+	return {
+		kind: 'chatReference',
+		id,
+		name,
+		value: chatResource,
+		endTurn: value.endTurn,
+		range,
+		_meta,
+	};
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -324,7 +718,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -345,6 +739,12 @@ export namespace IChatRequestVariableEntry {
 			const dup: Mutable<IChatRequestVariableEntry> = { ...v };
 			dup.value = { $base64: encodeBase64(VSBuffer.wrap(v.value)) };
 			return dup;
+		}
+		if (isElementVariableEntry(v) && v.imageData instanceof Uint8Array) {
+			return {
+				...v,
+				imageData: { $base64: encodeBase64(VSBuffer.wrap(v.imageData)) }
+			};
 		}
 
 		return v;
@@ -370,6 +770,13 @@ export namespace IChatRequestVariableEntry {
 				const dup: Mutable<IChatRequestVariableEntry> = { ...v };
 				dup.value = decodeBase64(v.value.$base64).buffer;
 				return dup;
+			}
+			// eslint-disable-next-line local/code-no-in-operator
+			if (isElementVariableEntry(v) && v.imageData && typeof v.imageData === 'object' && '$base64' in v.imageData && typeof v.imageData.$base64 === 'string') {
+				return {
+					...v,
+					imageData: decodeBase64(v.imageData.$base64).buffer
+				};
 			}
 
 			return v;
@@ -407,6 +814,27 @@ export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
 	return obj.kind === 'image';
+}
+
+export function isExplicitFileOrImageVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry | IChatRequestDirectoryEntry | IImageVariableEntry {
+	return obj.kind === 'file' || obj.kind === 'directory' || obj.kind === 'image';
+}
+
+export function getExplicitFileOrImageAttachmentSummary(entries: readonly IChatRequestVariableEntry[]): string | undefined {
+	const fileOrImageEntries = entries.filter(isExplicitFileOrImageVariableEntry);
+	if (!fileOrImageEntries.length) {
+		return undefined;
+	}
+
+	if (fileOrImageEntries.every(isImageVariableEntry)) {
+		return fileOrImageEntries.length === 1
+			? localize('chat.attachmentSummary.image.one', "Attached 1 image")
+			: localize('chat.attachmentSummary.image.many', "Attached {0} images", fileOrImageEntries.length);
+	}
+
+	return fileOrImageEntries.length === 1
+		? localize('chat.attachmentSummary.file.one', "Attached 1 file")
+		: localize('chat.attachmentSummary.file.many', "Attached {0} files", fileOrImageEntries.length);
 }
 
 export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
@@ -462,24 +890,24 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 		(typeof asStringImplicitContextValue.name === 'string' || typeof asStringImplicitContextValue.name === 'undefined') &&
 		(asStringImplicitContextValue.resourceUri === undefined || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
 		(typeof asStringImplicitContextValue.name === 'string' || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
-		(asStringImplicitContextValue.icon === undefined || ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon)) &&
+		(asStringImplicitContextValue.iconPath === undefined || isChatContextIconPath(asStringImplicitContextValue.iconPath)) &&
 		URI.isUri(asStringImplicitContextValue.uri) &&
 		typeof asStringImplicitContextValue.handle === 'number'
 	);
 }
 
 export enum PromptFileVariableKind {
-	Instruction = 'vscode.prompt.instructions.root',
-	InstructionReference = `vscode.prompt.instructions`,
-	PromptFile = 'vscode.prompt.file'
+	Instruction = 'vscode.instructions.file.root',
+	InstructionReference = `vscode.instructions.file.reference`,
+	PromptFile = 'vscode.prompt.file',
 }
 
 /**
  * Utility to convert a {@link uri} to a chat variable entry.
  * The `id` of the chat variable can be one of the following:
  *
- * - `vscode.prompt.instructions__<URI>`: for all non-root prompt instructions references
- * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt instructions references
+ * - `vscode.instructions.file.reference__<URI>`: for all non-root prompt instructions references
+ * - `vscode.instructions.file.root__<URI>`: for *root* prompt instructions references
  * - `vscode.prompt.file__<URI>`: for prompt file references
  *
  * @param uri A resource URI that points to a prompt instructions file.
@@ -500,13 +928,17 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 	};
 }
 
+enum PromptTextVariableKind {
+	CustomizationsIndex = 'vscode.customizations.index',
+}
+
 export function toPromptTextVariableEntry(content: string, automaticallyAdded = false, toolReferences?: ChatRequestToolReferenceEntry[]): IPromptTextVariableEntry {
 	return {
-		id: `vscode.prompt.instructions.text`,
-		name: `prompt:instructionsList`,
+		id: PromptTextVariableKind.CustomizationsIndex,
+		name: `prompt:customizationsIndex`,
 		value: content,
 		kind: 'promptText',
-		modelDescription: 'Prompt instructions list',
+		modelDescription: 'Chat customizations index',
 		automaticallyAdded,
 		toolReferences
 	};

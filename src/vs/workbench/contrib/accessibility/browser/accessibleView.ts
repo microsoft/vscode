@@ -53,7 +53,9 @@ import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, acces
 import { resolveContentAndKeybindingItems } from './accessibleViewKeybindingResolver.js';
 
 const enum DIMENSIONS {
-	MAX_WIDTH = 600
+	MAX_WIDTH = 900,
+	WIDTH_RATIO = 0.75,
+	MAX_HEIGHT_RATIO = 0.6
 }
 
 export type AccesibleViewContentProvider = AccessibleContentProvider | ExtensionContentProvider;
@@ -291,7 +293,7 @@ export class AccessibleView extends Disposable {
 		}
 		provider.onOpen?.();
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				this._viewContainer = container;
 				this._viewContainer.classList.add('accessible-view-container');
@@ -590,6 +592,7 @@ export class AccessibleView extends Disposable {
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
 		const isSameProvider = this._currentProvider?.id === provider.id;
 		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
+		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -639,8 +642,23 @@ export class AccessibleView extends Disposable {
 			if (this._currentProvider?.options.position) {
 				const position = this._editorWidget.getPosition();
 				const isDefaultPosition = position?.lineNumber === 1 && position.column === 1;
-				if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
-					const lastLine = this.editorWidget.getModel()?.getLineCount();
+				const lineCount = this.editorWidget.getModel()?.getLineCount();
+				const savedPosition = this._lastProviderPosition.get(provider.id);
+				const preservedPosition = this._currentProvider.options.position === 'initial-bottom-preserve'
+					? previousPosition ?? savedPosition
+					: this._currentProvider.options.position === 'initial-bottom' && !isSameProvider ? savedPosition : undefined;
+				if (preservedPosition && preservedPosition.lineNumber <= (lineCount ?? 0)) {
+					this._editorWidget.setPosition(preservedPosition);
+					// When always preserving the cursor position, keep the current scroll
+					// position on content updates instead of revealing the cursor, which
+					// would cause the view to jump while the user is scrolling.
+					if (this._currentProvider.options.position === 'initial-bottom-preserve' && previousScrollTop !== undefined) {
+						this._editorWidget.setScrollTop(previousScrollTop);
+					} else {
+						this._editorWidget.revealLine(preservedPosition.lineNumber);
+					}
+				} else if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom-preserve' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
+					const lastLine = lineCount;
 					const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 					if (position) {
 						this._editorWidget.setPosition(position);
@@ -741,9 +759,9 @@ export class AccessibleView extends Disposable {
 
 	private _layout(): void {
 		const dimension = this._layoutService.activeContainerDimension;
-		const maxHeight = dimension.height && dimension.height * .4;
+		const maxHeight = dimension.height && dimension.height * DIMENSIONS.MAX_HEIGHT_RATIO;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
-		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
+		const width = Math.min(dimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH);
 		this._editorWidget.layout({ width, height });
 	}
 

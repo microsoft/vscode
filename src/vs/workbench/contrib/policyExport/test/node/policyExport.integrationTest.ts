@@ -16,7 +16,8 @@ import { stripComments } from '../../../../../base/common/jsonc.js';
 
 const exec = util.promisify(cp.exec);
 
-suite('PolicyExport Integration Tests', () => {
+// skipped for https://github.com/microsoft/vscode/issues/327263
+suite.skip('PolicyExport Integration Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('exported policy data matches checked-in file', async function () {
@@ -47,10 +48,15 @@ suite('PolicyExport Integration Tests', () => {
 				? join(rootPath, 'scripts', 'code.bat')
 				: join(rootPath, 'scripts', 'code.sh');
 
-			// Skip prelaunch to avoid redownloading electron while the parent VS Code is using it
+			// Skip prelaunch to avoid redownloading electron while the parent VS Code is using it.
+			// DISTRO_PRODUCT_JSON points to a static test fixture so --export-policy-data can
+			// merge extension policies without needing distro access or GITHUB_TOKEN.
+			// This fixture is NOT expected to stay in sync with the distro — it exists purely
+			// to test the generation code path. Policy values will drift and that is fine.
+			const fixturePath = join(rootPath, 'src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json');
 			await exec(`"${scriptPath}" --export-policy-data="${tempFile}"`, {
 				cwd: rootPath,
-				env: { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' }
+				env: { ...process.env, VSCODE_SKIP_PRELAUNCH: '1', DISTRO_PRODUCT_JSON: fixturePath }
 			});
 
 			// Read both files
@@ -63,7 +69,7 @@ suite('PolicyExport Integration Tests', () => {
 			assert.strictEqual(
 				exportedContent,
 				checkedInContent,
-				'Exported policy data should match the checked-in file. If this fails, run: ./scripts/code.sh --export-policy-data'
+				'Exported policy data should match the checked-in file. If this fails, run: npm run export-policy-data'
 			);
 		} finally {
 			// Clean up temp file

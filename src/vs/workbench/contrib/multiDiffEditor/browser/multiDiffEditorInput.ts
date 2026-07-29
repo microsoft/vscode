@@ -98,7 +98,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			this._register(model);
 			const vm = new MultiDiffEditorViewModel(model, this._instantiationService);
 			this._register(vm);
-			await raceTimeout(vm.waitForDiffs(), 1000);
+			await raceTimeout(vm.waitForDiffOr1s(), 1000);
 			return vm;
 		});
 		this._resolvedSource = new ObservableLazyPromise(async () => {
@@ -276,7 +276,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return this;
 	}
 
-	override  revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.doSaveOrRevert('revert', group, options);
 	}
 

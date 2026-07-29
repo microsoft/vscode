@@ -118,7 +118,7 @@ function patchProcess(allowExit: boolean) {
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 
 	// eslint-disable-next-line local/code-no-any-casts
-	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
+	process.on = <any>function (event: string, listener: (...args: unknown[]) => void) {
 		if (event === 'uncaughtException') {
 			const actualListener = listener;
 			listener = function (...args: unknown[]) {

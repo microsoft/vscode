@@ -19,12 +19,13 @@ import { BufferedEmitter } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { acquirePort } from '../../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import * as nls from '../../../../nls.js';
 import { IExtensionHostDebugService } from '../../../../platform/debug/common/extensionHostDebug.js';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from '../../../../platform/extensions/common/extensionHostStarter.js';
+import { extensionHostGraceTimeMs, IExtensionHostProcessOptions, IExtensionHostStarter } from '../../../../platform/extensions/common/extensionHostStarter.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -32,9 +33,9 @@ import { IWorkspaceContextService, WorkbenchState, isUntitledWorkspace } from '.
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IShellEnvironmentService } from '../../environment/electron-browser/shellEnvironmentService.js';
 import { MessagePortExtHostConnection, writeExtHostConnection } from '../common/extensionHostEnv.js';
-import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
+import { createMessageOfType, IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalProcessRunningLocation } from '../common/extensionRunningLocation.js';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo } from '../common/extensions.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, resolveEnabledApiProposalsFallbackExperiment } from '../common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
@@ -83,6 +84,10 @@ export class ExtensionHostProcess {
 		return this._extensionHostStarter.enableInspectPort(this._id);
 	}
 
+	public waitForExit(maxWaitTimeMs: number): Promise<void> {
+		return this._extensionHostStarter.waitForExit(this._id, maxWaitTimeMs);
+	}
+
 	public kill(): Promise<void> {
 		return this._extensionHostStarter.kill(this._id);
 	}
@@ -107,6 +112,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 	// State
 	private _terminating: boolean;
+	private _mainProcessHandlesExtHostShutdown: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _inspectListener: IExtensionInspectInfo | null;
@@ -133,6 +139,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
 		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
+		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		const devOpts = parseExtensionDevOptions(this._environmentService);
@@ -142,6 +149,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
 		this._terminating = false;
+		this._mainProcessHandlesExtHostShutdown = false;
 
 		this._inspectListener = null;
 		this._extensionHostProcess = null;
@@ -161,11 +169,41 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	}
 
 	public override dispose(): void {
-		if (this._terminating) {
-			return;
+		if (!this._terminating) {
+			this._terminating = true;
 		}
-		this._terminating = true;
 		super.dispose();
+		this._messageProtocol = null;
+	}
+
+	public async disconnect(): Promise<void> {
+		this._terminating = true;
+
+		// Send the Terminate message so the extension host can run
+		// deactivation handlers and exit gracefully.
+		if (this._messageProtocol) {
+			try {
+				const protocol = await Promise.race([
+					this._messageProtocol.then(protocol => protocol, () => undefined),
+					timeout(1000).then(() => undefined)
+				]);
+				protocol?.send(createMessageOfType(MessageType.Terminate));
+			} catch {
+				// ignore - extension host may have already exited
+			}
+		}
+
+		// For the restart case where the main process does not handle the
+		// extension host shutdown, signal the main process to start the grace
+		// timer (fire-and-forget). After the timeout the extension host will
+		// be forcefully killed if it hasn't exited on its own. For all
+		// window-lifecycle shutdown reasons (close/quit/reload/load), the
+		// main process already handles this via
+		// WindowUtilityProcess.registerWindowListeners.
+		if (this._extensionHostProcess && !this._mainProcessHandlesExtHostShutdown) {
+			this._extensionHostProcess.waitForExit(extensionHostGraceTimeMs).catch(() => { /* best-effort */ });
+		}
+
 		this._messageProtocol = null;
 	}
 
@@ -255,6 +293,21 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
 		);
+
+		// Persist the raw extension host process output (stdout/stderr) to the
+		// renderer log. The output is otherwise only forwarded (debounced) to the
+		// renderer DevTools console. A native crash of the extension host process
+		// - e.g. a faulty native addon - prints to the process' stderr but never
+		// reaches the JavaScript layer, so it has no JS stack and (for utility
+		// processes) frequently produces no crash dump; it also cannot go through
+		// the extension host's own log service, which lives in the dying process.
+		// Capturing the raw output from the (surviving) renderer keeps such
+		// crashes diagnosable from the logs. Gated to smoke tests
+		// (`--enable-smoke-test-driver`) so it does not affect regular sessions.
+		if (this._environmentService.args['enable-smoke-test-driver']) {
+			this._register(onStdout.event(line => this._logService.info(`[Extension Host (stdout)] ${line.replace(/\r?\n$/, '')}`)));
+			this._register(onStderr.event(line => this._logService.error(`[Extension Host (stderr)] ${line.replace(/\r?\n$/, '')}`)));
+		}
 
 		// Debounce all output, so we can render it in the Chrome console as a group
 		const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
@@ -469,17 +522,19 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		const initData = await this._initDataProvider.getInitData();
 		this.extensions = initData.extensions;
 		const workspace = this._contextService.getWorkspace();
+		const enabledApiProposalsFallback = await resolveEnabledApiProposalsFallbackExperiment(this._workbenchAssignmentService, this._productService.quality);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
 			date: this._productService.date,
 			parentPid: 0,
+			enabledApiProposalsFallback,
 			environment: {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 				appName: this._productService.nameLong,
-				appHost: this._productService.embedderIdentifier || 'desktop',
+				appHost: (this._environmentService.isSessionsWindow ? this._productService.agentsTelemetryAppName : undefined) || this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				isPortable: this._environmentService.isPortable,
@@ -592,6 +647,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	}
 
 	private _onWillShutdown(event: WillShutdownEvent): void {
+		this._mainProcessHandlesExtHostShutdown = true;
+
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
 		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {

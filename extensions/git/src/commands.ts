@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -1064,10 +1064,33 @@ export class CommandCenter {
 	}
 
 	@command('_git.pull')
-	async pullRepository(repositoryPath: string): Promise<void> {
+	async pullRepository(repositoryPath: string): Promise<boolean> {
 		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
 		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
-		await repo.pull();
+		return repo.pull();
+	}
+
+	@command('_git.fetchRepository')
+	async fetchRepository(repositoryPath: string): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.fetch();
+	}
+
+	@command('_git.revParse')
+	async revParse(repositoryPath: string, ref: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', ref]);
+		return result.stdout.trim();
+	}
+
+	@command('_git.revListCount')
+	async revListCount(repositoryPath: string, fromRef: string, toRef: string): Promise<number> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-list', '--count', `${fromRef}..${toRef}`]);
+		return Number(result.stdout.trim()) || 0;
 	}
 
 	@command('_git.revParseAbbrevRef')
@@ -5677,7 +5700,13 @@ export class CommandCenter {
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {
-		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
+		uri = uri ?? window.activeNotebookEditor?.notebook.uri ?? window.activeTextEditor?.document.uri;
+
+		// A notebook diff editor is neither the active text nor notebook editor, so
+		// fall back to its modified resource.
+		if (!uri && window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputNotebookDiff) {
+			uri = window.tabGroups.activeTabGroup.activeTab.input.modified;
+		}
 
 		this.logger.debug(`[CommandCenter][getSCMResource] git.getSCMResource.uri: ${uri && uri.toString()}`);
 

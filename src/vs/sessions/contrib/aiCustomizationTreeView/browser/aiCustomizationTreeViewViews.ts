@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationTreeView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -12,7 +13,7 @@ import { basename, dirname } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -26,20 +27,21 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSource, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 //#region Context Keys
 
@@ -52,6 +54,16 @@ export const AICustomizationIsEmptyContextKey = new RawContextKey<boolean>('aiCu
  * Context key for the current item's prompt type in context menus.
  */
 export const AICustomizationItemTypeContextKey = new RawContextKey<string>('aiCustomizationItemType', '');
+
+/**
+ * Context key indicating whether the current item is disabled.
+ */
+export const AICustomizationItemDisabledContextKey = new RawContextKey<boolean>('aiCustomizationItemDisabled', false);
+
+/**
+ * Context key for the current item's storage type in context menus.
+ */
+export const AICustomizationItemStorageContextKey = new RawContextKey<string>('aiCustomizationItemStorage', '');
 
 //#endregion
 
@@ -81,7 +93,7 @@ interface IAICustomizationGroupItem {
 	readonly type: 'group';
 	readonly id: string;
 	readonly label: string;
-	readonly storage: AICustomizationPromptsStorage;
+	readonly storage: AICustomizationSource;
 	readonly promptType: PromptsType;
 	readonly icon: ThemeIcon;
 }
@@ -95,8 +107,9 @@ interface IAICustomizationFileItem {
 	readonly uri: URI;
 	readonly name: string;
 	readonly description?: string;
-	readonly storage: AICustomizationPromptsStorage;
+	readonly storage: AICustomizationSource;
 	readonly promptType: PromptsType;
+	readonly disabled: boolean;
 }
 
 /**
@@ -149,6 +162,9 @@ interface IFileTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly name: HTMLElement;
+	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class AICustomizationCategoryRenderer implements ITreeRenderer<IAICustomizationTypeItem | IAICustomizationLinkItem, FuzzyScore, ICategoryTemplateData> {
@@ -189,15 +205,29 @@ class AICustomizationGroupRenderer implements ITreeRenderer<IAICustomizationGrou
 class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileItem, FuzzyScore, IFileTemplateData> {
 	readonly templateId = 'file';
 
+	constructor(
+		private readonly menuService: IMenuService,
+		private readonly contextKeyService: IContextKeyService,
+		private readonly instantiationService: IInstantiationService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const element = dom.append(container, dom.$('.ai-customization-tree-item'));
 		const icon = dom.append(element, dom.$('.icon'));
 		const name = dom.append(element, dom.$('.name'));
-		return { container: element, icon, name };
+		const actionsContainer = dom.append(element, dom.$('.actions'));
+
+		const templateDisposables = new DisposableStore();
+		const actionBar = templateDisposables.add(new ActionBar(actionsContainer, {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+		}));
+
+		return { container: element, icon, name, actionBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
 		const item = node.element;
+		templateData.elementDisposables.clear();
 
 		// Set icon based on prompt type
 		let icon: ThemeIcon;
@@ -222,12 +252,53 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 
 		templateData.name.textContent = item.name;
 
+		// Apply disabled styling
+		templateData.container.classList.toggle('disabled', item.disabled);
+
 		// Set tooltip with name and description
 		const tooltip = item.description ? `${item.name} - ${item.description}` : item.name;
 		templateData.container.title = tooltip;
+
+		// Build context for menu actions
+		const context = {
+			uri: item.uri.toString(),
+			name: item.name,
+			promptType: item.promptType,
+			storage: item.storage,
+		};
+
+		// Create scoped context key service with item type for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AICustomizationItemTypeContextKey.key, item.promptType],
+			[AICustomizationItemDisabledContextKey.key, item.disabled],
+			[AICustomizationItemStorageContextKey.key, item.storage],
+		]);
+
+		// Create menu and extract inline actions
+		const menu = templateData.elementDisposables.add(
+			this.menuService.createMenu(AICustomizationItemMenuId, overlay)
+		);
+
+		const updateActions = () => {
+			const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
+			const { primary } = getContextMenuActions(actions, 'inline');
+			templateData.actionBar.clear();
+			templateData.actionBar.push(primary, { icon: true, label: false });
+		};
+		updateActions();
+		templateData.elementDisposables.add(menu.onDidChange(updateActions));
+
+		templateData.actionBar.context = context;
 	}
 
-	disposeTemplate(_templateData: IFileTemplateData): void { }
+	disposeElement(_node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: IFileTemplateData): void {
+		templateData.templateDisposables.dispose();
+		templateData.elementDisposables.dispose();
+	}
 }
 
 /**
@@ -250,6 +321,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		private readonly promptsService: IPromptsService,
 		private readonly logService: ILogService,
 		private readonly onItemCountChanged: (count: number) => void,
+		private readonly isAutomationsEnabled: () => boolean,
 	) { }
 
 	/**
@@ -292,7 +364,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	}
 
 	private getTypeCategories(): (IAICustomizationTypeItem | IAICustomizationLinkItem)[] {
-		return [
+		const items: (IAICustomizationTypeItem | IAICustomizationLinkItem)[] = [
 			{
 				type: 'category',
 				id: 'category-agents',
@@ -314,13 +386,17 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				promptType: PromptsType.instructions,
 				icon: instructionsIcon,
 			},
-			{
-				type: 'category',
-				id: 'category-prompts',
-				label: localize('prompts', "Prompts"),
-				promptType: PromptsType.prompt,
-				icon: promptIcon,
-			},
+		];
+		if (this.isAutomationsEnabled()) {
+			items.push({
+				type: 'link',
+				id: 'link-automations',
+				label: localize('automations', "Automations"),
+				icon: automationIcon,
+				section: AICustomizationManagementSection.Automations,
+			});
+		}
+		items.push(
 			{
 				type: 'link',
 				id: 'link-mcp-servers',
@@ -328,7 +404,8 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				icon: mcpServerIcon,
 				section: AICustomizationManagementSection.McpServers,
 			},
-		];
+		);
+		return items;
 	}
 
 	/**
@@ -356,15 +433,19 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const workspaceSkills = cached.skills.filter(s => s.storage === PromptsStorage.local);
 			const userSkills = cached.skills.filter(s => s.storage === PromptsStorage.user);
 			const extensionSkills = cached.skills.filter(s => s.storage === PromptsStorage.extension);
+			const builtinSkills = cached.skills.filter(s => s.storage === PromptsStorage.builtIn);
 
 			if (workspaceSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceSkills.length));
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.local, workspaceSkills.length));
 			}
 			if (userSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.user, userSkills.length));
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.user, userSkills.length));
 			}
 			if (extensionSkills.length > 0) {
-				groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionSkills.length));
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.extension, extensionSkills.length));
+			}
+			if (builtinSkills.length > 0) {
+				groups.push(this.createGroupItem(promptType, AICustomizationSources.builtin, builtinSkills.length));
 			}
 
 			return groups;
@@ -372,17 +453,29 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 
 		// For other types, fetch once and cache grouped by storage
 		if (!cached.files) {
-			const allItems = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+			const allItems: IPromptPath[] = [...await this.promptsService.listPromptFiles(promptType, CancellationToken.None)];
+
+			// For instructions, also include agent instructions (AGENTS.md, copilot-instructions.md, CLAUDE.md, etc.)
+			if (promptType === PromptsType.instructions) {
+				const existingUris = new ResourceSet(allItems.map(item => item.uri));
+				const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None);
+				for (const file of agentInstructions) {
+					if (!existingUris.has(file.uri)) {
+						allItems.push({ uri: file.uri, storage: PromptsStorage.local, type: PromptsType.instructions });
+					}
+				}
+			}
+
 			const workspaceItems = allItems.filter(item => item.storage === PromptsStorage.local);
 			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
-			const builtinItems = allItems.filter(item => item.storage === BUILTIN_STORAGE);
+			const builtinItems = allItems.filter(item => item.storage === PromptsStorage.builtIn);
 
 			cached.files = new Map<string, readonly IPromptPath[]>([
 				[PromptsStorage.local, workspaceItems],
 				[PromptsStorage.user, userItems],
 				[PromptsStorage.extension, extensionItems],
-				[BUILTIN_STORAGE, builtinItems],
+				[PromptsStorage.builtIn, builtinItems],
 			]);
 
 			const itemCount = allItems.length;
@@ -393,7 +486,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		const workspaceItems = cached.files!.get(PromptsStorage.local) || [];
 		const userItems = cached.files!.get(PromptsStorage.user) || [];
 		const extensionItems = cached.files!.get(PromptsStorage.extension) || [];
-		const builtinItems = cached.files!.get(BUILTIN_STORAGE) || [];
+		const builtinItems = cached.files!.get(PromptsStorage.builtIn) || [];
 
 		if (workspaceItems.length > 0) {
 			groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceItems.length));
@@ -405,7 +498,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionItems.length));
 		}
 		if (builtinItems.length > 0) {
-			groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinItems.length));
+			groups.push(this.createGroupItem(promptType, PromptsStorage.builtIn, builtinItems.length));
 		}
 
 		return groups;
@@ -414,29 +507,29 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	/**
 	 * Creates a group item with consistent structure.
 	 */
-	private createGroupItem(promptType: PromptsType, storage: AICustomizationPromptsStorage, count: number): IAICustomizationGroupItem {
+	private createGroupItem(promptType: PromptsType, storage: AICustomizationSource, count: number): IAICustomizationGroupItem {
 		const storageLabels: Record<string, string> = {
-			[PromptsStorage.local]: localize('workspaceWithCount', "Workspace ({0})", count),
-			[PromptsStorage.user]: localize('userWithCount', "User ({0})", count),
-			[PromptsStorage.extension]: localize('extensionsWithCount', "Extensions ({0})", count),
-			[PromptsStorage.plugin]: localize('pluginsWithCount', "Plugins ({0})", count),
-			[BUILTIN_STORAGE]: localize('builtinWithCount', "Built-in ({0})", count),
+			[AICustomizationSources.local]: localize('workspaceWithCount', "Workspace ({0})", count),
+			[AICustomizationSources.user]: localize('userWithCount', "User ({0})", count),
+			[AICustomizationSources.extension]: localize('extensionsWithCount', "Extensions ({0})", count),
+			[AICustomizationSources.plugin]: localize('pluginsWithCount', "Plugins ({0})", count),
+			[AICustomizationSources.builtin]: localize('builtinWithCount', "Built-in ({0})", count),
 		};
 
 		const storageIcons: Record<string, ThemeIcon> = {
-			[PromptsStorage.local]: workspaceIcon,
-			[PromptsStorage.user]: userIcon,
-			[PromptsStorage.extension]: extensionIcon,
-			[PromptsStorage.plugin]: pluginIcon,
-			[BUILTIN_STORAGE]: builtinIcon,
+			[AICustomizationSources.local]: workspaceIcon,
+			[AICustomizationSources.user]: userIcon,
+			[AICustomizationSources.extension]: extensionIcon,
+			[AICustomizationSources.plugin]: pluginIcon,
+			[AICustomizationSources.builtin]: builtinIcon,
 		};
 
 		const storageSuffixes: Record<string, string> = {
-			[PromptsStorage.local]: 'workspace',
-			[PromptsStorage.user]: 'user',
-			[PromptsStorage.extension]: 'extensions',
-			[PromptsStorage.plugin]: 'plugins',
-			[BUILTIN_STORAGE]: 'builtin',
+			[AICustomizationSources.local]: 'workspace',
+			[AICustomizationSources.user]: 'user',
+			[AICustomizationSources.extension]: 'extensions',
+			[AICustomizationSources.plugin]: 'plugins',
+			[AICustomizationSources.builtin]: 'builtin',
 		};
 
 		return {
@@ -453,15 +546,18 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	 * Returns files for a specific storage/type combination from cache.
 	 * getStorageGroups must be called first to populate the cache.
 	 */
-	private async getFilesForStorageAndType(storage: AICustomizationPromptsStorage, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
+	private async getFilesForStorageAndType(storage: AICustomizationSource, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
 		const cached = this.cache.get(promptType);
+		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 
-		// For skills, use the cached skills data
+		// For skills, use the cached skills data and merge in disabled skills
 		if (promptType === PromptsType.skill) {
 			const skills = cached?.skills || [];
 			const filtered = skills.filter(skill => skill.storage === storage);
-			return filtered
+			const seenUris = new Set<string>();
+			const result: IAICustomizationFileItem[] = filtered
 				.map(skill => {
+					seenUris.add(skill.uri.toString());
 					// Use skill name from frontmatter, or fallback to parent folder name
 					const skillName = skill.name || basename(dirname(skill.uri)) || basename(skill.uri);
 					return {
@@ -472,8 +568,30 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 						description: skill.description,
 						storage: skill.storage,
 						promptType,
+						disabled: disabledUris.has(skill.uri),
 					};
 				});
+
+			// Include disabled skills not already in the enabled list
+			if (disabledUris.size > 0) {
+				const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
+				for (const file of allSkillFiles) {
+					if (file.storage === storage && !seenUris.has(file.uri.toString()) && disabledUris.has(file.uri)) {
+						result.push({
+							type: 'file' as const,
+							id: file.uri.toString(),
+							uri: file.uri,
+							name: file.name || basename(dirname(file.uri)) || basename(file.uri),
+							description: file.description,
+							storage: file.storage,
+							promptType,
+							disabled: true,
+						});
+					}
+				}
+			}
+
+			return result;
 		}
 
 		// Use cached files data (already fetched in getStorageGroups)
@@ -486,6 +604,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			description: item.description,
 			storage: item.storage,
 			promptType,
+			disabled: disabledUris.has(item.uri),
 		}));
 	}
 }
@@ -508,6 +627,8 @@ export class AICustomizationViewPane extends ViewPane {
 	// Context keys for controlling menu visibility and welcome content
 	private readonly isEmptyContextKey: IContextKey<boolean>;
 	private readonly itemTypeContextKey: IContextKey<string>;
+	private readonly itemDisabledContextKey: IContextKey<boolean>;
+	private readonly itemStorageContextKey: IContextKey<string>;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -532,6 +653,8 @@ export class AICustomizationViewPane extends ViewPane {
 		// Initialize context keys
 		this.isEmptyContextKey = AICustomizationIsEmptyContextKey.bindTo(contextKeyService);
 		this.itemTypeContextKey = AICustomizationItemTypeContextKey.bindTo(contextKeyService);
+		this.itemDisabledContextKey = AICustomizationItemDisabledContextKey.bindTo(contextKeyService);
+		this.itemStorageContextKey = AICustomizationItemStorageContextKey.bindTo(contextKeyService);
 
 		// Subscribe to prompt service events to refresh tree
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
@@ -565,6 +688,7 @@ export class AICustomizationViewPane extends ViewPane {
 			this.promptsService,
 			this.logService,
 			(count) => this.isEmptyContextKey.set(count === 0),
+			() => this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true,
 		);
 
 		this.tree = this.treeDisposables.add(this.instantiationService.createInstance(
@@ -575,7 +699,7 @@ export class AICustomizationViewPane extends ViewPane {
 			[
 				new AICustomizationCategoryRenderer(),
 				new AICustomizationGroupRenderer(),
-				new AICustomizationFileRenderer(),
+				new AICustomizationFileRenderer(this.menuService, this.contextKeyService, this.instantiationService),
 			],
 			this.dataSource,
 			{
@@ -590,10 +714,13 @@ export class AICustomizationViewPane extends ViewPane {
 						if (element.type === 'group') {
 							return element.label;
 						}
-						// For files, include description if available
-						return element.description
+						// For files, include description and disabled state
+						const nameAndDesc = element.description
 							? localize('fileAriaLabel', "{0}, {1}", element.name, element.description)
 							: element.name;
+						return element.disabled
+							? localize('fileAriaLabelDisabled', "{0}, disabled", nameAndDesc)
+							: nameAndDesc;
 					},
 					getWidgetAriaLabel: () => localize('aiCustomizationTree', "Chat Customization Items"),
 				},
@@ -616,7 +743,7 @@ export class AICustomizationViewPane extends ViewPane {
 				});
 			} else if (e.element && e.element.type === 'link') {
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const editor = await this.editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				const editor = await this.editorService.openEditor(input, { pinned: true });
 				if (editor instanceof AICustomizationManagementEditor) {
 					editor.selectSectionById(e.element.section);
 				}
@@ -671,14 +798,17 @@ export class AICustomizationViewPane extends ViewPane {
 
 		const element = e.element;
 
-		// Set context key for the item type so menu items can use `when` clauses
+		// Set context keys for the item so menu items can use `when` clauses
 		this.itemTypeContextKey.set(element.promptType);
+		this.itemDisabledContextKey.set(element.disabled);
+		this.itemStorageContextKey.set(element.storage);
 
 		// Get menu actions from the menu service
 		const context = {
 			uri: element.uri.toString(),
 			name: element.name,
 			promptType: element.promptType,
+			disabled: element.disabled,
 		};
 		const menu = this.menuService.getMenuActions(AICustomizationItemMenuId, this.contextKeyService, { arg: context, shouldForwardArgs: true });
 		const { secondary } = getContextMenuActions(menu, 'inline');
@@ -690,8 +820,10 @@ export class AICustomizationViewPane extends ViewPane {
 				getActions: () => secondary,
 				getActionsContext: () => context,
 				onHide: () => {
-					// Clear the context key when menu closes
+					// Clear the context keys when menu closes
 					this.itemTypeContextKey.reset();
+					this.itemDisabledContextKey.reset();
+					this.itemStorageContextKey.reset();
 				},
 			});
 		}

@@ -33,8 +33,9 @@ export interface IPluginSource {
 
 	/**
 	 * Update an already-installed plugin source (git pull, npm update, etc.).
+	 * Returns `true` if the update brought in new changes.
 	 */
-	update(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<void>;
+	update(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean>;
 
 	/**
 	 * Returns the on-disk directory to delete when this plugin is
@@ -59,5 +60,5 @@ export interface IPluginSource {
 	 *
 	 * Not implemented by non-package-manager sources.
 	 */
-	runInstall?(installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin): Promise<{ pluginDir: URI } | undefined>;
+	runInstall?(installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin, options?: { silent?: boolean }): Promise<{ pluginDir: URI } | undefined>;
 }
