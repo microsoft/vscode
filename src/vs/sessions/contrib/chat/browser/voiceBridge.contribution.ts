@@ -308,9 +308,7 @@ export class SessionsVoiceNewComposerContribution extends Disposable implements 
 	) {
 		super();
 
-		// The composer that owns the current voice connection. Tracked across the
-		// transient `undefined` gap while one composer is disposed and the next
-		// mounts, so a genuine surface change is distinguished from that churn.
+		// Preserve the owner across the disposal/mount gap so a new surface can be detected.
 		let voiceComposer: INewChatVoiceComposer | undefined;
 		this._register(autorun(reader => {
 			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
