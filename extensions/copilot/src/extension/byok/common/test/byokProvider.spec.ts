@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
-import { byokKnownModelToAPIInfo, BYOKModelCapabilities, ClientBYOKPolicySourceState, ClientBYOKPolicy, evaluateClientBYOKPolicy, getClientBYOKPolicySourceStateFromToken, getClientBYOKPolicyFromToken, isClientBYOKAllowed, resolveModelInfo, resolveModelTokenLimits } from '../byokProvider';
+import { byokKnownModelToAPIInfo, BYOKModelCapabilities, isClientBYOKAllowed, resolveModelInfo, resolveModelTokenLimits } from '../byokProvider';
 
 describe('byokKnownModelToAPIInfo', () => {
 	const baseCapabilities: BYOKModelCapabilities = {
@@ -170,7 +170,7 @@ describe('resolveModelTokenLimits', () => {
 	});
 });
 
-describe('client BYOK policy evaluation', () => {
+describe('isClientBYOKAllowed', () => {
 	function mockToken(props: { isInternal?: boolean; isIndividual?: boolean; isClientBYOKEnabled?: boolean }): Omit<CopilotToken, 'token'> {
 		return {
 			isInternal: props.isInternal ?? false,
@@ -179,98 +179,27 @@ describe('client BYOK policy evaluation', () => {
 		} as unknown as Omit<CopilotToken, 'token'>;
 	}
 
-	it.each([
-		{ token: mockToken({ isInternal: true }), policySourceState: ClientBYOKPolicySourceState.Internal, policy: ClientBYOKPolicy.Allow },
-		{ token: mockToken({ isIndividual: true }), policySourceState: ClientBYOKPolicySourceState.Individual, policy: ClientBYOKPolicy.Allow },
-		{ token: mockToken({ isClientBYOKEnabled: true }), policySourceState: ClientBYOKPolicySourceState.Managed, policy: ClientBYOKPolicy.Allow },
-		{ token: mockToken({}), policySourceState: ClientBYOKPolicySourceState.Managed, policy: ClientBYOKPolicy.Deny },
-	])('classifies Copilot token policy for $policySourceState / $policy', ({ token, policySourceState, policy }) => {
-		expect(getClientBYOKPolicySourceStateFromToken(token)).toBe(policySourceState);
-		expect(getClientBYOKPolicyFromToken(token)).toBe(policy);
+	it('allows BYOK when there is no Copilot token source', () => {
+		expect(isClientBYOKAllowed(false, undefined)).toBe(true);
 	});
 
-	it.each([
-		{
-			scenario: 'signed out of GitHub',
-			why: 'BYOK is local/user-owned and does not require GitHub auth',
-			policySourceState: ClientBYOKPolicySourceState.SignedOut,
-			livePolicy: ClientBYOKPolicy.Unknown,
-			cachedPolicy: undefined,
-			expectedPolicy: ClientBYOKPolicy.Allow,
-		},
-		{
-			scenario: 'signed in without Copilot entitlement',
-			why: 'BYOK should not require a paid Copilot seat',
-			policySourceState: ClientBYOKPolicySourceState.NoCopilotEntitlement,
-			livePolicy: ClientBYOKPolicy.Allow,
-			cachedPolicy: undefined,
-			expectedPolicy: ClientBYOKPolicy.Allow,
-		},
-		{
-			scenario: 'Copilot subscription expired',
-			why: 'BYOK endpoints remain independent even when Copilot access has lapsed',
-			policySourceState: ClientBYOKPolicySourceState.SubscriptionExpired,
-			livePolicy: ClientBYOKPolicy.Allow,
-			cachedPolicy: undefined,
-			expectedPolicy: ClientBYOKPolicy.Allow,
-		},
-		{
-			scenario: 'managed account with live BYOK allow policy',
-			why: 'live enterprise policy takes precedence over stale cached policy',
-			policySourceState: ClientBYOKPolicySourceState.Managed,
-			livePolicy: ClientBYOKPolicy.Allow,
-			cachedPolicy: ClientBYOKPolicy.Deny,
-			expectedPolicy: ClientBYOKPolicy.Allow,
-		},
-		{
-			scenario: 'managed account with live BYOK deny policy',
-			why: 'explicit enterprise policy must be respected',
-			policySourceState: ClientBYOKPolicySourceState.Managed,
-			livePolicy: ClientBYOKPolicy.Deny,
-			cachedPolicy: ClientBYOKPolicy.Allow,
-			expectedPolicy: ClientBYOKPolicy.Deny,
-		},
-		{
-			scenario: 'managed policy unavailable with cached allow policy',
-			why: 'air-gapped enterprise users should retain last known allowed BYOK policy',
-			policySourceState: ClientBYOKPolicySourceState.ManagedPolicyUnavailable,
-			livePolicy: ClientBYOKPolicy.Unknown,
-			cachedPolicy: ClientBYOKPolicy.Allow,
-			expectedPolicy: ClientBYOKPolicy.Allow,
-		},
-		{
-			scenario: 'managed policy unavailable with cached deny policy',
-			why: 'air-gapped enterprise users should retain last known denied BYOK policy',
-			policySourceState: ClientBYOKPolicySourceState.ManagedPolicyUnavailable,
-			livePolicy: ClientBYOKPolicy.Unknown,
-			cachedPolicy: ClientBYOKPolicy.Deny,
-			expectedPolicy: ClientBYOKPolicy.Deny,
-		},
-		{
-			scenario: 'managed policy unavailable with no cached policy',
-			why: 'enterprise policy enforcement should fail closed when policy is unknown',
-			policySourceState: ClientBYOKPolicySourceState.ManagedPolicyUnavailable,
-			livePolicy: ClientBYOKPolicy.Unknown,
-			cachedPolicy: undefined,
-			expectedPolicy: ClientBYOKPolicy.Deny,
-		},
-		{
-			scenario: 'unclassified auth failure without enterprise policy signal',
-			why: 'do not block BYOK for ordinary users solely because Copilot auth failed',
-			policySourceState: ClientBYOKPolicySourceState.UnclassifiedAuthFailure,
-			livePolicy: ClientBYOKPolicy.Unknown,
-			cachedPolicy: undefined,
-			expectedPolicy: ClientBYOKPolicy.Allow,
-		},
-	])('$scenario: $why', ({ policySourceState, livePolicy, cachedPolicy, expectedPolicy }) => {
-		const evaluation = evaluateClientBYOKPolicy(policySourceState, livePolicy, cachedPolicy);
+	it('denies BYOK when a Copilot token source exists but the token is unavailable', () => {
+		expect(isClientBYOKAllowed(true, undefined)).toBe(false);
+	});
 
-		expect(evaluation).toEqual({
-			policySourceState,
-			livePolicy,
-			cachedEnterprisePolicy: cachedPolicy,
-			finalPolicy: expectedPolicy,
-		});
-		expect(isClientBYOKAllowed(evaluation)).toBe(expectedPolicy === ClientBYOKPolicy.Allow);
+	it('allows BYOK for internal users', () => {
+		expect(isClientBYOKAllowed(true, mockToken({ isInternal: true }))).toBe(true);
+	});
+
+	it('allows BYOK for individual users', () => {
+		expect(isClientBYOKAllowed(true, mockToken({ isIndividual: true }))).toBe(true);
+	});
+
+	it('allows BYOK when the token explicitly enables it', () => {
+		expect(isClientBYOKAllowed(true, mockToken({ isClientBYOKEnabled: true }))).toBe(true);
+	});
+
+	it('denies BYOK for managed users when no policy flag is set', () => {
+		expect(isClientBYOKAllowed(true, mockToken({}))).toBe(false);
 	});
 });

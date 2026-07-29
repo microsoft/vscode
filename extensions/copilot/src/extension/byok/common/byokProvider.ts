@@ -211,86 +211,18 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 	};
 }
 
-export const enum ClientBYOKPolicySourceState {
-	// No GitHub identity is available:
-	SignedOut = 'signedOut',
-	// GitHub is signed in, but the account has no Copilot entitlement:
-	NoCopilotEntitlement = 'noCopilotEntitlement',
-	// Copilot access exists but has expired:
-	SubscriptionExpired = 'subscriptionExpired',
-	// Copilot token represents an individual user:
-	Individual = 'individual',
-	// Copilot token represents an internal user:
-	Internal = 'internal',
-	// Copilot token represents a managed Enterprise account:
-	Managed = 'managed',
-	// Enterprise policy applies, but live policy cannot be reached:
-	ManagedPolicyUnavailable = 'managedPolicyUnavailable',
-	// Auth/policy resolution failed without an enterprise policy signal:
-	UnclassifiedAuthFailure = 'unclassifiedAuthFailure',
-}
-
-export const enum ClientBYOKPolicy {
-	Allow = 'allow',
-	Deny = 'deny',
-	Unknown = 'unknown',
-}
-
-export interface ClientBYOKPolicyEvaluation {
-	policySourceState: ClientBYOKPolicySourceState;
-	livePolicy: ClientBYOKPolicy;
-	cachedEnterprisePolicy?: ClientBYOKPolicy;
-	finalPolicy: ClientBYOKPolicy;
-}
-
-export function getClientBYOKPolicySourceStateFromToken(copilotToken: Omit<CopilotToken, 'token'>): ClientBYOKPolicySourceState {
-	if (copilotToken.isInternal) {
-		return ClientBYOKPolicySourceState.Internal;
+/**
+ * Users without a Copilot token source are allowed; users with a token source must have an individual,
+ * internal, or enterprise-enabled Copilot token.
+ */
+export function isClientBYOKAllowed(hasCopilotTokenSource: boolean, copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
+	if (!hasCopilotTokenSource) {
+		return true;
 	}
-	if (copilotToken.isIndividual) {
-		return ClientBYOKPolicySourceState.Individual;
+	if (!copilotToken) {
+		return false;
 	}
-	return ClientBYOKPolicySourceState.Managed;
-}
-
-export function getClientBYOKPolicyFromToken(copilotToken: Omit<CopilotToken, 'token'>): ClientBYOKPolicy {
-	return copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled()
-		? ClientBYOKPolicy.Allow
-		: ClientBYOKPolicy.Deny;
-}
-
-export function evaluateClientBYOKPolicy(
-	policySourceState: ClientBYOKPolicySourceState,
-	livePolicy: ClientBYOKPolicy = ClientBYOKPolicy.Unknown,
-	cachedEnterprisePolicy?: ClientBYOKPolicy
-): ClientBYOKPolicyEvaluation {
-	let finalPolicy: ClientBYOKPolicy;
-	switch (policySourceState) {
-		case ClientBYOKPolicySourceState.SignedOut:
-		case ClientBYOKPolicySourceState.NoCopilotEntitlement:
-		case ClientBYOKPolicySourceState.SubscriptionExpired:
-		case ClientBYOKPolicySourceState.Individual:
-		case ClientBYOKPolicySourceState.Internal:
-			finalPolicy = ClientBYOKPolicy.Allow;
-			break;
-		case ClientBYOKPolicySourceState.Managed:
-			finalPolicy = livePolicy === ClientBYOKPolicy.Unknown
-				? cachedEnterprisePolicy ?? ClientBYOKPolicy.Deny
-				: livePolicy;
-			break;
-		case ClientBYOKPolicySourceState.ManagedPolicyUnavailable:
-			finalPolicy = cachedEnterprisePolicy ?? ClientBYOKPolicy.Deny;
-			break;
-		case ClientBYOKPolicySourceState.UnclassifiedAuthFailure:
-			finalPolicy = ClientBYOKPolicy.Allow;
-			break;
-	}
-
-	return { policySourceState, livePolicy, cachedEnterprisePolicy, finalPolicy };
-}
-
-export function isClientBYOKAllowed(evaluation: ClientBYOKPolicyEvaluation): boolean {
-	return evaluation.finalPolicy === ClientBYOKPolicy.Allow;
+	return copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled();
 }
 
 /**
