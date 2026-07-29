@@ -149,10 +149,10 @@ export interface IVoiceGlowStyle {
 }
 
 /**
- * Compute the Aurora glow border color and box-shadow for the given state and
- * audio intensity. The glow is intentionally subtle; the listening glow is a
- * little stronger when the transcript is hidden. Connected-idle voice mode
- * renders no glow and never reaches this function.
+ * Compute the glow border color and box-shadow. Blue while listening (a little
+ * stronger when the transcript is hidden) and purple while speaking. The glow is
+ * intentionally subtle. Connected-idle voice mode renders no glow and never
+ * reaches this function.
  */
 export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: number, transcriptHidden: boolean, colors: IVoiceGlowColors = DEFAULT_VOICE_GLOW_COLORS): IVoiceGlowStyle {
 	const rgb = voiceGlowStateRgb(voiceState, colors);
@@ -166,7 +166,7 @@ export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: num
 		shadowSpread = 4 + intensity * 10;
 		shadowAlpha = 0.15 + intensity * 0.3;
 	} else {
-		// Standard subtle glow (transcript visible, processing breath, or TTS playback).
+		// Standard subtle glow (transcript visible or TTS playback).
 		borderAlpha = 0.3 + intensity * 0.3;
 		shadowSpread = 3 + intensity * 6;
 		shadowAlpha = 0.1 + intensity * 0.2;

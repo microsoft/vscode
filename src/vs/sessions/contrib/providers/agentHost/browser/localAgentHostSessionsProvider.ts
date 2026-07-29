@@ -63,7 +63,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	/** Quick chats are only offered while the agent host is enabled. */
 	get supportsQuickChats(): boolean {
-		return this._agentHostEnablementService.enabled;
+		return this._agentHostEnablementService.enabled.get();
 	}
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */

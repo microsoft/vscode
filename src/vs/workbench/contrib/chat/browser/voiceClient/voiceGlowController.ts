@@ -381,6 +381,12 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 		if (state !== this._currentState) {
 			this._currentState = state;
+			// Publish state classes on the target so surface CSS that tints the mic
+			// glyph (blue listening / purple speaking) keeps working.
+			this._target.classList.add('voice-active');
+			this._target.classList.toggle('voice-listening', mapped === 'listening');
+			this._target.classList.toggle('voice-processing', mapped === 'processing');
+			this._target.classList.toggle('voice-speaking', mapped === 'speaking');
 			this._showState(mapped, reducedMotion);
 		}
 
@@ -395,6 +401,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			return;
 		}
 		this._currentState = 'none';
+		this._target.classList.remove('voice-active', 'voice-listening', 'voice-processing', 'voice-speaking');
 		const prev = this._front;
 		this._front = undefined;
 		if (prev) {

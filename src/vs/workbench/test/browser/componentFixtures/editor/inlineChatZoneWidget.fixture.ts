@@ -26,6 +26,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -327,6 +328,9 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override announceRendered() { }
 			}());
 			reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
+				override registerHost() { return Disposable.None; }
+			}());
+			reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
 				override registerHost() { return Disposable.None; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {

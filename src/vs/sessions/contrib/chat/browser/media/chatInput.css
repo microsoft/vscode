@@ -11,6 +11,18 @@
 	display: none;
 }
 
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
+	margin-bottom: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container {
+	margin-top: 0;
+}
+
+.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container .new-chat-input-area {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+}
+
 .new-session-feedback-banners {
 	width: 100%;
 	max-width: 800px;
@@ -319,6 +331,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
@@ -352,6 +365,7 @@
 .monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
 	display: inline-block;
+	font-size: var(--vscode-codiconFontSize-compact);
 	transform: translateY(0.5px);
 }
 

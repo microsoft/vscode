@@ -345,6 +345,27 @@ class CapturingLogService extends NullLogService {
 	}
 }
 
+class CapturingTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sendErrorTelemetry = true;
+	readonly sessionId = 'sessionId';
+	readonly machineId = 'machineId';
+	readonly sqmId = 'sqmId';
+	readonly devDeviceId = 'devDeviceId';
+	readonly firstSessionDate = 'firstSessionDate';
+	readonly events: Array<{ eventName: string; data: unknown }> = [];
+
+	publicLog(): void { }
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+		this.events.push({ eventName, data });
+	}
+	publicLogError(): void { }
+	publicLogError2(): void { }
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
+}
+
 // ---- Helpers ----------------------------------------------------------------
 
 /**
@@ -2310,6 +2331,126 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('managed approval requires confirmation despite an approve recommendation', async () => {
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+			mockSession.fire('permission.requested', {
+				requestId: 'request-managed',
+				permissionRequest: {
+					kind: 'read',
+					path: '/workspace/src/file.ts',
+					intention: 'Read the file',
+					toolCallId: 'tc-managed',
+					managedApprovalRequired: true,
+				},
+				promptRequest: {
+					kind: 'path',
+					accessKind: 'read',
+					paths: ['/workspace/src/file.ts'],
+					toolCallId: 'tc-managed',
+					managedApprovalRequired: true,
+					autoApproval: { recommendation: 'approve', reason: 'Low risk' },
+				},
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'read',
+				path: '/workspace/src/file.ts',
+				toolCallId: 'tc-managed',
+				managedApprovalRequired: true,
+			});
+
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+			assert.strictEqual(signals[0].kind === 'pending_confirmation' && signals[0].managedApprovalRequired, true);
+			assert.ok(session.respondToPermissionRequest('tc-managed', true));
+			assert.strictEqual((await resultPromise).kind, 'approve-once');
+		});
+
+		test('managed approval requires confirmation under global and session allow-all modes', async () => {
+			const testCases = [
+				{
+					name: 'global',
+					options: { rootValues: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true } },
+				},
+				{
+					name: 'session',
+					options: { configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } },
+				},
+			];
+
+			for (const testCase of testCases) {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, testCase.options);
+				await session.syncPermissionMode('turn-start');
+				const toolCallId = `tc-managed-${testCase.name}`;
+				const resultPromise = runtime.handlePermissionRequest({
+					kind: 'read',
+					path: '/workspace/src/file.ts',
+					toolCallId,
+					managedApprovalRequired: true,
+				});
+
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.deepStrictEqual({
+					managedApprovalRequired: signals[0].kind === 'pending_confirmation' ? signals[0].managedApprovalRequired : undefined,
+					responded: session.respondToPermissionRequest(toolCallId, false),
+					result: await resultPromise,
+				}, {
+					managedApprovalRequired: true,
+					responded: true,
+					result: { kind: 'denied-interactively-by-user' },
+				}, testCase.name);
+				disposables.clear();
+			}
+		});
+
+		test('managed read and write approvals do not auto-approve duplicate requests', async () => {
+			const testCases = [
+				{
+					name: 'read',
+					request: {
+						kind: 'read' as const,
+						path: '/workspace/src/file.ts',
+						toolCallId: 'tc-managed-duplicate-read',
+						managedApprovalRequired: true,
+					},
+				},
+				{
+					name: 'write',
+					request: {
+						kind: 'write' as const,
+						fileName: '/workspace/src/file.ts',
+						toolCallId: 'tc-managed-duplicate-write',
+						managedApprovalRequired: true,
+					},
+				},
+			];
+
+			for (const testCase of testCases) {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				const firstResultPromise = runtime.handlePermissionRequest(testCase.request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(testCase.request.toolCallId, true));
+				const firstResult = await firstResultPromise;
+
+				const duplicateResultPromise = runtime.handlePermissionRequest({ ...testCase.request });
+				await timeout(0);
+				const pendingConfirmationCount = signals.filter(signal => signal.kind === 'pending_confirmation').length;
+				assert.ok(session.respondToPermissionRequest(testCase.request.toolCallId, false));
+
+				assert.deepStrictEqual({
+					results: [firstResult, await duplicateResultPromise],
+					pendingConfirmationCount,
+				}, {
+					results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+					pendingConfirmationCount: 2,
+				}, testCase.name);
+				disposables.clear();
+			}
+		});
+
 		test('Approve When Safe correlates a recommendation event that arrives after the permission callback', async () => {
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -2755,6 +2896,52 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatResponsePart);
 			assert.ok(responseParts.length > 0, 'expected delta to allocate a response part');
 			assert.strictEqual(responseParts[0].turnId, turnStarted.turnId, 'response part should land in the steering turn, not the original');
+		});
+
+		test('reports tool-call details for the turn completed by steering', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-original');
+			await session.send('hello agent', undefined, 'turn-original');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-tools',
+				content: '',
+				model: 'gpt-x',
+				toolRequests: [{ toolCallId: 'tc-1', name: 'grep', arguments: {} }],
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events
+				.filter(event => event.eventName === 'toolCallDetails')
+				.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return {
+						requestId: data.requestId,
+						responseType: data.responseType,
+						toolCounts: data.toolCounts,
+						model: data.model,
+						numRequests: data.numRequests,
+						messageCharLen: data.messageCharLen,
+						totalToolCalls: data.totalToolCalls,
+					};
+				}), [{
+					requestId: 'turn-original',
+					responseType: 'success',
+					toolCounts: JSON.stringify({ grep: 1 }),
+					model: 'gpt-x',
+					numRequests: 1,
+					messageCharLen: 11,
+					totalToolCalls: 1,
+				}]);
 		});
 
 		test('does not flip turns for SDK-injected user messages (non-user source)', async () => {
@@ -4000,6 +4187,66 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			assert.ok(isAction(signals[0], ActionType.ChatTurnComplete));
+		});
+
+		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-tool-details');
+			await session.send('hello agent', undefined, 'turn-tool-details');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-tools',
+				content: '',
+				model: 'gpt-x',
+				toolRequests: [
+					{ toolCallId: 'tc-1', name: 'grep', arguments: {} },
+					{ toolCallId: 'tc-2', name: 'edit', arguments: {} },
+				],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-final',
+				content: 'done',
+				model: 'gpt-x',
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events.map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					eventName: event.eventName,
+					provider: data.provider,
+					requestId: data.requestId,
+					responseType: data.responseType,
+					toolCounts: data.toolCounts,
+					model: data.model,
+					numRequests: data.numRequests,
+					turnIndex: data.turnIndex,
+					messageCharLen: data.messageCharLen,
+					availableToolCount: data.availableToolCount,
+					totalToolCalls: data.totalToolCalls,
+					parallelToolCallRounds: data.parallelToolCallRounds,
+					parallelToolCallsTotal: data.parallelToolCallsTotal,
+				};
+			}), [{
+				eventName: 'toolCallDetails',
+				provider: 'copilot',
+				requestId: 'turn-tool-details',
+				responseType: 'cancelled',
+				toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
+				model: 'gpt-x',
+				numRequests: 2,
+				turnIndex: 0,
+				messageCharLen: 11,
+				availableToolCount: 2,
+				totalToolCalls: 2,
+				parallelToolCallRounds: 1,
+				parallelToolCallsTotal: 2,
+			}]);
 		});
 
 		test('idle event without an active turn is ignored', async () => {
@@ -5681,6 +5928,44 @@ suite('CopilotAgentSession', () => {
 			await resultPromise;
 		});
 
+		test('client tool completion does not approve a pending managed permission', async () => {
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot,
+				activeClientToolSet: activeClientToolSetWith('test-client'),
+			});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-managed-client',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const permissionPromise = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-managed-client',
+				toolName: 'my_tool',
+				managedApprovalRequired: true,
+			});
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+
+			session.handleClientToolCallComplete('tc-managed-client', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+			let permissionResult: Awaited<typeof permissionPromise> | undefined;
+			void permissionPromise.then(result => permissionResult = result);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				permissionResult,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				permissionResult: undefined,
+				pendingConfirmations: 1,
+			});
+			assert.ok(session.respondToPermissionRequest('tc-managed-client', false));
+			assert.deepStrictEqual(await permissionPromise, { kind: 'denied-interactively-by-user' });
+		});
+
 		test('handleClientToolCallComplete with content containing embedded resources', async () => {
 			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
@@ -5848,6 +6133,43 @@ suite('CopilotAgentSession', () => {
 					binaryResultsForLlm: undefined,
 				},
 			});
+		});
+
+		test('buffered client tool completion does not approve a managed permission', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-managed-buffered',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			session.handleClientToolCallComplete('tc-managed-buffered', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'buffered result' }],
+			});
+
+			const permissionPromise = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-managed-buffered',
+				toolName: 'my_tool',
+				managedApprovalRequired: true,
+			});
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			let permissionResult: Awaited<typeof permissionPromise> | undefined;
+			void permissionPromise.then(result => permissionResult = result);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				permissionResult,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				permissionResult: undefined,
+				pendingConfirmations: 1,
+			});
+			assert.ok(session.respondToPermissionRequest('tc-managed-buffered', false));
+			assert.deepStrictEqual(await permissionPromise, { kind: 'denied-interactively-by-user' });
 		});
 	});
 

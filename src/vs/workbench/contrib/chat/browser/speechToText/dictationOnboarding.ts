@@ -21,6 +21,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
@@ -42,6 +43,20 @@ const DICTATION_SETTINGS_QUERY = 'dictation';
 
 /** The `deviceId` value that means "whatever the system is using". */
 const SYSTEM_DEFAULT_DEVICE_ID = '';
+
+type DictationOnboardingAction = 'shown' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'startDictation' | 'cancel';
+
+type DictationOnboardingActionClassification = {
+	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Dictation onboarding card.' };
+	source: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Whether the card appeared automatically on first use or was opened manually.' };
+	owner: 'meganrogge';
+	comment: 'Tracks engagement with the Dictation onboarding card.';
+};
+
+type DictationOnboardingActionEvent = {
+	action: DictationOnboardingAction;
+	source: 'automatic' | 'manual';
+};
 
 // --- Level meter ---------------------------------------------------------
 
@@ -488,6 +503,7 @@ export interface IDictationOnboardingBannerOptions {
 	readonly onCancel: () => void;
 	/** Dismiss the card and start the dictation it deferred. */
 	readonly onStartDictation: () => void;
+	readonly source: 'automatic' | 'manual';
 }
 
 /**
@@ -521,6 +537,7 @@ export class DictationOnboardingBanner extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -580,6 +597,7 @@ export class DictationOnboardingBanner extends Disposable {
 
 		this.waveform.start();
 		void this.startPreview();
+		this.logAction('shown');
 	}
 
 	/**
@@ -606,6 +624,7 @@ export class DictationOnboardingBanner extends Disposable {
 					const [commandId, ...args] = index === '0'
 						? [OPEN_SETTINGS_COMMAND, { query: DICTATION_SETTINGS_QUERY }]
 						: [CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID];
+					this.logAction(index === '0' ? 'openSettings' : 'openInstructions');
 					this.commandService.executeCommand(commandId as string, ...args)
 						.catch(error => this.logService.error(`[chat-stt] failed to open dictation customization: ${error}`));
 				},
@@ -721,6 +740,7 @@ export class DictationOnboardingBanner extends Disposable {
 		if (!option) {
 			return;
 		}
+		this.logAction('selectMicrophone');
 
 		// Shared with Voice Mode and with the "Select Microphone" quick pick, so
 		// the choice made here is the one dictation actually records from.
@@ -778,6 +798,7 @@ export class DictationOnboardingBanner extends Disposable {
 			return;
 		}
 		this.finished = true;
+		this.logAction('startDictation');
 		this.waveform.stop();
 		this.preview.releaseMicrophone();
 
@@ -797,9 +818,17 @@ export class DictationOnboardingBanner extends Disposable {
 			return;
 		}
 		this.finished = true;
+		this.logAction('cancel');
 		this.waveform.stop();
 		this.preview.releaseMicrophone();
 		this.bannerOptions.onCancel();
+	}
+
+	private logAction(action: DictationOnboardingAction): void {
+		this.telemetryService.publicLog2<DictationOnboardingActionEvent, DictationOnboardingActionClassification>(
+			'dictationOnboarding.action',
+			{ action, source: this.bannerOptions.source }
+		);
 	}
 }
 
@@ -870,14 +899,14 @@ export class DictationOnboardingService extends Disposable implements IDictation
 	}
 
 	showIfNeeded(startDictation: () => void): boolean {
-		return this.onboarding.showIfNeeded(context => this.createBanner(context.container, context.dismiss, startDictation));
+		return this.onboarding.showIfNeeded(context => this.createBanner(context.container, context.dismiss, 'automatic', startDictation));
 	}
 
 	show(startDictation?: () => void): boolean {
-		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, startDictation));
+		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', startDictation));
 	}
 
-	private createBanner(container: HTMLElement, dismiss: () => void, startDictation?: () => void): DictationOnboardingBanner {
+	private createBanner(container: HTMLElement, dismiss: () => void, source: 'automatic' | 'manual', startDictation?: () => void): DictationOnboardingBanner {
 		return this.instantiationService.createInstance(DictationOnboardingBanner, {
 			container,
 			onCancel: dismiss,
@@ -885,6 +914,7 @@ export class DictationOnboardingService extends Disposable implements IDictation
 				dismiss();
 				startDictation?.();
 			},
+			source,
 		});
 	}
 }

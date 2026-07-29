@@ -155,6 +155,17 @@ export interface IVoiceSessionController {
 	stopListening(source?: 'explicit' | 'internal'): void;
 
 	/**
+	 * Hold hands-free auto-listen off until released.
+	 *
+	 * Unlike {@link stopListening}, this is safe to call *before* the session is
+	 * connected: it survives the connect handshake, so a caller that needs the
+	 * microphone to stay shut while the user reads or decides something can take
+	 * the hold at `connect()` time rather than racing `session_init`. Releasing
+	 * enters listening immediately if hands-free would have done so.
+	 */
+	setAutoListenHeld(held: boolean): void;
+
+	/**
 	 * Stop the current recording WITHOUT finalizing the turn: any in-flight
 	 * push-to-talk press is aborted (no `ptt_end` is sent), so the backend
 	 * never finalizes the buffered speech into a `send_to_chat`. Use this on
@@ -292,6 +303,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** When true, the auto-listen loop is suppressed (user pressed Stop
 	 *  Recording). Cleared on the next explicit `pttDown` or on connect. */
 	private _autoListenSuppressed = false;
+	/**
+	 * Auto-listen hold taken by UI that must not be talked over (see
+	 * {@link setAutoListenHeld}). Deliberately separate from
+	 * `_autoListenSuppressed`, which pttDown, playback prep and disconnect all
+	 * clear as part of normal turn-taking - a hold has to outlive all of that.
+	 */
+	private _autoListenHeld = false;
 	/** Timestamp (ms) until which an incoming `send_to_chat` is dropped after a
 	 *  discarded turn, so buffered speech from a focus-change discard can't be
 	 *  misrouted to the newly focused session. Cleared on the next `pttDown`. */
@@ -2359,6 +2377,29 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._finishPtt('local', source);
 	}
 
+	setAutoListenHeld(held: boolean): void {
+		if (this._autoListenHeld === held) {
+			return;
+		}
+		this._autoListenHeld = held;
+		this.logService.trace(`[voice] setAutoListenHeld: ${held}`);
+		if (held) {
+			// The session may already have opened the mic before the hold was
+			// taken, so close it rather than only blocking the next turn.
+			this._clearAutoListenTimer();
+			if (this._isConnected.get() && this._pttHeld) {
+				this._finishPtt('local', 'internal');
+			}
+			return;
+		}
+		// Released: hands-free resumes where it left off. `_enterAutoListen`
+		// re-checks connection, playback and focus, so this is safe whether or
+		// not the session ever finished connecting while the hold was in place.
+		if (this._isConnected.get() && this._isHandsFreeEnabled()) {
+			this._enterAutoListen('connect');
+		}
+	}
+
 	stopListening(source: 'explicit' | 'internal' = 'explicit'): void {
 		// Stop the current recording / auto-listen loop WITHOUT tearing down
 		// the WebSocket. Any in-flight press is finished through the normal
@@ -2625,8 +2666,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** Re-enter listening via synthetic short tap. */
 	private _enterAutoListen(source: 'auto' | 'connect' = 'auto'): void {
 		this._clearAutoListenTimer();
-		if (this._autoListenSuppressed || !this._isConnected.get() || this._pttHeld) {
-			this.logService.trace(`[voice] _enterAutoListen skipped: suppressed=${this._autoListenSuppressed} connected=${this._isConnected.get()} pttHeld=${this._pttHeld}`);
+		if (this._autoListenHeld || this._autoListenSuppressed || !this._isConnected.get() || this._pttHeld) {
+			this.logService.trace(`[voice] _enterAutoListen skipped: held=${this._autoListenHeld} suppressed=${this._autoListenSuppressed} connected=${this._isConnected.get()} pttHeld=${this._pttHeld}`);
 			return;
 		}
 		// In multi-window hands-free, only the focused window keeps auto-listening
@@ -2679,7 +2720,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * already held.
 	 */
 	private _startBargeInListen(): void {
-		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenSuppressed || !this._window) {
+		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenHeld || this._autoListenSuppressed || !this._window) {
 			return;
 		}
 		// Only barge-in listen in the focused window so background windows don't

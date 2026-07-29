@@ -693,6 +693,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
+	get rendersInputOnTop(): boolean {
+		return this.viewOptions.renderInputOnTop ?? false;
+	}
+
 	get attachmentCapabilities(): IChatAgentAttachmentCapabilities {
 		return this._attachmentCapabilities;
 	}
@@ -798,7 +802,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
-			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model)));
+			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
+			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, this.inputEditor.onDidChangeModelContent));
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
@@ -1710,7 +1715,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			listContainer,
 			{
 				rendererOptions: options,
-				renderStyle: this.viewOptions.renderStyle,
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {

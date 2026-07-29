@@ -498,6 +498,8 @@ class CopilotTurn {
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
 	parallelToolCallsTotal = 0;
+	toolCallDetailsReported = false;
+	messageCharLen: number | undefined;
 	/** Model of the most recent round, reported as the turn's model. */
 	lastModel: string | undefined;
 
@@ -552,7 +554,9 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
 	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAutoApproval | undefined>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult>();
+	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult, {
+		readonly managedApprovalRequired: boolean;
+	}>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/**
@@ -869,15 +873,7 @@ export class CopilotAgentSession extends Disposable {
 	 * history.truncate / sessions.fork mapping.
 	 */
 	private _beginSteeringTurn(steering: PendingMessage): string {
-		const previousTurnId = this._turnId;
-		if (previousTurnId) {
-			const previousDuration = this._currentTurn?.duration ?? 0;
-			this._emitAction({
-				type: ActionType.ChatTurnComplete,
-				turnId: previousTurnId,
-				duration: previousDuration,
-			});
-		}
+		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
@@ -894,7 +890,10 @@ export class CopilotAgentSession extends Disposable {
 		// `pending`, otherwise an abort during the steering turn would treat it
 		// as a not-yet-started queued turn and leave it open.
 		this.resetTurnState(newTurnId);
-		this._currentTurn?.markRunning();
+		if (this._currentTurn) {
+			this._currentTurn.messageCharLen = steering.message.text.length;
+			this._currentTurn.markRunning();
+		}
 		return newTurnId;
 	}
 
@@ -1005,22 +1004,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		turn.markCompleted();
-		// Emit the restricted per-turn tool-call aggregate before the turn is cleared. Main agent
-		// only: `_appliedSnapshot.tools` and this turn's accumulator describe the main session's turn.
-		// No-ops (in the reporter) when the turn made no tool calls.
-		void this._telemetryReporter.toolCallDetails({
-			session: this.sessionUri.toString(),
-			turnId: turn.id,
-			clientType: turn.clientType,
-			model: turn.lastModel,
-			responseType: 'success',
-			toolCounts: Object.fromEntries(turn.toolCounts),
-			availableTools: this._appliedSnapshot.tools.map(tool => tool.name),
-			numRequests: turn.toolCallRounds,
-			totalToolCalls: turn.totalToolCalls,
-			parallelToolCallRounds: turn.parallelToolCallRounds,
-			parallelToolCallsTotal: turn.parallelToolCallsTotal,
-		}).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+		this._reportToolCallDetails(turn, 'success');
 		this._emitAction({
 			type: ActionType.ChatTurnComplete,
 			turnId: turn.id,
@@ -1046,6 +1030,30 @@ export class CopilotAgentSession extends Disposable {
 			// `send()` failure path, replace the error we are propagating.
 			this._logService.error(err, `[Copilot:${this.sessionId}] onTurnEnded callback failed`);
 		}
+	}
+
+	private _reportToolCallDetails(turn: CopilotTurn, responseType: 'success' | 'cancelled' | 'failed'): void {
+		if (turn.toolCallDetailsReported) {
+			return;
+		}
+		turn.toolCallDetailsReported = true;
+		void this._telemetryReporter.toolCallDetails({
+			provider: 'copilot',
+			session: this.sessionUri.toString(),
+			turnId: turn.id,
+			clientType: turn.clientType,
+			model: turn.lastModel,
+			responseType,
+			toolCounts: Object.fromEntries(turn.toolCounts),
+			availableTools: this._appliedSnapshot.tools.map(tool => tool.name),
+			numRequests: turn.toolCallRounds,
+			turnIndex: turn.ordinal,
+			turnDuration: turn.duration,
+			messageCharLen: turn.messageCharLen,
+			totalToolCalls: turn.totalToolCalls,
+			parallelToolCallRounds: turn.parallelToolCallRounds,
+			parallelToolCallsTotal: turn.parallelToolCallsTotal,
+		}).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 	}
 
 	private _getEditFilePaths(parameters: unknown): string[] {
@@ -1374,7 +1382,9 @@ export class CopilotAgentSession extends Disposable {
 
 		// Still pending permission, so this call may have errored while getting permission.
 		// Go ahead and allow the call which will immediately see the buffered value.
-		this.respondToPermissionRequest(toolCallId, true);
+		if (this._pendingPermissions.getMetadata(toolCallId)?.managedApprovalRequired !== true) {
+			this.respondToPermissionRequest(toolCallId, true);
+		}
 	}
 
 	private _cancelMcpAuthenticationForToolCall(toolCallId: string): boolean {
@@ -1611,6 +1621,9 @@ export class CopilotAgentSession extends Disposable {
 			// call `resetTurnState` just before `send()`; this covers the
 			// direct-send path and is a no-op when the turn already exists.
 			this.resetTurnState(turnId, senderClientId, clientType);
+		}
+		if (this._currentTurn) {
+			this._currentTurn.messageCharLen = prompt.length;
 		}
 		const turn = this._currentTurn;
 		try {
@@ -2273,7 +2286,8 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'reject' };
 			}
 
-			const autoApproval = this._lastAppliedPermissionMode === 'auto'
+			const managedApprovalRequired = request.managedApprovalRequired === true;
+			const autoApproval = !managedApprovalRequired && this._lastAppliedPermissionMode === 'auto'
 				? await this._takeAutoApproval(toolCallId)
 				: undefined;
 			const recommendation = autoApproval?.recommendation;
@@ -2314,14 +2328,14 @@ export class CopilotAgentSession extends Disposable {
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
 			if (approvedSignature !== undefined) {
 				this._approvedDuplicablePermissionSignatures.delete(toolCallId);
-				if ((request.kind === 'write' || request.kind === 'read') && safeStringify(request) === approvedSignature) {
+				if (!managedApprovalRequired && (request.kind === 'write' || request.kind === 'read') && safeStringify(request) === approvedSignature) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving duplicate ${request.kind} permission request for tool call ${toolCallId}`);
 					return { kind: 'approve-once' };
 				}
 			}
 
 			const sessionResourcePath = this._getInternalSessionResourcePath(request);
-			if (sessionResourcePath) {
+			if (!managedApprovalRequired && sessionResourcePath) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving internal session resource ${sessionResourcePath}`);
 				return { kind: 'approve-once' };
 			}
@@ -2333,7 +2347,7 @@ export class CopilotAgentSession extends Disposable {
 			// read those same files back, and prompting the user to
 			// approve a read of bytes they themselves attached is
 			// redundant.
-			if (request.kind === 'read' && typeof request.path === 'string'
+			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string'
 				&& this._isSessionAttachmentPath(request.path)
 			) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving session attachment ${request.path}`);
@@ -2344,7 +2358,7 @@ export class CopilotAgentSession extends Disposable {
 			// Copilot SDK itself. The SDK spills oversized tool results to
 			// `os.tmpdir()/copilot-tool-output-…txt` and then asks the model
 			// to read them back in a follow-up turn — no need to confirm.
-			if (request.kind === 'read' && typeof request.path === 'string') {
+			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string') {
 				if (isCopilotSdkToolOutputTempFile(request.path, this._environmentService.tmpDir.fsPath)) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
 					return { kind: 'approve-once' };
@@ -2356,7 +2370,7 @@ export class CopilotAgentSession extends Disposable {
 			// workspace, shell, or network, so prompting for them is redundant
 			// noise. Tools that explicitly require confirmation (e.g. revealing
 			// unreviewed review comments) are excluded so the user is prompted.
-			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
+			if (!managedApprovalRequired && request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& this._serverToolHost?.toolNames.includes(request.toolName)
 				&& !this._serverToolHost.requiresConfirmation(request.toolName)
 			) {
@@ -2367,7 +2381,7 @@ export class CopilotAgentSession extends Disposable {
 			const isShellRequest = request.kind === 'shell'
 				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
 
-			if (request.kind === 'custom-tool'
+			if (!managedApprovalRequired && request.kind === 'custom-tool'
 				&& typeof request.toolName === 'string'
 				&& this._clientToolNames.has(this._clientToolName(request.toolName))
 				&& this._pendingClientToolCalls.hasBufferedResult(toolCallId)
@@ -2378,7 +2392,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
-			const pendingPermission = this._pendingPermissions.register(toolCallId);
+			const pendingPermission = this._pendingPermissions.register(toolCallId, { managedApprovalRequired });
 
 			// Auto-approve shell commands that run sandboxed by default, since the
 			// sandbox already contains them. Commands that opted OUT of the sandbox
@@ -2386,7 +2400,7 @@ export class CopilotAgentSession extends Disposable {
 			// fall through to the normal confirmation flow — otherwise enabling
 			// `sandbox.allowBypass` would let the model escape the sandbox with no
 			// prompt at all.
-			if (isShellRequest && !request.requestSandboxBypass && await this._isShellSandboxedByDefault()) {
+			if (!managedApprovalRequired && isShellRequest && !request.requestSandboxBypass && await this._isShellSandboxedByDefault()) {
 				// Session may have been disposed while we awaited the engine
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
@@ -2446,13 +2460,14 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				managedApprovalRequired,
 				requestSandboxBypass: request.requestSandboxBypass,
 				parentToolCallId,
 			});
 
 			const result = await pendingPermission;
 			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.kind}`);
-			if (result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read')) {
+			if (!managedApprovalRequired && result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read')) {
 				this._approvedDuplicablePermissionSignatures.set(toolCallId, safeStringify(request));
 			}
 			return result;
@@ -2738,7 +2753,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
-		const pendingPermission = this._pendingPermissions.register(request.toolCallId);
+		const pendingPermission = this._pendingPermissions.register(request.toolCallId, { managedApprovalRequired: false });
 
 		const displayName = getToolDisplayName(request.toolName);
 		const blockedDomains = request.blockedDomains?.length ? request.blockedDomains.join(', ') : undefined;
@@ -3613,6 +3628,7 @@ export class CopilotAgentSession extends Disposable {
 				this._cancelActiveRepoInfoTelemetry();
 				if (turn.isRunning) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down running turn ${turn.id}`);
+					this._reportToolCallDetails(turn, 'cancelled');
 					turn.markAborted();
 					this._clearActiveTurn();
 				} else {
@@ -3709,6 +3725,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			if (this._currentTurn) {
+				this._reportToolCallDetails(this._currentTurn, 'failed');
+			}
 			// Prefer the structured SDK fields (the Copilot CLI classifies its own
 			// CAPI errors); fall back to decoding a forwarded marker from the message.
 			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
@@ -4536,6 +4555,9 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
 			this._cancelActiveRepoInfoTelemetry();
+			if (this._currentTurn?.isRunning) {
+				this._reportToolCallDetails(this._currentTurn, 'cancelled');
+			}
 		}));
 
 		this._register(wrapper.onToolUserRequested(e => {

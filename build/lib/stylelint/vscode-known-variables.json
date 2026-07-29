@@ -28,6 +28,8 @@
 		"--vscode-agentSessionSelectedBadge-border",
 		"--vscode-agentSessionSelectedUnfocusedBadge-border",
 		"--vscode-agentStatusIndicator-background",
+		"--vscode-agentsVoice-speakingBackground",
+		"--vscode-agentsVoice-speakingForeground",
 		"--vscode-activeSessionView-background",
 		"--vscode-activeSessionView-foreground",
 		"--vscode-inactiveSessionView-background",

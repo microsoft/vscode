@@ -23,6 +23,8 @@
 .terminal-voice.recording.codicon.codicon-mic-filled {
 	color: var(--vscode-activityBarBadge-background);
 	animation: ani-terminal-speech 1s infinite;
+	cursor: pointer;
+	pointer-events: auto;
 }
 
 @keyframes ani-terminal-speech {
