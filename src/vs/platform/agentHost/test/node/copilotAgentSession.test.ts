@@ -3028,16 +3028,20 @@ suite('CopilotAgentSession', () => {
 		test('promotes steering when the SDK echoes before send resolves', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
+			const sendGate = new DeferredPromise<string>();
 			mockSession.send = async request => {
 				mockSession.sendRequests.push(request);
-				mockSession.fire('user.message', {
-					content: 'focus on tests',
-					interactionId: 'interaction-steer',
-				} as SessionEventPayload<'user.message'>['data']);
-				return 'message-1';
+				return sendGate.p;
 			};
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await timeout(0);
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
 
 			const turnStarted = signals
 				.filter(s => s.kind === 'action')
@@ -3050,13 +3054,22 @@ suite('CopilotAgentSession', () => {
 				message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
 				queuedMessageId: 'steer-1',
 			});
+			sendGate.complete('message-1');
+			await steeringPromise;
 		});
 
 		test('promotes steering when the SDK idles before echoing it', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
+			const sendGate = new DeferredPromise<string>();
+			mockSession.send = async request => {
+				mockSession.sendRequests.push(request);
+				return sendGate.p;
+			};
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await timeout(0);
+			assert.strictEqual(mockSession.sendRequests.length, 1);
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
@@ -3076,6 +3089,8 @@ suite('CopilotAgentSession', () => {
 					queuedMessageId: 'steer-1',
 				},
 			]);
+			sendGate.complete('message-1');
+			await steeringPromise;
 		});
 
 		test('routes subsequent SDK events into the steering turn', async () => {
