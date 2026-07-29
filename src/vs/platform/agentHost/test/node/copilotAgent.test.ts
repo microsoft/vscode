@@ -33,7 +33,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
@@ -5793,6 +5793,27 @@ suite('CopilotAgent', () => {
 				// A genuinely different tool set (added tool) must restart so the
 				// SDK session is rebuilt with the new tools.
 				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }];
+
+				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a managed-permissions policy change requires a restart', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'managed-perms-change-session');
+
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = tools;
+				const activeClient = getActiveClient(agent, session);
+				const appliedSnapshot = await activeClient.snapshot();
+				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), false);
+
+				// An enterprise policy change updates the forwarded managed
+				// permissions; the SDK session must restart so the new
+				// `managedSettings.permissions` apply before the next turn.
+				configurationService.updateRootConfig({ [AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' } });
 
 				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
 			} finally {

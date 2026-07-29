@@ -298,6 +298,118 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 });
 
 /**
+ * The client-agnostic managed-permission shape VS Code synthesizes from its
+ * legacy enterprise policy values and forwards to the runtime as
+ * `managedSettings.permissions` at SDK session startup. Field names and rule
+ * grammar match the runtime managed-permission contract, NOT any VS Code
+ * setting: `disableBypassPermissionsMode` locks out "Allow all", and
+ * `deny`/`ask`/`allow` are arrays of runtime permission-rule strings. The
+ * runtime accepts only a fixed set of rule boundaries (`Bash`, `Shell`,
+ * `PowerShell`, `Read`, `Edit`, `Write`, `Domain`); unknown/malformed rules
+ * reject session startup, so VS Code must emit only exact, supported tokens.
+ * Rules are composed restrictively by the runtime, so an `ask` rule can only
+ * add friction and never grants approval.
+ */
+export interface IManagedPermissions {
+	readonly disableBypassPermissionsMode?: 'disable';
+	readonly deny?: readonly string[];
+	readonly ask?: readonly string[];
+	readonly allow?: readonly string[];
+}
+
+/**
+ * The runtime permission-rule string emitted when managed
+ * `chat.tools.terminal.enableAutoApprove` is `false`. `Shell(*)` is the exact
+ * all-shell boundary confirmed by the runtime managed-permission parser.
+ * Centralized as a single constant so the grammar lives in one place. Generic
+ * `Tool(...)` rules are NOT supported by the runtime and must never be emitted.
+ */
+export const MANAGED_PERMISSION_TERMINAL_ASK_RULE = 'Shell(*)';
+
+/**
+ * The enterprise-policy inputs — read exclusively from
+ * `IConfigurationService.inspect(...).policyValue`, never ordinary
+ * user/workspace values — that {@link deriveManagedPermissions} maps into the
+ * client-agnostic {@link IManagedPermissions} object.
+ */
+export interface IManagedPermissionPolicyInputs {
+	/** Managed value of `chat.tools.global.autoApprove`. `false` disables bypass ("Allow all"). */
+	readonly globalAutoApprove: boolean | undefined;
+	/** Managed value of `chat.tools.terminal.enableAutoApprove`. `false` adds the all-shell `ask` rule. */
+	readonly terminalAutoApproveEnabled: boolean | undefined;
+}
+
+/**
+ * Translate VS Code's legacy enterprise policy values into the client-agnostic
+ * {@link IManagedPermissions} object. Only mappings backed by exact,
+ * runtime-supported permission rules are emitted:
+ *
+ * - managed `chat.tools.global.autoApprove === false` → `disableBypassPermissionsMode: "disable"`;
+ * - managed `chat.tools.terminal.enableAutoApprove === false` → the all-shell `ask` rule `Shell(*)`.
+ *
+ * Per-tool eligibility (`chat.tools.eligibleForAutoApproval`) is intentionally
+ * NOT mapped: the runtime rejects generic `Tool(...)` rules, so there is no
+ * supported boundary to express it. Network/sandbox policies are out of scope
+ * for this first pass.
+ *
+ * Returns `undefined` when no restrictive policy applies, so callers can omit
+ * the field entirely rather than forward an empty object.
+ */
+export function deriveManagedPermissions(inputs: IManagedPermissionPolicyInputs): IManagedPermissions | undefined {
+	const ask: string[] = [];
+	let disableBypassPermissionsMode: 'disable' | undefined;
+
+	if (inputs.globalAutoApprove === false) {
+		disableBypassPermissionsMode = 'disable';
+	}
+	if (inputs.terminalAutoApproveEnabled === false) {
+		ask.push(MANAGED_PERMISSION_TERMINAL_ASK_RULE);
+	}
+
+	const permissions: {
+		disableBypassPermissionsMode?: 'disable';
+		ask?: string[];
+	} = {};
+	if (disableBypassPermissionsMode) {
+		permissions.disableBypassPermissionsMode = disableBypassPermissionsMode;
+	}
+	if (ask.length) {
+		permissions.ask = ask;
+	}
+
+	return Object.keys(permissions).length ? permissions : undefined;
+}
+
+const managedPermissionsProperty = schemaProperty<IManagedPermissions>({
+	type: 'object',
+	title: localize('agentHost.config.managedPermissions.title', "Managed Permissions"),
+	description: localize('agentHost.config.managedPermissions.description', "Enterprise-policy-derived permission restrictions forwarded to the runtime as `managedSettings.permissions` at session startup. Synthesized by VS Code from managed policy values; not user-configurable."),
+	properties: {
+		disableBypassPermissionsMode: {
+			type: 'string',
+			title: localize('agentHost.config.managedPermissions.disableBypass', "Disable bypass permissions mode"),
+			enum: ['disable'],
+		},
+		deny: {
+			type: 'array',
+			title: localize('agentHost.config.managedPermissions.deny', "Denied permission rules"),
+			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
+		},
+		ask: {
+			type: 'array',
+			title: localize('agentHost.config.managedPermissions.ask', "Ask permission rules"),
+			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
+		},
+		allow: {
+			type: 'array',
+			title: localize('agentHost.config.managedPermissions.allow', "Allowed permission rules"),
+			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
+		},
+	},
+	default: {},
+});
+
+/**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
  *
@@ -432,6 +544,21 @@ export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.ena
  * with Allow all.
  */
 export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for global auto approve. Defined here so renderer-side
+ * agent-host clients can forward it without importing from `workbench/contrib/chat`.
+ */
+export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
+
+/**
+ * Root config key forwarded from the renderer holding the enterprise-policy-derived
+ * {@link IManagedPermissions} object. Synthesized by VS Code exclusively from managed
+ * (policy) values of `chat.tools.global.autoApprove`, `chat.tools.eligibleForAutoApproval`,
+ * and `chat.tools.terminal.enableAutoApprove`, and forwarded to the runtime as
+ * `managedSettings.permissions` at SDK session startup. Absent when no policy applies.
+ */
+export const AgentHostManagedPermissionsConfigKey = 'managedPermissions';
 
 /**
  * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
@@ -714,6 +841,7 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Allow all."),
 		default: false,
 	}),
+	[AgentHostManagedPermissionsConfigKey]: managedPermissionsProperty,
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),

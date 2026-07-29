@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, deriveManagedPermissions, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostManagedPermissionsConfigKey, MANAGED_PERMISSION_TERMINAL_ASK_RULE, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IManagedPermissions, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -412,6 +412,56 @@ suite('agentHostSchema', () => {
 			assert.deepStrictEqual(result, {
 				ls: true,
 			});
+		});
+	});
+
+	suite('deriveManagedPermissions', () => {
+
+		test('returns undefined when no policy applies', () => {
+			assert.strictEqual(deriveManagedPermissions({
+				globalAutoApprove: undefined,
+				terminalAutoApproveEnabled: undefined,
+			}), undefined);
+		});
+
+		test('permissive policy values map to nothing', () => {
+			assert.strictEqual(deriveManagedPermissions({
+				globalAutoApprove: true,
+				terminalAutoApproveEnabled: true,
+			}), undefined);
+		});
+
+		test('maps restrictive policies into supported rules', () => {
+			assert.deepStrictEqual(deriveManagedPermissions({
+				globalAutoApprove: false,
+				terminalAutoApproveEnabled: false,
+			}), {
+				disableBypassPermissionsMode: 'disable',
+				ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE],
+			} satisfies IManagedPermissions);
+		});
+
+		test('emits only disableBypassPermissionsMode when only global auto-approve is denied', () => {
+			assert.deepStrictEqual(deriveManagedPermissions({
+				globalAutoApprove: false,
+				terminalAutoApproveEnabled: undefined,
+			}), { disableBypassPermissionsMode: 'disable' } satisfies IManagedPermissions);
+		});
+
+		test('emits only the all-shell ask rule when only terminal auto-approve is denied', () => {
+			assert.deepStrictEqual(deriveManagedPermissions({
+				globalAutoApprove: undefined,
+				terminalAutoApproveEnabled: false,
+			}), { ask: ['Shell(*)'] } satisfies IManagedPermissions);
+		});
+
+		test('derived value validates against the managed-permissions root schema', () => {
+			const permissions = deriveManagedPermissions({
+				globalAutoApprove: false,
+				terminalAutoApproveEnabled: false,
+			});
+			assert.ok(permissions);
+			assert.strictEqual(platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, permissions), true);
 		});
 	});
 });

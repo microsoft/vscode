@@ -38,7 +38,7 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, deriveManagedPermissions, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { toClientConnectionTelemetryMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
@@ -360,6 +360,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
+			}
+			if (
+				e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID) ||
+				e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)
+			) {
+				this._updateManagedPermissions();
 			}
 			if (e.affectsConfiguration(PREFER_LONG_CONTEXT_SETTING_ID)) {
 				this._updatePreferLongContextEnabled();
@@ -692,6 +698,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _forwardClientConfig(): void {
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY));
 		this._updateTelemetryLevel();
+		this._updateManagedPermissions();
 		this._updatePreferLongContextEnabled();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
@@ -1490,6 +1497,22 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _updateDisableRepoInfoTelemetry(): void {
 		const disabled = this._configurationService.getValue<boolean>(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID) === true;
 		this._dispatchRootConfig({ [AgentHostDisableRepoInfoTelemetryConfigKey]: disabled });
+	}
+
+	/**
+	 * Forward the enterprise-policy-derived managed permissions to the agent
+	 * host. Derived EXCLUSIVELY from the managed (policy) values of the source
+	 * settings via `inspect(...).policyValue` — user/workspace values are
+	 * ignored so only enterprise policy affects the runtime's
+	 * `managedSettings.permissions`. When no policy applies, the derived value
+	 * is `undefined` and the root config key is cleared.
+	 */
+	private _updateManagedPermissions(): void {
+		const permissions = deriveManagedPermissions({
+			globalAutoApprove: this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
+			terminalAutoApproveEnabled: this._configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
+		});
+		this._dispatchRootConfig({ [AgentHostManagedPermissionsConfigKey]: permissions });
 	}
 
 	private _updatePreferLongContextEnabled(): void {

@@ -29,7 +29,7 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, MANAGED_PERMISSION_TERMINAL_ASK_RULE, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
@@ -173,6 +173,27 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 			return this._terminalAutoApproveInspectValue as IConfigurationValue<T>;
 		}
 		return super.inspect<T>(key);
+	}
+}
+
+/**
+ * Supplies `policyValue` (the managed/enterprise value) for the managed
+ * permission source settings so that the managed-permissions forwarding, which
+ * derives EXCLUSIVELY from `inspect(...).policyValue`, can be exercised
+ * independently of ordinary user/workspace values.
+ */
+class ManagedPermissionPolicyConfigurationService extends TestConfigurationService {
+
+	constructor(private readonly _policyValues: Record<string, unknown>) {
+		super();
+	}
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		const base = super.inspect<T>(key);
+		if (Object.prototype.hasOwnProperty.call(this._policyValues, key)) {
+			return { ...base, policyValue: this._policyValues[key] as T };
+		}
+		return base;
 	}
 }
 
@@ -911,6 +932,35 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, SYNC_CONFIG_KEY_A)), {
 			[SYNC_CONFIG_KEY_A]: false,
 		});
+	});
+
+	test('derives managed permissions only from policy values and forwards them on connect', async () => {
+		const configurationService = new ManagedPermissionPolicyConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+		});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+
+		const managed = findRootConfigNotification(transport.sentMessages, AgentHostManagedPermissionsConfigKey);
+		assert.deepStrictEqual(getRootConfig(managed)[AgentHostManagedPermissionsConfigKey], {
+			disableBypassPermissionsMode: 'disable',
+			ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE],
+		});
+	});
+
+	test('forwards undefined managed permissions when only non-policy values are set', async () => {
+		// User/workspace values are restrictive, but no enterprise policy is set —
+		// only `policyValue` maps, so nothing must be forwarded.
+		const configurationService = new TestConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+		});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+
+		const managed = findRootConfigNotification(transport.sentMessages, AgentHostManagedPermissionsConfigKey);
+		assert.strictEqual(getRootConfig(managed)[AgentHostManagedPermissionsConfigKey], undefined);
 	});
 
 	test('forwards the repo-info telemetry debug switch on connect and change', async () => {
