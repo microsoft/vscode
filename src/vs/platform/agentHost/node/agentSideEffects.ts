@@ -1578,7 +1578,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const state = this._stateManager.getSessionState(session);
-		if (!state?.queuedMessages?.length) {
+		if (!state?.queuedMessages?.length || state.steeringMessage) {
 			return;
 		}
 

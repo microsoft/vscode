@@ -3025,6 +3025,59 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
 		});
 
+		test('promotes steering when the SDK echoes before send resolves', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.send = async request => {
+				mockSession.sendRequests.push(request);
+				mockSession.fire('user.message', {
+					content: 'focus on tests',
+					interactionId: 'interaction-steer',
+				} as SessionEventPayload<'user.message'>['data']);
+				return 'message-1';
+			};
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+
+			const turnStarted = signals
+				.filter(s => s.kind === 'action')
+				.map(s => (s as IAgentActionSignal).action)
+				.find(a => a.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual(turnStarted && {
+				message: turnStarted.message,
+				queuedMessageId: turnStarted.queuedMessageId,
+			}, {
+				message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
+				queuedMessageId: 'steer-1',
+			});
+		});
+
+		test('promotes steering when the SDK idles before echoing it', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const actions = signals.filter(s => s.kind === 'action').map(s => (s as IAgentActionSignal).action);
+			assert.deepStrictEqual(actions
+				.filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted)
+				.map(action => action.type === ActionType.ChatTurnComplete
+					? { type: action.type, turnId: action.turnId }
+					: { type: action.type, message: action.message, queuedMessageId: action.queuedMessageId }), [
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+				{
+					type: ActionType.ChatTurnStarted,
+					message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
+					queuedMessageId: 'steer-1',
+				},
+			]);
+		});
+
 		test('routes subsequent SDK events into the steering turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
