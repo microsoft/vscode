@@ -177,44 +177,33 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
   Temporarily enable the selected Copilot variant. Re-record narrowly if the current capture does not exist.
 
-### Codex duplicated or unstable response behavior
+### Codex has no file tools
 
-- Scope: Codex deterministic replay.
-- Expected: a model-backed scenario emits one coherent response and honors exact-response prompts.
-- Gate: `stableNewScenarioResponse: false` in the Codex provider config.
+- Scope: Codex.
+- Gate: `supportsFileTools: false` in the Codex provider config.
 
-This single flag currently covers **two distinct problems**, which need different work. Splitting it is a prerequisite for reducing it.
+Codex exposes a single tool, `exec_command`. Every committed `captures/codex-*.yaml` confirms it: the only tool name that appears is `exec_command`, where Claude's captures contain `Read`, `Write` and `Bash`.
 
-**(a) Recorded but unstable.** A Codex capture exists; replay duplicates response content, or an exact-response prompt does not produce the expected response. Flipping the gate is enough to reevaluate these.
+The shared file-operation scenarios steer the agent away from the shell (`Use your file tools; do not run a shell command.`) so that their captures stay platform-neutral. Codex cannot satisfy that instruction and does not fall back — it refuses, in its own words:
 
-- `retains context across consecutive turns`
-- `reads an existing text file`
-- `reads a file from a nested directory`
-- `lists workspace entries`
-- `handles a missing file without a session error`
-- `creates a new text file`
-- `edits an existing text file`
-- `creates a file in a new nested directory`
-- `renames a workspace file`
-- `deletes a workspace file`
-- `reads a filename containing spaces`
-
-Reproduce by temporarily enabling only the selected scenario:
-
-```bash
-./scripts/test-integration.sh --run \
-  src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-  --grep "<exact test title>"
+```
+I can't access file contents without using a shell command in this environment,
+and you asked me not to run one.
 ```
 
-**(b) Never recorded.** No `captures/codex-*.yaml` exists at all, so replay fails at fixture resolution rather than on an assertion. Flipping the gate cannot re-enable these — recording has to succeed first, with `AGENT_HOST_REPLAY_RECORD=1` and a real Codex binary.
+`counts lines in a file` shows the sharper version of the same failure: Codex flails and answers `3` for a four-line file rather than refusing outright.
 
-- `reads a value from JSON`
-- `counts lines in a file`
-- `runs a deterministic shell command`
-- `inspects git status`
+This is a provider capability difference, not a bug to be fixed by re-recording. Making these scenarios run against Codex means giving them a provider-specific prompt that pins a portable shell command instead of steering to file tools — the "pin, don't steer" half of [Steering versus pinning](#steering-versus-pinning). That is worth doing and is the actionable next step here.
 
-These four are the actionable item: until they are recorded, the reason Codex skips them is unknown, and it may be a product bug rather than replay instability.
+Reproduce with any of the gated scenarios:
+
+```bash
+AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+  --grep "reads a file from a nested directory"
+```
+
+The same gate also covers the file-operation scenarios that pin a shell command rather than steering. Codex performs those through `exec_command` too, and they do not replay stably once several of them share one server: the failing scenario moves between runs, which is the [shared-server load ceiling](./README.md#server-lifecycle) rather than a fault in any one test. Enabling them needs that lifecycle understood first; enabling them naively turns a green suite into one that fails about one run in four.
 
 ## Platform and deterministic-replay limitations
 
@@ -312,6 +301,7 @@ These pending tests do not currently indicate bugs. They are listed by capabilit
 | Multiple chats | `supportsMultipleChats` | Codex | All model-backed peer-chat scenarios in `multiChatSuite` skip. The negative test `provider without multiple chat capability rejects peer creation` runs *because* of the gate. Host-owned peer-catalog semantics are unaffected — they moved to the conformance tier and run once regardless of provider. |
 | Chat fork (E2E) | `supportsChatForkE2E` | Claude, Codex | `forkProviderTest` scenarios skip. For Claude this is **not** an expected skip — see [Claude provider-context fork](#claude-provider-context-fork). |
 | Subagents | `supportsSubagents` | Codex | `subagent tool calls are routed to the subagent session, not flat in the parent`, `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`. |
+| File tools | `supportsFileTools` | Codex | The file-operation scenarios in `fileOperationsSuite`. See [Codex has no file tools](#codex-has-no-file-tools). |
 | Plan mode | `supportsPlanMode` | Codex, Claude | `planning-mode session-state writes are auto-approved in default mode`. For Claude this is a prompt-portability problem — see [Claude plan-mode prompt](#claude-plan-mode-prompt). |
 | Host terminal tool | `supportsHostTerminalTool` | Claude, Codex | Worktree isolation is verified via the resolved working directory alone rather than terminal `pwd` output. |
 | Worktree isolation | `supportsWorktreeIsolation` | none | Now host-owned; enabled for all providers. |
@@ -327,7 +317,7 @@ The complete Claude or Codex deterministic suite is skipped when its bundled SDK
 Periodically:
 
 1. Run the full provider files and the conformance file, not only focused tests, because shared-process failures may depend on suite order.
-2. Reevaluate broad gates such as `stableNewScenarioResponse` one test at a time, and check first whether the capture exists.
+2. Reevaluate broad gates such as `supportsFileTools` one test at a time, and check first whether the capture exists. A gate that covers more than one distinct cause hides all but the loudest of them: prefer splitting it over flipping it.
 3. Check whether new provider SDK/CLI versions changed tool selection or completion behavior.
 4. Re-record narrowly when wire behavior changed, then review every generated capture.
 5. Enable fixed variants and remove stale entries, comments, config flags, and orphaned captures together.

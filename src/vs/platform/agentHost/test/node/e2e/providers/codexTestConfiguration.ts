@@ -30,8 +30,8 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: false,
 	supportsChatFork: false,
 	supportsChatForkE2E: false,
-	// Codex either duplicates the previous response or has no recorded fixture for
-	// the newer file/shell scenarios; see KNOWN_ISSUES.md.
-	stableNewScenarioResponse: false,
+	// Codex exposes only `exec_command`; it has no file tools, so prompts that
+	// steer away from the shell cannot be satisfied. See KNOWN_ISSUES.md.
+	supportsFileTools: false,
 	shellToolReplayUnstableOnLinux: true,
 };

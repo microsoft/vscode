@@ -313,20 +313,16 @@ export interface IAgentHostE2EProviderConfig {
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
 	/**
-	 * Gates the whole "new scenario" family of model-backed tests — the file,
-	 * shell, and multi-turn scenarios added after the original suite.
+	 * Whether this provider offers file-reading/writing tools of its own.
 	 *
-	 * Set this to `false` only while a provider genuinely cannot run them. Note
-	 * that it currently conflates two different states, and a provider that
-	 * needs it should say which one applies:
+	 * Scenarios whose prompt steers the agent to its file tools ("Use your file
+	 * tools; do not run a shell command.") cannot be satisfied by a provider
+	 * that only has a shell: it refuses the operation rather than falling back.
+	 * Codex is the current example — its captures contain only `exec_command`.
 	 *
-	 * - a fixture exists but the provider replays it unstably, and
-	 * - no fixture was ever recorded, in which case the test cannot be re-enabled
-	 *   by flipping this flag alone — recording has to succeed first.
-	 *
-	 * See `KNOWN_ISSUES.md` for the current per-test state.
+	 * Scenarios that pin a portable shell command instead are unaffected.
 	 */
-	readonly stableNewScenarioResponse: boolean;
+	readonly supportsFileTools: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's

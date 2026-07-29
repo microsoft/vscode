@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const isLinux = process.platform === 'linux';
 import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
@@ -19,7 +20,6 @@ import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContex
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_RECORD_ONLY_TESTS = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
-const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
 
 interface IDefineOptions {
@@ -43,7 +43,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
-			stableNewScenarioResponse: config.stableNewScenarioResponse,
+			supportsFileTools: config.supportsFileTools,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
