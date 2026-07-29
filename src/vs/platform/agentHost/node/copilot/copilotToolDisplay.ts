@@ -8,13 +8,13 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
-import { parse } from '../../../../base/common/json.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
-import { splitLines } from '../../../../base/common/strings.js';
+import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 // =============================================================================
@@ -541,18 +541,10 @@ function md(value: string): StringOrMarkdown {
 	return { markdown: value };
 }
 
-type ToolPathResolver = (path: string) => string;
-
 const identityPathResolver: ToolPathResolver = path => path;
 
 export function parseCopilotStreamingToolInput(raw: string): unknown {
-	const parsed: unknown = parse(raw);
-	if (parsed === undefined || parsed === null) {
-		return raw;
-	}
-	return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-		? { ...parsed }
-		: parsed;
+	return parsePartialToolInput(raw) ?? raw;
 }
 
 export function getToolDisplayName(toolName: string): string {
@@ -761,115 +753,6 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	}
 }
 
-function lineCount(value: unknown): number | undefined {
-	return typeof value === 'string' ? splitLines(value).length : undefined;
-}
-
-function getStreamingReplaceMessage(parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver): StringOrMarkdown {
-	const args = parameters as ICopilotEditToolArgs | undefined;
-	const oldLineCount = lineCount(args?.old_str);
-	const newLineCount = lineCount(args?.new_str);
-	const file = typeof args?.path === 'string' && args.path ? formatPathAsMarkdownLink(resolvePath(args.path)) : undefined;
-	if (oldLineCount !== undefined && newLineCount !== undefined) {
-		if (file) {
-			if (oldLineCount === 1 && newLineCount === 1) {
-				return md(localize('toolStream.replaceOneLineWithOneLineInFile', "Replacing 1 line with 1 line in {0}", file));
-			}
-			if (oldLineCount === 1) {
-				return md(localize('toolStream.replaceOneLineWithLinesInFile', "Replacing 1 line with {0} lines in {1}", newLineCount, file));
-			}
-			if (newLineCount === 1) {
-				return md(localize('toolStream.replaceLinesWithOneLineInFile', "Replacing {0} lines with 1 line in {1}", oldLineCount, file));
-			}
-			return md(localize('toolStream.replaceLinesWithLinesInFile', "Replacing {0} lines with {1} lines in {2}", oldLineCount, newLineCount, file));
-		}
-		if (oldLineCount === 1 && newLineCount === 1) {
-			return localize('toolStream.replaceOneLineWithOneLine', "Replacing 1 line with 1 line");
-		}
-		if (oldLineCount === 1) {
-			return localize('toolStream.replaceOneLineWithLines', "Replacing 1 line with {0} lines", newLineCount);
-		}
-		if (newLineCount === 1) {
-			return localize('toolStream.replaceLinesWithOneLine', "Replacing {0} lines with 1 line", oldLineCount);
-		}
-		return localize('toolStream.replaceLinesWithLines', "Replacing {0} lines with {1} lines", oldLineCount, newLineCount);
-	}
-	if (oldLineCount !== undefined) {
-		if (file) {
-			return oldLineCount === 1
-				? md(localize('toolStream.replaceOneLineInFile', "Replacing 1 line in {0}", file))
-				: md(localize('toolStream.replaceLinesInFile', "Replacing {0} lines in {1}", oldLineCount, file));
-		}
-		return oldLineCount === 1
-			? localize('toolStream.replaceOneLine', "Replacing 1 line")
-			: localize('toolStream.replaceLines', "Replacing {0} lines", oldLineCount);
-	}
-	return file
-		? md(localize('toolStream.editFile', "Editing {0}", file))
-		: localize('toolStream.edit', "Editing file");
-}
-
-function getStreamingCreateMessage(parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver): StringOrMarkdown {
-	const args = parameters as ICopilotCreateToolArgs | undefined;
-	const lines = lineCount(args?.file_text);
-	const file = typeof args?.path === 'string' && args.path ? formatPathAsMarkdownLink(resolvePath(args.path)) : undefined;
-	if (lines !== undefined) {
-		if (file) {
-			return lines === 1
-				? md(localize('toolStream.createOneLineInFile', "Creating {0} (1 line)", file))
-				: md(localize('toolStream.createLinesInFile', "Creating {0} ({1} lines)", file, lines));
-		}
-		return lines === 1
-			? localize('toolStream.createOneLine', "Creating file (1 line)")
-			: localize('toolStream.createLines', "Creating file ({0} lines)", lines);
-	}
-	return file
-		? md(localize('toolStream.createFile', "Creating {0}", file))
-		: localize('toolStream.create', "Creating file");
-}
-
-function getStreamingInsertMessage(parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver): StringOrMarkdown {
-	const args = parameters as ICopilotInsertToolArgs | undefined;
-	const lines = lineCount(args?.new_str);
-	const file = typeof args?.path === 'string' && args.path ? formatPathAsMarkdownLink(resolvePath(args.path)) : undefined;
-	if (lines !== undefined) {
-		if (file) {
-			return lines === 1
-				? md(localize('toolStream.insertOneLineInFile', "Inserting 1 line in {0}", file))
-				: md(localize('toolStream.insertLinesInFile', "Inserting {0} lines in {1}", lines, file));
-		}
-		return lines === 1
-			? localize('toolStream.insertOneLine', "Inserting 1 line")
-			: localize('toolStream.insertLines', "Inserting {0} lines", lines);
-	}
-	return file
-		? md(localize('toolStream.insertInFile', "Inserting text in {0}", file))
-		: localize('toolStream.insert', "Inserting text");
-}
-
-function getStreamingPatchMessage(parameters: unknown, resolvePath: ToolPathResolver): StringOrMarkdown {
-	const args = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
-		? parameters as ICopilotApplyPatchToolArgs
-		: undefined;
-	const patch = typeof parameters === 'string' ? parameters : args?.input ?? args?.patch;
-	const lines = lineCount(patch);
-	const files = getEditFilePaths(parameters).map(resolvePath);
-	const fileList = files.length > 0 ? files.map(formatPathAsMarkdownLink).join(', ') : undefined;
-	if (lines !== undefined) {
-		if (fileList) {
-			return lines === 1
-				? md(localize('toolStream.patchOneLineInFiles', "Generating patch (1 line) in {0}", fileList))
-				: md(localize('toolStream.patchLinesInFiles', "Generating patch ({0} lines) in {1}", lines, fileList));
-		}
-		return lines === 1
-			? localize('toolStream.patchOneLine', "Generating patch (1 line)")
-			: localize('toolStream.patchLines', "Generating patch ({0} lines)", lines);
-	}
-	return fileList
-		? md(localize('toolStream.patchFiles', "Generating patch in {0}", fileList))
-		: localize('toolStream.patch', "Generating patch");
-}
-
 /**
  * Returns the progressively refined message shown while Copilot generates tool input.
  */
@@ -879,30 +762,40 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 		: undefined;
 	switch (toolName) {
 		case CopilotToolName.Edit:
-		case CopilotToolName.StrReplace:
-			return getStreamingReplaceMessage(objectParameters, resolvePath);
-		case CopilotToolName.Create:
-			return getStreamingCreateMessage(objectParameters, resolvePath);
-		case CopilotToolName.Insert:
-			return getStreamingInsertMessage(objectParameters, resolvePath);
+		case CopilotToolName.StrReplace: {
+			const args = objectParameters as ICopilotEditToolArgs | undefined;
+			return getStreamingReplaceMessage(args?.path, streamingToolTextLineCount(args?.old_str), streamingToolTextLineCount(args?.new_str), resolvePath);
+		}
+		case CopilotToolName.Create: {
+			const args = objectParameters as ICopilotCreateToolArgs | undefined;
+			return getStreamingCreateMessage(args?.path, streamingToolTextLineCount(args?.file_text), resolvePath);
+		}
+		case CopilotToolName.Insert: {
+			const args = objectParameters as ICopilotInsertToolArgs | undefined;
+			return getStreamingInsertMessage(args?.path, streamingToolTextLineCount(args?.new_str), resolvePath);
+		}
 		case CopilotToolName.StrReplaceEditor: {
-			const command = (objectParameters as ICopilotStrReplaceEditorToolArgs | undefined)?.command;
+			const args = objectParameters as ICopilotStrReplaceEditorToolArgs | undefined;
+			const command = args?.command;
 			switch (command) {
 				case 'view':
 					return getInvocationMessage(CopilotToolName.View, displayName, objectParameters, resolvePath);
 				case 'create':
-					return getStreamingCreateMessage(objectParameters, resolvePath);
+					return getStreamingCreateMessage(args?.path, streamingToolTextLineCount(args?.file_text), resolvePath);
 				case 'insert':
-					return getStreamingInsertMessage(objectParameters, resolvePath);
+					return getStreamingInsertMessage(args?.path, streamingToolTextLineCount(args?.new_str), resolvePath);
 				case 'edit':
 				case 'str_replace':
 				default:
-					return getStreamingReplaceMessage(objectParameters, resolvePath);
+					return getStreamingReplaceMessage(args?.path, streamingToolTextLineCount(args?.old_str), streamingToolTextLineCount(args?.new_str), resolvePath);
 			}
 		}
 		case CopilotToolName.ApplyPatch:
-		case CopilotToolName.GitApplyPatch:
-			return getStreamingPatchMessage(parameters, resolvePath);
+		case CopilotToolName.GitApplyPatch: {
+			const args = objectParameters as ICopilotApplyPatchToolArgs | undefined;
+			const patch = typeof parameters === 'string' ? parameters : args?.input ?? args?.patch;
+			return getStreamingPatchMessage(getEditFilePaths(parameters), streamingToolTextLineCount(patch), resolvePath);
+		}
 		default:
 			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath);
 	}

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parsePartialToolInputForDisplay } from '../../common/partialToolInput.js';
+import { parsePartialToolInput, parsePartialToolInputForDisplay } from '../../common/partialToolInput.js';
 
 suite('PartialToolInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,5 +50,10 @@ suite('PartialToolInput', () => {
 			command: 'npm test',
 			contentIsTruncated: true,
 		});
+	});
+
+	test('supports uncapped provider parsing', () => {
+		const content = 'x'.repeat(70 * 1024);
+		assert.strictEqual(parsePartialToolInput(`{"content":"${content}"}`)?.['content'], content);
 	});
 });

@@ -39,6 +39,7 @@ import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiM
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
+import { shouldUpdateStreamingToolDisplay } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
@@ -1073,10 +1074,7 @@ export class CopilotAgentSession extends Disposable {
 				if (!streaming?.started || !streaming.toolName) {
 					return;
 				}
-				const minimumGrowth = Math.max(16, Math.ceil(streaming.displayedInputLength / 4));
-				const hasMeaningfulGrowth = streaming.displayedInputLength === 0
-					|| streaming.input.length - streaming.displayedInputLength >= minimumGrowth;
-				if (!hasMeaningfulGrowth) {
+				if (!shouldUpdateStreamingToolDisplay(streaming.displayedInputLength, streaming.input.length)) {
 					return;
 				}
 				this._emitStreamingToolCallDisplay(toolCallId, streaming);

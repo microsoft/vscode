@@ -161,6 +161,51 @@ suite('claudeReplayMapper', () => {
 		}
 	});
 
+	test('replay preserves generic semantics for client tools that collide with built-in names', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'run client tools'),
+			makeAssistantToolUse('a1', 'tu_bash', 'mcp__client__Bash', { command: 'echo client' }),
+			makeUserToolResult('r1', 'tu_bash', 'done'),
+			makeAssistantToolUse('a2', 'tu_task', 'mcp__client__Task', { description: 'client task' }),
+			makeUserToolResult('r2', 'tu_task', 'done'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+		const tools = turns[0].responseParts.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => {
+			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
+			return {
+				toolName: part.toolCall.toolName,
+				displayName: part.toolCall.displayName,
+				meta: part.toolCall._meta,
+				invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
+				toolInput: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.toolInput : undefined,
+				pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
+				hasSubagentContent: part.toolCall.status === ToolCallStatus.Completed
+					&& part.toolCall.content?.some(content => content.type === ToolResultContentType.Subagent),
+			};
+		});
+		assert.deepStrictEqual(tools, [
+			{
+				toolName: 'Bash',
+				displayName: 'Bash',
+				meta: undefined,
+				invocationMessage: 'Bash',
+				toolInput: '{\n  "command": "echo client"\n}',
+				pastTenseMessage: 'Bash',
+				hasSubagentContent: false,
+			},
+			{
+				toolName: 'Task',
+				displayName: 'Task',
+				meta: undefined,
+				invocationMessage: 'Task',
+				toolInput: '{\n  "description": "client task"\n}',
+				pastTenseMessage: 'Task',
+				hasSubagentContent: false,
+			},
+		]);
+	});
+
 	test('Fixture 3: multi-turn produces ordered Turns', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'first'),

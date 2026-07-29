@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ILogService } from '../../../log/common/log.js';
+import { parsePartialToolInput } from '../../common/partialToolInput.js';
+import { formatGenericToolInput, shouldUpdateStreamingToolDisplay } from '../../common/streamingToolCallDisplay.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { getClaudeInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 
@@ -21,13 +23,20 @@ export interface IClaudeToolStartInfo {
 	readonly parsedInput: Record<string, unknown> | undefined;
 	readonly invocationMessage: StringOrMarkdown;
 	readonly toolInput: string | undefined;
+	readonly isClientTool: boolean;
 }
 
 interface IRegistryEntry {
 	readonly toolName: string;
 	readonly turnId: string;
+	readonly isClientTool: boolean;
 	inputBuffer: string;
+	displayedInputLength: number;
 	info: IClaudeToolStartInfo | undefined;
+}
+
+export interface IClaudeStreamingToolInputUpdate {
+	readonly input: Record<string, unknown> | undefined;
 }
 
 /**
@@ -68,11 +77,13 @@ export class ClaudeToolCallRegistry {
 	 * for a `tool_use` block. Allocates the delta buffer; the
 	 * computed info bag is filled in by {@link finalize}.
 	 */
-	begin(toolUseId: string, toolName: string, turnId: string): void {
+	begin(toolUseId: string, toolName: string, turnId: string, isClientTool = false): void {
 		this._entries.set(toolUseId, {
 			toolName,
 			turnId,
+			isClientTool,
 			inputBuffer: '',
+			displayedInputLength: 0,
 			info: undefined,
 		});
 	}
@@ -88,6 +99,18 @@ export class ClaudeToolCallRegistry {
 			return;
 		}
 		entry.inputBuffer += partialJson;
+	}
+
+	streamingInputUpdate(toolUseId: string): IClaudeStreamingToolInputUpdate | undefined {
+		const entry = this._entries.get(toolUseId);
+		if (!entry) {
+			return undefined;
+		}
+		if (!shouldUpdateStreamingToolDisplay(entry.displayedInputLength, entry.inputBuffer.length)) {
+			return undefined;
+		}
+		entry.displayedInputLength = entry.inputBuffer.length;
+		return { input: parsePartialToolInput(entry.inputBuffer) };
 	}
 
 	/**
@@ -143,13 +166,14 @@ export class ClaudeToolCallRegistry {
 	}
 
 	private _writeInfo(entry: IRegistryEntry, parsedInput: Record<string, unknown> | undefined, rawFallback?: string): void {
-		const displayName = getClaudeToolDisplayName(entry.toolName);
+		const displayName = entry.isClientTool ? entry.toolName : getClaudeToolDisplayName(entry.toolName);
 		entry.info = {
 			toolName: entry.toolName,
 			displayName,
 			parsedInput,
-			invocationMessage: getClaudeInvocationMessage(entry.toolName, displayName, parsedInput),
-			toolInput: getClaudeToolInputString(entry.toolName, parsedInput) ?? rawFallback,
+			invocationMessage: entry.isClientTool ? displayName : getClaudeInvocationMessage(entry.toolName, displayName, parsedInput),
+			toolInput: entry.isClientTool ? formatGenericToolInput(parsedInput, rawFallback) : getClaudeToolInputString(entry.toolName, parsedInput) ?? rawFallback,
+			isClientTool: entry.isClientTool,
 		};
 	}
 
@@ -159,12 +183,12 @@ export class ClaudeToolCallRegistry {
 	 * drift / replay). The `info` field may be `undefined` if the
 	 * tool block never reached `content_block_stop`.
 	 */
-	lookup(toolUseId: string): { readonly turnId: string; readonly toolName: string; readonly info: IClaudeToolStartInfo | undefined } | undefined {
+	lookup(toolUseId: string): { readonly turnId: string; readonly toolName: string; readonly isClientTool: boolean; readonly info: IClaudeToolStartInfo | undefined } | undefined {
 		const entry = this._entries.get(toolUseId);
 		if (!entry) {
 			return undefined;
 		}
-		return { turnId: entry.turnId, toolName: entry.toolName, info: entry.info };
+		return { turnId: entry.turnId, toolName: entry.toolName, isClientTool: entry.isClientTool, info: entry.info };
 	}
 
 	/**
