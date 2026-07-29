@@ -160,17 +160,19 @@ export const LOCAL_AGENT_HOST_AUTHORITY = 'local';
 /**
  * Fallback label formatter for {@link AGENT_HOST_SCHEME} URIs of hosts
  * whose operating system is unknown. The URI path is already the original
- * resource path, so the label is the path verbatim, except that a Windows
- * drive letter is normalized (`/c:/a` renders as `C:/a`). The separator is
- * left as `/` because a POSIX host may well be reached from a Windows
- * client, where `\` would corrupt its paths.
+ * resource path, so the label is the path verbatim.
+ *
+ * Deliberately lossless: without knowing the host's operating system,
+ * neither `\` separators nor drive letter normalization can be applied
+ * safely, since `/c:/repo/a.ts` is a valid POSIX path too and rendering it
+ * as `C:/repo/a.ts` would name a different resource. Hosts whose operating
+ * system is known get {@link agentHostLabelFormatter} instead.
  */
 export const AGENT_HOST_LABEL_FORMATTER: ResourceLabelFormatter = {
 	scheme: AGENT_HOST_SCHEME,
 	formatting: {
 		label: '${path}',
 		separator: '/',
-		normalizeDriveLetter: true,
 	},
 };
 

@@ -115,7 +115,7 @@ suite('canonicalizeSessionDbUri', () => {
 
 	test('rewrites a legacy URI into the current layout', () => {
 		const legacy = legacyUri('copilot:/abc-123', 'call_1', '/workspace/file.ts', 'before', 'file.ts');
-		const canonical = canonicalizeSessionDbUri(legacy);
+		const canonical = canonicalizeSessionDbUri(legacy, URI.file('/workspace/file.ts'));
 
 		assert.deepStrictEqual(
 			[canonical.path, parseSessionDbUri(canonical.toString())],
@@ -123,13 +123,24 @@ suite('canonicalizeSessionDbUri', () => {
 		);
 	});
 
+	test('takes the path from the file URI, so a Windows session canonicalizes the same way on any client', () => {
+		const legacy = legacyUri('copilot:/abc-123', 'call_1', 'C:\\Code\\repo\\file.ts', 'before', 'file.ts');
+		const canonical = canonicalizeSessionDbUri(legacy, URI.parse('file:///c%3A/Code/repo/file.ts'));
+
+		assert.deepStrictEqual(
+			[canonical.path, parseSessionDbUri(canonical.toString())?.filePath],
+			['/c:/Code/repo/file.ts', 'C:\\Code\\repo\\file.ts'],
+		);
+	});
+
 	test('leaves canonical, unparseable and foreign URIs untouched', () => {
 		const canonical = URI.parse(buildSessionDbUri('copilot:/s1', 'tc-1', '/workspace/file.ts', 'before'));
 		const unparseable = URI.from({ scheme: 'session-db', path: '/nonsense' });
 		const foreign = URI.file('/workspace/file.ts');
+		const fileUri = URI.file('/workspace/file.ts');
 
 		assert.deepStrictEqual(
-			[canonical, unparseable, foreign].map(uri => canonicalizeSessionDbUri(uri).toString()),
+			[canonical, unparseable, foreign].map(uri => canonicalizeSessionDbUri(uri, fileUri).toString()),
 			[canonical.toString(), unparseable.toString(), foreign.toString()],
 		);
 	});

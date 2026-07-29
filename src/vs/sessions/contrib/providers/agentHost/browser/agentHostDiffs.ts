@@ -126,9 +126,10 @@ export function diffsEqual(current: readonly ISessionFileChange[], diffs: readon
 		}
 
 		const beforeContentUri = d.before?.content?.uri;
+		const beforeUri = d.before?.uri;
 		const currentOriginal = c.originalUri?.toString();
-		if (beforeContentUri) {
-			const parsedBefore = canonicalizeSessionDbUri(URI.parse(beforeContentUri));
+		if (beforeContentUri && beforeUri) {
+			const parsedBefore = canonicalizeSessionDbUri(URI.parse(beforeContentUri), URI.parse(beforeUri));
 			const mappedBefore = mapUri ? mapUri(parsedBefore) : parsedBefore;
 			if (currentOriginal !== mappedBefore.toString()) {
 				return false;

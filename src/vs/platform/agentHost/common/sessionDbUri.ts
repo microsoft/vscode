@@ -13,13 +13,18 @@ const SESSION_DB_SCHEME = 'session-db';
  * session database. The path is the edited file's path so resource labels
  * show a real path; the lookup fields live in the query, where `filePath` is
  * kept verbatim because it is part of the database key.
+ *
+ * Only safe to call on the agent host, since `URI.file` interprets `\` per
+ * the operating system it runs on. Clients must use
+ * {@link canonicalizeSessionDbUri}, which takes the path from the file URI
+ * the host already resolved.
  */
 export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePath: string, part: 'before' | 'after'): string {
-	return URI.from({
-		scheme: SESSION_DB_SCHEME,
-		path: URI.file(filePath).path,
-		query: JSON.stringify({ sessionUri, toolCallId, filePath, part } satisfies ISessionDbUriFields),
-	}).toString();
+	return sessionDbUri(URI.file(filePath).path, { sessionUri, toolCallId, filePath, part }).toString();
+}
+
+function sessionDbUri(path: string, fields: ISessionDbUriFields): URI {
+	return URI.from({ scheme: SESSION_DB_SCHEME, path, query: JSON.stringify(fields) });
 }
 
 /** Parsed fields from a `session-db:` content URI. */
@@ -48,15 +53,19 @@ export function parseSessionDbUri(raw: string): ISessionDbUriFields | undefined 
 }
 
 /**
- * Rewrites a legacy `session-db:` URI into the current layout, whose path is
- * the edited file's path. Snapshots recorded by earlier builds encode the
- * blob's location in the path (`/<toolCallId>/<hexFilePath>/<part>/<name>`),
+ * Rewrites a legacy `session-db:` URI so its path is `fileUri`'s, the path of
+ * the file the content belongs to. Snapshots recorded by earlier builds encode
+ * the blob's location in the path (`/<toolCallId>/<hexFilePath>/<part>/<name>`),
  * which surfaces in resource labels and makes diff editors report the file as
  * renamed because the original side's path differs from the modified side's.
  * Any other URI (already-canonical, unparseable, or a different scheme) is
  * returned unchanged.
+ *
+ * The path is taken from `fileUri` rather than re-derived from the recorded
+ * file system path, so a session recorded on a Windows host canonicalizes the
+ * same way on a POSIX client.
  */
-export function canonicalizeSessionDbUri(uri: URI): URI {
+export function canonicalizeSessionDbUri(uri: URI, fileUri: URI): URI {
 	if (uri.scheme !== SESSION_DB_SCHEME || uri.query) {
 		return uri;
 	}
@@ -64,7 +73,7 @@ export function canonicalizeSessionDbUri(uri: URI): URI {
 	if (!fields) {
 		return uri;
 	}
-	return URI.parse(buildSessionDbUri(fields.sessionUri, fields.toolCallId, fields.filePath, fields.part));
+	return sessionDbUri(fileUri.path, fields);
 }
 
 function isNonEmptyString(value: unknown): value is string {

@@ -68,7 +68,7 @@ export function normalizeFileEdit(edit: FileEdit): INormalizedFileEdit | undefin
 		resource,
 		beforeUri,
 		afterUri,
-		beforeContentUri: edit.before?.content.uri ? canonicalizeSessionDbUri(URI.parse(edit.before.content.uri)) : undefined,
-		afterContentUri: edit.after?.content.uri ? canonicalizeSessionDbUri(URI.parse(edit.after.content.uri)) : undefined,
+		beforeContentUri: edit.before?.content.uri && beforeUri ? canonicalizeSessionDbUri(URI.parse(edit.before.content.uri), beforeUri) : undefined,
+		afterContentUri: edit.after?.content.uri && afterUri ? canonicalizeSessionDbUri(URI.parse(edit.after.content.uri), afterUri) : undefined,
 	};
 }
