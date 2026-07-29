@@ -380,6 +380,8 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
+	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
 	readonly parsedInput: IParsedChatRequest;
 	readonly lockedAgentId: string | undefined;
