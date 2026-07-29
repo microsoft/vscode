@@ -101,7 +101,7 @@ export const RULES: IRule[] = [
 
 const TS_CONFIG_PATH = join(import.meta.dirname, 'tsconfig.semantic.json');
 const SOURCE_ROOT = join(import.meta.dirname, '../../src');
-const GO_MEMORY_LIMIT = '3GiB';
+const GO_MEMORY_LIMIT = '4GiB';
 
 export interface IRule {
 	target: string;
