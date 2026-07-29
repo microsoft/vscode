@@ -715,10 +715,7 @@ export class DictationOnboardingBanner extends Disposable {
 		this.renderPicker();
 	}
 
-	/**
-	 * A picker with one entry is not a choice - it is a label that happens to
-	 * open a menu. With a single microphone the card just names it.
-	 */
+	/** A picker with one entry is not a choice, so only show this row for multiple microphones. */
 	private renderPicker(): void {
 		if (!this.pickerContainer) {
 			return;
@@ -726,17 +723,15 @@ export class DictationOnboardingBanner extends Disposable {
 		this.picker.clear();
 		dom.clearNode(this.pickerContainer);
 
+		this.pickerContainer.hidden = this.options.length <= 1;
+		if (this.pickerContainer.hidden) {
+			return;
+		}
+
 		dom.append(this.pickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.dictation-onboarding-picker-icon`))
 			.setAttribute('aria-hidden', 'true');
 
 		const selected = indexOfMicrophone(this.options, this.currentDeviceId());
-
-		if (this.options.length <= 1) {
-			const label = dom.append(this.pickerContainer, dom.$('span.dictation-onboarding-picker-label'));
-			label.textContent = this.options[selected]?.label ?? localize('dictation.onboarding.noMicrophone', "No microphone found");
-			label.title = label.textContent;
-			return;
-		}
 
 		const store = new DisposableStore();
 		// Custom-drawn rather than the platform control, and with the face colors

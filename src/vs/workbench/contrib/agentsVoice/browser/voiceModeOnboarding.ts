@@ -663,16 +663,15 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.microphonePicker.clear();
 		dom.clearNode(this.microphonePickerContainer);
 
+		this.microphonePickerContainer.hidden = this.microphoneOptions.length <= 1;
+		if (this.microphonePickerContainer.hidden) {
+			return;
+		}
+
 		dom.append(this.microphonePickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.voice-mode-onboarding-microphone-icon`))
 			.setAttribute('aria-hidden', 'true');
 
 		const selected = indexOfMicrophone(this.microphoneOptions, this.currentMicrophoneId());
-		if (this.microphoneOptions.length <= 1) {
-			const label = dom.append(this.microphonePickerContainer, dom.$('.voice-mode-onboarding-microphone-label'));
-			label.textContent = this.microphoneOptions[selected]?.label ?? localize('voiceMode.onboarding.noMicrophone', "No microphone found");
-			label.title = label.textContent;
-			return;
-		}
 
 		const store = new DisposableStore();
 		const selectBox = store.add(new SelectBox(

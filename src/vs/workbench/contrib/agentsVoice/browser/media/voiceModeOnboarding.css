@@ -170,15 +170,6 @@
 	outline: none;
 }
 
-.voice-mode-onboarding-microphone-label {
-	overflow: hidden;
-	min-width: 0;
-	font-size: var(--vscode-fontSize-label2);
-	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-
 /* --- Voices and confirmation --- */
 
 .voice-mode-onboarding-actions {
