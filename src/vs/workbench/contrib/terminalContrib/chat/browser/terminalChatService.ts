@@ -431,13 +431,12 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._sessionAutoApproveRules.get(chatSessionResource) ?? {};
 	}
 
-	async getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell', chatSessionResource: URI): Promise<ToolConfirmationAction[] | undefined> {
+	async getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell'): Promise<ToolConfirmationAction[] | undefined> {
 		const trimmedCommandLine = commandLine.trimStart();
 		if (trimmedCommandLine.length === 0) {
 			return undefined;
 		}
 		this._autoApproveCommandParser ??= this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
-		this._autoApproveEvaluator ??= this._register(this._instantiationService.createInstance(CommandLineAutoApprover));
 		const treeSitterLanguage = language === 'powershell' ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
 		let subCommands: string[];
 		try {
@@ -450,11 +449,15 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return undefined;
 		}
 		const shell = language === 'powershell' ? 'pwsh' : 'bash';
-		const evaluator = this._autoApproveEvaluator;
-		const subCommandResults = await Promise.all(subCommands.map(e => evaluator.isCommandAutoApproved(e, shell, OS, undefined, chatSessionResource)));
-		const commandLineResult = evaluator.isCommandLineAutoApproved(trimmedCommandLine, chatSessionResource);
-		// Session-scoped approvals are not forwarded to the agent host yet, so offering them
-		// here would appear to work while later commands still prompt
+		const evaluator = this._autoApproveEvaluator ??= this._register(this._instantiationService.createInstance(CommandLineAutoApprover));
+		// Evaluate against persisted configuration rules only — deliberately no
+		// chat session resource, so workbench session rules (which the agent
+		// host does not consume) neither suppress suggestions nor get offered
+		// (`skipSessionScoped`). Session rules are not forwarded to the agent
+		// host yet, so anything session-scoped would appear to work while
+		// later commands still prompt.
+		const subCommandResults = await Promise.all(subCommands.map(e => evaluator.isCommandAutoApproved(e, shell, OS, undefined)));
+		const commandLineResult = evaluator.isCommandLineAutoApproved(trimmedCommandLine);
 		return generateAutoApproveActions(trimmedCommandLine, subCommands, { subCommandResults, commandLineResult }, { skipSessionScoped: true });
 	}
 

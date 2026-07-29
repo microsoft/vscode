@@ -632,10 +632,11 @@ export interface IChatTerminalToolInvocationData {
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
 	/**
-	 * Whether the backend evaluated this command against the configured
-	 * terminal auto-approve rules, meaning rule-creating confirmation actions
-	 * can suppress future prompts. Set by the Agent Host; the built-in
-	 * terminal tool computes its actions up front and leaves this unset.
+	 * Whether adding a persistent terminal auto-approve rule can suppress
+	 * prompts like this confirmation — the backend parsed the command and
+	 * found a missing allow rule to be the only blocker. Set by the Agent
+	 * Host; the built-in terminal tool computes its actions up front and
+	 * leaves this unset.
 	 */
 	autoApproveRulesApply?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */

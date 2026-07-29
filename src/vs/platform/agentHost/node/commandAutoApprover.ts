@@ -87,6 +87,21 @@ function classifyFileRedirect(redirectText: string): FileRedirectClassification 
  */
 export type CommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 
+/** Structured outcome of {@link CommandAutoApprover.evaluate}. */
+export interface ICommandApprovalEvaluation {
+	/** Final approval outcome, identical to {@link CommandAutoApprover.shouldAutoApprove}. */
+	readonly result: CommandApprovalResult;
+	/**
+	 * Whether adding a persistent auto-approve rule could turn this outcome
+	 * into an approval: the command parsed successfully, nothing matched a
+	 * deny rule, every write-redirect destination is approved, and the only
+	 * blocker is a missing allow rule. False for approved results (nothing
+	 * left to resolve), denials, parser failures, and unapproved write
+	 * redirects — prompts no rule can suppress.
+	 */
+	readonly ruleResolvable: boolean;
+}
+
 /** Options for {@link CommandAutoApprover.shouldAutoApprove}. */
 export interface IShouldAutoApproveOptions {
 	/**
@@ -172,9 +187,18 @@ export class CommandAutoApprover extends Disposable {
 	 * predicate, write redirections do not block auto-approval.
 	 */
 	shouldAutoApprove(commandLine: string, options?: IShouldAutoApproveOptions): CommandApprovalResult {
+		return this.evaluate(commandLine, options).result;
+	}
+
+	/**
+	 * Like {@link shouldAutoApprove}, but also reports whether the outcome is
+	 * resolvable by adding a persistent auto-approve rule (see
+	 * {@link ICommandApprovalEvaluation.ruleResolvable}).
+	 */
+	evaluate(commandLine: string, options?: IShouldAutoApproveOptions): ICommandApprovalEvaluation {
 		const trimmed = commandLine.trimStart();
 		if (trimmed.length === 0) {
-			return 'approved';
+			return { result: 'approved', ruleResolvable: false };
 		}
 
 		const rules = this._compileRules(options?.autoApproveRules);
@@ -182,26 +206,26 @@ export class CommandAutoApprover extends Disposable {
 		const parsed = this._extractSubCommands(trimmed);
 		if (!parsed) {
 			this._logService.trace('[CommandAutoApprover] Tree-sitter unavailable, requiring confirmation');
-			return 'noMatch';
+			return { result: 'noMatch', ruleResolvable: false };
 		}
 
 		if (this._matchesRule(trimmed, rules.denyCommandLineRules)) {
-			return 'denied';
+			return { result: 'denied', ruleResolvable: false };
 		}
+
+		const hasUnapprovedRedirect = () => parsed.unsafeWriteDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
 
 		let result = this._matchSubCommands(parsed.subCommands, rules);
 		if (result !== 'denied' && this._matchesRule(trimmed, rules.allowCommandLineRules)) {
 			result = 'approved';
 		}
-		if (result === 'approved' && parsed.unsafeWriteDests.length > 0) {
-			for (const dest of parsed.unsafeWriteDests) {
-				if (dest === undefined || !options?.isWriteDestApproved?.(dest)) {
-					this._logService.trace('[CommandAutoApprover] Write redirection to non-approved destination, requiring confirmation');
-					return 'noMatch';
-				}
-			}
+		if (result === 'approved' && hasUnapprovedRedirect()) {
+			this._logService.trace('[CommandAutoApprover] Write redirection to non-approved destination, requiring confirmation');
+			return { result: 'noMatch', ruleResolvable: false };
 		}
-		return result;
+		// A `noMatch` blocked only by missing allow rules is rule-resolvable;
+		// one that an unapproved write redirect would still block is not.
+		return { result, ruleResolvable: result === 'noMatch' && !hasUnapprovedRedirect() };
 	}
 
 	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules): CommandApprovalResult {

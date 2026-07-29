@@ -2887,12 +2887,19 @@ suite('AgentSideEffects', () => {
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
 		});
 
-		test('tool_ready for a shell permission marks autoApproveRulesApply, except when sandbox bypass is requested', async () => {
+		test('tool_ready for a shell permission marks autoApproveRulesApply, except for sandbox-bypass and managed confirmations', async () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
+			// Rule resolvability requires a successful tree-sitter parse.
+			await sideEffects.initialize();
 
-			for (const [toolCallId, requestSandboxBypass] of [['tc-shell-rules-1', false], ['tc-shell-rules-2', true]] as const) {
+			const cases = [
+				['tc-shell-rules-1', { requestSandboxBypass: false }],
+				['tc-shell-rules-2', { requestSandboxBypass: true }],
+				['tc-shell-rules-3', { managedApprovalRequired: true }],
+			] as const;
+			for (const [toolCallId, signalOverrides] of cases) {
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
 					action: {
@@ -2909,19 +2916,20 @@ suite('AgentSideEffects', () => {
 						invocationMessage: 'Run command', toolInput: 'foo --bar',
 						confirmationTitle: 'Run in terminal?', edits: undefined,
 					},
-					permissionKind: 'shell', permissionPath: undefined, requestSandboxBypass,
+					permissionKind: 'shell', permissionPath: undefined,
+					...signalOverrides,
 				});
 			}
 
 			const state = await waitForState(stateManager, () => {
 				const s = stateManager.getSessionState(sessionUri.toString());
 				const parts = s?.activeTurn?.responseParts;
-				return parts?.length === 2 && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
 			});
 			assert.deepStrictEqual(
 				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRulesApply'] : undefined),
-				[true, undefined],
-				'rule-evaluated shell confirmation is marked; sandbox-bypass confirmation is not');
+				[true, undefined, undefined],
+				'only the rule-resolvable shell confirmation is marked; sandbox-bypass and managed confirmations are not');
 		});
 
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {

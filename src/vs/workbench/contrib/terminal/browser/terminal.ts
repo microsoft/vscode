@@ -277,15 +277,15 @@ export interface ITerminalChatService {
 	 * Generate auto-approve rule actions for a command line that was not evaluated by the
 	 * built-in run in terminal tool, such as terminal confirmations surfaced by agent host
 	 * sessions. The command line is parsed into sub-commands and evaluated against the
-	 * configured auto-approve rules to produce the same rule suggestions the built-in tool
+	 * persisted configuration rules only (never workbench session rules, which agent hosts
+	 * do not consume) to produce the same persistent-rule suggestions the built-in tool
 	 * offers.
 	 * @param commandLine The full command line being confirmed
 	 * @param language The language to parse the command line with
-	 * @param chatSessionResource The chat session resource URI
 	 * @returns The actions to show in the confirmation dropdown, or undefined if the command
 	 * line could not be analyzed
 	 */
-	getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell', chatSessionResource: URI): Promise<ToolConfirmationAction[] | undefined>;
+	getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell'): Promise<ToolConfirmationAction[] | undefined>;
 
 	/**
 	 * Signal that a foreground terminal tool invocation should continue in the background.

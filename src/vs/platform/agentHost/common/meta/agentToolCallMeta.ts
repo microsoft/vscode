@@ -48,11 +48,11 @@ export interface IToolCallMeta {
 	readonly autoApproveBySetting?: boolean;
 	/**
 	 * Set by the host's side-effect layer on a shell tool call's pending
-	 * confirmation when the command was evaluated by the rule-based
-	 * auto-approver (`permissionKind === 'shell'` without a sandbox bypass),
-	 * so the client knows that configuring terminal auto-approve rules can
-	 * suppress future prompts like this one. Absent on confirmations rules
-	 * can never satisfy (e.g. sandbox-bypass prompts).
+	 * confirmation when adding a persistent terminal auto-approve rule could
+	 * suppress prompts like this one: the command parsed successfully, matched
+	 * no deny rule, has no unapproved write redirect, and only lacks a
+	 * matching allow rule. Absent on confirmations no rule can satisfy —
+	 * managed approvals, sandbox-bypass prompts, denials, and parser failures.
 	 */
 	readonly autoApproveRulesApply?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */

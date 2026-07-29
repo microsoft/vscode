@@ -222,7 +222,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		if (autoApproveEnabled && !customActions && terminalData.autoApproveRulesApply && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
 			const commandForAnalysis = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			const analysisLanguage = terminalData.language === 'powershell' ? 'powershell' : 'shellscript';
-			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage, this.context.element.sessionResource).then(actions => {
+			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage).then(actions => {
 				if (this._store.isDisposed || !actions?.length || customActions) {
 					return;
 				}

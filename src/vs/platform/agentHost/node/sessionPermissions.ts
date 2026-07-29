@@ -328,6 +328,30 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	/**
+	 * Whether adding a persistent terminal auto-approve rule would suppress
+	 * future prompts like this shell event (the current event still prompts):
+	 * the command parsed, matched no deny rule, has no unapproved write
+	 * redirect, and only lacks a matching allow rule. False for non-shell
+	 * events, sandbox-bypass prompts, and disabled auto-approve. Re-parses
+	 * the command (cheap, rules are cached) so {@link getAutoApproval} stays
+	 * untouched.
+	 */
+	canFutureRuleSuppressPrompt(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
+		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass) {
+			return false;
+		}
+		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
+			return false;
+		}
+		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workingDirectories = workDirs?.map(d => URI.parse(d));
+		return this._commandAutoApprover.evaluate(e.toolInput, {
+			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
+			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+		}).ruleResolvable;
+	}
+
+	/**
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
