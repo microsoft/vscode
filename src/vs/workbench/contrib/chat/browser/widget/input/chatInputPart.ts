@@ -2981,8 +2981,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const onDidChangeInputOnboardingVisible = () => this.options.onDidChangeInputOnboardingVisible?.(
 			this.voiceModeOnboardingService.isVisible || this.dictationOnboardingService.isVisible
 		);
-		this._register(this.voiceModeOnboardingService.registerHost(elements.voiceModeOnboardingContainer, this.container, () => this.focus(), onDidChangeInputOnboardingVisible));
-		this._register(this.dictationOnboardingService.registerHost(elements.dictationOnboardingContainer, this.container, onDidChangeInputOnboardingVisible));
+		this._register(this.voiceModeOnboardingService.registerHost(elements.voiceModeOnboardingContainer, this.container, () => this.focus(), elements.chatGettingStartedTipContainer, onDidChangeInputOnboardingVisible));
+		this._register(this.dictationOnboardingService.registerHost(elements.dictationOnboardingContainer, this.container, elements.chatGettingStartedTipContainer, onDidChangeInputOnboardingVisible));
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;

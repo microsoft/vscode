@@ -18,6 +18,7 @@ suite('Chat input onboarding', () => {
 	function createHost(store: Pick<DisposableStore, 'add'>): { root: HTMLElement; container: HTMLElement } {
 		const root = dom.$('div');
 		root.tabIndex = 0;
+		dom.append(root, dom.$('.chat-getting-started-tip-container'));
 		const container = dom.append(root, dom.$('.chat-input-onboarding-container'));
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
@@ -44,7 +45,8 @@ suite('Chat input onboarding', () => {
 		const host = createHost(disposables);
 		let focusCalls = 0;
 		const visibleChanges: boolean[] = [];
-		disposables.add(onboarding.registerHost(host.container, host.root, () => focusCalls++, visible => visibleChanges.push(visible)));
+		const tipContainer = host.root.querySelector<HTMLElement>('.chat-getting-started-tip-container')!;
+		disposables.add(onboarding.registerHost(host.container, host.root, () => focusCalls++, tipContainer, visible => visibleChanges.push(visible)));
 
 		let context: IChatInputOnboardingContext | undefined;
 		let cardsCreated = 0;
@@ -66,9 +68,10 @@ suite('Chat input onboarding', () => {
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
 				isVisible: onboarding.isVisible,
 				visibleChanges: [...visibleChanges],
+				tipsVisible: host.root.querySelector<HTMLElement>('.chat-getting-started-tip-container')?.style.display !== 'none',
 				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
 			},
-			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, isVisible: true, visibleChanges: [true], cards: 1 });
+			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, isVisible: true, visibleChanges: [true], tipsVisible: false, cards: 1 });
 
 		context!.dismiss();
 
@@ -78,10 +81,11 @@ suite('Chat input onboarding', () => {
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
 				isVisible: onboarding.isVisible,
 				visibleChanges,
+				tipsVisible: host.root.querySelector<HTMLElement>('.chat-getting-started-tip-container')?.style.display !== 'none',
 				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
 				shownAgain: onboarding.showIfNeeded(createCard),
 			},
-			{ focusCalls: 1, visible: false, isVisible: false, visibleChanges: [true, false], cards: 0, shownAgain: false });
+			{ focusCalls: 1, visible: false, isVisible: false, visibleChanges: [true, false], tipsVisible: true, cards: 0, shownAgain: false });
 	});
 
 	test('does not consume first-run state until a card can be shown', () => {

@@ -834,7 +834,7 @@ export interface IDictationOnboardingService {
 	 * @param focusRoot the element whose focus marks this host as the active one
 	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -875,8 +875,8 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, undefined, onDidChangeVisible);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, undefined, tipContainer, onDidChangeVisible);
 	}
 
 	showIfNeeded(): boolean {

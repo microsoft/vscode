@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, trackFocus } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, setVisibility, trackFocus } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -14,6 +14,7 @@ interface IChatInputOnboardingHost {
 	readonly container: HTMLElement;
 	readonly focusRoot: HTMLElement;
 	readonly focus: (() => void) | undefined;
+	readonly tipContainer: HTMLElement | undefined;
 	readonly onDidChangeVisible: ((visible: boolean) => void) | undefined;
 	lastFocused: number;
 }
@@ -60,11 +61,12 @@ export class ChatInputOnboarding extends Disposable {
 		super();
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus?: () => void, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus?: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
 		const host: IChatInputOnboardingHost = {
 			container,
 			focusRoot,
 			focus,
+			tipContainer,
 			onDidChangeVisible,
 			lastFocused: 0,
 		};
@@ -118,6 +120,7 @@ export class ChatInputOnboarding extends Disposable {
 		}
 
 		this.currentOnboarding.value = onboardingStore;
+		this.setTipsVisible(host, false);
 		host.onDidChangeVisible?.(true);
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 		return true;
@@ -138,10 +141,17 @@ export class ChatInputOnboarding extends Disposable {
 		this.activeHost = undefined;
 		this.currentOnboarding.clear();
 		if (wasVisible) {
+			this.setTipsVisible(host, true);
 			host?.onDidChangeVisible?.(false);
 		}
 		if (restoreFocus) {
 			host?.focus?.();
+		}
+	}
+
+	private setTipsVisible(host: IChatInputOnboardingHost | undefined, visible: boolean): void {
+		if (host?.tipContainer) {
+			setVisibility(visible, host.tipContainer);
 		}
 	}
 }

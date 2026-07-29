@@ -173,6 +173,7 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
+			getInputOnboardingTipContainer: () => this._chatTipContainer,
 			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));

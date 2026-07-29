@@ -922,7 +922,7 @@ export interface IVoiceModeOnboardingService {
 	 * Passed explicitly because `focusRoot` is a container, not a control - the
 	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -955,8 +955,8 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, focus, onDidChangeVisible);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, focus, tipContainer, onDidChangeVisible);
 	}
 
 	showIfNeeded(): void {

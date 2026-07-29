@@ -358,6 +358,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
 			supportsBackground?: boolean;
+			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
 			onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 			/**
 			 * Keep this composer a valid voice target even while a created session
@@ -467,12 +468,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const onDidChangeInputOnboardingVisible = () => this.options.onDidChangeInputOnboardingVisible?.(
 			this.voiceModeOnboardingService.isVisible || this.dictationOnboardingService.isVisible
 		);
-		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus(), onDidChangeInputOnboardingVisible));
+		const tipContainer = this.options.getInputOnboardingTipContainer?.();
+		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus(), tipContainer, onDidChangeInputOnboardingVisible));
 
 		// First-run dictation introduction, docked directly above the input area
 		// so it reads as one stack with it - the same slot the chat view uses.
 		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
-		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, onDidChangeInputOnboardingVisible));
+		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, tipContainer, onDidChangeInputOnboardingVisible));
 
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));
