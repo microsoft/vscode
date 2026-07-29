@@ -735,8 +735,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Files created/edited/deleted outside the workspace, plus the last turn's
 		// changes, parsed from the chat-state turns. Computed lazily from the same
 		// active-session subscriptions used for changes.
-		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const sessionOutput = createSessionOutputObs(sessionUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
+		const sessionOutput = createSessionOutputObs(this.backendUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
 		this._sessionOutput = sessionOutput;
 		this.externalChanges = sessionOutput.externalFiles;
 
@@ -747,7 +746,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			updatedAt: this.updatedAt,
 			status: derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader)),
 			changes: this.changes,
-			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(sessionUri))),
+			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
 			mode: this.mode,
@@ -1282,9 +1281,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		const rawId = AgentSession.id(this.resource);
-		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const changesets = createChangesets(sessionUri, this._options, this.isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata);
 
 		this.changesets.set(changesets, undefined);
 	}
@@ -1802,9 +1799,7 @@ class NewSession extends Disposable {
 			return;
 		}
 
-		const rawId = AgentSession.id(this.session.resource);
-		const sessionUri = AgentSession.uri(this.session.sessionType, rawId);
-		const changesets = createChangesets(sessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this._backendSessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
 
 		this._changesets.set(changesets, undefined);
 	}
@@ -4609,11 +4604,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionAdded(summary: SessionSummary): void {
-		const sessionUri = URI.parse(summary.resource);
-		const rawId = AgentSession.id(sessionUri);
 		const workingDirs = summary.workingDirectories?.map(d => this.mapWorkingDirectoryUri(URI.parse(d)));
-		const meta: IAgentSessionMetadata = {
-			session: sessionUri,
+		const rawMeta: IAgentSessionMetadata = {
+			session: URI.parse(summary.resource),
 			startTime: Date.parse(summary.createdAt),
 			modifiedTime: Date.parse(summary.modifiedAt),
 			summary: summary.title,
@@ -4631,6 +4624,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// existing one can be promoted by it.
 			...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 		};
+
+		// Adopt before deriving the cache key so a host that addresses sessions under a different
+		// scheme routes to the agent provider, as the refresh and persistence paths do.
+		const meta = this._adoptSessionMeta(rawMeta);
+		const rawId = AgentSession.id(meta.session);
 
 		const existing = this._sessionCache.get(rawId);
 		if (existing) {

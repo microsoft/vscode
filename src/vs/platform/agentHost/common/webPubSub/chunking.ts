@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Ported from github-ui `packages/ahp-relay/webpubsub/chunking.ts` (Microsoft, MIT).
+// Ported from github-ui `https://github.com/github/github-ui/blob/main/packages/ahp-relay/webpubsub/chunking.ts` (Microsoft, MIT).
 //
 // Chunking codec for the Web PubSub transport (`ChunkEnvelope`). Azure Web
 // PubSub rejects any WebSocket frame larger than 1 MB, and the reliable

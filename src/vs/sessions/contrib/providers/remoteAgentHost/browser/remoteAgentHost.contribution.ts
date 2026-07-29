@@ -1045,6 +1045,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
+		// Off by default: sandbox tasks currently carry the `copilot-developer-cli` slug, which the
+		// Copilot extension's cloud provider does not list, so the two do not overlap. That slug is
+		// expected to change, at which point both providers would list the same task — see
+		// `CLOUD_SANDBOX_AGENT_SLUG`.
 		[CloudSandboxEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.cloudSandbox.enabled', "Enable connecting to Copilot cloud sandbox sessions over a live Agent Host Protocol relay. When enabled, opening a Copilot CLI cloud session connects to its sandbox for slash commands and a responsive, steerable experience instead of only polling logs."),

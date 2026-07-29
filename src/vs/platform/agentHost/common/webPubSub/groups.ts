@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Ported from github-ui `packages/ahp-relay/webpubsub/groups.ts` (Microsoft, MIT).
+// Ported from github-ui `https://github.com/github/github-ui/blob/main/packages/ahp-relay/webpubsub/groups.ts` (Microsoft, MIT).
 //
 // Group-name validator/parser for the Web PubSub transport. Validates and
 // classifies inbound Web PubSub group names against the portable group-name

@@ -46,7 +46,16 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
 		: undefined;
 }
 
-/** The Copilot cloud agent slug whose tasks run inside a Mission Control sandbox. */
+/**
+ * The Copilot cloud agent slug whose tasks run inside a Mission Control sandbox.
+ *
+ * Sandbox tasks carry this slug today, which is why {@link CloudSandboxEnabledSettingId} exists and
+ * defaults to off: the Copilot extension's cloud provider lists tasks by an allowlist of cloud
+ * slugs (`copilot-developer`, `copilot-swe-agent`) that excludes this one, so the two providers do
+ * not overlap. Sandbox tasks are expected to move under one of those slugs eventually, at which
+ * point both providers would list the same task and the sessions list would show it twice — the
+ * setting keeps that from reaching everyone before the overlap is resolved.
+ */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
@@ -200,7 +209,7 @@ export interface ICloudSandboxCredentialsService {
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 
 	/** Enumerate the caller's sandbox-backed cloud sessions, enough to seed session entries. */
-	listSessions(token: CancellationToken): Promise<readonly ICloudSandboxDiscoveredSession[]>;
+	listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult>;
 }
 
 /**
@@ -213,6 +222,19 @@ export class CloudSandboxEnvironmentOfflineError extends Error {
 		this.name = 'CloudSandboxEnvironmentOfflineError';
 	}
 }
+
+/**
+ * Outcome of a discovery pass. Only a `complete` result describes the full set of sandbox sessions,
+ * so only it may be reconciled against — a `partial` result is missing entries that still exist, and
+ * treating it as authoritative would tear down live sessions.
+ */
+export type ICloudSandboxDiscoveryResult =
+	/** Every task was scanned and resolved; absent sessions really are gone. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** Some tasks could not be resolved. Seed what was found, but do not remove anything. */
+	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
+	| { readonly kind: 'failed'; readonly reason: string };
 
 /** Thrown when no GitHub session with the required scopes is available. */
 export class CloudSandboxAuthenticationRequiredError extends Error {

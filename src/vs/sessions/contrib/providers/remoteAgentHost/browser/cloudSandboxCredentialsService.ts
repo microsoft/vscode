@@ -14,6 +14,7 @@ import {
 	ICloudSandboxConnectionRequest,
 	ICloudSandboxCredentialsService,
 	ICloudSandboxDiscoveredSession,
+	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
@@ -111,30 +112,38 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 
 	/**
 	 * Enumerate sandbox-backed cloud sessions by scanning recent tasks and resolving each one's
-	 * Mission Control environment binding. Individual failures are logged and skipped.
+	 * Mission Control environment binding.
+	 *
+	 * The result distinguishes a full scan from a partial or failed one: a caller that reconciles
+	 * against this list would otherwise treat a transient request failure as "these sessions no
+	 * longer exist" and tear down live providers.
 	 */
-	async listSessions(token: CancellationToken): Promise<readonly ICloudSandboxDiscoveredSession[]> {
+	async listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
 		let tasks: readonly ITaskSummary[];
 		try {
 			const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks?per_page=${DISCOVERY_TASK_SCAN_LIMIT}`, 'list', token);
 			const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
 			if (!response?.tasks) {
-				this._logService.warn(`${LOG_PREFIX} Discovery listTasks returned no 'tasks' array`);
-				return [];
+				return { kind: 'failed', reason: `listTasks returned no 'tasks' array` };
 			}
 			tasks = response.tasks;
 		} catch (error) {
-			this._logService.warn(`${LOG_PREFIX} Discovery listTasks failed: ${toErrorMessage(error)}`);
-			return [];
+			return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
 		}
 
 		const sandboxTasks = tasks.filter(task => !task.archived_at && isCloudSandboxTask(task));
+		let unresolved = 0;
 		const discovered = await Promise.all(sandboxTasks.map(async (task): Promise<ICloudSandboxDiscoveredSession | undefined> => {
 			try {
 				const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
 				const full = await this._readJson<ITaskDetail>(context);
-				const binding = full && getTaskEnvironmentBinding(full);
-				if (!full || !binding) {
+				if (!full) {
+					unresolved++;
+					return undefined;
+				}
+				const binding = getTaskEnvironmentBinding(full);
+				if (!binding) {
+					// No environment bound yet — a real state, not a failure to resolve.
 					return undefined;
 				}
 				const repo = parseRepoFromTaskUrl(full.html_url);
@@ -147,13 +156,14 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 				};
 			} catch (error) {
 				this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
+				unresolved++;
 				return undefined;
 			}
 		}));
 
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
-		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} task(s) scanned.`);
-		return sessions;
+		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${unresolved > 0 ? `; ${unresolved} unresolved` : ''}.`);
+		return { kind: unresolved > 0 ? 'partial' : 'complete', sessions };
 	}
 
 	/** Shared handler for the `connect`/`reconnect` endpoints (200 token or 202 waking). */

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Adapted from github-ui `packages/ahp-relay/webpubsub/wps-transport.ts`
+// Adapted from github-ui `https://github.com/github/github-ui/blob/main/packages/ahp-relay/webpubsub/wps-transport.ts`
 // (Microsoft, MIT) to VS Code's push-based {@link IClientTransport} contract.
 //
 // Connects to Azure Web PubSub using the reliable JSON subprotocol and
@@ -259,6 +259,14 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		}
 	}
 
+	/**
+	 * TODO: publish acks are requested but not tracked — a `success: false` ack is dropped by
+	 * {@link _ingestGroupFrame}, so the message never reaches the host, no JSON-RPC reply can
+	 * arrive, and the request stays pending forever while the transport still looks open. The
+	 * symptom is a session that stops responding mid-turn with no error. Fixing it means tracking
+	 * publish ack ids here and failing the transport on a rejected ack — kept as-is for now to stay
+	 * in sync with github-ui `ahp-relay/webpubsub/wps-transport.ts`, which behaves the same way.
+	 */
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._closed || !this._ws) {
 			throw new Error('WebPubSubRelayTransport is closed');

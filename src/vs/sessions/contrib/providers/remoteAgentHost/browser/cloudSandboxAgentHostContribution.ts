@@ -8,7 +8,8 @@
 // CloudSandboxAgentHostService, and wires the live connection to the provider so the native session
 // machinery can enumerate and render the host's sessions.
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -21,7 +22,7 @@ import {
 	ICloudSandboxAgentHostService,
 	ICloudSandboxCredentialsService,
 	type ICloudSandboxConnectOptions,
-	type ICloudSandboxDiscoveredSession,
+	type ICloudSandboxDiscoveryResult,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -69,6 +70,11 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	private readonly _environments = new Map<string, ICloudSandboxEnvironment>();
 	/** In-flight connects keyed by address, so concurrent opens share one attempt. */
 	private readonly _pendingConnects = new Map<string, Promise<string>>();
+	/**
+	 * Cancelled when the feature is disabled (or the contribution is disposed), so in-flight
+	 * discovery and connects abort instead of committing state after teardown has run.
+	 */
+	private _enabledCts = new CancellationTokenSource();
 	/** Serializes discovery so overlapping triggers can't interleave reconciliation. */
 	private _discoveryInFlight: Promise<void> | undefined;
 	private _discoveryQueued: Promise<void> | undefined;
@@ -143,6 +149,12 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		// relay connection and waits for the host to advertise the session's agent
 		// (so its content provider registers) before the chat loads. Scoped to our
 		// sandbox authorities so it never intercepts other remote-agent-host types.
+		// The source is swapped out by `_teardownAll`, so cancel whichever one is current on dispose.
+		this._register(toDisposable(() => {
+			this._enabledCts.cancel();
+			this._enabledCts.dispose();
+		}));
+
 		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 			matchSessionType: sessionType => this._findAddressForSessionType(sessionType) !== undefined,
 			waitForActivation: (_accessor, sessionType) => this._waitForActivation(sessionType),
@@ -177,17 +189,26 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		if (!this._isEnabled()) {
 			return;
 		}
-		let discovered: readonly ICloudSandboxDiscoveredSession[] | undefined;
+		const token = this._enabledCts.token;
+		let result: ICloudSandboxDiscoveryResult;
 		try {
-			discovered = await this._credentialsService.listSessions(CancellationToken.None);
+			result = await this._credentialsService.listSessions(token);
 		} catch (error) {
-			// Discovery failed (not "empty") — keep existing state; don't reconcile on a transient error.
-			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+			result = { kind: 'failed', reason: error instanceof Error ? error.message : String(error) };
+		}
+		if (result.kind === 'failed') {
+			// Not "no sessions" — leave existing state alone, and stay eligible for the auth retry.
+			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
+			return;
+		}
+		// The feature may have been disabled while the scan was in flight.
+		if (token.isCancellationRequested || !this._isEnabled()) {
 			return;
 		}
 		this._hasDiscovered = true;
+
 		const present = new Set<string>();
-		for (const session of discovered ?? []) {
+		for (const session of result.sessions) {
 			if (!session.environmentId || !session.sessionId) {
 				continue;
 			}
@@ -212,17 +233,20 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 
 		// Negative reconciliation: drop environments that are no longer discoverable and aren't
 		// currently connected (an open/connected session is kept so active use isn't disrupted).
-		for (const address of [...this._environments.keys()]) {
-			if (present.has(address)) {
-				continue;
-			}
-			const connected = this._remoteAgentHostService.connections.some(c => c.address === address);
-			if (!connected) {
-				this._teardownEnvironment(address);
+		// Only a complete scan is authoritative — a partial one is missing entries that still exist.
+		if (result.kind === 'complete') {
+			for (const address of [...this._environments.keys()]) {
+				if (present.has(address)) {
+					continue;
+				}
+				const connected = this._remoteAgentHostService.connections.some(c => c.address === address);
+				if (!connected) {
+					this._teardownEnvironment(address);
+				}
 			}
 		}
 
-		this._logService.info(`${LOG_PREFIX} Seeded ${present.size} discovered sandbox environment(s).`);
+		this._logService.info(`${LOG_PREFIX} Seeded ${present.size} discovered sandbox environment(s)${result.kind === 'partial' ? ' (partial scan; kept existing entries)' : ''}.`);
 	}
 
 	/**
@@ -253,6 +277,10 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 
 	/** Tear down every known sandbox environment (feature disabled). */
 	private _teardownAll(): void {
+		// Abort in-flight discovery/connects first so nothing commits state after this runs.
+		this._enabledCts.cancel();
+		this._enabledCts.dispose();
+		this._enabledCts = new CancellationTokenSource();
 		for (const address of [...this._environments.keys()]) {
 			this._teardownEnvironment(address);
 		}
@@ -329,10 +357,17 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		if (pending) {
 			return pending;
 		}
+		const token = this._enabledCts.token;
 		const attempt = (async () => {
 			try {
 				this._providerInstances.get(address)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
-				const result = await this._cloudSandboxService.connect(options, CancellationToken.None);
+				const result = await this._cloudSandboxService.connect(options, token);
+				// The feature may have been disabled while connecting; drop the connection rather
+				// than leaving a live relay open after teardown.
+				if (token.isCancellationRequested || !this._isEnabled()) {
+					void this._disconnectEnvironment(address);
+					throw new CancellationError();
+				}
 				// `onDidChangeConnections` fires from addManagedConnection and wires the
 				// provider; call _wireConnections directly too in case it already fired.
 				this._wireConnections();
