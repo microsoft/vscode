@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 
 suite('ChatSpeechToTextService', () => {
 
@@ -73,6 +73,23 @@ suite('ChatSpeechToTextService', () => {
 				idleReevaluationRange: { start: 0, end: 'one two three four five six'.length },
 				shortRange: undefined,
 			}
+		);
+	});
+
+	test('collapses punctuation artifacts from concatenated segments', () => {
+		assert.deepStrictEqual(
+			[
+				stripDictationFillers('zoom in on a couple things., first for now'),
+				stripDictationFillers('not expecting any,, meaningful difference'),
+				stripDictationFillers('control over, then that is interesting., and then'),
+				stripDictationFillers('one thing ,. another thing'),
+			],
+			[
+				'zoom in on a couple things. first for now',
+				'not expecting any, meaningful difference',
+				'control over, then that is interesting. and then',
+				'one thing. another thing',
+			]
 		);
 	});
 
