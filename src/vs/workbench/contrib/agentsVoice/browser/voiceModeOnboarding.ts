@@ -909,6 +909,7 @@ export const IVoiceModeOnboardingService = createDecorator<IVoiceModeOnboardingS
 
 export interface IVoiceModeOnboardingService {
 	readonly _serviceBrand: undefined;
+	readonly isVisible: boolean;
 
 	/**
 	 * Register a container that can host the banner (a chat input). The most
@@ -921,7 +922,7 @@ export interface IVoiceModeOnboardingService {
 	 * Passed explicitly because `focusRoot` is a container, not a control - the
 	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -939,6 +940,10 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 
 	private readonly onboarding: ChatInputOnboarding;
 
+	get isVisible(): boolean {
+		return this.onboarding.isVisible;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -950,8 +955,8 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, focus);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, focus, onDidChangeVisible);
 	}
 
 	showIfNeeded(): void {

@@ -301,6 +301,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
+	private _isInputOnboardingVisible = false;
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -1185,6 +1186,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.inputPart || !this.viewModel) {
 			return;
 		}
+		if (this.isInputOnboardingVisible()) {
+			this.clearGettingStartedTip();
+			return;
+		}
 
 		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 
@@ -1234,6 +1239,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 			dom.clearNode(tipContainer);
 			dom.setVisibility(false, tipContainer);
+		}
+	}
+
+	private isInputOnboardingVisible(): boolean {
+		return this._isInputOnboardingVisible;
+	}
+
+	private setInputOnboardingVisible(visible: boolean): void {
+		this._isInputOnboardingVisible = visible;
+		if (visible) {
+			this.clearGettingStartedTip();
+		} else if (this.isEmpty()) {
+			this.renderGettingStartedTipIfNeeded();
 		}
 	}
 
@@ -2031,6 +2049,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
 		};
 
 		if (this.viewModel?.editing) {

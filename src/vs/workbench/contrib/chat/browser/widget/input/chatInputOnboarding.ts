@@ -14,6 +14,7 @@ interface IChatInputOnboardingHost {
 	readonly container: HTMLElement;
 	readonly focusRoot: HTMLElement;
 	readonly focus: (() => void) | undefined;
+	readonly onDidChangeVisible: ((visible: boolean) => void) | undefined;
 	lastFocused: number;
 }
 
@@ -48,6 +49,10 @@ export class ChatInputOnboarding extends Disposable {
 	private readonly currentOnboarding = this._register(new MutableDisposable<IDisposable>());
 	private activeHost: IChatInputOnboardingHost | undefined;
 
+	get isVisible(): boolean {
+		return !!this.currentOnboarding.value;
+	}
+
 	constructor(
 		private readonly options: IChatInputOnboardingOptions,
 		@IStorageService private readonly storageService: IStorageService,
@@ -55,11 +60,12 @@ export class ChatInputOnboarding extends Disposable {
 		super();
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus?: () => void): IDisposable {
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus?: () => void, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
 		const host: IChatInputOnboardingHost = {
 			container,
 			focusRoot,
 			focus,
+			onDidChangeVisible,
 			lastFocused: 0,
 		};
 		this.hosts.add(host);
@@ -112,6 +118,7 @@ export class ChatInputOnboarding extends Disposable {
 		}
 
 		this.currentOnboarding.value = onboardingStore;
+		host.onDidChangeVisible?.(true);
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 		return true;
 	}
@@ -127,8 +134,12 @@ export class ChatInputOnboarding extends Disposable {
 
 	private hide(restoreFocus: boolean): void {
 		const host = this.activeHost;
+		const wasVisible = this.isVisible;
 		this.activeHost = undefined;
 		this.currentOnboarding.clear();
+		if (wasVisible) {
+			host?.onDidChangeVisible?.(false);
+		}
 		if (restoreFocus) {
 			host?.focus?.();
 		}

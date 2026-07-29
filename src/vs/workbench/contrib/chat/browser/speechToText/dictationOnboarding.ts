@@ -824,6 +824,7 @@ export const IDictationOnboardingService = createDecorator<IDictationOnboardingS
 
 export interface IDictationOnboardingService {
 	readonly _serviceBrand: undefined;
+	readonly isVisible: boolean;
 
 	/**
 	 * Register a container that can host the card (a chat input). The most
@@ -833,7 +834,7 @@ export interface IDictationOnboardingService {
 	 * @param focusRoot the element whose focus marks this host as the active one
 	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -858,6 +859,10 @@ export class DictationOnboardingService extends Disposable implements IDictation
 
 	private readonly onboarding: ChatInputOnboarding;
 
+	get isVisible(): boolean {
+		return this.onboarding.isVisible;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -870,8 +875,8 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, undefined, onDidChangeVisible);
 	}
 
 	showIfNeeded(): boolean {

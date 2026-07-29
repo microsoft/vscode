@@ -43,7 +43,8 @@ suite('Chat input onboarding', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.ownsCard');
 		const host = createHost(disposables);
 		let focusCalls = 0;
-		disposables.add(onboarding.registerHost(host.container, host.root, () => focusCalls++));
+		const visibleChanges: boolean[] = [];
+		disposables.add(onboarding.registerHost(host.container, host.root, () => focusCalls++, visible => visibleChanges.push(visible)));
 
 		let context: IChatInputOnboardingContext | undefined;
 		let cardsCreated = 0;
@@ -63,9 +64,11 @@ suite('Chat input onboarding', () => {
 				stillTakenOver,
 				cardsCreated,
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
+				isVisible: onboarding.isVisible,
+				visibleChanges: [...visibleChanges],
 				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
 			},
-			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, cards: 1 });
+			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, isVisible: true, visibleChanges: [true], cards: 1 });
 
 		context!.dismiss();
 
@@ -73,10 +76,12 @@ suite('Chat input onboarding', () => {
 			{
 				focusCalls,
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
+				isVisible: onboarding.isVisible,
+				visibleChanges,
 				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
 				shownAgain: onboarding.showIfNeeded(createCard),
 			},
-			{ focusCalls: 1, visible: false, cards: 0, shownAgain: false });
+			{ focusCalls: 1, visible: false, isVisible: false, visibleChanges: [true, false], cards: 0, shownAgain: false });
 	});
 
 	test('does not consume first-run state until a card can be shown', () => {
