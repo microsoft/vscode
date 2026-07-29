@@ -78,7 +78,7 @@ import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
-import { breathingIntensity, isGlowingVoiceState, readVoiceGlowIntensity, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { breathingIntensity, isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
@@ -458,6 +458,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const glowController = this._register(createVoiceGlowController(
 			inputContainerEl,
 			() => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
+			() => resolveVoiceGlowColors(this.themeService.getColorTheme()),
 		));
 		this._register(this.themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 		// The session this pane's voice UI belongs to, kept in sync by the

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Color, RGBA } from '../../../../../base/common/color.js';
 import { generateBeamCSS, getPulseDriverConfig, sizePresets, sizeThemePresets, type PulseDriverConfig } from './borderBeam/styles.js';
 import { BorderBeamSize } from './borderBeam/types.js';
-import { VoiceAnimationVariation, VoiceGlowState } from './voiceGlow.js';
+import { DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, VoiceAnimationVariation, VoiceGlowState } from './voiceGlow.js';
 
 /**
  * Production applier for the voice-mode ambient glow. Reproduces the "combined,
@@ -33,9 +34,10 @@ import { VoiceAnimationVariation, VoiceGlowState } from './voiceGlow.js';
 const RADIUS_FALLBACK = 6;
 /** How far the exterior bloom sits outside the box, in px. */
 const BLOOM_LIFT = 3;
-/** hue-rotate centers (deg) for the cool (listening) / warm (speaking) bloom. */
-const COOL_CENTER = 285;
-const WARM_CENTER = 415; // == 55 + 360, so cool->warm eases up through blue/purple, never green/orange
+/** The vendored bloom displays a hue of about (its hue-rotate center - 85deg).
+ *  Add this offset to a target hue to get the center that renders it, so the
+ *  organic bloom tracks the same theme-derived hue as the even halo below it. */
+const BLOOM_VENDOR_HUE_OFFSET = 85;
 /** Cross-fade timing shared by every state transition. */
 const FADE = 'opacity .6s cubic-bezier(.4,0,.2,1), transform .6s cubic-bezier(.4,0,.2,1)';
 /** Layer scale at the start (incoming) and end (outgoing) of a cross-fade. */
@@ -63,8 +65,9 @@ const BLOOM_VENDOR_MUL = { dark: 1, light: 0.72 } as const;
  * own they pile the glow above the box. This symmetric box-shadow ring fills the
  * sides/bottom evenly so the bloom actually wraps; the organic bloom rides on top.
  */
-const HALO_HUE = { cool: 202, warm: 315 } as const; // absolute HSL hues
-const HALO_SAT = { dark: 82, light: 94 } as const;
+const HALO_HUE_DRIFT = 6; // deg of gentle hue oscillation for life
+const HALO_SAT_MIN = { dark: 55, light: 68 } as const; // floor so low-chroma accents still read as color
+const HALO_SAT_MAX = 96;
 const HALO_LIGHT = { dark: 62, light: 48 } as const;
 const HALO_BASE_ALPHA = { dark: 0.20, light: 0.24 } as const;
 const HALO_ALPHA_GAIN = 0.22; // extra alpha at full audio level
@@ -72,13 +75,22 @@ const HALO_BLUR = { dark: 18, light: 13 } as const;
 const HALO_SPREAD_BASE = 0.5; // px
 const HALO_SPREAD_GAIN = 3.5; // px added at full audio level
 
-/** HSL hues (deg) for the CSS border variation. */
-const BORDER_COOL_HUE = 200; // listening
-const BORDER_WARM_HUE = 312; // speaking
-const BORDER_NEUTRAL_HUE = 210; // processing
-/** Saturation (%) for active (listening/speaking) vs neutral (processing) border. */
-const BORDER_ACTIVE_SAT = 92;
-const BORDER_NEUTRAL_SAT = 26;
+/** Saturation (%) bounds for the CSS border variation. */
+const BORDER_ACTIVE_SAT_MIN = 70; // listening / speaking
+const BORDER_ACTIVE_SAT_MAX = 96;
+const BORDER_NEUTRAL_SAT_MAX = 42; // processing stays calm
+
+/** Parse an "r,g,b" triple (from resolveVoiceGlowColors) into hue (0-360) and
+ *  saturation (0-1) so the glow can drive HSL/hue-rotate from the theme accent. */
+function hueSatOf(triple: string): { readonly h: number; readonly s: number } {
+	const parts = triple.split(',');
+	const r = parseInt(parts[0], 10) || 0;
+	const g = parseInt(parts[1], 10) || 0;
+	const b = parseInt(parts[2], 10) || 0;
+	const { h, s } = new Color(new RGBA(r, g, b, 1)).hsla;
+	return { h, s };
+}
+
 
 type GlowThemeKind = 'light' | 'dark';
 
@@ -322,8 +334,8 @@ function borderCss(id: string, radius: number, theme: GlowThemeKind): string {
  * presets (defaults to dark). The bloom is mounted BEHIND the box (self-masking
  * to the exterior); the rim / border overlay it.
  */
-export function createVoiceGlowController(target: HTMLElement, themeKind?: () => GlowThemeKind): IVoiceGlowController {
-	return new VoiceGlowController(target, themeKind);
+export function createVoiceGlowController(target: HTMLElement, themeKind?: () => GlowThemeKind, colors?: () => IVoiceGlowColors): IVoiceGlowController {
+	return new VoiceGlowController(target, themeKind, colors);
 }
 
 /** A standalone, audio-reactive interior rim light (the "Inside Rim" treatment). */
@@ -344,7 +356,7 @@ export interface IVoiceRim extends IDisposable {
  * for symmetry. The rim overlays the target's edge (its center is transparent, so
  * it never obscures the button glyph).
  */
-export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: boolean; readonly pill?: boolean; readonly themeKind?: () => GlowThemeKind }): IVoiceRim {
+export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: boolean; readonly pill?: boolean; readonly themeKind?: () => GlowThemeKind; readonly colors?: () => IVoiceGlowColors }): IVoiceRim {
 	const store = new DisposableStore();
 	const doc = target.ownerDocument;
 	const host = doc.createElement('div');
@@ -371,7 +383,8 @@ export function createVoiceRim(target: HTMLElement, options?: { readonly warm?: 
 	const beam = injectBeam(host, config, options?.themeKind?.() ?? 'dark', radius);
 	store.add(toDisposable(beam.dispose));
 
-	const center = options?.warm ? WARM_CENTER : COOL_CENTER;
+	const rimColors = options?.colors?.() ?? DEFAULT_VOICE_GLOW_COLORS;
+	const center = hueSatOf(options?.warm ? rimColors.speaking : rimColors.listening).h + BLOOM_VENDOR_HUE_OFFSET;
 	const view = doc.defaultView;
 	let animTime = 0;
 	let prevTs: number | undefined;
@@ -439,11 +452,16 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private readonly _targetRadius: number;
 
+	/** Theme-derived per-state accent colors ("r,g,b"), refreshed on theme change. */
+	private _colors: IVoiceGlowColors;
+
 	constructor(
 		private readonly _target: HTMLElement,
 		private readonly _themeKind: () => GlowThemeKind = () => 'dark',
+		private readonly _colorsProvider: () => IVoiceGlowColors = () => DEFAULT_VOICE_GLOW_COLORS,
 	) {
 		super();
+		this._colors = this._colorsProvider();
 		_target.style.position = _target.style.position || 'relative';
 		const doc = _target.ownerDocument;
 		const view = doc.defaultView;
@@ -590,11 +608,9 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 	}
 
 	refreshTheme(): void {
-		if (this._currentState === 'none' || this._currentState === 'idle' || this._currentState === 'error') {
-			// Nothing showing (except the rim variation's idle, handled below).
-		}
+		this._colors = this._colorsProvider();
 		if (this._front) {
-			// Re-mount the current layer so it picks up the new theme presets.
+			// Re-mount the current layer so it picks up the new theme colors/presets.
 			const state = this._currentState;
 			const variation = this._variation;
 			this._currentState = 'none';
@@ -602,6 +618,11 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 				this.render(state, 0.3, false, variation);
 			}
 		}
+	}
+
+	/** Theme-derived hue (0-360) + saturation (0-1) for a glowing state. */
+	private _hs(kind: 'listening' | 'speaking' | 'processing'): { readonly h: number; readonly s: number } {
+		return hueSatOf(kind === 'speaking' ? this._colors.speaking : kind === 'processing' ? this._colors.processing : this._colors.listening);
 	}
 
 	private _showLayer(desc: ILayerDesc, reducedMotion: boolean): void {
@@ -653,13 +674,15 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		const config = desc.warm ? STATE_CONFIGS.speaking : STATE_CONFIGS.listening;
 		const theme = this._themeKind();
 		const beam = injectBeam(host, config, theme, this._targetRadius);
-		const center = desc.warm ? WARM_CENTER : COOL_CENTER;
+		const hs = this._hs(desc.warm ? 'speaking' : 'listening');
+		const center = hs.h + BLOOM_VENDOR_HUE_OFFSET;
+		const haloHue = hs.h;
+		const haloSat = Math.round(Math.min(HALO_SAT_MAX, Math.max(HALO_SAT_MIN[theme], hs.s * 100)));
 		// Even halo behind the box so the (top-heavy) vendored bloom wraps all sides.
 		const halo = host.ownerDocument.createElement('div');
 		halo.style.cssText = 'position:absolute;inset:0;pointer-events:none;background:transparent;';
 		halo.style.borderRadius = `${this._targetRadius + BLOOM_LIFT}px`;
 		host.insertBefore(halo, host.firstChild);
-		const haloHue = desc.warm ? HALO_HUE.warm : HALO_HUE.cool;
 		let animTime = 0;
 		let prevTs: number | undefined;
 		let lvl = 0.3;
@@ -691,8 +714,8 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			}
 			const alpha = HALO_BASE_ALPHA[theme] + HALO_ALPHA_GAIN * lvl;
 			const spread = HALO_SPREAD_BASE + HALO_SPREAD_GAIN * lvl;
-			const hue = haloHue + (animate ? 6 * Math.sin(animTime * 0.4) : 0);
-			halo.style.boxShadow = `0 0 ${HALO_BLUR[theme]}px ${spread.toFixed(2)}px hsla(${hue.toFixed(1)}, ${HALO_SAT[theme]}%, ${HALO_LIGHT[theme]}%, ${alpha.toFixed(3)})`;
+			const hue = haloHue + (animate ? HALO_HUE_DRIFT * Math.sin(animTime * 0.4) : 0);
+			halo.style.boxShadow = `0 0 ${HALO_BLUR[theme]}px ${spread.toFixed(2)}px hsla(${hue.toFixed(1)}, ${haloSat}%, ${HALO_LIGHT[theme]}%, ${alpha.toFixed(3)})`;
 		};
 		return {
 			host, desc,
@@ -710,7 +733,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			saturation: 0.55, duration: subtle ? 4.8 : 2.3, warm: desc.warm,
 		};
 		const beam = injectBeam(host, config, this._themeKind(), this._targetRadius);
-		const center = desc.warm ? WARM_CENTER : COOL_CENTER;
+		const center = this._hs(desc.warm ? 'speaking' : 'listening').h + BLOOM_VENDOR_HUE_OFFSET;
 		let animTime = 0;
 		let prevTs: number | undefined;
 		let lvl = subtle ? 0.15 : 0.25;
@@ -754,8 +777,11 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		const css = borderCss(id, this._targetRadius, this._themeKind());
 		const cssDisposable = injectScopedCss(host, css);
 		host.setAttribute('data-vgborder', id);
-		const hue = desc.neutral ? BORDER_NEUTRAL_HUE : desc.warm ? BORDER_WARM_HUE : BORDER_COOL_HUE;
-		const sat = desc.neutral ? BORDER_NEUTRAL_SAT : BORDER_ACTIVE_SAT;
+		const hs = this._hs(desc.neutral ? 'processing' : desc.warm ? 'speaking' : 'listening');
+		const hue = Math.round(hs.h);
+		const sat = desc.neutral
+			? Math.round(Math.min(BORDER_NEUTRAL_SAT_MAX, hs.s * 100))
+			: Math.round(Math.min(BORDER_ACTIVE_SAT_MAX, Math.max(BORDER_ACTIVE_SAT_MIN, hs.s * 100)));
 		host.style.setProperty('--vg-hue', String(hue));
 		host.style.setProperty('--vg-sat', `${sat}%`);
 		host.style.setProperty('--vg-level', '0.3');

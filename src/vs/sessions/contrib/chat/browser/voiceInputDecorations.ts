@@ -20,7 +20,7 @@ import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { breathingIntensity, isGlowingVoiceState, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { breathingIntensity, isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlowController.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 
@@ -75,6 +75,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	const glowController = store.add(createVoiceGlowController(
 		inputContainerEl,
 		() => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
+		() => resolveVoiceGlowColors(themeService.getColorTheme()),
 	));
 	store.add(themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 	const startGlowAnimation = () => {

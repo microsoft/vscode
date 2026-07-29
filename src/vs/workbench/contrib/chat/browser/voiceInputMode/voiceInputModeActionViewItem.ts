@@ -39,7 +39,7 @@ import { getDictationPreparingLabel } from '../speechToText/dictationDownloadRin
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
-import { VoiceAnimationVariation } from '../voiceClient/voiceGlow.js';
+import { resolveVoiceGlowColors, VoiceAnimationVariation } from '../voiceClient/voiceGlow.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
@@ -374,9 +374,23 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		super(undefined, action);
 	}
 
+	/** Set the per-state pill/waveform colors from the theme-derived voice accent. */
+	private _updateVoiceStateColors(container: HTMLElement): void {
+		const colors = resolveVoiceGlowColors(this.themeService.getColorTheme());
+		container.style.setProperty('--voice-color-listening', `rgb(${colors.listening})`);
+		container.style.setProperty('--voice-color-speaking', `rgb(${colors.speaking})`);
+		container.style.setProperty('--voice-color-processing', `rgb(${colors.processing})`);
+	}
+
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('monaco-segmented-icon-toggle-container', 'chat-voice-input-mode-item');
+
+		// Drive the pill + waveform colors from the same theme-derived accent as the
+		// input-box glow (resolveVoiceGlowColors), so all three always match and
+		// adapt to the active theme. Refresh on theme change.
+		this._updateVoiceStateColors(container);
+		this._register(this.themeService.onDidColorThemeChange(() => this._updateVoiceStateColors(container)));
 
 		// A masked 2-slot viewport ("slot machine reel"). The reel holds three cells:
 		//   [ dictation ][ voice ][ listen ]

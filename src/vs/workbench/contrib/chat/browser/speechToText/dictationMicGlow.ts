@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
-import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
+import { readVoiceGlowIntensity, resolveVoiceGlowColors } from '../voiceClient/voiceGlow.js';
 import { createVoiceRim } from '../voiceClient/voiceGlowController.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
@@ -67,6 +67,7 @@ export function setupDictationMicGlow(
 		warm: false,
 		pill: true,
 		themeKind: () => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
+		colors: () => resolveVoiceGlowColors(themeService.getColorTheme()),
 	}));
 
 	const stopAnimation = () => {
