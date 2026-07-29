@@ -281,6 +281,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			remoteBundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
 			{ includeUserStorage: true },
 		);
 
@@ -525,6 +526,52 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+		);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+
+	test('includes workspace-discovered `.mcp.json` servers when includeWorkspaceDotMcp is set (multi-root gate)', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'wsdot.srv', collectionId: 'workspace-dot-mcp.0', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+		]);
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			true,
+		);
+
+		assert.strictEqual(bundler.received.length, 1);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [
+			{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+		]);
+		assert.strictEqual(refs.length, 1);
+	});
+
+	test('still excludes `.code-workspace` servers even when includeWorkspaceDotMcp is set', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'wscfg.srv', collectionId: 'mcp.config.workspace', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE }),
+		]);
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			true,
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
