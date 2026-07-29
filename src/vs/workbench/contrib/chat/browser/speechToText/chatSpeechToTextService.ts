@@ -321,9 +321,10 @@ export interface IChatDictationTranscript {
 	/** Full cumulative transcript to display. */
 	readonly text: string;
 	/**
-	 * The leading portion of `text` that is finalized (committed): it should be
-	 * rendered without the shimmer. The remainder is the in-progress interim
-	 * tail that keeps shimmering until it is finalized.
+	 * The leading portion of `text` that is finalized (committed) by the
+	 * recognizer. Note that streaming backends endpoint segments almost as fast
+	 * as they are spoken, so this is not a good signal for how much of the
+	 * transcript has settled from the user's point of view.
 	 */
 	readonly finalizedText: string;
 }
@@ -338,7 +339,7 @@ export interface IChatSpeechToTextService {
 	 * Fires with the cumulative transcript while recording, so callers can
 	 * render dictation live as the user speaks. The value grows monotonically
 	 * (finalized utterances plus any in-progress delta), and carries the
-	 * finalized (non-shimmering) portion of that transcript.
+	 * finalized (committed) portion of that transcript.
 	 */
 	readonly onDidUpdateTranscript: Event<IChatDictationTranscript>;
 
@@ -522,7 +523,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _finalizedText = '';
 	/** In-progress text for the current utterance (from delta events). */
 	private _deltaText = '';
-	/** Normalized prefix the backend reports as finalized, used for shimmer rendering. */
+	/** Normalized prefix the backend reports as finalized, used to style the in-progress tail. */
 	private _backendFinalizedText = '';
 	/** Raw finalized prefix already represented by `_incrementalCleanedPrefix`. */
 	private _incrementalCleanedRawPrefix = '';
@@ -821,8 +822,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	/**
 	 * Record a transcript update on the shared cumulative surface and accumulate
 	 * the latency/stability telemetry, regardless of backend. `text` is the full
-	 * cumulative transcript; `finalizedText` is its committed (non-shimmering)
-	 * prefix; `isFinal` marks the terminal update after the session stops.
+	 * cumulative transcript; `finalizedText` is its committed prefix; `isFinal`
+	 * marks the terminal update after the session stops.
 	 */
 	private _emitTranscript(text: string, finalizedText: string, isFinal: boolean): void {
 		this._finalizedText = text;
