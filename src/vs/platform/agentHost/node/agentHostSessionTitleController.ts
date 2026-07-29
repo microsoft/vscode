@@ -15,6 +15,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
+const MAX_TITLE_TOKENS = 32;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
 const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
 const MIN_LATIN_LETTER_RATIO = 0.8;
@@ -372,6 +373,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		try {
 			const rawTitle = await copilotApiService.utilityChatCompletion(githubToken, {
 				messages: this._buildTitlePrompt(promptContent, isConversation),
+				maxTokens: MAX_TITLE_TOKENS,
 			}, {
 				signal: abortController.signal,
 			});

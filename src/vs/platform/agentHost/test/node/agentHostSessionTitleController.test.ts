@@ -111,11 +111,13 @@ suite('AgentHostSessionTitleController', () => {
 		assert.deepStrictEqual({
 			titles: titleActions,
 			token: copilotApiService.utilityCalls[0]?.token,
+			maxTokens: copilotApiService.utilityCalls[0]?.request.maxTokens,
 			promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Please   explain title generation')),
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
 			titles: ['Please explain title generation', 'Generated title'],
 			token: 'gh-token',
+			maxTokens: 32,
 			promptIncludesUserText: true,
 			persistedTitle: 'Generated title',
 		});
