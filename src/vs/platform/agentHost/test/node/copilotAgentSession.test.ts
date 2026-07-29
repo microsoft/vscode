@@ -921,7 +921,7 @@ suite('CopilotAgentSession', () => {
 			type: 'user.message',
 			id: 'event-1',
 			parentId: null,
-			timestamp: new Date().toISOString(),
+			timestamp: '2026-07-29T10:00:00.000Z',
 			data: {
 				interactionId: 'message-1',
 				content: '/act-on-feedback',
@@ -936,6 +936,8 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(await session.getMessages(), [{
 			id: 'event-1',
+			startedAt: '2026-07-29T10:00:00.000Z',
+			duration: 0,
 			message: {
 				text: '/act-on-feedback',
 				origin: { kind: MessageKind.User },
