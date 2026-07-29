@@ -261,10 +261,11 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
-function completedResponseModel(markdown: string, errorMessage?: string): IChatModel {
+function completedResponseModel(markdown: string, errorMessage?: string, isCanceled = false): IChatModel {
 	const response = {
 		isPendingConfirmation: observableValue('pending', undefined),
 		isIncomplete: observableValue('incomplete', false),
+		isCanceled,
 		response: {
 			value: [],
 			getMarkdown: () => markdown,
@@ -380,6 +381,16 @@ suite('VoiceSessionController', () => {
 			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
 			{ state: 'idle', last_response_summary: 'The rebase completed.' },
 		]);
+	});
+
+	test('does not narrate a summary for a cancelled turn', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+
+		assert.deepStrictEqual(
+			getAgentStateInfo.call(controller, completedResponseModel('Some partial work the user interrupted.', undefined, true)),
+			{ state: 'idle' },
+		);
 	});
 
 	test('does not finish connecting after voice instructions resolve for a stale attempt', async () => {

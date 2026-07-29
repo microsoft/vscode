@@ -5479,6 +5479,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return { state: 'thinking' };
 		}
 
+		// A turn the user cancelled should go idle without a summary: the
+		// partial work was interrupted deliberately, so narrating a summary of
+		// it just reads back operations the user already chose to stop.
+		if (lastRequest?.response?.isCanceled) {
+			return { state: 'idle' };
+		}
+
 		const responseText = [
 			lastRequest?.response?.response.getMarkdown().trim(),
 			lastRequest?.response?.result?.errorDetails?.message.trim(),
