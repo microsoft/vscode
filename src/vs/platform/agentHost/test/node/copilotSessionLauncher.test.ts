@@ -497,6 +497,59 @@ suite('CopilotSessionLauncher shared session config', () => {
 			await launcher.disposeByokProxyHandle();
 		}
 	});
+
+	test('omits managedSettings from create and resume configs when no policy is set', async () => {
+		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
+		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				createConfigs.push(config);
+				return session;
+			},
+			resumeSession: async (_sessionId: string, config: Parameters<CopilotClient['resumeSession']>[1]) => {
+				resumeConfigs.push(config);
+				return session;
+			},
+		};
+		// Root value unset (default launcher's getRootValue returns undefined).
+		const launcher = createTestLauncher();
+		const basePlan = {
+			client,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+		};
+		const createPlan: CopilotSessionLaunchPlan = { ...basePlan, kind: 'create', model: undefined };
+		const resumePlan: CopilotSessionLaunchPlan = { ...basePlan, kind: 'resume', fallback: { model: undefined } };
+
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(createPlan, testRuntime));
+			sessions.add(await launcher.launch(resumePlan, testRuntime));
+
+			assert.deepStrictEqual({
+				create: (createConfigs[0] as { managedSettings?: unknown }).managedSettings,
+				createEnable: (createConfigs[0] as { enableManagedSettings?: boolean }).enableManagedSettings,
+				resume: (resumeConfigs[0] as { managedSettings?: unknown }).managedSettings,
+			}, {
+				create: undefined,
+				createEnable: true,
+				resume: undefined,
+			});
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
 });
 
 suite('CopilotSessionLauncher resume fallback', () => {

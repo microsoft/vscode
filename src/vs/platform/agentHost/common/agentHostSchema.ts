@@ -406,7 +406,10 @@ const managedPermissionsProperty = schemaProperty<IManagedPermissions>({
 			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
 		},
 	},
-	default: {},
+	// Intentionally NO `default`: the key follows omit semantics. When no
+	// restrictive policy applies the renderer forwards `undefined`, so
+	// `getRootValue` stays `undefined` and the launcher omits `managedSettings`
+	// entirely rather than forwarding an empty (and misleading) object.
 });
 
 /**
@@ -554,8 +557,8 @@ export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
 /**
  * Root config key forwarded from the renderer holding the enterprise-policy-derived
  * {@link IManagedPermissions} object. Synthesized by VS Code exclusively from managed
- * (policy) values of `chat.tools.global.autoApprove`, `chat.tools.eligibleForAutoApproval`,
- * and `chat.tools.terminal.enableAutoApprove`, and forwarded to the runtime as
+ * (policy) values of `chat.tools.global.autoApprove` and
+ * `chat.tools.terminal.enableAutoApprove`, and forwarded to the runtime as
  * `managedSettings.permissions` at SDK session startup. Absent when no policy applies.
  */
 export const AgentHostManagedPermissionsConfigKey = 'managedPermissions';
