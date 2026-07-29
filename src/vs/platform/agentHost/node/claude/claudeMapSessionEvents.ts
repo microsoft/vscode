@@ -183,6 +183,20 @@ export class ClaudeMapperState {
 	}
 }
 
+function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, toolName: string, input: Record<string, unknown> | undefined): AgentSignal {
+	return {
+		kind: 'action',
+		resource: chat,
+		action: {
+			type: ActionType.ChatToolCallDelta,
+			turnId,
+			toolCallId,
+			content: '',
+			invocationMessage: getClaudeStreamingInvocationMessage(toolName, input),
+		},
+	};
+}
+
 /**
  * Map one SDK message to zero or more agent signals.
  *
@@ -654,17 +668,7 @@ function mapStreamEvent(
 					if (!update) {
 						return [];
 					}
-					return [{
-						kind: 'action',
-						resource: chat,
-						action: {
-							type: ActionType.ChatToolCallDelta,
-							turnId,
-							toolCallId: tracked.toolUseId,
-							content: '',
-							invocationMessage: getClaudeStreamingInvocationMessage(tracked.toolName, update.input),
-						},
-					}];
+					return [fileEditToolDelta(chat, turnId, tracked.toolUseId, tracked.toolName, update.input)];
 				}
 				return [{
 					kind: 'action',
@@ -682,6 +686,9 @@ function mapStreamEvent(
 
 		case 'content_block_stop': {
 			const tracked = state.getActiveToolBlock(event.index);
+			const finalStreamingUpdate = tracked && !tracked.isClientTool && isClaudeFileEditTool(tracked.toolName)
+				? state.toolCalls.streamingInputUpdate(tracked.toolUseId, true)
+				: undefined;
 			state.finalizeToolBlock(event.index);
 			state.endToolBlock(event.index);
 			if (!tracked) {
@@ -693,7 +700,11 @@ function mapStreamEvent(
 				return [];
 			}
 			const meta = tracked.isClientTool ? undefined : buildClaudeToolMeta(tracked.toolName);
-			return [{
+			const signals: AgentSignal[] = [];
+			if (finalStreamingUpdate) {
+				signals.push(fileEditToolDelta(chat, turnId, tracked.toolUseId, tracked.toolName, finalStreamingUpdate.input));
+			}
+			signals.push({
 				kind: 'action',
 				resource: chat,
 				action: {
@@ -705,7 +716,8 @@ function mapStreamEvent(
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 					...(meta ? { _meta: meta } : {}),
 				},
-			}];
+			});
+			return signals;
 		}
 
 		case 'message_delta':

@@ -228,6 +228,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * plan mode. (`exit_plan_mode` for Copilot, `ExitPlanMode` for Claude.)
 	 */
 	readonly exitPlanModeToolName: string;
+	/** File-creation tool that exposes model-generated argument deltas, when supported. */
+	readonly streamingFileCreateToolName?: string;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).

@@ -101,12 +101,13 @@ export class ClaudeToolCallRegistry {
 		entry.inputBuffer += partialJson;
 	}
 
-	streamingInputUpdate(toolUseId: string): IClaudeStreamingToolInputUpdate | undefined {
+	streamingInputUpdate(toolUseId: string, force = false): IClaudeStreamingToolInputUpdate | undefined {
 		const entry = this._entries.get(toolUseId);
 		if (!entry) {
 			return undefined;
 		}
-		if (!shouldUpdateStreamingToolDisplay(entry.displayedInputLength, entry.inputBuffer.length)) {
+		if (entry.displayedInputLength === entry.inputBuffer.length
+			|| (!force && !shouldUpdateStreamingToolDisplay(entry.displayedInputLength, entry.inputBuffer.length))) {
 			return undefined;
 		}
 		entry.displayedInputLength = entry.inputBuffer.length;

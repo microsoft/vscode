@@ -378,6 +378,67 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		]);
 	});
 
+	test('content_block_stop flushes the final rich file-edit message below the growth threshold', () => {
+		const log = new NullLogService();
+		const state = new ClaudeMapperState();
+		const resolver = r();
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
+
+		const first = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"file_path":"/src/new.ts","content":"one')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+		const belowThreshold = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '\\ntwo"}')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+		const stopped = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStop(0)),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+
+		assert.deepStrictEqual({
+			first: first.map(signal => signal.kind === 'action' ? signal.action : undefined),
+			belowThreshold,
+			stopped: stopped.map(signal => signal.kind === 'action' ? signal.action : undefined),
+		}, {
+			first: [{
+				type: ActionType.ChatToolCallDelta,
+				turnId: TURN_ID,
+				toolCallId: 'tu_write',
+				content: '',
+				invocationMessage: { markdown: 'Creating [new.ts](file:///src/new.ts) (1 line)' },
+			}],
+			belowThreshold: [],
+			stopped: [{
+				type: ActionType.ChatToolCallDelta,
+				turnId: TURN_ID,
+				toolCallId: 'tu_write',
+				content: '',
+				invocationMessage: { markdown: 'Creating [new.ts](file:///src/new.ts) (2 lines)' },
+			}, {
+				type: ActionType.ChatToolCallReady,
+				turnId: TURN_ID,
+				toolCallId: 'tu_write',
+				invocationMessage: { markdown: 'Editing [new.ts](file:///src/new.ts)' },
+				toolInput: '{\n  "file_path": "/src/new.ts",\n  "content": "one\\ntwo"\n}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}],
+		});
+	});
+
 	test('client tools with Claude built-in names preserve client semantics throughout the lifecycle', () => {
 		const state = new ClaudeMapperState();
 		const resolver = r();

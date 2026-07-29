@@ -61,6 +61,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	shellToolName: 'Bash',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
+	streamingFileCreateToolName: 'Write',
 	enabled: !!CLAUDE_SDK_ROOT,
 	claudeSdkRoot: CLAUDE_SDK_ROOT,
 	// Worktree isolation is now shared across agents via the host-owned
