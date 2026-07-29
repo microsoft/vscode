@@ -170,6 +170,7 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
 - Note: `unknown-turn fork does not inherit source provider context` asserts the *correct* behavior for an unresolvable anchor and shares this gate only because both are `forkProviderTest`s. It is expected to pass once the resolvable case works.
 - Gate: `supportsChatForkE2E: false`.
+- Issue: [#328104](https://github.com/microsoft/vscode/issues/328104).
 - Reproduce:
 
   ```bash
