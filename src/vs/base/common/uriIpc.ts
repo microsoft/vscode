@@ -30,8 +30,7 @@ export interface IRawURITransformer {
 }
 
 function toJSON(uri: URI): UriComponents {
-	// eslint-disable-next-line local/code-no-any-casts
-	return <UriComponents><any>uri.toJSON();
+	return uri.toJSON();
 }
 
 export class URITransformer implements IURITransformer {

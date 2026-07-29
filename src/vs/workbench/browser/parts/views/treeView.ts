@@ -366,12 +366,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return this._isEmpty;
 				}
 
-				async getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined> {
+				async getChildren(element?: ITreeItem): Promise<readonly ITreeItem[] | undefined> {
 					const batches = await this.getChildrenBatch(element ? [element] : undefined);
 					return batches?.[0];
 				}
 
-				private updateEmptyState(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): void {
+				private updateEmptyState(nodes: ITreeItem[], childrenGroups: (readonly ITreeItem[])[]): void {
 					if ((nodes.length === 1) && (nodes[0] instanceof Root)) {
 						const oldEmpty = this._isEmpty;
 						this._isEmpty = (childrenGroups.length === 0) || (childrenGroups[0].length === 0);
@@ -381,7 +381,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					}
 				}
 
-				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): ITreeItem[] {
+				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: (readonly ITreeItem[])[]): ITreeItem[] {
 					if (childrenGroups.length === 0) {
 						return [];
 					}
@@ -401,8 +401,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return checkboxesUpdated;
 				}
 
-				async getChildrenBatch(nodes?: ITreeItem[]): Promise<ITreeItem[][]> {
-					let childrenGroups: ITreeItem[][];
+				async getChildrenBatch(nodes?: ITreeItem[]): Promise<(readonly ITreeItem[])[]> {
+					let childrenGroups: (readonly ITreeItem[])[];
 					let checkboxesUpdated: ITreeItem[] = [];
 					if (nodes?.every((node): node is Required<ITreeItem & { children: ITreeItem[] }> => !!node.children)) {
 						childrenGroups = nodes.map(node => node.children);
@@ -693,7 +693,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const treeMenus = this.treeDisposables.add(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this.treeDisposables.add(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
-		const aligner = this.treeDisposables.add(new Aligner(this.themeService));
+		const aligner = this.treeDisposables.add(new Aligner(this.themeService, this.logService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
 		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
 		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
@@ -710,7 +710,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					}
 
 					if (isString(element.tooltip)) {
-						return element.tooltip;
+						return treeMenus.getResourceActions([element]).length > 0 ? localize('treeAriaLabelHasActionsTooltip', "{0}, has actions", element.tooltip) : element.tooltip;
 					} else {
 						if (element.resourceUri && !element.label) {
 							// The custom tree has no good information on what should be used for the aria label.
@@ -719,10 +719,14 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						}
 						let buildAriaLabel: string = '';
 						if (element.label) {
-							buildAriaLabel += element.label.label + ' ';
+							const labelText = isMarkdownString(element.label.label) ? element.label.label.value : element.label.label;
+							buildAriaLabel += labelText + ' ';
 						}
 						if (element.description) {
 							buildAriaLabel += element.description;
+						}
+						if (treeMenus.getResourceActions([element]).length > 0) {
+							buildAriaLabel = buildAriaLabel ? localize('treeAriaLabelHasActionsSuffix', "{0}, has actions", buildAriaLabel.trim()) : localize('treeAriaLabelHasActions', "has actions");
 						}
 						return buildAriaLabel;
 					}
@@ -736,7 +740,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			},
 			keyboardNavigationLabelProvider: {
 				getKeyboardNavigationLabel: (item: ITreeItem) => {
-					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
+					if (item.label) {
+						return isMarkdownString(item.label.label) ? item.label.label.value : item.label.label;
+					}
+					return item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined;
 				}
 			},
 			expandOnlyOnTwistieClick: (e: ITreeItem) => {
@@ -748,7 +755,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
-		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		}));
 
 		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
 
@@ -995,6 +1002,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	getOptimalWidth(): number {
 		if (this.tree) {
 			const parentNode = this.tree.getHTMLElement();
+			// eslint-disable-next-line no-restricted-syntax
 			const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
@@ -1167,7 +1175,7 @@ class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
 	}
 }
 
-async function doGetChildrenOrBatch(dataProvider: ITreeViewDataProvider, nodes: ITreeItem[] | undefined): Promise<ITreeItem[][] | undefined> {
+async function doGetChildrenOrBatch(dataProvider: ITreeViewDataProvider, nodes: ITreeItem[] | undefined): Promise<(readonly ITreeItem[])[] | undefined> {
 	if (dataProvider.getChildrenBatch) {
 		return dataProvider.getChildrenBatch(nodes);
 	} else {
@@ -1192,8 +1200,8 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	private batch: ITreeItem[] | undefined;
-	private batchPromise: Promise<ITreeItem[][] | undefined> | undefined;
-	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
+	private batchPromise: Promise<(readonly ITreeItem[])[] | undefined> | undefined;
+	async getChildren(element: ITreeItem): Promise<readonly ITreeItem[]> {
 		const dataProvider = this.treeView.dataProvider;
 		if (!dataProvider) {
 			return [];
@@ -1205,7 +1213,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 			this.batch.push(element);
 		}
 		const indexInBatch = this.batch.length - 1;
-		return new Promise<ITreeItem[]>((resolve, reject) => {
+		return new Promise<readonly ITreeItem[]>((resolve, reject) => {
 			setTimeout(async () => {
 				const batch = this.batch;
 				this.batch = undefined;
@@ -1296,12 +1304,16 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return { resourceLabel, icon, checkboxContainer, actionBar, container };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
+	private getHover(label: string | IMarkdownString | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource && !node.tooltip) {
 				return undefined;
 			} else if (node.tooltip === undefined) {
-				return label;
+				if (isMarkdownString(label)) {
+					return { markdown: label, markdownNotSupportedFallback: label.value };
+				} else {
+					return label;
+				}
 			} else if (!isString(node.tooltip)) {
 				return { markdown: node.tooltip, markdownNotSupportedFallback: resource ? undefined : renderAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
 			} else if (node.tooltip !== '') {
@@ -1318,7 +1330,67 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 						node.resolve(token).then(() => resolve(node.tooltip));
 					});
 				},
-			markdownNotSupportedFallback: resource ? undefined : (label ?? '') // Passing undefined as the fallback for a resource falls back to the old native hover
+			markdownNotSupportedFallback: resource ? undefined : (label ? (isMarkdownString(label) ? label.value : label) : '') // Passing undefined as the fallback for a resource falls back to the old native hover
+		};
+	}
+
+	private processLabel(label: string | IMarkdownString | undefined, matches: { start: number; end: number }[] | undefined): { label: string | undefined; bold?: boolean; italic?: boolean; strikethrough?: boolean; supportIcons?: boolean } {
+		if (!isMarkdownString(label)) {
+			return { label };
+		}
+
+		let text = label.value.trim();
+		let bold = false;
+		let italic = false;
+		let strikethrough = false;
+
+		function moveMatches(offset: number) {
+			if (matches) {
+				for (const match of matches) {
+					match.start -= offset;
+					match.end -= offset;
+				}
+			}
+		}
+
+		const syntaxes = [
+			{ open: '~~', close: '~~', mark: () => { strikethrough = true; } },
+			{ open: '**', close: '**', mark: () => { bold = true; } },
+			{ open: '*', close: '*', mark: () => { italic = true; } },
+			{ open: '_', close: '_', mark: () => { italic = true; } }
+		];
+
+		function checkSyntaxes(): boolean {
+			let didChange = false;
+			for (const syntax of syntaxes) {
+				if (text.startsWith(syntax.open) && text.endsWith(syntax.close)) {
+					// If there is a match within the markers, stop processing
+					if (matches?.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
+						return false;
+					}
+
+					syntax.mark();
+					text = text.substring(syntax.open.length, text.length - syntax.close.length);
+					moveMatches(syntax.open.length);
+					didChange = true;
+				}
+			}
+			return didChange;
+		}
+
+		// Arbitrary max # of iterations
+		for (let i = 0; i < 10; i++) {
+			if (!checkSyntaxes()) {
+				break;
+			}
+		}
+
+		return {
+			label: text,
+			bold,
+			italic,
+			strikethrough,
+			supportIcons: label.supportThemeIcons
 		};
 	}
 
@@ -1327,15 +1399,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
-		const label = treeItemLabel ? treeItemLabel.label : undefined;
-		const matches = (treeItemLabel?.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
+		const labelStr = treeItemLabel ? isMarkdownString(treeItemLabel.label) ? treeItemLabel.label.value : treeItemLabel.label : undefined;
+		const matches = (treeItemLabel?.highlights && labelStr) ? treeItemLabel.highlights.map(([start, end]) => {
 			if (start < 0) {
-				start = label.length + start;
+				start = labelStr.length + start;
 			}
 			if (end < 0) {
-				end = label.length + end;
+				end = labelStr.length + end;
 			}
-			if ((start >= label.length) || (end > label.length)) {
+			if ((start >= labelStr.length) || (end > labelStr.length)) {
 				return ({ start: 0, end: 0 });
 			}
 			if (start > end) {
@@ -1345,9 +1417,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 			return ({ start, end });
 		}) : undefined;
+		const { label, bold, italic, strikethrough, supportIcons } = this.processLabel(treeItemLabel?.label, matches);
 		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : undefined;
-		const title = this.getHover(label, resource, node);
+		const title = this.getHover(treeItemLabel?.label, resource, node);
 
 		// reset
 		templateData.actionBar.clear();
@@ -1370,10 +1443,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				bold,
+				italic,
+				strikethrough,
 				disabledCommand: !commandEnabled,
 				labelEscapeNewLines: true,
-				forceLabel: !!node.label
+				forceLabel: !!node.label,
+				supportIcons
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
@@ -1381,9 +1457,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				bold,
+				italic,
+				strikethrough,
 				disabledCommand: !commandEnabled,
-				labelEscapeNewLines: true
+				labelEscapeNewLines: true,
+				supportIcons
 			});
 		}
 
@@ -1396,6 +1475,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
+				} else {
+					iconClass = iconClass + ' codicon-colored';
 				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
@@ -1413,6 +1494,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		const menuActions = this.menus.getResourceActions([node]);
 		templateData.actionBar.push(menuActions, { icon: true, label: false });
+
+		// Associate the inline toolbar with the tree item so screen readers
+		// announce which item the actions belong to when focus moves to them.
+		if (menuActions.length > 0) {
+			const itemName = [label, description].filter((part): part is string => !!part).join(' ').trim();
+			templateData.actionBar.setAriaLabel(itemName ? localize('treeActionBarAriaLabel', "Actions for {0}", itemName) : localize('treeActionBarAriaLabelNoName', "Actions"));
+		} else {
+			templateData.actionBar.setAriaLabel('');
+		}
 
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;
@@ -1456,7 +1546,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
-		container.parentElement!.classList.toggle('align-icon-with-twisty', !this._hasCheckbox && this.aligner.alignIconWithTwisty(treeItem));
+		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
 	}
 
 	private shouldHideResourceLabelIcon(iconUrl: URI | undefined, icon: ThemeIcon | undefined): boolean {
@@ -1548,7 +1638,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 class Aligner extends Disposable {
 	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
 
-	constructor(private themeService: IThemeService) {
+	constructor(private themeService: IThemeService, private logService: ILogService) {
 		super();
 	}
 
@@ -1560,24 +1650,41 @@ class Aligner extends Disposable {
 		if (treeItem.collapsibleState !== TreeItemCollapsibleState.None) {
 			return false;
 		}
-		if (!this.hasIcon(treeItem)) {
+		if (!this.hasIconOrCheckbox(treeItem)) {
 			return false;
 		}
 
 		if (this._tree) {
-			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
-			if (this.hasIcon(parent)) {
-				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIcon(c));
+			const root = this._tree.getInput();
+			let parent: ITreeItem;
+			try {
+				parent = this._tree.getParentElement(treeItem) || root;
+			} catch (error) {
+				this.logService.error(`[TreeView] Failed to resolve parent for ${treeItem.handle}`, error);
+				return false;
 			}
-			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
+			if (this.hasIconOrCheckbox(parent)) {
+				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIconOrCheckbox(c));
+			}
+			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIconOrCheckbox(c));
 		} else {
 			return false;
 		}
 	}
 
+	private hasIconOrCheckbox(node: ITreeItem): boolean {
+		return this.hasIcon(node) || !!node.checkbox;
+	}
+
 	private hasIcon(node: ITreeItem): boolean {
 		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		if (icon) {
+			return true;
+		}
+		// `file` and `folder` ThemeIcons defer to the file icon theme only when the item has a resource.
+		// Any other ThemeIcon, or a `file`/`folder` ThemeIcon on an item without a resource, is always
+		// rendered as a codicon and therefore always has an icon regardless of the file icon theme.
+		if (node.themeIcon && (!node.resourceUri || (node.themeIcon.id !== FileThemeIcon.id && node.themeIcon.id !== FolderThemeIcon.id))) {
 			return true;
 		}
 		if (node.resourceUri || node.themeIcon) {
@@ -1736,6 +1843,7 @@ class TreeMenus implements IDisposable {
 
 	dispose() {
 		this.contextKeyService = undefined;
+		this._onDidChange.dispose();
 	}
 }
 
@@ -1955,7 +2063,10 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			return String(elements.length);
 		}
 		const element = elements[0];
-		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
+		if (element.label) {
+			return isMarkdownString(element.label.label) ? element.label.label.value : element.label.label;
+		}
+		return element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined;
 	}
 
 	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
@@ -2024,7 +2135,7 @@ function setCascadingCheckboxUpdates(items: readonly ITreeItem[]) {
 
 			const visitedParents: Set<ITreeItem> = new Set();
 			const checkParents = (currentItem: ITreeItem) => {
-				if (currentItem.parent && (currentItem.parent.checkbox !== undefined) && currentItem.parent.children) {
+				if (currentItem.parent?.checkbox !== undefined && currentItem.parent.children) {
 					if (visitedParents.has(currentItem.parent)) {
 						return;
 					} else {

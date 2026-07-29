@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
-import { BugIndicatingError, CancellationError } from './errors.js';
+import { BugIndicatingError, CancellationError, isCancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
 import { extUri as defaultExtUri, IExtUri } from './resources.js';
@@ -114,6 +114,13 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 		});
 		promise.then(resolve, reject).finally(() => ref.dispose());
 	});
+}
+
+export function rejectIfNotCanceled(err: unknown): undefined {
+	if (isCancellationError(err)) {
+		return undefined;
+	}
+	return Promise.reject(err) as never;
 }
 
 /**
@@ -295,6 +302,39 @@ export class Sequencer {
 	}
 }
 
+/**
+ * A {@link Throttler} per key. Calls for the same key coalesce (only the most
+ * recently queued task runs after the active one settles); calls for different
+ * keys are independent. Idle keys are cleaned up automatically.
+ */
+export class ThrottlerByKey<TKey> implements IDisposable {
+
+	private readonly throttlers = new Map<TKey, { throttler: Throttler; count: number }>();
+
+	queue<T>(key: TKey, task: ITask<Promise<T>>): Promise<T> {
+		let entry = this.throttlers.get(key);
+		if (!entry) {
+			entry = { throttler: new Throttler(), count: 0 };
+			this.throttlers.set(key, entry);
+		}
+
+		entry.count++;
+		return entry.throttler.queue(task).finally(() => {
+			if (--entry!.count === 0) {
+				entry!.throttler.dispose();
+				this.throttlers.delete(key);
+			}
+		});
+	}
+
+	dispose(): void {
+		for (const { throttler } of this.throttlers.values()) {
+			throttler.dispose();
+		}
+		this.throttlers.clear();
+	}
+}
+
 export class SequencerByKey<TKey> {
 
 	private promiseMap = new Map<TKey, Promise<unknown>>();
@@ -311,6 +351,10 @@ export class SequencerByKey<TKey> {
 			});
 		this.promiseMap.set(key, newPromise);
 		return newPromise;
+	}
+
+	peek(key: TKey): Promise<unknown> | undefined {
+		return this.promiseMap.get(key) || undefined;
 	}
 
 	keys(): IterableIterator<TKey> {
@@ -577,6 +621,52 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 		clearTimeout(timer);
 		store?.delete(disposable);
 	});
+	store?.add(disposable);
+	return disposable;
+}
+
+/**
+ * The largest delay (in milliseconds) a single `setTimeout` can represent.
+ * Larger values overflow its internal 32-bit signed integer and fire (almost)
+ * immediately instead of waiting.
+ */
+export const MAX_TIMEOUT_DELAY = 2 ** 31 - 1; // ~24.8 days
+
+/**
+ * Like {@link disposableTimeout}, but supports delays larger than
+ * {@link MAX_TIMEOUT_DELAY} (~24.8 days), which a single `setTimeout` cannot
+ * represent. The wait is split into chunks and re-armed until the target time is
+ * reached, so the handler fires at approximately `Date.now() + timeout`.
+ *
+ * Note: like `setTimeout`, firing is best-effort and may drift across system
+ * sleep or wall-clock changes; do not rely on it for precise scheduling.
+ *
+ * @param handler The timeout handler.
+ * @param timeout The timeout in milliseconds. May exceed {@link MAX_TIMEOUT_DELAY}.
+ * @param store An optional {@link DisposableStore} that will have the timeout disposable managed automatically.
+ */
+export function disposableLongTimeout(handler: () => void, timeout: number, store?: DisposableStore): IDisposable {
+	const target = Date.now() + timeout;
+	let timer: Timeout;
+
+	const arm = () => {
+		const remaining = target - Date.now();
+		if (remaining <= 0) {
+			handler();
+			if (store) {
+				disposable.dispose();
+			}
+			return;
+		}
+		timer = setTimeout(arm, Math.min(remaining, MAX_TIMEOUT_DELAY));
+	};
+
+	const disposable = toDisposable(() => {
+		clearTimeout(timer);
+		store?.delete(disposable);
+	});
+
+	timer = setTimeout(arm, Math.min(Math.max(0, timeout), MAX_TIMEOUT_DELAY));
 	store?.add(disposable);
 	return disposable;
 }
@@ -925,6 +1015,12 @@ export class ResourceQueue implements IDisposable {
 export type Task<T = void> = () => (Promise<T> | T);
 
 /**
+ * Wrap a type in an optional promise. This can be useful to avoid the runtime
+ * overhead of creating a promise.
+ */
+export type MaybePromise<T> = Promise<T> | T;
+
+/**
  * Processes tasks in the order they were scheduled.
 */
 export class TaskQueue {
@@ -1088,15 +1184,15 @@ export class IntervalTimer implements IDisposable {
 	}
 }
 
-export class RunOnceScheduler implements IDisposable {
+export class RunOnceScheduler<Runner extends (...args: any[]) => any = () => any> implements IDisposable {
 
-	protected runner: ((...args: unknown[]) => void) | null;
+	protected runner: Runner | null;
 
 	private timeoutToken: Timeout | undefined;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
-	constructor(runner: (...args: any[]) => void, delay: number) {
+	constructor(runner: Runner, delay: number) {
 		this.timeoutToken = undefined;
 		this.runner = runner;
 		this.timeout = delay;
@@ -1236,7 +1332,7 @@ export class ProcessTimeRunOnceScheduler {
 	}
 }
 
-export class RunOnceWorker<T> extends RunOnceScheduler {
+export class RunOnceWorker<T> extends RunOnceScheduler<(units: T[]) => void> {
 
 	private units: T[] = [];
 
@@ -1482,6 +1578,17 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 	runWhenGlobalIdle = (runner, timeout) => _runWhenIdle(globalThis, runner, timeout);
 })();
 
+export function installFakeRunWhenIdle(fakeImpl: typeof _runWhenIdle): IDisposable {
+	const origRunWhenIdle = _runWhenIdle;
+	const origRunWhenGlobalIdle = runWhenGlobalIdle;
+	_runWhenIdle = fakeImpl;
+	runWhenGlobalIdle = (runner, timeout) => fakeImpl(globalThis, runner, timeout);
+	return toDisposable(() => {
+		_runWhenIdle = origRunWhenIdle;
+		runWhenGlobalIdle = origRunWhenGlobalIdle;
+	});
+}
+
 export abstract class AbstractIdleValue<T> {
 
 	private readonly _executor: () => void;
@@ -1647,8 +1754,8 @@ export class TaskSequentializer {
 			this._queued = {
 				run,
 				promise,
-				promiseResolve: promiseResolve!,
-				promiseReject: promiseReject!
+				promiseResolve,
+				promiseReject
 			};
 		}
 
@@ -2022,9 +2129,11 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 			} catch (err) {
 				this.reject(err);
 			} finally {
-				writer.emitOne = undefined!;
-				writer.emitMany = undefined!;
-				writer.reject = undefined!;
+				// The executor has settled; emitting afterwards must be a no-op per the
+				// documented "no effect after resolve()/reject()" contract (see emitOne).
+				writer.emitOne = () => { };
+				writer.emitMany = () => { };
+				writer.reject = () => { };
 			}
 		});
 	}
@@ -2420,6 +2529,42 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 		});
 	}
 
+	public static tee<T>(iterable: AsyncIterable<T>): [AsyncIterableProducer<T>, AsyncIterableProducer<T>] {
+		let emitter1: AsyncIterableEmitter<T> | undefined;
+		let emitter2: AsyncIterableEmitter<T> | undefined;
+
+		const defer = new DeferredPromise<void>();
+
+		const start = async () => {
+			if (!emitter1 || !emitter2) {
+				return; // not yet ready
+			}
+			try {
+				for await (const item of iterable) {
+					emitter1.emitOne(item);
+					emitter2.emitOne(item);
+				}
+			} catch (err) {
+				emitter1.reject(err);
+				emitter2.reject(err);
+			} finally {
+				defer.complete();
+			}
+		};
+
+		const p1 = new AsyncIterableProducer<T>(async (emitter) => {
+			emitter1 = emitter;
+			start();
+			return defer.p;
+		});
+		const p2 = new AsyncIterableProducer<T>(async (emitter) => {
+			emitter2 = emitter;
+			start();
+			return defer.p;
+		});
+		return [p1, p2];
+	}
+
 	public map<R>(mapFn: (item: T) => R): AsyncIterableProducer<R> {
 		return AsyncIterableProducer.map(this, mapFn);
 	}
@@ -2596,4 +2741,9 @@ export class AsyncReader<T> {
 
 		return this._extendBufferPromise;
 	}
+}
+
+export function createTimeout(ms: number, cb: () => void): IDisposable {
+	const t = setTimeout(cb, ms);
+	return toDisposable(() => clearTimeout(t));
 }

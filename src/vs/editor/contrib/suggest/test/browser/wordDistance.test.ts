@@ -65,7 +65,7 @@ suite('suggest, word distance', function () {
 			private _worker = new EditorWorker();
 
 			constructor() {
-				super(null!, modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService(), new LanguageFeaturesService());
+				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService(), new LanguageFeaturesService(), null!);
 				this._worker.$acceptNewModel({
 					url: model.uri.toString(),
 					lines: model.getLinesContent(),

@@ -5,7 +5,7 @@
 
 import { ChildProcess } from 'child_process';
 import { promisify } from 'util';
-import * as treekill from 'tree-kill';
+import treekill from 'tree-kill';
 import { Logger } from './logger';
 
 export async function teardown(p: ChildProcess, logger: Logger, retryCount = 3): Promise<void> {

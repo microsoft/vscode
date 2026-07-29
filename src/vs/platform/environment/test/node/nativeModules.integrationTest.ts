@@ -28,9 +28,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof yazl.ZipFile === 'function', testErrorMessage('yazl'));
 	});
 
-	test('v8-inspect-profiler', async () => {
-		const { default: profiler } = await import('v8-inspect-profiler');
-		assert.ok(typeof profiler.startProfiling === 'function', testErrorMessage('v8-inspect-profiler'));
+	test('chrome-remote-interface', async () => {
+		const { default: cdp } = await import('chrome-remote-interface');
+		assert.ok(typeof cdp === 'function', testErrorMessage('chrome-remote-interface'));
 	});
 
 	test('native-is-elevated', async () => {
@@ -50,9 +50,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(result, testErrorMessage('native-keymap'));
 	});
 
-	test('native-watchdog', async () => {
-		const watchDog = await import('native-watchdog');
-		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
+	test('@vscode/native-watchdog', async () => {
+		const watchDog = await import('@vscode/native-watchdog');
+		assert.ok(typeof watchDog.start === 'function', testErrorMessage('@vscode/native-watchdog'));
 	});
 
 	test('@vscode/sudo-prompt', async () => {
@@ -86,9 +86,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof deviceIdPackage.getDeviceId === 'function', testErrorMessage('@vscode/deviceid'));
 	});
 
-	test('@vscode/ripgrep', async () => {
-		const ripgrep = await import('@vscode/ripgrep');
-		assert.ok(typeof ripgrep.rgPath === 'string', testErrorMessage('@vscode/ripgrep'));
+	test('@vscode/ripgrep-universal', async () => {
+		const ripgrep = await import('@vscode/ripgrep-universal');
+		assert.ok(typeof ripgrep.rgPath === 'string', testErrorMessage('@vscode/ripgrep-universal'));
 	});
 
 	test('vscode-regexpp', async () => {
@@ -115,6 +115,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
 		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			loadSystemCertificatesFromNode: () => undefined,
 			log: {
 				trace: () => { },
 				debug: () => { },
@@ -124,6 +125,19 @@ flakySuite('Native Modules (all platforms)', () => {
 			}
 		});
 		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
+	});
+
+	test('@vscode/os-proxy-resolver', async () => {
+		const proxyResolver = await import('@vscode/os-proxy-resolver');
+		const proxies = await proxyResolver.resolveProxy('https://example.com/');
+		const config = await proxyResolver.readProxyConfig();
+		assert.deepStrictEqual({
+			resolveProxy: proxies.length > 0,
+			readProxyConfig: typeof config.autoDetect === 'boolean',
+		}, {
+			resolveProxy: true,
+			readProxyConfig: true,
+		}, testErrorMessage('@vscode/os-proxy-resolver'));
 	});
 });
 

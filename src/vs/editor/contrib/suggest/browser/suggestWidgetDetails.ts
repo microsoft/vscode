@@ -64,6 +64,7 @@ export class SuggestDetailsWidget {
 		this._header = dom.append(this._body, dom.$('.header'));
 		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
+		this._close.ariaLabel = nls.localize('details.close', "Close");
 		this._close.role = 'button';
 		this._close.tabIndex = -1;
 		this._type = dom.append(this._header, dom.$('p.type'));
@@ -82,6 +83,8 @@ export class SuggestDetailsWidget {
 	dispose(): void {
 		this._disposables.dispose();
 		this._renderDisposeable.dispose();
+		this._onDidClose.dispose();
+		this._onDidChangeContents.dispose();
 	}
 
 	private _configureFont(): void {
@@ -277,7 +280,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	constructor(
 		readonly widget: SuggestDetailsWidget,
-		private readonly _editor: ICodeEditor
+		private readonly _editor: ICodeEditor,
 	) {
 
 		this._resizable = new ResizableHTMLElement();
@@ -406,17 +409,26 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		})();
 
 		// SOUTH
-		const southPacement: Placement = (function () {
+		const southPlacement: Placement = (function () {
 			const left = anchorBox.left;
 			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
 			const maxSizeBottom = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
 			return { top, left, fit: maxSizeBottom.height - size.height, maxSizeBottom, maxSizeTop: maxSizeBottom, minSize: defaultMinSize.with(maxSizeBottom.width) };
 		})();
 
-		// take first placement that fits or the first with "least bad" fit
-		const placements = [eastPlacement, westPlacement, southPacement];
-		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
+		// NORTH
+		const northPlacement: Placement = (function () {
+			const left = anchorBox.left;
+			const maxSizeTop = new dom.Dimension(anchorBox.width - info.borderHeight, anchorBox.top - info.verticalPadding);
+			const top = Math.max(info.verticalPadding, anchorBox.top - size.height);
+			return { top, left, fit: maxSizeTop.height - size.height, maxSizeTop, maxSizeBottom: maxSizeTop, minSize: defaultMinSize.with(maxSizeTop.width) };
+		})();
 
+		// take first placement that fits or the first with "least bad" fit
+		// when the suggest widget is rendering above the cursor (preferAlignAtTop=false), prefer NORTH over SOUTH
+		const verticalPlacement = preferAlignAtTop ? southPlacement : northPlacement;
+		const placements = [eastPlacement, westPlacement, verticalPlacement];
+		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
 		// top/bottom placement
 		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
 		let alignAtTop: boolean;
@@ -443,9 +455,11 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 				maxSize = placement.maxSizeTop;
 			}
 		}
-
 		let { top, left } = placement;
-		if (!alignAtTop && height > anchorBox.height) {
+		if (placement === northPlacement) {
+			// For NORTH placement, position the details above the anchor
+			top = anchorBox.top - height + info.borderWidth;
+		} else if (!alignAtTop && height > anchorBox.height) {
 			top = bottom - height;
 		}
 		const editorDomNode = this._editor.getDomNode();
@@ -457,7 +471,15 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 		this._applyTopLeft({ left, top });
 
-		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
+		// enableSashes(north, east, south, west)
+		// For NORTH placement: enable north sash (resize upward from top), disable south (can't resize into the anchor)
+		// Also enable west sash for horizontal resizing, consistent with SOUTH placement
+		// For SOUTH placement and EAST/WEST placements: use existing logic based on alignAtTop
+		if (placement === northPlacement) {
+			this._resizable.enableSashes(true, false, false, true);
+		} else {
+			this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
+		}
 
 		this._resizable.minSize = placement.minSize;
 		this._resizable.maxSize = maxSize;

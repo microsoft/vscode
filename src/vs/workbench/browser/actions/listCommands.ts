@@ -716,8 +716,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// As the tree does not know anything about the rendered DOM elements
 		// we have to traverse the dom to find the HTMLElements
 		const treeDOM = lastFocusedList.getHTMLElement();
+		// eslint-disable-next-line no-restricted-syntax
 		const scrollableElement = treeDOM.querySelector('.monaco-scrollable-element');
+		// eslint-disable-next-line no-restricted-syntax
 		const listRows = scrollableElement?.querySelector('.monaco-list-rows');
+		// eslint-disable-next-line no-restricted-syntax
 		const focusedElement = listRows?.querySelector('.focused');
 		if (!focusedElement) {
 			return;
@@ -725,7 +728,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		const elementWithHover = getCustomHoverForElement(focusedElement as HTMLElement);
 		if (elementWithHover) {
-			accessor.get(IHoverService).showManagedHover(elementWithHover as HTMLElement);
+			accessor.get(IHoverService).showManagedHover(elementWithHover);
 		}
 	},
 });
@@ -738,6 +741,7 @@ function getCustomHoverForElement(element: HTMLElement): HTMLElement | undefined
 
 	// Only consider children that are not action items or have a tabindex
 	// as these element are focusable and the user is able to trigger them already
+	// eslint-disable-next-line no-restricted-syntax
 	const noneFocusableElementWithHover = element.querySelector('[custom-hover="true"]:not([tabindex]):not(.action-item)');
 	if (noneFocusableElementWithHover) {
 		return noneFocusableElementWithHover as HTMLElement;

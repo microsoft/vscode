@@ -101,7 +101,7 @@ export function setup(options?: { skipSuite: boolean }) {
 				// Use the simplest profile to get as little process interaction as possible
 				await terminal.createEmptyTerminal();
 				// Erase all content and reset cursor to top
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('3J')}${csi('H')}`);
 			}
 
 			describe('VS Code sequences', () => {

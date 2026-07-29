@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './tabCompletion.js';
+import './snippets.service.contribution.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import * as nls from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
@@ -16,16 +17,10 @@ import { ApplyFileSnippetAction } from './commands/fileTemplateSnippets.js';
 import { InsertSnippetAction } from './commands/insertSnippet.js';
 import { SurroundWithSnippetEditorAction } from './commands/surroundWithSnippet.js';
 import { SnippetCodeActions } from './snippetCodeActionProvider.js';
-import { ISnippetsService } from './snippets.js';
-import { SnippetsService } from './snippetsService.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-
-import './tabCompletion.js';
 import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
-// service
-registerSingleton(ISnippetsService, SnippetsService, InstantiationType.Delayed);
 
 // actions
 registerAction2(InsertSnippetAction);
@@ -75,6 +70,20 @@ const snippetSchemaProperties: IJSONSchemaMap = {
 	description: {
 		description: nls.localize('snippetSchema.json.description', 'The snippet description.'),
 		type: ['string', 'array']
+	},
+	include: {
+		markdownDescription: nls.localize('snippetSchema.json.include', 'A list of [glob patterns](https://aka.ms/vscode-glob-patterns) to include the snippet for specific files, e.g. `["**/*.test.ts", "*.spec.ts"]` or `"**/*.spec.ts"`. Patterns will match on the absolute path of a file if they contain a path separator and will match on the name of the file otherwise. You can exclude matching files via the `exclude` property.'),
+		type: ['string', 'array'],
+		items: {
+			type: 'string'
+		}
+	},
+	exclude: {
+		markdownDescription: nls.localize('snippetSchema.json.exclude', 'A list of [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude the snippet from specific files, e.g. `["**/*.min.js"]` or `"*.min.js"`. Patterns will match on the absolute path of a file if they contain a path separator and will match on the name of the file otherwise. Exclude patterns take precedence over `include` patterns.'),
+		type: ['string', 'array'],
+		items: {
+			type: 'string'
+		}
 	}
 };
 

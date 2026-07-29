@@ -94,6 +94,33 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 		};
 	}
 
+	private createMutuallyExclusiveToggleAction(id: string, label: string, tooltip: string, filter: string, excludeFilters: string[]): IAction {
+		const isFilterEnabled = this.searchWidget.getValue().split(' ').includes(filter);
+		return {
+			id,
+			label,
+			tooltip,
+			class: undefined,
+			enabled: true,
+			checked: isFilterEnabled,
+			run: () => {
+				if (isFilterEnabled) {
+					const queryWithRemovedTags = this.searchWidget.getValue().split(' ')
+						.filter(word => word !== filter).join(' ');
+					this.searchWidget.setValue(queryWithRemovedTags);
+				} else {
+					let newQuery = this.searchWidget.getValue().split(' ')
+						.filter(word => !excludeFilters.includes(word) && word !== filter)
+						.join(' ')
+						.trimEnd();
+					newQuery = newQuery ? newQuery + ' ' + filter : filter;
+					this.searchWidget.setValue(newQuery);
+				}
+				this.searchWidget.focus();
+			}
+		};
+	}
+
 	getActions(): IAction[] {
 		return [
 			this.createToggleAction(
@@ -152,18 +179,28 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				`@${POLICY_SETTING_TAG}`
 			),
 			new Separator(),
-			this.createToggleAction(
+			this.createMutuallyExclusiveToggleAction(
+				'stableSettingsSearch',
+				localize('stableSettings', "Stable"),
+				localize('stableSettingsSearchTooltip', "Show stable settings"),
+				`@stable`,
+				['@tag:preview', '@tag:experimental']
+			),
+			this.createMutuallyExclusiveToggleAction(
 				'previewSettingsSearch',
 				localize('previewSettings', "Preview"),
 				localize('previewSettingsSearchTooltip', "Show preview settings"),
 				`@tag:preview`,
+				['@stable', '@tag:experimental']
 			),
-			this.createToggleAction(
+			this.createMutuallyExclusiveToggleAction(
 				'experimentalSettingsSearch',
 				localize('experimental', "Experimental"),
 				localize('experimentalSettingsSearchTooltip', "Show experimental settings"),
 				`@tag:experimental`,
+				['@stable', '@tag:preview']
 			),
+			new Separator(),
 			this.createToggleAction(
 				'advancedSettingsSearch',
 				localize('advancedSettingsSearch', "Advanced"),

@@ -23,18 +23,27 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IGalleryMcpServer, IInstallableMcpServer, IGalleryMcpServerConfiguration, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions, WORKSPACE_FOLDER_CONFIG_ID_PREFIX } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
-import { UriTemplate } from './uriTemplate.js';
+import { UriTemplate } from '../../../../base/common/uriTemplate.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
+
+/**
+ * Prefix of the collection id used for MCP servers configured via the various
+ * `mcp.json`-style config files (user, remote user, workspace, and
+ * `.vscode/mcp.json` workspace-folder configs). The suffix is the
+ * {@link IMcpConfigPath.id} of the originating config path.
+ */
+export const MCP_CONFIGURATION_COLLECTION_ID_PREFIX = 'mcp.config.';
 
 export function extensionPrefixedIdentifier(identifier: ExtensionIdentifier, id: string): string {
 	return ExtensionIdentifier.toKey(identifier) + '/' + id;
@@ -62,6 +71,8 @@ export interface McpCollectionDefinition {
 	readonly scope: StorageScope;
 	/** Configuration target where configuration related to this server should be stored. */
 	readonly configTarget: ConfigurationTarget;
+	/** Root-level sandbox settings from the mcp config file. */
+	readonly sandbox?: IMcpSandboxConfiguration;
 
 	/** Resolves a server definition. If present, always called before a server starts. */
 	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
@@ -78,9 +89,10 @@ export interface McpCollectionDefinition {
 
 	readonly source?: IWorkbenchMcpServer | ExtensionIdentifier;
 
+	/** Sort order of the collection. Lower values have higher priority. */
+	readonly order: number;
+
 	readonly presentation?: {
-		/** Sort order of the collection. */
-		readonly order?: number;
 		/** Place where this collection is configured, used in workspace trust prompts and "show config" */
 		readonly origin?: URI;
 	};
@@ -91,6 +103,7 @@ export const enum McpCollectionSortOrder {
 	Workspace = 100,
 	User = 200,
 	Extension = 300,
+	Plugin = 350,
 	Filesystem = 400,
 
 	RemoteBoost = -50,
@@ -111,7 +124,29 @@ export namespace McpCollectionDefinition {
 		return a.id === b.id
 			&& a.remoteAuthority === b.remoteAuthority
 			&& a.label === b.label
-			&& a.trustBehavior === b.trustBehavior;
+			&& a.trustBehavior === b.trustBehavior
+			&& objectsEqual(a.sandbox, b.sandbox);
+	}
+
+	/**
+	 * Returns `true` when the collection was discovered from the workspace (its
+	 * config target is the workspace or a workspace folder). This is
+	 * intentionally based on the config target and not the storage scope:
+	 * extension-contributed collections use a workspace storage scope but are
+	 * configured at the user level, so they are not workspace-discovered.
+	 */
+	export function isWorkspaceDiscovered(collection: McpCollectionDefinition): boolean {
+		return collection.configTarget === ConfigurationTarget.WORKSPACE
+			|| collection.configTarget === ConfigurationTarget.WORKSPACE_FOLDER;
+	}
+
+	/**
+	 * Returns `true` when the collection originates from a `.vscode/mcp.json`
+	 * workspace-folder config, identified by its collection id prefix (the
+	 * shared `mcp.config.` prefix plus the workspace-folder config id).
+	 */
+	export function isVscodeMcpJson(collection: McpCollectionDefinition): boolean {
+		return collection.id.startsWith(`${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}`);
 	}
 }
 
@@ -132,6 +167,8 @@ export interface McpServerDefinition {
 	readonly devMode?: IMcpDevModeConfig;
 	/** Static description of server tools/data, used to hydrate the cache. */
 	readonly staticMetadata?: McpServerStaticMetadata;
+	/** Indicates if the sandbox is enabled for this server. */
+	readonly sandboxEnabled?: boolean;
 
 
 	readonly presentation?: {
@@ -164,6 +201,7 @@ export namespace McpServerDefinition {
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
 		readonly staticMetadata?: McpServerStaticMetadata;
+		readonly sandboxEnabled?: boolean;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -177,6 +215,7 @@ export namespace McpServerDefinition {
 			cacheNonce: def.cacheNonce,
 			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
+			sandboxEnabled: def.sandboxEnabled,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
 	}
@@ -184,11 +223,14 @@ export namespace McpServerDefinition {
 	export function equals(a: McpServerDefinition, b: McpServerDefinition): boolean {
 		return a.id === b.id
 			&& a.label === b.label
+			&& a.cacheNonce === b.cacheNonce
 			&& arraysEqual(a.roots, b.roots, (a, b) => a.toString() === b.toString())
 			&& objectsEqual(a.launch, b.launch)
 			&& objectsEqual(a.presentation, b.presentation)
 			&& objectsEqual(a.variableReplacement, b.variableReplacement)
-			&& objectsEqual(a.devMode, b.devMode);
+			&& objectsEqual(a.devMode, b.devMode)
+			&& a.sandboxEnabled === b.sandboxEnabled;
+
 	}
 }
 
@@ -234,6 +276,9 @@ export interface IMcpService {
 	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
 
+	/** The enablement model for MCP servers. */
+	readonly enablementModel: IEnablementModel;
+
 	/** Resets the cached tools. */
 	resetCaches(): void;
 
@@ -264,6 +309,7 @@ export const IMcpService = createDecorator<IMcpService>('IMcpService');
 export interface McpCollectionReference {
 	id: string;
 	label: string;
+	order: number;
 	presentation?: McpCollectionDefinition['presentation'];
 }
 
@@ -315,10 +361,10 @@ export namespace McpServerTrust {
 	}
 }
 
-
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
 	readonly definition: McpDefinitionReference;
+	readonly enablement: IObservable<ContributionEnablementState>;
 	readonly connection: IObservable<IMcpServerConnection | undefined>;
 	readonly connectionState: IObservable<McpConnectionState>;
 	readonly serverMetadata: IObservable<{
@@ -434,9 +480,61 @@ export const mcpPromptPrefix = (definition: McpDefinitionReference) =>
 export interface IMcpPromptMessage extends MCP.PromptMessage { }
 
 export interface IMcpToolCallContext {
-	chatSessionId?: string;
+	chatSessionResource: URI | undefined;
 	chatRequestId?: string;
+	/**
+	 * Optional W3C trace context `traceparent` value to forward to the MCP server
+	 * via `_meta.traceparent` on the JSON-RPC `tools/call` request (MCP SEP-414).
+	 */
+	traceparent?: string;
+	/** Optional W3C trace context `tracestate` value paired with {@link traceparent}. */
+	tracestate?: string;
 }
+
+/**
+ * Visibility of an MCP tool, based on the MCP Apps `_meta.ui.visibility` field.
+ * @see https://github.com/anthropics/mcp/blob/main/apps.md
+ */
+export const enum McpToolVisibility {
+	/** Tool is visible to and callable by the language model */
+	Model = 1 << 0,
+	/** Tool is callable by the MCP App UI */
+	App = 1 << 1,
+}
+
+/**
+ * Serializable data for MCP App UI rendering.
+ * This contains all the information needed to render an MCP App webview.
+ *
+ * The transport for the App's sub-RPCs (`tools/call`, `resources/read`,
+ * `sampling/createMessage`, …) is determined by the discriminator:
+ *
+ * - `local`: resolves the MCP server via {@link IMcpService} from
+ *   `serverDefinitionId` + `collectionId`. Used for locally-configured
+ *   MCP servers.
+ * - `agentHost`: routes through {@link IAgentHostService.handleMcpRequest}
+ *   on the AHP `mcp://` side `channel`. Used for MCP servers owned by
+ *   an agent host.
+ */
+export type IMcpToolCallUIData =
+	| {
+		readonly kind: 'local';
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		readonly resourceUri: string;
+		/** Reference to the server definition for reconnection */
+		readonly serverDefinitionId: string;
+		/** Reference to the collection containing the server */
+		readonly collectionId: string;
+	}
+	| {
+		readonly kind: 'agentHost';
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		readonly resourceUri: string;
+		/** AHP `mcp://` channel URI for the originating server. */
+		readonly channel: string;
+		/** Stable identifier for the originating server (used as webview origin key). */
+		readonly serverId: string;
+	};
 
 export interface IMcpTool {
 
@@ -445,6 +543,10 @@ export interface IMcpTool {
 	readonly referenceName: string;
 	readonly icons: IMcpIcons;
 	readonly definition: MCP.Tool;
+	/** Visibility of the tool (Model, App, or both). Defaults to Model | App. */
+	readonly visibility: McpToolVisibility;
+	/** Optional UI resource URI for MCP App rendering */
+	readonly uiResourceUri?: string;
 
 	/**
 	 * Calls a tool
@@ -477,6 +579,42 @@ export interface McpServerTransportStdio {
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
 	readonly envFile: string | undefined;
+	readonly sandbox: IMcpSandboxConfiguration | undefined;
+}
+
+export interface McpServerTransportHTTPAuthentication {
+	/**
+	 * Authentication provider ID to use to get a session for the initial MCP server connection.
+	 */
+	readonly providerId: string;
+	/**
+	 * Scopes to use to get a session for the initial MCP server connection.
+	 */
+	readonly scopes: string[];
+}
+
+export interface McpServerTransportHTTPOAuth {
+	readonly clientId?: string;
+	/**
+	 * (Preview) When true, the MCP server uses enterprise-managed authentication via the configured
+	 * SSO issuer (see `mcp.enterpriseManagedAuth.idp`). Tokens are obtained through OAuth Identity
+	 * Assertion Authorization Grant (ID-JAG) so that, after a one-time sign-in, subsequent enterprise-managed
+	 * servers connect silently.
+	 */
+	readonly enterpriseManaged?: boolean;
+}
+
+/**
+ * Returns the secret-storage key under which an MCP server OAuth client secret is stored.
+ * Scoped by the MCP server URL AND the OAuth client_id so that two servers sharing the same
+ * client_id string (e.g. against different authorization servers) cannot clobber each other's
+ * secret, and so the key is stable across mcp.json configurations that happen to share a label
+ * (e.g. user mcp.json vs. workspace mcp.json). Set by the "Set Client Secret" code lens in
+ * mcp.json and read at authentication time so that client secrets are never stored in
+ * plain-text config files.
+ */
+export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: string): string {
+	return `mcp.oauth.clientSecret:${mcpServerUrl}:${clientId}`;
 }
 
 /**
@@ -488,6 +626,12 @@ export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly uri: URI;
 	readonly headers: [string, string][];
+	readonly oauth?: McpServerTransportHTTPOAuth;
+	/**
+	 * @deprecated this was originally used for step-auth auth but a different approach was used instead
+	 * so it's effectively dead code.
+	 */
+	readonly authentication?: McpServerTransportHTTPAuthentication;
 }
 
 export type McpServerLaunch =
@@ -496,8 +640,8 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][] }
-		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
+		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
+		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
@@ -506,7 +650,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers };
+				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
@@ -515,6 +659,7 @@ export namespace McpServerLaunch {
 					args: launch.args,
 					env: launch.env,
 					envFile: launch.envFile,
+					sandbox: launch.sandbox
 				};
 		}
 	}
@@ -530,10 +675,18 @@ export namespace McpServerLaunch {
  * stopped, and restarted. Once started and in a running state, it will
  * eventually build a {@link IMcpServerConnection.handler}.
  */
+export interface IMcpPotentialSandboxBlock {
+	readonly kind: 'network' | 'filesystem';
+	readonly message: string;
+	readonly host?: string;
+	readonly path?: string;
+}
+
 export interface IMcpServerConnection extends IDisposable {
 	readonly definition: McpServerDefinition;
 	readonly state: IObservable<McpConnectionState>;
 	readonly handler: IObservable<McpServerRequestHandler | undefined>;
+	readonly onPotentialSandboxBlock: Event<IMcpPotentialSandboxBlock>;
 
 	/**
 	 * Resolved launch definition. Might not match the `definition.launch` due to
@@ -556,9 +709,9 @@ export interface IMcpServerConnection extends IDisposable {
 /** Client methods whose implementations are passed through the server connection. */
 export interface IMcpClientMethods {
 	/** Handler for `sampling/createMessage` */
-	createMessageRequestHandler?(req: MCP.CreateMessageRequest['params']): Promise<MCP.CreateMessageResult>;
+	createMessageRequestHandler?(req: MCP.CreateMessageRequest['params'], token?: CancellationToken): Promise<MCP.CreateMessageResult>;
 	/** Handler for `elicitation/create` */
-	elicitationRequestHandler?(req: MCP.ElicitRequest['params']): Promise<MCP.ElicitResult>;
+	elicitationRequestHandler?(req: MCP.ElicitRequest['params'], token?: CancellationToken): Promise<MCP.ElicitResult>;
 }
 
 /**
@@ -682,6 +835,8 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 export const enum McpServerEnablementState {
 	Disabled,
 	DisabledByAccess,
+	DisabledProfile,
+	DisabledWorkspace,
 	Enabled,
 }
 
@@ -746,7 +901,7 @@ export interface IMcpWorkbenchService {
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
-	openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void>;
+	openSearch(searchValue: string, preserveFocus?: boolean): Promise<void>;
 	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
@@ -851,7 +1006,7 @@ export interface ISamplingResult {
 export interface IMcpSamplingService {
 	_serviceBrand: undefined;
 
-	sample(opts: ISamplingOptions): Promise<ISamplingResult>;
+	sample(opts: ISamplingOptions, token?: CancellationToken): Promise<ISamplingResult>;
 
 	/** Whether MCP sampling logs are available for this server */
 	hasLogs(server: IMcpServer): boolean;
@@ -906,8 +1061,31 @@ export interface IMcpElicitationService {
 	 * @param elicitation Request to elicit a response.
 	 * @returns A promise that resolves to an {@link ElicitationResult}.
 	 */
-	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult>;
+	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<ElicitResult>;
 }
+
+export const enum ElicitationKind {
+	Form,
+	URL,
+}
+
+export interface IUrlModeElicitResult extends IDisposable {
+	kind: ElicitationKind.URL;
+	value: MCP.ElicitResult;
+	/**
+	 * Waits until the server tells us the elicitation is completed before resolving.
+	 * Rejects with a CancellationError if the server stops before elicitation is
+	 * complete, or if the token is cancelled.
+	 */
+	wait: Promise<void>;
+}
+
+export interface IFormModeElicitResult extends IDisposable {
+	kind: ElicitationKind.Form;
+	value: MCP.ElicitResult;
+}
+
+export type ElicitResult = IUrlModeElicitResult | IFormModeElicitResult;
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
 

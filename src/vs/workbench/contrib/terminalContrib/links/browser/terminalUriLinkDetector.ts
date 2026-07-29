@@ -14,6 +14,7 @@ import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
 import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import type { IBufferLine, Terminal } from '@xterm/xterm';
 import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
+import { isString } from '../../../../../base/common/types.js';
 
 const enum Constants {
 	/**
@@ -52,7 +53,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 			// Check if the link is within the mouse position
 			const uri = computedLink.url
-				? (typeof computedLink.url === 'string' ? URI.parse(this._excludeLineAndColSuffix(computedLink.url)) : computedLink.url)
+				? (isString(computedLink.url) ? URI.parse(this._excludeLineAndColSuffix(computedLink.url)) : computedLink.url)
 				: undefined;
 
 			if (!uri) {
@@ -100,7 +101,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 					const type = getTerminalLinkType(uriCandidate, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 					const simpleLink: ITerminalSimpleLink = {
 						// Use computedLink.url if it's a string to retain the line/col suffix
-						text: typeof computedLink.url === 'string' ? computedLink.url : linkStat.link,
+						text: isString(computedLink.url) ? computedLink.url : linkStat.link,
 						uri: uriCandidate,
 						bufferRange,
 						type

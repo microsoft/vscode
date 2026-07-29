@@ -44,6 +44,11 @@
 		"pickerGroup.foreground": "#b0b0b0",
 		"inputOption.activeBorder": "#3655b5",
 		"focusBorder": "#3655b5",
+		// agent sessions
+		"agentsPanel.border": "#303030",
+		"agentsChatInput.border": "#303030",
+		"agentsChatInput.focusBorder": "#3655b5",
+		"agentsNewSessionButton.border": "#303030",
 		"terminal.ansiBlack": "#1e1e1e",
 		"terminal.ansiRed": "#C4265E", // the bright color with ~75% transparent on the background
 		"terminal.ansiGreen": "#86B42B",

@@ -112,17 +112,21 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		//
 		// This also normalizes the path to remove suffixes like :10 or :5.0-4
 		if (link.contextLine) {
-			const parsedLinks = detectLinks(link.contextLine, this._getOS());
-			// Optimistically check that the link _starts with_ the parsed link text. If so,
-			// continue to use the parsed link
-			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text.startsWith(parsedLink.path.text));
-			if (matchingParsedLink) {
-				if (matchingParsedLink.suffix?.row !== undefined) {
-					// Normalize the path based on the parsed link
-					text = matchingParsedLink.path.text;
-					text += `:${matchingParsedLink.suffix.row}`;
-					if (matchingParsedLink.suffix?.col !== undefined) {
-						text += `:${matchingParsedLink.suffix.col}`;
+			// Skip suffix parsing if the text looks like it contains an ISO 8601 timestamp format
+			const iso8601Pattern = /:\d{2}:\d{2}[+-]\d{2}:\d{2}\.[a-z]+/;
+			if (!iso8601Pattern.test(link.text)) {
+				const parsedLinks = detectLinks(link.contextLine, this._getOS());
+				// Optimistically check that the link _starts with_ the parsed link text. If so,
+				// continue to use the parsed link
+				const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text.startsWith(parsedLink.path.text));
+				if (matchingParsedLink) {
+					if (matchingParsedLink.suffix?.row !== undefined) {
+						// Normalize the path based on the parsed link
+						text = matchingParsedLink.path.text;
+						text += `:${matchingParsedLink.suffix.row}`;
+						if (matchingParsedLink.suffix?.col !== undefined) {
+							text += `:${matchingParsedLink.suffix.col}`;
+						}
 					}
 				}
 			}

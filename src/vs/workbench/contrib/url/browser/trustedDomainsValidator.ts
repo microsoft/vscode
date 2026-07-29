@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ITrustedDomainService } from './trustedDomainService.js';
-import { isURLDomainTrusted } from '../common/trustedDomains.js';
+import { isURLDomainTrusted } from '../../../../platform/url/common/trustedDomains.js';
 import { configureOpenerTrustedDomainsHandler, readStaticTrustedDomains } from './trustedDomains.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 

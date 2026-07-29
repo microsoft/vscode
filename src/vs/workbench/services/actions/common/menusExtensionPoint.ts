@@ -53,6 +53,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorTitle', "The editor title menu")
 	},
 	{
+		key: 'modalEditor/editorTitle',
+		id: MenuId.ModalEditorEditorTitle,
+		description: localize('menus.modalEditorEditorTitle', "The editor title menu in the modal editor")
+	},
+	{
 		key: 'editor/title/run',
 		id: MenuId.EditorTitleRun,
 		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
@@ -139,6 +144,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
 	},
 	{
+		key: 'chat/input/status',
+		id: MenuId.ChatInputStatus,
+		description: localize('menus.chatInputStatus', "The status indicator area at the rightmost end of the toolbar shown beneath the chat input"),
+		supportsSubmenus: false
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
@@ -158,7 +169,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/repository',
 		id: MenuId.SCMSourceControlInline,
 		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
-		proposed: 'contribSourceControlTitleMenu'
 	},
 	{
 		key: 'scm/resourceState/context',
@@ -203,6 +213,18 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.SCMHistoryItemRefContext,
 		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/artifactGroup/context',
+		id: MenuId.SCMArtifactGroupContext,
+		description: localize('menus.artifactGroupContext', "The Source Control artifact group context menu"),
+		proposed: 'contribSourceControlArtifactGroupMenu'
+	},
+	{
+		key: 'scm/artifact/context',
+		id: MenuId.SCMArtifactContext,
+		description: localize('menus.artifactContext', "The Source Control artifact context menu"),
+		proposed: 'contribSourceControlArtifactMenu'
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -427,6 +449,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribMergeEditorMenus'
 	},
 	{
+		key: 'multiDiffEditor/content',
+		id: MenuId.MultiDiffEditorContent,
+		description: localize('menus.multiDiffEditorContent', "A prominent button overlaying the multi diff editor"),
+		proposed: 'contribEditorContentMenu'
+	},
+	{
 		key: 'multiDiffEditor/resource/title',
 		id: MenuId.MultiDiffEditorFileToolbar,
 		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
@@ -457,16 +485,35 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatParticipantPrivate'
 	},
 	{
+		key: 'chat/input/editing/sessionToolbar',
+		id: MenuId.ChatEditingSessionChangesToolbar,
+		description: localize('menus.chatEditingSessionChangesToolbar', "The Chat Editing widget toolbar menu for session changes."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chat/input/editing/sessionTitleToolbar',
+		id: MenuId.ChatEditingSessionTitleToolbar,
+		description: localize('menus.chatEditingSessionTitleToolbar', "The Chat Editing widget toolbar menu for session title."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
-		id: MenuId.ChatSessionsMenu,
+		id: MenuId.AgentSessionsContext,
 		description: localize('menus.chatSessions', "The Chat Sessions menu."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
 	{
+		key: 'chatSessions/item/context',
+		id: MenuId.SessionItemContextMenu,
+		description: localize('menus.chatSessionsItemContext', "The context menu for items in the Sessions window's session list."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		key: 'chatSessions/newSession',
-		id: MenuId.ChatSessionsCreateSubMenu,
+		id: MenuId.AgentSessionsCreateSubMenu,
 		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
@@ -477,6 +524,57 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.chatMultiDiffContext', "The Chat Multi-Diff context menu."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider',
+	},
+	{
+		key: 'chat/customizations/create',
+		id: MenuId.for('AICustomizationManagementCreate'),
+		description: localize('menus.chatCustomizationsCreate', "The create button in the Chat Customizations management editor."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
+		key: 'chat/customizations/item',
+		id: MenuId.for('AICustomizationManagementEditorItem'),
+		description: localize('menus.chatCustomizationsItem', "The item context menu in the Chat Customizations management editor, including inline actions."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
+		key: 'chat/editor/inlineGutter',
+		id: MenuId.ChatEditorInlineMenu,
+		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
+		supportsSubmenus: false,
+		proposed: 'contribChatEditorInlineGutterMenu',
+	},
+	{
+		key: 'chat/contextUsage/actions',
+		id: MenuId.ChatContextUsageActions,
+		description: localize('menus.chatContextUsageActions', "Actions in the chat context usage details popup."),
+		proposed: 'chatParticipantAdditions'
+	},
+	{
+		key: 'chat/newSession',
+		id: MenuId.ChatNewMenu,
+		description: localize('menus.chatNewSession', "The Chat new session menu."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/changes/actions',
+		id: MenuId.AgentsChangesToolbar,
+		description: localize('menus.agentsChangesToolbar', "The Changes view toolbar of the agents window."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/changes/actions/primary',
+		id: MenuId.AgentsChangesPrimaryActionSubMenu,
+		description: localize('menus.agentsChangesPrimaryActionSubMenu', "The Changes view toolbar primary action submenu in the agents window."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/change/inline',
+		id: MenuId.AgentsChangeInlineToolbar,
+		description: localize('menus.agentsChangeInline', "The Changes view inline menu in the agents window."),
+		proposed: 'chatSessionsProvider'
 	},
 ];
 
@@ -824,7 +922,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<unknown>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;

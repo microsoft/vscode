@@ -1323,8 +1323,7 @@ export namespace CoreNavigationCommands {
 				EditorScroll_.Unit.WrappedLine,
 				EditorScroll_.Unit.Page,
 				EditorScroll_.Unit.HalfPage,
-				EditorScroll_.Unit.Editor,
-				EditorScroll_.Unit.Column
+				EditorScroll_.Unit.Editor
 			];
 			const horizontalDirections = [EditorScroll_.Direction.Left, EditorScroll_.Direction.Right];
 			const verticalDirections = [EditorScroll_.Direction.Up, EditorScroll_.Direction.Down];
@@ -1359,11 +1358,13 @@ export namespace CoreNavigationCommands {
 			if (args.revealCursor) {
 				// must ensure cursor is in new visible range
 				const desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
+				const paddedRange = viewModel.getViewRangeWithCursorPadding(desiredVisibleViewRange);
+
 				viewModel.setCursorStates(
 					source,
 					CursorChangeReason.Explicit,
 					[
-						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), desiredVisibleViewRange, args.select)
+						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), paddedRange, args.select)
 					]
 				);
 			}

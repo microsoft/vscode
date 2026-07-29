@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ObjectPolicy } from '../policies/objectPolicy.js';
-import { LanguageTranslations, PolicyType } from '../policies/types.js';
-import { CategoryDto, PolicyDto } from '../policies/policyDto.js';
+import { suite, test } from 'node:test';
+import { ObjectPolicy } from '../policies/objectPolicy.ts';
+import { type LanguageTranslations, PolicyType } from '../policies/types.ts';
+import type { CategoryDto, PolicyDto } from '../policies/policyDto.ts';
 
 suite('ObjectPolicy', () => {
 	const mockCategory: CategoryDto = {

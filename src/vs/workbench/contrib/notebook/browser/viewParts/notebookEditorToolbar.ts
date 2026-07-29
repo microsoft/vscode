@@ -284,6 +284,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this.contextMenuService.showContextMenu({
 				menuId: MenuId.NotebookToolbarContext,
 				getAnchor: () => event,
+				menuActionOptions: { renderShortTitle: true }
 			});
 		}));
 	}

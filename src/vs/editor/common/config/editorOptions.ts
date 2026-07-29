@@ -496,7 +496,7 @@ export interface IEditorOptions {
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
-	quickSuggestions?: boolean | IQuickSuggestionsOptions;
+	quickSuggestions?: boolean | QuickSuggestionsValue | IQuickSuggestionsOptions;
 	/**
 	 * Quick suggestions show delay (in ms)
 	 * Defaults to 10 (ms)
@@ -566,6 +566,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	formatOnPaste?: boolean;
+	/**
+	 * Controls whether double-clicking next to a bracket or quote selects the content inside.
+	 * Defaults to true.
+	 */
+	doubleClickSelectsBlock?: boolean;
 	/**
 	 * Controls if the editor should allow to move selections via drag and drop.
 	 * Defaults to false.
@@ -897,6 +902,13 @@ export interface IDiffEditorBaseOptions {
 	compactMode?: boolean;
 
 	/**
+	 * If set, the original editor's line numbers are hidden in the inline view.
+	 * Defaults to `false`.
+	 * @internal
+	*/
+	hideOriginalLineNumbers?: boolean;
+
+	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
@@ -957,7 +969,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced';
+	diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -1149,7 +1161,7 @@ function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	}
 	let didChange = false;
 	for (const key in update) {
-		if ((update as T & object).hasOwnProperty(key)) {
+		if (update.hasOwnProperty(key)) {
 			const result = applyUpdate(value[key], update[key]);
 			if (result.didChange) {
 				value[key] = result.newValue;
@@ -1740,6 +1752,10 @@ export interface IEditorFindOptions {
 	 */
 	loop?: boolean;
 	/**
+	 * Controls whether to close the Find Widget after an explicit find navigation command lands on a match.
+	 */
+	closeOnResult?: boolean;
+	/**
 	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
@@ -1767,6 +1783,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
+			closeOnResult: false,
 			history: 'workspace',
 			replaceHistory: 'workspace',
 		};
@@ -1816,6 +1833,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
+				'editor.find.closeOnResult': {
+					type: 'boolean',
+					default: defaults.closeOnResult,
+					description: nls.localize('find.closeOnResult', "Controls whether the Find Widget closes after an explicit find navigation command lands on a result.")
+				},
 				'editor.find.history': {
 					type: 'string',
 					enum: ['never', 'workspace'],
@@ -1862,6 +1884,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			closeOnResult: boolean(input.closeOnResult, this.defaultValue.closeOnResult),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
 		};
@@ -2294,9 +2317,9 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 export interface IEditorHoverOptions {
 	/**
 	 * Enable the hover.
-	 * Defaults to true.
+	 * Defaults to 'on'.
 	 */
-	enabled?: boolean;
+	enabled?: 'on' | 'off' | 'onKeyboardModifier';
 	/**
 	 * Delay for showing the hover.
 	 * Defaults to 300.
@@ -2317,6 +2340,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Should long line warning hovers be shown (tokenization skipped, rendering paused)?
+	 * Defaults to true.
+	 */
+	showLongLineWarning?: boolean;
 }
 
 /**
@@ -2328,19 +2356,27 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 
 	constructor() {
 		const defaults: EditorHoverOptions = {
-			enabled: true,
+			enabled: 'on',
 			delay: 300,
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			showLongLineWarning: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
 			{
 				'editor.hover.enabled': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['on', 'off', 'onKeyboardModifier'],
 					default: defaults.enabled,
-					description: nls.localize('hover.enabled', "Controls whether the hover is shown.")
+					markdownEnumDescriptions: [
+						nls.localize('hover.enabled.on', "Hover is enabled."),
+						nls.localize('hover.enabled.off', "Hover is disabled."),
+						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when holding `{0}` or `Alt` (the opposite modifier of `#editor.multiCursorModifier#`)", platform.isMacintosh ? `Command` : `Control`)
+					],
+					description: nls.localize('hover.enabled', "Controls whether the hover is shown."),
+					keywords: ['hint', 'info', 'tooltip']
 				},
 				'editor.hover.delay': {
 					type: 'number',
@@ -2365,6 +2401,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.above,
 					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
+				'editor.hover.showLongLineWarning': {
+					type: 'boolean',
+					default: defaults.showLongLineWarning,
+					description: nls.localize('hover.showLongLineWarning', "Controls whether long line warning hovers are shown, such as when tokenization is skipped or rendering is paused.")
+				},
 			}
 		);
 	}
@@ -2375,11 +2416,12 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		}
 		const input = _input as Unknown<IEditorHoverOptions>;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			enabled: stringSet<'on' | 'off' | 'onKeyboardModifier'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'onKeyboardModifier']),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			showLongLineWarning: boolean(input.showLongLineWarning, this.defaultValue.showLongLineWarning),
 		};
 	}
 }
@@ -3706,7 +3748,7 @@ class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, strin
 
 //#region quickSuggestions
 
-export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
+export type QuickSuggestionsValue = 'on' | 'inline' | 'off' | 'offWhenInlineCompletions';
 
 /**
  * Configuration options for quick suggestions
@@ -3723,13 +3765,13 @@ export interface InternalQuickSuggestionsOptions {
 	readonly strings: QuickSuggestionsValue;
 }
 
-class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, InternalQuickSuggestionsOptions> {
+class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | QuickSuggestionsValue | IQuickSuggestionsOptions, InternalQuickSuggestionsOptions> {
 
 	public override readonly defaultValue: InternalQuickSuggestionsOptions;
 
 	constructor() {
 		const defaults: InternalQuickSuggestionsOptions = {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'off'
 		};
@@ -3737,32 +3779,45 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 			{ type: 'boolean' },
 			{
 				type: 'string',
-				enum: ['on', 'inline', 'off'],
-				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled")]
+				enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
+				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled"), nls.localize('offWhenInlineCompletions', "Quick suggestions are disabled when inline completions are showing")]
 			}
 		];
 		super(EditorOption.quickSuggestions, 'quickSuggestions', defaults, {
-			type: 'object',
-			additionalProperties: false,
-			properties: {
-				strings: {
-					anyOf: types,
-					default: defaults.strings,
-					description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+			anyOf: [
+				{ type: 'boolean' },
+				{
+					type: 'string',
+					enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
+					enumDescriptions: [nls.localize('quickSuggestions.topLevel.on', "Quick suggestions are enabled for all token types"), nls.localize('quickSuggestions.topLevel.inline', "Quick suggestions show as ghost text for all token types"), nls.localize('quickSuggestions.topLevel.off', "Quick suggestions are disabled for all token types"), nls.localize('quickSuggestions.topLevel.offWhenInlineCompletions', "Quick suggestions are disabled for all token types when inline completions are showing")]
 				},
-				comments: {
-					anyOf: types,
-					default: defaults.comments,
-					description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
-				},
-				other: {
-					anyOf: types,
-					default: defaults.other,
-					description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
-				},
-			},
+				{
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						strings: {
+							anyOf: types,
+							default: defaults.strings,
+							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+						},
+						comments: {
+							anyOf: types,
+							default: defaults.comments,
+							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+						},
+						other: {
+							anyOf: types,
+							default: defaults.other,
+							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+						},
+					},
+				}
+			],
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`')
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`'),
+			experiment: {
+				mode: 'auto'
+			}
 		});
 		this.defaultValue = defaults;
 	}
@@ -3773,13 +3828,19 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 			const value = input ? 'on' : 'off';
 			return { comments: value, strings: value, other: value };
 		}
+		if (typeof input === 'string') {
+			// string shorthand -> apply same value to all token types
+			const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off', 'offWhenInlineCompletions'];
+			const validated = stringSet<QuickSuggestionsValue>(input as QuickSuggestionsValue, this.defaultValue.other, allowedValues);
+			return { comments: validated, strings: validated, other: validated };
+		}
 		if (!input || typeof input !== 'object') {
-			// invalid object
+			// invalid input
 			return this.defaultValue;
 		}
 
 		const { other, comments, strings } = (<IQuickSuggestionsOptions>input);
-		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off'];
+		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off', 'offWhenInlineCompletions'];
 		let validatedOther: QuickSuggestionsValue;
 		let validatedComments: QuickSuggestionsValue;
 		let validatedStrings: QuickSuggestionsValue;
@@ -4436,6 +4497,14 @@ export interface IInlineSuggestOptions {
 
 		showCollapsed?: boolean;
 
+		showLongDistanceHint?: boolean;
+
+		/**
+		 * Controls how many lines of surrounding context are shown above and below the target line
+		 * in the long distance inline suggestion hint preview. `0` shows only the target line.
+		 */
+		longDistanceHintContextLineCount?: number;
+
 		/**
 		* @internal
 		*/
@@ -4494,8 +4563,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
+				showLongDistanceHint: true,
+				longDistanceHintContextLineCount: 0,
 			},
-			triggerCommandOnProviderChange: true,
+			triggerCommandOnProviderChange: false,
 			experimental: {
 				suppressInlineSuggestions: '',
 				showOnSuggestConflict: 'never',
@@ -4593,6 +4664,23 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enum: ['always', 'horizontal', 'never'],
 					tags: ['nextEditSuggestions']
 				},
+				'editor.inlineSuggest.edits.showLongDistanceHint': {
+					type: 'boolean',
+					default: defaults.edits.showLongDistanceHint,
+					description: nls.localize('inlineSuggest.edits.showLongDistanceHint', "Controls whether long distance inline suggestions are shown."),
+					tags: ['nextEditSuggestions', 'experimental']
+				},
+				'editor.inlineSuggest.edits.longDistanceHintContextLineCount': {
+					type: 'number',
+					default: defaults.edits.longDistanceHintContextLineCount,
+					minimum: 0,
+					maximum: 10,
+					description: nls.localize('inlineSuggest.edits.longDistanceHintContextLineCount', "Controls how many lines of surrounding context are shown above and below the target line in the long distance inline suggestion preview. Set to 0 to only show the target line."),
+					tags: ['nextEditSuggestions', 'experimental'],
+					experiment: {
+						mode: 'auto'
+					}
+				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
 					default: defaults.edits.renderSideBySide,
@@ -4644,6 +4732,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			enabled: boolean(input.enabled, this.defaultValue.edits.enabled),
 			showCollapsed: boolean(input.showCollapsed, this.defaultValue.edits.showCollapsed),
 			allowCodeShifting: stringSet(input.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
+			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
+			longDistanceHintContextLineCount: EditorIntOption.clampedInt(input.longDistanceHintContextLineCount, this.defaultValue.edits.longDistanceHintContextLineCount, 0, 10),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 		};
 	}
@@ -5135,10 +5225,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: defaults.showInlineDetails,
 					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget.")
-				},
-				'editor.suggest.maxVisibleSuggestions': {
-					type: 'number',
-					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -5880,7 +5966,8 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
-	effectiveAllowVariableFonts
+	effectiveAllowVariableFonts,
+	doubleClickSelectsBlock
 }
 
 export const EditorOptions = {
@@ -6172,6 +6259,10 @@ export const EditorOptions = {
 	)),
 	domReadOnly: register(new EditorBooleanOption(
 		EditorOption.domReadOnly, 'domReadOnly', false,
+	)),
+	doubleClickSelectsBlock: register(new EditorBooleanOption(
+		EditorOption.doubleClickSelectsBlock, 'doubleClickSelectsBlock', true,
+		{ description: nls.localize('doubleClickSelectsBlock', "Controls whether double-clicking next to a bracket or quote selects the content inside.") }
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,

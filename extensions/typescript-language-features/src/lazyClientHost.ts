@@ -86,7 +86,9 @@ export function lazilyActivateClient(
 		}, undefined, disposables);
 	}
 
-	return vscode.Disposable.from(...disposables);
+	return new vscode.Disposable(() => {
+		disposables.forEach(d => d.dispose());
+	});
 }
 
 function isSupportedDocument(

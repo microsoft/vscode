@@ -25,7 +25,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 
 		// Remember the wrapped listener so that later we can
 		// properly implement `removeListener`.
-		const wrappedListener = (event: electron.IpcMainEvent, ...args: any[]) => {
+		const wrappedListener = (event: electron.IpcMainEvent, ...args: unknown[]) => {
 			if (this.validateEvent(channel, event)) {
 				listener(event, ...args);
 			}
@@ -43,7 +43,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	 * only the next time a message is sent to `channel`, after which it is removed.
 	 */
 	once(channel: string, listener: ipcMainListener): this {
-		electron.ipcMain.once(channel, (event: electron.IpcMainEvent, ...args: any[]) => {
+		electron.ipcMain.once(channel, (event: electron.IpcMainEvent, ...args: unknown[]) => {
 			if (this.validateEvent(channel, event)) {
 				listener(event, ...args);
 			}
@@ -69,7 +69,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	 * provided to the renderer process. Please refer to #24427 for details.
 	 */
 	handle(channel: string, listener: (event: electron.IpcMainInvokeEvent, ...args: any[]) => Promise<unknown>): this {
-		electron.ipcMain.handle(channel, (event: electron.IpcMainInvokeEvent, ...args: any[]) => {
+		electron.ipcMain.handle(channel, (event: electron.IpcMainInvokeEvent, ...args: unknown[]) => {
 			if (this.validateEvent(channel, event)) {
 				return listener(event, ...args);
 			}
@@ -104,7 +104,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	}
 
 	private validateEvent(channel: string, event: electron.IpcMainEvent | electron.IpcMainInvokeEvent): boolean {
-		if (!channel || !channel.startsWith('vscode:')) {
+		if (!channel?.startsWith('vscode:')) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because the channel is unknown.`);
 			return false; // unexpected channel
 		}
@@ -126,6 +126,12 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		} catch (error) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because of a malformed URL '${url}'.`);
 			return false; // unexpected URL
+		}
+
+		if (process.env.VSCODE_DEV) {
+			if (url === process.env.DEV_WINDOW_SRC && (host === 'localhost' || host.startsWith('localhost:'))) {
+				return true; // development support where the window is served from localhost
+			}
 		}
 
 		if (host !== VSCODE_AUTHORITY) {

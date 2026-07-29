@@ -41,7 +41,7 @@ export type ITerminalContributionDescription = { readonly id: string } & (
  */
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(ctx: ITerminalContributionContext, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals?: false): void;
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(ctx: IDetachedCompatibleTerminalContributionContext, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals: true): void;
-export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(ctx: any, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals: boolean = false): void {
+export function registerTerminalContribution(id: string, ctor: TerminalContributionCtor | DetachedCompatibleTerminalContributionCtor, canRunInDetachedTerminals: boolean = false): void {
 	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	TerminalContributionRegistry.INSTANCE.registerTerminalContribution({ id, ctor, canRunInDetachedTerminals } as ITerminalContributionDescription);
 }

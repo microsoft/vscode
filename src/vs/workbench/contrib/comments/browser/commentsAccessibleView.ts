@@ -15,6 +15,7 @@ import { COMMENTS_VIEW_ID, CommentsMenus } from './commentsTreeViewer.js';
 import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from './commentsView.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommentService } from './commentService.js';
+import { CommentNode } from '../common/commentModel.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { moveToNextCommentInThread as findNextCommentInThread, revealCommentThread } from './commentsController.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -76,7 +77,7 @@ class CommentsAccessibleContentProvider extends Disposable implements IAccessibl
 	public readonly actions: IAction[];
 	constructor(
 		private readonly _commentsView: CommentsPanel,
-		private readonly _focusedCommentNode: any,
+		private readonly _focusedCommentNode: CommentNode,
 		private readonly _menus: CommentsMenus,
 	) {
 		super();

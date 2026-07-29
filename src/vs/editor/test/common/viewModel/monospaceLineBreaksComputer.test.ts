@@ -6,7 +6,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
@@ -63,9 +63,17 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
-	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+	const context: ILineBreaksComputerContext = {
+		getLineContent(lineNumber: number) {
+			return text;
+		},
+		getLineInjectedText(lineNumber) {
+			return null;
+		}
+	};
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
-	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
+	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 
@@ -318,12 +326,12 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 8, '你好1111', WrappingIndent.Same, 'keepAll');
 	});
 
-	test('issue wrapOnEscapedLineFeeds: should work correctly after editor resize', () => {
+	test('issue #258022: wrapOnEscapedLineFeeds: should work correctly after editor resize', () => {
 		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
 
 		// Test text with escaped line feeds - simulates a JSON string with \n
 		// The \n should trigger a soft wrap when wrapOnEscapedLineFeeds is enabled
-		const text = '"Short text with\\nescaped newline and more text after"';
+		const text = '"Short text with\\nescaped newline and an escaped\\\\nbackslash"';
 
 		// First, compute line breaks with wrapOnEscapedLineFeeds enabled at initial width
 		const initialBreakData = getLineBreakData(factory, 4, 30, 2, WrappingIndent.None, 'normal', true, text, null);

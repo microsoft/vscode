@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isBoolean } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
@@ -57,17 +58,17 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 		return this._settingsModelParser.restrictedConfigurations;
 	}
 
-	protected override doParseRaw(raw: any, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
+	protected override doParseRaw(raw: IStringDictionary<unknown>, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
 		this._transient = isBoolean(raw['transient']) && raw['transient'];
-		this._settingsModelParser.parseRaw(raw['settings'], configurationParseOptions);
+		this._settingsModelParser.parseRaw(raw['settings'] as IStringDictionary<unknown>, configurationParseOptions);
 		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
 		this._tasksModel = this.createConfigurationModelFrom(raw, 'tasks');
 		return super.doParseRaw(raw, configurationParseOptions);
 	}
 
-	private createConfigurationModelFrom(raw: any, key: string): ConfigurationModel {
-		const data = raw[key];
+	private createConfigurationModelFrom(raw: IStringDictionary<unknown>, key: string): ConfigurationModel {
+		const data = raw[key] as IStringDictionary<unknown> | undefined;
 		if (data) {
 			const contents = toValuesTree(data, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 			const scopedContents = Object.create(null);
@@ -85,7 +86,7 @@ export class StandaloneConfigurationModelParser extends ConfigurationModelParser
 		super(name, logService);
 	}
 
-	protected override doParseRaw(raw: any, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
+	protected override doParseRaw(raw: IStringDictionary<unknown>, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const scopedContents = Object.create(null);
 		scopedContents[this.scope] = contents;
@@ -113,7 +114,7 @@ export class Configuration extends BaseConfiguration {
 		super(defaults, policy, application, localUser, remoteUser, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource, logService);
 	}
 
-	override getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {
+	override getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): unknown {
 		return super.getValue(key, overrides, this._workspace);
 	}
 

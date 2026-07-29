@@ -7,6 +7,7 @@ import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { EditorHoverStatusBar } from './contentHoverStatusBar.js';
 import { HoverStartSource } from './hoverOperation.js';
+import { HoverCopyButton } from './hoverCopyButton.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -16,13 +17,14 @@ import { ContentHoverResult } from './contentHoverTypes.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
-import { HoverColorPickerParticipant } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerParticipant.js';
+import { ColorHover, HoverColorPickerParticipant } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerParticipant.js';
 import { localize } from '../../../../nls.js';
 import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -44,7 +46,8 @@ export class RenderedContentHover extends Disposable {
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
 		super();
 		const parts = hoverResult.hoverParts;
@@ -54,7 +57,8 @@ export class RenderedContentHover extends Disposable {
 			parts,
 			context,
 			keybindingService,
-			hoverService
+			hoverService,
+			clipboardService
 		));
 		const contentHoverComputerOptions = hoverResult.options;
 		const anchor = contentHoverComputerOptions.anchor;
@@ -222,6 +226,7 @@ class RenderedContentHoverParts extends Disposable {
 	});
 
 	private readonly _renderedParts: IRenderedContentHoverPartOrStatusBar[] = [];
+	private readonly _perPartDisposables = new Map<number, IDisposable>();
 	private readonly _fragment: DocumentFragment;
 	private readonly _context: IEditorHoverContext;
 
@@ -235,12 +240,13 @@ class RenderedContentHoverParts extends Disposable {
 		hoverParts: IHoverPart[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this._context = context;
 		this._fragment = document.createDocumentFragment();
-		this._register(this._renderParts(participants, hoverParts, context, keybindingService, hoverService));
+		this._register(this._renderParts(participants, hoverParts, context, keybindingService, this._hoverService));
 		this._register(this._registerListenersOnRenderedParts());
 		this._register(this._createEditorDecorations(editor, hoverParts));
 		this._updateMarkdownAndColorParticipantInfo(participants);
@@ -315,20 +321,42 @@ class RenderedContentHoverParts extends Disposable {
 	}
 
 	private _registerListenersOnRenderedParts(): IDisposable {
-		const disposables = new DisposableStore();
+		// Create per-part disposables so that when an individual rendered part is
+		// updated we can dispose its listeners and copy button without affecting
+		// the others.
 		this._renderedParts.forEach((renderedPart: IRenderedContentHoverPartOrStatusBar, index: number) => {
-			const element = renderedPart.hoverElement;
-			element.tabIndex = 0;
-			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
-				event.stopPropagation();
-				this._focusedHoverPartIndex = index;
-			}));
-			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_OUT, (event: Event) => {
-				event.stopPropagation();
-				this._focusedHoverPartIndex = -1;
-			}));
+			this._createListenersForPart(index, renderedPart);
 		});
-		return disposables;
+		return toDisposable(() => {
+			for (const d of this._perPartDisposables.values()) {
+				d.dispose();
+			}
+			this._perPartDisposables.clear();
+		});
+	}
+
+	private _createListenersForPart(index: number, renderedPart: IRenderedContentHoverPartOrStatusBar): void {
+		const partDisposables = new DisposableStore();
+		const element = renderedPart.hoverElement;
+		element.tabIndex = 0;
+		partDisposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
+			event.stopPropagation();
+			this._focusedHoverPartIndex = index;
+		}));
+		partDisposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_OUT, (event: Event) => {
+			event.stopPropagation();
+			this._focusedHoverPartIndex = -1;
+		}));
+		// Add copy button for marker hovers
+		if (renderedPart.type === 'hoverPart' && !(renderedPart.hoverPart instanceof ColorHover) && !renderedPart.participant.hideCopyButton) {
+			partDisposables.add(new HoverCopyButton(
+				element,
+				() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
+				this._clipboardService,
+				this._hoverService
+			));
+		}
+		this._perPartDisposables.set(index, partDisposables);
 	}
 
 	private _updateMarkdownAndColorParticipantInfo(participants: IEditorHoverParticipant<IHoverPart>[]) {
@@ -395,12 +423,20 @@ class RenderedContentHoverParts extends Disposable {
 			if (!renderedPart) {
 				continue;
 			}
+			// Dispose any listeners/copy button for the previous part at this index
+			const prevDisposable = this._perPartDisposables.get(i);
+			if (prevDisposable) {
+				prevDisposable.dispose();
+				this._perPartDisposables.delete(i);
+			}
 			this._renderedParts[i] = {
 				type: 'hoverPart',
 				participant: this._markdownHoverParticipant,
 				hoverPart: renderedPart.hoverPart,
 				hoverElement: renderedPart.hoverElement,
 			};
+			// Recreate listeners and copy button for the updated part.
+			this._createListenersForPart(i, this._renderedParts[i]);
 		}
 		if (focus) {
 			if (index >= 0) {
