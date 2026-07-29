@@ -149,7 +149,7 @@ def validate_entries(source: zipfile.ZipFile, root: Path) -> list[tuple[zipfile.
 	return validated
 
 
-def extract_archive(archive: Path) -> Path:
+ def extract_archive(archive: Path) -> Path:
 	preflight_archive(archive)
 	root = Path(tempfile.mkdtemp(prefix='agent-host-logs-')).resolve()
 	try:
@@ -164,12 +164,23 @@ def extract_archive(archive: Path) -> Path:
 				target.parent.mkdir(parents=True, exist_ok=True)
 				with source.open(info) as input_stream, target.open('xb') as output_stream:
 					shutil.copyfileobj(input_stream, output_stream)
+				
+				# Eklenen İyileştirme: Dosya izinlerini güvenli bir şekilde ayarla
+				# (Windows haricindeki sistemler için)
+				try:
+					mode = (info.external_attr >> 16) & 0o777
+					if mode:
+						target.chmod(mode)
+					else:
+						target.chmod(0o644)
+				except OSError:
+					pass
+					
 	except (Exception, KeyboardInterrupt):
 		shutil.rmtree(root)
 		raise
 
 	return root
-
 
 def main() -> None:
 	parser = argparse.ArgumentParser(description='Safely extract an Agent Host debug log zip into a temporary directory.')
