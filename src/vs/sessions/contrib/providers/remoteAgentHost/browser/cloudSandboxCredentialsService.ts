@@ -17,6 +17,7 @@ import {
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -59,12 +60,6 @@ const DISCOVERY_TASK_SCAN_LIMIT = 100;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
-
-/**
- * Copilot API host serving the agent-environment endpoints. Enterprise installs can override this
- * per user via the Copilot token's `endpoints.api`, which is not yet available in the renderer.
- */
-const COPILOT_API_BASE_URI = 'https://api.githubcopilot.com';
 
 /**
  * Mission Control client for cloud sandbox sessions: mints (`connect`) and refreshes (`reconnect`)
@@ -202,7 +197,7 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 		searchParams?: Record<string, string>,
 	): Promise<IRequestContext> {
 		const path = action === 'get' ? '' : `/${action}`;
-		const url = `${COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
+		const url = `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
 		return this._request(url, `mc.environmentClient.${action}`, {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token);
@@ -244,7 +239,7 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 	 * CORS headers on authenticated responses, so a renderer `fetch` receives the reply and discards it.
 	 */
 	private _tasksBaseUrl(): string {
-		return `${COPILOT_API_BASE_URI}/agents`;
+		return `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`;
 	}
 
 	private async _readJson<T>(context: IRequestContext): Promise<T | undefined> {
