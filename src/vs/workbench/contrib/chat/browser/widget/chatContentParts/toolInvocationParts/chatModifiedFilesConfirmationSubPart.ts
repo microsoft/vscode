@@ -134,7 +134,6 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
-			this.openedEditors.closeOpenedEditors();
 			if (!isTouchClick) {
 				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 			}

@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { ConfirmationOptionKind, ConfirmationOption } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { EditorsOrder, IEditorIdentifier } from '../../../../../../common/editor.js';
+import { IEditorIdentifier } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -38,33 +38,45 @@ export class ChatConfirmationOpenedEditors extends Disposable {
 	};
 
 	constructor(
+		private readonly _toolInvocation: IChatToolInvocation,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 	}
 
+	/**
+	 * The opener API doesn't report which editor it opened, so attribute the editor the click
+	 * left active. Editors that were already open beforehand are left alone.
+	 */
 	private async _trackOpen(open: () => Promise<void>): Promise<void> {
-		const before = new Set(this._editorService.getEditors(EditorsOrder.SEQUENTIAL).map(({ editor }) => editor));
+		const before = new Set(this._editorService.editors);
 		try {
 			await open();
 		} finally {
-			for (const identifier of this._editorService.getEditors(EditorsOrder.SEQUENTIAL)) {
-				if (!before.has(identifier.editor)) {
-					this._opened.push(identifier);
-				}
+			const pane = this._editorService.activeEditorPane;
+			if (pane?.input && !before.has(pane.input)) {
+				this._opened.push({ editor: pane.input, groupId: pane.group.id });
 			}
 		}
 	}
 
 	/**
-	 * Closes the tracked editors again, leaving behind anything the user has modified
-	 * in the meantime.
+	 * A confirmation can be answered by clicking a button, but also by keybinding or voice. All
+	 * of those transition the invocation out of its waiting state, which re-renders and disposes
+	 * this sub part, so cleaning up here covers every path. Editors are kept when the part is
+	 * disposed for any other reason, such as the list virtualizing the response away.
 	 */
-	closeOpenedEditors(): void {
-		const toClose = this._opened.splice(0).filter(({ editor }) => !editor.isDisposed() && !editor.isDirty());
-		if (toClose.length) {
-			this._editorService.closeEditors(toClose).catch(onUnexpectedError);
+	override dispose(): void {
+		const stateKind = this._toolInvocation.state.get().type;
+		if (stateKind !== IChatToolInvocation.StateKind.WaitingForConfirmation && stateKind !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			const toClose = this._opened.filter(({ editor }) => !editor.isDisposed() && !editor.isDirty());
+			if (toClose.length) {
+				this._editorService.closeEditors(toClose).catch(onUnexpectedError);
+			}
 		}
+
+		this._opened.length = 0;
+		super.dispose();
 	}
 }
 
@@ -113,7 +125,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 			throw new Error('Confirmation only works with live tool invocations');
 		}
 
-		this.openedEditors = this._register(instantiationService.createInstance(ChatConfirmationOpenedEditors));
+		this.openedEditors = this._register(instantiationService.createInstance(ChatConfirmationOpenedEditors, toolInvocation));
 	}
 	protected render(config: IToolConfirmationConfig) {
 		const { keybindingService, languageModelToolsService, toolInvocation } = this;
@@ -204,7 +216,6 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
-			this.openedEditors.closeOpenedEditors();
 			if (!isTouchClick) {
 				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 			}
