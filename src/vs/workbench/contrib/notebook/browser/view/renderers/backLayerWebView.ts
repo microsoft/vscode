@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ITextEditorOptions, ITextEditorSelection } from '../../../../../../platform/editor/common/editor.js';
+import { EditorOpenSource, ITextEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -39,7 +39,6 @@ import { editorFindMatch, editorFindMatchHighlight } from '../../../../../../pla
 import { IThemeService, Themable } from '../../../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from '../../notebookBrowser.js';
 import { NOTEBOOK_WEBVIEW_BOUNDARY } from '../notebookCellList.js';
 import { preloadsScriptStr } from './webviewPreloads.js';
@@ -54,6 +53,7 @@ import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginS
 import { WebviewWindowDragMonitor } from '../../../../webview/browser/webviewWindowDragMonitor.js';
 import { asWebviewUri, webviewGenericCspSource } from '../../../../webview/common/webview.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages.js';
@@ -178,6 +178,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IPathService private readonly pathService: IPathService,
 		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
@@ -813,9 +814,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					} else {
 						// uri with scheme
 						if (osPath.isAbsolute(data.href)) {
-							this._openUri(URI.file(data.href));
+							await this._openUri(URI.file(data.href));
 						} else {
-							this._openUri(URI.parse(data.href));
+							await this._openUri(URI.parse(data.href));
 						}
 					}
 					break;
@@ -1085,11 +1086,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			if (fragment) {
 				linkToOpen = linkToOpen.with({ fragment });
 			}
-			this._openUri(linkToOpen);
+			await this._openUri(linkToOpen);
 		}
 	}
 
-	private _openUri(uri: URI) {
+	private async _openUri(uri: URI): Promise<void> {
 		let lineNumber: number | undefined = undefined;
 		let column: number | undefined = undefined;
 		const lineCol = LINE_COLUMN_REGEX.exec(uri.path);
@@ -1118,23 +1119,25 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 		//#endregion
 
-		let match: { group: IEditorGroup; editor: EditorInput } | undefined = undefined;
+		let targetGroup: IEditorGroup | undefined = undefined;
 
 		for (const group of this.editorGroupService.groups) {
 			const editorInput = group.editors.find(editor => editor.resource && isEqual(editor.resource, uri, true));
 			if (editorInput) {
-				match = { group, editor: editorInput };
+				targetGroup = group;
 				break;
 			}
 		}
 
-		if (match) {
-			const selection: ITextEditorSelection | undefined = lineNumber !== undefined && column !== undefined ? { startLineNumber: lineNumber, startColumn: column } : undefined;
-			const textEditorOptions: ITextEditorOptions = { selection: selection };
-			match.group.openEditor(match.editor, selection ? textEditorOptions : undefined);
-		} else {
-			this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
-		}
+		const selection = lineNumber !== undefined && column !== undefined ? { startLineNumber: lineNumber, startColumn: column } : undefined;
+		const resource = selection ? uri.with({ fragment: null }) : uri;
+		await this.editorService.openEditors([{
+			resource,
+			options: {
+				selection,
+				source: EditorOpenSource.USER
+			}
+		}], targetGroup, { validateTrust: true });
 	}
 
 	private _handleHighlightCodeBlock(codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>) {
