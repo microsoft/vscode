@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { _testing, budgetBucketPrompts, MAX_TICKS, type PromptItem } from '../../browser/promptBucketing.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { _testing, budgetBucketPrompts, MAX_TICKS, type PromptItem } from '../../../browser/promptTimeline/promptBucketing.js';
 
 suite('PromptBucketing', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
