@@ -167,6 +167,8 @@ import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.cont
 // Remote agent host session provider — discovers agents and registers sessions
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostActions.js';
+// Copilot cloud sandbox connections (copilot-developer-cli) over a Web PubSub AHP relay
+import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';

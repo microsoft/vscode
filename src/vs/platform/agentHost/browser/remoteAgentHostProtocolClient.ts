@@ -27,7 +27,7 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
-import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -483,7 +483,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 			const result = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 				channel: ROOT_STATE_URI,
-				protocolVersions: [PROTOCOL_VERSION],
+				// Advertise every version this client can negotiate, most-preferred first, so an
+				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
+				// instead of rejecting the connection. A current host still picks the newest.
+				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				initialSubscriptions: [ROOT_STATE_URI],
@@ -685,7 +688,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: [PROTOCOL_VERSION],
+			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			initialSubscriptions: subscriptions,
