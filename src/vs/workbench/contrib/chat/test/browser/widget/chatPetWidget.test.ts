@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpriteName, isChatPetImageSource } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, isChatPetImageSource } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -109,7 +109,7 @@ suite('ChatPetWidget', () => {
 			false,
 			false,
 			false,
-			false,
+			true,
 			false,
 			false,
 			true,
@@ -146,16 +146,18 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('love'),
 			getChatPetFrameDurations('yapping'),
 			getChatPetFrameDurations('yappingMouthOpen'),
+			getChatPetSpeechFrameDurations(),
 		], [
 			Array.from({ length: 50 }, () => 40),
 			Array.from({ length: 8 }, () => 300),
 			[160, 100, 80, 90, 90, 90, 100, 170],
 			Array.from({ length: 8 }, () => 120),
-			Array.from({ length: 8 }, () => 500),
+			Array.from({ length: 50 }, () => 40),
 			[80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80],
 			[200, 200, 380, 100, 80, 1_980],
 			[],
 			[300, 240, 1_500, 240, 360],
+			[220, 220, 220, 100, 160, 180],
 		]);
 	});
 
