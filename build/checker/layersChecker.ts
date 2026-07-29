@@ -115,6 +115,10 @@ export interface ILayerViolation {
 }
 
 function checkFile(checker: ts.TypeChecker, sourceFile: ts.SourceFile, rule: IRule, violations: ILayerViolation[]): void {
+	if (!rule.disallowedTypes?.length) {
+		return;
+	}
+
 	const disallowedTypes = new Set(rule.disallowedTypes);
 	const candidateNames = new Set(disallowedTypes);
 
@@ -231,7 +235,7 @@ export function runLayerChecker(tsconfigPath: string, rules: readonly IRule[]): 
 	const violations = checkProgram(program, rootPath, rules);
 
 	for (const violation of violations) {
-		console.log(`[build/checker/layersChecker.ts]: Reference to type '${violation.type}' violates layer '${violation.target}' (${violation.fileName} (${violation.line},${violation.character}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
+		console.log(`[build/checker/layersChecker.ts]: Reference to type '${violation.type}' violates layer '${violation.target}' (${violation.fileName}:${violation.line}:${violation.character}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
 	}
 
 	return violations.length;
