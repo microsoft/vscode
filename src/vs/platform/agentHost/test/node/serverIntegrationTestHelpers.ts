@@ -59,6 +59,7 @@ import {
 	type ProtocolMessage,
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
+import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
@@ -113,6 +114,13 @@ type ReverseRequestResultByMethod = {
 	resourceCopy: ResourceCopyResult;
 };
 
+/** A reverse request the host sent to the client, as observed on the wire. */
+export interface IServedReverseRequest {
+	readonly method: ReverseRequestMethod;
+	/** The resource the request targets, or `undefined` if it carries none. */
+	readonly uri: string | undefined;
+}
+
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private readonly _ahpSnapshot = new AhpSnapshotRecorder();
@@ -122,6 +130,14 @@ export class TestProtocolClient {
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 	private _nextWatchId = 1;
 	private _closed = false;
+	/**
+	 * Reverse requests this client has served, in arrival order. Lets a test
+	 * assert that the host actually reached back to the client for filesystem
+	 * access rather than resolving a path locally. `uri` is absent when the
+	 * request carries no resource (rather than being recorded as an empty
+	 * string, which would be indistinguishable from a real one).
+	 */
+	private readonly _servedReverseRequests: IServedReverseRequest[] = [];
 
 	constructor(
 		port: number,
@@ -159,9 +175,15 @@ export class TestProtocolClient {
 				}
 			}
 		} else if (isJsonRpcRequest(msg)) {
+			recordAhpSurface('command', msg.method);
 			void this._handleServerRequest(msg);
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
+			recordAhpSurface('notification', notif.method);
+			if (notif.method === 'action') {
+				const envelope = notif.params as unknown as ActionEnvelope | undefined;
+				recordAhpSurface('action', envelope?.action?.type ?? '');
+			}
 			this._notifications.push(notif);
 			this._flushNotificationWaiters();
 		}
@@ -172,6 +194,8 @@ export class TestProtocolClient {
 			if (!this._isReverseRequestMethod(msg.method)) {
 				throw new Error(`Unsupported reverse request method: ${msg.method}`);
 			}
+			const params = msg.params as { uri?: string; source?: string } | undefined;
+			this._servedReverseRequests.push({ method: msg.method, uri: params?.uri ?? params?.source });
 			const result = await this._handleServerRequestMethod(msg.method, msg.params as ReverseRequestParamsByMethod[ReverseRequestMethod]);
 			const response: JsonRpcSuccessResponse = { jsonrpc: '2.0', id: msg.id, result };
 			this._ahpSnapshot.record('c2s', response);
@@ -401,6 +425,11 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
+		recordAhpSurface('command', method);
+		if (method === 'dispatchAction') {
+			const dispatched = params as DispatchActionParams | undefined;
+			recordAhpSurface('action', dispatched?.action?.type ?? '');
+		}
 		const message: JsonRpcNotification = { jsonrpc: '2.0', method, params };
 		this._ahpSnapshot.record('c2s', message);
 		this._ws.send(JSON.stringify(message));
@@ -421,6 +450,7 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = getProtocolOperationTimeout()): Promise<T> {
+		recordAhpSurface('command', method);
 		const id = this._nextId++;
 		const message: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._ahpSnapshot.record('c2s', message);
@@ -539,6 +569,19 @@ export class TestProtocolClient {
 
 	clearReceived(): void {
 		this._notifications.length = 0;
+	}
+
+	/**
+	 * Reverse requests the host has sent to this client, in arrival order.
+	 * Separate from {@link clearReceived} so resetting notifications does not
+	 * silently discard this history.
+	 */
+	get servedReverseRequests(): readonly IServedReverseRequest[] {
+		return this._servedReverseRequests;
+	}
+
+	clearServedReverseRequests(): void {
+		this._servedReverseRequests.length = 0;
 	}
 
 	clearAhpSnapshot(): void {
@@ -735,7 +778,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -747,6 +790,8 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			fixturePath: options.capiReplay.fixturePath,
 			mode: options.capiReplay.mode,
 			workDir: options.capiReplay.workDir,
+			allowPosixCommands: options.capiReplay.allowPosixCommands,
+			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			// Real hosts (consumer defaults); override for Enterprise/Business accounts.
@@ -756,6 +801,8 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			fixturePath: options.capiReplay.fixturePath,
 			mode: options.capiReplay.mode,
 			workDir: options.capiReplay.workDir,
+			allowPosixCommands: options.capiReplay.allowPosixCommands,
+			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			upstreamUrl: mockLlmServer!.url,
@@ -775,6 +822,9 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		}
 		if (options?.userDataDir) {
 			args.push('--user-data-dir', options.userDataDir);
+		}
+		if (options?.logLevel) {
+			args.push('--log', options.logLevel);
 		}
 		const childEnv = withAgentHostCoverage({
 			...process.env,

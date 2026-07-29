@@ -63,21 +63,6 @@ export interface ChatState {
 	 * update the subset on a running chat.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory — the distinguished root this chat is
-	 * centered on (e.g. the agent's process root for this chat, the default
-	 * location for relative paths). MUST be one of this chat's effective working
-	 * directories ({@link workingDirectories}, or the session's set when that is
-	 * absent). Present when the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}.
-	 *
-	 * **Read-only and fixed at creation.** It is set from
-	 * {@link CreateChatParams.primaryWorkingDirectory} (or, for the session's
-	 * default chat, {@link CreateSessionParams.primaryWorkingDirectory}) and does
-	 * not change over the chat's lifetime — there is no action to mutate it, and
-	 * it does not participate in `session/chatUpdated`.
-	 */
-	primaryWorkingDirectory?: URI;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -150,11 +135,6 @@ export interface ChatSummary {
 	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory.
-	 * See {@link ChatState.primaryWorkingDirectory} for the full semantics.
-	 */
-	primaryWorkingDirectory?: URI;
 }
 
 /**
@@ -813,13 +793,20 @@ export interface MessageAnnotationsAttachment extends MessageAttachmentBase {
 }
 
 /**
- * An attachment that references a chat transcript through a fixed completed
- * turn.
+ * An attachment that references a chat transcript through a completed turn.
  *
- * The referenced chat MUST belong to the same session as the message's chat.
+ * The referenced chat MAY belong to any session, not only the message's own.
+ * The model representation is a pointer — an `agent-host-session://` link, a
+ * short transcript excerpt, and a hint to call the `get_session_context` server
+ * tool — and both that link and that tool already resolve across sessions, so a
+ * cross-session reference carries the same weight as a same-session one.
  * The host resolves the transcript from its first retained turn through
- * `endTurn`, inclusive, when accepting the message. Later turns do not
- * change the context represented by an already-sent attachment.
+ * `endTurn`, inclusive, when accepting the message. Later turns do not change
+ * the context represented by an already-sent attachment. When `endTurn` is
+ * omitted (e.g. a drag-and-drop client that cannot know turn ids), the host
+ * pins it to the referenced chat's latest completed turn as it accepts the
+ * message; when `endTurn` is provided it MUST reference a completed, retained
+ * turn.
  *
  * Hosts MUST NOT recursively expand chat attachments found inside the
  * referenced transcript. Clients SHOULD keep rendering `label` if the
@@ -832,8 +819,12 @@ export interface MessageChatAttachment extends MessageAttachmentBase {
 	type: MessageAttachmentKind.Chat;
 	/** URI of the referenced chat. */
 	resource: URI;
-	/** Last completed turn included in the referenced transcript. */
-	endTurn: string;
+	/**
+	 * Last completed turn included in the referenced transcript. When omitted,
+	 * the host resolves the referenced chat's latest completed turn as it
+	 * accepts the message.
+	 */
+	endTurn?: string;
 }
 
 /**

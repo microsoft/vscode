@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IElementData, IElementAncestor, IBrowserViewTheme } from '../common/browserView.js';
+import { IBrowserElementSelectionOptions, IElementData, IElementAncestor, IBrowserViewTheme } from '../common/browserView.js';
 import { collapseToShorthands, formatMatchedStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 
@@ -233,7 +233,7 @@ export class BrowserViewFrameInspector extends Disposable {
 	 * Uses CDP inspect mode if paused, otherwise the preload picker.
 	 * Stores a disposable so stop always tears down the correct mode.
 	 */
-	async startInspection(): Promise<void> {
+	async startInspection(options: IBrowserElementSelectionOptions): Promise<void> {
 		if (this._isPaused) {
 			await this.connection.sendCommand('Overlay.setInspectMode', {
 				mode: 'searchForNode',
@@ -256,7 +256,7 @@ export class BrowserViewFrameInspector extends Disposable {
 				}
 			};
 		} else {
-			this.frame.postMessage('vscode:browserView:startElementPicker', {});
+			this.frame.postMessage('vscode:browserView:startElementPicker', options);
 			this._activeInspection.value = {
 				dispose: () => {
 					if (this.frame.isDestroyed()) {

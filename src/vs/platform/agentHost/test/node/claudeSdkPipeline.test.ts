@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Query, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -60,7 +60,7 @@ class ImmediatelyDoneQuery implements Query {
 	async applyFlagSettings(_settings: Parameters<Query['applyFlagSettings']>[0]): Promise<void> { /* not exercised here */ }
 	async setPermissionMode(): Promise<void> { /* not exercised here */ }
 	async setMcpPermissionModeOverride(): Promise<{ warning?: string }> { return {}; }
-	async interrupt(): Promise<void> { /* not exercised here */ }
+	async interrupt(): Promise<SDKControlInterruptResponse | undefined> { return undefined; }
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
 	reloadSkills(): never { throw new Error('not modeled'); }

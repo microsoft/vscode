@@ -891,7 +891,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			connection,
 		));
 
-		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
+		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType, { includeUserStorage: true }));
 		const syncProvider = agentRegistration.syncProvider;
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,

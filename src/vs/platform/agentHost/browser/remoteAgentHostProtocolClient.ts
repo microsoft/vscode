@@ -18,14 +18,15 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostClaudeMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
-import { AgentHostResourcePermissionError, IAgentHostResourceService } from '../common/agentHostResourceService.js';
+import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -37,7 +38,7 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -176,6 +177,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _clientId: string;
 	private readonly _address: string;
+	private readonly _resourceIdentity: AgentHostResourceIdentity;
 	private readonly _transportFactory: (() => IProtocolTransport) | undefined;
 	private _transport!: IProtocolTransport;
 	/** Disposable holding the listeners attached to the current transport. */
@@ -300,7 +302,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	constructor(
-		address: string,
+		identity: AgentHostResourceIdentity,
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
 		loadEstimator: ILoadEstimator | undefined,
 		clientId: string | undefined = undefined,
@@ -310,9 +312,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._address = address;
+		this._resourceIdentity = identity;
+		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = clientId ?? generateUuid();
-		this._connectionAuthority = agentHostAuthority(address);
+		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
 		this._loadEstimator = loadEstimator ?? LoadEstimator.getInstance();
 
 		if (typeof transportOrFactory === 'function') {
@@ -342,6 +345,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					return;
 				}
 				this._updateTelemetryLevel();
+			}
+			if (e.affectsConfiguration(EDIT_TELEMETRY_ENABLED_SETTING_ID)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateEditTelemetryEnabled();
 			}
 			if (e.affectsConfiguration(SESSION_SYNC_ENABLED_SETTING_ID)) {
 				if (this._state.kind !== AgentHostClientState.Connected) {
@@ -378,6 +387,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					return;
 				}
 				this._updateSystemProxyEnabled();
+			}
+			if (e.affectsConfiguration(AgentHostCopilotMultiRootEnabledSettingId)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateCopilotMultiRootEnabled();
+			}
+			if (e.affectsConfiguration(AgentHostClaudeMultiRootEnabledSettingId)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateClaudeMultiRootEnabled();
 			}
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID)) {
 				if (this._state.kind !== AgentHostClientState.Connected) {
@@ -681,12 +702,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._defaultDirectory = typeof directory === 'string' ? URI.parse(directory).path : URI.revive(directory).path;
 		}
 		this._updateTelemetryLevel();
+		this._updateEditTelemetryEnabled();
 		this._updateSessionSyncEnabled();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateGlobalAutoApproveEnabled();
 		this._updateAutoReplyEnabled();
 		this._updatePreferLongContextEnabled();
 		this._updateSystemProxyEnabled();
+		this._updateCopilotMultiRootEnabled();
+		this._updateClaudeMultiRootEnabled();
 		this._updateTerminalAutoApproveRules();
 		this._updateCodexEnabled();
 		this._updateDisableRepoInfoTelemetry();
@@ -880,7 +904,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
-			workingDirectories: config?.workingDirectory ? [fromAgentHostUri(config.workingDirectory).toString()] : undefined,
+			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
 			fork: config?.fork ? { session: fromAgentHostUri(config.fork.session).toString(), turnId: config.fork.turnId } : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
@@ -1051,9 +1075,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			status: s.status,
 			activity: s.activity,
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
-			isRead: !!(s.status & SessionStatus.IsRead),
-			isArchived: !!(s.status & SessionStatus.IsArchived),
+			workingDirectories: s.workingDirectories?.map(d => toAgentHostUri(URI.parse(d), this._connectionAuthority)),
 			changes: s.changes,
+			// Carry `_meta` so a session first materialized from a listing (window
+			// reload, list refresh) resolves its kind correctly.
+			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));
 	}
 
@@ -1115,7 +1141,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			return;
 		}
 		this._grantedImplicitReadUris.add(uri);
-		this._implicitReadGrants.add(this._resourceService.grantImplicitRead(this._address, uri));
+		this._implicitReadGrants.add(this._resourceService.grantImplicitRead(this._resourceIdentity, uri));
 	}
 
 	/**
@@ -1296,7 +1322,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._rejectPendingRequests(error);
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
-		this._resourceService.connectionClosed(this._address);
+		this._resourceService.connectionClosed(this._resourceIdentity);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire();
 	}
@@ -1359,61 +1385,61 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		};
 
 		const p = (params ?? {}) as Record<string, unknown>;
-		const addr = this._address;
+		const identity = this._resourceIdentity;
 		void (async () => {
 			try {
 				switch (method) {
 					case 'resourceList': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.list(addr, URI.parse(p.uri as string));
+						const result = await this._resourceService.list(identity, URI.parse(p.uri as string));
 						sendResult({ entries: result.entries });
 						return;
 					}
 					case 'resourceRead': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.read(addr, URI.parse(p.uri as string));
+						const result = await this._resourceService.read(identity, URI.parse(p.uri as string));
 						sendResult({ data: encodeBase64(result.bytes), encoding: ContentEncoding.Base64 });
 						return;
 					}
 					case 'resourceWrite': {
 						if (!p.uri || p.data === undefined) { throw new Error('Missing uri or data'); }
-						await this._resourceService.write(addr, p as unknown as Parameters<typeof this._resourceService.write>[1]);
+						await this._resourceService.write(identity, p as unknown as Parameters<typeof this._resourceService.write>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceDelete': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						await this._resourceService.del(addr, p as unknown as Parameters<typeof this._resourceService.del>[1]);
+						await this._resourceService.del(identity, p as unknown as Parameters<typeof this._resourceService.del>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceMove': {
 						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
-						await this._resourceService.move(addr, p as unknown as Parameters<typeof this._resourceService.move>[1]);
+						await this._resourceService.move(identity, p as unknown as Parameters<typeof this._resourceService.move>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceCopy': {
 						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
-						await this._resourceService.copy(addr, p as unknown as Parameters<typeof this._resourceService.copy>[1]);
+						await this._resourceService.copy(identity, p as unknown as Parameters<typeof this._resourceService.copy>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceResolve': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						const result = await this._resourceService.resolve(addr, p as unknown as Parameters<typeof this._resourceService.resolve>[1]);
+						const result = await this._resourceService.resolve(identity, p as unknown as Parameters<typeof this._resourceService.resolve>[1]);
 						sendResult(result);
 						return;
 					}
 					case 'resourceMkdir': {
 						if (!p.uri) { throw new Error('Missing uri'); }
-						await this._resourceService.mkdir(addr, p as unknown as Parameters<typeof this._resourceService.mkdir>[1]);
+						await this._resourceService.mkdir(identity, p as unknown as Parameters<typeof this._resourceService.mkdir>[1]);
 						sendResult({});
 						return;
 					}
 					case 'resourceRequest': {
 						try {
-							await this._resourceService.request(addr, p as unknown as ResourceRequestParams);
+							await this._resourceService.request(identity, p as unknown as ResourceRequestParams);
 							sendResult({});
 						} catch (err) {
 							if (err instanceof CancellationError) {
@@ -1473,6 +1499,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}, this._clientId, 0);
 	}
 
+	private _updateEditTelemetryEnabled(): void {
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostEditTelemetryEnabledConfigKey]: this._configurationService.getValue<boolean>(EDIT_TELEMETRY_ENABLED_SETTING_ID) !== false },
+		}, this._clientId, 0);
+	}
+
 	private _updateDisableRepoInfoTelemetry(): void {
 		const disabled = this._configurationService.getValue<boolean>(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID) === true;
 		this.dispatchAction(ROOT_STATE_URI, {
@@ -1526,6 +1559,22 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostSystemProxyEnabledConfigKey]: enabled },
+		}, this._clientId, 0);
+	}
+
+	private _updateCopilotMultiRootEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(AgentHostCopilotMultiRootEnabledSettingId) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostCopilotMultiRootEnabledConfigKey]: enabled },
+		}, this._clientId, 0);
+	}
+
+	private _updateClaudeMultiRootEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(AgentHostClaudeMultiRootEnabledSettingId) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostClaudeMultiRootEnabledConfigKey]: enabled },
 		}, this._clientId, 0);
 	}
 
