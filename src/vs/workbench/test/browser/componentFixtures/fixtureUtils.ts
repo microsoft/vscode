@@ -6,6 +6,8 @@
 // This should be the only place that is allowed to import from @vscode/component-explorer
 // eslint-disable-next-line local/code-import-patterns
 import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
+// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
+import { z } from 'zod';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
@@ -374,6 +376,13 @@ function parseReverseOption(value: unknown): ReverseStylesheetsOption {
 	}
 	return false;
 }
+
+/** Inputs exposed as Component Explorer controls. */
+const fixtureInputSchema = z.object({
+	reverseStylesheets: z.boolean().default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
+	outputTimeTrace: z.boolean().default(false).describe('Return the render\'s virtual-time trace as its output.'),
+	outputStylesheetFiles: z.boolean().default(false).describe('Return the bundled stylesheet files as the render output.'),
+});
 
 function getPlatformClass(): string {
 	const alwaysUseMac = true;
@@ -880,6 +889,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
+		inputSchema: fixtureInputSchema,
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
 			const input = parseFixtureInput(context.input);
