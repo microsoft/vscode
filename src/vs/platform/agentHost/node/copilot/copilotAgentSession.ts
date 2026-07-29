@@ -498,6 +498,8 @@ class CopilotTurn {
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
 	parallelToolCallsTotal = 0;
+	toolCallDetailsReported = false;
+	messageCharLen: number | undefined;
 	/** Model of the most recent round, reported as the turn's model. */
 	lastModel: string | undefined;
 
@@ -638,6 +640,16 @@ export class CopilotAgentSession extends Disposable {
 	 * an LLM turn precedes that turn's `tool_use` events.
 	 */
 	private _lastSeenModelId: string | undefined;
+	/**
+	 * Compaction credits (nano-AIU) billed while no turn was active, carried
+	 * forward onto the next turn. Automatic compaction can run outside a turn
+	 * (e.g. after an abort, or between turns); the `chat/usage` reducer only
+	 * applies usage to the *active* turn, so without this the cost — which is
+	 * at its highest exactly here, since an out-of-turn compaction usually
+	 * finds a cold prompt cache and pays the ~12x cache-write rate — would be
+	 * dropped entirely.
+	 */
+	private _carriedCompactionNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
@@ -871,15 +883,7 @@ export class CopilotAgentSession extends Disposable {
 	 * history.truncate / sessions.fork mapping.
 	 */
 	private _beginSteeringTurn(steering: PendingMessage): string {
-		const previousTurnId = this._turnId;
-		if (previousTurnId) {
-			const previousDuration = this._currentTurn?.duration ?? 0;
-			this._emitAction({
-				type: ActionType.ChatTurnComplete,
-				turnId: previousTurnId,
-				duration: previousDuration,
-			});
-		}
+		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
@@ -896,7 +900,10 @@ export class CopilotAgentSession extends Disposable {
 		// `pending`, otherwise an abort during the steering turn would treat it
 		// as a not-yet-started queued turn and leave it open.
 		this.resetTurnState(newTurnId);
-		this._currentTurn?.markRunning();
+		if (this._currentTurn) {
+			this._currentTurn.messageCharLen = steering.message.text.length;
+			this._currentTurn.markRunning();
+		}
 		return newTurnId;
 	}
 
@@ -999,6 +1006,24 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
+		// Seed the parent scope with any compaction billed while no turn was active so the cost
+		// surfaces on this turn rather than being lost. The bank is deliberately NOT cleared here:
+		// a turn can end without ever reporting usage (it fails before the first SDK usage event,
+		// runs as a purely local slash command, or is replaced by another reset), and clearing on
+		// seed would drop the credits on the floor. It is cleared only once a report actually
+		// carries it — see {@link _onCarriedCompactionReported}.
+		if (this._carriedCompactionNanoAiu > 0) {
+			this._currentTurn.copilotUsageTotalNanoAiuByScope.set('', this._carriedCompactionNanoAiu);
+		}
+	}
+
+	/**
+	 * Clears the out-of-turn compaction bank once a parent-scope usage report has carried it, so
+	 * the credits are billed to exactly one turn. Called from every site that emits a parent-scope
+	 * running total, since any of them can be the one that first reports the carry.
+	 */
+	private _onCarriedCompactionReported(): void {
+		this._carriedCompactionNanoAiu = 0;
 	}
 
 	private _completeActiveTurn(): void {
@@ -1007,22 +1032,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		turn.markCompleted();
-		// Emit the restricted per-turn tool-call aggregate before the turn is cleared. Main agent
-		// only: `_appliedSnapshot.tools` and this turn's accumulator describe the main session's turn.
-		// No-ops (in the reporter) when the turn made no tool calls.
-		void this._telemetryReporter.toolCallDetails({
-			session: this.sessionUri.toString(),
-			turnId: turn.id,
-			clientType: turn.clientType,
-			model: turn.lastModel,
-			responseType: 'success',
-			toolCounts: Object.fromEntries(turn.toolCounts),
-			availableTools: this._appliedSnapshot.tools.map(tool => tool.name),
-			numRequests: turn.toolCallRounds,
-			totalToolCalls: turn.totalToolCalls,
-			parallelToolCallRounds: turn.parallelToolCallRounds,
-			parallelToolCallsTotal: turn.parallelToolCallsTotal,
-		}).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+		this._reportToolCallDetails(turn, 'success');
 		this._emitAction({
 			type: ActionType.ChatTurnComplete,
 			turnId: turn.id,
@@ -1048,6 +1058,30 @@ export class CopilotAgentSession extends Disposable {
 			// `send()` failure path, replace the error we are propagating.
 			this._logService.error(err, `[Copilot:${this.sessionId}] onTurnEnded callback failed`);
 		}
+	}
+
+	private _reportToolCallDetails(turn: CopilotTurn, responseType: 'success' | 'cancelled' | 'failed'): void {
+		if (turn.toolCallDetailsReported) {
+			return;
+		}
+		turn.toolCallDetailsReported = true;
+		void this._telemetryReporter.toolCallDetails({
+			provider: 'copilot',
+			session: this.sessionUri.toString(),
+			turnId: turn.id,
+			clientType: turn.clientType,
+			model: turn.lastModel,
+			responseType,
+			toolCounts: Object.fromEntries(turn.toolCounts),
+			availableTools: this._appliedSnapshot.tools.map(tool => tool.name),
+			numRequests: turn.toolCallRounds,
+			turnIndex: turn.ordinal,
+			turnDuration: turn.duration,
+			messageCharLen: turn.messageCharLen,
+			totalToolCalls: turn.totalToolCalls,
+			parallelToolCallRounds: turn.parallelToolCallRounds,
+			parallelToolCallsTotal: turn.parallelToolCallsTotal,
+		}).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 	}
 
 	private _getEditFilePaths(parameters: unknown): string[] {
@@ -1616,6 +1650,9 @@ export class CopilotAgentSession extends Disposable {
 			// direct-send path and is a no-op when the turn already exists.
 			this.resetTurnState(turnId, senderClientId, clientType);
 		}
+		if (this._currentTurn) {
+			this._currentTurn.messageCharLen = prompt.length;
+		}
 		const turn = this._currentTurn;
 		try {
 			await this._send(prompt, attachments, mode);
@@ -1645,10 +1682,22 @@ export class CopilotAgentSession extends Disposable {
 				// `_completeActiveTurn` since the reducer drops usage for a non-active turn.
 				const usedTokens = result.contextWindow?.currentTokens;
 				if (typeof usedTokens === 'number') {
+					// `session.compaction_complete` accumulates the summarization call's credits onto the
+					// turn before this RPC resolves; carry that running total through so the response
+					// footer reports the compaction's cost instead of dropping it.
+					const totalNanoAiu = this._currentTurn?.copilotUsageTotalNanoAiuByScope.get('');
+					if (typeof totalNanoAiu === 'number') {
+						this._onCarriedCompactionReported();
+					}
 					this._emitAction({
 						type: ActionType.ChatUsage,
 						turnId: this._turnId,
-						usage: { inputTokens: usedTokens, outputTokens: 0, model: this._lastSeenModelId },
+						usage: {
+							inputTokens: usedTokens,
+							outputTokens: 0,
+							model: this._lastSeenModelId,
+							...(typeof totalNanoAiu === 'number' ? { _meta: { copilotUsage: { totalNanoAiu } } } : {}),
+						},
 					});
 				}
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
@@ -3619,6 +3668,7 @@ export class CopilotAgentSession extends Disposable {
 				this._cancelActiveRepoInfoTelemetry();
 				if (turn.isRunning) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down running turn ${turn.id}`);
+					this._reportToolCallDetails(turn, 'cancelled');
 					turn.markAborted();
 					this._clearActiveTurn();
 				} else {
@@ -3715,6 +3765,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			if (this._currentTurn) {
+				this._reportToolCallDetails(this._currentTurn, 'failed');
+			}
 			// Prefer the structured SDK fields (the Copilot CLI classifies its own
 			// CAPI errors); fall back to decoding a forwarded marker from the message.
 			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
@@ -3790,9 +3843,9 @@ export class CopilotAgentSession extends Disposable {
 			if (!parentToolCallId && !e.agentId && !e.data.parentToolCallId && e.data.model) {
 				this._setPromptCacheState(e.data.cacheExpiresAt ? { modelId: e.data.model, cacheExpiresAt: e.data.cacheExpiresAt } : undefined);
 			}
-			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
+			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
 			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
-			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
+			const copilotUsage = readCopilotUsage(e.data);
 			// `quotaSnapshots` is likewise `asInternal` in the SDK schema (not on the generated type) but is
 			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
 			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
@@ -3831,6 +3884,10 @@ export class CopilotAgentSession extends Disposable {
 				if (turn && typeof copilotUsage?.totalNanoAiu === 'number') {
 					const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get(scope) ?? 0) + copilotUsage.totalNanoAiu;
 					turn.copilotUsageTotalNanoAiuByScope.set(scope, scopedTotal);
+					if (scope === '') {
+						// The parent-scope total includes any seeded out-of-turn compaction credits.
+						this._onCarriedCompactionReported();
+					}
 					metadata.copilotUsage = {
 						...copilotUsage,
 						totalNanoAiu: scopedTotal,
@@ -3931,6 +3988,50 @@ export class CopilotAgentSession extends Disposable {
 			} catch (err) {
 				this._logService.trace(`[Copilot:${sessionId}] contextAttribution RPC failed: ${(err as Error)?.message ?? err}`);
 			}
+		}));
+
+		// Compaction (manual `/compact` or automatic mid-turn) runs its own summarization model call.
+		// The SDK bills it separately and reports it on `session.compaction_complete` rather than as an
+		// `assistant.usage` event, so fold those credits into the turn's parent-scope running total the
+		// same way `buildUsage` does. This makes the turn's response footer include the compaction cost.
+		this._register(wrapper.onSessionCompactionComplete(e => {
+			if (e.agentId || e.data.success === false) {
+				return;
+			}
+			const turn = this._currentTurn;
+			const turnId = this._turnId;
+			const copilotUsage = readCopilotUsage(e.data.compactionTokensUsed);
+			if (!copilotUsage) {
+				return;
+			}
+			if (!turn || !turnId) {
+				// Compaction outside a turn: the reducer would discard usage for a non-active
+				// turn, so bank the credits for the next one instead of losing them.
+				this._carriedCompactionNanoAiu += copilotUsage.totalNanoAiu;
+				return;
+			}
+			const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get('') ?? 0) + copilotUsage.totalNanoAiu;
+			turn.copilotUsageTotalNanoAiuByScope.set('', scopedTotal);
+			// This report carries any credits banked from an earlier out-of-turn compaction.
+			this._onCarriedCompactionReported();
+			// Preserve the parent turn's own model/context tokens: the compaction call's tokens describe
+			// the summarization request, not the conversation, so they must not replace what is shown.
+			const base = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
+			const usage: UsageInfo = {
+				...base,
+				model: base?.model ?? this._lastSeenModelId,
+				_meta: {
+					...(base?._meta ?? {}),
+					copilotUsage: { ...copilotUsage, totalNanoAiu: scopedTotal },
+				},
+			};
+			lastParentUsage = usage;
+			lastParentUsageTurnId = turnId;
+			this._emitAction({
+				type: ActionType.ChatUsage,
+				turnId,
+				usage,
+			});
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {
@@ -4542,6 +4643,9 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
 			this._cancelActiveRepoInfoTelemetry();
+			if (this._currentTurn?.isRunning) {
+				this._reportToolCallDetails(this._currentTurn, 'cancelled');
+			}
 		}));
 
 		this._register(wrapper.onToolUserRequested(e => {
@@ -4758,6 +4862,27 @@ function countUnifiedDiffLines(diff: string): { added: number; removed: number }
 		return undefined;
 	}
 	return { added, removed };
+}
+
+/**
+ * Reads the SDK's internal `copilotUsage` billing payload. It is marked `asInternal` in the SDK
+ * schema, so it is absent from the generated event types (`AssistantUsageData`,
+ * `CompactionCompleteCompactionTokensUsed`) even though it is present at runtime — hence the
+ * dynamic read. Returns `undefined` when the payload carries no usable nano-AIU total.
+ */
+function readCopilotUsage(raw: unknown): { totalNanoAiu: number } & Record<string, unknown> | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const usage = (raw as Record<string, unknown>).copilotUsage;
+	if (!usage || typeof usage !== 'object') {
+		return undefined;
+	}
+	const totalNanoAiu = (usage as Record<string, unknown>).totalNanoAiu;
+	if (typeof totalNanoAiu !== 'number' || !Number.isFinite(totalNanoAiu) || totalNanoAiu < 0) {
+		return undefined;
+	}
+	return { ...(usage as Record<string, unknown>), totalNanoAiu };
 }
 
 /**

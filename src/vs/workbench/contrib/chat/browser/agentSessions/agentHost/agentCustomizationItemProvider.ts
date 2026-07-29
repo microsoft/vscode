@@ -320,10 +320,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			source: origin.source,
 			extensionId: origin.extensionId,
 			pluginUri: origin.pluginUri,
-			// Drop the synthetic bundle's `remote-client` group so the recovered
-			// source drives grouping (extension/plugin/built-in). Otherwise the
-			// item would keep rendering under the "Local" group.
-			groupKey: undefined,
+			groupKey: origin.source === AICustomizationSources.user ? child.groupKey : undefined,
 		};
 	}
 

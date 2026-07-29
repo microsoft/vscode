@@ -9,18 +9,20 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import type { ModelSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
 	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
@@ -311,12 +313,32 @@ suite('CopilotSessionLauncher client identity', () => {
 			},
 		};
 		const launcher = createTestLauncher();
+		const pluginDir = URI.file('/tmp/synced-customizations');
+		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
+		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
+		const plugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [],
+			agents: [],
+			skills: [{
+				uri: skillUri,
+				name: 'user-skill',
+				customization: { type: CustomizationType.Skill, id: skillUri.toString(), uri: skillUri.toString(), name: 'user-skill' },
+			}],
+			instructions: [{
+				uri: instructionUri,
+				name: 'user',
+				customization: { type: CustomizationType.Rule, id: instructionUri.toString(), uri: instructionUri.toString(), name: 'user', alwaysApply: true },
+			}],
+			pluginDir,
+		};
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { tools: [], plugins: [plugin], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubToken: undefined,
@@ -339,10 +361,22 @@ suite('CopilotSessionLauncher client identity', () => {
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
+				createPluginDirectories: createConfigs[0].pluginDirectories,
+				createSkillDirectories: createConfigs[0].skillDirectories,
+				createInstructionDirectories: createConfigs[0].instructionDirectories,
 				resumeClientName: resumeConfigs[0].clientName,
+				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
+				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
+				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
 			}, {
 				createClientName: 'vscode-agent-host',
+				createPluginDirectories: [pluginDir.fsPath],
+				createSkillDirectories: [],
+				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				resumeClientName: 'vscode-agent-host',
+				resumePluginDirectories: [pluginDir.fsPath],
+				resumeSkillDirectories: [],
+				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 			});
 		} finally {
 			sessions.dispose();

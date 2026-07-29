@@ -128,14 +128,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
 	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
-
+	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
+	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
 		model,
 		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
-			supportsCacheBreakpoints: promptCacheBreakpointsEnabled && modelSupportCacheBreakPoints(endpoint),
+			supportsCacheBreakpoints,
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -148,6 +149,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		top_logprobs: options.postOptions.logprobs ? 3 : undefined,
 		store: false,
 		text: verbosity ? { verbosity } : undefined,
+		prompt_cache_options: modelSupportsCacheBreakpoints ? { mode: supportsCacheBreakpoints ? 'explicit' : 'implicit' } : undefined,
 	};
 
 	if (compactThreshold !== undefined) {
@@ -380,7 +382,6 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
 	for (const message of messages) {
-		const inputStartIndex = input.length;
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
@@ -456,6 +457,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							.filter((c): c is RawDocumentContentPart => c.type === Raw.ChatCompletionContentPartKind.Document)
 							.map(rawDocumentToResponsesInputFile)
 							.filter(isDefined);
+						applyPromptCacheBreakpointsToToolMedia(message.content, asImages, asFiles, supportsCacheBreakpoints);
 
 						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
@@ -469,21 +471,11 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ type: 'message', role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ type: 'message', role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
-		}
-
-		if (supportsCacheBreakpoints && input.length > inputStartIndex && hasCacheBreakpoint(message)) {
-			// Attach the prompt-cache marker to the last item this message produced, scanning back past
-			// reasoning/compaction items that cannot carry it.
-			for (let inputIndex = input.length - 1; inputIndex >= inputStartIndex; inputIndex--) {
-				if (tryApplyPromptCacheBreakpoint(input[inputIndex])) {
-					break;
-				}
-			}
 		}
 	}
 
@@ -587,52 +579,65 @@ interface ResponsesPromptCacheBreakpoint {
 	readonly mode: 'explicit';
 }
 
+type ResponsesCacheableContent = OpenAI.Responses.ResponseInputContent & {
+	prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint;
+};
+
 const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
 
-/**
- * Whether a raw message carries one or more prompt-cache breakpoints. The Responses content
- * converters drop `CacheBreakpoint` parts, so we detect them at the message level and later attach
- * `prompt_cache_breakpoint` to the appropriate Responses input item/content block.
- */
-function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
-	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
-}
-
-/**
- * Attaches a prompt-cache marker (`prompt_cache_breakpoint: { mode: 'explicit' }`) to a single
- * Responses API input item.
- *
- * Items that carry a non-empty `content` array (user/system/assistant messages) receive the marker
- * on their last content block. Items without a content array (`function_call`,
- * `function_call_output`, `tool_search_*`) receive the marker at the item level. Returns whether a
- * marker was applied.
- */
-function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem): boolean {
-	const content = (item as { content?: unknown }).content;
-	if (Array.isArray(content)) {
-		const lastContentBlock = content.at(-1) as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint } | undefined;
-		if (!lastContentBlock) {
-			return false;
+function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionContentPart[], supportsCacheBreakpoints: boolean): OpenAI.Responses.ResponseInputContent[] {
+	const content: ResponsesCacheableContent[] = [];
+	let target: ResponsesCacheableContent | undefined;
+	for (const part of parts) {
+		if (part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
+			if (supportsCacheBreakpoints && target) {
+				target.prompt_cache_breakpoint = promptCacheBreakpoint;
+			}
+			continue;
 		}
 
-		lastContentBlock.prompt_cache_breakpoint = promptCacheBreakpoint;
-		return true;
+		const converted = rawContentToResponsesContent(part);
+		if (converted) {
+			target = converted;
+			content.push(target);
+		} else {
+			target = undefined;
+		}
 	}
-
-	const itemType = (item as { type?: string }).type;
-	if (
-		itemType === 'function_call'
-		|| itemType === 'function_call_output'
-		|| itemType === 'tool_search_call'
-		|| itemType === 'tool_search_output'
-	) {
-		(item as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint }).prompt_cache_breakpoint = promptCacheBreakpoint;
-		return true;
-	}
-
-	return false;
+	return content;
 }
 
+function applyPromptCacheBreakpointsToToolMedia(
+	parts: readonly Raw.ChatCompletionContentPart[],
+	images: OpenAI.Responses.ResponseInputImage[],
+	files: OpenAI.Responses.ResponseInputFile[],
+	supportsCacheBreakpoints: boolean,
+): void {
+	if (!supportsCacheBreakpoints) {
+		return;
+	}
+
+	let imageIndex = 0;
+	let fileIndex = 0;
+	let target: ResponsesCacheableContent | undefined;
+	for (const part of parts) {
+		switch (part.type) {
+			case Raw.ChatCompletionContentPartKind.Image:
+				target = images[imageIndex++];
+				break;
+			case Raw.ChatCompletionContentPartKind.Document:
+				target = part.documentData.mediaType === 'application/pdf' ? files[fileIndex++] : undefined;
+				break;
+			case Raw.ChatCompletionContentPartKind.CacheBreakpoint:
+				if (target) {
+					target.prompt_cache_breakpoint = promptCacheBreakpoint;
+				}
+				break;
+			default:
+				target = undefined;
+		}
+	}
+}
 /**
  * The Responses API rejects the entire request with
  * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`

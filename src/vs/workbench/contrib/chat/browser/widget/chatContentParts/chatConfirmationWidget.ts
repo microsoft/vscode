@@ -23,7 +23,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
+import { IRenderFileWidgetsOptions, renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from './chatMarkdownContentPart.js';
@@ -310,6 +310,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	footerBanner?: HTMLElement;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: unknown; partType: string; partSource?: string };
+	fileWidgetOptions?: IRenderFileWidgetsOptions;
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
@@ -331,6 +332,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	private readonly messageScrollable: DomScrollableElement;
 	private readonly messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly markdownContentPart = this._register(new MutableDisposable<ChatMarkdownContentPart>());
+	private readonly fileWidgetOptions: IRenderFileWidgetsOptions | undefined;
 
 	public get codeblocksPartId() {
 		return this.markdownContentPart.value?.codeblocksPartId;
@@ -352,6 +354,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		super();
 
 		const { title, subtitle, message, buttons, icon, footerBanner } = options;
+		this.fileWidgetOptions = options.fileWidgetOptions;
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget2@root', [
@@ -486,7 +489,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 					horizontalPadding: 6,
 				} satisfies IChatMarkdownContentPartOptions,
 			));
-			renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store, this.fileWidgetOptions);
 
 			this.markdownContentPart.value = part;
 			element = part.domNode;
