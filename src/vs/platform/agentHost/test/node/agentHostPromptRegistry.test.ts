@@ -161,6 +161,16 @@ suite('AgentHostPromptRegistry', () => {
 			assert.ok(!resolveOpus().sections?.code_change_rules?.content?.includes('problems'));
 			assert.ok(resolveOpus(['problems']).sections?.code_change_rules?.content?.includes('problems'));
 		});
+
+		test('names the usages tool only when the session has it', () => {
+			assert.ok(!resolveOpus().sections?.tool_instructions?.content?.includes('usages'));
+			assert.ok(resolveOpus(['usages']).sections?.tool_instructions?.content?.includes('usages'));
+		});
+
+		test('refers to the shell generically, since it is bash or powershell per session', () => {
+			const content = resolveOpus(['problems', 'usages']).sections?.tool_instructions?.content ?? '';
+			assert.deepStrictEqual(['bash', 'powershell'].filter(shell => content.includes(shell)), []);
+		});
 	});
 
 	suite('model capability overrides (family alias)', () => {

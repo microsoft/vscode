@@ -15,6 +15,7 @@ import { COPILOT_AGENT_HOST_IDENTITY } from './systemMessage.js';
  * register, and the notebook tools follow the workbench's notebook support.
  */
 const PROBLEMS_TOOL = 'problems';
+const USAGES_TOOL = 'usages';
 const NOTEBOOK_TOOLS = ['editNotebook', 'runNotebookCell', 'getNotebookSummary'] as const;
 
 /**
@@ -174,8 +175,18 @@ const OPUS48_SAFETY = [
  * The source prompt's ungated browser sentence is left out: the registry already
  * composes an equivalent line onto this section, gated on the browser tools
  * actually being in the session.
+ *
+ * Two further deviations from the source, both so the text only names tools the
+ * session actually has:
+ * - `usages` is gated. It is a member of the user-toggleable `vscode-general`
+ *   tool set, so a session can be without it.
+ * - The shell is referred to generically rather than as `bash`. The CLI names
+ *   its shell tools per shell (`bash`/`read_bash` vs `powershell`/
+ *   `read_powershell`), and this cannot be gated: `hasClientTool` sees client
+ *   tools only, and the shell is a server-side CLI tool.
  */
 function opus48ToolInstructions(context: IAgentHostPromptContext): string {
+	const hasUsages = context.hasClientTool(USAGES_TOOL);
 	return [
 		'<toolUseInstructions>',
 		'Read files before modifying them. Understand existing code before suggesting changes.',
@@ -183,13 +194,13 @@ function opus48ToolInstructions(context: IAgentHostPromptContext): string {
 		'NEVER say the name of a tool to a user. Say "I\'ll run the command in a terminal" instead of naming the tool.',
 		'Call independent tools in parallel. Call dependent tools sequentially.',
 		'NEVER edit a file by running terminal commands unless the user specifically asks for it.',
-		'The dedicated tools (grep, glob, view, usages) return bounded, structured output and are faster than their shell equivalents. Default to using these tools over lower level terminal commands (grep, rg, find, ls, cat, head, tail) and only opt for bash when a dedicated tool is clearly insufficient for the intended action.',
-		'For exact text matches, use grep. For files by name or path pattern, use glob. For where a symbol is referenced, use usages. Do not skip search and go directly to view unless you are confident about the exact file path.',
+		`The dedicated tools (grep, glob, view${hasUsages ? `, ${USAGES_TOOL}` : ''}) return bounded, structured output and are faster than their shell equivalents. Default to using these tools over lower level terminal commands (grep, rg, find, ls, cat, head, tail) and only fall back to the shell when a dedicated tool is clearly insufficient for the intended action.`,
+		`For exact text matches, use grep. For files by name or path pattern, use glob.${hasUsages ? ` For where a symbol is referenced, use ${USAGES_TOOL}.` : ''} Do not skip search and go directly to view unless you are confident about the exact file path.`,
 		'When reading files, prefer reading a large section at once over many small reads. Files are truncated at 20KB, so pass `view_range` for any file you expect to be large.',
 		'Read multiple files in parallel when possible.',
-		'Each bash call runs in a fresh process. Working directory, environment variables, PATH changes, virtualenv activations and shell aliases do NOT persist between calls — re-establish anything a command depends on within that same call.',
-		'Do not call bash multiple times in parallel. Run one command and wait for output before running the next.',
-		'If a command is still running when its initial wait expires it continues in the background; use read_bash with the shellId returned by that call to collect the output rather than re-running the command. Give builds, tests and installs a longer initial wait. Start servers, watchers and other processes that must outlive the call in detached mode.',
+		'Each shell command runs in a fresh process. Working directory, environment variables, PATH changes, virtualenv activations and shell aliases do NOT persist between calls — re-establish anything a command depends on within that same call.',
+		'Do not issue multiple shell commands in parallel. Run one and wait for its output before running the next.',
+		'If a command is still running when its initial wait expires it continues in the background; use the shell\'s read tool with the shellId returned by that call to collect the output rather than re-running the command. Give builds, tests and installs a longer initial wait. Start servers, watchers and other processes that must outlive the call in detached mode.',
 		'When you need input from the user, use the ask_user tool rather than asking in your response text. Ask one question at a time, and prefer offering choices over freeform.',
 		'When invoking a tool that takes a file path, always use the absolute file path.',
 		'Tools can be disabled by the user. Only use tools that are currently available.',
