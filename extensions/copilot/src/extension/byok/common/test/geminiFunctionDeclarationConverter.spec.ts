@@ -3,9 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Type } from '@google/genai';
+import { Schema, Type } from '@google/genai';
 import { describe, expect, it } from 'vitest';
 import { toGeminiFunction, ToolJsonSchema } from '../geminiFunctionDeclarationConverter';
+
+// The JSON Schema keys that Gemini's `Schema` type accepts (see @google/genai types).
+// Anything the converter emits outside this set would be rejected by the API.
+const GEMINI_SCHEMA_KEYS = [
+	'anyOf', 'default', 'description', 'enum', 'example', 'format', 'items',
+	'maxItems', 'maxLength', 'maxProperties', 'maximum', 'minItems', 'minLength',
+	'minProperties', 'minimum', 'nullable', 'pattern', 'properties', 'propertyOrdering',
+	'required', 'title', 'type'
+];
+
+function assertOnlyGeminiSchemaKeys(schema: Schema): void {
+	for (const key of Object.keys(schema)) {
+		expect(GEMINI_SCHEMA_KEYS).toContain(key);
+	}
+	for (const child of Object.values(schema.properties ?? {})) {
+		assertOnlyGeminiSchemaKeys(child);
+	}
+	if (schema.items) {
+		assertOnlyGeminiSchemaKeys(schema.items);
+	}
+	for (const child of schema.anyOf ?? []) {
+		assertOnlyGeminiSchemaKeys(child);
+	}
+}
 
 describe('GeminiFunctionDeclarationConverter', () => {
 	describe('toGeminiFunction', () => {
@@ -114,6 +138,86 @@ describe('GeminiFunctionDeclarationConverter', () => {
 			expect(result.parameters!.properties!['nullableField']).toEqual({
 				type: Type.NULL,
 				description: 'A nullable field'
+			});
+		});
+
+		it('should handle nullable type arrays', () => {
+			const result = toGeminiFunction('nullableFunction', 'Function with nullable parameters', {
+				type: 'object',
+				properties: {
+					value: {
+						type: ['string', 'null'],
+						description: 'An optional string'
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['value']).toEqual({
+				type: Type.STRING,
+				nullable: true,
+				description: 'An optional string'
+			});
+		});
+
+		it('should handle nullable array items', () => {
+			const result = toGeminiFunction('nullableArrayFunction', 'Function with nullable array items', {
+				type: 'object',
+				properties: {
+					values: {
+						type: 'array',
+						items: { type: ['integer', 'null'] }
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['values']).toEqual({
+				type: Type.ARRAY,
+				items: {
+					type: Type.INTEGER,
+					nullable: true
+				}
+			});
+		});
+
+		it('should handle nullable anyOf schemas', () => {
+			const result = toGeminiFunction('nullableAnyOfFunction', 'Function with nullable anyOf', {
+				type: 'object',
+				properties: {
+					value: {
+						description: 'A nullable value',
+						anyOf: [
+							{ type: 'string' },
+							{ type: 'null' }
+						]
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['value']).toEqual({
+				type: Type.STRING,
+				nullable: true,
+				description: 'A nullable value'
+			});
+		});
+
+		it('should preserve unions with multiple non-null types', () => {
+			const result = toGeminiFunction('unionFunction', 'Function with a union parameter', {
+				type: 'object',
+				properties: {
+					value: {
+						type: ['string', 'number', 'null'],
+						description: 'A string or number'
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['value']).toEqual({
+				anyOf: [
+					{ type: Type.STRING },
+					{ type: Type.NUMBER }
+				],
+				nullable: true,
+				description: 'A string or number'
 			});
 		});
 
@@ -330,7 +434,7 @@ describe('GeminiFunctionDeclarationConverter', () => {
 			expect(priorityProperty.enum).toEqual(['1', '2', '3', '4', '5']);
 		});
 
-		it('should handle anyOf composition by using first option', () => {
+		it('should preserve all anyOf alternatives as a Gemini anyOf', () => {
 			const schema: ToolJsonSchema = {
 				type: 'object',
 				properties: {
@@ -345,14 +449,15 @@ describe('GeminiFunctionDeclarationConverter', () => {
 
 			const result = toGeminiFunction('anyOfFunction', 'Function with anyOf', schema);
 
-			expect(result.parameters).toBeDefined();
-			expect(result.parameters!.properties).toBeDefined();
-			const valueProperty = result.parameters!.properties!['value'];
-			expect(valueProperty.type).toBe(Type.STRING);
-			expect(valueProperty.description).toBe('String value');
+			expect(result.parameters!.properties!['value']).toEqual({
+				anyOf: [
+					{ type: Type.STRING, description: 'String value' },
+					{ type: Type.NUMBER, description: 'Number value' }
+				]
+			});
 		});
 
-		it('should handle oneOf composition by using first option', () => {
+		it('should preserve all oneOf alternatives as a Gemini anyOf', () => {
 			const schema: ToolJsonSchema = {
 				type: 'object',
 				properties: {
@@ -367,11 +472,56 @@ describe('GeminiFunctionDeclarationConverter', () => {
 
 			const result = toGeminiFunction('oneOfFunction', 'Function with oneOf', schema);
 
-			expect(result.parameters).toBeDefined();
-			expect(result.parameters!.properties).toBeDefined();
-			const dataProperty = result.parameters!.properties!['data'];
-			expect(dataProperty.type).toBe(Type.BOOLEAN);
-			expect(dataProperty.description).toBe('Boolean data');
+			expect(result.parameters!.properties!['data']).toEqual({
+				anyOf: [
+					{ type: Type.BOOLEAN, description: 'Boolean data' },
+					{ type: Type.STRING, description: 'String data' }
+				]
+			});
+		});
+
+		it('should keep non-null alternatives when a branch is itself nullable', () => {
+			const result = toGeminiFunction('combinedUnionFunction', 'Function with a combined nullable union', {
+				type: 'object',
+				properties: {
+					value: {
+						anyOf: [
+							{ type: ['string', 'null'] },
+							{ type: 'number' }
+						]
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['value']).toEqual({
+				anyOf: [
+					{ type: Type.STRING },
+					{ type: Type.NUMBER }
+				],
+				nullable: true
+			});
+		});
+
+		it('should keep nullability when the null branch is not first', () => {
+			const result = toGeminiFunction('reversedUnionFunction', 'Function with a reversed nullable union', {
+				type: 'object',
+				properties: {
+					value: {
+						anyOf: [
+							{ type: 'number' },
+							{ type: ['string', 'null'] }
+						]
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['value']).toEqual({
+				anyOf: [
+					{ type: Type.NUMBER },
+					{ type: Type.STRING }
+				],
+				nullable: true
+			});
 		});
 
 		it('should handle allOf composition by using first option', () => {
@@ -447,6 +597,204 @@ describe('GeminiFunctionDeclarationConverter', () => {
 			const fieldProperty = result.parameters!.properties!['field'];
 			expect(fieldProperty.type).toBe(Type.OBJECT);
 			expect(fieldProperty.description).toBe('Field without type');
+		});
+	});
+
+	describe('nullable and union handling', () => {
+		it('should map a nullable object while preserving its properties and required list', () => {
+			const result = toGeminiFunction('nullableObjectFunction', 'Function with a nullable object', {
+				type: 'object',
+				properties: {
+					address: {
+						type: ['object', 'null'],
+						description: 'Optional address',
+						properties: {
+							city: { type: 'string' },
+							zip: { type: 'string' }
+						},
+						required: ['city']
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['address']).toEqual({
+				type: Type.OBJECT,
+				nullable: true,
+				description: 'Optional address',
+				properties: {
+					city: { type: Type.STRING },
+					zip: { type: Type.STRING }
+				},
+				required: ['city']
+			});
+		});
+
+		it('should map a nullable array container while keeping its items', () => {
+			const result = toGeminiFunction('nullableArrayContainerFunction', 'Function with a nullable array', {
+				type: 'object',
+				properties: {
+					tags: {
+						type: ['array', 'null'],
+						items: { type: 'string' }
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['tags']).toEqual({
+				type: Type.ARRAY,
+				nullable: true,
+				items: { type: Type.STRING }
+			});
+		});
+
+		it('should keep enum values on a nullable field', () => {
+			const result = toGeminiFunction('nullableEnumFunction', 'Function with a nullable enum', {
+				type: 'object',
+				properties: {
+					status: {
+						type: ['string', 'null'],
+						enum: ['active', 'inactive']
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['status']).toEqual({
+				type: Type.STRING,
+				nullable: true,
+				enum: ['active', 'inactive']
+			});
+		});
+
+		it('should propagate nullability through nested arrays and objects', () => {
+			const result = toGeminiFunction('deepNullableFunction', 'Function with deep nullability', {
+				type: 'object',
+				properties: {
+					people: {
+						type: 'array',
+						items: {
+							type: 'object',
+							properties: {
+								name: { type: ['string', 'null'] }
+							},
+							required: ['name']
+						}
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['people']).toEqual({
+				type: Type.ARRAY,
+				items: {
+					type: Type.OBJECT,
+					properties: {
+						name: { type: Type.STRING, nullable: true }
+					},
+					required: ['name']
+				}
+			});
+		});
+
+		it('should preserve object alternatives in a discriminated union', () => {
+			const result = toGeminiFunction('discriminatedUnionFunction', 'Function with an object union', {
+				type: 'object',
+				properties: {
+					payload: {
+						anyOf: [
+							{ type: 'object', properties: { kind: { type: 'string' }, a: { type: 'number' } }, required: ['kind'] },
+							{ type: 'object', properties: { kind: { type: 'string' }, b: { type: 'boolean' } }, required: ['kind'] }
+						]
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['payload']).toEqual({
+				anyOf: [
+					{ type: Type.OBJECT, properties: { kind: { type: Type.STRING }, a: { type: Type.NUMBER } }, required: ['kind'] },
+					{ type: Type.OBJECT, properties: { kind: { type: Type.STRING }, b: { type: Type.BOOLEAN } }, required: ['kind'] }
+				]
+			});
+		});
+
+		it('should collapse a oneOf with a null branch to a nullable single type', () => {
+			const result = toGeminiFunction('oneOfNullableFunction', 'Function with a nullable oneOf', {
+				type: 'object',
+				properties: {
+					value: {
+						oneOf: [
+							{ type: 'string' },
+							{ type: 'null' }
+						]
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['value']).toEqual({
+				type: Type.STRING,
+				nullable: true
+			});
+		});
+
+		it('should map an all-null union to the NULL type', () => {
+			const result = toGeminiFunction('allNullUnionFunction', 'Function with an all-null union', {
+				type: 'object',
+				properties: {
+					value: {
+						anyOf: [
+							{ type: 'null' },
+							{ type: 'null' }
+						]
+					}
+				}
+			});
+
+			expect(result.parameters!.properties!['value']).toEqual({ type: Type.NULL });
+		});
+	});
+
+	describe('schema safety', () => {
+		it('should throw a clean single-type error for an unknown scalar type', () => {
+			expect(() => toGeminiFunction('unknownTypeFunction', 'Function with an unknown type', {
+				type: 'object',
+				properties: {
+					value: { type: 'foobar' }
+				}
+			})).toThrow('Unsupported type: foobar');
+		});
+
+		it('should name a single offending type rather than a comma-joined list', () => {
+			let message = '';
+			try {
+				toGeminiFunction('unknownUnionTypeFunction', 'Function with an unknown union type', {
+					type: 'object',
+					properties: {
+						value: { type: ['string', 'garbage'] }
+					}
+				});
+			} catch (err) {
+				message = err instanceof Error ? err.message : String(err);
+			}
+
+			expect(message).toBe('Unsupported type: garbage');
+		});
+
+		it('should never emit keys outside Gemini schema, even for unsupported JSON Schema keywords', () => {
+			// Real tool schemas carry JSON Schema keywords beyond what Gemini accepts
+			// (format, $ref, additionalProperties, min/max, ...). They may be dropped,
+			// but must never leak through as invalid keys on the Gemini schema.
+			const raw = {
+				type: 'object',
+				properties: {
+					when: { type: ['string', 'null'], format: 'date-time', minLength: 1 },
+					count: { type: 'integer', minimum: 0, maximum: 10 },
+					ref: { description: 'A $ref that Gemini cannot resolve', $ref: '#/$defs/Foo' },
+					bag: { type: 'object', additionalProperties: false, properties: { x: { type: 'boolean' } } }
+				},
+				required: ['when']
+			};
+
+			const result = toGeminiFunction('kitchenSinkFunction', 'Function with unsupported keywords', raw);
+
+			assertOnlyGeminiSchemaKeys(result.parameters!);
 		});
 	});
 });
