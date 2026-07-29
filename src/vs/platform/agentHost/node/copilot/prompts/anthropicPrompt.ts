@@ -9,26 +9,18 @@ import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptCo
 import { COPILOT_AGENT_HOST_IDENTITY } from './systemMessage.js';
 
 /**
- * Client tools this prompt names. A rule that names a tool the session does not
- * have is dead prefix re-read on every step, so each is gated on presence:
- * `problems` ships in the `vscode-tasks` set, which the Sessions window does not
- * register, and the notebook tools follow the workbench's notebook support.
+ * Text is the `vscode-on-ahp` variant from the agent-host token-efficiency
+ * report, verbatim except: the identity is the agent host's own; the shell is
+ * named generically (it is `bash` or `powershell` per session, and being a
+ * server-side tool it cannot be gated); `problems`, `usages` and the notebook
+ * block are gated on the tool being in the session; the browser line and
+ * `<fileLinkification>` are dropped because the registry composes both; and the
+ * markdown-file line is carried over from the foundation section it replaces.
  */
 const PROBLEMS_TOOL = 'problems';
 const USAGES_TOOL = 'usages';
 const NOTEBOOK_TOOLS = ['editNotebook', 'runNotebookCell', 'getNotebookSummary'] as const;
 
-/**
- * Identity, behavioral instructions, parallelization, delegation and response
- * style — the SDK foundation's whole `identity` group (preamble, tone,
- * search/delegation framing, tool efficiency and task instructions).
- *
- * The first line is the agent host's own identity rather than the source
- * prompt's "respond with GitHub Copilot" preamble: that self-description is a
- * product contract every other model already follows, and replacing the identity
- * group also drops the SDK's model banner, so the source's "state the model you
- * are running as" would have nothing behind it.
- */
 const OPUS48_IDENTITY = [
 	COPILOT_AGENT_HOST_IDENTITY,
 	'Follow the user\'s requirements carefully & to the letter.',
@@ -78,21 +70,6 @@ const OPUS48_IDENTITY = [
 	'</communicationStyle>',
 ].join('\n');
 
-/**
- * Implementation discipline, verification and dependency policy — replaces the
- * foundation's `<code_change_instructions>`.
- *
- * `<verification>` is the report's largest prompt-side lever: over 702 measured
- * tasks the agent host ran a build or test on 69% of them and called `problems`
- * zero times, because the foundation's only diagnostics advice is to install and
- * run a language server. Without that tool in the session, the two sentences
- * naming it collapse to the targeted-command rule they escalate to.
- *
- * `<dependencyPolicy>` closes a loophole in the foundation's "install packages
- * only when changing dependencies or after a missing-dependency failure": a
- * failed import *is* a missing-dependency failure, so the rule as written
- * permits the install loop it was meant to stop.
- */
 function opus48CodeChangeRules(context: IAgentHostPromptContext): string {
 	return [
 		'<implementationDiscipline>',
@@ -123,8 +100,9 @@ function opus48CodeChangeRules(context: IAgentHostPromptContext): string {
 	].join('\n');
 }
 
-/** Task tracking — replaces the foundation's `<tips_and_tricks>`. */
 const OPUS48_GUIDELINES = [
+	'Do NOT create markdown files to document changes unless requested.',
+	'',
 	'<taskTracking>',
 	'For multi-step work that benefits from tracking, use the sql tool against the session database. The `todos` and `todo_deps` tables already exist — INSERT into them, do not CREATE them.',
 	'Use descriptive kebab-case ids and write enough detail that a task can be executed without re-reading the plan. Set status to `in_progress` before starting a task and `done` immediately after finishing it.',
@@ -133,17 +111,6 @@ const OPUS48_GUIDELINES = [
 	'</taskTracking>',
 ].join('\n');
 
-/**
- * Security, operational safety and environment limitations — replaces the
- * foundation's `<environment_limitations>`, the section that carries the SDK
- * guardrails.
- *
- * The source prompt's `<environmentLimitations>` tag is dropped and its lines
- * hoisted to the top: this content renders *inside* the foundation's
- * `<environment_limitations>` element, so keeping the tag would nest two names
- * for the same thing. Bare lines followed by sub-blocks is the shape the
- * foundation's own section had.
- */
 const OPUS48_SAFETY = [
 	'You are not operating in a sandbox dedicated to this task, and may be sharing the environment with other users.',
 	'Do not share code, credentials or other sensitive data with third-party systems, and never commit secrets into source control.',
@@ -167,24 +134,6 @@ const OPUS48_SAFETY = [
 	'</operationalSafety>',
 ].join('\n');
 
-/**
- * Tool guidance — replaces the foundation's per-tool documentation blocks, which
- * are ~65% of the agent host's prompt and include `<sql>` (866 tokens, used on
- * 0.3% of tasks) and `<task>` (802 tokens, 0.0%).
- *
- * The source prompt's ungated browser sentence is left out: the registry already
- * composes an equivalent line onto this section, gated on the browser tools
- * actually being in the session.
- *
- * Two further deviations from the source, both so the text only names tools the
- * session actually has:
- * - `usages` is gated. It is a member of the user-toggleable `vscode-general`
- *   tool set, so a session can be without it.
- * - The shell is referred to generically rather than as `bash`. The CLI names
- *   its shell tools per shell (`bash`/`read_bash` vs `powershell`/
- *   `read_powershell`), and this cannot be gated: `hasClientTool` sees client
- *   tools only, and the shell is a server-side CLI tool.
- */
 function opus48ToolInstructions(context: IAgentHostPromptContext): string {
 	const hasUsages = context.hasClientTool(USAGES_TOOL);
 	return [
@@ -220,16 +169,6 @@ function opus48ToolInstructions(context: IAgentHostPromptContext): string {
 	].join('\n');
 }
 
-/**
- * Output formatting — replaces the foundation's `<task_completion>`, whose
- * "install or restore dependencies ... when the chosen validation command fails
- * because packages/tools are missing" line would otherwise contradict
- * `<dependencyPolicy>`.
- *
- * The source prompt's nested `<fileLinkification>` block is left out: the
- * registry already appends {@link COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS},
- * the same contract in the agent host's own wording, to every session.
- */
 const OPUS48_LAST_INSTRUCTIONS = [
 	'<outputFormatting>',
 	'Use proper Markdown formatting. Wrap symbol names in backticks: `MyClass`, `handleClick()`.',
@@ -239,30 +178,10 @@ const OPUS48_LAST_INSTRUCTIONS = [
 ].join('\n');
 
 /**
- * System-prompt sections for Claude Opus 4.8: the VS Code agent prompt ported to
- * the agent host, from `prompts/vscode-on-ahp.txt` in the token-efficiency
- * report. Section text follows that file; the deviations are noted on the
- * constants they affect (identity, the `problems` and notebook gates, the
- * browser line, and file linkification).
- *
- * Every instruction-bearing section is `replace`d, so none of the SDK's own
- * guidance survives — this prompt owns the model's behavior end to end. It stays
- * in `customize` mode rather than `replace` mode on purpose: a full replacement
- * would also drop the SDK-managed context the agent needs (repository custom
- * instructions, session context, the commit trailer) and would bypass this
- * folder's composition layer (universal `tool_instructions` lines, the file-link
- * contract, the workspace-less scratch block), all of which still apply here.
- *
- * `environment_context`, `custom_instructions` and `runtime_instructions` are
- * left alone: they carry session facts, not guidance.
- *
- * The report measured equal pass rates at 1.36x the cost per refactorbench task,
- * with 81% of the premium being this prefix re-read once per step — so the two
- * levers are a smaller prefix and fewer steps. Deliberately absent, because the
- * same runs showed the agent host already ahead of the VS Code harness on each:
- * exploration braking, anti-re-read rules, minimal-diff pressure beyond
- * `<implementationDiscipline>`, read-before-edit rules, and output-length
- * trimming.
+ * `customize` with a `replace` per section rather than `mode: 'replace'`, which
+ * would drop repository custom instructions, session context and the commit
+ * trailer, and bypass the registry's composition layer. The sections left alone
+ * carry session facts, not guidance.
  */
 function opus48SectionOverrides(context: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> {
 	return {
@@ -275,15 +194,10 @@ function opus48SectionOverrides(context: IAgentHostPromptContext): Partial<Recor
 	};
 }
 
-/** Whether `model` is Claude Opus 4.8 — matches the SDK dashed id and the CAPI dotted id. */
 function isOpus48(model: ModelSelection): boolean {
 	return model.id.startsWith('claude-opus-4-8') || model.id.startsWith('claude-opus-4.8');
 }
 
-/**
- * Opus 4.8 agent prompt. Matches only Opus 4.8 and applies to every such
- * session; other models keep the default system message.
- */
 class Claude48OpusPromptResolver implements IAgentHostPrompt {
 	static readonly familyPrefixes: readonly string[] = [];
 
