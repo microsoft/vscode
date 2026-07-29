@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionEvent } from '@github/copilot-sdk';
+import { isObject } from '../../../../base/common/types.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
 
@@ -91,7 +92,7 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 		if (tc.toolInput) {
 			try {
 				const parsed = JSON.parse(tc.toolInput);
-				if (parsed && typeof parsed === 'object') {
+				if (isObject(parsed)) {
 					parsedToolInput = parsed as Record<string, unknown>;
 				}
 			} catch {

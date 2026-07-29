@@ -407,7 +407,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				},
 			], cwd);
 			const start = getStart(result);
-			assert.deepStrictEqual(JSON.parse(start.toolInput), { command: 'cd /workspace/proj && ls' });
+			assert.strictEqual(start.toolInput, '{\n  "command": "cd /workspace/proj && ls"\n}');
 		});
 
 		test('handles trailing slash on workingDirectory', async () => {
