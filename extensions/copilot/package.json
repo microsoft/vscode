@@ -3545,6 +3545,23 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
+          },
+          "github.copilot.chat.imageDetail": {
+            "type": "string",
+            "default": "high",
+            "enum": [
+              "auto",
+              "low",
+              "high",
+              "original"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.imageDetail.auto%",
+              "%github.copilot.config.imageDetail.low%",
+              "%github.copilot.config.imageDetail.high%",
+              "%github.copilot.config.imageDetail.original%"
+            ],
+            "markdownDescription": "%github.copilot.config.imageDetail%"
           }
         }
       },

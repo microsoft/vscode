@@ -8,7 +8,7 @@ import * as l10n from '@vscode/l10n';
 import { Image as BaseImage, BasePromptElementProps, ChatResponseReferencePartStatusKind, PromptElement, PromptReference, PromptSizing, UserMessage } from '@vscode/prompt-tsx';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { modelCanUseImageURL } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { modelCanUseImageURL, modelSupportsOriginalImageDetail } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IImageService } from '../../../../platform/image/common/imageService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { getMimeType } from '../../../../util/common/imageUtils';
@@ -33,6 +33,28 @@ export interface HistoricalImageProps extends BasePromptElementProps {
 	detail?: 'auto' | 'low' | 'high';
 	/** The MIME type of the image */
 	mimeType?: string;
+}
+
+interface ConfiguredImageProps extends BasePromptElementProps {
+	src: string;
+	mimeType?: string;
+}
+
+export class ConfiguredImage extends PromptElement<ConfiguredImageProps, unknown> {
+	constructor(
+		props: ConfiguredImageProps,
+		@IPromptEndpoint private readonly promptEndpoint: IPromptEndpoint,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super(props);
+	}
+
+	override render() {
+		const configuredDetail = this.configurationService.getConfig(ConfigKey.ChatImageDetail);
+		const detail = configuredDetail === 'original' && !modelSupportsOriginalImageDetail(this.promptEndpoint) ? 'high' : configuredDetail;
+		// prompt-tsx has not added `original` to its image detail type yet, but preserves the value at runtime.
+		return <BaseImage src={this.props.src} detail={detail as 'auto' | 'low' | 'high'} mimeType={this.props.mimeType} />;
+	}
 }
 
 /**
@@ -108,7 +130,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 
 			return (
 				<UserMessage priority={0}>
-					<BaseImage src={imageSource} detail='high' mimeType={imageMimeType} />
+					<ConfiguredImage src={imageSource} mimeType={imageMimeType} />
 					{this.props.reference && (
 						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined)]} />
 					)}

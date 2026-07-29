@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
-import { AssistantMessage, BasePromptElementProps, Chunk, IfEmpty, Image, JSONTree, PromptElement, PromptElementProps, PromptMetadata, PromptPiece, PromptSizing, TokenLimit, ToolCall, ToolMessage, useKeepWith, UserMessage } from '@vscode/prompt-tsx';
+import { AssistantMessage, BasePromptElementProps, Chunk, IfEmpty, JSONTree, PromptElement, PromptElementProps, PromptMetadata, PromptPiece, PromptSizing, TokenLimit, ToolCall, ToolMessage, useKeepWith, UserMessage } from '@vscode/prompt-tsx';
 import type { ChatParticipantToolToken, LanguageModelToolInvocationOptions, LanguageModelToolResult2, LanguageModelToolTokenizationOptions } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IChatHookService, IPreToolUseHookResult } from '../../../../platform/chat/common/chatHookService';
@@ -43,6 +43,7 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatDiskSessionResources } from '../../common/chatDiskSessionResources';
 import { IPromptEndpoint, PromptRenderer } from '../base/promptRenderer';
 import { Tag } from '../base/tag';
+import { ConfiguredImage } from './image';
 
 export interface ChatToolCallsProps extends BasePromptElementProps {
 	readonly promptContext: IBuildPromptContext;
@@ -587,7 +588,7 @@ export async function imageDataPartToTSX(part: LanguageModelDataPart, githubToke
 			}
 		}
 
-		return <Image src={imageSource} mimeType={mimeType} />;
+		return <ConfiguredImage src={imageSource} mimeType={mimeType} />;
 	}
 }
 
