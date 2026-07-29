@@ -20,8 +20,8 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled, runRecordOnlyTests } = context;
-	(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
+	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, runRecordOnlyTests } = context;
+	(portableShellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
 		this.timeout(120_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
@@ -43,13 +43,20 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		// continuation can outlive any reasonable test timeout for trivial
 		// prompts like this one.
 		let nextSeq = 2;
+		// waitForNotification retains matched notifications, so skip ones already handled.
+		const processedSeqs = new Set<number>();
 		while (true) {
-			const next = await context.client.waitForNotification(n =>
-				(isActionNotification(n, 'chat/toolCallReady')
+			const next = await context.client.waitForNotification(n => {
+				const isRelevant = (isActionNotification(n, 'chat/toolCallReady')
 					&& (getActionEnvelope(n).action as { confirmed?: string }).confirmed === undefined)
-				|| isActionNotification(n, 'chat/toolCallComplete')
-				|| isActionNotification(n, 'chat/error'),
-				90_000);
+					|| isActionNotification(n, 'chat/toolCallComplete')
+					|| isActionNotification(n, 'chat/error');
+				if (!isRelevant) {
+					return false;
+				}
+				return !processedSeqs.has(getActionEnvelope(n).serverSeq);
+			}, 90_000);
+			processedSeqs.add(getActionEnvelope(next).serverSeq);
 			if (isActionNotification(next, 'chat/error')) {
 				throw new Error('Session error during permission test');
 			}

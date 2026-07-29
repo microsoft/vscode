@@ -27,6 +27,7 @@ import { TipEligibilityTracker } from './chatTipEligibilityTracker.js';
 import { ChatTipExperiment, ChatTipTier, extractCommandIds, ITipBuildContext, ITipDefinition, TIP_CATALOG } from './chatTipCatalog.js';
 import { ChatTipStorageKeys, TipTrackingCommands } from './chatTipStorageKeys.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -444,9 +445,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return undefined;
 		}
 
-		// Only show tips when there is exactly one foreground chat session visible.
-		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
-		if (foregroundSessionCount !== 1) {
+		if (!this._hasSingleForegroundChatSurface(contextKeyService)) {
 			return undefined;
 		}
 
@@ -497,6 +496,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		const tip = this._pickTip('welcome', contextKeyService);
 
 		return tip;
+	}
+
+	private _hasSingleForegroundChatSurface(contextKeyService: IContextKeyService): boolean {
+		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
+		return foregroundSessionCount === 1
+			|| (foregroundSessionCount === 0 && contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true);
 	}
 
 	private _findNextEligibleTip(currentTipId: string, contextKeyService: IContextKeyService): ITipDefinition | undefined {

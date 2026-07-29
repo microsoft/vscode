@@ -494,6 +494,7 @@
 	border-radius: 3px;
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
+	/* The themed border below replaces the browser's native focus outline. */
 	outline: none;
 }
 
@@ -505,6 +506,7 @@
 	color: var(--vscode-input-placeholderForeground);
 }
 
+/* Filter action buttons remain quiet until the pointer reveals them. */
 .action-widget .action-list-filter-actions .action-label {
 	padding: 3px;
 	border-radius: 3px;

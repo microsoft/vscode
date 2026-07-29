@@ -94,7 +94,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			const closed = this._closedChatUris.read(reader);
 			const chats = this._session.chats.read(reader);
 			// Hidden chats are internal workers that must never be surfaced in the
-			// tab strip; closed chats are user-dismissed. Both are excluded here.
+			// conversation tab strip; closed chats are user-dismissed.
 			return chats.filter(c =>
 				c.interactivity.read(reader) !== ChatInteractivity.Hidden &&
 				!closed.has(c.resource.toString()));
@@ -116,30 +116,12 @@ export class VisibleSession extends Disposable implements IActiveSession {
 				c.origin?.kind !== ChatOriginKind.Tool ||
 				shownSubagents.has(c.resource.toString()));
 		});
-		// Shown for more than one real (non-tool) chat — counting closed ones —
-		// or a single chat whose title diverged from the session title. An opened
-		// subagent tab also warrants showing the strip, so any time there is more
-		// than one visible tab the strip is shown. The strip is also shown as soon
-		// as the session has any subagent (tool-origin) chat, so the Conversations
-		// menu (which lists subagents) surfaces in the tab bar.
+		// Shown only when there is more than one chat actually showing as a tab.
+		// A single visible tab (even if other chats are closed, or its title
+		// diverged from the session title, or subagents exist) always hides the
+		// strip; the Conversations menu surfaces in the session header instead.
 		this.shouldShowChatTabs = derived(this, reader => {
-			const chats = this._session.chats.read(reader);
-			if (chats.some(c => c.origin?.kind === ChatOriginKind.Tool)) {
-				return true;
-			}
-			const tabChats = chats.filter(c =>
-				c.origin?.kind !== ChatOriginKind.Tool &&
-				c.interactivity.read(reader) !== ChatInteractivity.Hidden);
-			if (tabChats.length > 1) {
-				return true;
-			}
-			if (this.visibleChatTabs.read(reader).length > 1) {
-				return true;
-			}
-			if (tabChats.length === 1) {
-				return tabChats[0].title.read(reader) !== this._session.title.read(reader);
-			}
-			return false;
+			return this.visibleChatTabs.read(reader).length > 1;
 		});
 	}
 
@@ -256,6 +238,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
 	get hasGitRepository() { return this._session.hasGitRepository; }
+	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -298,6 +281,7 @@ class ResourceOverrideSession implements ISession {
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
 	get hasGitRepository() { return this._session.hasGitRepository; }
+	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -824,12 +808,13 @@ export class VisibleSessions extends Disposable {
 		visibleSession = new VisibleSession(session, initialChat, this._resolveInitialClosedChats(session));
 		const visibleSessionRef = visibleSession;
 
-		// Track chat list changes — if the active chat is removed, fall back to last.
+		// Track chat list changes — if the active chat is removed, fall back to the last visible tab.
 		visibleSession.addDisposable(autorun(reader => {
 			const chats = session.chats.read(reader);
 			const activeChat = visibleSessionRef.activeChat.read(reader);
 			if (activeChat && !chats.some(c => this._uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
-				const fallback = chats[chats.length - 1] ?? session.mainChat;
+				const visibleChatTabs = visibleSessionRef.visibleChatTabs.read(reader);
+				const fallback = visibleChatTabs[visibleChatTabs.length - 1] ?? session.mainChat.read(reader);
 				if (fallback) {
 					visibleSessionRef.setActiveChat(fallback);
 				}

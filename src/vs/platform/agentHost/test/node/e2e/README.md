@@ -59,23 +59,63 @@ Key properties:
 
 ---
 
+## Two governing principles
+
+Everything below follows from two rules. When a design question comes up, answer it with these.
+
+**1. The suite is external to the implementation.** Nothing here may reach inside the agent host. The only way to obtain a running implementation is `IAgentHostTarget` (`harness/agentHostTarget.ts`), and the only way to talk to it is the Agent Host Protocol over a WebSocket. A different program that speaks AHP should be able to be dropped in at that seam and run this suite unchanged.
+
+This is what makes the tests an asset rather than a mirror of the current code: they describe the contract, so they survive the implementation being rewritten, and they are the thing that tells you whether a rewrite is correct.
+
+Concretely, this rules out: registering a test-only `IAgent`, importing host internals, reading the host's database directly, or asserting on log output. If a scenario cannot be expressed over the wire, it is a unit test, not an E2E test. (The older `../protocol/` suite predates this rule and violates it — see [Relationship to the protocol suite](#relationship-to-the-protocol-suite).)
+
+**2. Test selection is coverage-driven.** Two complementary signals steer where to add tests; see [Collecting coverage](#collecting-coverage).
+
+---
+
+## Tiers: conformance vs parity
+
+Every scenario belongs to exactly one tier. This is the main thing to get right when adding a test.
+
+| | Conformance | Parity |
+|---|---|---|
+| Question it answers | "Does the host implement AHP correctly?" | "Does *this provider* behave correctly through the host?" |
+| Registered | **Once**, for the whole repo | Once **per provider** |
+| Entry point | `conformance/agentHostConformance.integrationTest.ts` | `providers/*AgentHostE2E.integrationTest.ts` |
+| Registrar | `conformanceTest(...)` | ordinary `test(...)`, or `providerHostOnlyTest(...)` |
+| Model traffic | Never | Usually (replayed) |
+
+The distinction exists because running a provider-invariant test three times does not test three things — it tests one thing three times, on three operating systems, at triple the cost, with triple the flake surface. Roughly half of the suite was in that state: session/chat catalog semantics, state reducer behavior, terminals, completions, and locally-executed commands have no provider-dependent branch in them at all.
+
+**Choosing a tier.** Ask: *if I swapped the provider, could this assertion change?* If no, it is conformance. Note that "runs a host-local command" and "asserts on a reducer's output" are conformance even though a session — and therefore a provider — has to exist for the test to run at all. The conformance suite names Copilot as its reference provider purely because its CLI is an unconditional dev dependency.
+
+The residual case is `providerHostOnlyTest(...)`: per-provider, but no model traffic. Use it for advertised capabilities and for how the host behaves when a provider *lacks* a feature — e.g. rejecting peer creation against a provider that does not support multiple chats. There are only two of these; be suspicious if you are adding a third.
+
+---
+
 ## Organization
 
 | Path | Role |
 |---|---|
+| `conformance/` | The conformance-tier entry point. Registered once; names a reference provider. |
 | `providers/` | Deterministic provider entry points and provider-specific scenarios. Live Codex scenarios are isolated in `codexAgentHostLive.integrationTest.ts`. |
-| `suites/` | Cross-provider scenarios grouped by behavior. Add new shared scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
+| `suites/` | Scenario modules, each of which may contribute to either tier. Add new scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
+| `suites/clientFilesystemSuite.ts` | The `resource*` family in both directions, including the host's reverse requests for client-side files. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
+| `harness/agentHostTarget.ts` | The portability seam: the only code that knows how to launch a concrete AHP implementation. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
-| `providers/__snapshots__/` | Semantic AHP snapshots for deterministic provider tests. |
+| `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots, resolved relative to the entry point that registered the test. |
+| `coverage/summary.json` | Checked-in line coverage of the host implementation. |
+| `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
+| [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
 
-Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a real provider with a synthetic local LLM, `../protocol/` when `ScriptedMockAgent` can express the AHP contract precisely, and an ordinary unit test when no server process is required.
+Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a real provider with a synthetic local LLM, and an ordinary unit test when no server process is required. `../protocol/` is frozen; do not add to it.
 
 ---
 
 ## Fixture format
 
-Model-backed fixtures live in `captures/` and are named `${provider}-${slugified-test-title}.yaml`. Tests registered with `hostOnlyTest(...)` instead use `captures/empty.yaml` in strict replay mode. Any unexpected model request is therefore a hard cache miss, including during fixture-recording runs, without creating one empty file per host-only test.
+Model-backed fixtures live in `captures/` and are named `${provider}-${slugified-test-title}.yaml`. Tests registered with `conformanceTest(...)` or `providerHostOnlyTest(...)` instead use `captures/empty.yaml` in strict replay mode. Any unexpected model request is therefore a hard cache miss, including during fixture-recording runs, without creating one empty file per host-only test.
 
 Fixtures are intentionally minimal and human-reviewable:
 
@@ -149,29 +189,54 @@ The swap is what makes sharing cheap: the proxy is an `http.Server` running **in
 
 ## Collecting coverage
 
-Run the deterministic full-stack provider suites and collect native V8 coverage from the Agent Host processes:
-
 ```bash
 npm run test-agent-host-e2e-coverage
 ```
 
-The command retranspiles the sources, runs only the Claude, Codex, and Copilot E2E suites in replay mode, and sets `AGENT_HOST_E2E_COVERAGE=1`. These suites exercise the real Agent Host server, bundled provider process, AHP transport, and local tools; only model traffic is replayed. Mock-agent protocol tests, mocked-LLM provider tests, and direct SDK integration tests do not contribute to this coverage report.
+Two complementary signals are checked in. Neither is a gate; both are for deciding where to look next.
 
-The coverage opt-in sets `NODE_V8_COVERAGE` only on Agent Host child processes. Provider suite teardown closes the server's stdin and awaits its graceful shutdown so Node flushes coverage after the host finishes its existing persistence cleanup.
+### Line coverage — `coverage/summary.json`
+
+Measures the current host implementation. The command retranspiles, runs the conformance tier plus every provider parity tier in replay mode, and sets `AGENT_HOST_E2E_COVERAGE=1`. These suites exercise the real Agent Host server, bundled provider process, AHP transport, and local tools; only model traffic is replayed. Mock-agent protocol tests, mocked-LLM provider tests, and direct SDK integration tests do not contribute.
+
+The coverage opt-in sets `NODE_V8_COVERAGE` only on Agent Host child processes. Suite teardown closes the server's stdin and awaits its graceful shutdown so Node flushes coverage after the host finishes its existing persistence cleanup.
 
 After the tests pass, `c8` combines the raw process data and source-maps it to TypeScript. The report includes only loaded executable files under `src/vs/platform/agentHost/common/` and `src/vs/platform/agentHost/node/`; unloaded files, tests, provider dependencies, and generated type-only modules are outside the denominator.
 
-Outputs:
+Its blind spot is exactly the thing principle 1 cares about: a replacement implementation shares none of these lines, so this number says nothing about whether the suite would validate it.
+
+### Protocol-surface coverage — `coverage/protocol-surface.json`
+
+Measures the *contract* rather than the implementation, so it stays meaningful across implementations. `TestProtocolClient` records every command, notification, and action type that crosses the wire (gated on `AGENT_HOST_RECORD_PROTOCOL_SURFACE=1`, so ordinary runs are unaffected); the denominator is extracted from the generated sources under `common/state/protocol/`.
+
+Read the `uncovered` lists, not the percentages. A symbol counts as covered the moment it appears on the wire once, which is a floor — it says nothing about how deeply the semantics are asserted. What the metric is genuinely good at is naming contract areas with *no* test at all.
+
+### Outputs
 
 - `.build/agent-host-e2e-coverage/raw/` — raw V8 process coverage.
 - `.build/agent-host-e2e-coverage/report/index.html` — browsable HTML report.
 - `.build/agent-host-e2e-coverage/report/lcov.info` — LCOV output for editor tooling.
 - `.build/agent-host-e2e-coverage/report/coverage-summary.json` — full c8 JSON summary.
-- `coverage/summary.json` — checked-in combined totals and sorted per-file metrics.
+- `.build/agent-host-e2e-coverage/protocol-surface/observed.json` — raw observed symbols.
+- `coverage/summary.json`, `coverage/protocol-surface.json` — the checked-in stats.
 
-Every successful coverage run rewrites the checked-in stats. Test, report, or normalization failures leave the previous stats untouched. The stats are informational for now: there is no threshold, regression check, or commit gate yet. Asynchronous host and provider startup can cover slightly different executable ranges across otherwise identical runs, so a future gate must define an intentional tolerance or ratchet policy rather than assuming byte-identical stats.
+Every successful coverage run rewrites the checked-in stats. Test, report, or normalization failures leave the previous stats untouched. There is no threshold, regression check, or commit gate yet. Asynchronous host and provider startup can cover slightly different executable ranges across otherwise identical runs, so a future gate must define an intentional tolerance or ratchet policy rather than assuming byte-identical stats.
 
-Per-provider reports are deferred until there is a concrete need. Per-test attribution is also intentionally out of scope for native aggregate coverage; it would require inspector-based precise coverage snapshots and deltas.
+Per-provider reports are deferred until there is a concrete need. Per-test attribution is intentionally out of scope for native aggregate coverage; it would require inspector-based precise coverage snapshots and deltas.
+
+### Coverage expansion strategy
+
+Coverage is a discovery tool, not the goal by itself. A coverage expansion round should add tests for meaningful full-stack contracts, not manufacture line hits or add equivalent prompt variants.
+
+1. **Measure before selecting work.** Save a fresh baseline from `npm run test-agent-host-e2e-coverage`, rank loaded files by uncovered executable lines/functions, cross-reference the protocol-surface `uncovered` lists, then inspect the exact LCOV ranges and existing lower-layer tests. Compare the final result against that same run, not an older checked-in baseline.
+2. **Choose behavior that belongs at this boundary.** Prefer behavior whose value comes from the real server, provider SDK/CLI, AHP transport, persistence, or local tools working together. Pure reducer rules and provider-independent validation usually belong in unit tests instead.
+3. **Prioritize useful breadth.** Favor underrepresented host-owned behavior and cross-provider contracts over more variants of an already-covered prompt. Count declarations per tier: a conformance declaration executes once, a parity declaration executes once per enabled provider.
+4. **Choose the model boundary explicitly.** Cross it only when realistic model behavior is what drives the scenario.
+5. **Use the narrowest durable oracle.** Follow the snapshot/direct/hybrid guidance below. Assert external effects directly, and snapshot a protocol transcript only when its ordering, routing, or lifecycle is part of the contract.
+6. **Design for every CI platform.** Do not assume POSIX paths, shell syntax, PTY chunk boundaries, shell-integration events, persistent terminal titles, or immediately releasable filesystem locks. Use precise platform/provider gates for genuinely unsupported behavior rather than weakening assertions, and keep [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) current when a variant is disabled.
+7. **Keep shared-server isolation.** Drain every model-backed turn, dispose terminals and other owned resources, and keep temporary work inside tracked test directories. A failure that wedges later tests is a lifecycle bug in the test even if its own assertion passed.
+
+A round is complete when TypeScript type-checks, focused replay passes for the conformance tier and every enabled provider, model-backed artifacts are reviewed, host-only tests remain strict in recording mode, the full coverage command succeeds, hygiene and layer checks pass, and the measured covered counts/percentages are reported. Native V8 totals have small asynchronous variance; treat broad unrelated failures by rerunning the exact failures in a fresh process before changing code.
 
 ---
 
@@ -229,14 +294,15 @@ export function defineMyBehaviorTests(context: IAgentHostE2ETestContext): void {
 
 Guidelines:
 
-1. **The fixture name is derived from the test title** (`${provider}-${slug}.yaml`). Renaming a test orphans its fixture — re-record after renaming.
-2. **Drive with `client.waitForNotification(...)`** and assert on protocol actions. Don't wait on wall-clock timing.
-3. **Choose the model boundary explicitly**: register tests that must make no model requests with `hostOnlyTest(context, ...)`; otherwise add the test normally and run once with `AGENT_HOST_UPDATE_SNAPSHOTS=1` to capture AHP snapshots and LLM fixtures for every enabled provider.
-4. **Keep prompts deterministic and minimal** — fewer model turns = smaller, more robust fixtures.
-5. Register a new shared suite from `suites/agentHostE2ESuites.ts`. **Provider-specific** assertions stay in that provider's entry point.
-6. If the behavior can't replay deterministically (real-time streaming, mid-turn aborts, concurrency), gate it — see below.
+1. **Pick a tier first** — see [Tiers](#tiers-conformance-vs-parity). Getting this wrong either triples the cost of a provider-invariant test or hides a real provider difference.
+2. **The fixture name is derived from the test title** (`${provider}-${slug}.yaml`), as is the AHP snapshot filename (which also includes the suite title). Renaming a test — or moving it between tiers — orphans both; re-record after renaming.
+3. **Drive with `client.waitForNotification(...)`** and assert on protocol actions. Don't wait on wall-clock timing.
+4. **Choose the model boundary explicitly**: conformance tests never cross it. For a parity test, either register with `providerHostOnlyTest(context, ...)` or add the test normally and run once with `AGENT_HOST_UPDATE_SNAPSHOTS=1` to capture AHP snapshots and LLM fixtures for every enabled provider.
+5. **Keep prompts deterministic and minimal** — fewer model turns = smaller, more robust fixtures.
+6. Register a new suite from `suites/agentHostE2ESuites.ts`, in the tier block it belongs to. **Provider-specific** assertions stay in that provider's entry point.
+7. If the behavior can't replay deterministically (real-time streaming, mid-turn aborts, concurrency), gate it — see below.
 
-`hostOnlyTest(...)` applies the shared timeout and records the title with the suite harness before Mocha runs. The harness routes that title to the shared empty fixture. Do not use it merely to avoid recording a prompt: it is an executable assertion that the full provider stack reaches the tested behavior without crossing the model boundary.
+`conformanceTest(...)` and `providerHostOnlyTest(...)` apply the shared timeout and record the title with the suite harness before Mocha runs. The harness routes that title to the shared empty fixture. Do not use them merely to avoid recording a prompt: they are an executable assertion that the full stack reaches the tested behavior without crossing the model boundary.
 
 ### AHP traffic snapshots
 
@@ -255,6 +321,18 @@ Code-driven scenarios can request the `behavior` snapshot profile when the teste
 To accept an AHP output change, run the affected test with `AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1`; the snapshot is rewritten in place and Git shows the diff. If the behavior also changes the LLM request/response sequence, use `AGENT_HOST_UPDATE_SNAPSHOTS=1` instead so both boundaries update in one run. Editing `clientToServer` remains deliberate because it changes the test input.
 
 Tests that need imperative setup or filesystem assertions can drive AHP in code and call `assertRecordedAhpSnapshot(...)` at the end. Update mode records the code-driven client actions and semantic server traffic; replay mode compares both directions with the committed snapshot. Unlike `runAhpSnapshotTest(...)`, the committed `clientToServer` entries document the scenario but the test code remains the executable input.
+
+---
+
+## The filesystem, in both directions
+
+`suites/clientFilesystemSuite.ts` covers the `resource*` family, which travels both ways over the same connection.
+
+**Client to server** — the host executes the command against the filesystem it runs on. Note that resource commands are only routed once the connection has a registered client: call `initialize` first, or the server answers `Method not found` rather than a filesystem error.
+
+**Server to client** — the host addresses client-side files through the `vscode-agent-client` scheme (`vscode-agent-client://<clientId>/<scheme>/<authority>/<path>`) and serves them by sending *reverse* JSON-RPC requests back down the connection. `TestProtocolClient` answers those against the real local filesystem, and records them on `servedReverseRequests` so a test can assert the host actually reached back rather than resolving a path locally.
+
+Getting the host into that configuration needs a feature that genuinely reaches for client-side files. The suite uses plugin sync: a client publishes a `CustomizationType.Plugin` in the `activeClient` of `session/activeClientSet`, and the host materializes it by copying the directory out of the client. Both processes share a filesystem in the test environment, so what proves the reverse path was used is the assertion on `servedReverseRequests`, not where the directory sits. `session/customizationUpdated` fires on both the success and failure paths, so assert the resulting `load.kind` too — otherwise a sync that reverse-reads and *then* fails still looks green.
 
 ---
 
@@ -312,6 +390,10 @@ Usually the *local execution* diverges by platform (the model replay is byte-ide
 
 Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool. Packaged Linux still completes those recorded turns without command-execution notifications, so the shell-dependent Codex replay tests are gated there.
 
+### A turn hangs or times out with no OS pattern
+
+When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. For the **Copilot** provider, a failed test tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log` into the test output — look for the `[agent-host-e2e] # …` lines. That is the SDK/CLI's own account of startup, auth, the model request, and the turn lifecycle; a turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and the full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down. (Claude and Codex use their own runtimes and are not captured here — check their provider CLI's own logs.)
+
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
@@ -335,6 +417,33 @@ In replay one server serves every test (see [Server lifecycle](#server-lifecycle
 ### CI infra flakes (not your code)
 
 Sysroot/asset download `429: Too Many Requests`, network resets, etc. are infrastructure, not test failures — re-run the failed job.
+
+---
+
+## Relationship to the protocol suite
+
+`../protocol/` is **frozen**. Do not add tests there; add them here.
+
+It predates the externality principle and cannot satisfy it. Its tests drive a `ScriptedMockAgent` that implements the host's internal `IAgent` interface and is side-loaded into the production server via `--enable-mock-agent`, then steer it with magic prompt keywords and internal env knobs. That is a fine way to write cheap deterministic host tests, but it is a *white-box* harness: a different AHP implementation has no `IAgent`, no mock-agent flag, and no way to run any of it. The tests describe our implementation, not the protocol.
+
+Existing tests there stay and keep running — they are cheap and they work. They are just not the place to invest.
+
+### Migration backlog
+
+A one-off union measurement (protocol + E2E vs. E2E alone) put the protocol suite's unique contribution at **1673 statements (+1.8pp)** across 30 files. Cross-referencing that with the protocol-surface `uncovered` list gives a concrete list of contracts that exist *only* in the frozen suite and should be re-expressed here as conformance tests, highest value first:
+
+| Area | Only tested in | Uncovered protocol symbols |
+|---|---|---|
+| Client-hosted filesystem (reverse requests) | *migrated* — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` |
+| Turn history paging | `turnExecution` | `fetchTurns`, `chat/turnsLoaded` |
+| Reconnect and multi-client fan-out | `multiClient` | `reconnect` |
+| Changeset lifecycle | `sessionDiffs` | all 8 `changeset/*` actions |
+| OTLP export | `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` |
+| Liveness | `handshake`, several others | `ping` |
+
+The filesystem family was the largest of these and is now covered by `suites/clientFilesystemSuite.ts` in the conformance tier — both the `resource*` command surface the host executes against its own filesystem, and the reverse direction where the host asks the *client* for a file it cannot otherwise reach. See [The filesystem, in both directions](#the-filesystem-in-both-directions).
+
+Some contracts are covered by **neither** suite and need new tests outright: the entire `annotations/*` channel (5 actions), `invokeChangesetOperation`, `auth/required`, `root/progress`, and `chat/toolCallAuthRequired` / `chat/toolCallAuthResolved`.
 
 ---
 

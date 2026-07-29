@@ -4,28 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import {
 	filterModelsForSession,
 	findBestMatchingModel,
 	findDefaultModel,
-	findReplacementForProvisionalModel,
 	getAgentHostByokManageModelsIdentifier,
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	isNewConversation,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
 	shouldDropAgnosticDraftModel,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
 	shouldRestorePerTypeModelOnSessionSwitch,
-	shouldWaitForSessionModel,
 } from '../../../../browser/widget/input/chatInputModelUtils.js';
 
 /**
@@ -456,15 +457,6 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(result?.metadata.id, 'terminal-default');
 		});
 
-		test('replaces only the current provisional model when a location default arrives', () => {
-			const provisional = createModel('byok', 'BYOK');
-			const defaultModel = createDefaultModelForLocation('auto', 'Auto', ChatAgentLocation.Chat);
-			assert.deepStrictEqual([
-				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional], ChatAgentLocation.Chat)?.identifier,
-				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
-				findReplacementForProvisionalModel(defaultModel.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
-			], [undefined, defaultModel.identifier, undefined]);
-		});
 	});
 
 	suite('shouldResetModelToDefault', () => {
@@ -1622,30 +1614,27 @@ suite('ChatInputModelUtils', () => {
 			], [true, false, false, false]);
 		});
 
+		test('a started contributed session is never a new conversation, even before its requests load', () => {
+			const startedAgentHost = URI.parse('agent-host-copilotcli:/933e7602-f84e-431e-8756-c5e85c8f33d0');
+			const untitledAgentHost = URI.parse('agent-host-copilotcli:/untitled-933e7602');
+			const localSession = LocalChatSessionUri.getNewSessionUri();
+
+			assert.deepStrictEqual([
+				isNewConversation(startedAgentHost, true),
+				isNewConversation(startedAgentHost, false),
+				isNewConversation(untitledAgentHost, true),
+				isNewConversation(untitledAgentHost, false),
+				isNewConversation(localSession, true),
+				isNewConversation(localSession, false),
+			], [false, false, true, false, true, false]);
+		});
+
 		test('drops cross-pool draft models in both directions', () => {
 			assert.deepStrictEqual([
 				shouldDropAgnosticDraftModel(agnosticAuto, allMerged, sessionType),
 				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, undefined),
 				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, sessionType),
 			], [true, true, false]);
-		});
-
-		suite('shouldWaitForSessionModel (cold-restore wait)', () => {
-			test('waits when the session model targets this pool but is not loaded yet', () => {
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, []), true);
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, [agnosticAuto, agentHostHaiku]), true);
-			});
-
-			test('does NOT wait once the session model is available (normal apply path handles it)', () => {
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, allMerged), false);
-			});
-
-			test('does NOT wait for a model that does not belong to this session pool (would wait forever)', () => {
-				assert.strictEqual(shouldWaitForSessionModel(agnosticAuto, sessionType, [agentHostHaiku]), false);
-				const otherType = { ...agentHostOpus, metadata: { ...agentHostOpus.metadata, targetChatSessionType: 'agent-host-copilotcli' } };
-				assert.strictEqual(shouldWaitForSessionModel(otherType, sessionType, []), false);
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, undefined, []), false);
-			});
 		});
 	});
 

@@ -14,7 +14,11 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/bu
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import {
+	ResponsePartKind,
+	SessionStatus,
+	ToolCallStatus,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
@@ -65,7 +69,7 @@ export {
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
@@ -88,7 +92,7 @@ export {
 	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
-	type ToolResultTerminalCompleteContent,
+	type TerminalCommandResult,
 	type ToolResultSubagentContent,
 	type ToolResultTerminalContent,
 	type ToolResultTextContent,
@@ -221,6 +225,30 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		result.contextAttribution = contextAttribution;
 	}
 	return result;
+}
+
+/**
+ * Whether a usage report actually records consumption, as opposed to merely
+ * existing.
+ *
+ * A turn can carry a token-less {@link UsageInfo} that exists only to hold
+ * routing metadata — notably a Copilot Auto turn restored from the event log,
+ * which keeps `_meta.autoModeResolved` even though the usage event itself is
+ * ephemeral and was never persisted. Callers that ask "does this turn have
+ * usage?" almost always mean "does it have numbers to show", so route that
+ * question through here rather than testing the object for truthiness.
+ */
+export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
+	if (!usage) {
+		return false;
+	}
+	if (typeof usage.inputTokens === 'number' || typeof usage.outputTokens === 'number') {
+		return true;
+	}
+	const meta = readUsageInfoMeta(usage);
+	// Negative totals are treated as absent, matching how credits are read for display.
+	return (typeof meta.copilotUsage?.totalNanoAiu === 'number' && meta.copilotUsage.totalNanoAiu >= 0)
+		|| (typeof meta.cost === 'number' && meta.cost >= 0);
 }
 
 function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
@@ -638,7 +666,6 @@ export function createChatState(summary: ChatSummary): ChatState {
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
-		primaryWorkingDirectory: summary.primaryWorkingDirectory,
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -666,9 +693,61 @@ export function createDefaultChatSummary(session: SessionSummary, chatUri: Proto
 	// Seeding it here would denormalize the session default onto every chat as a
 	// fake override, which then goes stale when the session's working
 	// directories are resolved later (e.g. a worktree resolved at
-	// materialization). `primaryWorkingDirectory` is per-chat and fixed at chat
-	// creation (the session has no primary), so it is likewise not seeded here.
+	// materialization).
 	return summary;
+}
+
+/** Activity bits (0-4) of {@link SessionStatus}; the high bits carry orthogonal flags (IsRead / IsArchived). */
+const STATUS_ACTIVITY_MASK = (1 << 5) - 1;
+
+/** Whether the active turn has a `PendingConfirmation` tool call auto-approved by the session's bypass setting. */
+function hasAutoApprovedPendingConfirmation(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part =>
+		part.kind === ResponsePartKind.ToolCall
+		&& part.toolCall.status === ToolCallStatus.PendingConfirmation
+		&& readToolCallMeta(part.toolCall).autoApproveBySetting === true,
+	);
+}
+
+/** Whether the chat is genuinely blocked on user input (an open input request, an auth-required tool, or a non-auto-approved confirmation gate). */
+function chatAwaitsUserInput(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part => {
+		// An open elicitation always awaits the user until it is answered.
+		if (part.kind === ResponsePartKind.InputRequest) {
+			return part.response === undefined;
+		}
+		if (part.kind !== ResponsePartKind.ToolCall) {
+			return false;
+		}
+		const status = part.toolCall.status;
+		// Result-confirmation and auth-required gates always require the user; a
+		// parameter-confirmation gate only when it was not auto-approved.
+		if (status === ToolCallStatus.PendingResultConfirmation || status === ToolCallStatus.AuthRequired) {
+			return true;
+		}
+		return status === ToolCallStatus.PendingConfirmation
+			&& readToolCallMeta(part.toolCall).autoApproveBySetting !== true;
+	});
+}
+
+/**
+ * Projects a chat's status for session-summary aggregation, demoting an
+ * `InputNeeded` back to `InProgress` only when it is caused solely by an
+ * auto-approved confirmation — otherwise a session with bypass approvals flashes
+ * "input needed" in the sessions list while an auto-approved tool runs.
+ */
+function chatSummaryStatus(state: ChatState): SessionStatus {
+	const status = state.status;
+	if ((status & SessionStatus.InputNeeded) !== SessionStatus.InputNeeded) {
+		return status;
+	}
+	// Only demote when we can positively attribute the InputNeeded to an
+	// auto-approved confirmation with no genuine blocker present; otherwise (e.g.
+	// a restored summary whose activeTurn is not loaded) preserve the status.
+	if (hasAutoApprovedPendingConfirmation(state) && !chatAwaitsUserInput(state)) {
+		return (status & ~STATUS_ACTIVITY_MASK) | SessionStatus.InProgress;
+	}
+	return status;
 }
 
 /**
@@ -680,14 +759,13 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	const summary: ChatSummary = {
 		resource: state.resource,
 		title: state.title,
-		status: state.status,
+		status: chatSummaryStatus(state),
 		modifiedAt: state.modifiedAt,
 	};
 	if (state.activity !== undefined) { summary.activity = state.activity; }
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
-	if (state.primaryWorkingDirectory !== undefined) { summary.primaryWorkingDirectory = state.primaryWorkingDirectory; }
 	return summary;
 }
 
@@ -868,6 +946,22 @@ export function resolveChatUri(session: ResourceURI, chat: ResourceURI): Resourc
 	return isDefaultChatUri(chat) ? session : chat;
 }
 
+/**
+ * Resolves the URI a chat's persisted data is stored under — the same
+ * {@link resolveChatUri} rule applied to a chat channel URI alone, recovering
+ * the owning session from the channel. Agents key their per-session database
+ * and data directory by this value, so anything reading or writing that storage
+ * from outside the agent must derive it the same way. Returns `undefined` when
+ * `chatChannel` is not a parseable chat channel URI.
+ */
+export function chatStorageUri(chatChannel: ProtocolURI | ResourceURI): ResourceURI | undefined {
+	const parsed = parseChatUri(chatChannel);
+	if (!parsed) {
+		return undefined;
+	}
+	return resolveChatUri(ResourceURI.parse(parsed.session), ResourceURI.parse(chatChannel.toString()));
+}
+
 /** Returns `true` when `uri` identifies a chat channel. */
 export function isAhpChatChannel(uri: string): boolean {
 	try {
@@ -886,19 +980,15 @@ export function isAhpChatChannel(uri: string): boolean {
  *
  * The protocol moved turns and pending state off the session and onto a
  * per-chat channel, and lets a chat override the session's working directories
- * with a subset (e.g. {@link ChatState.workingDirectories}) and carry its own
- * read-only {@link ChatState.primaryWorkingDirectory | primary} (fixed at chat
- * creation — the session has no primary). This composite recombines the session
- * with one of its chats — default or peer — so consumers read the chat's
- * effective context and conversation through one object without walking back to
- * the session to re-derive shared state. The {@link ISessionWithDefaultChat.workingDirectories}
- * carry the chat's *effective* working directories (its own subset override when
- * present, else the session's full set); {@link ISessionWithDefaultChat.primaryWorkingDirectory}
- * is the chat's own primary.
+ * with a subset (e.g. {@link ChatState.workingDirectories}). This composite
+ * recombines the session with one of its chats — default or peer — so consumers
+ * read the chat's effective context and conversation through one object without
+ * walking back to the session to re-derive shared state. The
+ * {@link ISessionWithDefaultChat.workingDirectories} carry the chat's *effective*
+ * working directories (its own subset override when present, else the session's
+ * full set).
  */
 export interface ISessionWithDefaultChat extends SessionState {
-	/** The chat's read-only primary working directory (fixed at chat creation). */
-	primaryWorkingDirectory?: ProtocolURI;
 	/** Completed turns of this chat. */
 	turns: Turn[];
 	/** Currently in-progress turn of this chat. */
@@ -914,17 +1004,15 @@ export interface ISessionWithDefaultChat extends SessionState {
 /**
  * Projects a {@link SessionState} and one of its {@link ChatState | chats}
  * (default or peer) into that chat's {@link ISessionWithDefaultChat | effective
- * session context}. Per-chat overrides (the working-directories subset and the
- * chat's own primary) are layered over the session defaults, and the
- * conversation fields are taken from the chat. When the chat state is absent
- * (e.g. not yet hydrated) the conversation fields default to empty and the
- * session defaults apply.
+ * session context}. Per-chat overrides (the working-directories subset) are
+ * layered over the session defaults, and the conversation fields are taken from
+ * the chat. When the chat state is absent (e.g. not yet hydrated) the
+ * conversation fields default to empty and the session defaults apply.
  */
 export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
 	return {
 		...session,
 		workingDirectories: chat?.workingDirectories ?? session.workingDirectories,
-		primaryWorkingDirectory: chat?.primaryWorkingDirectory,
 		turns: chat?.turns ?? [],
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,
@@ -986,6 +1074,37 @@ export const SESSION_META_GIT_KEY = 'git';
  * not know about GitHub state.
  */
 export const SESSION_META_GITHUB_KEY = 'github';
+
+export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
+
+/** Latest known prompt-cache state for the model active in an agent session. */
+export interface ISessionPromptCacheState {
+	readonly modelId: string;
+	readonly cacheExpiresAt: string;
+}
+
+/** Reads the latest known prompt-cache state from session metadata. */
+export function readSessionPromptCacheState(meta: SessionMeta | undefined): ISessionPromptCacheState | undefined {
+	const value = meta?.[SESSION_META_PROMPT_CACHE_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	return typeof raw['modelId'] === 'string' && typeof raw['cacheExpiresAt'] === 'string'
+		? { modelId: raw['modelId'], cacheExpiresAt: raw['cacheExpiresAt'] }
+		: undefined;
+}
+
+/** Returns session metadata with the prompt-cache slot updated or removed. */
+export function withSessionPromptCacheState(meta: SessionMeta | undefined, promptCache: ISessionPromptCacheState | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (promptCache) {
+		next[SESSION_META_PROMPT_CACHE_KEY] = promptCache;
+	} else {
+		delete next[SESSION_META_PROMPT_CACHE_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
 
 /**
  * Git state of a session's working directory, carried under

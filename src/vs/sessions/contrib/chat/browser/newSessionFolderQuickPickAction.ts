@@ -20,6 +20,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 
 export interface IFolderQuickPickItem extends IQuickPickItem {
 	readonly folderUri?: URI;
+	/** The provider that previously resolved this folder, so re-picking it keeps the same provider association. */
+	readonly providerId?: string;
 	readonly browse?: boolean;
 }
 
@@ -33,13 +35,14 @@ export function buildFolderQuickPickItems(
 	const items: (IFolderQuickPickItem | IQuickPickSeparator)[] = [];
 	if (recents.length > 0) {
 		items.push({ type: 'separator', label: localize('sessions.newSession.pickFolderQuickPick.recent', "Recent") });
-		for (const { workspace } of recents) {
+		for (const { workspace, providerId } of recents) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
 			}
 			items.push({
 				folderUri,
+				providerId,
 				label: `$(${workspace.icon.id}) ${workspace.label}`,
 				description: labelService.getUriLabel(folderUri, { relative: false }),
 			});
@@ -91,6 +94,7 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 		}
 
 		let folderUri = picked.folderUri;
+		let providerId = picked.providerId;
 		if (picked.browse) {
 			const result = await fileDialogService.showOpenDialog({
 				canSelectFolders: true,
@@ -98,12 +102,13 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 				canSelectMany: false,
 			});
 			folderUri = result?.[0];
+			providerId = undefined;
 		}
 		if (!folderUri) {
 			return;
 		}
 
-		sessionsService.openNewSession({ folderUri });
+		await sessionsService.openNewSession({ folderUri, providerId });
 	}
 }
 

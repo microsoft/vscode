@@ -27,5 +27,11 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,
+	supportsMultipleChats: false,
+	supportsChatFork: false,
+	supportsChatForkE2E: false,
+	// Codex either duplicates the previous response or has no recorded fixture for
+	// the newer file/shell scenarios; see KNOWN_ISSUES.md.
+	stableNewScenarioResponse: false,
 	shellToolReplayUnstableOnLinux: true,
 };

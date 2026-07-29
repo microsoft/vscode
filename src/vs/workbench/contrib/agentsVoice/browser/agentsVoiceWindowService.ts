@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { disposableWindowInterval, getWindow } from '../../../../base/browser/dom.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -33,6 +33,9 @@ import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
 import { AgentsVoiceSessionsPicker } from './agentsVoiceSessionsPicker.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { getVoiceModeContextMenuActions } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 
 export class AgentsVoiceWindowService extends Disposable implements IAgentsVoiceWindowService {
 
@@ -73,6 +76,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -206,6 +210,13 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
+			showVoiceContextMenu: (e: MouseEvent) => {
+				const anchor = new StandardMouseEvent(getWindow(e.target as Node ?? auxiliaryWindow.container), e);
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, 'agentsVoice.pushToTalk'),
+				});
+			},
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 			showSessionsPicker: () => {
 				const picker = this.instantiationService.createInstance(

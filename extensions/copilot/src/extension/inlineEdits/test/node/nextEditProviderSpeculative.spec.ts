@@ -27,7 +27,7 @@ import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspa
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { Result } from '../../../../util/common/result';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -65,6 +65,15 @@ type ProviderBehavior =
 		firstEdit: LineReplacement;
 		continueSignal: DeferredPromise<void>;
 		remainingEdits: readonly LineReplacement[];
+	}
+	| {
+		kind: 'waitThenYieldEditThenNoSuggestions';
+		edit: LineReplacement;
+		startSignal: DeferredPromise<void>;
+	}
+	| {
+		kind: 'throwBeforeFirstYield';
+		error: Error;
 	}
 	| {
 		kind: 'waitForCancellation';
@@ -164,6 +173,24 @@ class TestStatelessNextEditProvider implements IStatelessNextEditProvider {
 				return new WithStatelessProviderTelemetry(noSuggestions, telemetryBuilder.build(Result.error(noSuggestions)));
 			}
 
+			if (behavior.kind === 'throwBeforeFirstYield') {
+				// Fails the stream before anything is yielded, so `firstEdit`/`result` are only
+				// settled by `_runSpeculativeProviderCall`'s outer catch.
+				throw behavior.error;
+			}
+
+			if (behavior.kind === 'waitThenYieldEditThenNoSuggestions') {
+				// Blocks *before* the first yield, so the request stays unsettled while the
+				// test attaches multiple joiners. `yieldEditThenWait` can't do this: its first
+				// edit settles `firstEdit`/`result` and so releases the claim immediately.
+				await Promise.race([behavior.startSignal.p, cancellationRequested.p]);
+				if (!call.wasCancelled) {
+					yield new WithStatelessProviderTelemetry({ edit: behavior.edit, isFromCursorJump: false, targetDocument: activeDocId, window: streamedEditWindow, originalWindow: streamedOriginalWindow }, telemetryBuilder.build(Result.ok(undefined)));
+				}
+				const noSuggestions = new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, streamedEditWindow);
+				return new WithStatelessProviderTelemetry(noSuggestions, telemetryBuilder.build(Result.error(noSuggestions)));
+			}
+
 			yield new WithStatelessProviderTelemetry({ edit: behavior.edit, isFromCursorJump: false, targetDocument: activeDocId, window: streamedEditWindow, originalWindow: streamedOriginalWindow }, telemetryBuilder.build(Result.ok(undefined)));
 
 			if (behavior.kind === 'yieldEditThenWait') {
@@ -256,12 +283,12 @@ describe('NextEditProvider speculative requests', () => {
 		}
 	}
 
-	async function getNextEditWithTelemetry(nextEditProvider: NextEditProvider, docId: DocumentId): Promise<{ suggestion: Awaited<ReturnType<typeof getNextEdit>>; telemetry: ILlmNESTelemetry }> {
+	async function getNextEditWithTelemetry(nextEditProvider: NextEditProvider, docId: DocumentId, token: CancellationToken = CancellationToken.None): Promise<{ suggestion: Awaited<ReturnType<typeof getNextEdit>>; telemetry: ILlmNESTelemetry }> {
 		const context = createInlineContext();
 		const logContext = new InlineEditRequestLogContext(docId.toString(), 1, context);
 		const telemetryBuilder = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, undefined);
 		try {
-			const suggestion = await nextEditProvider.getNextEdit(docId, context, logContext, CancellationToken.None, telemetryBuilder.nesBuilder);
+			const suggestion = await nextEditProvider.getNextEdit(docId, context, logContext, token, telemetryBuilder.nesBuilder);
 			const telemetry = telemetryBuilder.nesBuilder.build(false);
 			return { suggestion, telemetry };
 		} finally {
@@ -1462,6 +1489,241 @@ describe('NextEditProvider speculative requests', () => {
 			await statelessProvider.calls[1].cancellationRequested.p;
 
 			expect(statelessProvider.calls[1].wasCancelled).toBe(true);
+		});
+	});
+
+	describe('concurrent reuse of a claimed speculative', () => {
+
+		/**
+		 * Drives a document to the point where its speculative request is in flight, gated
+		 * before its first yield, and the originating suggestion has been accepted+applied —
+		 * i.e. the next `getNextEdit` will claim the speculative.
+		 */
+		async function acceptSuggestionWithGatedSpeculative(
+			nextEditProvider: NextEditProvider,
+			statelessProvider: TestStatelessNextEditProvider,
+			doc: ReturnType<MutableObservableWorkspace['addDocument']>,
+			expectedCallCount: number
+		): Promise<void> {
+			const suggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(suggestion.result?.edit);
+			nextEditProvider.handleShown(suggestion);
+			await statelessProvider.waitForCall(expectedCallCount);
+
+			nextEditProvider.handleAcceptance(doc.id, suggestion);
+			doc.applyEdit(suggestion.result.edit.toEdit());
+		}
+
+		it('two concurrent calls share one in-flight speculative instead of duplicating it', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const startSignal = new DeferredPromise<void>();
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitThenYieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);'), startSignal });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-shared.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			await acceptSuggestionWithGatedSpeculative(nextEditProvider, statelessProvider, doc, 2);
+
+			// Both callers arrive while the speculative is still in flight: the first claims it,
+			// the second must find the claimed request rather than issuing a duplicate.
+			const first = getNextEditWithTelemetry(nextEditProvider, doc.id);
+			const second = getNextEditWithTelemetry(nextEditProvider, doc.id);
+			await flushMicrotasks();
+
+			startSignal.complete();
+			const [a, b] = await Promise.all([first, second]);
+
+			expect({
+				providerCalls: statelessProvider.calls.length,
+				firstEdit: a.suggestion.result?.edit?.newText,
+				secondEdit: b.suggestion.result?.edit?.newText,
+				firstReusedRequest: a.telemetry.reusedRequest,
+				secondReusedRequest: b.telemetry.reusedRequest,
+			}).toEqual({
+				providerCalls: 2,
+				firstEdit: 'console.log(value + 1);',
+				secondEdit: 'console.log(value + 1);',
+				firstReusedRequest: ReusedRequestKind.Speculative,
+				secondReusedRequest: ReusedRequestKind.Speculative,
+			});
+		});
+
+		it('keeps a shared speculative alive when only one of two joiners is cancelled', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const startSignal = new DeferredPromise<void>();
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitThenYieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);'), startSignal });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-shared-cancel.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			await acceptSuggestionWithGatedSpeculative(nextEditProvider, statelessProvider, doc, 2);
+
+			const firstCts = disposables.add(new CancellationTokenSource());
+			const first = getNextEditWithTelemetry(nextEditProvider, doc.id, firstCts.token);
+			const second = getNextEditWithTelemetry(nextEditProvider, doc.id);
+			await flushMicrotasks();
+
+			// The second joiner still depends on the request, so `liveDependentants` must keep
+			// it alive despite the first joiner going away.
+			firstCts.cancel();
+			await flushMicrotasks();
+
+			startSignal.complete();
+			const b = await second;
+			await first.catch(() => { /* the cancelled caller's outcome is irrelevant here */ });
+
+			expect({
+				providerCalls: statelessProvider.calls.length,
+				speculativeCancelled: statelessProvider.calls[1].wasCancelled,
+				secondEdit: b.suggestion.result?.edit?.newText,
+				secondReusedRequest: b.telemetry.reusedRequest,
+			}).toEqual({
+				providerCalls: 2,
+				speculativeCancelled: false,
+				secondEdit: 'console.log(value + 1);',
+				secondReusedRequest: ReusedRequestKind.Speculative,
+			});
+		});
+
+		it('keeps claimed speculatives for several documents discoverable at once', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const startSignal1 = new DeferredPromise<void>();
+			const startSignal2 = new DeferredPromise<void>();
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitThenYieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);'), startSignal: startSignal1 });
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const other = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitThenYieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(other + 1);'), startSignal: startSignal2 });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc1 = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-multi-1.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc1.setSelection([new OffsetRange(0, 0)], undefined);
+			const doc2 = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-multi-2.ts').toString()),
+				initialValue: 'const other = 1;\nconsole.log(other);',
+			});
+			doc2.setSelection([new OffsetRange(0, 0)], undefined);
+
+			await acceptSuggestionWithGatedSpeculative(nextEditProvider, statelessProvider, doc1, 2);
+			const claim1 = getNextEditWithTelemetry(nextEditProvider, doc1.id);
+			await flushMicrotasks();
+
+			await acceptSuggestionWithGatedSpeculative(nextEditProvider, statelessProvider, doc2, 4);
+			const claim2 = getNextEditWithTelemetry(nextEditProvider, doc2.id);
+			await flushMicrotasks();
+
+			// doc1's speculative was claimed before doc2's; claiming doc2's must not evict it.
+			const secondClaim1 = getNextEditWithTelemetry(nextEditProvider, doc1.id);
+			await flushMicrotasks();
+
+			startSignal1.complete();
+			startSignal2.complete();
+			const [a, b, c] = await Promise.all([claim1, claim2, secondClaim1]);
+
+			expect({
+				providerCalls: statelessProvider.calls.length,
+				doc1Edit: a.suggestion.result?.edit?.newText,
+				doc2Edit: b.suggestion.result?.edit?.newText,
+				doc1SecondEdit: c.suggestion.result?.edit?.newText,
+				doc1SecondReusedRequest: c.telemetry.reusedRequest,
+			}).toEqual({
+				providerCalls: 4,
+				doc1Edit: 'console.log(value + 1);',
+				doc2Edit: 'console.log(other + 1);',
+				doc1SecondEdit: 'console.log(value + 1);',
+				doc1SecondReusedRequest: ReusedRequestKind.Speculative,
+			});
+		});
+
+		it('cancels an already-claimed speculative when clearCache() is called', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const startSignal = new DeferredPromise<void>();
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'waitThenYieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);'), startSignal });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-claimed-clear-cache.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			await acceptSuggestionWithGatedSpeculative(nextEditProvider, statelessProvider, doc, 2);
+
+			const claimed = getNextEditWithTelemetry(nextEditProvider, doc.id);
+			await flushMicrotasks();
+
+			// The speculative is claimed, so it is no longer reachable via `pending` — hard
+			// invalidation must still reach it, otherwise it could repopulate the cleared cache.
+			nextEditProvider.clearCache();
+			await statelessProvider.calls[1].cancellationRequested.p;
+
+			startSignal.complete();
+			await claimed;
+
+			expect(statelessProvider.calls[1].wasCancelled).toBe(true);
+		});
+
+		it('settles a speculative that throws before its first yield instead of hanging its joiner', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			statelessProvider.enqueueBehavior({ kind: 'throwBeforeFirstYield', error: new Error('provider exploded') });
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);') });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-throws-before-yield.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			const suggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(suggestion.result?.edit);
+			nextEditProvider.handleShown(suggestion);
+			await statelessProvider.waitForCall(2);
+			await statelessProvider.calls[1].completed.p;
+
+			nextEditProvider.handleAcceptance(doc.id, suggestion);
+			doc.applyEdit(suggestion.result.edit.toEdit());
+
+			// Claims the failed speculative. Before the outer catch settled `firstEdit`/`result`
+			// this awaited forever; now the failure surfaces as `NoNextEditReason.Unexpected`,
+			// which `getNextEdit` rethrows as the underlying provider error.
+			await expect(getNextEdit(nextEditProvider, doc.id)).rejects.toThrow('provider exploded');
+
+			// The claimed entry must have been released, so the next call issues a fresh request
+			// rather than reusing (or re-failing on) the dead speculative.
+			const afterFailure = await getNextEdit(nextEditProvider, doc.id);
+
+			expect({
+				providerCalls: statelessProvider.calls.length,
+				recoveredEdit: afterFailure.result?.edit?.newText,
+			}).toEqual({
+				providerCalls: 3,
+				recoveredEdit: 'console.log(value + 1);',
+			});
 		});
 	});
 });

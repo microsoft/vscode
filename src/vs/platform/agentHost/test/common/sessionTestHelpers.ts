@@ -17,6 +17,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
+	private readonly _turnUsages = new Map<string, string>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -107,6 +108,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
 
+	async setTurnUsage(turnId: string, usage: string): Promise<void> {
+		this._turnUsages.set(turnId, usage);
+	}
+
+	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
+
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
 	async deleteTurnsAfter(turnId: string): Promise<void> {
@@ -191,12 +198,17 @@ export class TestDiffComputeService implements IDiffComputeService {
 		return {
 			added: Math.max(0, modifiedLines.length - originalLines.length),
 			removed: Math.max(0, originalLines.length - modifiedLines.length),
+			changes: original === modified ? [] : [{
+				startOffset: 0,
+				endOffsetExclusive: original.length,
+				newText: modified,
+			}],
 		};
 	}
 }
 
 export function createZeroDiffComputeService(): IDiffComputeService {
-	return new TestDiffComputeService({ added: 0, removed: 0 });
+	return new TestDiffComputeService({ added: 0, removed: 0, changes: [] });
 }
 
 export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase()): ISessionDataService {
@@ -241,6 +253,8 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		_serviceBrand: undefined,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
+		getBranch: async () => undefined,
+		getRefs: async () => [],
 		getBranches: async () => [],
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],

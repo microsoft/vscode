@@ -681,10 +681,6 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/promptTimeline",
-			"project": "vscode-sessions"
-		},
-		{
 			"name": "vs/sessions/contrib/providers/copilotChatSessions",
 			"project": "vscode-sessions"
 		},
@@ -706,6 +702,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/search",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sideChat",
 			"project": "vscode-sessions"
 		},
 		{

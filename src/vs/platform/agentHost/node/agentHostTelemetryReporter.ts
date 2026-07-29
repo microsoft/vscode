@@ -5,17 +5,20 @@
 
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
-import type { MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
+import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
+import type { AgentHostClientType } from '../common/agentHostClientInfo.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
 export interface IAgentHostUserMessageSentEvent {
 	provider: string;
+	initiatorClientType: AgentHostClientType;
 	agentSessionId: string;
 	source: AgentHostUserMessageSentSource;
 	isSubagentSession: boolean;
@@ -28,6 +31,7 @@ export interface IAgentHostUserMessageSentEvent {
 
 export type IAgentHostUserMessageSentClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	initiatorClientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of AHP client that initiated the user message.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
@@ -41,7 +45,9 @@ export type IAgentHostUserMessageSentClassification = {
 };
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
+export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
+export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
 
 export interface IAgentHostTurnCompletedEvent {
 	provider: string;
@@ -50,10 +56,11 @@ export interface IAgentHostTurnCompletedEvent {
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
-	model: string | undefined;
+	model: string | TelemetryTrustedValue<string> | undefined;
 	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
 	errorType: string | undefined;
+	failureStage: AgentHostTurnFailureStage | undefined;
 }
 
 export type IAgentHostTurnCompletedClassification = {
@@ -63,13 +70,48 @@ export type IAgentHostTurnCompletedClassification = {
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier selected for the session at turn start (e.g. gemini-3.5-flash).' };
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
 	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
+	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
 };
+
+export interface IAgentHostTurnFailedEvent {
+	provider: string;
+	agentSessionId: string;
+	turnId: string;
+	failureStage: AgentHostTurnFailureStage;
+	errorType: string;
+	errorName: string | undefined;
+	errorCode: string | undefined;
+	msg: string;
+	callstack: string | undefined;
+}
+
+export type IAgentHostTurnFailedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
+	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
+	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
+	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
+	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	owner: 'roblourens';
+	comment: 'Captures diagnostic details for failed agent host turns.';
+};
+
+export interface IAgentHostTurnFailure {
+	stage: AgentHostTurnFailureStage;
+	error: ErrorInfo;
+	errorName?: string;
+	errorCode?: string;
+	errorStack?: string;
+}
 
 export interface IAgentHostTurnCompletedReport {
 	provider: string;
@@ -79,8 +121,9 @@ export interface IAgentHostTurnCompletedReport {
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
+	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	permissionLevel: string | undefined;
-	errorType: string | undefined;
+	failure: IAgentHostTurnFailure | undefined;
 }
 
 export interface IAgentHostToolInvokedReport {
@@ -138,6 +181,7 @@ export interface IAgentHostToolCallDetailsReport {
 	provider: string;
 	session: string;
 	turnId: string;
+	clientType: AgentHostClientType;
 	model: string | undefined;
 	responseType: AgentHostToolCallResponseType;
 	/** Count of invocations keyed by tool name, across all rounds in the turn. */
@@ -204,6 +248,16 @@ export type IAgentHostToolApprovalClassification = {
 	owner: 'roblourens';
 	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval) in agent host sessions.';
 };
+
+export interface IAgentHostAutoModeRouterDecisionReport {
+	session: string;
+	turnId: string;
+	chosenModel: string;
+	predictedLabel: string | undefined;
+	confidence: number | undefined;
+	candidateModels: readonly string[] | undefined;
+	categoryScores: Readonly<Record<string, number | undefined>> | undefined;
+}
 
 export interface IAgentHostSkillContentReadReport {
 	/** The skill name. */
@@ -317,12 +371,13 @@ export class AgentHostTelemetryReporter {
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
 	}
 
-	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
+	userMessageSent(provider: string, clientType: AgentHostClientType, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			provider,
+			initiatorClientType: clientType,
 			agentSessionId: AgentSession.id(sessionUri),
 			source,
 			isSubagentSession: isSubagentSession(sessionUri),
@@ -340,24 +395,23 @@ export class AgentHostTelemetryReporter {
 	 * Mirrors the Copilot extension's enhanced GH `request.options.tools` event for the agent-host
 	 * flow. The extension emits it per LLM request from its model fetcher; the agent host observes
 	 * the equivalent boundary when an `assistant.message` arrives (one per model call). The
-	 * extension populates `headerRequestId` with the client-minted `x-request-id`, which the SDK
-	 * does not surface on success; we keep the same field name (so science queries are undisturbed)
-	 * but fill it with the model call's `x-copilot-service-request-id`, the per-call id the SDK does
-	 * expose. `messagesJson` is the raw tool definitions offered for the call, multiplexed across
-	 * ~8192-char chunks like the extension, so it lands identically downstream.
+	 * `headerRequestId` is the client-minted `x-request-id`, matching the extension. `messagesJson`
+	 * is the raw tool definitions offered for the call, multiplexed across ~8192-char chunks like
+	 * the extension, so it lands identically downstream.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
-	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
+	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	assistantMessageReceived(session: string, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+	async assistantMessageReceived(session: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
 		const restricted = this._restricted;
-		if (!restricted || !serviceRequestId || tools.length === 0) {
+		if (!restricted || !clientRequestId || tools.length === 0) {
 			return;
 		}
-		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
-			headerRequestId: serviceRequestId,
+		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', await multiplexProperties({
+			headerRequestId: clientRequestId,
 			conversationId: AgentSession.id(session),
+			initiatorClientType: clientType,
 			messagesJson: JSON.stringify(tools),
 		}));
 	}
@@ -375,14 +429,15 @@ export class AgentHostTelemetryReporter {
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	userMessageText(session: string, content: string, turnIndex: number): void {
+	async userMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			source: 'user',
 			conversationId: AgentSession.id(session),
+			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			messageText: content,
 		});
@@ -394,25 +449,25 @@ export class AgentHostTelemetryReporter {
 	/**
 	 * The model-message counterpart to {@link userMessageText}. Emitted when an `assistant.message`
 	 * arrives (the agent host's per-model-call boundary), carrying the assistant's response text.
-	 * `headerRequestId` is filled with the model call's `x-copilot-service-request-id` (the id the
-	 * SDK exposes), mirroring the field the extension populates from the client-minted request id.
-	 * VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
+	 * `headerRequestId` is filled with the model call's client-minted `x-request-id`, matching the
+	 * extension. VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
 	 * @param content The assistant's response text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
-	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to `headerRequestId`.
+	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
 	 */
-	modelMessageText(session: string, content: string, turnIndex: number, serviceRequestId: string | undefined): void {
+	async modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			source: 'model',
 			conversationId: AgentSession.id(session),
+			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
-			...(serviceRequestId ? { headerRequestId: serviceRequestId } : {}),
+			...(clientRequestId ? { headerRequestId: clientRequestId } : {}),
 			messageText: content,
 		});
 		const measurements = { messageCharLen: content.length };
@@ -420,8 +475,10 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('conversation.messageText', properties, measurements);
 	}
 
-	/** Emits the local-compatible tool-call aggregate on standard and restricted telemetry channels. */
-	toolCallDetails(report: IAgentHostToolCallDetailsReport): void {
+	/**
+	 * Emits the local-compatible tool-call aggregate on standard and restricted telemetry channels.
+	 */
+	async toolCallDetails(report: IAgentHostToolCallDetailsReport): Promise<void> {
 		if (report.availableTools.length === 0) {
 			return;
 		}
@@ -451,10 +508,11 @@ export class AgentHostTelemetryReporter {
 		if (!restricted) {
 			return;
 		}
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			conversationId,
 			requestId: report.turnId,
 			messageId: report.turnId,
+			initiatorClientType: report.clientType,
 			responseType: report.responseType,
 			...(report.model ? { model: report.model } : {}),
 			toolCounts,
@@ -498,6 +556,40 @@ export class AgentHostTelemetryReporter {
 	}
 
 	/**
+	 * Emits the subset of the extension's restricted `automode.routerDecisionRestricted` event
+	 * available from the SDK's `session.auto_mode_resolved` event. Router-only fields that the SDK
+	 * does not expose are omitted rather than synthesized.
+	 */
+	autoModeRouterDecision(report: IAgentHostAutoModeRouterDecisionReport): void {
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
+
+		const categoryScores = report.categoryScores ?? {};
+		const isBinary = categoryScores.needs_reasoning !== undefined || categoryScores.no_reasoning !== undefined;
+		const scoreKeys = Object.keys(categoryScores).filter(key => categoryScores[key] !== undefined);
+		const candidateModels = report.candidateModels ?? [];
+		const properties = {
+			conversationId: AgentSession.id(report.session),
+			vscodeRequestId: report.turnId,
+			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
+			candidateModel: candidateModels[0] ?? '',
+			chosenModel: report.chosenModel,
+			candidateModels: JSON.stringify(candidateModels),
+			...(scoreKeys.length > 0 ? {
+				[isBinary ? 'binaryScores' : 'hydraScores']: JSON.stringify(categoryScores),
+			} : {}),
+		};
+		const measurements = {
+			...(report.confidence !== undefined ? { confidence: report.confidence } : {}),
+			...(categoryScores.needs_reasoning !== undefined ? { scoreNeedsReasoning: categoryScores.needs_reasoning } : {}),
+			...(categoryScores.no_reasoning !== undefined ? { scoreNoReasoning: categoryScores.no_reasoning } : {}),
+		};
+		restricted.sendEnhancedGHTelemetryEvent('automode.routerDecisionRestricted', properties, measurements);
+	}
+
+	/**
 	 * Mirrors the Copilot extension's restricted `skillContentRead` event (`skillTelemetry.ts` ->
 	 * `sendSkillContentReadTelemetry`) — records which skill file was loaded into the conversation.
 	 * The extension emits it from the skill/readFile tools; the agent host observes the equivalent
@@ -538,7 +630,7 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
-	reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): void {
+	async reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted) {
 			return;
@@ -564,12 +656,21 @@ export class AgentHostTelemetryReporter {
 			repoCount: 1,
 		};
 		const { headBranchName: _, fileRelativePaths: _2, ...internalProperties } = properties;
-		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(properties), measurements);
-		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(internalProperties), measurements);
+		const [enhancedProperties, internalMultiplexedProperties] = await Promise.all([
+			multiplexProperties(properties),
+			multiplexProperties(internalProperties),
+		]);
+		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', enhancedProperties, measurements);
+		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const model = report.model === undefined
+			? undefined
+			: report.modelTelemetryKind === 'trusted'
+				? new TelemetryTrustedValue(report.model)
+				: report.modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -577,11 +678,25 @@ export class AgentHostTelemetryReporter {
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
-			model: report.model,
+			model,
 			modelSelectionKind: report.model === undefined ? 'default' : report.model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel: report.permissionLevel,
-			errorType: report.errorType,
+			errorType: report.failure?.error.errorType,
+			failureStage: report.failure?.stage,
 		});
+		if (report.failure) {
+			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {
+				provider: report.provider,
+				agentSessionId: AgentSession.id(session),
+				turnId: report.turnId,
+				failureStage: report.failure.stage,
+				errorType: report.failure.error.errorType,
+				errorName: report.failure.errorName,
+				errorCode: report.failure.errorCode,
+				msg: report.failure.error.message,
+				callstack: report.failure.errorStack ?? report.failure.error.stack,
+			});
+		}
 	}
 
 	toolInvoked(report: IAgentHostToolInvokedReport): void {
