@@ -63,6 +63,19 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
  */
 export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilotAgent.multiRootEnabled';
 
+/**
+ * Configuration key gating multiple-working-directory support for the Claude
+ * agent-host provider. When `true`, the Claude provider advertises the
+ * `multipleWorkingDirectories` capability, so a session created in a multi-root
+ * workspace can span every workspace folder. Independent of
+ * {@link AgentHostCopilotMultiRootEnabledSettingId} because the Claude Agent SDK
+ * already supports additional directories while the Copilot SDK does not. Hidden
+ * from the Settings UI and off by default while the feature is dogfooded; the
+ * agent host re-advertises on change, so newly created sessions pick it up
+ * without a restart.
+ */
+export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.
@@ -1337,6 +1350,11 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
+	 * Host-only flag requiring the client to show a confirmation instead of applying host auto-approval.
+	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
+	 */
+	readonly managedApprovalRequired?: boolean;
+	/**
 	 * Host-only flag (not part of the dispatched action): the model requested
 	 * this shell command run OUTSIDE the sandbox (and the host opted in via
 	 * `sandbox.allowBypass`).
@@ -2301,6 +2319,9 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
+
+	/** Start connecting to the agent host if it has not already started. */
+	startAgentHost(): void;
 
 	restartAgentHost(): Promise<void>;
 

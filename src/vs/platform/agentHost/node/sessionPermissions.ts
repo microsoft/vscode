@@ -50,11 +50,14 @@ export interface IToolApprovalEvent {
 
 /** Standard per-tool confirmation options presented to the user. */
 const ALLOW_SESSION_OPTION_ID = 'allow-session';
+const ALLOW_ONCE_OPTION: ConfirmationOption = { id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve };
+const SKIP_OPTION: ConfirmationOption = { id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 };
 const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
-	{ id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
-	{ id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
+	ALLOW_ONCE_OPTION,
+	SKIP_OPTION,
 ];
+const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
 
 /** Default write-path glob rules applied to auto-approved edits. */
 const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
@@ -324,6 +327,22 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
+	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
+		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass) {
+			return false;
+		}
+		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
+			return false;
+		}
+		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workingDirectories = workDirs?.map(d => URI.parse(d));
+		return this._commandAutoApprover.evaluate(e.toolInput, {
+			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
+			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
+		}).autoApproveRuleResolvable;
+	}
+
 	/**
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
@@ -363,10 +382,14 @@ export class SessionPermissionManager extends Disposable {
 				edits: state.edits,
 				editable: state.editable,
 				...(state._meta ? { _meta: state._meta } : {}),
-				// Agents can supply tool-specific buttons (e.g. ExitPlanMode's
-				// `Approve`/`Deny`) by populating `state.options`. The standard
-				// `Allow Once / Allow in this Session / Skip` set is the default.
-				options: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
+				// Managed asks are one-time only. Other agents can supply tool-specific
+				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
+				// otherwise the standard session/once/skip set is used.
+				options: e.managedApprovalRequired
+					? MANAGED_CONFIRMATION_OPTIONS.slice()
+					: state.options
+						? state.options.slice()
+						: CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {

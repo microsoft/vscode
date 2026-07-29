@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -32,14 +33,15 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind, IVoiceDispatchResult } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
-	readonly requests: { sessionId: string; kind: 'response' | 'confirmation'; text: string; narrationId: string }[] = [];
+	readonly requests: { sessionId: string; kind: VoiceNarrationKind; text: string; narrationId: string; pendingId?: string }[] = [];
 	private readonly audioResponseEmitter = new Emitter<IVoiceAudioResponse>();
 	override readonly onAudioResponse = this.audioResponseEmitter.event;
 	private readonly bargeInEmitter = new Emitter<IVoiceBargeIn>();
@@ -57,11 +59,14 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override readonly onNarrationInterrupted = this.narrationInterruptedEmitter.event;
 	override readonly onSessionInit = Event.None;
 	override readonly onError = Event.None;
-	override readonly onDidChangeConnectionState = Event.None;
+	private readonly connectionStateEmitter = new Emitter<boolean>();
+	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
 	override readonly onFatalDisconnect = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
+	private connected = false;
 
-	override disconnect(): void { }
+	override get isConnected(): boolean { return this.connected; }
+	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	override sendSessionContext(): void { }
 	override flushSessionContext(): void { }
@@ -73,9 +78,9 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.toolResultResolver?.();
 	}
 
-	override requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
+	override requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
 		const id = narrationId ?? `narration-${++this.narrationCounter}`;
-		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id });
+		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id, ...(pending ? { pendingId: pending.pendingId } : {}) });
 		return id;
 	}
 
@@ -107,6 +112,11 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.narrationUnblockedEmitter.fire(event);
 	}
 
+	fireConnectionState(connected: boolean): void {
+		this.connected = connected;
+		this.connectionStateEmitter.fire(connected);
+	}
+
 	dispose(): void {
 		this.audioResponseEmitter.dispose();
 		this.bargeInEmitter.dispose();
@@ -115,19 +125,21 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.speechStartedEmitter.dispose();
 		this.narrationUnblockedEmitter.dispose();
 		this.narrationInterruptedEmitter.dispose();
+		this.connectionStateEmitter.dispose();
 	}
 }
 
 class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 	readonly pttDownCalls: { turnId: string; passive: boolean | undefined }[] = [];
 	abortCalls = 0;
+	prepareCalls = 0;
 	override readonly onPttStart = Event.None;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
 	override readonly onPttDiagnostic = Event.None;
 	override readonly analyserNode = undefined;
 	override isMuted = false;
-	override prepare(): void { }
+	override prepare(): void { this.prepareCalls++; }
 	override async startCapture(): Promise<void> { }
 	override stopCapture(): void { }
 	override abortPtt(): void { this.abortCalls++; }
@@ -148,6 +160,11 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	override readonly onPlaybackStarted = Event.None;
 	override readonly onPlaybackStopped = this.playbackStoppedEmitter.event;
 	override readonly analyserNode = undefined;
+	override ensureContext(): AudioContext {
+		return new class extends mock<AudioContext>() {
+			override resume(): Promise<void> { return Promise.resolve(); }
+		}();
+	}
 	override playAudioChunk(audio: string): void {
 		if (audio) {
 			this.playedAudio.push(audio);
@@ -224,6 +241,14 @@ class ControllableChatService extends mock<IChatService>() {
 		}
 		this.chatModels.set(models, undefined);
 	}
+}
+
+/** Minimal chat model whose last request carries one unanswered question form. */
+function questionCarouselModel(part: object, requestId = 'req-1'): IChatModel {
+	const lastRequest = { id: requestId, response: { response: { value: [part] } } };
+	return {
+		getRequests: () => [lastRequest],
+	} as unknown as IChatModel;
 }
 
 /**
@@ -310,6 +335,9 @@ suite('VoiceSessionController', () => {
 		micCaptureService: IMicCaptureService = new TestMicCaptureService(),
 		configurationService: IConfigurationService = new TestConfigurationService({ 'agents.voice.handsFree': false }),
 		chatService: IChatService = new TestChatService(),
+		promptsService: IPromptsService = new class extends mock<IPromptsService>() {
+			override async getVoiceInstructions(): Promise<undefined> { return undefined; }
+		}(),
 	): IVoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -319,6 +347,7 @@ suite('VoiceSessionController', () => {
 			ttsPlaybackService,
 			new class extends mock<IVoiceToolDispatchService>() {
 				override setDelegate(): void { }
+				override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
 			}(),
 			new class extends mock<IVoicePlaybackService>() {
 				override notifyPlaybackStart(): void { }
@@ -343,6 +372,7 @@ suite('VoiceSessionController', () => {
 			new TestAccessibilityService(),
 			new TestChatWidgetService(),
 			new class extends mock<INotificationService>() { }(),
+			promptsService,
 		));
 	}
 
@@ -359,6 +389,44 @@ suite('VoiceSessionController', () => {
 			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
 			{ state: 'idle', last_response_summary: 'The rebase completed.' },
 		]);
+	});
+
+	test('does not finish connecting after voice instructions resolve for a stale attempt', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const micCaptureService = new RecordingMicCaptureService();
+		const voiceInstructionsStarted = new DeferredPromise<void>();
+		const voiceInstructions = new DeferredPromise<string | undefined>();
+		const promptsService = new class extends mock<IPromptsService>() {
+			override getVoiceInstructions(): Promise<string | undefined> {
+				voiceInstructionsStarted.complete();
+				return voiceInstructions.p;
+			}
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			undefined,
+			undefined,
+			promptsService,
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireConnectionState(true);
+		await voiceInstructionsStarted.p;
+		controller.disconnect();
+		voiceInstructions.complete('Use Contoso DB.');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			connected: controller.isConnected.get(),
+			prepareCalls: micCaptureService.prepareCalls,
+		}, {
+			connected: false,
+			prepareCalls: 0,
+		});
 	});
 
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {
@@ -385,6 +453,83 @@ suite('VoiceSessionController', () => {
 		// repopulate the snapshot from the still-pending old session.
 		chatService.setModels([pendingConfirmationModel(URI.parse('agent-host-copilot:/session-1'))]);
 		assert.strictEqual(controller.pendingToolConfirmations.get().length, 0);
+	});
+
+	test('reports only genuine approvals as approvals', async () => {
+		// One tool now carries approve, reject, answer and skip. Widening the
+		// approval event to match would silently change what it counts.
+		const voiceClientService = new TestVoiceClientService();
+		const telemetryService = new TestTelemetryService();
+		const controller = createController(voiceClientService, undefined, undefined, telemetryService);
+		await controller.connect(mainWindow);
+
+		for (const type of ['approve', 'reject', 'answer', 'skip']) {
+			voiceClientService.fireToolCall({
+				callId: `call-${type}`,
+				name: 'respond_to_session',
+				args: { coding_session_id: 'session-1', response: { type } },
+			});
+			await voiceClientService.toolResultReceived;
+		}
+
+		assert.deepStrictEqual(
+			telemetryService.events.filter(event => event.name === 'voiceToolApproval').map(event => (event.data as { approved: boolean }).approved),
+			[true, false],
+		);
+	});
+
+	test('publishes a question form as a structured pending payload', () => {
+		// The whole point of the typed payload: `agent_state_detail` can say a form
+		// is up, but only this carries the ids, values and displayed order a
+		// spoken answer needs to land on.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
+		const part = {
+			kind: 'questionCarousel',
+			allowSkip: true,
+			questions: [{
+				id: 'region',
+				type: 'singleSelect',
+				title: 'Deploy settings',
+				message: 'Which region should this deploy to?',
+				defaultValue: 'east',
+				options: [
+					{ id: 'west', label: 'West US', value: 'westus' },
+					{ id: 'east', label: 'East US', value: 'eastus' },
+				],
+			}],
+		};
+
+		const payload = buildPendingPayload.call(controller, questionCarouselModel(part));
+
+		assert.deepStrictEqual(payload, {
+			type: 'questions',
+			pending_id: derivePendingId('req-1', part),
+			request_id: 'req-1',
+			allow_skip: true,
+			questions: [{
+				id: 'region',
+				type: 'singleSelect',
+				// The question the widget shows, not its header.
+				title: 'Which region should this deploy to?',
+				allow_freeform: true,
+				// Default first, matching what the widget renders and the user hears.
+				options: [
+					{ label: 'East US', value: 'eastus' },
+					{ label: 'West US', value: 'westus' },
+				],
+			}],
+		});
+	});
+
+	test('does not publish a question form that has already been answered', () => {
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
+		const questions = [{ id: 'region', type: 'singleSelect', title: 'Which region?', options: [{ id: 'west', label: 'West US', value: 'westus' }] }];
+
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', isUsed: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', answeredExternally: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', questions: [] })), undefined);
 	});
 
 	test('fatal disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {

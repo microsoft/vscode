@@ -25,24 +25,33 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.
 
-### The user name is scrubbed by naive substring replacement
+### What is still Windows-scoped
 
-`normalizeSnapshotText` in `ahpSnapshot.ts` ends with `.replaceAll(normalization.userName, '${user}')`. That is an unanchored substring replacement, so any occurrence of the account name in captured text is rewritten, whether or not it refers to the user.
+The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
 
-This is a cross-platform hazard because the account name differs per environment: a developer's own name locally, `runner` on GitHub Actions Linux, `runneradmin` on Windows. `runner` in particular is an ordinary English word, so a snapshot recorded on macOS keeps the literal text while the same run on Linux CI normalizes it to `${user}`, and the snapshot mismatches for a reason unrelated to the behavior under test.
+Two tests remain scoped, both at their call site with the reason:
 
-Verified against the current implementation with `userName: 'runner'`: the tool output `the runner completed` serializes as `the ${user} completed`.
+- `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
+- `worktree session uses the resolved worktree as working directory` — its shell half was enabled and then reverted after Windows CI failed it for two reasons unrelated to command portability, described below. Its non-shell half still asserts worktree resolution on Windows.
 
-Home directory paths are already handled by the `${homedir}` replacement that runs just before this one, so the bare user-name pass is only needed for occurrences outside a home path. Restricting it to path-like contexts (preceded by a separator) would keep that coverage without corrupting prose. Left alone for now because no committed snapshot currently trips it — fix it alongside the first test that does.
+### Path shape differs between the test and the shell
 
-### What is still Windows-scoped, and why
+The E2E workspaces come from `os.tmpdir()`, and what that returns is not what a process running inside it reports as its working directory:
 
-The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux, and every capture that runs a shell command is portable. Permission approval, file operations, renames, deletes, directory creation, and git status all run on Windows.
+| Platform | `os.tmpdir()` | working directory as reported |
+|---|---|---|
+| Windows CI | `C:\Users\CLOUDT~1\AppData\Local\Temp\…` (8.3 short form) | `C:\Users\cloudtest\AppData\Local\Temp\…` |
+| macOS | `/var/folders/…` (logical) | `/private/var/folders/…` (physical) |
 
-Two things remain deliberately scoped, both at the call site with a comment:
+Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` already strips `/private` for the macOS case, but a test asserting directly on tool output — rather than through a snapshot — has no such help.
 
-- `worktree session uses the resolved worktree as working directory` — cannot be fixed by pinning. `pwd` is auto-approved as a safe read-only command, while a pinned `node -e "…"` is not, so the turn stops on a permission prompt the test never answers. The assertions also compare POSIX-shaped paths. Worktree resolution itself is still asserted on Windows through the `sessionAdded` working-directory check in the same test's non-shell half.
-- `session configuration resolves and completes git branches` — Windows retains a handle on the temporary git repository after session disposal. This is mandatory file locking, a genuine OS difference, and nothing about command portability affects it.
+This is why `worktree session uses the resolved worktree as working directory` fails on Windows CI: the assertion never matches, and the test times out waiting for output that will never arrive in the expected form. Reworking it means resolving both sides with `realpathSync.native` before comparing, which also removes the macOS special case.
+
+### The host terminal tool surfaces no content on Windows
+
+The same test's Copilot branch waits for a `chat/toolCallContentChanged` carrying a terminal resource. On Windows CI that notification never arrives, even though `chat/toolCallStart`, `chat/toolCallReady`, the confirmation round-trip, and `chat/toolCallComplete` all do.
+
+So the tool call runs to completion but the host-managed terminal never publishes streaming content. Whether that is a product gap or a configuration difference in the test is not yet established — it needs a Windows machine to investigate, and it is the blocker for asserting terminal `cwd` on Windows at all.
 
 ### Steering versus pinning
 
@@ -55,32 +64,76 @@ Pinning uses `node -e "…"`, which is guaranteed present because the suite runs
 
 The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Pin only when steering has actually been tried and failed, and note which it was.
 
+### Approve tool calls in a loop, not once
+
+Providers auto-approve a small set of safe read-only commands (`pwd` among them). A pinned `node -e "…"` is not on that list, so pinning a command generally *adds* an approval round-trip that the previous command did not need.
+
+That is fine — the approval flow is a normal part of the protocol and every shared helper already drives it. `driveTurnToCompletion` confirms each unconfirmed `chat/toolCallReady` as it arrives, and `startBackgroundApprovalLoop` does the same for tests that drive turns by hand. Both are loops.
+
+What does not work is approving once. A turn can raise more than one approval, so a single `waitForNotification` for `chat/toolCallReady` followed by one `ChatToolCallConfirmed` leaves any later request pending; the turn then stalls on `session/inputNeededSet` until the test times out. The failure looks like a hang, not a permission problem, which makes it easy to misread as the pinned command being unsupported.
+
+`worktree session uses the resolved worktree as working directory` had exactly this shape: its host-terminal branch approved once while its SDK-shell branch used `startBackgroundApprovalLoop`. Both branches now use the loop, and the command is pinned like everywhere else.
+
+Prefer steering to a file tool where one exists — that avoids the approval surface entirely. Where a shell command is genuinely required, pin it and drive approvals with one of the shared loops.
+
+### Temporary git repositories on Windows
+
+Two independent things made a temp directory containing a git repository undeletable on Windows, which failed suite teardown even when every test passed:
+
+- Git marks the files under `.git/objects` read-only, and a read-only file cannot be deleted on Windows. `rmSync`'s `force` option only suppresses `ENOENT` — it does not override the attribute — so the retry loop burned its full timeout on a condition that waiting can never fix. `removeTempDirs` now clears read-only attributes before each retry.
+- An auto-triggered `git gc` can still hold handles under `.git` after the test finishes. `initTestGitRepo` sets `gc.auto 0`; these repositories never create enough objects to need it.
+
+`session configuration resolves and completes git branches` was disabled on Windows for this reason and is now enabled. Its assertions were always platform-independent — only teardown failed.
+
 ### Recording rejects POSIX-only commands
 
-`CapiReplayProxy` checks the assistant's `tool_use` commands before writing a fixture and fails the recording if any of them cannot run under `cmd`. It throws before the write, so a rejected recording cannot leave a half-portable capture behind.
+`CapiReplayProxy` checks the assistant's `tool_use` commands before writing a fixture and fails the recording if any of them are not portable to the suite's Windows shell configurations. It throws before the write, so a rejected recording cannot leave a half-portable capture behind.
 
 This exists because the failure mode is silent and recurring: nobody chooses these command strings, the model produces them, so a prompt that drifts back toward describing the goal will quietly reintroduce a POSIX-only capture. Checking at record time puts the error on the author's machine while they still have the context, rather than on a CI leg they may not run.
 
-The check is a blocklist of constructs known to fail under `cmd` — coreutils and shell builtins in command position, POSIX stderr redirection, `/dev/*`, `$VAR` expansion, `~/`. It is deliberately not an allowlist of portable commands: a false positive would block a correct recording and push authors toward disabling the check, which is worse than missing a case. Patterns are anchored to command position so a coreutil name appearing as an argument (`node -e "readdirSync('.')"`) does not trip it.
+The check is a blocklist of constructs known not to replay reliably in the suite's effective Windows shells — coreutils and shell builtins in command position, POSIX stderr redirection, `/dev/*`, `$VAR` expansion, `~/`. It is deliberately not an allowlist of portable commands: a false positive would block a correct recording and push authors toward disabling the check, which is worse than missing a case. Patterns are anchored to command position so a coreutil name appearing as an argument (`node -e "readdirSync('.')"`) does not trip it. `pwd` is allowed because the host-managed terminal uses PowerShell on Windows, where it aliases `Get-Location`.
 
 Genuine exceptions go in `POSIX_COMMAND_EXCEPTIONS` in `agentHostE2ETestHarness.ts`, which keeps them countable in one place. An entry there must correspond to a test that is also scoped away from Windows at its call site, with the reason stated there.
 
-### Recorded model requests are never asserted
+### Recorded model requests are asserted as a projection
 
-`CapiReplayProxy` matches purely ordinally: the Nth request to a given `(method, path)` replays the Nth recorded response. The recorded `request:` block in a capture is normalized on write (for review and diff stability) but is never read back — `exchange.request` is only touched by `_writeFixture`. Replay is therefore driven entirely by the recorded responses.
+`CapiReplayProxy` matches purely ordinally: the Nth request to a given `(method, path)` replays the Nth recorded response. Ordinal routing is the right choice for *selecting* a response — request bodies carry volatile fields, and matching on them would produce brittle cache misses while desyncing the agent loop.
 
-Ordinal routing is the right choice for *selecting* a response: request bodies carry volatile fields (dates, request ids, uuids) and matching on them would produce brittle cache misses. It also keeps the agent loop on rails, so a tool failure surfaces as a behavioral difference rather than a confusing desync.
+It used to mean nothing asserted the request at all. The request body is the host's own product — prompt assembly, conversation history retention, truncation, attachment marshalling, and how tool results are handed back to the model — so a regression in any of it replayed green, and was silently promoted to the new expected value the next time somebody re-recorded.
 
-The gap is that nothing *asserts* the request. The request body is the host's own product — prompt assembly, conversation history retention, truncation, attachment marshalling, and how tool results are handed back to the model. A regression in any of those would still replay green, because the proxy serves response N regardless of what was asked. The committed `request:` block only changes when someone re-records, at which point a regression is silently promoted to the new expected value. Several `multiChat` tests already hand-roll assertions over `observedModelRequestBodies` to compensate for this.
+Selection is still ordinal. Separately, every replayed turn now compares the live request against the recorded one through `harness/modelRequestProjection.ts`. The same projection is applied to both sides, so captures keep their existing shape and stay readable.
 
-The fix is to assert the recorded request as a **projection**, mirroring the existing `protocol` / `behavior` profiles in `ahpSnapshot.ts`:
+- **Asserted** (host-authored): message roles and ordering, retained history, whether a system prompt was sent, text and attachment content, tool names and inputs, and `tool_use_id` wiring.
+- **Elided** (environment-derived): the `tool_result` payload, run-time identifiers, reasoning blocks, and the model id.
 
-- **Assert** host-authored structure: message roles and ordering, retained history, system prompt shape, attachment blocks, and `tool_use_id` wiring.
-- **Elide** environment-derived content, primarily the `tool_result` text payload.
+Each elision is load-bearing, and all four were established by running the assertion against the committed captures:
 
-That split is the point. Asserting raw tool output would re-introduce exactly the platform coupling described above — command output, line endings, and `ls`-style listings all differ per OS — and would require a large per-tool normalizer layer to hold stable. Eliding it yields a platform-independent assertion on the part that is actually host behavior. The tool result's presence and wiring is worth asserting; its text is not.
+- **Tool result payloads** would re-introduce exactly the platform coupling the portable-command work removed — command output, line endings, and listing formats all differ per OS — and would need a per-tool normalizer layer to hold stable. Presence and wiring are asserted; the text is not.
+- **Reasoning blocks** cannot survive the capture round-trip. Aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the original live recording did.
+- **Run-time identifiers** are stored as ordinals (`${uuid_0}`) assigned when the fixture was written, which a live run cannot reproduce.
+- **Filesystem paths** have too many per-machine spellings to compare literally: separator (`\` vs `/`), drive letter, 8.3 short names, `/var` vs `/private/var`, whether the recorder's `${workdir}` / `${homedir}` substitution matched at all, and whether the value is a file or the workspace directory itself. Two rounds of Windows CI failures came from exactly these, none a real regression. What file an operation actually touched is asserted directly against the filesystem by the tests that care, which is a stronger oracle than the prompt text.
+- **The model id** tracks the provider default and the model catalog rather than anything the host composes, so asserting it would break every capture on an unrelated catalog bump. Captures still record it for review.
 
-Sequencing: do this *after* the recorded commands are made portable. Turning request assertions on first would simply freeze today's POSIX-flavored requests into the expected values.
+When this was first switched on it found seven stale captures: four whose prompt text had been edited without re-recording, one that had captured a one-off ordering of two parallel `tool_result` blocks, one Codex capture still holding the pre-pinned `pwd` prompt, and the Claude side-chat capture below. All but the last were re-recorded.
+
+A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`, which keeps the exceptions countable in one place and requires an entry here.
+
+### Claude side-chat capture cannot be refreshed
+
+- Test: `side chat receives bounded source context without copied history`.
+- Scope: Claude.
+- Expected: re-recording the capture drives a real side chat and stores the request the host now sends.
+- Observed: recording fails with `Invalid upToMessageId: turn-source`. The side chat is created against a source turn, so recording exercises the same provider-context fork defect that gates `supportsChatForkE2E`; see [Claude provider-context fork](#claude-provider-context-fork).
+- Consequence: the committed capture predates the host's `<side-chat-context>` preamble, so its recorded request no longer matches the live one. The test still replays correctly — only the request comparison is disabled, via `STALE_RECORDED_REQUEST_EXCEPTIONS`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "side chat receives bounded source context"
+  ```
+
+  Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 
 ## Suspected product bugs
 
@@ -169,12 +222,11 @@ These four are the actionable item: until they are recorded, the reason Codex sk
 
 Most of this section is resolved — see [What is still Windows-scoped, and why](#what-is-still-windows-scoped-and-why). Thirteen tests that were disabled on Windows because their capture contained a POSIX-only command now run there.
 
-Two rows remain, and neither is about command portability:
+One row remains, and it is not about command portability:
 
 | Test | Disabled scope | Observed limitation |
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
-| `session configuration resolves and completes git branches` | Windows | Git-backed config discovery can retain the temporary repository lock after session disposal. |
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 

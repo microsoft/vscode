@@ -69,7 +69,7 @@ export {
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
@@ -225,6 +225,30 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		result.contextAttribution = contextAttribution;
 	}
 	return result;
+}
+
+/**
+ * Whether a usage report actually records consumption, as opposed to merely
+ * existing.
+ *
+ * A turn can carry a token-less {@link UsageInfo} that exists only to hold
+ * routing metadata — notably a Copilot Auto turn restored from the event log,
+ * which keeps `_meta.autoModeResolved` even though the usage event itself is
+ * ephemeral and was never persisted. Callers that ask "does this turn have
+ * usage?" almost always mean "does it have numbers to show", so route that
+ * question through here rather than testing the object for truthiness.
+ */
+export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
+	if (!usage) {
+		return false;
+	}
+	if (typeof usage.inputTokens === 'number' || typeof usage.outputTokens === 'number') {
+		return true;
+	}
+	const meta = readUsageInfoMeta(usage);
+	// Negative totals are treated as absent, matching how credits are read for display.
+	return (typeof meta.copilotUsage?.totalNanoAiu === 'number' && meta.copilotUsage.totalNanoAiu >= 0)
+		|| (typeof meta.cost === 'number' && meta.cost >= 0);
 }
 
 function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
@@ -920,6 +944,22 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
  */
 export function resolveChatUri(session: ResourceURI, chat: ResourceURI): ResourceURI {
 	return isDefaultChatUri(chat) ? session : chat;
+}
+
+/**
+ * Resolves the URI a chat's persisted data is stored under — the same
+ * {@link resolveChatUri} rule applied to a chat channel URI alone, recovering
+ * the owning session from the channel. Agents key their per-session database
+ * and data directory by this value, so anything reading or writing that storage
+ * from outside the agent must derive it the same way. Returns `undefined` when
+ * `chatChannel` is not a parseable chat channel URI.
+ */
+export function chatStorageUri(chatChannel: ProtocolURI | ResourceURI): ResourceURI | undefined {
+	const parsed = parseChatUri(chatChannel);
+	if (!parsed) {
+		return undefined;
+	}
+	return resolveChatUri(ResourceURI.parse(parsed.session), ResourceURI.parse(chatChannel.toString()));
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */

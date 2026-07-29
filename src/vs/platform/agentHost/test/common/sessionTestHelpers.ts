@@ -7,7 +7,7 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
-import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
+import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { Message } from '../../common/state/sessionState.js';
 
@@ -17,6 +17,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
+	private readonly _turnUsages = new Map<string, string>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -107,6 +108,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
 
+	async setTurnUsage(turnId: string, usage: string): Promise<void> {
+		this._turnUsages.set(turnId, usage);
+	}
+
+	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
+
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
 	async deleteTurnsAfter(turnId: string): Promise<void> {
@@ -177,11 +184,27 @@ export class TestDiffComputeService implements IDiffComputeService {
 	declare readonly _serviceBrand: undefined;
 
 	callCount = 0;
+	detailedCallCount = 0;
 
 	constructor(private readonly _result?: IDiffCountResult) { }
 
 	async computeDiffCounts(original: string, modified: string): Promise<IDiffCountResult> {
 		this.callCount++;
+		return this._computeDiffCounts(original, modified);
+	}
+
+	async computeDetailedDiff(original: string, modified: string): Promise<IDetailedDiffResult> {
+		this.detailedCallCount++;
+		const counts = this._computeDiffCounts(original, modified);
+		return {
+			added: counts.added,
+			removed: counts.removed,
+			replacements: original === modified ? [] : [{ start: 0, endExclusive: original.length, text: modified }],
+			hitTimeout: false,
+		};
+	}
+
+	private _computeDiffCounts(original: string, modified: string): IDiffCountResult {
 		if (this._result) {
 			return this._result;
 		}
@@ -191,12 +214,17 @@ export class TestDiffComputeService implements IDiffComputeService {
 		return {
 			added: Math.max(0, modifiedLines.length - originalLines.length),
 			removed: Math.max(0, originalLines.length - modifiedLines.length),
+			changes: original === modified ? [] : [{
+				startOffset: 0,
+				endOffsetExclusive: original.length,
+				newText: modified,
+			}],
 		};
 	}
 }
 
 export function createZeroDiffComputeService(): IDiffComputeService {
-	return new TestDiffComputeService({ added: 0, removed: 0 });
+	return new TestDiffComputeService({ added: 0, removed: 0, changes: [] });
 }
 
 export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase()): ISessionDataService {

@@ -43,7 +43,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -61,8 +61,10 @@ import {
 	getAgentHostCompletionReferenceKind,
 	isAgentFeedbackVariableEntry,
 	isBrowserViewVariableEntry,
+	isChatReferenceVariableEntry,
 	isImageVariableEntry,
 	type IAgentFeedbackVariableEntry,
+	type IChatRequestChatReferenceVariableEntry,
 	type IChatRequestVariableEntry,
 	type IElementVariableEntry,
 	type IImageVariableEntry
@@ -106,6 +108,10 @@ export { toolDataToDefinition };
  * elsewhere (`chatRepoInfo`). Larger buffers are not inlined; a dirty saved file then falls back to its on-disk path.
  */
 const MAX_INLINED_UNSAVED_EDITOR_BYTES = 1024 * 1024;
+
+/** Stable id of the progress row mirroring the host's chat activity, so updates replace it in place. */
+const CHAT_ACTIVITY_PROGRESS_ID = 'agentHost.chatActivity';
+
 type AgentHostInvocationFailureStage = 'resolveSession' | 'provisionalSession' | 'sessionState' | 'authentication' | 'createSession' | 'subscribeSession' | 'prepareTurn' | 'dispatchTurn' | 'observeTurn';
 
 type AgentHostInvocationFailedEvent = {
@@ -645,15 +651,18 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	/**
 	 * Called by the session handler when a server-initiated turn starts.
 	 * Resets the progress observable and signals listeners to create a new
-	 * request+response pair in the chat model.
+	 * request+response pair in the chat model. `turnId` is the provider's turn
+	 * id and is adopted as the chat request id, so features that address a turn
+	 * by request id (side chats, forks) can resolve it against the host.
 	 */
-	startServerRequest(prompt: string, variableData?: IChatRequestVariableData, options?: IStartServerRequestOptions): void {
+	startServerRequest(turnId: string, prompt: string, variableData?: IChatRequestVariableData, options?: IStartServerRequestOptions): void {
 		this._logService.info('[AgentHost] Server-initiated request started');
 		transaction(tx => {
 			this.progressObs.set([], tx);
 			this.isCompleteObs.set(false, tx);
 		});
 		this._onDidStartServerRequest.fire({
+			id: turnId,
 			prompt,
 			variableData,
 			isSystemInitiated: options?.isSystemInitiated,
@@ -989,6 +998,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					...(attachment._meta !== undefined && { _meta: attachment._meta }),
 				});
 			}
+			case MessageAttachmentKind.Chat: {
+				return this._createCompletionItem(raw, text, {
+					kind: 'chat',
+					uri: URI.parse(attachment.resource),
+					endTurn: attachment.endTurn,
+					title: attachment.label,
+					displayName: attachment.label,
+					...(attachment._meta !== undefined && { _meta: attachment._meta }),
+				});
+			}
 			default:
 				// Embedded resources will be added when the workbench grows first-class support for them.
 				return undefined; // unknown attachment type
@@ -1092,6 +1111,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							activeTurnId = sessionState.activeTurn.id;
 							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
 							history.push({
+								id: sessionState.activeTurn.id,
 								type: 'request',
 								prompt: sessionState.activeTurn.message.text,
 								participant: this._config.agentId,
@@ -1225,8 +1245,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._activeSessions.set(sessionResource, session);
 
 		if (!isNewSession) {
-			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
+			// Only wire up pending-message/draft sync once the chat URI has been
+			// resolved. When hydration failed (see the catch above), `chatURI`
+			// stays undefined; subscribing anyway would later invoke
+			// `_syncPendingMessages`, whose `_getChatURI` lookup throws because no
+			// mapping was ever stored for this session resource.
 			if (chatURI !== undefined) {
+				this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
 				this._ensureDraftSyncSubscription(sessionResource, resolvedSession, chatURI);
 			}
 
@@ -1830,6 +1855,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Signal the session to create a new request+response pair
 			chatSession.startServerRequest(
+				activeTurn.id,
 				activeTurn.message.text,
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
@@ -2240,6 +2266,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
 
 			this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
+
+			// Surface the host's chat activity — e.g. the live "Creating
+			// isolated worktree (42%)" progress reported while the session's
+			// worktree is being created — instead of the generic working
+			// placeholder the widget would otherwise show. Restricted to the
+			// window before the agent produces any content, since from then on
+			// its own parts tell the story. The stable id makes each update
+			// replace the previous row rather than stack another one, and the
+			// row hides itself as soon as real content follows it.
+			store.add(autorun(reader => {
+				const activity = chatState$.read(reader)?.activity;
+				if (!activity || responseParts$.read(reader).length > 0) {
+					return;
+				}
+				opts.sink([{
+					kind: 'progressMessage',
+					id: CHAT_ACTIVITY_PROGRESS_ID,
+					content: new MarkdownString().appendText(activity),
+					shimmer: true,
+				}]);
+			}));
 
 			store.add(autorun(reader => {
 				const resolution = modelLookup.toAutoModeResolution?.(usage$.read(reader));
@@ -4355,7 +4402,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const modelId = this._toLanguageModelId(sessionResource, draft.model?.id);
 		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
-		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority);
+		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		return {
 			attachments: variableData?.variables ?? [],
@@ -4769,7 +4816,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
 		}
+		if (isChatReferenceVariableEntry(v)) {
+			return this._toChatReferenceAttachment(v, referenceRange);
+		}
 		return undefined;
+	}
+
+	private _toChatReferenceAttachment(v: IChatRequestChatReferenceVariableEntry, range?: MessageAttachment['range']): MessageAttachment {
+		const attachment: MessageChatAttachment = {
+			type: MessageAttachmentKind.Chat,
+			resource: v.value.toString(),
+			label: v.name,
+		};
+		if (v.endTurn !== undefined) {
+			attachment.endTurn = v.endTurn;
+		}
+		if (range) {
+			attachment.range = range;
+		}
+		if (v._meta) {
+			attachment._meta = v._meta;
+		}
+		return attachment;
 	}
 
 	private _toElementImageAttachment(v: IElementVariableEntry, sessionResource: URI, metadata: Record<string, unknown>): MessageAttachment | undefined {

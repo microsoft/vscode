@@ -14,7 +14,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -55,7 +55,7 @@ import { LocalChatSessionUri, getChatSessionType, isUntitledChatSession } from '
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { ChatWidget } from '../../widget/chatWidget.js';
+import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
@@ -437,6 +437,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
+		const showTranscriptSetting = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.showTranscript')),
+			() => this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false
+		);
+		const showLiveTranscriptSetting = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.liveTranscript')),
+			() => this.configurationService.getValue<boolean>('agents.voice.liveTranscript') !== false
+		);
 		const transcriptOverlay = $('.voice-transcript-overlay');
 		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
 			horizontal: ScrollbarVisibility.Hidden,
@@ -609,8 +619,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
-			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
+			const showTranscript = showTranscriptSetting.read(reader);
+			const showLiveTranscript = showLiveTranscriptSetting.read(reader);
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
 			if (!connected) {
 				listeningSession = undefined;
@@ -661,11 +673,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			// Show hint when connected but no transcript yet
-			if (visible.length === 0 || !showTranscript) {
+			if (visible.length === 0 || !showTranscript || showListeningPlaceholder) {
 				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
-				if (!showTranscript && voiceState === 'listening') {
-					// Transcript is disabled: surface a minimal "Listening..." overlay
-					// while listening so the user has feedback. Cleared in any other state.
+				if (showListeningPlaceholder) {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
@@ -683,7 +693,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						?? this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
-						? localize('voiceMode.bargeInHint', "Press {0} to barge in", kbLabel)
+						? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
 						: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
 					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
@@ -1089,7 +1099,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.relayout();
+				this.relayoutForInputHeight();
 			}
 		}));
 
@@ -1183,11 +1193,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -1223,7 +1233,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
@@ -1452,6 +1462,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	private relayoutForInputHeight(): void {
+		if (this.layoutingBody || !this._widget?.visible || !this.lastDimensions) {
+			return;
+		}
+
+		this.layoutChatAndSessions(this.lastDimensions.height, this.lastDimensions.width, false);
+	}
+
 	protected override layoutBody(height: number, width: number): void {
 		if (this.layoutingBody) {
 			return; // prevent re-entrancy
@@ -1469,7 +1487,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		super.layoutBody(height, width);
 
 		this.lastDimensions = { height, width };
+		this.layoutChatAndSessions(height, width, true);
+	}
 
+	private layoutChatAndSessions(height: number, width: number, layoutInput: boolean): void {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
@@ -1488,10 +1509,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// the sessions viewer deduction) so the input can grow freely. As the input
 		// grows, an autorun triggers relayout which shrinks the sessions viewer,
 		// giving the widget more space and converging to the right sizes.
-		this._widget.setInputPartMaxHeightOverride(this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined);
+		const inputMaxHeight = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined;
 
 		// Chat Widget
-		this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
+		if (layoutInput) {
+			this._widget.setInputPartMaxHeightOverride(inputMaxHeight);
+			this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
+		} else {
+			layoutChatWidgetForInputHeight(this._widget, inputMaxHeight, remainingHeight - heightReduction, remainingWidth - widthReduction);
+		}
 
 		// Remember last dimensions per orientation
 		this.lastDimensionsPerOrientation.set(this.sessionsViewerOrientation, { height, width });
