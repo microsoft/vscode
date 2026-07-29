@@ -47,10 +47,15 @@ const EXIT_SCALE = 1.04;
  * blur reads as patchy blobs), and pull the *reach* in with the boost multiplier
  * instead. Applied as inline consumer hooks so the vendored CSS is untouched.
  */
-const BLOOM_BLUR = { dark: 20, light: 14 } as const;
+const BLOOM_BLUR = { dark: 20, light: 12 } as const;
 const BLOOM_CORE_BLUR = { dark: 3, light: 5 } as const;
 /** Multiplier on the bloom gradient blob sizes (<1 pulls the reach inward). */
-const BLOOM_BOOST = 0.82;
+const BLOOM_BOOST = 0.66;
+/** Extra reach multiplier on the pulse-glow scale (<1 tightens the halo further). */
+const BLOOM_REACH = 0.8;
+/** Per-theme weight on the vendored (organic) bloom. Light leans on the cleaner
+ *  halo below because the vendored gradient reads as a washed grey on white. */
+const BLOOM_VENDOR_MUL = { dark: 1, light: 0.72 } as const;
 
 /**
  * Even, hue-matched halo drawn behind the box to complement the vendored bloom.
@@ -59,13 +64,13 @@ const BLOOM_BOOST = 0.82;
  * sides/bottom evenly so the bloom actually wraps; the organic bloom rides on top.
  */
 const HALO_HUE = { cool: 202, warm: 315 } as const; // absolute HSL hues
-const HALO_SAT = { dark: 82, light: 90 } as const;
-const HALO_LIGHT = { dark: 62, light: 55 } as const;
+const HALO_SAT = { dark: 82, light: 94 } as const;
+const HALO_LIGHT = { dark: 62, light: 48 } as const;
 const HALO_BASE_ALPHA = { dark: 0.20, light: 0.24 } as const;
 const HALO_ALPHA_GAIN = 0.22; // extra alpha at full audio level
-const HALO_BLUR = { dark: 22, light: 18 } as const;
-const HALO_SPREAD_BASE = 1; // px
-const HALO_SPREAD_GAIN = 5; // px added at full audio level
+const HALO_BLUR = { dark: 18, light: 13 } as const;
+const HALO_SPREAD_BASE = 0.5; // px
+const HALO_SPREAD_GAIN = 3.5; // px added at full audio level
 
 /** HSL hues (deg) for the CSS border variation. */
 const BORDER_COOL_HUE = 200; // listening
@@ -208,8 +213,8 @@ function injectBeam(host: HTMLElement, config: IStateConfig, theme: GlowThemeKin
 		const rect = host.getBoundingClientRect();
 		const clamp = (v: number) => Math.max(0.35, Math.min(4, v));
 		if (rect.width && rect.height) {
-			host.style.setProperty('--pulse-glow-sx', clamp(rect.width / 350).toFixed(3));
-			host.style.setProperty('--pulse-glow-sy', clamp(rect.height / 140).toFixed(3));
+			host.style.setProperty('--pulse-glow-sx', clamp(rect.width / 350 * BLOOM_REACH).toFixed(3));
+			host.style.setProperty('--pulse-glow-sy', clamp(rect.height / 140 * BLOOM_REACH).toFixed(3));
 		}
 	}
 	host.setAttribute('data-active', '');
@@ -505,8 +510,8 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			el.style.top = `${top}px`;
 			el.style.width = `${w}px`;
 			el.style.height = `${h}px`;
-			el.style.setProperty('--pulse-glow-sx', clamp(w / 350).toFixed(3));
-			el.style.setProperty('--pulse-glow-sy', clamp(h / 140).toFixed(3));
+			el.style.setProperty('--pulse-glow-sx', clamp(w / 350 * BLOOM_REACH).toFixed(3));
+			el.style.setProperty('--pulse-glow-sy', clamp(h / 140 * BLOOM_REACH).toFixed(3));
 		}
 	}
 
@@ -677,7 +682,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 					host.style.setProperty(osc.prop, osc.unit === 'px' ? `${value.toFixed(2)}px` : value.toFixed(4));
 				}
 			}
-			host.style.setProperty('--beam-strength', (config.strength * (0.6 + 0.9 * lvl)).toFixed(3));
+			host.style.setProperty('--beam-strength', (config.strength * (0.6 + 0.9 * lvl) * BLOOM_VENDOR_MUL[theme]).toFixed(3));
 			if (beam.hueProp) {
 				const drift = desc.warm ? 12 : 16;
 				const vShift = desc.warm ? -7 * lvl : 8 * lvl;
@@ -701,7 +706,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		const subtle = !!desc.subtle;
 		const config: IStateConfig = {
 			family: 'rim', size: 'pulse-inner', variant: 'ocean',
-			strength: subtle ? 0.5 : 0.95, brightness: subtle ? 1.2 : 1.5,
+			strength: subtle ? 0.45 : 0.86, brightness: subtle ? 1.1 : 1.35,
 			saturation: 0.55, duration: subtle ? 4.8 : 2.3, warm: desc.warm,
 		};
 		const beam = injectBeam(host, config, this._themeKind(), this._targetRadius);
