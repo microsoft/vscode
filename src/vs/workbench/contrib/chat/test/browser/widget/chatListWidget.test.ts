@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { computeScrollDownState, getAnchoredScrollTop, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, createUserToggleScrollAnchor, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
 
 suite('ChatListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,16 +34,19 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual(states, [false, true, true, true, true, true, false]);
 	});
 
-	test('adjusts scroll position to keep the toggled title anchored', () => {
-		assert.deepStrictEqual({
-			titleMovedUp: getAnchoredScrollTop(300, 180, 220),
-			titleMovedDown: getAnchoredScrollTop(300, 260, 220),
-			titleUnchanged: getAnchoredScrollTop(300, 220, 220),
-		}, {
-			titleMovedUp: 260,
-			titleMovedDown: 340,
-			titleUnchanged: 300,
-		});
+	test('adjusts scroll position to keep the toggled title anchored at any scroll position', () => {
+		let scrollTop = 150;
+		let targetTop = 220;
+		const restoreScrollAnchor = createUserToggleScrollAnchor(
+			() => scrollTop,
+			value => scrollTop = value,
+			() => targetTop,
+		);
+
+		targetTop = 180;
+		restoreScrollAnchor();
+
+		assert.strictEqual(scrollTop, 110);
 	});
 
 	// Regression test for https://github.com/microsoft/vscode/issues/326952: the scroll-down

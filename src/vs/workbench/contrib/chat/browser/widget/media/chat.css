@@ -433,6 +433,22 @@
 	width: 100%;
 }
 
+.interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+	align-items: center;
+	height: 22px;
+	margin-top: -22px;
+	pointer-events: none;
+}
+
+.interactive-item-container.interactive-request.editing .chat-request-timestamp {
+	pointer-events: auto;
+}
+
+.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+	box-sizing: border-box;
+	padding-inline-end: var(--vscode-spacing-size160);
+}
+
 .interactive-item-container .completed-response-disclosure {
 	width: 100%;
 	margin-bottom: var(--vscode-spacing-size80);

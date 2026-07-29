@@ -83,8 +83,20 @@ export class UserToggleResizeState {
 	}
 }
 
-export function getAnchoredScrollTop(scrollTop: number, currentTargetTop: number, anchorTargetTop: number): number {
+function getAnchoredScrollTop(scrollTop: number, currentTargetTop: number, anchorTargetTop: number): number {
 	return scrollTop + currentTargetTop - anchorTargetTop;
+}
+
+/**
+ * Captures a viewport anchor and returns a function that restores it after content resizes.
+ */
+export function createUserToggleScrollAnchor(
+	getScrollTop: () => number,
+	setScrollTop: (scrollTop: number) => void,
+	getTargetTop: () => number,
+): () => void {
+	const anchorTargetTop = getTargetTop();
+	return () => setScrollTop(getAnchoredScrollTop(getScrollTop(), getTargetTop(), anchorTargetTop));
 }
 
 /**
@@ -812,10 +824,14 @@ export class ChatListWidget extends Disposable {
 	}
 
 	private trackUserToggleResize(element: ChatTreeItem, target: HTMLElement): void {
-		const anchorTargetTop = this.isScrolledToBottom ? target.getBoundingClientRect().top : undefined;
-		const restoreScrollPosition = anchorTargetTop === undefined ? undefined : () => {
+		const restoreScrollAnchor = createUserToggleScrollAnchor(
+			() => this._tree.scrollTop,
+			scrollTop => this._tree.scrollTop = scrollTop,
+			() => target.getBoundingClientRect().top,
+		);
+		const restoreScrollPosition = () => {
 			if (target.isConnected) {
-				this._tree.scrollTop = getAnchoredScrollTop(this._tree.scrollTop, target.getBoundingClientRect().top, anchorTargetTop);
+				restoreScrollAnchor();
 			}
 		};
 		const tracker: UserToggleResizeTracker = new UserToggleResizeTracker(target, restoreScrollPosition, () => {
