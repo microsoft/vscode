@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@github/copilot": "^1.0.73",
+    "@github/copilot": "^1.0.76-2",
     "@github/copilot-sdk": "^1.0.8",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
