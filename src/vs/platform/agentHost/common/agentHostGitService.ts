@@ -164,7 +164,7 @@ export interface IAgentHostGitService {
 	 * never be called (fast checkouts and git versions that stay silent), so it
 	 * MUST be treated as best-effort.
 	 */
-	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track: boolean, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
 	 * Copies the git-ignored files matching `globs` into the worktree.
 	 * `onProgress` counts the individual files covered, but only fires as whole
