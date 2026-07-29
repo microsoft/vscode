@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -65,7 +66,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ enabled: false } as IAgentHostEnablementService,
+			{ _serviceBrand: undefined, enabled: constObservable(false) },
 		);
 
 		try {
@@ -120,7 +121,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ enabled: false } as IAgentHostEnablementService,
+			{ _serviceBrand: undefined, enabled: constObservable(false) },
 		);
 
 		try {
@@ -155,7 +156,7 @@ suite('ChatEditorInput', () => {
 		}]);
 		const storageService = store.add(new TestStorageService());
 		const workspaceContextService = new TestContextService();
-		const agentHostEnablementService = { _serviceBrand: undefined, enabled: true } satisfies IAgentHostEnablementService;
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true) } satisfies IAgentHostEnablementService;
 
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});

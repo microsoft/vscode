@@ -21,7 +21,7 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
+import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
@@ -41,6 +41,8 @@ export interface IAgentRegistration extends IDisposable {
 	readonly bundler: SyncedCustomizationBundler;
 }
 
+export type IAgentRegistrationOptions = ILocalCustomizationSyncOptions;
+
 export interface IAgentHostActiveClientService {
 	readonly _serviceBrand: undefined;
 
@@ -53,7 +55,7 @@ export interface IAgentHostActiveClientService {
 	 * object so the contribution can pass the same instance to its
 	 * customization harness.
 	 */
-	registerForAgent(sessionType: string): IAgentRegistration;
+	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration;
 
 	/** Returns a {@link SessionActiveClient} for `sessionType` using the caller-supplied `clientId`. Customizations are empty when `sessionType` has not been registered. */
 	getActiveClient(sessionType: string, clientId: string): SessionActiveClient;
@@ -101,7 +103,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		this._allToolSetsObs = this._toolsService.toolSets;
 	}
 
-	registerForAgent(sessionType: string): IAgentRegistration {
+	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration {
 		const store = new DisposableStore();
 		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
@@ -110,7 +112,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
 			try {
-				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType);
+				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, options);
 				if (seq !== updateSeq) {
 					return;
 				}

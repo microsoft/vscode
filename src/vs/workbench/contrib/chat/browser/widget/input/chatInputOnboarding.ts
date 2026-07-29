@@ -24,7 +24,7 @@ export interface IChatInputOnboardingOptions {
 
 export interface IChatInputOnboardingContext {
 	readonly container: HTMLElement;
-	readonly dismiss: () => void;
+	readonly dismiss: (restoreFocus?: boolean) => void;
 }
 
 export interface IChatInputOnboardingCardOptions {
@@ -103,7 +103,7 @@ export class ChatInputOnboarding extends Disposable {
 		try {
 			onboardingStore.add(createOnboarding({
 				container: host.container,
-				dismiss: () => this.hide(true),
+				dismiss: (restoreFocus = true) => this.hide(restoreFocus),
 			}));
 		} catch (error) {
 			this.activeHost = undefined;

@@ -11,12 +11,14 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { TerminalContribCommandId } from '../../../terminal/terminalContribExports.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
@@ -61,7 +63,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false): string {
 	const content = [];
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files.'));
@@ -91,8 +93,10 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.speechToText.contextMenu', 'To choose a microphone or turn off dictation or Voice Mode, focus the microphone button in the input toolbar and open its context menu{0} (for example Shift+F10).', '<keybinding:editor.action.showContextMenu>'));
 		content.push(localize('chat.voiceInputMode.segmented', 'When the segmented voice input control is enabled, the input toolbar offers Dictation, Voice Mode, and, in manual Voice Mode, a Start or Stop Listening button. Stopping listening sends the completed turn. Each button can be focused and activated with Enter or Space.'));
 		content.push(localize('chat.voiceInputMode.holdToTalk', 'In manual Voice Mode, the Start or Stop Listening button toggles listening when tapped, or you can press and hold it to talk and release to send. You can also hold the Voice Mode: Hold to Talk keybinding{0} to talk and release to send; this interrupts the assistant to barge in.', '<keybinding:workbench.action.chat.voiceInputMode.holdToTalk>'));
+		content.push(localize('chat.voiceMode.introduction', 'The first time Voice Mode starts, an introduction appears above the input box. Tab to reach it, then use the arrow keys to move between the available voices; Enter or Space plays a voice and keeps it for future conversations. Its description also contains two links: Settings, which opens the Voice Mode settings, and How It Responds, which opens a file for customizing what the agent says back. Voice Mode stays connected but does not listen while the introduction is open. Press Escape, or activate the Close button, to dismiss it and return to the input box.'));
 		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}. Thinking content is included in order by default.', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('chat.inspectResponseThinkingToggle', 'To include or exclude thinking content in the accessible view, run the Toggle Thinking Content in Accessible View command from the Command Palette.'));
+		content.push(localize('chat.completedResponseDisclosure', 'When completed response collapsing is enabled, the final response remains visible while earlier work is collapsed. Use Tab to focus the work disclosure and press Enter or Space to show or hide that work.'));
 		content.push(localize('workbench.action.chat.focus', 'To focus the chat request and response list, invoke the Focus Chat command{0}. This will move focus to the most recent response, which you can then navigate using the up and down arrow keys.', getChatFocusKeybindingLabel(keybindingService, type, 'last')));
 		content.push(localize('workbench.action.chat.focusLastFocusedItem', 'To return to the last chat response you focused, invoke the Focus Last Focused Chat Response command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'lastFocused')));
 		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'input')));
@@ -101,6 +105,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('workbench.action.chat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command{0}.', '<keybinding:workbench.action.chat.nextCodeBlock>'));
 		content.push(localize('workbench.action.chat.nextUserPrompt', 'To navigate to the next user prompt in the conversation, invoke the Next User Prompt command{0}.', '<keybinding:workbench.action.chat.nextUserPrompt>'));
 		content.push(localize('workbench.action.chat.previousUserPrompt', 'To navigate to the previous user prompt in the conversation, invoke the Previous User Prompt command{0}.', '<keybinding:workbench.action.chat.previousUserPrompt>'));
+		if (stickyPromptHeaderShown) {
+			content.push(localize('chat.stickyPromptHeader', 'The prompt you have scrolled past is pinned to the top of the transcript. Activate its title to jump back to that prompt, or use the Go to Previous Prompt and Go to Next Prompt buttons beside it to move between prompts.'));
+		}
 		content.push(localize('workbench.action.chat.announceConfirmation', 'To focus pending chat confirmation dialogs, invoke the Focus Chat Confirmation Status command{0}.', '<keybinding:workbench.action.chat.focusConfirmation>'));
 		content.push(localize('chat.showHiddenTerminals', 'If there are any hidden chat terminals, you can view them by invoking the View Hidden Chat Terminals command{0}.', '<keybinding:workbench.action.terminal.chat.viewHiddenChatTerminals>'));
 		content.push(localize('chat.focusMostRecentTerminal', 'To focus the last chat terminal that ran a tool, invoke the Focus Most Recent Chat Terminal command{0}.', `<keybinding:${TerminalContribCommandId.FocusMostRecentChatTerminal}>`));
@@ -164,6 +171,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	const configurationService = accessor.get(IConfigurationService);
 	const widget = widgetService.lastFocusedWidget;
 
 	if (!widget) {
@@ -177,7 +185,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow);
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService));
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },

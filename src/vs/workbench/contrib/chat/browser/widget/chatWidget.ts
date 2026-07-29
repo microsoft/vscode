@@ -693,6 +693,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
+	get rendersInputOnTop(): boolean {
+		return this.viewOptions.renderInputOnTop ?? false;
+	}
+
 	get attachmentCapabilities(): IChatAgentAttachmentCapabilities {
 		return this._attachmentCapabilities;
 	}
@@ -1710,7 +1714,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			listContainer,
 			{
 				rendererOptions: options,
-				renderStyle: this.viewOptions.renderStyle,
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {

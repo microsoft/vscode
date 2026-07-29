@@ -107,6 +107,11 @@ export const SessionSectionTypeContext = new RawContextKey<string>('sessionSecti
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 
+/** Whether an inline archive action should animate instead of running immediately. */
+export function shouldAnimateArchiveAction(actionId: string, sessionCount: number, motionReduced: boolean): boolean {
+	return actionId === ARCHIVE_SESSION_COMMAND_ID && sessionCount === 1 && !motionReduced;
+}
+
 //#region Types
 
 export enum SessionsGrouping {
@@ -2870,11 +2875,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private async handleToolbarAction(action: IAction, session: ISession): Promise<boolean> {
-		if (action.id !== ARCHIVE_SESSION_COMMAND_ID || this.accessibilityService.isMotionReduced()) {
+		const sessions = this.getMultiSelectedSessions(session);
+		if (!shouldAnimateArchiveAction(action.id, sessions.length, this.accessibilityService.isMotionReduced())) {
 			return false;
 		}
 
-		const sessions = this.getMultiSelectedSessions(session);
 		const sessionResources = sessions.map(session => session.resource.toString());
 		if (sessionResources.some(resource => this._archiveActionsInProgress.has(resource))) {
 			return true;

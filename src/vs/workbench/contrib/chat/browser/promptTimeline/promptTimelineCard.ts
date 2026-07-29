@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
+import { $, addDisposableListener, append, clearNode, EventType } from '../../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { IPromptReviewFileEvent } from './promptTimelineRail.js';
 import { PromptFileDiff, PromptTick } from './promptTimelineModel.js';
 

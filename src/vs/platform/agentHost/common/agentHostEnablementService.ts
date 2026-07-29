@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IObservable } from '../../../base/common/observable.js';
 import { isWeb } from '../../../base/common/platform.js';
 import * as nls from '../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
@@ -14,8 +15,8 @@ import { Registry } from '../../registry/common/platform.js';
 /** @internal Only the enablement service may read this configuration value at runtime. */
 const agentHostEnabledSettingId = 'chat.agentHost.enabled';
 
-/** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate UI on Agent Host enablement, including `chat.disableAIFeatures`. */
-export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether Agent Host features are enabled.") });
+/** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate UI on whether the agent host is enabled. */
+export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether the local agent host process is enabled.") });
 
 export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementService>('agentHostEnablementService');
 
@@ -23,9 +24,9 @@ export interface IAgentHostEnablementService {
 	readonly _serviceBrand: undefined;
 	/**
 	 * Whether Agent Host features are enabled in this runtime.
-	 * Requires `chat.agentHost.enabled === true`, a non-web runtime, and `chat.disableAIFeatures !== true`. This value is fixed at startup.
+	 * This can transition from `false` to `true` when a startup experiment is applied or AI features are explicitly enabled.
 	 */
-	readonly enabled: boolean;
+	readonly enabled: IObservable<boolean>;
 }
 
 // Register `chat.agentHost.enabled` and related settings.
