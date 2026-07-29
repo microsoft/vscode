@@ -25,7 +25,7 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionWorkspaceless, ROOT_STATE_URI, SessionLifecycle, SessionStatus, StateComponents, customizationId, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -33,6 +33,7 @@ import { AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSe
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
+import type { SessionState } from '../../common/state/protocol/state.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -115,9 +116,11 @@ class CloseOnDisposeProtocolTransport extends TestProtocolTransport {
 
 class CountingLogService extends NullLogService {
 	warnCount = 0;
+	readonly warnings: string[] = [];
 
-	override warn(_message: string, ..._args: unknown[]): void {
+	override warn(message: string, ..._args: unknown[]): void {
 		this.warnCount++;
+		this.warnings.push(message);
 	}
 }
 
@@ -225,6 +228,18 @@ suite('RemoteAgentHostProtocolClient', () => {
 		for (let i = 0; i < 10; i++) {
 			await Promise.resolve();
 		}
+	}
+
+	function requestsFor(transport: TestProtocolTransport, method: string): JsonRpcRequest[] {
+		return transport.sentMessages.filter((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true, id: true }) && message.method === method);
+	}
+
+	async function waitForRequestCount(transport: TestProtocolTransport, method: string, count: number): Promise<JsonRpcRequest[]> {
+		while (requestsFor(transport, method).length < count) {
+			await Promise.resolve();
+		}
+		return requestsFor(transport, method);
 	}
 
 	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string): void {
@@ -444,6 +459,269 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.ok(request);
 		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
 		assert.strictEqual(await creation, session);
+	});
+
+	suite('createSession subscription refresh', () => {
+		const session = URI.parse('copilot:/provisional');
+
+		function sessionState(title: string, folder: string, plugin: string): SessionState {
+			return {
+				provider: 'copilot',
+				title,
+				status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				workingDirectories: [folder],
+				customizations: [
+					{ type: CustomizationType.Plugin, id: customizationId(plugin), uri: plugin, name: plugin, enabled: true },
+				],
+			};
+		}
+
+		test('refreshes an existing subscription before createSession settles', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const ref = client.getSubscription<SessionState>(StateComponents.Session, session, 'test');
+			const initialSubscribe = (await waitForRequestCount(transport, 'subscribe', 1))[0];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Snapshot A', 'file:///old', 'file:///plugins/old'), fromSeq: 1 } },
+			});
+			await flushMicrotasks();
+
+			const creation = client.createSession({ provider: 'copilot', session });
+			assert.strictEqual(client.getInflightSessionCreate(session), creation);
+			const create = (await waitForRequestCount(transport, 'createSession', 1))[0];
+			transport.fireMessage({ jsonrpc: '2.0', id: create.id, result: null });
+			const refreshSubscribe = (await waitForRequestCount(transport, 'subscribe', 2))[1];
+			let settled = false;
+			void creation.then(() => settled = true);
+			await flushMicrotasks();
+			assert.strictEqual(settled, false);
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refreshSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Snapshot B', 'file:///new', 'file:///plugins/new'), fromSeq: 2 } },
+			});
+
+			assert.strictEqual(await creation, session);
+			assert.deepStrictEqual(ref.object.value, sessionState('Snapshot B', 'file:///new', 'file:///plugins/new'));
+			ref.dispose();
+		});
+
+		test('does not duplicate subscribe for a subscription acquired during creation', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+
+			const creation = client.createSession({ provider: 'copilot', session });
+			const ref = client.getSubscription<SessionState>(StateComponents.Session, session, 'test');
+			const create = (await waitForRequestCount(transport, 'createSession', 1))[0];
+			transport.fireMessage({ jsonrpc: '2.0', id: create.id, result: null });
+			const subscribe = (await waitForRequestCount(transport, 'subscribe', 1))[0];
+			assert.strictEqual(requestsFor(transport, 'subscribe').length, 1);
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: subscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Initial', 'file:///new', 'file:///plugins/new'), fromSeq: 1 } },
+			});
+
+			assert.strictEqual(await creation, session);
+			await flushMicrotasks();
+			assert.strictEqual(requestsFor(transport, 'subscribe').length, 1);
+			assert.deepStrictEqual(ref.object.value, sessionState('Initial', 'file:///new', 'file:///plugins/new'));
+			ref.dispose();
+		});
+
+		test('refetches when the initial subscribe started before creation', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const ref = client.getSubscription<SessionState>(StateComponents.Session, session, 'test');
+			const initialSubscribe = (await waitForRequestCount(transport, 'subscribe', 1))[0];
+
+			const creation = client.createSession({ provider: 'copilot', session });
+			const create = (await waitForRequestCount(transport, 'createSession', 1))[0];
+			transport.fireMessage({ jsonrpc: '2.0', id: create.id, result: null });
+			await flushMicrotasks();
+			assert.strictEqual(requestsFor(transport, 'subscribe').length, 1);
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Snapshot A', 'file:///old', 'file:///plugins/old'), fromSeq: 1 } },
+			});
+			const refreshSubscribe = (await waitForRequestCount(transport, 'subscribe', 2))[1];
+			let settled = false;
+			void creation.then(() => settled = true);
+			await flushMicrotasks();
+			assert.strictEqual(settled, false);
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refreshSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Snapshot B', 'file:///new', 'file:///plugins/new'), fromSeq: 2 } },
+			});
+
+			assert.strictEqual(await creation, session);
+			assert.deepStrictEqual(ref.object.value, sessionState('Snapshot B', 'file:///new', 'file:///plugins/new'));
+			ref.dispose();
+		});
+
+		test('refresh failure warns without rejecting successful creation', async () => {
+			const logService = new CountingLogService();
+			const { client, transport } = createClient(undefined, undefined, undefined, logService);
+			await connectClient(client, transport);
+			const ref = client.getSubscription<SessionState>(StateComponents.Session, session, 'test');
+			const initialSubscribe = (await waitForRequestCount(transport, 'subscribe', 1))[0];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Snapshot A', 'file:///old', 'file:///plugins/old'), fromSeq: 1 } },
+			});
+			await flushMicrotasks();
+
+			const creation = client.createSession({ provider: 'copilot', session });
+			const create = (await waitForRequestCount(transport, 'createSession', 1))[0];
+			transport.fireMessage({ jsonrpc: '2.0', id: create.id, result: null });
+			const refreshSubscribe = (await waitForRequestCount(transport, 'subscribe', 2))[1];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refreshSubscribe.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'refresh failed' },
+			});
+
+			assert.strictEqual(await creation, session);
+			assert.ok(logService.warnings.some(message => message.includes(`Failed to refresh subscription ${session.toString()}: refresh failed`)));
+			assert.deepStrictEqual(ref.object.value, sessionState('Snapshot A', 'file:///old', 'file:///plugins/old'));
+			ref.dispose();
+		});
+
+		test('serializes refreshes for overlapping creates', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const ref = client.getSubscription<SessionState>(StateComponents.Session, session, 'test');
+			const initialSubscribe = (await waitForRequestCount(transport, 'subscribe', 1))[0];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Initial', 'file:///old', 'file:///plugins/old'), fromSeq: 1 } },
+			});
+			await flushMicrotasks();
+
+			const creation1 = client.createSession({ provider: 'copilot', session });
+			const creation2 = client.createSession({ provider: 'copilot', session });
+			assert.strictEqual(client.getInflightSessionCreate(session), creation2);
+			const creates = await waitForRequestCount(transport, 'createSession', 2);
+			transport.fireMessage({ jsonrpc: '2.0', id: creates[0].id, result: null });
+			const refresh1 = (await waitForRequestCount(transport, 'subscribe', 2))[1];
+			transport.fireMessage({ jsonrpc: '2.0', id: creates[1].id, result: null });
+			await flushMicrotasks();
+			assert.strictEqual(requestsFor(transport, 'subscribe').length, 2);
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refresh1.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('First', 'file:///one', 'file:///plugins/one'), fromSeq: 2 } },
+			});
+			assert.strictEqual(await creation1, session);
+			const refresh2 = (await waitForRequestCount(transport, 'subscribe', 3))[2];
+			let secondSettled = false;
+			void creation2.then(() => secondSettled = true);
+			await flushMicrotasks();
+			assert.strictEqual(secondSettled, false);
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refresh2.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Second', 'file:///two', 'file:///plugins/two'), fromSeq: 3 } },
+			});
+			assert.strictEqual(await creation2, session);
+			assert.deepStrictEqual(ref.object.value, sessionState('Second', 'file:///two', 'file:///plugins/two'));
+			ref.dispose();
+		});
+
+		test('does not deadlock a pending subscription during overlapping creates', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+
+			const creation1 = client.createSession({ provider: 'copilot', session });
+			const creation2 = client.createSession({ provider: 'copilot', session });
+			const ref = client.getSubscription<SessionState>(StateComponents.Session, session, 'test');
+			const creates = await waitForRequestCount(transport, 'createSession', 2);
+
+			transport.fireMessage({ jsonrpc: '2.0', id: creates[0].id, result: null });
+			transport.fireMessage({ jsonrpc: '2.0', id: creates[1].id, result: null });
+			const initialSubscribe = (await waitForRequestCount(transport, 'subscribe', 1))[0];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Initial', 'file:///initial', 'file:///plugins/initial'), fromSeq: 1 } },
+			});
+
+			const refresh1 = (await waitForRequestCount(transport, 'subscribe', 2))[1];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refresh1.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('First', 'file:///one', 'file:///plugins/one'), fromSeq: 2 } },
+			});
+			const refresh2 = (await waitForRequestCount(transport, 'subscribe', 3))[2];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refresh2.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Second', 'file:///two', 'file:///plugins/two'), fromSeq: 3 } },
+			});
+
+			assert.deepStrictEqual({
+				creation1: await creation1,
+				creation2: await creation2,
+				value: ref.object.value,
+			}, {
+				creation1: session,
+				creation2: session,
+				value: sessionState('Second', 'file:///two', 'file:///plugins/two'),
+			});
+			ref.dispose();
+		});
+
+		test('refreshes a pending subscription after out-of-order creates', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+
+			const creation1 = client.createSession({ provider: 'copilot', session });
+			const creation2 = client.createSession({ provider: 'copilot', session });
+			const ref = client.getSubscription<SessionState>(StateComponents.Session, session, 'test');
+			const creates = await waitForRequestCount(transport, 'createSession', 2);
+
+			transport.fireMessage({ jsonrpc: '2.0', id: creates[1].id, result: null });
+			const initialSubscribe = (await waitForRequestCount(transport, 'subscribe', 1))[0];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialSubscribe.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('Second', 'file:///two', 'file:///plugins/two'), fromSeq: 2 } },
+			});
+			assert.strictEqual(await creation2, session);
+
+			transport.fireMessage({ jsonrpc: '2.0', id: creates[0].id, result: null });
+			const refresh = (await waitForRequestCount(transport, 'subscribe', 2))[1];
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: refresh.id,
+				result: { snapshot: { resource: session.toString(), state: sessionState('First', 'file:///one', 'file:///plugins/one'), fromSeq: 3 } },
+			});
+
+			assert.deepStrictEqual({
+				creation1: await creation1,
+				value: ref.object.value,
+				subscribeCalls: requestsFor(transport, 'subscribe').length,
+			}, {
+				creation1: session,
+				value: sessionState('First', 'file:///one', 'file:///plugins/one'),
+				subscribeCalls: 2,
+			});
+			ref.dispose();
+		});
 	});
 
 	suite('createChat', () => {

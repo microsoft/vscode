@@ -884,7 +884,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 		// Use `.then` (not `async`) so the tracked promise and the returned promise are the same object — callers
 		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
-		const promise = this._sendRequest('createSession', {
+		const createRequest = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
 			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
@@ -892,8 +892,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
-		}).then(() => session);
-		this._subscriptionManager.trackSessionCreate(session, promise);
+		});
+		const promise = createRequest.then(async () => {
+			await this._subscriptionManager.refreshSubscription(session, createRequest);
+			return session;
+		});
+		this._subscriptionManager.trackSessionCreate(session, promise, createRequest);
 		return promise;
 	}
 

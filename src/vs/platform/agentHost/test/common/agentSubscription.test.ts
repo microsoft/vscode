@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -626,18 +627,21 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState; fromSeq: number }> = async (resource) => {
-		subscribedResources.push(resource.toString());
-		const key = resource.toString();
-		if (key.startsWith('copilot:')) {
-			return { resource: key, state: makeSessionState(key), fromSeq: 0 };
-		}
-		return { resource: key, state: makeTerminalState(), fromSeq: 0 };
-	}): AgentSubscriptionManager {
+	function createManager(
+		subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | ChatState | TerminalState | ChangesetState; fromSeq: number }> = async resource => {
+			subscribedResources.push(resource.toString());
+			const key = resource.toString();
+			if (key.startsWith('copilot:')) {
+				return { resource: key, state: makeSessionState(key), fromSeq: 0 };
+			}
+			return { resource: key, state: makeTerminalState(), fromSeq: 0 };
+		},
+		log: (message: string) => void = noop,
+	): AgentSubscriptionManager {
 		return disposables.add(new AgentSubscriptionManager(
 			'c1',
 			() => ++seq,
-			noop,
+			log,
 			subscribe,
 			(resource) => {
 				unsubscribedResources.push(resource.toString());
@@ -909,6 +913,292 @@ suite('AgentSubscriptionManager', () => {
 
 		retryRef.dispose();
 		assert.strictEqual(mgr.getSubscriptionUnmanaged<SessionState>(uri), undefined);
+	});
+
+	test('refreshSubscription waits for a pending initial subscribe before refetching', async () => {
+		const initialSnapshot = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let subscribeCalls = 0;
+		const mgr = createManager(resource => {
+			subscribeCalls++;
+			if (subscribeCalls === 1) {
+				return initialSnapshot.p;
+			}
+			return Promise.resolve({ resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Refreshed' }), fromSeq: 1 });
+		});
+		const uri = URI.parse(sessionUri);
+
+		await mgr.refreshSubscription(uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		const refresh = mgr.refreshSubscription(uri);
+
+		assert.strictEqual(subscribeCalls, 1);
+
+		initialSnapshot.complete({ resource: sessionUri, state: makeSessionState(sessionUri, { title: 'Initial' }), fromSeq: 0 });
+		await refresh;
+
+		assert.deepStrictEqual({
+			subscribeCalls,
+			value: ref.object.value,
+		}, {
+			subscribeCalls: 2,
+			value: makeSessionState(sessionUri, { title: 'Refreshed' }),
+		});
+		ref.dispose();
+	});
+
+	test('refreshSubscription leaves a pending subscribe gated by the same create', async () => {
+		const creation = new DeferredPromise<void>();
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			return { resource: resource.toString(), state: makeSessionState(resource.toString()), fromSeq: 0 };
+		});
+		const uri = URI.parse(sessionUri);
+		mgr.trackSessionCreate(uri, creation.p);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+
+		await mgr.refreshSubscription(uri, creation.p);
+		assert.strictEqual(subscribeCalls, 0);
+
+		creation.complete();
+		await new Promise(r => setTimeout(r, 0));
+		assert.strictEqual(subscribeCalls, 1);
+		ref.dispose();
+	});
+
+	test('trackSessionCreate preserves older overlapping creates', async () => {
+		const first = new DeferredPromise<void>();
+		const second = new DeferredPromise<void>();
+		const mgr = createManager();
+		const uri = URI.parse(sessionUri);
+		mgr.trackSessionCreate(uri, first.p);
+		mgr.trackSessionCreate(uri, second.p);
+
+		assert.strictEqual(mgr.getInflightSessionCreate(uri), second.p);
+
+		second.complete();
+		await new Promise(r => setTimeout(r, 0));
+		assert.strictEqual(mgr.getInflightSessionCreate(uri), first.p);
+
+		first.complete();
+		await new Promise(r => setTimeout(r, 0));
+		assert.strictEqual(mgr.getInflightSessionCreate(uri), undefined);
+	});
+
+	test('refreshSubscription reseats shared state and fences buffered envelopes', async () => {
+		const refreshSnapshot = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			if (subscribeCalls === 1) {
+				return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Snapshot A' }), fromSeq: 5 };
+			}
+			return refreshSnapshot.p;
+		});
+		const uri = URI.parse(sessionUri);
+		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'HolderA');
+		const ref2 = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'HolderB');
+		await new Promise(r => setTimeout(r, 0));
+
+		mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Stale optimistic title' });
+		const changedTitles: string[] = [];
+		disposables.add(ref1.object.onDidChange(state => changedTitles.push(state.title)));
+
+		const refresh = mgr.refreshSubscription(uri);
+		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Fenced envelope' }, 10));
+		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Newer envelope' }, 11));
+		refreshSnapshot.complete({
+			resource: sessionUri,
+			state: makeSessionState(sessionUri, { title: 'Snapshot B', workingDirectories: ['file:///new'] }),
+			fromSeq: 10,
+		});
+		await refresh;
+
+		assert.deepStrictEqual({
+			sameObject: ref1.object === ref2.object,
+			value: ref1.object.value,
+			verifiedValue: ref1.object.verifiedValue,
+			pending: mgr.getPendingSessionActions(),
+			subscribeCalls,
+			holders: mgr.getActiveSubscriptions()[0].holders,
+			changedTitles,
+		}, {
+			sameObject: true,
+			value: makeSessionState(sessionUri, { title: 'Newer envelope', workingDirectories: ['file:///new'] }),
+			verifiedValue: makeSessionState(sessionUri, { title: 'Newer envelope', workingDirectories: ['file:///new'] }),
+			pending: [],
+			subscribeCalls: 2,
+			holders: [{ owner: 'HolderA', count: 1 }, { owner: 'HolderB', count: 1 }],
+			changedTitles: ['Newer envelope', 'Newer envelope', 'Newer envelope'],
+		});
+
+		ref1.dispose();
+		ref2.dispose();
+	});
+
+	test('refreshSubscription failure preserves old state and drops buffered envelopes', async () => {
+		const refreshSnapshot = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		const logs: string[] = [];
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			if (subscribeCalls === 1) {
+				return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Snapshot A' }), fromSeq: 5 };
+			}
+			return refreshSnapshot.p;
+		}, message => logs.push(message));
+		const uri = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+		mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Pending title' });
+
+		const refresh = mgr.refreshSubscription(uri);
+		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'New-session envelope' }, 6));
+		refreshSnapshot.error(new Error('refresh failed'));
+		await refresh;
+
+		assert.deepStrictEqual({
+			value: ref.object.value,
+			verifiedValue: ref.object.verifiedValue,
+			pending: mgr.getPendingSessionActions().map(p => p.action),
+			logs,
+		}, {
+			value: makeSessionState(sessionUri, { title: 'Pending title' }),
+			verifiedValue: makeSessionState(sessionUri, { title: 'Snapshot A' }),
+			pending: [{ type: ActionType.SessionTitleChanged, title: 'Pending title' }],
+			logs: [`Failed to refresh subscription ${sessionUri}: refresh failed`],
+		});
+
+		ref.dispose();
+	});
+
+	test('refreshSubscription recovers an errored subscription', async () => {
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			if (subscribeCalls === 1) {
+				throw new Error('not created');
+			}
+			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Recovered' }), fromSeq: 1 };
+		});
+		const uri = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+		assert.ok(ref.object.value instanceof Error);
+
+		await mgr.refreshSubscription(uri);
+
+		assert.deepStrictEqual({
+			subscribeCalls,
+			value: ref.object.value,
+		}, {
+			subscribeCalls: 2,
+			value: makeSessionState(sessionUri, { title: 'Recovered' }),
+		});
+		ref.dispose();
+	});
+
+	test('refreshSubscription serializes refreshes for the same resource', async () => {
+		const firstRefresh = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		const secondRefresh = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			switch (subscribeCalls) {
+				case 1:
+					return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Initial' }), fromSeq: 0 };
+				case 2:
+					return firstRefresh.p;
+				default:
+					return secondRefresh.p;
+			}
+		});
+		const uri = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh1 = mgr.refreshSubscription(uri);
+		const refresh2 = mgr.refreshSubscription(uri);
+		assert.strictEqual(subscribeCalls, 2);
+
+		firstRefresh.complete({ resource: sessionUri, state: makeSessionState(sessionUri, { title: 'First refresh' }), fromSeq: 1 });
+		await refresh1;
+		await Promise.resolve();
+		assert.strictEqual(subscribeCalls, 3);
+
+		secondRefresh.complete({ resource: sessionUri, state: makeSessionState(sessionUri, { title: 'Second refresh' }), fromSeq: 2 });
+		await refresh2;
+
+		assert.strictEqual((ref.object.value as SessionState).title, 'Second refresh');
+		ref.dispose();
+	});
+
+	test('refreshSubscription does not mutate a replacement entry', async () => {
+		const oldRefresh = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			if (subscribeCalls === 1) {
+				return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Old entry' }), fromSeq: 0 };
+			}
+			if (subscribeCalls === 2) {
+				return oldRefresh.p;
+			}
+			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Replacement entry' }), fromSeq: 2 };
+		});
+		const uri = URI.parse(sessionUri);
+		const oldRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'old');
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(uri);
+		oldRef.dispose();
+		const replacementRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'replacement');
+		await new Promise(r => setTimeout(r, 0));
+		oldRefresh.complete({ resource: sessionUri, state: makeSessionState(sessionUri, { title: 'Stale refresh' }), fromSeq: 1 });
+		await refresh;
+
+		assert.deepStrictEqual({
+			subscribeCalls,
+			value: replacementRef.object.value,
+		}, {
+			subscribeCalls: 3,
+			value: makeSessionState(sessionUri, { title: 'Replacement entry' }),
+		});
+		replacementRef.dispose();
+	});
+
+	test('refreshSubscription only refreshes the requested resource', async () => {
+		let sessionSubscribeCalls = 0;
+		const chatState = makeChatState(chatUri, makeSessionSummary(sessionUri), { title: 'Chat state' });
+		const mgr = createManager(async resource => {
+			if (resource.toString() === sessionUri) {
+				sessionSubscribeCalls++;
+				return {
+					resource: sessionUri,
+					state: makeSessionState(sessionUri, { title: sessionSubscribeCalls === 1 ? 'Session A' : 'Session B' }),
+					fromSeq: sessionSubscribeCalls,
+				};
+			}
+			return { resource: chatUri, state: chatState, fromSeq: 1 };
+		});
+		const sessionRef = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'session');
+		const chatRef = mgr.getSubscription<ChatState>(StateComponents.Chat, URI.parse(chatUri), 'chat');
+		await new Promise(r => setTimeout(r, 0));
+		const originalChatObject = chatRef.object;
+
+		await mgr.refreshSubscription(URI.parse(sessionUri));
+
+		assert.deepStrictEqual({
+			sessionTitle: (sessionRef.object.value as SessionState).title,
+			chatObjectUnchanged: chatRef.object === originalChatObject,
+			chatValue: chatRef.object.value,
+		}, {
+			sessionTitle: 'Session B',
+			chatObjectUnchanged: true,
+			chatValue: chatState,
+		});
+		sessionRef.dispose();
+		chatRef.dispose();
 	});
 
 	test('getActiveSubscriptions reports kind, refCount, holders and status per active subscription', async () => {

@@ -102,6 +102,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected _confirmedState: T | undefined;
 	private _error: Error | undefined;
 	private _bufferedEnvelopes: ActionEnvelope[] | undefined;
+	private _isRefreshingSnapshot = false;
 
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
@@ -141,8 +142,27 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	handleSnapshot(state: T, fromSeq: number): void {
 		this._confirmedState = state;
 		this._error = undefined;
+		this._isRefreshingSnapshot = false;
 		this._onSnapshotApplied(fromSeq);
 		this._onDidChange.fire(this.value as T);
+	}
+
+	/**
+	 * Buffer incoming envelopes until a replacement snapshot is applied.
+	 */
+	beginSnapshotRefresh(): void {
+		this._isRefreshingSnapshot = true;
+		this._bufferedEnvelopes ??= [];
+	}
+
+	/**
+	 * Abandon a replacement snapshot and discard envelopes received during it.
+	 * They may belong to the replacement resource and cannot be safely reduced
+	 * onto the retained pre-refresh state.
+	 */
+	cancelSnapshotRefresh(): void {
+		this._isRefreshingSnapshot = false;
+		this._bufferedEnvelopes = undefined;
 	}
 
 	/**
@@ -164,7 +184,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 		// Buffer actions that arrive before the snapshot has been applied.
 		// They're replayed in _onSnapshotApplied().
-		if (this._confirmedState === undefined) {
+		if (this._confirmedState === undefined || this._isRefreshingSnapshot) {
 			if (!this._bufferedEnvelopes) {
 				this._bufferedEnvelopes = [];
 			}
@@ -777,7 +797,16 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 	}
 }
 
-type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
+type ManagedSubscriptionEntry = {
+	sub: ManagedSubscription;
+	kind: StateComponents;
+	refCount: number;
+	holders: Map<number, string>;
+	initialSubscribePromise?: Promise<void>;
+	initialSubscribeAfterCreate?: object;
+};
+
+type InflightSessionCreate = { promise: Promise<unknown>; subscribeGate: Promise<unknown>; marker: object };
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -795,7 +824,8 @@ type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponent
 export class AgentSubscriptionManager extends Disposable {
 
 	private readonly _subscriptions = new ResourceMap<ManagedSubscriptionEntry>();
-	private readonly _inflightCreates = new ResourceMap<Promise<unknown>>();
+	private readonly _inflightCreates = new ResourceMap<InflightSessionCreate[]>();
+	private readonly _subscriptionRefreshes = new ResourceMap<Promise<void>>();
 	private _referenceOwnerIds = 0;
 	private readonly _rootState: RootStateSubscription;
 	private readonly _clientId: string;
@@ -848,26 +878,105 @@ export class AgentSubscriptionManager extends Disposable {
 	 * this before deciding whether the sessions provider's eager-create raced first send).
 	 */
 	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
-		return this._inflightCreates.get(resource);
+		return this._getLatestInflightSessionCreate(resource)?.promise;
 	}
 
 	/**
-	 * Register an in-flight `createSession` Promise for a session URI. Any
-	 * subscribe issued for this resource while the create is pending waits
-	 * for the Promise before issuing the wire-level subscribe.
+	 * Register an in-flight `createSession` Promise for a session URI.
+	 * `subscribeGate` can settle before the public Promise's post-create work,
+	 * allowing an initial subscribe to proceed without depending on a refresh
+	 * that may itself be waiting for that subscribe.
 	 */
-	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
-		this._inflightCreates.set(resource, promise);
+	trackSessionCreate(resource: URI, promise: Promise<unknown>, subscribeGate: Promise<unknown> = promise, marker: object = subscribeGate): void {
+		const inflight = this._inflightCreates.get(resource) ?? [];
+		const entry = { promise, subscribeGate, marker };
+		inflight.push(entry);
+		this._inflightCreates.set(resource, inflight);
 		// This branch only observes settlement to evict the inflight entry; the
 		// `createSession` caller (and the server, via logService.error) owns the
 		// result. `finally` re-raises a rejection, so without this trailing
 		// `catch` an expected create failure (e.g. AHP_AUTH_REQUIRED) would be
 		// reported a second time as an unhandled rejection.
 		void promise.finally(() => {
-			if (this._inflightCreates.get(resource) === promise) {
+			const current = this._inflightCreates.get(resource);
+			const index = current?.indexOf(entry) ?? -1;
+			if (current && index !== -1) {
+				current.splice(index, 1);
+			}
+			if (current?.length === 0) {
 				this._inflightCreates.delete(resource);
 			}
 		}).catch(() => { });
+	}
+
+	private _getLatestInflightSessionCreate(resource: URI): InflightSessionCreate | undefined {
+		const inflight = this._inflightCreates.get(resource);
+		return inflight?.[inflight.length - 1];
+	}
+
+	/**
+	 * Refetch the snapshot for an existing managed non-root subscription.
+	 *
+	 * A pending subscription already gated by `triggeringCreate` is left to its
+	 * initial subscribe. An earlier pending subscribe is allowed to settle, then
+	 * refreshed so its result cannot predate the triggering create. Refreshes
+	 * for the same resource are serialized so each caller observes a snapshot
+	 * fetched after its triggering operation.
+	 */
+	refreshSubscription(resource: URI, triggeringCreate?: object): Promise<void> {
+		const previous = this._subscriptionRefreshes.get(resource);
+		const promise = (async () => {
+			if (previous) {
+				await previous;
+			}
+			await this._refreshSubscription(resource, triggeringCreate);
+		})();
+		this._subscriptionRefreshes.set(resource, promise);
+		void promise.then(
+			() => this._deleteSubscriptionRefresh(resource, promise),
+			() => this._deleteSubscriptionRefresh(resource, promise),
+		);
+		return promise;
+	}
+
+	private async _refreshSubscription(resource: URI, triggeringCreate?: object): Promise<void> {
+		const entry = this._subscriptions.get(resource);
+		if (!entry) {
+			return;
+		}
+
+		if (entry.sub.value === undefined) {
+			if (triggeringCreate && entry.initialSubscribeAfterCreate === triggeringCreate) {
+				return;
+			}
+			await entry.initialSubscribePromise;
+			if (this._subscriptions.get(resource) !== entry) {
+				return;
+			}
+		}
+
+		entry.sub.beginSnapshotRefresh();
+		let snapshot: IStateSnapshot;
+		try {
+			snapshot = await this._subscribe(resource);
+		} catch (error) {
+			if (this._subscriptions.get(resource) === entry) {
+				entry.sub.cancelSnapshotRefresh();
+				const message = error instanceof Error ? error.message : String(error);
+				this._log(`Failed to refresh subscription ${resource.toString()}: ${message}`);
+			}
+			return;
+		}
+
+		if (this._subscriptions.get(resource) === entry) {
+			this._replaceSubscriptionSnapshot(entry, snapshot.state, snapshot.fromSeq);
+		}
+	}
+
+	private _deleteSubscriptionRefresh(resource: URI, promise: Promise<void>): void {
+		if (this._subscriptionRefreshes.get(resource) === promise) {
+			this._subscriptionRefreshes.delete(resource);
+		}
 	}
 
 	/**
@@ -903,11 +1012,12 @@ export class AgentSubscriptionManager extends Disposable {
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
-		void (async () => {
-			const inflight = this._inflightCreates.get(resource);
+		const inflight = this._getLatestInflightSessionCreate(resource);
+		entry.initialSubscribeAfterCreate = inflight?.marker;
+		entry.initialSubscribePromise = (async () => {
 			if (inflight) {
 				try {
-					await inflight;
+					await inflight.subscribeGate;
 				} catch {
 					// Swallow — fall through to subscribe so the error
 					// surfaces consistently via setError() on the
@@ -1097,6 +1207,10 @@ export class AgentSubscriptionManager extends Disposable {
 		if (!entry) {
 			return;
 		}
+		this._replaceSubscriptionSnapshot(entry, state, fromSeq);
+	}
+
+	private _replaceSubscriptionSnapshot(entry: ManagedSubscriptionEntry, state: unknown, fromSeq: number): void {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
@@ -1163,6 +1277,7 @@ export class AgentSubscriptionManager extends Disposable {
 			entry.sub.dispose();
 		}
 		this._subscriptions.clear();
+		this._subscriptionRefreshes.clear();
 		super.dispose();
 	}
 }
