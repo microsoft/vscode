@@ -228,6 +228,27 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
 
+	/**
+	 * Session/property-scoped value→label cache for `enumDynamic`
+	 * properties (e.g. branch), populated whenever `_getItems` fetches
+	 * completions. `enumDynamic` completions are transient protocol
+	 * data — only `value` is persisted via `setSessionConfigValue`/
+	 * `resolveSessionConfig` — so this is the only place a completion's
+	 * `label` for a previously-picked value can be recovered once the
+	 * dropdown/sheet closes. Static `enum` properties don't need this:
+	 * their label is always derivable from `schema.enum`/`enumLabels`.
+	 *
+	 * Keyed by session so entries don't leak across sessions: this picker
+	 * is only ever created for the new-session composer (`Menus.NewSession-
+	 * RepositoryConfig`), and that composer's `_session` tracks the
+	 * globally active session — so the *same* picker instance can observe
+	 * a sequence of different (not-yet-created) draft sessions as the user
+	 * switches between them. `_renderConfigPickers` evicts entries for any
+	 * session other than the current one on every render, so the map never
+	 * grows beyond the properties of the currently active session.
+	 */
+	private readonly _dynamicValueLabels = new Map<string, Map<string, string>>();
+
 	constructor(
 		protected readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService protected readonly _actionWidgetService: IActionWidgetService,
@@ -289,6 +310,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		dom.clearNode(this._container);
 
 		const session = this._session.get();
+		this._evictDynamicValueLabelsForOtherSessions(session?.sessionId);
 		const provider = session ? this._getProvider(session.providerId) : undefined;
 		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
@@ -377,7 +399,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				slot.classList.add('disabled');
 				trigger.setAttribute('aria-disabled', 'true');
 			}
-			this._renderTrigger(trigger, property, schema, value, isReadOnly);
+			this._renderTrigger(trigger, session.sessionId, property, schema, value, isReadOnly);
 		}
 	}
 
@@ -436,7 +458,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		return !!schema.readOnly;
 	}
 
-	protected _renderTrigger(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
+	protected _renderTrigger(trigger: HTMLElement, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(property, value);
@@ -444,7 +466,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			dom.append(trigger, renderIcon(icon));
 		}
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		const label = this._getLabel(schema, value);
+		const label = this._getLabel(sessionId, property, schema, value);
 		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
@@ -497,8 +519,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				name: `NewChatAgentHostSessionConfigPicker.${SessionConfigKey.Isolation}`,
 				optionIdBefore: typeof before === 'string' ? before : undefined,
 				optionIdAfter: nextValue,
-				optionLabelBefore: typeof before === 'string' ? this._getLabel(schema, before) : undefined,
-				optionLabelAfter: this._getLabel(schema, nextValue),
+				optionLabelBefore: typeof before === 'string' ? this._getLabel(sessionId, SessionConfigKey.Isolation, schema, before) : undefined,
+				optionLabelAfter: this._getLabel(sessionId, SessionConfigKey.Isolation, schema, nextValue),
 				isPII: false,
 			});
 			provider.setSessionConfigValue(sessionId, SessionConfigKey.Isolation, nextValue).catch(() => { /* best-effort */ });
@@ -604,9 +626,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
 		if (dynamicItems?.length) {
-			return dynamicItems.map(item => this._fromCompletionItem(item));
+			const items = dynamicItems.map(item => this._fromCompletionItem(item));
+			this._cacheDynamicValueLabels(sessionId, property, items);
+			return items;
 		}
 
+		// Static enum: schema.enum/enumLabels already carry a reliable
+		// label mapping, so there's no need to cache these separately.
 		return (schema.enum ?? []).map((value, index) => ({
 			value: String(value),
 			label: schema.enumLabels?.[index] ?? String(value),
@@ -622,13 +648,60 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		};
 	}
 
-	private _getLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+	private _dynamicValueLabelsKey(sessionId: string, property: string): string {
+		return `${sessionId}\0${property}`;
+	}
+
+	private _cacheDynamicValueLabels(sessionId: string, property: string, items: readonly IConfigPickerItem[]): void {
+		const key = this._dynamicValueLabelsKey(sessionId, property);
+		let labels = this._dynamicValueLabels.get(key);
+		if (!labels) {
+			labels = new Map();
+			this._dynamicValueLabels.set(key, labels);
+		}
+
+		for (const item of items) {
+			labels.set(item.value, item.label);
+		}
+	}
+
+	/**
+	 * Drops cached labels for any session other than `sessionId`. Called on
+	 * every render so the cache tracks whichever session the picker is
+	 * currently bound to, instead of accumulating entries for every draft
+	 * session this (potentially long-lived) picker instance has ever shown.
+	 */
+	private _evictDynamicValueLabelsForOtherSessions(sessionId: string | undefined): void {
+		if (!sessionId) {
+			return;
+		}
+
+		const prefix = `${sessionId}\0`;
+		for (const key of this._dynamicValueLabels.keys()) {
+			if (!key.startsWith(prefix)) {
+				this._dynamicValueLabels.delete(key);
+			}
+		}
+	}
+
+	private _getLabel(sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (schema.type === 'boolean') {
 			return value === true
 				? localize('agentHostSessionConfig.boolean.onLabel', "On")
 				: localize('agentHostSessionConfig.boolean.offLabel', "Off");
 		}
 		if (typeof value === 'string') {
+			if (schema.enumDynamic) {
+				// Look up the dynamic value label. If we are unable
+				// to lookup the dynamic value label, we fall back to
+				// the value itself.
+				const key = this._dynamicValueLabelsKey(sessionId, property);
+				const dynamicLabel = this._dynamicValueLabels.get(key)?.get(value);
+				if (dynamicLabel) {
+					return dynamicLabel;
+				}
+			}
+
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
 		}
