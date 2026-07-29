@@ -482,6 +482,11 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		// Capture hold mode before awaiting so the dispatching command is still available.
+		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.pushToTalk');
+
 		// Auto-connect on first PTT press
 		if (!voiceController.isConnected.get() && !voiceController.isConnecting.get()) {
 			await voiceController.connect(mainWindow);
@@ -489,7 +494,20 @@ registerAction2(class extends Action2 {
 		if (!voiceController.isConnected.get()) {
 			return;
 		}
+
 		voiceController.pttDown();
+
+		if (!holdMode) {
+			// Not invoked via a held keybinding: emulate a tap so the controller
+			// enters toggle mode and keeps listening. Pressing again stops.
+			voiceController.pttUp();
+			return;
+		}
+
+		// The shortcut is being held: wait for release, then finish the turn.
+		// The controller decides tap-vs-hold based on how long it was held.
+		await holdMode;
+		voiceController.pttUp();
 	}
 });
 
