@@ -134,6 +134,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
+			this.openedEditors.closeOpenedEditors();
 			if (!isTouchClick) {
 				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 			}
@@ -163,6 +164,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		if (message) {
 			const renderedMessage = this._register(this.markdownRendererService.render(typeof message === 'string' ? new MarkdownString(message) : message));
 			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store, {
+				...this.openedEditors.fileWidgetOptions,
 				openResource: (resource, editorOptions) => this.openModifiedFilePreview(data, resource, editorOptions),
 			});
 			container.append(renderedMessage.element);
