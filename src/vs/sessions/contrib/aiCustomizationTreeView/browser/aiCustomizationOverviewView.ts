@@ -22,19 +22,26 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementSection, AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 const $ = DOM.$;
 
 export const AI_CUSTOMIZATION_OVERVIEW_VIEW_ID = 'workbench.view.aiCustomizationOverview';
+
+function isWelcomePageEditor(editor: unknown): editor is { showWelcomePage(): void } {
+	return typeof (editor as { showWelcomePage?: unknown })?.showWelcomePage === 'function';
+}
 
 interface ISectionSummary {
 	readonly id: AICustomizationManagementSection;
@@ -54,6 +61,7 @@ export class AICustomizationOverviewView extends ViewPane {
 	private sectionsContainer!: HTMLElement;
 	private readonly sections: ISectionSummary[] = [];
 	private readonly countElements = new Map<AICustomizationManagementSection, HTMLElement>();
+	private readonly sectionElements = new Map<AICustomizationManagementSection, HTMLElement>();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -72,6 +80,9 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAutomationService private readonly automationService: IAutomationService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -80,10 +91,44 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Agents, label: localize('agents', "Agents"), icon: agentIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Skills, label: localize('skills', "Skills"), icon: skillIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Instructions, label: localize('instructions', "Instructions"), icon: instructionsIcon, count: 0 },
-			{ id: AICustomizationManagementSection.Prompts, label: localize('prompts', "Prompts"), icon: promptIcon, count: 0 },
+		);
+		// Only show the tile when the setting is on (mirrors the management editor gate).
+		if (this._isAutomationsEnabled()) {
+			this.sections.push({ id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 });
+		}
+		this.sections.push(
 			{ id: AICustomizationManagementSection.McpServers, label: localize('mcpServers', "MCP Servers"), icon: mcpServerIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Plugins, label: localize('plugins', "Plugins"), icon: pluginIcon, count: 0 },
+			{ id: AICustomizationManagementSection.Tools, label: localize('tools', "Tools"), icon: toolsIcon, count: 0 },
 		);
+
+		// Re-render when the user toggles `chat.automations.enabled`,
+		// so the tile appears/disappears live without a reload.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)) {
+				return;
+			}
+			const present = this.sections.some(s => s.id === AICustomizationManagementSection.Automations);
+			const desired = this._isAutomationsEnabled();
+			if (present === desired) {
+				return;
+			}
+			if (desired) {
+				// Insert before McpServers to preserve the original order.
+				const mcpIdx = this.sections.findIndex(s => s.id === AICustomizationManagementSection.McpServers);
+				const insertAt = mcpIdx === -1 ? this.sections.length : mcpIdx;
+				this.sections.splice(insertAt, 0, { id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 });
+			} else {
+				const idx = this.sections.findIndex(s => s.id === AICustomizationManagementSection.Automations);
+				if (idx !== -1) {
+					this.sections.splice(idx, 1);
+				}
+			}
+			if (this.sectionsContainer) {
+				this.renderSections();
+				void this.loadCounts();
+			}
+		}));
 
 		// Listen to changes
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.loadCounts()));
@@ -115,12 +160,14 @@ export class AICustomizationOverviewView extends ViewPane {
 	private renderSections(): void {
 		DOM.clearNode(this.sectionsContainer);
 		this.countElements.clear();
+		this.sectionElements.clear();
 
 		for (const section of this.sections) {
 			const sectionElement = DOM.append(this.sectionsContainer, $('.overview-section'));
 			sectionElement.tabIndex = 0;
 			sectionElement.setAttribute('role', 'button');
-			sectionElement.setAttribute('aria-label', `${section.label}: ${section.count} items`);
+			sectionElement.setAttribute('aria-label', this.getSectionAriaLabel(section));
+			this.sectionElements.set(section.id, sectionElement);
 
 			const iconElement = DOM.append(sectionElement, $('.section-icon'));
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(section.icon));
@@ -133,22 +180,22 @@ export class AICustomizationOverviewView extends ViewPane {
 			countElement.textContent = `${section.count}`;
 			this.countElements.set(section.id, countElement);
 
-			// Click handler to open management editor at section
+			// Click handler to open the management editor overview
 			this._register(DOM.addDisposableListener(sectionElement, 'click', () => {
-				this.openSection(section.id);
+				this.openOverview();
 			}));
 
 			// Keyboard support
 			this._register(DOM.addDisposableListener(sectionElement, 'keydown', (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
-					this.openSection(section.id);
+					this.openOverview();
 				}
 			}));
 
 			// Hover tooltip
 			this._register(this.hoverService.setupDelayedHoverAtMouse(sectionElement, () => ({
-				content: localize('openSection', "Open {0} in Chat Customizations editor", section.label),
+				content: localize('openOverview', "Open Chat Customizations editor"),
 				appearance: { compact: true, skipFadeInAnimation: true }
 			})));
 		}
@@ -159,7 +206,6 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ section: AICustomizationManagementSection.Agents, type: PromptsType.agent },
 			{ section: AICustomizationManagementSection.Skills, type: PromptsType.skill },
 			{ section: AICustomizationManagementSection.Instructions, type: PromptsType.instructions },
-			{ section: AICustomizationManagementSection.Prompts, type: PromptsType.prompt },
 		];
 
 		await Promise.all(sectionPromptTypes.map(async ({ section, type }) => {
@@ -211,7 +257,36 @@ export class AICustomizationOverviewView extends ViewPane {
 			}));
 		}
 
+		// Update tools count reactively
+		const toolsSection = this.sections.find(s => s.id === AICustomizationManagementSection.Tools);
+		if (toolsSection) {
+			this._register(autorun(reader => {
+				const state = this.toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
+				const toolSets = this.languageModelToolsService.toolSets.read(reader);
+				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader);
+				this.updateCountElements();
+			}));
+		}
+
+		// Update automation count reactively (no-ops when tile is hidden).
+		this._register(autorun(reader => {
+			const automations = this.automationService.automations.read(reader);
+			const automationSection = this.sections.find(s => s.id === AICustomizationManagementSection.Automations);
+			if (automationSection) {
+				automationSection.count = automations.length;
+				this.updateCountElements();
+			}
+		}));
+
 		this.updateCountElements();
+	}
+
+	private _isAutomationsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	}
+
+	private getSectionAriaLabel(section: ISectionSummary): string {
+		return localize('overviewSectionAriaLabelWithCount', "{0}, {1} items", section.label, section.count);
 	}
 
 	private updateCountElements(): void {
@@ -220,16 +295,21 @@ export class AICustomizationOverviewView extends ViewPane {
 			if (countElement) {
 				countElement.textContent = `${section.count}`;
 			}
+			const sectionElement = this.sectionElements.get(section.id);
+			if (sectionElement) {
+				sectionElement.setAttribute('aria-label', this.getSectionAriaLabel(section));
+			}
 		}
 	}
 
-	private async openSection(sectionId: AICustomizationManagementSection): Promise<void> {
+	private async openOverview(): Promise<void> {
 		const input = AICustomizationManagementEditorInput.getOrCreate();
 		const editor = await this.editorService.openEditor(input, { pinned: true });
 
-		// Deep-link to the section
-		if (editor instanceof AICustomizationManagementEditor) {
-			editor.selectSectionById(sectionId);
+		// Always reset to the welcome page when opening from the sidebar,
+		// so we don't restore the previously selected section.
+		if (editor?.getId() === AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID && isWelcomePageEditor(editor)) {
+			editor.showWelcomePage();
 		}
 	}
 

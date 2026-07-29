@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
-import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 
 export class InlineEditLogger extends Disposable {

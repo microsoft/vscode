@@ -8,53 +8,54 @@ import { Position } from '../../../util/vs/editor/common/core/position';
 import { PositionOffsetTransformer } from '../../../util/vs/editor/common/core/text/positionToOffset';
 
 /**
- * Resolves the current content of the cursor line after applying an intermediate
+ * Resolves the current content of a line after applying an intermediate
  * user edit to the original document.
  *
- * The cursor line's 0-based index in the original document may no longer be
- * valid after the user inserts or deletes lines above the cursor. This function
- * maps the cursor line's character offset through the edit to find the correct
+ * The line's 0-based index in the original document may no longer be
+ * valid after the user inserts or deletes lines above it. This function
+ * maps the line's character offset through the edit to find the correct
  * line in the resulting document.
  *
  * @param originalDoc A transformer for the original document text (reused to
  *                    avoid recomputing line offsets).
- * @param cursorDocLineIdx 0-based line index in the original document.
- * @returns The line content, or `undefined` if the cursor line index is out of
+ * @param docLineIdx 0-based line index in the original document.
+ * @returns The line content, or `undefined` if the line index is out of
  *          bounds or the original position falls inside a replacement range
  *          (making the mapping ambiguous).
  */
-export function getCurrentCursorLine(
+export function getCurrentLine(
 	originalDoc: PositionOffsetTransformer,
-	cursorDocLineIdx: number,
+	docLineIdx: number,
 	intermediateEdit: StringEdit,
+	precomputed?: { currentDoc: string; currentTransformer: PositionOffsetTransformer },
 ): string | undefined {
-	const lineNumber = cursorDocLineIdx + 1; // 1-based
+	const lineNumber = docLineIdx + 1; // 1-based
 	const lineCount = originalDoc.textLength.lineCount + 1;
 
 	if (lineNumber < 1 || lineNumber > lineCount) {
 		return undefined;
 	}
 
-	const cursorLineStartOffset = originalDoc.getOffset(new Position(lineNumber, 1));
+	const lineStartOffset = originalDoc.getOffset(new Position(lineNumber, 1));
 
 	// Walk through the edit's replacements (sorted, non-overlapping) and
 	// accumulate the character-offset delta for replacements entirely before
-	// the cursor line start.
+	// the line start.
 	let delta = 0;
 	for (const replacement of intermediateEdit.replacements) {
-		if (replacement.replaceRange.endExclusive <= cursorLineStartOffset) {
+		if (replacement.replaceRange.endExclusive <= lineStartOffset) {
 			delta += replacement.newText.length - replacement.replaceRange.length;
-		} else if (replacement.replaceRange.start < cursorLineStartOffset) {
-			// The cursor line start falls inside a replacement — ambiguous.
+		} else if (replacement.replaceRange.start < lineStartOffset) {
+			// The line start falls inside a replacement — ambiguous.
 			return undefined;
 		} else {
 			break;
 		}
 	}
 
-	const mappedOffset = cursorLineStartOffset + delta;
-	const currentDoc = intermediateEdit.apply(originalDoc.text);
-	const currentTransformer = new PositionOffsetTransformer(currentDoc);
+	const mappedOffset = lineStartOffset + delta;
+	const currentDoc = precomputed?.currentDoc ?? intermediateEdit.apply(originalDoc.text);
+	const currentTransformer = precomputed?.currentTransformer ?? new PositionOffsetTransformer(currentDoc);
 
 	// Map the offset back to a position in the current document, then extract
 	// the full line content.
@@ -102,7 +103,7 @@ function diffLine(before: string, after: string): LineDiff {
 }
 
 /**
- * Checks whether the model's cursor line output is compatible with what the user
+ * Checks whether the model's line output is compatible with what the user
  * has typed since the request started.
  *
  * Algorithm:
@@ -121,9 +122,9 @@ function diffLine(before: string, after: string): LineDiff {
  *   → user typed "x", model inserted "bonacci(n): number"
  *   → model text does not start with "x" → incompatible ✗
  */
-export function isModelCursorLineCompatible(originalCursorLine: string, currentCursorLine: string, modelCursorLine: string): boolean {
-	const userEdit = diffLine(originalCursorLine, currentCursorLine);
-	const modelEdit = diffLine(originalCursorLine, modelCursorLine);
+export function isModelLineCompatible(originalLine: string, currentLine: string, modelLine: string): boolean {
+	const userEdit = diffLine(originalLine, currentLine);
+	const modelEdit = diffLine(originalLine, modelLine);
 
 	// No actual user change — trivially compatible.
 	if (userEdit.replaced.length === 0 && userEdit.inserted.length === 0) {
@@ -132,7 +133,7 @@ export function isModelCursorLineCompatible(originalCursorLine: string, currentC
 
 	// The user's edit range must fall within the model's edit range.
 	// If the user edited a region the model didn't touch, we can't determine
-	// compatibility from the cursor line alone.
+	// compatibility from the line alone.
 	const userEditWithinModelEdit = userEdit.startOffset >= modelEdit.startOffset
 		&& userEdit.endOffset <= modelEdit.endOffset;
 
@@ -140,7 +141,7 @@ export function isModelCursorLineCompatible(originalCursorLine: string, currentC
 		return false;
 	}
 
-	return isUserEditCompatibleWithModelEdit(userEdit, modelEdit, currentCursorLine, modelCursorLine);
+	return isUserEditCompatibleWithModelEdit(userEdit, modelEdit, currentLine, modelLine);
 }
 
 const AUTO_CLOSE_PAIRS = new Set(['()', '[]', '{}', '<>', '""', `''`, '``']);
@@ -156,9 +157,9 @@ const AUTO_CLOSE_PAIRS = new Set(['()', '[]', '{}', '<>', '""', `''`, '``']);
  * already matches the model, or when the model is editing the exact same range
  * and replacing the exact same original text with a compatible continuation.
  */
-function isUserEditCompatibleWithModelEdit(userEdit: LineDiff, modelEdit: LineDiff, currentCursorLine: string, modelCursorLine: string): boolean {
+function isUserEditCompatibleWithModelEdit(userEdit: LineDiff, modelEdit: LineDiff, currentLine: string, modelLine: string): boolean {
 	if (userEdit.replaced.length > 0) {
-		if (currentCursorLine === modelCursorLine) {
+		if (currentLine === modelLine) {
 			return true;
 		}
 

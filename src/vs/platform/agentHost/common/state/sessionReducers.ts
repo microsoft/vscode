@@ -7,23 +7,16 @@
 // The actual reducer logic lives in the auto-generated protocol layer.
 
 // Re-export reducers from the protocol layer
-export { rootReducer, sessionReducer, softAssertNever, isClientDispatchable } from './protocol/reducers.js';
+export { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, softAssertNever, isClientDispatchable } from './protocol/reducers.js';
 
-import type { ICompletedToolCall, IToolCallState } from './sessionState.js';
+import { readToolCallMeta, type ToolKind } from '../meta/agentToolCallMeta.js';
+import type { ICompletedToolCall, ToolCallState } from './sessionState.js';
 
 /**
  * Extracts the VS Code-specific `toolKind` hint from a tool call's `_meta`
  * bag. This is not part of the protocol and is injected by the agent adapter
  * (e.g. `copilotEventMapper`).
  */
-export function getToolKind(tc: IToolCallState | ICompletedToolCall): 'terminal' | 'subagent' | undefined {
-	return tc._meta?.toolKind as 'terminal' | 'subagent' | undefined;
-}
-
-/**
- * Extracts the VS Code-specific `language` hint from a tool call's `_meta`
- * bag. Used for syntax-highlighting terminal tool output.
- */
-export function getToolLanguage(tc: IToolCallState | ICompletedToolCall): string | undefined {
-	return tc._meta?.language as string | undefined;
+export function getToolKind(tc: ToolCallState | ICompletedToolCall): ToolKind | undefined {
+	return readToolCallMeta(tc).toolKind;
 }

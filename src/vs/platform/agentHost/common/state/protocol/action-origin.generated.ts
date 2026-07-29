@@ -9,170 +9,347 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type IStateAction, type IRootAgentsChangedAction, type IRootActiveSessionsChangedAction, type IRootTerminalsChangedAction, type ISessionReadyAction, type ISessionCreationFailedAction, type ISessionTurnStartedAction, type ISessionDeltaAction, type ISessionResponsePartAction, type ISessionToolCallStartAction, type ISessionToolCallDeltaAction, type ISessionToolCallReadyAction, type ISessionToolCallConfirmedAction, type ISessionToolCallCompleteAction, type ISessionToolCallResultConfirmedAction, type ISessionToolCallContentChangedAction, type ISessionTurnCompleteAction, type ISessionTurnCancelledAction, type ISessionErrorAction, type ISessionTitleChangedAction, type ISessionUsageAction, type ISessionReasoningAction, type ISessionModelChangedAction, type ISessionServerToolsChangedAction, type ISessionActiveClientChangedAction, type ISessionActiveClientToolsChangedAction, type ISessionPendingMessageSetAction, type ISessionPendingMessageRemovedAction, type ISessionQueuedMessagesReorderedAction, type ISessionInputRequestedAction, type ISessionInputAnswerChangedAction, type ISessionInputCompletedAction, type ISessionCustomizationsChangedAction, type ISessionCustomizationToggledAction, type ISessionTruncatedAction, type ISessionIsReadChangedAction, type ISessionIsDoneChangedAction, type ISessionDiffsChangedAction, type ITerminalDataAction, type ITerminalInputAction, type ITerminalResizedAction, type ITerminalClaimedAction, type ITerminalTitleChangedAction, type ITerminalCwdChangedAction, type ITerminalExitedAction, type ITerminalClearedAction } from './actions.js';
+import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionChatAddedAction, type SessionChatRemovedAction, type SessionChatUpdatedAction, type SessionDefaultChatChangedAction, type SessionTitleChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionWorkingDirectorySetAction, type SessionWorkingDirectoryRemovedAction, type SessionInputNeededSetAction, type SessionInputNeededRemovedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionCustomizationRemovedAction, type SessionMcpServerStateChangedAction, type SessionMcpServerStartRequestedAction, type SessionMcpServerStopRequestedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChatTurnStartedAction, type ChatDeltaAction, type ChatResponsePartAction, type ChatToolCallStartAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallConfirmedAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallContentChangedAction, type ChatToolCallAuthRequiredAction, type ChatToolCallAuthResolvedAction, type ChatTurnCompleteAction, type ChatTurnCancelledAction, type ChatErrorAction, type ChatActivityChangedAction, type ChatWorkingDirectorySetAction, type ChatWorkingDirectoryRemovedAction, type ChatUsageAction, type ChatReasoningAction, type ChatPendingMessageSetAction, type ChatPendingMessageRemovedAction, type ChatQueuedMessagesReorderedAction, type ChatDraftChangedAction, type ChatInputRequestedAction, type ChatInputAnswerChangedAction, type ChatInputCompletedAction, type ChatTruncatedAction, type ChatTurnsLoadedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetFilesReviewChangedAction, type ChangesetContentChangedAction, type ChangesetOperationsChangedAction, type ChangesetOperationStatusChangedAction, type ChangesetClearedAction, type AnnotationsSetAction, type AnnotationsUpdatedAction, type AnnotationsRemovedAction, type AnnotationsEntrySetAction, type AnnotationsEntryRemovedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction, type ResourceWatchChangedAction } from './actions.js';
 
 
-// ─── Root vs Session vs Terminal Action Unions ───────────────────────────────
+// ─── Root vs Session vs Chat vs Terminal vs Changeset Action Unions ─────────────────
 
 /** Union of all root-scoped actions. */
-export type IRootAction =
-	| IRootAgentsChangedAction
-	| IRootActiveSessionsChangedAction
-	| IRootTerminalsChangedAction
+export type RootAction =
+	| RootAgentsChangedAction
+	| RootActiveSessionsChangedAction
+	| RootTerminalsChangedAction
+	| RootConfigChangedAction
+	;
+
+/** Union of root actions that clients may dispatch. */
+export type ClientRootAction =
+	| RootConfigChangedAction
+	;
+
+/** Union of root actions that only the server may produce. */
+export type ServerRootAction =
+	| RootAgentsChangedAction
+	| RootActiveSessionsChangedAction
+	| RootTerminalsChangedAction
 	;
 
 /** Union of all session-scoped actions. */
-export type ISessionAction =
-	| ISessionReadyAction
-	| ISessionCreationFailedAction
-	| ISessionTurnStartedAction
-	| ISessionDeltaAction
-	| ISessionResponsePartAction
-	| ISessionToolCallStartAction
-	| ISessionToolCallDeltaAction
-	| ISessionToolCallReadyAction
-	| ISessionToolCallConfirmedAction
-	| ISessionToolCallCompleteAction
-	| ISessionToolCallResultConfirmedAction
-	| ISessionToolCallContentChangedAction
-	| ISessionTurnCompleteAction
-	| ISessionTurnCancelledAction
-	| ISessionErrorAction
-	| ISessionTitleChangedAction
-	| ISessionUsageAction
-	| ISessionReasoningAction
-	| ISessionModelChangedAction
-	| ISessionServerToolsChangedAction
-	| ISessionActiveClientChangedAction
-	| ISessionActiveClientToolsChangedAction
-	| ISessionPendingMessageSetAction
-	| ISessionPendingMessageRemovedAction
-	| ISessionQueuedMessagesReorderedAction
-	| ISessionInputRequestedAction
-	| ISessionInputAnswerChangedAction
-	| ISessionInputCompletedAction
-	| ISessionCustomizationsChangedAction
-	| ISessionCustomizationToggledAction
-	| ISessionTruncatedAction
-	| ISessionIsReadChangedAction
-	| ISessionIsDoneChangedAction
-	| ISessionDiffsChangedAction
+export type SessionAction =
+	| SessionReadyAction
+	| SessionCreationFailedAction
+	| SessionChatAddedAction
+	| SessionChatRemovedAction
+	| SessionChatUpdatedAction
+	| SessionDefaultChatChangedAction
+	| SessionTitleChangedAction
+	| SessionServerToolsChangedAction
+	| SessionActiveClientSetAction
+	| SessionActiveClientRemovedAction
+	| SessionWorkingDirectorySetAction
+	| SessionWorkingDirectoryRemovedAction
+	| SessionInputNeededSetAction
+	| SessionInputNeededRemovedAction
+	| SessionCustomizationsChangedAction
+	| SessionCustomizationToggledAction
+	| SessionCustomizationUpdatedAction
+	| SessionCustomizationRemovedAction
+	| SessionMcpServerStateChangedAction
+	| SessionMcpServerStartRequestedAction
+	| SessionMcpServerStopRequestedAction
+	| SessionIsReadChangedAction
+	| SessionIsArchivedChangedAction
+	| SessionActivityChangedAction
+	| SessionChangesetsChangedAction
+	| SessionConfigChangedAction
+	| SessionMetaChangedAction
 	;
 
 /** Union of session actions that clients may dispatch. */
-export type IClientSessionAction =
-	| ISessionTurnStartedAction
-	| ISessionToolCallConfirmedAction
-	| ISessionToolCallCompleteAction
-	| ISessionToolCallResultConfirmedAction
-	| ISessionTurnCancelledAction
-	| ISessionTitleChangedAction
-	| ISessionModelChangedAction
-	| ISessionActiveClientChangedAction
-	| ISessionActiveClientToolsChangedAction
-	| ISessionPendingMessageSetAction
-	| ISessionPendingMessageRemovedAction
-	| ISessionQueuedMessagesReorderedAction
-	| ISessionInputAnswerChangedAction
-	| ISessionInputCompletedAction
-	| ISessionCustomizationToggledAction
-	| ISessionTruncatedAction
-	| ISessionIsReadChangedAction
-	| ISessionIsDoneChangedAction
+export type ClientSessionAction =
+	| SessionTitleChangedAction
+	| SessionActiveClientSetAction
+	| SessionActiveClientRemovedAction
+	| SessionWorkingDirectorySetAction
+	| SessionWorkingDirectoryRemovedAction
+	| SessionCustomizationToggledAction
+	| SessionMcpServerStartRequestedAction
+	| SessionMcpServerStopRequestedAction
+	| SessionIsReadChangedAction
+	| SessionIsArchivedChangedAction
+	| SessionConfigChangedAction
 	;
 
 /** Union of session actions that only the server may produce. */
-export type IServerSessionAction =
-	| ISessionReadyAction
-	| ISessionCreationFailedAction
-	| ISessionDeltaAction
-	| ISessionResponsePartAction
-	| ISessionToolCallStartAction
-	| ISessionToolCallDeltaAction
-	| ISessionToolCallReadyAction
-	| ISessionToolCallContentChangedAction
-	| ISessionTurnCompleteAction
-	| ISessionErrorAction
-	| ISessionUsageAction
-	| ISessionReasoningAction
-	| ISessionServerToolsChangedAction
-	| ISessionInputRequestedAction
-	| ISessionCustomizationsChangedAction
-	| ISessionDiffsChangedAction
+export type ServerSessionAction =
+	| SessionReadyAction
+	| SessionCreationFailedAction
+	| SessionChatAddedAction
+	| SessionChatRemovedAction
+	| SessionChatUpdatedAction
+	| SessionDefaultChatChangedAction
+	| SessionServerToolsChangedAction
+	| SessionInputNeededSetAction
+	| SessionInputNeededRemovedAction
+	| SessionCustomizationsChangedAction
+	| SessionCustomizationUpdatedAction
+	| SessionCustomizationRemovedAction
+	| SessionMcpServerStateChangedAction
+	| SessionActivityChangedAction
+	| SessionChangesetsChangedAction
+	| SessionMetaChangedAction
+	;
+
+/** Union of all chat-scoped actions. */
+export type ChatAction =
+	| ChatTurnStartedAction
+	| ChatDeltaAction
+	| ChatResponsePartAction
+	| ChatToolCallStartAction
+	| ChatToolCallDeltaAction
+	| ChatToolCallReadyAction
+	| ChatToolCallConfirmedAction
+	| ChatToolCallCompleteAction
+	| ChatToolCallResultConfirmedAction
+	| ChatToolCallContentChangedAction
+	| ChatToolCallAuthRequiredAction
+	| ChatToolCallAuthResolvedAction
+	| ChatTurnCompleteAction
+	| ChatTurnCancelledAction
+	| ChatErrorAction
+	| ChatActivityChangedAction
+	| ChatWorkingDirectorySetAction
+	| ChatWorkingDirectoryRemovedAction
+	| ChatUsageAction
+	| ChatReasoningAction
+	| ChatPendingMessageSetAction
+	| ChatPendingMessageRemovedAction
+	| ChatQueuedMessagesReorderedAction
+	| ChatDraftChangedAction
+	| ChatInputRequestedAction
+	| ChatInputAnswerChangedAction
+	| ChatInputCompletedAction
+	| ChatTruncatedAction
+	| ChatTurnsLoadedAction
+	;
+
+/** Union of chat actions that clients may dispatch. */
+export type ClientChatAction =
+	| ChatTurnStartedAction
+	| ChatToolCallConfirmedAction
+	| ChatToolCallCompleteAction
+	| ChatToolCallResultConfirmedAction
+	| ChatToolCallContentChangedAction
+	| ChatTurnCancelledAction
+	| ChatWorkingDirectorySetAction
+	| ChatWorkingDirectoryRemovedAction
+	| ChatPendingMessageSetAction
+	| ChatPendingMessageRemovedAction
+	| ChatQueuedMessagesReorderedAction
+	| ChatDraftChangedAction
+	| ChatInputAnswerChangedAction
+	| ChatInputCompletedAction
+	| ChatTruncatedAction
+	;
+
+/** Union of chat actions that only the server may produce. */
+export type ServerChatAction =
+	| ChatDeltaAction
+	| ChatResponsePartAction
+	| ChatToolCallStartAction
+	| ChatToolCallDeltaAction
+	| ChatToolCallReadyAction
+	| ChatToolCallAuthRequiredAction
+	| ChatToolCallAuthResolvedAction
+	| ChatTurnCompleteAction
+	| ChatErrorAction
+	| ChatActivityChangedAction
+	| ChatUsageAction
+	| ChatReasoningAction
+	| ChatInputRequestedAction
+	| ChatTurnsLoadedAction
 	;
 
 /** Union of all terminal-scoped actions. */
-export type ITerminalAction =
-	| ITerminalDataAction
-	| ITerminalInputAction
-	| ITerminalResizedAction
-	| ITerminalClaimedAction
-	| ITerminalTitleChangedAction
-	| ITerminalCwdChangedAction
-	| ITerminalExitedAction
-	| ITerminalClearedAction
+export type TerminalAction =
+	| TerminalDataAction
+	| TerminalInputAction
+	| TerminalResizedAction
+	| TerminalClaimedAction
+	| TerminalTitleChangedAction
+	| TerminalCwdChangedAction
+	| TerminalExitedAction
+	| TerminalClearedAction
+	| TerminalCommandDetectionAvailableAction
+	| TerminalCommandExecutedAction
+	| TerminalCommandFinishedAction
 	;
 
 /** Union of terminal actions that clients may dispatch. */
-export type IClientTerminalAction =
-	| ITerminalInputAction
-	| ITerminalResizedAction
-	| ITerminalClaimedAction
-	| ITerminalTitleChangedAction
-	| ITerminalClearedAction
+export type ClientTerminalAction =
+	| TerminalInputAction
+	| TerminalResizedAction
+	| TerminalClaimedAction
+	| TerminalTitleChangedAction
+	| TerminalClearedAction
 	;
 
 /** Union of terminal actions that only the server may produce. */
-export type IServerTerminalAction =
-	| ITerminalDataAction
-	| ITerminalCwdChangedAction
-	| ITerminalExitedAction
+export type ServerTerminalAction =
+	| TerminalDataAction
+	| TerminalCwdChangedAction
+	| TerminalExitedAction
+	| TerminalCommandDetectionAvailableAction
+	| TerminalCommandExecutedAction
+	| TerminalCommandFinishedAction
+	;
+
+/** Union of all changeset-scoped actions. */
+export type ChangesetAction =
+	| ChangesetStatusChangedAction
+	| ChangesetFileSetAction
+	| ChangesetFileRemovedAction
+	| ChangesetFilesReviewChangedAction
+	| ChangesetContentChangedAction
+	| ChangesetOperationsChangedAction
+	| ChangesetOperationStatusChangedAction
+	| ChangesetClearedAction
+	;
+
+/** Union of changeset actions that clients may dispatch. */
+export type ClientChangesetAction =
+	| ChangesetFilesReviewChangedAction
+	;
+
+/** Union of changeset actions that only the server may produce. */
+export type ServerChangesetAction =
+	| ChangesetStatusChangedAction
+	| ChangesetFileSetAction
+	| ChangesetFileRemovedAction
+	| ChangesetContentChangedAction
+	| ChangesetOperationsChangedAction
+	| ChangesetOperationStatusChangedAction
+	| ChangesetClearedAction
+	;
+
+/** Union of all annotations-scoped actions. */
+export type AnnotationsAction =
+	| AnnotationsSetAction
+	| AnnotationsUpdatedAction
+	| AnnotationsRemovedAction
+	| AnnotationsEntrySetAction
+	| AnnotationsEntryRemovedAction
+	;
+
+/** Union of annotations actions that clients may dispatch. */
+export type ClientAnnotationsAction =
+	| AnnotationsSetAction
+	| AnnotationsUpdatedAction
+	| AnnotationsRemovedAction
+	| AnnotationsEntrySetAction
+	| AnnotationsEntryRemovedAction
+	;
+
+/** Union of annotations actions that only the server may produce. */
+export type ServerAnnotationsAction =
+	never
+	;
+
+/** Union of all resource-watch-scoped actions. */
+export type ResourceWatchAction =
+	| ResourceWatchChangedAction
+	;
+
+/** Union of resource-watch actions that clients may dispatch. */
+export type ClientResourceWatchAction =
+	never
+	;
+
+/** Union of resource-watch actions that only the server may produce. */
+export type ServerResourceWatchAction =
+	| ResourceWatchChangedAction
 	;
 
 // ─── Client-Dispatchable Map ─────────────────────────────────────────────────
 
 /**
  * Exhaustive map indicating which action types may be dispatched by clients.
- * Adding a new action to IStateAction without adding it here is a compile error.
+ * Adding a new action to StateAction without adding it here is a compile error.
  */
-export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boolean } = {
+export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: boolean } = {
 	[ActionType.RootAgentsChanged]: false,
 	[ActionType.RootActiveSessionsChanged]: false,
 	[ActionType.RootTerminalsChanged]: false,
+	[ActionType.RootConfigChanged]: true,
 	[ActionType.SessionReady]: false,
 	[ActionType.SessionCreationFailed]: false,
-	[ActionType.SessionTurnStarted]: true,
-	[ActionType.SessionDelta]: false,
-	[ActionType.SessionResponsePart]: false,
-	[ActionType.SessionToolCallStart]: false,
-	[ActionType.SessionToolCallDelta]: false,
-	[ActionType.SessionToolCallReady]: false,
-	[ActionType.SessionToolCallConfirmed]: true,
-	[ActionType.SessionToolCallComplete]: true,
-	[ActionType.SessionToolCallResultConfirmed]: true,
-	[ActionType.SessionToolCallContentChanged]: false,
-	[ActionType.SessionTurnComplete]: false,
-	[ActionType.SessionTurnCancelled]: true,
-	[ActionType.SessionError]: false,
+	[ActionType.SessionChatAdded]: false,
+	[ActionType.SessionChatRemoved]: false,
+	[ActionType.SessionChatUpdated]: false,
+	[ActionType.SessionDefaultChatChanged]: false,
 	[ActionType.SessionTitleChanged]: true,
-	[ActionType.SessionUsage]: false,
-	[ActionType.SessionReasoning]: false,
-	[ActionType.SessionModelChanged]: true,
 	[ActionType.SessionServerToolsChanged]: false,
-	[ActionType.SessionActiveClientChanged]: true,
-	[ActionType.SessionActiveClientToolsChanged]: true,
-	[ActionType.SessionPendingMessageSet]: true,
-	[ActionType.SessionPendingMessageRemoved]: true,
-	[ActionType.SessionQueuedMessagesReordered]: true,
-	[ActionType.SessionInputRequested]: false,
-	[ActionType.SessionInputAnswerChanged]: true,
-	[ActionType.SessionInputCompleted]: true,
+	[ActionType.SessionActiveClientSet]: true,
+	[ActionType.SessionActiveClientRemoved]: true,
+	[ActionType.SessionWorkingDirectorySet]: true,
+	[ActionType.SessionWorkingDirectoryRemoved]: true,
+	[ActionType.SessionInputNeededSet]: false,
+	[ActionType.SessionInputNeededRemoved]: false,
 	[ActionType.SessionCustomizationsChanged]: false,
 	[ActionType.SessionCustomizationToggled]: true,
-	[ActionType.SessionTruncated]: true,
+	[ActionType.SessionCustomizationUpdated]: false,
+	[ActionType.SessionCustomizationRemoved]: false,
+	[ActionType.SessionMcpServerStateChanged]: false,
+	[ActionType.SessionMcpServerStartRequested]: true,
+	[ActionType.SessionMcpServerStopRequested]: true,
 	[ActionType.SessionIsReadChanged]: true,
-	[ActionType.SessionIsDoneChanged]: true,
-	[ActionType.SessionDiffsChanged]: false,
+	[ActionType.SessionIsArchivedChanged]: true,
+	[ActionType.SessionActivityChanged]: false,
+	[ActionType.SessionChangesetsChanged]: false,
+	[ActionType.SessionConfigChanged]: true,
+	[ActionType.SessionMetaChanged]: false,
+	[ActionType.ChatTurnStarted]: true,
+	[ActionType.ChatDelta]: false,
+	[ActionType.ChatResponsePart]: false,
+	[ActionType.ChatToolCallStart]: false,
+	[ActionType.ChatToolCallDelta]: false,
+	[ActionType.ChatToolCallReady]: false,
+	[ActionType.ChatToolCallConfirmed]: true,
+	[ActionType.ChatToolCallComplete]: true,
+	[ActionType.ChatToolCallResultConfirmed]: true,
+	[ActionType.ChatToolCallContentChanged]: true,
+	[ActionType.ChatToolCallAuthRequired]: false,
+	[ActionType.ChatToolCallAuthResolved]: false,
+	[ActionType.ChatTurnComplete]: false,
+	[ActionType.ChatTurnCancelled]: true,
+	[ActionType.ChatError]: false,
+	[ActionType.ChatActivityChanged]: false,
+	[ActionType.ChatWorkingDirectorySet]: true,
+	[ActionType.ChatWorkingDirectoryRemoved]: true,
+	[ActionType.ChatUsage]: false,
+	[ActionType.ChatReasoning]: false,
+	[ActionType.ChatPendingMessageSet]: true,
+	[ActionType.ChatPendingMessageRemoved]: true,
+	[ActionType.ChatQueuedMessagesReordered]: true,
+	[ActionType.ChatDraftChanged]: true,
+	[ActionType.ChatInputRequested]: false,
+	[ActionType.ChatInputAnswerChanged]: true,
+	[ActionType.ChatInputCompleted]: true,
+	[ActionType.ChatTruncated]: true,
+	[ActionType.ChatTurnsLoaded]: false,
+	[ActionType.ChangesetStatusChanged]: false,
+	[ActionType.ChangesetFileSet]: false,
+	[ActionType.ChangesetFileRemoved]: false,
+	[ActionType.ChangesetFilesReviewChanged]: true,
+	[ActionType.ChangesetContentChanged]: false,
+	[ActionType.ChangesetOperationsChanged]: false,
+	[ActionType.ChangesetOperationStatusChanged]: false,
+	[ActionType.ChangesetCleared]: false,
+	[ActionType.AnnotationsSet]: true,
+	[ActionType.AnnotationsUpdated]: true,
+	[ActionType.AnnotationsRemoved]: true,
+	[ActionType.AnnotationsEntrySet]: true,
+	[ActionType.AnnotationsEntryRemoved]: true,
 	[ActionType.TerminalData]: false,
 	[ActionType.TerminalInput]: true,
 	[ActionType.TerminalResized]: true,
@@ -181,4 +358,8 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
 	[ActionType.TerminalCwdChanged]: false,
 	[ActionType.TerminalExited]: false,
 	[ActionType.TerminalCleared]: true,
+	[ActionType.TerminalCommandDetectionAvailable]: false,
+	[ActionType.TerminalCommandExecuted]: false,
+	[ActionType.TerminalCommandFinished]: false,
+	[ActionType.ResourceWatchChanged]: false,
 };

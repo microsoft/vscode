@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { GlobIncludeOptions } from '../../../util/common/glob';
-import { FileChunkAndScore } from '../../chunking/common/chunk';
+import { FileChunk, FileChunkAndScore } from '../../chunking/common/chunk';
 
 export enum RemoteCodeSearchIndexStatus {
 	/** The repo index is built and ready to use */
@@ -29,11 +29,23 @@ export type RemoteCodeSearchError =
 	| { readonly type: 'generic-error'; readonly error: Error }
 	;
 
-export interface CodeSearchResult {
-	readonly chunks: readonly FileChunkAndScore[];
-
+interface BaseCodeSearchResult {
 	/** Tracks if the commit sha code search used differs from the one we used to compute the local diff */
 	readonly outOfSync: boolean;
+
+	/** The web URL of the remote repo, e.g. `https://github.com/microsoft/vscode` */
+	readonly remoteUrl?: string;
+
+	/** The branch name the results are from, e.g. `main` */
+	readonly refName?: string;
+}
+
+export interface SemanticCodeSearchResult extends BaseCodeSearchResult {
+	readonly chunks: readonly FileChunkAndScore[];
+}
+
+export interface LexicalCodeSearchResult extends BaseCodeSearchResult {
+	readonly chunks: readonly FileChunk[];
 }
 
 export interface CodeSearchOptions {

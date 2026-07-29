@@ -11,6 +11,7 @@ import { Completions, ICompletionsFetchService } from '../../../../../../platfor
 import { ResponseStream } from '../../../../../../platform/nesFetch/common/responseStream';
 import { RequestId, getRequestId } from '../../../../../../platform/networking/common/fetch';
 import { IHeaders } from '../../../../../../platform/networking/common/fetcherService';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry';
 import { createServiceIdentifier } from '../../../../../../util/common/services';
 import { assertNever } from '../../../../../../util/vs/base/common/assert';
 import { CancellationToken } from '../../../../../../util/vs/base/common/cancellation';
@@ -487,6 +488,9 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 					} else if (err instanceof Completions.UnsuccessfulResponse) {
 						const modelRequestId = getRequestId(err.headers);
 						telemetryData.extendWithRequestId(modelRequestId);
+						if (modelRequestId.serverExperiments) {
+							this.instantiationService.invokeFunction(accessor => accessor.get(ITelemetryService).setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments));
+						}
 						const totalTimeMs = requestSw.elapsed();
 						telemetryData.measurements.totalTimeMs = totalTimeMs;
 						telemetryData.properties.status = String(err.status);
@@ -547,6 +551,9 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 					// If they are different then we will override the original one we set in telemetryData above.
 					const modelRequestId = responseStream.requestId;
 					telemetryData.extendWithRequestId(modelRequestId);
+					if (modelRequestId.serverExperiments) {
+						this.instantiationService.invokeFunction(accessor => accessor.get(ITelemetryService).setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments));
+					}
 
 					// TODO: Add response length (requires parsing)
 					const totalTimeMs = requestSw.elapsed();

@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../../util/vs/base/common/cancellati
 import { generateUuid } from '../../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ClaudeLanguageModelServer } from '../../node/claudeLanguageModelServer';
-import { IClaudeSessionStateService } from '../../node/claudeSessionStateService';
+import { IClaudeSessionStateService } from '../../common/claudeSessionStateService';
 import { IClaudeSlashCommandHandler, registerClaudeSlashCommand } from './claudeSlashCommandRegistry';
 
 const execFileAsync = promisify(execFile);

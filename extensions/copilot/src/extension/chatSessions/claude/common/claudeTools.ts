@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk';
 import {
 	AgentInput,
 	AskUserQuestionInput,
@@ -40,6 +39,7 @@ export interface EnterPlanModeInput {
 
 // TODO: How can we verify these when we bump the SDK version?
 export enum ClaudeToolNames {
+	Agent = 'Agent',
 	Task = 'Task',
 	Bash = 'Bash',
 	Glob = 'Glob',
@@ -73,6 +73,7 @@ export interface LSInput {
  * Maps ClaudeToolNames to their SDK input types
  */
 export interface ClaudeToolInputMap {
+	[ClaudeToolNames.Agent]: AgentInput;
 	[ClaudeToolNames.Task]: AgentInput;
 	[ClaudeToolNames.Bash]: BashInput;
 	[ClaudeToolNames.Glob]: GlobInput;
@@ -95,15 +96,15 @@ export interface ClaudeToolInputMap {
 
 export const claudeEditTools: readonly string[] = [ClaudeToolNames.Edit, ClaudeToolNames.MultiEdit, ClaudeToolNames.Write, ClaudeToolNames.NotebookEdit];
 
-export function getAffectedUrisForEditTool(input: PreToolUseHookInput): URI[] {
-	switch (input.tool_name) {
+export function getAffectedUrisForEditTool(toolName: string, toolInput: unknown): URI[] {
+	switch (toolName) {
 		case ClaudeToolNames.Edit:
 		case ClaudeToolNames.MultiEdit:
-			return [URI.file((input.tool_input as FileEditInput).file_path)];
+			return [URI.file((toolInput as FileEditInput).file_path)];
 		case ClaudeToolNames.Write:
-			return [URI.file((input.tool_input as FileWriteInput).file_path)];
+			return [URI.file((toolInput as FileWriteInput).file_path)];
 		case ClaudeToolNames.NotebookEdit:
-			return [URI.file((input.tool_input as NotebookEditInput).notebook_path)];
+			return [URI.file((toolInput as NotebookEditInput).notebook_path)];
 		default:
 			return [];
 	}

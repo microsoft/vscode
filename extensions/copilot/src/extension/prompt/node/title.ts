@@ -9,7 +9,7 @@ import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/comm
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestTurn } from '../../../vscodeTypes';
@@ -41,7 +41,7 @@ export class ChatTitleProvider implements vscode.ChatTitleProvider {
 		const sessionResource = context.sessionResource;
 		const parentChatSessionId = sessionResource ? sessionResourceToId(URI.from(sessionResource)) : undefined;
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const { messages } = await renderPromptElement(this.instantiationService, endpoint, TitlePrompt, { userRequest: firstRequest.prompt });
 
 		const capturingToken = new CapturingToken(
@@ -62,6 +62,7 @@ export class ChatTitleProvider implements vscode.ChatTitleProvider {
 				location: ChatLocation.Panel,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 			}, token);
 			return response;
 		};

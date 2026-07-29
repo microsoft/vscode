@@ -7,7 +7,8 @@ import sinon from 'sinon';
 import { afterEach, assert, beforeEach, describe, it } from 'vitest';
 import type { ClaudeFolderInfo } from '../../common/claudeFolderInfo';
 import { parseClaudeModelId } from '../claudeModelId';
-import { ClaudeSessionStateService, SessionStateChangeEvent } from '../claudeSessionStateService';
+import type { SessionStateChangeEvent } from '../../common/claudeSessionStateService';
+import { ClaudeSessionStateService } from '../claudeSessionStateService';
 
 const OPUS_4 = parseClaudeModelId('claude-opus-4-20250514');
 const HAIKU_3_5 = parseClaudeModelId('claude-haiku-3-5-20250514');
@@ -193,6 +194,77 @@ describe('ClaudeSessionStateService', () => {
 			assert.strictEqual(modelId, OPUS_4);
 			const permissionMode = service.getPermissionModeForSession('session-1');
 			assert.strictEqual(permissionMode, 'bypassPermissions');
+		});
+	});
+
+	describe('getReasoningEffortForSession', () => {
+		it('should return undefined when no reasoning effort is set', () => {
+			const effort = service.getReasoningEffortForSession('session-1');
+			assert.strictEqual(effort, undefined);
+		});
+
+		it('should return the set reasoning effort', () => {
+			service.setReasoningEffortForSession('session-1', 'high');
+			const effort = service.getReasoningEffortForSession('session-1');
+			assert.strictEqual(effort, 'high');
+		});
+
+		it('should return different efforts for different sessions', () => {
+			service.setReasoningEffortForSession('session-1', 'high');
+			service.setReasoningEffortForSession('session-2', 'low');
+
+			assert.strictEqual(service.getReasoningEffortForSession('session-1'), 'high');
+			assert.strictEqual(service.getReasoningEffortForSession('session-2'), 'low');
+		});
+	});
+
+	describe('setReasoningEffortForSession', () => {
+		it('should allow setting a reasoning effort', () => {
+			service.setReasoningEffortForSession('session-1', 'medium');
+			assert.strictEqual(service.getReasoningEffortForSession('session-1'), 'medium');
+		});
+
+		it('should allow clearing a reasoning effort', () => {
+			service.setReasoningEffortForSession('session-1', 'high');
+			service.setReasoningEffortForSession('session-1', undefined);
+			assert.strictEqual(service.getReasoningEffortForSession('session-1'), undefined);
+		});
+
+		it('should not update state when effort is unchanged', () => {
+			service.setReasoningEffortForSession('session-1', 'high');
+			const stateBefore = service.getReasoningEffortForSession('session-1');
+			service.setReasoningEffortForSession('session-1', 'high');
+			assert.strictEqual(service.getReasoningEffortForSession('session-1'), stateBefore);
+		});
+
+		it('should preserve other state when setting reasoning effort', () => {
+			service.setModelIdForSession('session-1', OPUS_4);
+			service.setPermissionModeForSession('session-1', 'bypassPermissions');
+
+			service.setReasoningEffortForSession('session-1', 'high');
+
+			assert.strictEqual(service.getModelIdForSession('session-1'), OPUS_4);
+			assert.strictEqual(service.getPermissionModeForSession('session-1'), 'bypassPermissions');
+		});
+
+		it('should not fire onDidChangeSessionState event', () => {
+			const events: SessionStateChangeEvent[] = [];
+			service.onDidChangeSessionState(e => events.push(e));
+
+			service.setReasoningEffortForSession('session-1', 'high');
+
+			assert.strictEqual(events.length, 0);
+		});
+
+		it('should initialize defaults when session has no prior state', () => {
+			service.setReasoningEffortForSession('new-session', 'medium');
+
+			assert.strictEqual(service.getModelIdForSession('new-session'), undefined);
+			assert.strictEqual(service.getPermissionModeForSession('new-session'), 'acceptEdits');
+			assert.strictEqual(service.getCapturingTokenForSession('new-session'), undefined);
+			assert.strictEqual(service.getFolderInfoForSession('new-session'), undefined);
+			assert.strictEqual(service.getUsageHandlerForSession('new-session'), undefined);
+			assert.strictEqual(service.getReasoningEffortForSession('new-session'), 'medium');
 		});
 	});
 

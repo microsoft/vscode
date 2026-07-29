@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
@@ -13,7 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
@@ -31,6 +31,19 @@ export interface IToastResult {
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;
+}
+
+/**
+ * A ZIP entry whose contents are inline or streamed from a local file.
+ */
+export type INativeZipFile =
+	| { readonly path: string; readonly contents: string }
+	| { readonly path: string; readonly source: URI; readonly size: number };
+
+export interface IOpenAgentsWindowOptions {
+	readonly folderUri?: UriComponents;
+	readonly sessionResource?: UriComponents;
+	readonly source?: AgentsWindowOpenSource;
 }
 
 export interface ICPUProperties {
@@ -52,8 +65,64 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
+export interface IOSProxy {
+	readonly kind: 'direct' | 'http' | 'socks';
+	readonly host?: string;
+}
+
+export interface IOSProxyEnvironmentVariableStatus {
+	readonly variable: string;
+	readonly value: string;
+	readonly error?: string;
+}
+
+export interface IOSProxyPacSourceStatus {
+	readonly state: 'disabled' | 'unsupported' | 'unconfigured' | 'not-found' | 'available' | 'error-discovery' | 'error-download' | 'unknown';
+	readonly url?: string;
+	readonly error?: string;
+}
+
+export interface IOSProxyConfig {
+	readonly environment: {
+		readonly httpProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly httpsProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly allProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly noProxy?: IOSProxyEnvironmentVariableStatus;
+	};
+	readonly autoDetect: boolean;
+	readonly pacUrl?: string;
+	readonly pac?: {
+		readonly url: string;
+		readonly content: string;
+		readonly source: 'wpad-dns' | 'wpad-dhcp' | 'configured' | 'unknown';
+	};
+	readonly wpadDhcp: IOSProxyPacSourceStatus;
+	readonly wpadDns: IOSProxyPacSourceStatus;
+	readonly configuredPac: IOSProxyPacSourceStatus;
+	readonly staticRules?: {
+		readonly http?: IOSProxy;
+		readonly https?: IOSProxy;
+		readonly socks?: IOSProxy;
+	};
+	readonly platform?:
+	| { readonly kind: 'windows'; readonly proxy?: string; readonly proxyBypass?: string }
+	| { readonly kind: 'macos'; readonly exceptions: readonly string[]; readonly excludeSimpleHostnames: boolean }
+	| { readonly kind: 'linux'; readonly mode?: string; readonly ignoreHosts: readonly string[] }
+	| { readonly kind: 'unknown' };
+}
+
 export interface INativeHostOptions {
 	readonly targetWindowId?: number;
+}
+
+export interface IStartTracingOptions {
+
+	/**
+	 * Whether to enable heap profiling for MemoryInfra traces. Only takes effect
+	 * if the `disabled-by-default-memory-infra` category is included in the trace
+	 * and requires the recording to also collect periodic memory dumps.
+	 */
+	readonly enableHeapProfiling?: boolean;
 }
 
 export const enum FocusMode {
@@ -76,6 +145,39 @@ export const enum FocusMode {
 	 * is not currently focused.
 	 */
 	Force,
+}
+
+export interface INativeSystemWideKeybinding {
+
+	/**
+	 * The keybinding in Electron accelerator format (e.g. `Control+Cmd+A`).
+	 * See https://www.electronjs.org/docs/latest/api/accelerator.
+	 */
+	readonly accelerator: string;
+
+	/**
+	 * The command to execute when the global shortcut is triggered.
+	 */
+	readonly commandId: string;
+
+	/**
+	 * Optional command arguments as configured in `keybindings.json`. Must be JSON-serializable.
+	 */
+	readonly args?: unknown;
+
+	/**
+	 * The user settings label (e.g. `ctrl+cmd+a`) for diagnostics/notifications.
+	 */
+	readonly userSettingsLabel?: string;
+}
+
+export interface INativeSystemWideKeybindingResult {
+
+	/**
+	 * The user settings labels (or accelerators) that could not be registered, e.g. because the
+	 * accelerator is already taken by the OS or another application.
+	 */
+	readonly failed: string[];
 }
 
 export interface ICommonNativeHostService {
@@ -129,7 +231,14 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(): Promise<void>;
+	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
+
+	/**
+	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
+	 * replacing any previously registered by this window. The shortcuts fire even when the
+	 * application is not focused. Returns the set that could not be registered.
+	 */
+	syncSystemWideKeybindings(keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult>;
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
@@ -181,6 +290,8 @@ export interface ICommonNativeHostService {
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
+	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
+
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 	isRunningUnderARM64Translation(): Promise<boolean>;
@@ -195,6 +306,9 @@ export interface ICommonNativeHostService {
 
 	// Screenshots
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+
+	// GitHub mobile upload API (runs in main process to avoid CORS)
+	uploadFileViaMobileApi(token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
@@ -242,10 +356,12 @@ export interface ICommonNativeHostService {
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
-	startTracing(categories: string): Promise<void>;
+	startTracing(categories: string, options?: IStartTracingOptions): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	resolveProxyWithPackage(url: string): Promise<IOSProxy[]>;
+	readProxyConfigWithPackage(): Promise<IOSProxyConfig>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
@@ -265,9 +381,12 @@ export interface ICommonNativeHostService {
 	 * Creates a zip file at the specified path containing the provided files.
 	 *
 	 * @param zipPath The URI where the zip file should be created.
-	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
+	 * @param files An array of file entries to include in the zip. Each entry has
+	 * a relative path and is either given inline string `contents`, or a local
+	 * file `source` URI together with the number of leading bytes (`size`) to
+	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

@@ -218,7 +218,12 @@ export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?:
 	if (match) {
 		const [all, isEdit, , encodedSubAgentId, uriString] = match;
 		if (uriString) {
-			const result = URI.parse(uriString);
+			let result: URI;
+			try {
+				result = URI.parse(uriString);
+			} catch {
+				return undefined;
+			}
 			const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + all.length);
 			let subAgentInvocationId: string | undefined;
 			if (encodedSubAgentId) {

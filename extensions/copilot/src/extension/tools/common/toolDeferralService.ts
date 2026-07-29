@@ -16,6 +16,8 @@ const additionalNonDeferredToolNames = new Set<string>([
 	// Core tools provided by VS Code (not registered via ToolRegistry.registerTool)
 	ToolName.CoreRunInTerminal,
 	ToolName.CoreGetTerminalOutput,
+	ToolName.CoreSendToTerminal,
+	ToolName.CoreKillTerminal,
 	ToolName.CoreRunSubagent,
 	ToolName.CoreRunTest,
 	ToolName.CoreAskQuestions,

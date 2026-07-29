@@ -9,15 +9,18 @@ import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessa
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
+import { modelSupportsToolSearch } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { buildToolInputSchema } from '../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../platform/log/common/logService';
-import { ContextManagementResponse, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicMemoryToolEnabled, isAnthropicToolSearchEnabled, TOOL_SEARCH_TOOL_NAME, TOOL_SEARCH_TOOL_TYPE, ToolSearchToolResult, ToolSearchToolSearchResult } from '../../../platform/networking/common/anthropic';
+import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, modelSupportsMemory } from '../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, type OTelModelOptions, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, stringifyToolDefinitionsForOTel, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
-import { IRequestLogger, retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { buildOTelInputFromChatMessages } from './byokOTelHelpers';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../util/common/errorMessage';
@@ -32,6 +35,7 @@ import { IBYOKStorageService } from './byokStorageService';
 export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 
 	public static readonly providerName = 'Anthropic';
+	public static readonly providerId = this.providerName.toLowerCase();
 
 	constructor(
 		knownModels: BYOKKnownModels | undefined,
@@ -44,23 +48,17 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 		@IOTelService private readonly _otelService: IOTelService,
 		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
 	) {
-		super(AnthropicLMProvider.providerName.toLowerCase(), AnthropicLMProvider.providerName, knownModels, byokStorageService, logService);
+		super(AnthropicLMProvider.providerId, AnthropicLMProvider.providerName, knownModels, byokStorageService, logService);
 
 	}
 
 	private _getThinkingBudget(modelId: string, maxOutputTokens: number): number | undefined {
-		const configuredBudget = this._configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
-		if (!configuredBudget || configuredBudget === 0) {
-			return undefined;
-		}
-
 		const modelCapabilities = this._knownModels?.[modelId];
 		const modelSupportsThinking = modelCapabilities?.thinking ?? false;
 		if (!modelSupportsThinking) {
 			return undefined;
 		}
-		const normalizedBudget = configuredBudget < 1024 ? 1024 : configuredBudget;
-		return Math.min(32000, maxOutputTokens - 1, normalizedBudget);
+		return Math.min(32000, maxOutputTokens - 1, 16000);
 	}
 
 	// Filters the byok known models based on what the anthropic API knows as well
@@ -99,6 +97,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 		// This handles the case where AsyncLocalStorage context was lost crossing VS Code IPC.
 		const correlationId = (options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
 		const capturingToken = correlationId ? retrieveCapturingTokenByCorrelation(correlationId) : undefined;
+		const telemetryTurn = (options as { modelOptions?: OTelModelOptions }).modelOptions?._telemetryTurn;
 
 		// Restore OTel trace context to link spans back to the agent trace
 		const parentTraceContext = (options as { modelOptions?: OTelModelOptions }).modelOptions?._otelTraceContext ?? undefined;
@@ -143,21 +142,16 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					},
 				});
 
-			const memoryToolEnabled = isAnthropicMemoryToolEnabled(model.id, this._configurationService, this._experimentationService);
+			const memoryToolEnabled = modelSupportsMemory(model.id);
 
-			const toolSearchEnabled = isAnthropicToolSearchEnabled(model.id.replace(/-/g, '.'), this._configurationService);
+			// Requires the client-side tool_search tool in the request: without it, defer-loaded tools can't be retrieved.
+			// If the user disables tool_search in the tool picker, it won't be present here and tool search is skipped.
+			const toolSearchEnabled = modelSupportsToolSearch(model.id)
+				&& !!options.tools?.some(t => t.name === CUSTOM_TOOL_SEARCH_NAME);
 
 			// Build tools array, handling both standard tools and native Anthropic tools
 			const tools: Anthropic.Beta.BetaToolUnion[] = [];
 
-			// Add tool search tool if enabled (must be first in the array)
-			if (toolSearchEnabled) {
-				tools.push({
-					name: TOOL_SEARCH_TOOL_NAME,
-					type: TOOL_SEARCH_TOOL_TYPE,
-					defer_loading: false
-				} as Anthropic.Beta.BetaToolUnion);
-			}
 			let hasMemoryTool = false;
 			for (const tool of (options.tools ?? [])) {
 				// Handle native Anthropic memory tool (only for models that support it)
@@ -199,6 +193,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			// Check if web search is enabled and append web_search tool if not already present.
 			// We need to do this because there is no local web_search tool definition we can replace.
 			const webSearchEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.AnthropicWebSearchToolEnabled, this._experimentationService);
+			let webSearchDomainConflictError: string | undefined;
 			if (webSearchEnabled && !tools.some(tool => 'name' in tool && tool.name === 'web_search')) {
 				const maxUses = this._configurationService.getConfig(ConfigKey.AnthropicWebSearchMaxUses);
 				const allowedDomains = this._configurationService.getConfig(ConfigKey.AnthropicWebSearchAllowedDomains);
@@ -213,11 +208,13 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					...(shouldDeferWebSearch ? { defer_loading: shouldDeferWebSearch } : {})
 				};
 
-				// Add domain filtering if configured
-				// Cannot use both allowed and blocked domains simultaneously
-				if (allowedDomains && allowedDomains.length > 0) {
+				const hasAllowed = !!allowedDomains && allowedDomains.length > 0;
+				const hasBlocked = !!blockedDomains && blockedDomains.length > 0;
+				if (hasAllowed && hasBlocked) {
+					webSearchDomainConflictError = vscode.l10n.t('The settings `github.copilot.chat.anthropic.tools.websearch.allowedDomains` and `github.copilot.chat.anthropic.tools.websearch.blockedDomains` cannot be used together. Please configure only one.');
+				} else if (hasAllowed) {
 					webSearchTool.allowed_domains = allowedDomains;
-				} else if (blockedDomains && blockedDomains.length > 0) {
+				} else if (hasBlocked) {
 					webSearchTool.blocked_domains = blockedDomains;
 				}
 
@@ -282,6 +279,9 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			const wrappedProgress = new RecordedProgress(progress);
 
 			try {
+				if (webSearchDomainConflictError) {
+					throw new Error(webSearchDomainConflictError);
+				}
 				const result = await this._makeRequest(anthropicClient, wrappedProgress, params, betas, token, issuedTime);
 				if (result.ttft) {
 					pendingLoggedChatRequest.markTimeToFirstToken(result.ttft);
@@ -315,6 +315,9 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						contextManagement: result.contextManagement
 					});
 				}
+				if (result.usage) {
+					wrappedProgress.report(new LanguageModelDataPart(new TextEncoder().encode(JSON.stringify(result.usage)), CustomDataPartMimeTypes.Usage));
+				}
 				pendingLoggedChatRequest.resolve({
 					type: ChatFetchResponseType.Success,
 					requestId,
@@ -329,14 +332,15 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					otelSpan.setAttributes({
 						[GenAiAttr.USAGE_INPUT_TOKENS]: result.usage.prompt_tokens ?? 0,
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.usage.completion_tokens ?? 0,
-						...(result.usage.prompt_tokens_details?.cached_tokens
+						...(result.usage.prompt_tokens_details?.cached_tokens !== undefined
 							? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: result.usage.prompt_tokens_details.cached_tokens }
 							: {}),
 						[GenAiAttr.RESPONSE_MODEL]: model.id,
 						[GenAiAttr.RESPONSE_ID]: requestId,
 						[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
-						[GenAiAttr.CONVERSATION_ID]: requestId,
+						[GenAiAttr.REQUEST_STREAM]: true,
 						...(result.ttft ? { [CopilotChatAttr.TIME_TO_FIRST_TOKEN]: result.ttft } : {}),
+						...(result.ttft ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: result.ttft / 1000 } : {}),
 						[GenAiAttr.REQUEST_MAX_TOKENS]: model.maxOutputTokens ?? 0,
 					});
 					// Opt-in content capture
@@ -351,7 +355,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						if (responseText) { parts.push({ type: 'text', content: responseText }); }
 						parts.push(...toolCalls);
 						if (parts.length > 0) {
-							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }])));
+							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }]), this._otelService.config.maxAttributeSizeChars));
 						}
 					}
 				}
@@ -359,11 +363,12 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				// Record OTel metrics for this Anthropic LLM call
 				if (result.usage) {
 					const durationSec = (Date.now() - issuedTime) / 1000;
-					const metricAttrs = { operationName: GenAiOperationName.CHAT, providerName: 'anthropic', requestModel: model.id, responseModel: model.id };
+					const metricAttrs = { operationName: GenAiOperationName.CHAT, providerName: AnthropicLMProvider.providerId, requestModel: model.id, responseModel: model.id };
 					GenAiMetrics.recordOperationDuration(this._otelService, durationSec, metricAttrs);
 					if (result.usage.prompt_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs); }
 					if (result.usage.completion_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.completion_tokens, 'output', metricAttrs); }
 					if (result.ttft) { GenAiMetrics.recordTimeToFirstToken(this._otelService, model.id, result.ttft / 1000); }
+					if (result.ttft) { GenAiMetrics.recordTimeToFirstChunk(this._otelService, result.ttft / 1000, metricAttrs); }
 				}
 
 				// Emit OTel inference details event
@@ -388,12 +393,15 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						"filterReason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason for why a response was filtered" },
 						"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source of the initial request" },
 						"initiatorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was initiated by a user or an agent" },
+						"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
 						"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selection for the response" },
 						"modelInvoked": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Actual model invoked for the response" },
 						"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
+						"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 						"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 						"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 						"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
+						"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How many turns have been made in the conversation.", "isMeasurement": true },
 						"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort level" },
 						"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning summary level" },
 						"fetcher": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher used for the request" },
@@ -402,6 +410,8 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						"clientPromptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
 						"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
 						"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
+						"promptCacheCreation1hTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache-creation input tokens written with the 1h (extended) TTL, billed at 2x base rate. Only populated when Anthropic reports the cache_creation breakdown.", "isMeasurement": true },
+						"promptCacheCreation5mTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache-creation input tokens written with the default 5m TTL, billed at 1.25x base rate. Only populated when Anthropic reports the cache_creation breakdown.", "isMeasurement": true },
 						"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 						"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true },
 						"reasoningTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of reasoning tokens", "isMeasurement": true },
@@ -413,6 +423,23 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to complete the request", "isMeasurement": true },
 						"issuedTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the request was issued", "isMeasurement": true },
 						"isVisionRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request was for a vision model", "isMeasurement": true },
+						"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
+						"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
+						"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+						"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+						"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+						"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+						"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
+						"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
+						"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
+						"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
+						"imageWebpCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of WebP input images", "isMeasurement": true },
+						"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose MIME type is unknown or unsupported", "isMeasurement": true },
+						"imageClipboardCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from clipboard or paste", "isMeasurement": true },
+						"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
+						"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
+						"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
+						"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
 						"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for a BYOK model", "isMeasurement": true },
 						"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for an Auto model", "isMeasurement": true },
 						"bytesReceived": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of bytes received in the response", "isMeasurement": true },
@@ -422,7 +449,12 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						"connectivityTestErrorGitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id of the connectivity test request if available" },
 						"retryAfterFilterCategory": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "If the response was filtered and this is a retry attempt, this contains the original filtered content category." },
 						"suspendEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system suspend event was seen during the request", "isMeasurement": true },
-						"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true }
+						"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true },
+						"subType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Sub-type of the request" },
+						"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Unique identifier for this model call" },
+						"parentRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "For a subagent: the VS Code chat request id of the parent turn that invoked this subagent (matches panel.request.parentRequestId)." },
+						"parentModelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model call ID of the parent request for subagent calls" },
+						"iterationNumber": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Iteration number within the tool calling loop" }
 					}
 				*/
 				this._telemetryService.sendTelemetryEvent('response.success', { github: true, microsoft: true }, {
@@ -431,6 +463,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					requestId,
 				}, {
 					totalTokenMax: model.maxInputTokens ?? -1,
+					...(telemetryTurn !== undefined ? { turn: telemetryTurn } : {}),
 					tokenCountMax: model.maxOutputTokens ?? -1,
 					promptTokenCount: result.usage?.prompt_tokens,
 					promptCacheTokenCount: result.usage?.prompt_tokens_details?.cached_tokens,
@@ -477,34 +510,40 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 
 		// Create OTel span and execute with trace context + CapturingToken
 		const executeRequest = async () => {
+			const chatSessionId = capturingToken?.chatSessionId;
+			const parentChatSessionId = capturingToken?.parentChatSessionId;
+			const debugLogLabel = capturingToken?.debugLogLabel;
 			otelSpan = this._otelService.startSpan(`chat ${model.id}`, {
 				kind: SpanKind.CLIENT,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
-					[GenAiAttr.PROVIDER_NAME]: 'anthropic',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.ANTHROPIC,
 					[GenAiAttr.REQUEST_MODEL]: model.id,
+					...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
 					[GenAiAttr.AGENT_NAME]: 'AnthropicBYOK',
 					[CopilotChatAttr.MAX_PROMPT_TOKENS]: model.maxInputTokens,
+					...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
+					...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
+					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
+					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 					[StdAttr.SERVER_ADDRESS]: 'api.anthropic.com',
 				},
 			});
-			// Opt-in: capture input messages
+			// Opt-in: capture input messages in OTel GenAI format
 			if (this._otelService.config.captureContent) {
+				// Tool definitions on the chat span (issue #299934) with `parameters`
+				// per OTel GenAI semantic conventions (issue #300318).
+				const toolDefsJson = stringifyToolDefinitionsForOTel(options.tools);
+				if (toolDefsJson) {
+					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson, this._otelService.config.maxAttributeSizeChars));
+				}
 				try {
-					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
-					const inputMsgs = messages.map(m => {
-						const msg = m as LanguageModelChatMessage;
-						const role = roleNames[msg.role] ?? String(msg.role);
-						const textParts: string[] = [];
-						if (Array.isArray(msg.content)) {
-							for (const p of msg.content) {
-								if (p instanceof LanguageModelTextPart) { textParts.push(p.value); }
-							}
-						}
-						const content = textParts.length > 0 ? textParts.join('') : '[non-text content]';
-						return { role, parts: [{ type: 'text', content }] };
-					});
-					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs)));
+					const { systemTexts, inputMsgs } = buildOTelInputFromChatMessages(messages);
+					const systemInstructions = toSystemInstructions(systemTexts);
+					if (systemInstructions) {
+						otelSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
+					}
+					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs), this._otelService.config.maxAttributeSizeChars));
 				} catch { /* swallow */ }
 			}
 			try {
@@ -636,33 +675,6 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						[new LanguageModelTextPart(searchResults)]
 					));
 					pendingServerToolCall = undefined;
-				} else if ('content_block' in chunk && chunk.content_block.type === 'tool_search_tool_result') {
-					const toolSearchResult = chunk.content_block as unknown as ToolSearchToolResult;
-					if (toolSearchResult.content.type === 'tool_search_tool_search_result') {
-						const searchResult = toolSearchResult.content as ToolSearchToolSearchResult;
-						const toolNames = searchResult.tool_references.map(ref => ref.tool_name);
-
-						this._logService.trace(`Tool search discovered ${toolNames.length} tools: ${toolNames.join(', ')}`);
-
-						let query: string | undefined;
-						if (pendingServerToolCall) {
-							try {
-								const parsed = JSON.parse(pendingServerToolCall.jsonInput || '{}');
-								query = parsed.query;
-							} catch {
-								// Ignore parse errors
-							}
-						}
-
-						progress.report(new LanguageModelToolResultPart(
-							toolSearchResult.tool_use_id,
-							[new LanguageModelTextPart(JSON.stringify({ query, discovered_tools: toolNames }))]
-						));
-						pendingServerToolCall = undefined;
-					} else if (toolSearchResult.content.type === 'tool_search_tool_result_error') {
-						this._logService.warn(`Tool search error: ${toolSearchResult.content.error_code}`);
-						pendingServerToolCall = undefined;
-					}
 				}
 				continue;
 			}

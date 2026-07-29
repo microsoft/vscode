@@ -47,7 +47,7 @@ export class ResponseTranslationRules extends PromptElement {
 
 		return (
 			<>
-				Respond in the following locale: {languageConfiguration}
+				Respond in the following locale: {languageConfiguration}<br />
 			</>
 		);
 	}

@@ -13,6 +13,7 @@ import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWork
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../common/workspaceInfo';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
+import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
 
 export interface ISessionRequestLifecycle {
 	readonly _serviceBrand: undefined;
@@ -133,6 +134,11 @@ export class SessionRequestLifecycle extends Disposable implements ISessionReque
 				// is used if worktree isolation is enabled, and auto-commit is disabled or workspace
 				// isolation is enabled.
 				await this.checkpointService.handleRequestCompleted(sessionId, request.id);
+
+				// Clear the changes (diff) cache for sessions associated with the same folder.
+				if (workingDirectory) {
+					void clearChangesCacheForAffectedSessions(workingDirectory, [sessionId], this.logService, this.metadataStore, this.workspaceFolderService, this.worktreeService).catch(ex => this.logService.error(ex, 'Failed to clear changes cache after request completion'));
+				}
 			}
 
 			this.prDetectionService.handlePullRequestCreated(sessionId, session.createdPullRequestUrl);

@@ -18,12 +18,12 @@ The fastest way to see Copilot Chat traces locally — no cloud account required
 ```bash
 docker run --rm -d \
   -p 18888:18888 \
-  -p 4317:18889 \
+  -p 4318:18890 \
   --name aspire-dashboard \
   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 ```
 
-This exposes the dashboard UI on port `18888` and an OTLP (gRPC) endpoint on port `4317`.
+This exposes the dashboard UI on port `18888` and an OTLP (HTTP) endpoint on port `4318`.
 
 ### 2. Configure VS Code
 
@@ -32,12 +32,11 @@ Open **Settings** (`Ctrl+,`) and add:
 ```json
 {
   "github.copilot.chat.otel.enabled": true,
-  "github.copilot.chat.otel.exporterType": "otlp-grpc",
-  "github.copilot.chat.otel.otlpEndpoint": "http://localhost:4317"
+  "github.copilot.chat.otel.captureContent": true
 }
 ```
 
-> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Environment variables always take precedence.
+> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Precedence is **enterprise policy > environment variables > settings**.
 
 ### 3. Generate Telemetry
 
@@ -46,6 +45,8 @@ Open Copilot Chat and send any message — for example, ask a question in Agent 
 ### 4. View Traces
 
 Open http://localhost:18888 → **Traces**. You'll see `invoke_agent` spans with nested `chat` and `execute_tool` children.
+
+![Screenshot showing agent interaction traces in the Aspire Dashboard with spans for invoke_agent, chat, and execute_tool.](../media/trace-aspire-dashboard.png)
 
 ### Teardown
 
@@ -69,11 +70,17 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 | `github.copilot.chat.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file` |
 | `github.copilot.chat.otel.otlpEndpoint` | string | `"http://localhost:4318"` | OTLP collector endpoint |
 | `github.copilot.chat.otel.captureContent` | boolean | `false` | Capture full prompt/response content |
+| `github.copilot.chat.otel.protocol` | string | `""` | OTLP wire protocol: `http/json` (default), `http/protobuf`, or `grpc` |
+| `github.copilot.chat.otel.serviceName` | string | `""` | Override the `service.name` resource attribute |
+| `github.copilot.chat.otel.resourceAttributes` | object | `{}` | Extra resource attributes (`{ "key": "value" }`) |
+| `github.copilot.chat.otel.headers` | object | `{}` | Extra OTLP exporter headers, applied directly to the exporter (`{ "key": "value" }`) |
+| `github.copilot.chat.otel.maxAttributeSizeChars` | integer | `0` | Max characters per OTel content attribute (prompts, tool args/results, hook input/output). `0` (the default) disables truncation so backends with no per-attribute limit get full payloads. Set to a positive value to match your backend's per-attribute size limit — consult your backend's documentation. The value counts JavaScript string characters (UTF-16 code units); for non-ASCII content one character can be multiple UTF-8 bytes on the wire. |
 | `github.copilot.chat.otel.outfile` | string | `""` | File path for JSON-lines output |
+| `github.copilot.chat.otel.dbSpanExporter.enabled` | boolean | `false` | Persist OTel spans to a local SQLite database for the **Chat: Export Agent Traces DB** command. Implicitly enables OTel. |
 
 ### Environment Variables
 
-Environment variables **always take precedence** over VS Code settings.
+Environment variables take precedence over VS Code settings, and **enterprise managed settings (policy) take precedence over both** — admins can centrally mandate any `github.copilot.chat.otel.*` value.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -85,6 +92,7 @@ Environment variables **always take precedence** over VS Code settings.
 | `OTEL_SERVICE_NAME` | `copilot-chat` | Service name in resource attributes |
 | `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes (`key1=val1,key2=val2`) |
 | `COPILOT_OTEL_CAPTURE_CONTENT` | `false` | Capture full prompt/response content |
+| `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` | `0` | Override the max character size for OTel content attributes. `0` (default) disables truncation; set to a positive value when your backend has a per-attribute limit. Takes precedence over the `maxAttributeSizeChars` setting. |
 | `COPILOT_OTEL_LOG_LEVEL` | `info` | Min log level: `trace`, `debug`, `info`, `warn`, `error` |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | — | Write all signals to this file (JSON-lines) |
 | `COPILOT_OTEL_HTTP_INSTRUMENTATION` | `false` | Enable HTTP-level OTel instrumentation |
@@ -94,14 +102,32 @@ Environment variables **always take precedence** over VS Code settings.
 
 OTel is **off by default** with zero overhead. It activates when:
 
+- enterprise policy enables it (managed `telemetry.enabled` or a managed endpoint), or
 - `COPILOT_OTEL_ENABLED=true`, or
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is set, or
-- `github.copilot.chat.otel.enabled` is `true`
+- `github.copilot.chat.otel.enabled` is `true`, or
+- `github.copilot.chat.otel.dbSpanExporter.enabled` is `true` (the SDK pipeline must be active to feed the SQLite store).
+
+### Commands
+
+| Command | Description |
+|---|---|
+| **Chat: Export Agent Traces DB** (`github.copilot.chat.otel.exportAgentTracesDB`) | Export the local SQLite span database to a `.db` file. Only available when `github.copilot.chat.otel.dbSpanExporter.enabled` is `true`. |
 
 
 ---
 
 ## What Gets Exported
+
+> ### Attribute namespaces & dual-emit policy
+>
+> Copilot Chat emits OTel attributes under three namespaces:
+>
+> - **`gen_ai.*`** — [OTel GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/). Use these whenever a standard key exists.
+> - **`github.copilot.*`** — Canonical Copilot-specific namespace. Prefer this for new dashboards and alerts.
+> - **`copilot_chat.*`** — Original VS Code extension namespace. Several keys (notably `copilot_chat.repo.*` and `gen_ai.usage.reasoning_tokens`) are now **dual-emitted alongside the `github.copilot.*` equivalents**. Tables below mark these rows as **Legacy** with a pointer to the preferred key.
+>
+> Legacy keys continue to emit indefinitely so existing collectors, dashboards, and downstream consumers (Agent Debug Log, Chronicle, SQLite span store) keep working without changes. There is no sunset date.
 
 ### Traces
 
@@ -116,6 +142,8 @@ invoke_agent copilot                           [~15s]
   └── (span ends)
 ```
 
+Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as the root span and nested `chat` / `execute_tool` children.
+
 **`invoke_agent`** — wraps the entire agent orchestration (all LLM calls + tool executions).
 
 | Attribute | Requirement | Example |
@@ -128,6 +156,16 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.response.model` | Recommended | `gpt-4o-2024-08-06` |
 | `gen_ai.usage.input_tokens` | Recommended | `12500` |
 | `gen_ai.usage.output_tokens` | Recommended | `3200` |
+| `gen_ai.usage.cache_read.input_tokens` | When available | `8000` |
+| `gen_ai.usage.cache_creation.input_tokens` | When available | `4200` |
+| `github.copilot.agent.type` | Always | `builtin` \| `custom` \| `plugin` |
+| `github.copilot.git.repository` | When in a repo | `https://github.com/microsoft/vscode.git` |
+| `github.copilot.git.branch` | When in a repo | `main` |
+| `github.copilot.git.commit_sha` | When in a repo | `deadbeef...` |
+| `github.copilot.github.org` | GitHub remotes only | `microsoft` |
+| `copilot_chat.repo.remote_url` | **Legacy** — prefer `github.copilot.git.repository` | `https://github.com/...` |
+| `copilot_chat.repo.head_branch_name` | **Legacy** — prefer `github.copilot.git.branch` | `main` |
+| `copilot_chat.repo.head_commit_hash` | **Legacy** — prefer `github.copilot.git.commit_sha` | `deadbeef...` |
 | `copilot_chat.turn_count` | Always | `4` |
 | `error.type` | On error | `Error` |
 | `gen_ai.input.messages` | Opt-in (captureContent) | `[{"role":"user",...}]` |
@@ -141,7 +179,9 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.operation.name` | Required | `chat` |
 | `gen_ai.provider.name` | Required | `github` |
 | `gen_ai.request.model` | Required | `gpt-4o` |
-| `gen_ai.conversation.id` | Required | `a1b2c3d4-...` |
+| `gen_ai.conversation.id` | Session correlation (when a session is available) | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
 | `gen_ai.request.max_tokens` | Always | `2048` |
 | `gen_ai.request.temperature` | When set | `0.1` |
 | `gen_ai.request.top_p` | When set | `0.95` |
@@ -151,7 +191,13 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.response.finish_reasons` | On response | `["stop"]` |
 | `gen_ai.usage.input_tokens` | On response | `1500` |
 | `gen_ai.usage.output_tokens` | On response | `250` |
+| `gen_ai.usage.cache_read.input_tokens` | When available | `1200` |
+| `gen_ai.usage.cache_creation.input_tokens` | When available | `300` |
+| `gen_ai.usage.reasoning.output_tokens` | When available | `512` |
+| `gen_ai.usage.reasoning_tokens` | **Legacy** — prefer `gen_ai.usage.reasoning.output_tokens` | `512` |
 | `copilot_chat.time_to_first_token` | On response | `450` |
+| `gen_ai.request.stream` | Streaming responses | `true` |
+| `gen_ai.response.time_to_first_chunk` | Streaming responses (seconds) | `0.45` |
 | `server.address` | When available | `api.github.com` |
 | `copilot_chat.debug_name` | When available | `agentMode` |
 | `error.type` | On error | `TimeoutError` |
@@ -164,9 +210,19 @@ invoke_agent copilot                           [~15s]
 |---|---|---|
 | `gen_ai.operation.name` | Required | `execute_tool` |
 | `gen_ai.tool.name` | Required | `readFile` |
+| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
 | `gen_ai.tool.type` | Required | `function` or `extension` (MCP tools) |
 | `gen_ai.tool.call.id` | Recommended | `call_abc123` |
 | `gen_ai.tool.description` | When available | `Read the contents of a file` |
+| `github.copilot.tool.parameters.edit_type` | Edit tools | `create` \| `update` \| `str_replace` \| `insert` |
+| `github.copilot.tool.parameters.skill_name` | When invoking a skill | `auto-perf-optimize` |
+| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
+| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
+| `github.copilot.tool.parameters.command` | Shell tools, opt-in (captureContent) | `npm test` (truncated to 256 chars) |
+| `github.copilot.tool.parameters.file_path` | File tools, opt-in (captureContent) | `/src/app.ts` |
+| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
 | `error.type` | On error | `FileNotFoundError` |
 | `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"filePath":"/src/index.ts"}` |
 | `gen_ai.tool.call.result` | Opt-in (captureContent) | `(file contents or summary)` |
@@ -179,6 +235,8 @@ invoke_agent copilot                           [~15s]
 |---|---|---|---|
 | `gen_ai.client.operation.duration` | Histogram | s | LLM API call duration |
 | `gen_ai.client.token.usage` | Histogram | tokens | Token counts (input/output) |
+| `gen_ai.client.operation.time_to_first_chunk` | Histogram | s | Time to first streaming chunk |
+| `gen_ai.client.operation.time_per_output_chunk` | Histogram | s | Inter-chunk latency after the first chunk |
 
 **`gen_ai.client.operation.duration` attributes:**
 
@@ -202,6 +260,17 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.request.model` | Requested model |
 | `gen_ai.response.model` | Resolved model |
 | `server.address` | Server hostname |
+
+**`gen_ai.client.operation.time_to_first_chunk` / `gen_ai.client.operation.time_per_output_chunk` attributes:**
+
+| Attribute | Description |
+|---|---|
+| `gen_ai.operation.name` | Operation type (e.g., `chat`) |
+| `gen_ai.provider.name` | Provider (e.g., `github`, `anthropic`, `gemini`) |
+| `gen_ai.request.model` | Requested model |
+| `gen_ai.response.model` | Resolved model (when known) |
+
+> Both metrics are tagged with `gen_ai.response.model` for per-model slicing. `time_per_output_chunk` is emitted only on the primary GitHub streaming path; BYOK providers (Anthropic, Gemini) emit `time_to_first_chunk` only, as they do not expose per-chunk arrival timing.
 
 #### Extension-Specific Metrics
 
@@ -241,7 +310,10 @@ These metrics track the activity and outcomes of agentic code changes across all
 | `copilot_chat.agent.summarization.count` | Counter | events | Context summarization outcomes (applied/failed) |
 | `copilot_chat.pull_request.count` | Counter | PRs | Pull requests created via CLI agent |
 | `copilot_chat.cloud.session.count` | Counter | sessions | Cloud/remote agent sessions by partner |
-| `copilot_chat.cloud.pr_ready.count` | Counter | events | Remote agent job PR ready notifications |
+| `copilot_chat.cloud.pr_ready.count` | Counter | events | Remote agent job PR ready notifications (v1/Jobs API only) |
+| `copilot_chat.cloud.operation.count` | Counter | operations | Cloud backend operation outcomes (create, fetch, follow-up, PR) by backend version |
+| `copilot_chat.cloud.operation.duration` | Histogram | ms | Cloud backend operation latency by backend version |
+| `copilot_chat.cloud.error.count` | Counter | errors | Cloud backend operation failures by backend version and error type |
 
 **`copilot_chat.edit.acceptance.count` attributes:** `copilot_chat.edit.source` (`inline_chat`/`chat_editing`/`chat_editing_hunk`/`apply_patch`/`replace_string`/`code_mapper`), `copilot_chat.edit.outcome` (`accepted`/`rejected`), `copilot_chat.language_id` (optional)
 
@@ -261,7 +333,15 @@ These metrics track the activity and outcomes of agentic code changes across all
 
 **`copilot_chat.agent.summarization.count` attributes:** `outcome` (`applied`/`failed`)
 
-**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`)
+**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`), `github.copilot.cloud.backend_version` (`v1`/`v2`, optional)
+
+**`copilot_chat.cloud.pr_ready.count` attributes:** `github.copilot.cloud.backend_version` (`v1`, optional)
+
+**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`pollUpdate`/`followUp`/`findTaskForPullRequest`/`createPullRequest`/`sessionActivated`), `github.copilot.cloud.backend_version` (`v1`/`v2`), `success`
+
+**`copilot_chat.cloud.operation.duration` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`)
+
+**`copilot_chat.cloud.error.count` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`), `error.type` (low-cardinality classifier, e.g. `http_500`)
 
 ### Events
 
@@ -401,7 +481,7 @@ All signals carry:
 
 | Attribute | Value |
 |---|---|
-| `service.name` | `copilot-chat` (configurable via `OTEL_SERVICE_NAME`) |
+| `service.name` | `copilot-chat` (override via the `github.copilot.chat.otel.serviceName` setting, `OTEL_SERVICE_NAME`, or enterprise policy) |
 | `service.version` | Extension version |
 | `session.id` | Unique per VS Code window |
 
@@ -471,7 +551,7 @@ Content is captured in full with no truncation.
 }
 ```
 
-> **Note:** Authentication headers are only configurable via the `OTEL_EXPORTER_OTLP_HEADERS` environment variable (e.g., `Authorization=Bearer your-token`). See [Environment Variables](#environment-variables).
+> **Note:** Authentication headers can be set via the `github.copilot.chat.otel.headers` setting (a `{ "key": "value" }` map applied directly to the exporter) or the `OTEL_EXPORTER_OTLP_HEADERS` environment variable, and can be mandated by enterprise policy. See [Environment Variables](#environment-variables).
 
 **File-based output (offline / CI):**
 
@@ -557,14 +637,102 @@ In your trace viewer, filter by `service.name` to see traces from specific agent
 
 | `service.name` | Source |
 |---|---|
-| `copilot-chat` | Foreground agent + CLI wrapper spans |
+| `copilot-chat` | Foreground agent, CLI wrapper, and Claude agent spans (extension-emitted) |
 | `github-copilot` | CLI SDK native spans + CLI terminal |
+| `claude-code` | Claude Code subprocess SDK telemetry (when `CLAUDE_CODE_ENABLE_TELEMETRY` is forwarded) |
+
+Within the `copilot-chat` service, distinguish agent types by `gen_ai.agent.name`:
+
+| `gen_ai.agent.name` | Agent Type |
+|---|---|
+| `GitHub Copilot Chat` | Foreground agent (agent mode) |
+| `copilotcli` | CLI wrapper span |
+| `claude` | Claude agent |
+
+---
+
+## Claude Agent
+
+When OTel is enabled, Claude agent sessions produce extension-level spans (service `copilot-chat`) following GenAI semantic conventions.
+
+The extension creates spans by intercepting Claude SDK messages and proxying LLM calls through a local HTTP server to CAPI:
+
+```
+copilot-chat invoke_agent claude               [~33s]
+  ├── chat claude-haiku-4.5                    [~5s]   (LLM call via CAPI proxy)
+  ├── execute_tool Agent                       [~11s]  (subagent invocation)
+  │   ├── chat claude-haiku-4.5                [~4s]   (subagent LLM call)
+  │   ├── execute_tool Grep                    [~20ms] (subagent tool)
+  │   └── chat claude-haiku-4.5                [~7s]   (subagent LLM call)
+  ├── chat claude-haiku-4.5                    [~3s]
+  ├── execute_tool Write                       [~40ms]
+  ├── chat claude-haiku-4.5                    [~3s]
+  └── execute_hook Stop                        [~10ms] (hook execution)
+```
+
+**`invoke_agent claude`** — root span per user request.
+
+| Attribute | Example |
+|---|---|
+| `gen_ai.operation.name` | `invoke_agent` |
+| `gen_ai.agent.name` | `claude` |
+| `gen_ai.provider.name` | `github` |
+| `gen_ai.request.model` | `claude-haiku-4.5` |
+| `gen_ai.response.model` | `claude-haiku-4.5` |
+| `gen_ai.usage.input_tokens` | `103739` (parent-only, excludes subagent tokens) |
+| `gen_ai.usage.output_tokens` | `1100` |
+| `gen_ai.usage.cache_read.input_tokens` | `64062` |
+| `gen_ai.usage.cache_creation.input_tokens` | `39629` |
+| `github.copilot.agent.type` | `builtin` |
+| `github.copilot.git.repository` | `https://github.com/microsoft/vscode.git` |
+| `github.copilot.git.branch` | `main` |
+| `github.copilot.git.commit_sha` | `deadbeef...` |
+| `github.copilot.github.org` | `microsoft` |
+| `copilot_chat.turn_count` | `8` |
+| `copilot_chat.total_cost_usd` | `0.067` (session-wide, includes subagents) |
+| `copilot_chat.chat_session_id` | VS Code session ID |
+
+**`chat`** — one span per LLM API call, created by `chatMLFetcher` via the Claude language model proxy server. Same attributes as foreground agent `chat` spans (token usage, TTFT, response model, cache breakdown).
+
+**`execute_tool`** — one span per tool invocation. When the tool is `Agent` (subagent), child `chat` and `execute_tool` spans are nested underneath, giving full subagent visibility.
+
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_tool` |
+| `gen_ai.tool.name` | Required | `Edit` |
+| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
+| `github.copilot.tool.parameters.edit_type` | Edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) | `create` \| `str_replace` \| `update` |
+| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
+| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
+| `github.copilot.tool.parameters.command` | Shell tools (`Bash`), opt-in (captureContent) | `npm test` (truncated to 256 chars) |
+| `github.copilot.tool.parameters.file_path` | File tools (`Read`, `Edit`, `MultiEdit`, `Write`, `NotebookEdit`), opt-in (captureContent) | `/src/app.ts` |
+| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
+| `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"file_path":"/src/app.ts",...}` |
+
+**`execute_hook`** — one span per Claude hook execution (e.g., `Stop` hooks).
+
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_hook` |
+| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
+| `copilot_chat.hook_type` | Required | `PreToolUse` |
+| `copilot_chat.hook_result_kind` | Always | `success` \| `error` \| `non_blocking_error` |
+| `github.copilot.hook.decision` | Always | `pass` \| `block` \| `non_blocking_error` |
+| `github.copilot.hook.duration` | Always | `0.142` (seconds) |
+| `github.copilot.hook.tool_names` | When tool-scoped | `["bash"]` (JSON array) |
+| `copilot_chat.hook_input` | Always | hook input payload (truncated) |
+| `copilot_chat.hook_output` | On success | hook stdout (truncated) |
+| `error.type` | On error | `Error` |
 
 ---
 
 ## Interpreting the Data
 
-**Traces** — Visualize the full agent execution in Jaeger or Grafana Tempo. Each `invoke_agent` span contains child `chat` and `execute_tool` spans, making it easy to identify bottlenecks and debug failures. Subagent invocations appear as nested `invoke_agent` spans under `execute_tool runSubagent`.
+**Traces** — Visualize the full agent execution in Jaeger or Grafana Tempo. Each `invoke_agent` span contains child `chat` and `execute_tool` spans, making it easy to identify bottlenecks and debug failures. Subagent invocations appear as nested `invoke_agent` spans under `execute_tool runSubagent` (foreground agent) or under `execute_tool Agent` (Claude agent).
 
 **Metrics** — Track token usage trends by model and provider, monitor tool success rates via `copilot_chat.tool.call.count`, and watch perceived latency with `copilot_chat.time_to_first_token`. Agent activity metrics (`copilot_chat.edit.acceptance.count`, `copilot_chat.edit.survival.four_gram`, `copilot_chat.lines_of_code.count`) power accept rate and edit survival dashboards. All metrics carry the same resource attributes (`service.name`, `service.version`, `session.id`) for consistent filtering.
 

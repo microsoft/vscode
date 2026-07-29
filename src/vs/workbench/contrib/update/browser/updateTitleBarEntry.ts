@@ -7,41 +7,51 @@ import * as dom from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2, IMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
+import { InEditorZenModeContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
-import { computeProgressPercent, isMajorMinorVersionChange } from '../common/updateUtils.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { computeProgressPercent } from '../common/updateUtils.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
 
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
+const UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('updateTitleBarChatRequestInProgress', false);
+
+const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
+const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+const UPDATE_TITLE_BAR_SETTING = 'update.titleBar';
 
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
-const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
+const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting, StateType.Cancelling];
 
-const LAST_KNOWN_VERSION_KEY = 'updateTitleBarEntry/lastKnownVersion';
+/**
+ * Optional secondary placement for the update indicator (e.g. used by the Agents
+ * app). Limited to one because the contribution tracks a single rendered entry.
+ */
+let additionalMenuPlacement: { readonly menuId: MenuId; readonly item: Omit<IMenuItem, 'command'> } | undefined;
 
-interface ILastKnownVersion {
-	readonly version: string;
-	readonly commit: string | undefined;
-	readonly timestamp: number;
+export function registerUpdateTitleBarMenuPlacement(menuId: MenuId, item: Omit<IMenuItem, 'command'> = {}): void {
+	if (additionalMenuPlacement) {
+		throw new Error('An additional update title bar menu placement is already registered');
+	}
+	additionalMenuPlacement = { menuId, item };
 }
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
@@ -53,7 +63,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 			menu: [{
 				id: MenuId.TitleBarAdjacentCenter,
 				order: 0,
-				when: UPDATE_TITLE_BAR_CONTEXT,
+				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate(), ContextKeyExpr.not('inDebugMode'), UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate()),
 			}]
 		});
 	}
@@ -70,16 +80,14 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
-	private readonly pendingShow = this._register(new MutableDisposable());
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IChatService private readonly chatService: IChatService,
+		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUpdateService updateService: IUpdateService,
 	) {
@@ -92,129 +100,122 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		this.context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
 		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
 
+		const chatInProgressContext = UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			chatInProgressContext.set(chatService.requestInProgressObs.read(reader));
+		}));
+
 		this.state = updateService.state;
 		this._register(updateService.onStateChange((state) => {
 			this.state = state;
 			this.onStateChange();
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(UPDATE_TITLE_BAR_SETTING)) {
+				this.onStateChange();
+			}
+		}));
+
 		this._register(actionViewItemService.register(
 			MenuId.TitleBarAdjacentCenter,
 			UPDATE_TITLE_BAR_ACTION_ID,
-			(action, options) => {
-				this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
-					this.tooltipVisible = false;
-					if (!ACTIONABLE_STATES.includes(this.state.type) && !DETAILED_STATES.includes(this.state.type)) {
-						this.context.set(false);
-					}
-				});
-				if (this.tooltipVisible) {
-					this.entry.showTooltip();
-				}
-				return this.entry;
-			}
+			(action, options) => this.createEntry(instantiationService, action, options)
 		));
 
-		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
+		if (additionalMenuPlacement) {
+			const { menuId, item } = additionalMenuPlacement;
+			MenuRegistry.appendMenuItem(menuId, {
+				...item,
+				command: {
+					id: UPDATE_TITLE_BAR_ACTION_ID,
+					title: localize('updateIndicatorTitleBarAction', 'Update'),
+				},
+				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate(), item.when),
+			});
+			this._register(actionViewItemService.register(
+				menuId,
+				UPDATE_TITLE_BAR_ACTION_ID,
+				(action, options) => this.createEntry(instantiationService, action, options)
+			));
+		}
 
 		void this.onStateChange(true);
 	}
 
-	private async showUpdateInfo(markdown?: string) {
-		const rendered = await this.tooltip.renderPostInstall(markdown);
-		if (rendered) {
-			this.tooltipVisible = true;
-			this.context.set(true);
-			this.entry?.showTooltip(true);
+	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions): UpdateTitleBarEntry {
+		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
+			this.tooltipVisible = false;
+			if (!ACTIONABLE_STATES.includes(this.state.type) && !DETAILED_STATES.includes(this.state.type)) {
+				this.context.set(false);
+			}
+		});
+		if (this.tooltipVisible) {
+			this.entry.showTooltip();
 		}
+		return this.entry;
 	}
 
 	private async onStateChange(startup = false) {
-		this.pendingShow.clear();
-		if (ACTIONABLE_STATES.includes(this.state.type)) {
-			await this.setContextWhenChatIdle(true);
-		} else {
+		if (this.configurationService.getValue<boolean>(UPDATE_TITLE_BAR_SETTING) === false) {
 			this.context.set(false);
+			return;
 		}
 
+		// Tooltip already shown or window not last focused: only sync content and indicator visibility.
 		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+			this.context.set(ACTIONABLE_STATES.includes(this.state.type));
 			this.tooltip.renderState(this.state);
 			return;
 		}
 
-		let showTooltip = startup && this.detectVersionChange();
-		if (showTooltip && this.configurationService.getValue<boolean>('update.showPostInstallInfo') !== false) {
-			showTooltip = await this.tooltip.renderPostInstall();
-		} else {
-			this.tooltip.renderState(this.state);
-			switch (this.state.type) {
-				case StateType.Disabled:
-					if (startup) {
-						const reason = this.state.reason;
-						showTooltip = reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin;
+		this.tooltip.renderState(this.state);
+
+		// Set the context key only once. Toggling it (e.g. off then on) recreates the entry on every
+		// state update, which for frequent updates like download progress flashes the tooltip (#311938).
+		let context = ACTIONABLE_STATES.includes(this.state.type);
+		let showTooltip = false;
+		switch (this.state.type) {
+			case StateType.Disabled:
+				if (startup) {
+					const reason = this.state.reason;
+					if (reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin) {
+						const lastShown = this.storageService.getNumber(DISABLED_REMINDER_LAST_SHOWN_KEY, StorageScope.APPLICATION);
+						showTooltip = lastShown === undefined || (Date.now() - lastShown) >= DISABLED_REMINDER_PERIOD;
 					}
-					break;
-				case StateType.Idle:
-					showTooltip = !!this.state.error;
-					break;
-				case StateType.Downloading:
-				case StateType.Updating:
-				case StateType.Overwriting:
-					this.context.set(this.state.explicit);
-					break;
-				case StateType.Restarting:
-					this.context.set(true);
-					break;
-			}
+				}
+				break;
+			case StateType.Idle:
+				showTooltip = !!this.state.error;
+				break;
+			case StateType.Downloading:
+			case StateType.Updating:
+			case StateType.Overwriting:
+				context = this.state.explicit;
+				break;
+			case StateType.Cancelling:
+				context = true;
+				break;
+			case StateType.Restarting:
+				context = true;
+				break;
 		}
 
 		if (showTooltip) {
 			this.tooltipVisible = true;
-			this.context.set(true);
+			context = true;
+		}
+
+		this.context.set(context);
+
+		if (showTooltip) {
 			this.entry?.showTooltip();
+			if (this.state.type === StateType.Disabled) {
+				this.storageService.store(DISABLED_REMINDER_LAST_SHOWN_KEY, Date.now(), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 		}
 	}
 
-	private async setContextWhenChatIdle(value: boolean) {
-		if (!this.chatService.requestInProgressObs.get()) {
-			this.context.set(value);
-			return;
-		}
-
-		const cts = new CancellationTokenSource();
-		this.pendingShow.value = toDisposable(() => cts.dispose(true));
-		try {
-			await waitForState(this.chatService.requestInProgressObs, inProgress => !inProgress, undefined, cts.token);
-			this.context.set(value);
-		} catch {
-			// cancelled — a newer state change superseded this one
-		}
-	}
-
-	private detectVersionChange() {
-		let from: ILastKnownVersion | undefined;
-		try {
-			from = this.storageService.getObject(LAST_KNOWN_VERSION_KEY, StorageScope.APPLICATION);
-		} catch { }
-
-		const to: ILastKnownVersion = {
-			version: this.productService.version,
-			commit: this.productService.commit,
-			timestamp: Date.now(),
-		};
-
-		if (from?.commit === to.commit) {
-			return false;
-		}
-
-		this.storageService.store(LAST_KNOWN_VERSION_KEY, JSON.stringify(to), StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		if (from) {
-			return isMajorMinorVersionChange(from.version, to.version);
-		}
-
-		return false;
-	}
 }
 
 /**
@@ -344,6 +345,11 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 			case StateType.Restarting:
 				label.textContent = localize('updateIndicator.restarting', "Restarting...");
+				this.renderProgressState(this.content);
+				break;
+
+			case StateType.Cancelling:
+				label.textContent = localize('updateIndicator.cancelling', "Cancelling...");
 				this.renderProgressState(this.content);
 				break;
 

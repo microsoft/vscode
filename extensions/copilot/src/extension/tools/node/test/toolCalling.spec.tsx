@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PromptElement, PromptPiece, PromptSizing, Raw, RenderPromptResult, UserMessage } from '@vscode/prompt-tsx';
 import { beforeEach, expect, suite, test } from 'vitest';
 import { getTextPart, roleToString } from '../../../../platform/chat/common/globalStringUtils';
+import { rawPartAsThinkingData } from '../../../../platform/endpoint/common/thinkingDataContainer';
+import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-// import * as vscodeTypes from '../../../../vscodeTypes';
-import { PromptElement, PromptPiece, PromptSizing, RenderPromptResult, UserMessage } from '@vscode/prompt-tsx';
-import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../../vscodeTypes';
 import { IBuildPromptContext } from '../../../prompt/common/intents';
 import { ToolCallRound } from '../../../prompt/common/toolCallRound';
@@ -147,3 +147,131 @@ class ChatToolCallsWrapper extends PromptElement<ChatToolCallsProps, void> {
 		</>;
 	}
 }
+
+suite('ChatToolCalls thinking handling', () => {
+	let accessor: ITestingServicesAccessor;
+
+	beforeEach(async () => {
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		accessor = testingServiceCollection.createTestingAccessor();
+	});
+
+	function makeEndpoint(model: string, apiType: string | undefined, supportsAdaptiveThinking = false): MockEndpoint {
+		const endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
+		(endpoint as { model: string }).model = model;
+		(endpoint as { family: string }).family = model;
+		(endpoint as { apiType?: string }).apiType = apiType;
+		(endpoint as { supportsAdaptiveThinking?: boolean }).supportsAdaptiveThinking = supportsAdaptiveThinking;
+		return endpoint;
+	}
+
+	function makeThinkingRound(modelId: string): ToolCallRound {
+		return ToolCallRound.create({
+			id: 'r1',
+			response: 'thinking response',
+			toolCalls: [],
+			toolInputRetry: 0,
+			thinking: { id: 'th1', text: 'reasoning content' },
+			modelId,
+		});
+	}
+
+	async function render(endpoint: MockEndpoint, rounds: ToolCallRound[], isHistorical: boolean): Promise<RenderPromptResult> {
+		const renderer = PromptRenderer.create(accessor.get(IInstantiationService), endpoint, ChatToolCallsWrapper, {
+			promptContext: {
+				tools: {
+					toolInvocationToken: '1' as never,
+					toolReferences: [],
+					availableTools: []
+				}
+			} as any as IBuildPromptContext,
+			toolCallResults: {},
+			toolCallRounds: rounds,
+			isHistorical,
+		});
+		return renderer.render();
+	}
+
+	function hasThinkingPart(result: RenderPromptResult): boolean {
+		return result.messages.some(m => Array.isArray(m.content) && m.content.some(c =>
+			c.type === Raw.ChatCompletionContentPartKind.Opaque && rawPartAsThinkingData(c) !== undefined));
+	}
+
+	test('historical: includes thinking when responses API and modelId matches', async () => {
+		const endpoint = makeEndpoint('gpt-5', 'responses');
+		const result = await render(endpoint, [makeThinkingRound('gpt-5')], true);
+		expect(hasThinkingPart(result)).toBe(true);
+	});
+
+	test('historical: includes thinking on messages API for adaptive-thinking models', async () => {
+		// Adaptive-thinking models (Opus 4.6+/Sonnet 4.6+) keep previous-turn
+		// thinking blocks by default and accept them re-sent — replaying keeps
+		// the assistant message bytes stable so the prompt-cache prefix
+		// survives the turn boundary.
+		const opus = makeEndpoint('claude-opus-4.8', 'messages', true);
+		const sonnet = makeEndpoint('claude-sonnet-4.6', 'messages', true);
+		expect(hasThinkingPart(await render(opus, [makeThinkingRound('claude-opus-4.8')], true))).toBe(true);
+		expect(hasThinkingPart(await render(sonnet, [makeThinkingRound('claude-sonnet-4.6')], true))).toBe(true);
+	});
+
+	test('historical: drops thinking on messages API for budget-mode models even when modelId matches', async () => {
+		// Budget-mode models (Haiku 4.5, Sonnet ≤4.5) strictly validate any
+		// provided previous-turn thinking blocks ("cannot be modified") and
+		// 400 on our reconstructed blocks — #318076.
+		const endpoint = makeEndpoint('claude-haiku-4-5', 'messages', false);
+		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);
+		expect(hasThinkingPart(result)).toBe(false);
+	});
+
+	test('historical: drops thinking on messages API when modelId mismatches', async () => {
+		const endpoint = makeEndpoint('claude-opus-4.8', 'messages', true);
+		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);
+		expect(hasThinkingPart(result)).toBe(false);
+	});
+
+	test('historical: drops thinking on responses API when modelId mismatches', async () => {
+		const endpoint = makeEndpoint('gpt-5', 'responses');
+		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);
+		expect(hasThinkingPart(result)).toBe(false);
+	});
+
+	test('historical: drops thinking when round has no modelId', async () => {
+		const endpoint = makeEndpoint('gpt-5', 'responses');
+		const round = ToolCallRound.create({
+			id: 'r1',
+			response: 'thinking response',
+			toolCalls: [],
+			toolInputRetry: 0,
+			thinking: { id: 'th1', text: 'reasoning content' },
+		});
+		const result = await render(endpoint, [round], true);
+		expect(hasThinkingPart(result)).toBe(false);
+	});
+
+	test('non-historical: includes thinking when modelId matches (regardless of apiType)', async () => {
+		const endpoint = makeEndpoint('gpt-5', 'chatCompletions');
+		const result = await render(endpoint, [makeThinkingRound('gpt-5')], false);
+		expect(hasThinkingPart(result)).toBe(true);
+	});
+
+	test('non-historical: drops thinking when modelId mismatches', async () => {
+		const endpoint = makeEndpoint('gpt-5', 'responses');
+		const result = await render(endpoint, [makeThinkingRound('claude-4.6-sonnet')], false);
+		expect(hasThinkingPart(result)).toBe(false);
+	});
+
+	test('historical: backward-compat reads phaseModelId when modelId is missing', async () => {
+		const endpoint = makeEndpoint('gpt-5', 'responses');
+		// Older persisted rounds use `phaseModelId` instead of `modelId`.
+		const round = ToolCallRound.create({
+			id: 'r1',
+			response: 'thinking response',
+			toolCalls: [],
+			toolInputRetry: 0,
+			thinking: { id: 'th1', text: 'reasoning content' },
+		});
+		(round as ToolCallRound & { phaseModelId?: string }).phaseModelId = 'gpt-5';
+		const result = await render(endpoint, [round], true);
+		expect(hasThinkingPart(result)).toBe(true);
+	});
+});

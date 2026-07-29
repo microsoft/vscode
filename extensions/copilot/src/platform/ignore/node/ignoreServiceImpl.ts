@@ -14,7 +14,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { RelativePattern } from '../../filesystem/common/fileTypes';
 import { IGitService } from '../../git/common/gitService';
 import { ILogService } from '../../log/common/logService';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { ISearchService } from '../../search/common/searchService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { IIgnoreService } from '../common/ignoreService';
@@ -47,7 +47,7 @@ export class BaseIgnoreService implements IIgnoreService {
 		private readonly _requestLogger: IRequestLogger,
 	) {
 		this._disposables.push(this._onDidChangeCopilotIgnoreEnablement);
-		this._disposables.push(this._authService.onDidAuthenticationChange(() => {
+		this._disposables.push(this._authService.onDidCopilotTokenChange(() => {
 			const copilotIgnoreEnabled = this._authService.copilotToken?.isCopilotIgnoreEnabled() ?? false;
 			if (this._copilotIgnoreEnabled !== copilotIgnoreEnabled) {
 				this._onDidChangeCopilotIgnoreEnablement.fire(copilotIgnoreEnabled);

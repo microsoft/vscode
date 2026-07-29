@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type { Disposable, LanguageModelChatInformation, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart } from 'vscode';
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
-import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
-import { EndpointEditToolName, IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
-import { isScenarioAutomation } from '../../../platform/env/common/envService';
+import { EndpointEditToolName, IChatModelInformation, IChatModelRequestOptions, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { TokenizerType } from '../../../util/common/tokenizer';
 
 export const enum BYOKAuthType {
@@ -49,8 +47,19 @@ export type BYOKModelConfig = BYOKGlobalKeyModelConfig | BYOKPerModelConfig | BY
 export interface BYOKModelCapabilities {
 	name: string;
 	url?: string;
-	maxInputTokens: number;
+	/**
+	 * The maximum number of prompt (input) tokens. Optional when {@link contextWindow}
+	 * is supplied, in which case it is derived as `contextWindow - maxOutputTokens`.
+	 */
+	maxInputTokens?: number;
 	maxOutputTokens: number;
+	/**
+	 * The model's full context window (input + output) in tokens. Many providers
+	 * publish this directly (e.g. "Context Length: 1M"). When set it is used as the
+	 * source of truth for the context window; otherwise the window is derived as
+	 * `maxInputTokens + maxOutputTokens` for backward compatibility.
+	 */
+	contextWindow?: number;
 	toolCalling: boolean;
 	vision: boolean;
 	thinking?: boolean;
@@ -58,9 +67,18 @@ export interface BYOKModelCapabilities {
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
+	modelOptions?: IChatModelRequestOptions;
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
+	/**
+	 * Override the body shape used to forward the reasoning effort to the model.
+	 * - `'chat-completions'`: top-level `reasoning_effort` (default for `/chat/completions`).
+	 * - `'responses'`: nested `reasoning.effort` (default for `/responses`).
+	 * - `'messages'`: `output_config.effort` (default for `/messages`).
+	 * If unset the format is inferred from the API path the endpoint uses.
+	 */
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
 export interface BYOKModelRegistry {
@@ -87,6 +105,33 @@ export function isNoAuthConfig(config: BYOKModelConfig): config is BYOKNoAuthMod
 	return !('apiKey' in config) && !('deploymentUrl' in config);
 }
 
+/**
+ * Resolves a model's token limits from its BYOK capabilities, honoring an explicit
+ * {@link BYOKModelCapabilities.contextWindow} when provided.
+ *
+ * - When `contextWindow` is set it is the source of truth for the full window and, if
+ *   `maxInputTokens` is omitted, the prompt budget is derived as
+ *   `contextWindow - maxOutputTokens`.
+ * - Otherwise the window falls back to `maxInputTokens + maxOutputTokens` for backward
+ *   compatibility.
+ *
+ * The returned limits are always internally consistent: `maxOutputTokens` is clamped so
+ * it never exceeds the context window, and `maxInputTokens` is clamped to the remaining
+ * budget (`contextWindow - maxOutputTokens`). This prevents invalid combinations such as
+ * `maxOutputTokens > contextWindow`, or a `maxInputTokens` supplied alongside a smaller
+ * `contextWindow` overflowing the window.
+ */
+export function resolveModelTokenLimits(capabilities: Pick<BYOKModelCapabilities, 'maxInputTokens' | 'maxOutputTokens' | 'contextWindow'>): { contextWindow: number; maxInputTokens: number; maxOutputTokens: number } {
+	const contextWindow = capabilities.contextWindow ?? ((capabilities.maxInputTokens ?? 0) + capabilities.maxOutputTokens);
+	// The output budget can never exceed the full window.
+	const maxOutputTokens = Math.min(capabilities.maxOutputTokens, contextWindow);
+	// The prompt budget is whatever remains after the output reservation; an explicitly
+	// provided maxInputTokens is clamped to that remaining budget.
+	const remainingInputBudget = Math.max(0, contextWindow - maxOutputTokens);
+	const maxInputTokens = Math.min(capabilities.maxInputTokens ?? remainingInputBudget, remainingInputBudget);
+	return { contextWindow, maxInputTokens, maxOutputTokens };
+}
+
 export function resolveModelInfo(modelId: string, providerName: string, knownModels: BYOKKnownModels | undefined, modelCapabilities?: BYOKModelCapabilities): IChatModelInformation {
 	// Model Capabilities are something the user has decided on so those take precedence, then we rely on known model info, then defaults.
 	let knownModelInfo = modelCapabilities;
@@ -94,7 +139,9 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		knownModelInfo = knownModels[modelId];
 	}
 	const modelName = knownModelInfo?.name || modelId;
-	const contextWinow = knownModelInfo ? (knownModelInfo.maxInputTokens + knownModelInfo.maxOutputTokens) : 128000;
+	const limits = knownModelInfo
+		? resolveModelTokenLimits(knownModelInfo)
+		: { contextWindow: 128000, maxInputTokens: 100000, maxOutputTokens: 8192 };
 	const modelInfo: IChatModelInformation = {
 		id: modelId,
 		name: modelName,
@@ -108,20 +155,23 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				tool_calls: !!knownModelInfo?.toolCalling,
 				vision: !!knownModelInfo?.vision,
 				thinking: !!knownModelInfo?.thinking,
-				adaptive_thinking: !!knownModelInfo?.adaptiveThinking
+				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
+				reasoning_effort: knownModelInfo?.supportsReasoningEffort
 			},
 			tokenizer: TokenizerType.O200K,
 			limits: {
-				max_context_window_tokens: contextWinow,
-				max_prompt_tokens: knownModelInfo?.maxInputTokens || 100000,
-				max_output_tokens: knownModelInfo?.maxOutputTokens || 8192
+				max_context_window_tokens: limits.contextWindow,
+				max_prompt_tokens: limits.maxInputTokens,
+				max_output_tokens: limits.maxOutputTokens
 			}
 		},
 		is_chat_default: false,
 		is_chat_fallback: false,
 		model_picker_enabled: true,
 		supported_endpoints: knownModelInfo?.supportedEndpoints,
-		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled
+		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
+		modelOptions: knownModelInfo?.modelOptions,
+		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};
 	if (knownModelInfo?.requestHeaders && Object.keys(knownModelInfo.requestHeaders).length > 0) {
 		modelInfo.requestHeaders = { ...knownModelInfo.requestHeaders };
@@ -137,31 +187,41 @@ export function byokKnownModelsToAPIInfo(providerName: string, knownModels: BYOK
 }
 
 export function byokKnownModelToAPIInfo(providerName: string, id: string, capabilities: BYOKModelCapabilities): LanguageModelChatInformation {
+	const limits = resolveModelTokenLimits(capabilities);
 	return {
 		id,
 		name: capabilities.name,
 		version: '1.0.0',
-		maxOutputTokens: capabilities.maxOutputTokens,
-		maxInputTokens: capabilities.maxInputTokens,
-		detail: providerName,
+		maxOutputTokens: limits.maxOutputTokens,
+		maxInputTokens: limits.maxInputTokens,
+		// `detail` is intentionally omitted: when this model is resolved
+		// via a configured provider group, `LanguageModelsService` will
+		// fall back to the group name so multiple instances of the same
+		// vendor (e.g. multiple Ollama servers) are distinguishable in
+		// the model picker.
 		family: id,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
-		multiplierNumeric: 0,
+		multiplierNumeric: undefined,
+		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
-			imageInput: capabilities.vision
+			imageInput: capabilities.vision,
+			editTools: capabilities.editTools,
 		},
 	};
 }
 
-export function isBYOKEnabled(copilotToken: Omit<CopilotToken, 'token'>, capiClientService: ICAPIClientService): boolean {
-	if (isScenarioAutomation) {
+/**
+ * Signed-out users are allowed; signed-in users without a Copilot token (e.g. enterprise-managed errors) are denied to avoid bypassing policy.
+ */
+export function isClientBYOKAllowed(hasGitHubSession: boolean, copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
+	if (!hasGitHubSession) {
 		return true;
 	}
-
-	const isGHE = capiClientService.dotcomAPIURL !== 'https://api.github.com';
-	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled()) && !isGHE;
-	return byokAllowed;
+	if (!copilotToken) {
+		return false;
+	}
+	return copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled();
 }
 
 /**

@@ -13,6 +13,7 @@ import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/stati
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { IChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -191,6 +192,24 @@ suite('defaultIntentRequestHandler', () => {
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
 	});
 
+	test('isolates and closes a subagent WebSocket connection', async () => {
+		const request = new TestChatRequest();
+		Object.assign(request, { subAgentInvocationId: 'subagent-1', subAgentName: 'Reviewer' });
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const closeConnectionSpy = vi.spyOn(accessor.get(IChatWebSocketManager), 'closeConnection');
+		const handler = makeHandler({ request });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(requestSpy.mock.calls[0][0].webSocketConnectionId).toBe('subagent-1');
+		expect(closeConnectionSpy).toHaveBeenCalledWith(sessionId, 'subagent-1');
+	});
+
 	test('propagates resolvedModel into result metadata from a successful response', async () => {
 		fetcher.resolvedModel = 'gpt-4o-resolved';
 		const handler = makeHandler();
@@ -202,6 +221,46 @@ suite('defaultIntentRequestHandler', () => {
 
 		const result = await handler.getResult();
 		expect(result.metadata?.resolvedModel).toBe('gpt-4o-resolved');
+	});
+
+	test('ignores stateful marker when mode instructions changed on responses api requests', async () => {
+		const request = new TestChatRequest();
+		(request as any).modeInstructions2 = { name: 'Agent', content: 'agent instructions', isBuiltin: true };
+		(endpoint as any).apiType = 'responses';
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const previousTurn = new Turn(generateUuid(), { message: 'previous', type: 'user' }, undefined, [], undefined, undefined, false, { name: 'Plan', content: 'plan instructions', isBuiltin: true } as any);
+		const handler = makeHandler({ request, turns: [previousTurn] });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(requestSpy).toHaveBeenCalledOnce();
+		expect(requestSpy.mock.calls[0][0].modeChanged).toBe(true);
+		expect(requestSpy.mock.calls[0][0].ignoreStatefulMarker).toBeUndefined();
+	});
+
+	test('preserves default stateful marker behavior when mode instructions are unchanged on responses api requests', async () => {
+		const request = new TestChatRequest();
+		(request as any).modeInstructions2 = { name: 'Agent', content: 'agent instructions', isBuiltin: true };
+		(endpoint as any).apiType = 'responses';
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const previousTurn = new Turn(generateUuid(), { message: 'previous', type: 'user' }, undefined, [], undefined, undefined, false, { name: 'Agent', content: 'agent instructions', isBuiltin: true } as any);
+		const handler = makeHandler({ request, turns: [previousTurn] });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(requestSpy).toHaveBeenCalledOnce();
+		expect(requestSpy.mock.calls[0][0].modeChanged).toBe(false);
+		expect(requestSpy.mock.calls[0][0].ignoreStatefulMarker).toBeUndefined();
 	});
 
 	test('makes a tool call turn', async () => {

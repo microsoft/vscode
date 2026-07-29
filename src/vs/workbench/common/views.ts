@@ -40,7 +40,6 @@ export const enum ViewContainerLocation {
 	Sidebar,
 	Panel,
 	AuxiliaryBar,
-	ChatBar,
 }
 
 export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
@@ -48,7 +47,6 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 		case ViewContainerLocation.Sidebar: return 'sidebar';
 		case ViewContainerLocation.Panel: return 'panel';
 		case ViewContainerLocation.AuxiliaryBar: return 'auxiliarybar';
-		case ViewContainerLocation.ChatBar: return 'chatbar';
 	}
 }
 
@@ -63,7 +61,7 @@ type OpenCommandActionDescriptor = {
 /**
  * Specifies in which window a view or view container should be visible.
  */
-export const enum WindowVisibility {
+export const enum WindowEnablement {
 	/**
 	 * Visible only in the editor window
 	 */
@@ -140,10 +138,10 @@ export interface IViewContainerDescriptor {
 	readonly rejectAddedViews?: boolean;
 
 	/**
-	 * Specifies in which window this view container should be visible.
-	 * Defaults to WindowVisibility.Editor
+	 * Specifies in which window this view container should be enabled.
+	 * Defaults to WindowEnablement.Editor
 	 */
-	readonly windowVisibility?: WindowVisibility;
+	readonly windowEnablement?: WindowEnablement;
 
 	requestedIndex?: number;
 }
@@ -328,9 +326,9 @@ export interface IViewDescriptor {
 
 	/**
 	 * Specifies in which window this view should be visible.
-	 * Defaults to WindowVisibility.Workbench (main workbench only).
+	 * Defaults to WindowEnablement.Workbench (main workbench only).
 	 */
-	readonly windowVisibility?: WindowVisibility;
+	readonly windowEnablement?: WindowEnablement;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
@@ -793,7 +791,7 @@ export interface ITreeItem {
 
 	command?: TreeCommand;
 
-	children?: ITreeItem[];
+	children?: readonly ITreeItem[];
 
 	parent?: ITreeItem;
 
@@ -876,8 +874,8 @@ export class NoTreeViewError extends Error {
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	readonly onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
-	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
+	getChildren(element?: ITreeItem): Promise<readonly ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<(readonly ITreeItem[])[] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {

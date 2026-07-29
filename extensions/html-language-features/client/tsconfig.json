@@ -7,7 +7,8 @@
 			"ES2024",
 			"webworker"
 		],
-		"module": "Node16",
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
 		"types": [
 			"node"
 		],

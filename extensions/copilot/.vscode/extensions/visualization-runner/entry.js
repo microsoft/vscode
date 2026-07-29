@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 require('tsx/cjs');
-const { enableHotReload, hotRequire } = require("@hediet/node-reload");
+const { enableHotReload, hotRequire } = require('@hediet/node-reload');
 
 enableHotReload({ entryModule: module });
 
 /**
- * @param {import("vscode").ExtensionContext} context
+ * @param {import('vscode').ExtensionContext} context
  */
 function activate(context) {
-	context.subscriptions.push(hotRequire(module, "./extension", ext => new ext.Extension()));
+	context.subscriptions.push(hotRequire(module, './extension', ext => new ext.Extension()));
 }
 
 module.exports = { activate };

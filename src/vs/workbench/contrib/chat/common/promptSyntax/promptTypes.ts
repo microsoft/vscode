@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageSelector } from '../../../../../editor/common/languageSelector.js';
+import { localize } from '../../../../../nls.js';
 
 /**
  * Documentation link for the reusable prompts feature.
@@ -49,6 +50,19 @@ export const AGENT_DEBUG_LOG_ENABLED_SETTING = 'github.copilot.chat.agentDebugLo
  * Configuration key for enabling file logging for the agent debug log.
  */
 export const AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.fileLogging.enabled';
+
+/**
+ * Configuration key for enabling agent debug logging for agent host (Copilot CLI) sessions.
+ * Registered in core (see `chat.shared.contribution.ts`) since only core consumes it.
+ */
+export const AgentHostAgentDebugLogEnabledSettingId = 'chat.agentHost.agentDebugLog.enabled';
+
+/**
+ * Configuration key for the maximum number of debug events kept in memory for
+ * agent host (Copilot CLI) sessions. Registered in core (see
+ * `chat.shared.contribution.ts`) since only core consumes it.
+ */
+export const AgentHostAgentDebugLogMaxEventsSettingId = 'chat.agentHost.agentDebugLog.maxEventsInMemory';
 
 /**
  * The name of the troubleshoot slash command / skill.
@@ -137,7 +151,38 @@ export enum PromptFileSource {
 	AgentsPersonal = 'agents-personal',
 	ConfigWorkspace = 'config-workspace',
 	ConfigPersonal = 'config-personal',
+	UserData = 'user-data',
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
 	Plugin = 'plugin',
+}
+
+/**
+ * Returns a human-readable description for a prompt file source.
+ */
+export function getSourceDescription(source: PromptFileSource): string | undefined {
+	switch (source) {
+		case PromptFileSource.AgentsWorkspace:
+			return localize('source.agentsWorkspace', "Workspace");
+		case PromptFileSource.AgentsPersonal:
+			return localize('source.agentsPersonal', "Global");
+		case PromptFileSource.GitHubWorkspace:
+			return localize('source.githubWorkspace', "Workspace (only used by Copilot agents)");
+		case PromptFileSource.CopilotPersonal:
+			return localize('source.copilotPersonal', "Global (only used by Copilot agents)");
+		case PromptFileSource.ClaudeWorkspace:
+			return localize('source.claudeWorkspace', "Workspace (only used by Claude agents)");
+		case PromptFileSource.ClaudeWorkspaceLocal:
+			return localize('source.claudeWorkspaceLocal', "Workspace (only used by Claude agents, usually git-ignored)");
+		case PromptFileSource.ClaudePersonal:
+			return localize('source.claudePersonal', "Global (only used by Claude agents)");
+		case PromptFileSource.UserData:
+			return localize('source.userData', "Global (roams with Settings Sync, only used by VS Code)");
+		case PromptFileSource.ConfigWorkspace:
+			return localize('source.configWorkspace', "Workspace (contributed from settings)");
+		case PromptFileSource.ConfigPersonal:
+			return localize('source.configPersonal', "Global (contributed from settings)");
+		default:
+			return undefined;
+	}
 }

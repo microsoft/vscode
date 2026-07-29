@@ -78,14 +78,8 @@ export async function handleEditWindowWithEditIntent(
 	linesStream: AsyncIterable<string>,
 	tracer: ILogger,
 	parseMode: EditIntentParseMode,
-	getFetchFailure: () => NoNextEditReason | undefined,
 ): Promise<ResponseParseResult.EditWindowLines | ResponseParseResult.Done> {
 	const { editIntent, remainingLinesStream, parseError } = await parseEditIntentFromStream(linesStream, tracer, parseMode);
-
-	const fetchFailure = getFetchFailure();
-	if (fetchFailure) {
-		return new ResponseParseResult.Done(fetchFailure);
-	}
 
 	return new ResponseParseResult.EditWindowLines(
 		remainingLinesStream,
@@ -100,7 +94,7 @@ export async function handleEditWindowWithEditIntent(
 export interface UnifiedXmlInsertContext {
 	readonly editWindowLines: string[];
 	readonly editWindowLineRange: OffsetRange;
-	readonly cursorOriginalLinesOffset: number;
+	readonly cursorLineInEditWindowOffset: number;
 	readonly cursorColumnZeroBased: number;
 	readonly editWindow: OffsetRange;
 	readonly originalEditWindow: OffsetRange | undefined;
@@ -113,17 +107,9 @@ export async function handleUnifiedWithXml(
 	ctx: UnifiedXmlInsertContext,
 	documentBeforeEdits: StringText,
 	tracer: ILogger,
-	getFetchFailure: () => NoNextEditReason | undefined,
 ): Promise<ResponseParseResult.t> {
 	const linesIter = linesStream[Symbol.asyncIterator]();
 	const firstLine = await linesIter.next();
-
-	{
-		const fetchFailure = getFetchFailure();
-		if (fetchFailure) {
-			return new ResponseParseResult.Done(fetchFailure);
-		}
-	}
 
 	if (firstLine.done) {
 		return new ResponseParseResult.Done(
@@ -141,12 +127,12 @@ export async function handleUnifiedWithXml(
 
 	if (trimmedFirstLine === ResponseTags.INSERT.start) {
 		return new ResponseParseResult.DirectEdits(
-			generateInsertEdits(linesIter, ctx, documentBeforeEdits, getFetchFailure),
+			generateInsertEdits(linesIter, ctx, documentBeforeEdits),
 		);
 	}
 
 	if (trimmedFirstLine === ResponseTags.EDIT.start) {
-		const editLines = generateEditLines(linesIter, getFetchFailure);
+		const editLines = generateEditLines(linesIter);
 		return new ResponseParseResult.EditWindowLines(editLines);
 	}
 
@@ -163,27 +149,19 @@ async function* generateInsertEdits(
 	linesIter: AsyncIterator<string>,
 	ctx: UnifiedXmlInsertContext,
 	documentBeforeEdits: StringText,
-	getFetchFailure: () => NoNextEditReason | undefined,
 ): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
-	const { editWindowLines, editWindowLineRange, cursorOriginalLinesOffset, cursorColumnZeroBased, editWindow, originalEditWindow, targetDocument, isFromCursorJump } = ctx;
+	const { editWindowLines, editWindowLineRange, cursorLineInEditWindowOffset, cursorColumnZeroBased, editWindow, originalEditWindow, targetDocument, isFromCursorJump } = ctx;
 
 	const lineWithCursorContinued = await linesIter.next();
 	if (lineWithCursorContinued.done || lineWithCursorContinued.value.includes(ResponseTags.INSERT.end)) {
 		return new NoNextEditReason.NoSuggestions(documentBeforeEdits, editWindow);
 	}
 
-	{
-		const fetchFailure = getFetchFailure();
-		if (fetchFailure) {
-			return fetchFailure;
-		}
-	}
-
-	const cursorLineContent = editWindowLines[cursorOriginalLinesOffset];
+	const cursorLineContent = editWindowLines[cursorLineInEditWindowOffset];
 	const edit = new LineReplacement(
 		new LineRange(
-			editWindowLineRange.start + cursorOriginalLinesOffset + 1 /* 0-based to 1-based */,
-			editWindowLineRange.start + cursorOriginalLinesOffset + 2,
+			editWindowLineRange.start + cursorLineInEditWindowOffset + 1 /* 0-based to 1-based */,
+			editWindowLineRange.start + cursorLineInEditWindowOffset + 2,
 		),
 		[cursorLineContent.slice(0, cursorColumnZeroBased) + lineWithCursorContinued.value + cursorLineContent.slice(cursorColumnZeroBased)],
 	);
@@ -200,14 +178,7 @@ async function* generateInsertEdits(
 		v = await linesIter.next();
 	}
 
-	{
-		const fetchFailure = getFetchFailure();
-		if (fetchFailure) {
-			return fetchFailure;
-		}
-	}
-
-	const line = editWindowLineRange.start + cursorOriginalLinesOffset + 2;
+	const line = editWindowLineRange.start + cursorLineInEditWindowOffset + 2;
 	yield {
 		edit: new LineReplacement(
 			new LineRange(line, line),
@@ -224,14 +195,10 @@ async function* generateInsertEdits(
 
 async function* generateEditLines(
 	linesIter: AsyncIterator<string>,
-	getFetchFailure: () => NoNextEditReason | undefined,
 ): AsyncIterable<string> {
 	let v = await linesIter.next();
 	while (!v.done) {
 		if (v.value.includes(ResponseTags.EDIT.end)) {
-			return;
-		}
-		if (getFetchFailure()) {
 			return;
 		}
 		yield v.value;

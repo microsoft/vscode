@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
-import { IHoverPositionOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownOptions, withActionWidgetDropdownMotion } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -24,9 +25,16 @@ export interface IChatInputPickerOptions {
 
 	readonly actionContext?: IChatExecuteActionContext;
 
-	readonly hideChevrons: IObservable<boolean>;
+	readonly compact: IObservable<boolean>;
 
-	readonly hoverPosition?: IHoverPositionOptions;
+	readonly listOptions?: IActionListOptions;
+}
+
+export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
+	return {
+		...withActionWidgetDropdownMotion(listOptions),
+		anchorPosition: AnchorPosition.ABOVE,
+	};
 }
 
 /**
@@ -48,14 +56,15 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			...actionWidgetOptions,
 			getAnchor: () => this.getAnchorElement(),
+			listOptions: withChatInputPickerMotion(actionWidgetOptions.listOptions),
 		};
 
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
-			const hideChevrons = this.pickerOptions.hideChevrons.read(reader);
+			const compact = this.pickerOptions.compact.read(reader);
 			if (this.element) {
-				this.element.classList.toggle('hide-chevrons', hideChevrons);
+				this.element.classList.toggle('compact', compact);
 				this.renderLabel(this.element);
 			}
 		}));
@@ -77,9 +86,9 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		container.classList.add('chat-input-picker-item');
 
 		// Apply initial collapsed state now that this.element exists
-		const hideChevrons = this.pickerOptions.hideChevrons.get();
+		const compact = this.pickerOptions.compact.get();
 		if (this.element) {
-			this.element.classList.toggle('hide-chevrons', hideChevrons);
+			this.element.classList.toggle('compact', compact);
 			this.renderLabel(this.element);
 		}
 	}

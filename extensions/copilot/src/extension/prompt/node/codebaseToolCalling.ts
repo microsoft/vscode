@@ -15,7 +15,7 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IOTelService } from '../../../platform/otel/common/otelService';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -59,7 +59,7 @@ export class CodebaseToolCallingLoop extends ToolCallingLoop<ICodebaseToolCallin
 	private async getEndpoint(request: ChatRequest) {
 		let endpoint = await this.endpointProvider.getChatEndpoint(this.options.request);
 		if (!endpoint.supportsToolCalls) {
-			endpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+			endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		}
 		return endpoint;
 	}

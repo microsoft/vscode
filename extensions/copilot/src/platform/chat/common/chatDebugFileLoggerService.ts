@@ -74,8 +74,10 @@ export interface IChatDebugFileLoggerService {
 
 	/**
 	 * Get the URI of the debug logs directory, or undefined if it cannot be
-	 * determined (e.g. no workspace, or an error occurs). The directory may
-	 * not actually exist on disk yet if no sessions have been started.
+	 * determined (e.g. no storage is available at all, or an error occurs).
+	 * Resolves to workspace-scoped storage when a workspace/folder is open and
+	 * only falls back to global storage when no workspace is open. The directory
+	 * may not actually exist on disk yet if no sessions have been started.
 	 */
 	readonly debugLogsDir: URI | undefined;
 
@@ -139,6 +141,12 @@ export interface IChatDebugFileLoggerService {
 	 * Uses a streaming parser to avoid loading the entire file into memory.
 	 */
 	streamEntries(sessionId: string, onEntry: (entry: IDebugLogEntry) => void): Promise<void>;
+
+	/**
+	 * List session IDs that have debug log directories on disk.
+	 * Returns both active and historical sessions found in the debug-logs/ directory.
+	 */
+	listSessionIds(): Promise<string[]>;
 }
 
 /**
@@ -191,4 +199,5 @@ export class NullChatDebugFileLoggerService implements IChatDebugFileLoggerServi
 	async readEntries(): Promise<IDebugLogEntry[]> { return []; }
 	async readTailEntries(): Promise<IDebugLogEntry[]> { return []; }
 	async streamEntries(): Promise<void> { }
+	async listSessionIds(): Promise<string[]> { return []; }
 }

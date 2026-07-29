@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AGENT_FILE_EXTENSION, SKILL_FILENAME } from '../../../platform/customInstructions/common/promptTypes';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -15,7 +14,7 @@ import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IClaudeRuntimeDataService } from '../claude/common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
-import { IChatPromptFileService } from '../common/chatPromptFileService';
+import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 
 // TODO: Consider reporting Claude slash commands (from Query.supportedCommands()) when appropriate
 // TODO: Report MCP servers when ChatSessionCustomizationType.Mcp is available (use Query.mcpServerStatus())
@@ -79,7 +78,7 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 	}
 
 	constructor(
-		@IChatPromptFileService private readonly chatPromptFileService: IChatPromptFileService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@IClaudeRuntimeDataService private readonly runtimeDataService: IClaudeRuntimeDataService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
@@ -89,12 +88,12 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		super();
 
 		this._register(this.runtimeDataService.onDidChange(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangeCustomAgents(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangeSkills(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeCustomAgents(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeSkills(() => this._onDidChange.fire()));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this._onDidChange.fire()));
 	}
 
-	async provideChatSessionCustomizations(_token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+	async provideChatSessionCustomizations(_sessionResource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const items: vscode.ChatSessionCustomizationItem[] = [];
 
 		// Agents: hybrid approach — file-based .claude/ agents merged with SDK-provided agents.
@@ -109,19 +108,26 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 				type: vscode.ChatSessionCustomizationType.Agent,
 				name: agent.name,
 				description: agent.description,
+				extensionId: undefined,
+				pluginUri: undefined,
+				source: 'builtin'
 				// No groupKey — vscode infers Built-in from non-file: scheme
 			});
 		}
 
 		// File-based agents from .claude/ paths — shown pre-session, deduplicated with SDK
-		for (const agent of this.chatPromptFileService.customAgents) {
-			if (this.isClaudePath(agent.uri)) {
-				const name = deriveNameFromUri(agent.uri, AGENT_FILE_EXTENSION);
+		for (const agent of await this.promptsService.getCustomAgents(token)) {
+			if (agent.enabled && isEnabledForClaudeCode(agent) && this.isClaudePath(agent.uri)) {
+				const name = agent.name;
 				if (!sdkAgentNames.has(name.toLowerCase())) {
 					items.push({
 						uri: agent.uri,
 						type: vscode.ChatSessionCustomizationType.Agent,
 						name,
+						description: agent.description,
+						extensionId: agent.extensionId,
+						pluginUri: agent.pluginUri,
+						source: agent.source
 					});
 				}
 			}
@@ -137,12 +143,16 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 
 		// Skills from .claude/skills/ directories (user-defined SKILL.md files)
 		const skillItems: vscode.ChatSessionCustomizationItem[] = [];
-		for (const skill of this.chatPromptFileService.skills) {
+		for (const skill of await this.promptsService.getSkills(token)) {
 			if (this.isClaudePath(skill.uri)) {
 				const item: vscode.ChatSessionCustomizationItem = {
 					uri: skill.uri,
 					type: vscode.ChatSessionCustomizationType.Skill,
-					name: deriveNameFromUri(skill.uri, SKILL_FILENAME),
+					name: skill.name,
+					description: skill.description,
+					extensionId: skill.extensionId,
+					pluginUri: skill.pluginUri,
+					source: skill.source
 				};
 				skillItems.push(item);
 			}
@@ -159,35 +169,64 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		return items;
 	}
 
+	async provideSourceFolders(_sessionResource: vscode.Uri, type: vscode.ChatSessionCustomizationType, _token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationSourceFolder[]> {
+		const folders: vscode.ChatSessionCustomizationSourceFolder[] = [];
+		const searchPaths = getCustomizationSearchPaths();
+		for (const folder of this.workspaceService.getWorkspaceFolders()) {
+			for (const root of searchPaths.workspace) {
+				if (root.type === type) {
+					folders.push({
+						uri: URI.joinPath(folder, ...root.path),
+						label: root.path[0],
+						source: 'local'
+					});
+				}
+			}
+		}
+		for (const root of searchPaths.user) {
+			if (root.type === type) {
+				folders.push({
+					uri: URI.joinPath(this.envService.userHome, ...root.path),
+					label: `~/${root.path[0]}`,
+					source: 'user'
+				});
+			}
+		}
+		return folders;
+	}
+
 	private async discoverInstructions(): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const items: vscode.ChatSessionCustomizationItem[] = [];
-		const candidates: URI[] = [];
+		const candidates: { uri: URI; source: vscode.ChatResourceSource }[] = [];
 
 		for (const folder of this.workspaceService.getWorkspaceFolders()) {
 			for (const entry of WORKSPACE_INSTRUCTION_PATHS) {
 				if (typeof entry === 'string') {
-					candidates.push(URI.joinPath(folder, entry));
+					candidates.push({ uri: URI.joinPath(folder, entry), source: 'local' });
 				} else {
-					candidates.push(URI.joinPath(folder, ...entry));
+					candidates.push({ uri: URI.joinPath(folder, ...entry), source: 'local' });
 				}
 			}
 		}
 
 		for (const entry of HOME_INSTRUCTION_PATHS) {
-			candidates.push(URI.joinPath(this.envService.userHome, ...entry));
+			candidates.push({ uri: URI.joinPath(this.envService.userHome, ...entry), source: 'user' });
 		}
 
-		for (const uri of candidates) {
+		for (const { uri, source } of candidates) {
 			if (await this.fileExists(uri)) {
 				const name = basename(uri).replace(/\.md$/i, '');
 				items.push({
 					uri,
 					type: vscode.ChatSessionCustomizationType.Instructions,
 					name,
+					description: undefined,
+					extensionId: undefined,
+					pluginUri: undefined,
+					source,
 				});
 			}
 		}
-
 		return items;
 	}
 
@@ -204,9 +243,9 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		const items: vscode.ChatSessionCustomizationItem[] = [];
 		const settingsPaths = this.getSettingsFilePaths();
 
-		for (const settingsUri of settingsPaths) {
+		for (const { uri, source } of settingsPaths) {
 			try {
-				const content = await this.fileSystemService.readFile(settingsUri);
+				const content = await this.fileSystemService.readFile(uri);
 				const settings: HooksSettings = JSON.parse(new TextDecoder().decode(content));
 				if (!settings.hooks) {
 					continue;
@@ -222,10 +261,13 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 						for (const hook of matcher.hooks) {
 							const matcherLabel = matcher.matcher === '*' ? '' : ` (${matcher.matcher})`;
 							items.push({
-								uri: settingsUri,
+								uri,
 								type: vscode.ChatSessionCustomizationType.Hook,
 								name: `${eventId}${matcherLabel}`,
 								description: hook.command,
+								extensionId: undefined,
+								pluginUri: undefined,
+								source
 							});
 						}
 					}
@@ -238,15 +280,15 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		return items;
 	}
 
-	private getSettingsFilePaths(): URI[] {
-		const paths: URI[] = [];
+	private getSettingsFilePaths(): { uri: URI; source: vscode.ChatResourceSource }[] {
+		const paths: { uri: URI; source: vscode.ChatResourceSource }[] = [];
 
 		for (const folder of this.workspaceService.getWorkspaceFolders()) {
-			paths.push(URI.joinPath(folder, '.claude', 'settings.json'));
-			paths.push(URI.joinPath(folder, '.claude', 'settings.local.json'));
+			paths.push({ uri: URI.joinPath(folder, '.claude', 'settings.json'), source: 'local' });
+			paths.push({ uri: URI.joinPath(folder, '.claude', 'settings.local.json'), source: 'local' });
 		}
 
-		paths.push(URI.joinPath(this.envService.userHome, '.claude', 'settings.json'));
+		paths.push({ uri: URI.joinPath(this.envService.userHome, '.claude', 'settings.json'), source: 'user' });
 		return paths;
 	}
 
@@ -276,15 +318,21 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 	}
 }
 
-function deriveNameFromUri(uri: vscode.Uri, extensionOrFilename: string): string {
-	const filename = basename(uri);
-	if (filename.toLowerCase() === extensionOrFilename.toLowerCase()) {
-		// For files like SKILL.md, use the parent directory name
-		const parts = uri.path.split('/');
-		return parts.length >= 2 ? parts[parts.length - 2] : filename;
-	}
-	if (filename.endsWith(extensionOrFilename)) {
-		return filename.slice(0, -extensionOrFilename.length);
-	}
-	return filename;
+export function isEnabledForClaudeCode(customization: { sessionTypes?: readonly string[] }): boolean {
+	const sessionTypes = customization.sessionTypes;
+	return sessionTypes === undefined || sessionTypes.includes('claude-code') || false;
+}
+
+function getCustomizationSearchPaths() {
+	return {
+		workspace: [
+			{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+		],
+		user: [
+			{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+		],
+	};
 }

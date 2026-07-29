@@ -76,7 +76,7 @@ import { ParserServiceImpl } from '../../parser/node/parserServiceImpl';
 import { IPromptPathRepresentationService, TestPromptPathRepresentationService } from '../../prompts/common/promptPathRepresentationService';
 import { BasicCodeSearchAuthenticationService, ICodeSearchAuthenticationService } from '../../remoteCodeSearch/node/codeSearchRepoAuth';
 import { NullRequestLogger } from '../../requestLogger/node/nullRequestLogger';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IScopeSelector } from '../../scopeSelection/common/scopeSelection';
 import { ISearchService } from '../../search/common/searchService';
 import { ISimulationTestContext, NulSimulationTestContext } from '../../simulationTestContext/common/simulationTestContext';

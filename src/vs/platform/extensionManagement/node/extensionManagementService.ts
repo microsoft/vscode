@@ -1056,6 +1056,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
+		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -1067,6 +1068,17 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.identifier));
 		if (existingExtension) {
 			this._operation = InstallOperation.Update;
+		}
+
+		const system = await this.extensionsScanner.scanExtensions(ExtensionType.System, this.options.profileLocation, this.options.productVersion);
+		const existingSystemExtension = system.find(i => areSameExtensions(i.identifier, this.identifier));
+		if (existingSystemExtension) {
+			if (!existingSystemExtension.forceAutoUpdate) {
+				throw new ExtensionManagementError(nls.localize('builtinAutoUpdate', "Extension '{0}' is a built-in extension and not allowed to be updated in the current product quality '{1}'.", existingSystemExtension.identifier.id, this.productService.quality), ExtensionManagementErrorCode.Incompatible);
+			}
+			if (semver.gt(existingSystemExtension.manifest.version, this.manifest.version)) {
+				throw new ExtensionManagementError(nls.localize('builtinVersion', "Extension '{0}' is a built-in extension with version '{1}' and cannot be downgraded to version '{2}'.", existingSystemExtension.identifier.id, existingSystemExtension.manifest.version, this.manifest.version), ExtensionManagementErrorCode.Incompatible);
+			}
 		}
 
 		const metadata: Metadata = {
@@ -1092,6 +1104,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 					}
 				}
 			}
+
 			// Remove the extension with same version if it is already uninstalled.
 			// Installing a VSIX extension shall replace the existing extension always.
 			const existingWithSameVersion = await this.unsetIfRemoved(this.extensionKey);
