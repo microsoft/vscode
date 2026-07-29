@@ -29,8 +29,8 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostClaudeMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
@@ -940,6 +940,23 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const updatedMultiRootEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostCopilotMultiRootEnabledConfigKey);
 		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostCopilotMultiRootEnabledConfigKey]: false });
+	});
+
+	test('forwards Claude multi-root enablement on connect and when the setting changes', async () => {
+		const configurationService = new TestConfigurationService({ [AgentHostClaudeMultiRootEnabledSettingId]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+
+		await connectClient(client, transport);
+
+		const multiRootEnabled = findRootConfigNotification(transport.sentMessages, AgentHostClaudeMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(multiRootEnabled), { [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(AgentHostClaudeMultiRootEnabledSettingId, false);
+		fireConfigurationChange(configurationService, AgentHostClaudeMultiRootEnabledSettingId);
+
+		const updatedMultiRootEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostClaudeMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostClaudeMultiRootEnabledConfigKey]: false });
 	});
 
 	test('forwards auto-reply on connect and when the setting changes', async () => {
