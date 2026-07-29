@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { afterEach, beforeEach, suite, test } from 'node:test';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join } from 'path';
-import { checkProgram, createProgram, getRule, type ILayerViolation, type IRule } from '../../checker/layersChecker.ts';
+import { checkLayers, getRule, type ILayerViolation, type IRule } from '../../checker/layersChecker.ts';
 
 suite('layersChecker', () => {
 	let rootPath: string;
@@ -20,7 +20,7 @@ suite('layersChecker', () => {
 	];
 
 	beforeEach(() => {
-		rootPath = mkdtempSync(join(tmpdir(), '.layers-checker-'));
+		rootPath = realpathSync(mkdtempSync(join(tmpdir(), '.layers-checker-')));
 		tsconfigPath = join(rootPath, 'tsconfig.json');
 		writeFileSync(tsconfigPath, JSON.stringify({
 			compilerOptions: {
@@ -43,37 +43,38 @@ suite('layersChecker', () => {
 		assert.strictEqual(getRule(fileName, rootPath, rules), rules[1]);
 	});
 
-	test('excludes skipped root files from the program', () => {
-		writeSource('vs/feature/browser/feature.ts', 'export const value = 1;');
-		const skippedFile = writeSource('vs/feature/test/feature.test.ts', 'export const value = 1;');
+	test('ignores skipped files', async () => {
+		writeForbiddenService();
+		writeSource('vs/feature/browser/test/feature.test.ts', `
+			import { ForbiddenService } from '../../../platform/common/service.js';
+			export const service: ForbiddenService | undefined = undefined;
+		`);
 
-		const program = createProgram(tsconfigPath, rules);
-
-		assert.strictEqual(program.getRootFileNames().includes(skippedFile), false);
+		assert.deepStrictEqual(await getViolations(), []);
 	});
 
-	test('detects aliased forbidden types', () => {
+	test('detects aliased forbidden types', async () => {
 		writeForbiddenService();
 		writeSource('vs/feature/browser/feature.ts', `
 			import { ForbiddenService as Service } from '../../platform/common/service.js';
 			export const service: Service | undefined = undefined;
 		`);
 
-		assert.deepStrictEqual(getViolations(), [
+		assert.deepStrictEqual(await getViolations(), [
 			{ type: 'ForbiddenService', fileName: 'vs/feature/browser/feature.ts', line: 2, character: 13 },
 			{ type: 'ForbiddenService', fileName: 'vs/feature/browser/feature.ts', line: 2, character: 33 },
 			{ type: 'ForbiddenService', fileName: 'vs/feature/browser/feature.ts', line: 3, character: 26 },
 		]);
 	});
 
-	test('detects members of inferred forbidden types', () => {
+	test('detects members of inferred forbidden types', async () => {
 		writeForbiddenService();
 		writeSource('vs/feature/browser/feature.ts', `
 			import { getService } from '../../platform/common/service.js';
 			getService().run();
 		`);
 
-		assert.deepStrictEqual(getViolations(), [
+		assert.deepStrictEqual(await getViolations(), [
 			{ type: 'ForbiddenService', fileName: 'vs/feature/browser/feature.ts', line: 3, character: 17 },
 		]);
 	});
@@ -92,13 +93,15 @@ suite('layersChecker', () => {
 		return fileName;
 	}
 
-	function getViolations(): Pick<ILayerViolation, 'type' | 'fileName' | 'line' | 'character'>[] {
-		const program = createProgram(tsconfigPath, rules);
-		return checkProgram(program, rootPath, rules).map(violation => ({
-			type: violation.type,
-			fileName: violation.fileName.slice(rootPath.length + 1).replaceAll('\\', '/'),
-			line: violation.line,
-			character: violation.character,
-		}));
+	async function getViolations(): Promise<Pick<ILayerViolation, 'type' | 'fileName' | 'line' | 'character'>[]> {
+		const violations = await checkLayers(tsconfigPath, rules);
+		return violations
+			.map(violation => ({
+				type: violation.type,
+				fileName: violation.fileName.slice(rootPath.length + 1).replaceAll('\\', '/'),
+				line: violation.line,
+				character: violation.character,
+			}))
+			.sort((a, b) => a.line - b.line || a.character - b.character);
 	}
 });
