@@ -410,7 +410,7 @@ export class WindowsStateHandler extends Disposable {
 		}
 
 		if (ensureNoOverlap) {
-			state = this.ensureNoOverlap(state);
+			state = this.ensureNoOverlap(state, workArea);
 		}
 
 		(state as INewWindowState).hasDefaultState = true; // flag as default state
@@ -418,19 +418,35 @@ export class WindowsStateHandler extends Disposable {
 		return state;
 	}
 
-	private ensureNoOverlap(state: IWindowUIState): IWindowUIState {
+	private ensureNoOverlap(state: IWindowUIState, workArea: electron.Rectangle): IWindowUIState {
 		if (this.windowsMainService.getWindows().length === 0) {
 			return state;
 		}
 
-		state.x = typeof state.x === 'number' ? state.x : 0;
-		state.y = typeof state.y === 'number' ? state.y : 0;
+		let x = typeof state.x === 'number' ? state.x : 0;
+		let y = typeof state.y === 'number' ? state.y : 0;
+		const width = state.width ?? 0;
+		const height = state.height ?? 0;
 
 		const existingWindowBounds = this.windowsMainService.getWindows().map(window => window.getBounds());
-		while (existingWindowBounds.some(bounds => bounds.x === state.x || bounds.y === state.y)) {
-			state.x += 30;
-			state.y += 30;
+		while (existingWindowBounds.some(bounds => bounds.x === x || bounds.y === y)) {
+			const nextX = x + 30;
+			const nextY = y + 30;
+
+			// Stop offsetting as soon as the window would no longer fit inside the work area.
+			// Displays arranged side by side share the same vertical origin, so windows on a
+			// second display collide on `y` repeatedly and the accumulated offset would
+			// otherwise push the title bar and status bar out of the visible region.
+			if (nextX + width > workArea.x + workArea.width || nextY + height > workArea.y + workArea.height) {
+				break;
+			}
+
+			x = nextX;
+			y = nextY;
 		}
+
+		state.x = x;
+		state.y = y;
 
 		return state;
 	}
