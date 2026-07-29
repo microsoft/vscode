@@ -9,7 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -21,8 +21,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
-import { ChatConfiguration } from '../common/constants.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
+import { addConfiguredMarketplace, MarketplaceReferenceKind, parseMarketplaceReference } from '../common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 
 /**
@@ -189,15 +188,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 		}
 
-		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
-		const existingRefs = parseMarketplaceReferences(effectiveValues);
-		if (!existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
-			await this._configurationService.updateValue(
-				ChatConfiguration.PluginMarketplaces,
-				[...userValues, refValue],
-				ConfigurationTarget.USER,
-			);
-		}
+		await addConfiguredMarketplace(this._configurationService, refValue);
 
 		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 		return true;

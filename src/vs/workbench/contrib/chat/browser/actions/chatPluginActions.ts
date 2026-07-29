@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -13,13 +14,13 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
+import { addConfiguredMarketplace, IPluginMarketplaceService, type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 
@@ -163,6 +164,78 @@ interface IMarketplaceQuickPickItem extends IQuickPickItem {
 	readonly managedByPolicy: boolean;
 }
 
+interface IAddPluginMarketplaceActionOptions {
+	/** When `true`, do not reveal the marketplace's plugins in the Extensions viewlet after adding. */
+	readonly skipReveal?: boolean;
+}
+
+class AddPluginMarketplaceAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.addPluginMarketplace';
+
+	constructor() {
+		super({
+			id: AddPluginMarketplaceAction.ID,
+			title: localize2('addPluginMarketplace', 'Add Plugin Marketplace'),
+			category: CHAT_CATEGORY,
+			icon: Codicon.add,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options?: IAddPluginMarketplaceActionOptions): Promise<boolean> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
+		const marketplaceService = accessor.get(IPluginMarketplaceService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+
+		const store = new DisposableStore();
+		const inputBox = store.add(quickInputService.createInputBox());
+		inputBox.title = localize('addMarketplaceTitle', "Add Plugin Marketplace");
+		inputBox.placeholder = localize('marketplaceSourcePlaceholder', "owner/repo, git URL, or file:// path");
+		inputBox.prompt = localize('marketplaceSourcePrompt', "Enter a GitHub repository, git URL, or local folder URI of a plugin marketplace to add");
+		inputBox.ignoreFocusOut = true;
+		inputBox.show();
+
+		store.add(inputBox.onDidChangeValue(() => {
+			inputBox.validationMessage = undefined;
+		}));
+
+		return new Promise<boolean>(resolve => {
+			let succeeded = false;
+			store.add(toDisposable(() => resolve(succeeded)));
+			store.add(inputBox.onDidHide(() => store.dispose()));
+
+			store.add(inputBox.onDidAccept(async () => {
+				const source = inputBox.value.trim();
+				if (!source) {
+					return;
+				}
+
+				const ref = parseMarketplaceReference(source);
+				if (!ref) {
+					inputBox.validationMessage = localize('invalidMarketplaceSource', "Enter a valid marketplace source: owner/repo, a git URL, or a file:// path.");
+					return;
+				}
+
+				// Respect the enterprise strict-marketplace allowlist: a marketplace that is
+				// not permitted by policy cannot be added here.
+				if (marketplaceService.isStrictMarketplacePolicyActive() && !marketplaceService.isMarketplaceTrusted(ref)) {
+					inputBox.validationMessage = localize('marketplaceBlockedByPolicy', "'{0}' is blocked by your organization's policy.", ref.displayLabel);
+					return;
+				}
+
+				await addConfiguredMarketplace(configurationService, source);
+				succeeded = true;
+				if (!options?.skipReveal) {
+					extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+				}
+				store.dispose();
+			}));
+		});
+	}
+}
+
 class ManagePluginMarketplacesAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.managePluginMarketplaces';
 
@@ -200,13 +273,15 @@ class ManagePluginMarketplacesAction extends Action2 {
 		const refs = parseMarketplaceReferences(effectiveValues);
 		const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(r => r.canonicalId));
 
-		if (refs.length === 0) {
-			quickInputService.pick([], { placeHolder: localize('noMarketplaces', "No plugin marketplaces configured") });
-			return;
-		}
+		// Step 1: pick a marketplace to manage, or add a new one.
+		const addItem: IQuickPickItem = {
+			id: 'addMarketplace',
+			label: localize('addMarketplace', "Add Marketplace..."),
+			iconClass: ThemeIcon.asClassName(Codicon.add),
+			alwaysShow: true,
+		};
 
-		// Step 1: pick a marketplace
-		const items: IMarketplaceQuickPickItem[] = refs.map(ref => ({
+		const marketplaceItems: IMarketplaceQuickPickItem[] = refs.map(ref => ({
 			label: ref.displayLabel,
 			description: ref.kind === MarketplaceReferenceKind.LocalFileUri
 				? localize('localMarketplace', "Local")
@@ -217,15 +292,28 @@ class ManagePluginMarketplacesAction extends Action2 {
 			managedByPolicy: policyCanonicalIds.has(ref.canonicalId),
 		}));
 
+		const items: QuickPickInput<IMarketplaceQuickPickItem | IQuickPickItem>[] = [addItem];
+		if (marketplaceItems.length > 0) {
+			items.push({ type: 'separator' }, ...marketplaceItems);
+		}
+
 		const selected = await quickInputService.pick(items, {
-			placeHolder: localize('selectMarketplace', "Select a plugin marketplace"),
+			placeHolder: refs.length === 0
+				? localize('noMarketplacesConfigured', "No plugin marketplaces configured")
+				: localize('selectMarketplace', "Select a plugin marketplace"),
 		});
 
 		if (!selected) {
 			return;
 		}
 
-		const ref = selected.reference;
+		if (selected.id === 'addMarketplace') {
+			await commandService.executeCommand(AddPluginMarketplaceAction.ID);
+			return;
+		}
+
+		const marketplacePick = selected as IMarketplaceQuickPickItem;
+		const ref = marketplacePick.reference;
 
 		// Step 2: pick an action for the selected marketplace
 		const actionItems: IQuickPickItem[] = [
@@ -257,7 +345,7 @@ class ManagePluginMarketplacesAction extends Action2 {
 				await commandService.executeCommand('revealFileInOS', repoUri);
 				break;
 			case 'removeMarketplace': {
-				if (selected.managedByPolicy) {
+				if (marketplacePick.managedByPolicy) {
 					notificationService.notify({
 						severity: Severity.Warning,
 						message: localize('removeManagedMarketplace', "Enterprise policy manages '{0}', so it can't be removed here.", ref.displayLabel),
@@ -276,5 +364,6 @@ class ManagePluginMarketplacesAction extends Action2 {
 export function registerChatPluginActions() {
 	registerAction2(ManagePluginsAction);
 	registerAction2(InstallFromSourceAction);
+	registerAction2(AddPluginMarketplaceAction);
 	registerAction2(ManagePluginMarketplacesAction);
 }

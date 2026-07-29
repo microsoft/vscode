@@ -818,6 +818,15 @@ export class PluginListWidget extends Disposable {
 					}
 				},
 			},
+			{
+				id: 'plugin.addMarketplace',
+				label: localize('addMarketplace', "Add Marketplace..."),
+				tooltip: localize('addMarketplaceTooltip', "Add a plugin marketplace to browse and install plugins from"),
+				icon: Codicon.globe,
+				run: async () => {
+					await this.commandService.executeCommand('workbench.action.chat.addPluginMarketplace', { skipReveal: true });
+				},
+			},
 		];
 	}
 
