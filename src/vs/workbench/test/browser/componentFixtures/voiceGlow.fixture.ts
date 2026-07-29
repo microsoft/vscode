@@ -20,11 +20,15 @@ const INPUT_RADIUS = 12;
 /** Per-state color/energy tone. Color is driven by state (not a separate axis). */
 type StateTone = Pick<IBorderBeamOptions, 'colorVariant' | 'saturation' | 'strength' | 'brightness' | 'hueBaseDeg'>;
 
-// `saturation: 0` fully desaturates the palette, so idle/processing read as a
-// neutral white-to-gray light rather than picking up any residual hue.
-const WHITE: StateTone = { colorVariant: 'mono', saturation: 0, strength: 0.5, hueBaseDeg: 0 };
+// `mono` is attenuated ~4x internally (half base gradient opacity, then a 0.5
+// stroke/inner/bloom multiplier), so the neutral states need near-full strength
+// to land at a weight comparable to the colored ones. `saturation: 0` keeps them
+// a true white-to-gray with no residual hue.
+const WHITE: StateTone = { colorVariant: 'mono', saturation: 0, strength: 1, brightness: 1.5, hueBaseDeg: 0 };
 const ACCENT: StateTone = { colorVariant: 'ocean', saturation: 0.5, strength: 0.85 };
-const WARM: StateTone = { colorVariant: 'ocean', saturation: 0.6, strength: 0.9, brightness: 1.4, hueBaseDeg: 40 };
+// The ocean palette sits around hue 250 (blue/violet); rotate it to ~35deg so
+// "speaking" actually reads amber/warm rather than another shade of the accent.
+const WARM: StateTone = { colorVariant: 'ocean', saturation: 0.6, strength: 0.9, brightness: 1.4, hueBaseDeg: -215 };
 
 // The state -> color mapping: idle white, listening accent, processing white, speaking warm.
 const STATES: { readonly name: string; readonly tone: StateTone }[] = [
@@ -312,6 +316,10 @@ function renderTreatmentFlow(ctx: ComponentFixtureContext, options: FlowOptions)
 				theme: beamTheme,
 				borderRadius: INPUT_RADIUS,
 				hueBaseDeg: state.tone.hueBaseDeg ?? themeHue,
+				// Colour carries the state's meaning here, so pin the palette to
+				// the state's base hue. Without this the drift swings ~56deg and
+				// renders "accent" orange or "warm" green.
+				hueRange: 0,
 				startVisible: !isInteractive,
 				staticPreview: !isInteractive,
 			});
@@ -367,6 +375,7 @@ function renderAllTreatmentsCycling(ctx: ComponentFixtureContext, layout: MockIn
 			theme: beamTheme,
 			borderRadius: INPUT_RADIUS,
 			hueBaseDeg: state.tone.hueBaseDeg ?? themeHue,
+			hueRange: 0,
 			startVisible: !isInteractive,
 			staticPreview: !isInteractive,
 		});
@@ -395,6 +404,9 @@ function defineTreatmentPage(layout: MockInputLayout) {
 	const page = (name: string, title: string, treatment: Treatment) =>
 		defineComponentFixture({
 			labels: { kind: 'screenshot' as const },
+			// These render a live animation whenever a person is watching, so
+			// they must run on the real clock rather than the virtual one.
+			virtualTime: { enabled: false },
 			render: (ctx: ComponentFixtureContext) => renderTreatmentFlow(ctx, { title: title + suffix, treatment, layout }),
 		});
 

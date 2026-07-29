@@ -1003,7 +1003,9 @@ export function getPulseDriverConfig(
     oscillators: pulseOscillatorDefs(id, p),
     // Pulse colors continuously rotate a full hue circle so the palette is never
     // pinned to fixed edges (no more "always red top-right / green left").
-    hue: staticColors
+    // `hueRange: 0` opts out, pinning the palette to its base hue for callers
+    // where colour carries meaning (e.g. per-state voice glow).
+    hue: staticColors || hueRange === 0
       ? null
       : { prop: `--beam-hue-${id}`, range: 360, period: p.huePeriod, continuous: true },
   };

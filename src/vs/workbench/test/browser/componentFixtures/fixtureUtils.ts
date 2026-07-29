@@ -843,9 +843,10 @@ export interface ComponentFixtureContext {
 	disposableStackStore: DisposableStackStore;
 	theme: ColorThemeData;
 	/**
-	 * `true` when a person is viewing the fixture in the component explorer,
-	 * `false` during screenshot capture. Use it to run real animations while
-	 * they are being reviewed, and to render a settled frame for CI.
+	 * `true` whenever a person may be watching — the explorer UI or the
+	 * standalone embedded view. Only a headless CLI/MCP screenshot capture
+	 * reports `false`. Use it to run real animations while they are being
+	 * reviewed, and to render a settled frame for CI.
 	 */
 	isInteractive: boolean;
 }
@@ -1022,7 +1023,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 				try {
 					const disposableStackStore = disposableStore.add(new DisposableStackStore());
-					const result = options.render({ container, disposableStore, disposableStackStore, theme, isInteractive: context.host.kind === 'explorer-ui' });
+					const result = options.render({ container, disposableStore, disposableStackStore, theme, isInteractive: context.host.kind !== 'headless' });
 
 					const p2 = virtualTimeEnabled
 						? p.run({

@@ -26,8 +26,19 @@ export interface IBorderBeamOptions {
 	readonly brightness?: number;
 	/** Rotation/breathe duration in seconds. */
 	readonly duration?: number;
-	/** Hold the hue steady (no rainbow drift). Forced on for 'mono'. */
+	/**
+	 * Hold the hue steady by dropping the `hue-rotate()` filter entirely. Forced
+	 * on for 'mono'. Note this also discards {@link hueBaseDeg}; to keep the base
+	 * rotation (and theme recentering) while stopping the drift, set
+	 * {@link hueRange} to 0 instead.
+	 */
 	readonly staticColors?: boolean;
+	/**
+	 * Half-width, in degrees, of the slow hue drift around the base hue.
+	 * Defaults to 30. Set to 0 to pin the palette to {@link hueBaseDeg} — useful
+	 * when colour encodes state and must stay semantically stable.
+	 */
+	readonly hueRange?: number;
 	/**
 	 * Degrees to rotate the whole palette so the sheen recenters on the active
 	 * theme's accent hue. This is how the effect becomes theme-aware without
@@ -75,7 +86,7 @@ export function applyBorderBeam(host: HTMLElement, options: IBorderBeamOptions):
 	const duration = options.duration ?? (size === 'line' ? 3.1 : isPulse ? 2.3 : 1.96);
 	const saturation = options.saturation ?? themeConfig.saturation;
 	const brightness = options.brightness ?? themeConfig.brightness ?? 1.3;
-	const hueRange = 30;
+	const hueRange = options.hueRange ?? 30;
 	const staticColors = colorVariant === 'mono' ? true : (options.staticColors ?? false);
 	const strength = Math.max(0, Math.min(1, options.strength ?? 1));
 
