@@ -484,17 +484,7 @@ registerAction2(class extends Action2 {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 
-		// Capture hold-mode FIRST, synchronously, before any `await`. The
-		// keybinding service only reports a held chord while it is still
-		// dispatching this command; once `run()` first suspends on an await it
-		// clears `_currentlyDispatchingCommandId` and `enableKeybindingHoldMode`
-		// returns `undefined`. Calling it up-front is what makes press-and-hold
-		// work even on the very first (cold) press that still has to connect.
-		// While hold-mode is active the keybinding service also swallows OS
-		// key-repeat, so holding the shortcut no longer rapidly re-dispatches
-		// this command (the source of the glitchy start/stop flicker). A result
-		// of `undefined` means the action was invoked without a held key
-		// (command palette / programmatic).
+		// Capture hold mode before awaiting so the dispatching command is still available.
 		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.pushToTalk');
 
 		// Auto-connect on first PTT press
