@@ -95,22 +95,45 @@ The check is a blocklist of constructs known not to replay reliably in the suite
 
 Genuine exceptions go in `POSIX_COMMAND_EXCEPTIONS` in `agentHostE2ETestHarness.ts`, which keeps them countable in one place. An entry there must correspond to a test that is also scoped away from Windows at its call site, with the reason stated there.
 
-### Recorded model requests are never asserted
+### Recorded model requests are asserted as a projection
 
-`CapiReplayProxy` matches purely ordinally: the Nth request to a given `(method, path)` replays the Nth recorded response. The recorded `request:` block in a capture is normalized on write (for review and diff stability) but is never read back — `exchange.request` is only touched by `_writeFixture`. Replay is therefore driven entirely by the recorded responses.
+`CapiReplayProxy` matches purely ordinally: the Nth request to a given `(method, path)` replays the Nth recorded response. Ordinal routing is the right choice for *selecting* a response — request bodies carry volatile fields, and matching on them would produce brittle cache misses while desyncing the agent loop.
 
-Ordinal routing is the right choice for *selecting* a response: request bodies carry volatile fields (dates, request ids, uuids) and matching on them would produce brittle cache misses. It also keeps the agent loop on rails, so a tool failure surfaces as a behavioral difference rather than a confusing desync.
+It used to mean nothing asserted the request at all. The request body is the host's own product — prompt assembly, conversation history retention, truncation, attachment marshalling, and how tool results are handed back to the model — so a regression in any of it replayed green, and was silently promoted to the new expected value the next time somebody re-recorded.
 
-The gap is that nothing *asserts* the request. The request body is the host's own product — prompt assembly, conversation history retention, truncation, attachment marshalling, and how tool results are handed back to the model. A regression in any of those would still replay green, because the proxy serves response N regardless of what was asked. The committed `request:` block only changes when someone re-records, at which point a regression is silently promoted to the new expected value. Several `multiChat` tests already hand-roll assertions over `observedModelRequestBodies` to compensate for this.
+Selection is still ordinal. Separately, every replayed turn now compares the live request against the recorded one through `harness/modelRequestProjection.ts`. The same projection is applied to both sides, so captures keep their existing shape and stay readable.
 
-The fix is to assert the recorded request as a **projection**, mirroring the existing `protocol` / `behavior` profiles in `ahpSnapshot.ts`:
+- **Asserted** (host-authored): message roles and ordering, retained history, whether a system prompt was sent, text and attachment content, tool names and inputs, and `tool_use_id` wiring.
+- **Elided** (environment-derived): the `tool_result` payload, run-time identifiers, reasoning blocks, and the model id.
 
-- **Assert** host-authored structure: message roles and ordering, retained history, system prompt shape, attachment blocks, and `tool_use_id` wiring.
-- **Elide** environment-derived content, primarily the `tool_result` text payload.
+Each elision is load-bearing, and all four were established by running the assertion against the committed captures:
 
-That split is the point. Asserting raw tool output would re-introduce exactly the platform coupling described above — command output, line endings, and `ls`-style listings all differ per OS — and would require a large per-tool normalizer layer to hold stable. Eliding it yields a platform-independent assertion on the part that is actually host behavior. The tool result's presence and wiring is worth asserting; its text is not.
+- **Tool result payloads** would re-introduce exactly the platform coupling the portable-command work removed — command output, line endings, and listing formats all differ per OS — and would need a per-tool normalizer layer to hold stable. Presence and wiring are asserted; the text is not.
+- **Reasoning blocks** cannot survive the capture round-trip. Aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the original live recording did.
+- **Run-time identifiers** are stored as ordinals (`${uuid_0}`) assigned when the fixture was written, which a live run cannot reproduce.
+- **Filesystem paths** have too many per-machine spellings to compare literally: separator (`\` vs `/`), drive letter, 8.3 short names, `/var` vs `/private/var`, whether the recorder's `${workdir}` / `${homedir}` substitution matched at all, and whether the value is a file or the workspace directory itself. Two rounds of Windows CI failures came from exactly these, none a real regression. What file an operation actually touched is asserted directly against the filesystem by the tests that care, which is a stronger oracle than the prompt text.
+- **The model id** tracks the provider default and the model catalog rather than anything the host composes, so asserting it would break every capture on an unrelated catalog bump. Captures still record it for review.
 
-Sequencing: do this *after* the recorded commands are made portable. Turning request assertions on first would simply freeze today's POSIX-flavored requests into the expected values.
+When this was first switched on it found seven stale captures: four whose prompt text had been edited without re-recording, one that had captured a one-off ordering of two parallel `tool_result` blocks, one Codex capture still holding the pre-pinned `pwd` prompt, and the Claude side-chat capture below. All but the last were re-recorded.
+
+A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`, which keeps the exceptions countable in one place and requires an entry here.
+
+### Claude side-chat capture cannot be refreshed
+
+- Test: `side chat receives bounded source context without copied history`.
+- Scope: Claude.
+- Expected: re-recording the capture drives a real side chat and stores the request the host now sends.
+- Observed: recording fails with `Invalid upToMessageId: turn-source`. The side chat is created against a source turn, so recording exercises the same provider-context fork defect that gates `supportsChatForkE2E`; see [Claude provider-context fork](#claude-provider-context-fork).
+- Consequence: the committed capture predates the host's `<side-chat-context>` preamble, so its recorded request no longer matches the live one. The test still replays correctly — only the request comparison is disabled, via `STALE_RECORDED_REQUEST_EXCEPTIONS`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "side chat receives bounded source context"
+  ```
+
+  Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 
 ## Suspected product bugs
 

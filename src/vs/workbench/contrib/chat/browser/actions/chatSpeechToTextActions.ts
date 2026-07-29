@@ -27,7 +27,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
-import { IDictationOnboardingService } from '../speechToText/dictationOnboarding.js';
+import { buildMicrophoneOptions, IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
@@ -47,10 +47,9 @@ export interface IDictationShortcutContext {
 	readonly keybindingService: IKeybindingService;
 	readonly logService: ILogService;
 	/**
-	 * Supplied by chat inputs only. The first dictation started from one is
-	 * handed to the introduction card so the microphone can be chosen and
-	 * checked before anything is transcribed; editor and terminal dictation have
-	 * nowhere to dock the card and dictate straight away.
+	 * Supplied by chat inputs only. The first dictation started from one shows
+	 * its introduction alongside recording; editor and terminal dictation have
+	 * nowhere to dock the card.
 	 */
 	readonly onboardingService?: IDictationOnboardingService;
 }
@@ -73,7 +72,12 @@ export function getDictationShortcutOperation(dictating: boolean, state: ChatSpe
  * returns `undefined` when not invoked through a held key (e.g. the toolbar mic
  * or the command palette), collapsing the behavior to a plain toggle.
  */
-export async function runDictationShortcut(context: IDictationShortcutContext, commandId: string, editor: ICodeEditor): Promise<void> {
+export async function runDictationShortcut(
+	context: IDictationShortcutContext,
+	commandId: string,
+	editor: ICodeEditor,
+	startDictationFn: typeof startDictation = startDictation,
+): Promise<void> {
 	const { speechService, keybindingService, logService } = context;
 
 	switch (getDictationShortcutOperation(isDictating(), speechService.state, speechService.isPreparingModel)) {
@@ -89,19 +93,14 @@ export async function runDictationShortcut(context: IDictationShortcutContext, c
 
 	const window = getWindow(editor.getDomNode()) ?? getActiveWindow();
 
-	// First run: let the introduction card take this dictation over so the user
-	// can confirm the microphone is the right one and is actually being heard.
-	// Nothing is recorded until they confirm the card, which is what starts the
-	// dictation this press asked for.
-	if (context.onboardingService?.showIfNeeded(() => void startDictation(speechService, editor, window, logService))) {
-		return;
-	}
+	// The first-run card is informational and must not delay recording.
+	context.onboardingService?.showIfNeeded();
 
 	// Attempt to detect a held keybinding. Returns `undefined` when not invoked
 	// through a held key (e.g. the toolbar mic or the command palette), which
 	// collapses the behavior to a plain toggle.
 	const holdMode = keybindingService.enableKeybindingHoldMode(commandId);
-	await startDictation(speechService, editor, window, logService);
+	await startDictationFn(speechService, editor, window, logService);
 	if (!holdMode) {
 		return;
 	}
@@ -300,21 +299,7 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 
 		const devices = await navigator.mediaDevices.enumerateDevices();
 
-		// Filter out the virtual "default"/"communications" entries (which duplicate a real
-		// device) and de-duplicate by deviceId so a single microphone shows up only once.
-		const seenDeviceIds = new Set<string>();
-		const audioInputs = devices.filter(d => {
-			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
-				return false;
-			}
-			if (seenDeviceIds.has(d.deviceId)) {
-				return false;
-			}
-			seenDeviceIds.add(d.deviceId);
-			return true;
-		});
-
-		if (audioInputs.length === 0) {
+		if (!devices.some(device => device.kind === 'audioinput')) {
 			quickInputService.pick([{ label: localize('chatStt.noMicrophones', "No microphones found") }]);
 			return;
 		}
@@ -323,19 +308,11 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 		const currentDeviceId = storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
 
 		type DevicePickItem = { label: string; description?: string; deviceId: string };
-		const items: DevicePickItem[] = [{
-			label: localize('chatStt.systemDefault', "System Default"),
-			description: currentDeviceId === '' ? localize('chatStt.current', "(current)") : undefined,
-			deviceId: '',
-		}];
-		for (const d of audioInputs) {
-			const label = d.label || localize('chatStt.unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			items.push({
-				label,
-				description: d.deviceId === currentDeviceId ? localize('chatStt.current', "(current)") : undefined,
-				deviceId: d.deviceId,
-			});
-		}
+		const items: DevicePickItem[] = buildMicrophoneOptions(devices).map(device => ({
+			label: device.label,
+			description: device.deviceId === currentDeviceId ? localize('chatStt.current', "(current)") : undefined,
+			deviceId: device.deviceId,
+		}));
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: localize('chatStt.selectMic', "Select a microphone for dictation"),
@@ -353,7 +330,7 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 }
 
 class ShowChatSpeechToTextIntroductionAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.showSpeechToTextIntroduction';
+	static readonly ID = SHOW_DICTATION_ONBOARDING_COMMAND;
 
 	constructor() {
 		super({
@@ -374,6 +351,22 @@ class ShowChatSpeechToTextIntroductionAction extends Action2 {
 		// The card docks to a chat input, so there is nothing to show it in when
 		// no chat is open. Say so rather than appearing to do nothing.
 		accessor.get(INotificationService).info(localize('chatStt.introductionNeedsChat', "Open a chat to see the dictation introduction."));
+	}
+}
+
+class ResetChatSpeechToTextIntroductionAction extends Action2 {
+	constructor() {
+		super({
+			id: RESET_DICTATION_ONBOARDING_COMMAND,
+			title: localize2('chat.speechToText.resetIntroduction', "Dictate: Reset Onboarding"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatSpeechToTextConfigured,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IDictationOnboardingService).reset();
 	}
 }
 
@@ -415,6 +408,7 @@ export function registerChatSpeechToTextActions(): DisposableStore {
 	store.add(registerAction2(HoldToSpeechToTextAction));
 	store.add(registerAction2(CancelChatSpeechToTextAction));
 	store.add(registerAction2(ShowChatSpeechToTextIntroductionAction));
+	store.add(registerAction2(ResetChatSpeechToTextIntroductionAction));
 	store.add(registerAction2(SelectSpeechToTextMicrophoneAction));
 	return store;
 }
