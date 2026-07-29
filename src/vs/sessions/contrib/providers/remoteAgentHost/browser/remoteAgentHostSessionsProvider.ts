@@ -304,16 +304,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
 
-		// Dynamically discover session types from the host's advertised agents.
-		const rootStateValue = connection.rootState.value;
-		if (rootStateValue && !(rootStateValue instanceof Error)) {
-			this._syncSessionTypesFromRootState(rootStateValue);
-			this._syncRootConfigFromRootState(rootStateValue);
-		}
-		this._connectionListeners.add(connection.rootState.onDidChange(rootState => {
-			this._syncSessionTypesFromRootState(rootState);
-			this._syncRootConfigFromRootState(rootState);
+		this._syncRootState(connection.rootState.value);
+		this._connectionListeners.add(connection.rootState.onDidChange(() => {
+			this._syncRootState(connection.rootState.value);
 		}));
+		if (connection.rootState.onDidError) {
+			this._connectionListeners.add(connection.rootState.onDidError(error => {
+				this._syncRootState(error);
+			}));
+		}
 
 		this._attachConnectionListeners(connection, this._connectionListeners);
 
@@ -337,11 +336,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
 		this._disposeAllNewSessions();
-
-		if (this._sessionTypes.length > 0) {
-			this._sessionTypes = [];
-			this._onDidChangeSessionTypes.fire();
-		}
+		this._syncRootState(undefined);
 
 		// Drop only the transient pending/draft session; keep the persisted
 		// cache so the workspace picker keeps showing offline sessions.

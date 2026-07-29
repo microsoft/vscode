@@ -41,6 +41,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
+	async getCurrentBranchName(workingDirectory: URI): Promise<string | undefined> {
+		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim() || undefined;
+	}
+
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
 		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();

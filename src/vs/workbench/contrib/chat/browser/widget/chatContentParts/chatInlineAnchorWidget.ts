@@ -84,8 +84,14 @@ type InlineAnchorWidgetMetadata = {
 	linkText?: string;
 };
 
-interface IRenderFileWidgetsOptions {
+export interface IRenderFileWidgetsOptions {
 	readonly openResource?: (resource: URI, editorOptions: ITextEditorOptions) => Promise<boolean>;
+
+	/**
+	 * Wraps opening the resource so that callers can observe which editors a click on the
+	 * anchor opened, for example to close them again later.
+	 */
+	readonly trackOpen?: (open: () => Promise<void>) => Promise<void>;
 }
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore, options?: IRenderFileWidgetsOptions) {
@@ -317,21 +323,30 @@ export class InlineAnchorWidget extends Disposable {
 				override: editorOverride,
 				selection: location.range,
 			};
-			if (this.options?.openResource && await this.options.openResource(location.uri, editorOptions)) {
-				return;
-			}
 
-			// If the reference is an image file and the carousel is enabled, open the carousel
-			const mimeType = getMediaMime(location.uri.path);
-			if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				await this.chatImageCarouselService.openCarouselAtResource(location.uri);
-				return;
-			}
+			const open = async () => {
+				if (this.options?.openResource && await this.options.openResource(location.uri, editorOptions)) {
+					return;
+				}
 
-			await this.openerService.open(location.uri, {
-				fromUserGesture: true,
-				editorOptions
-			});
+				// If the reference is an image file and the carousel is enabled, open the carousel
+				const mimeType = getMediaMime(location.uri.path);
+				if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+					await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+					return;
+				}
+
+				await this.openerService.open(location.uri, {
+					fromUserGesture: true,
+					editorOptions
+				});
+			};
+
+			if (this.options?.trackOpen) {
+				await this.options.trackOpen(open);
+			} else {
+				await open();
+			}
 		}));
 	}
 
