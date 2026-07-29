@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorCode } from '../../../base/common/errors.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
@@ -22,7 +22,7 @@ import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal 
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
@@ -30,6 +30,7 @@ import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type 
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
+	chatStorageUri,
 	getToolFileEdits,
 	isAhpChatChannel,
 	isDefaultChatUri,
@@ -222,6 +223,7 @@ export class AgentSideEffects extends Disposable {
 					turnIds.add(envelope.action.turnId);
 				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
+				this._trackTurnUsage(envelope.channel, envelope.action);
 			}
 			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
 				const action = envelope.action;
@@ -1457,6 +1459,53 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
+	}
+
+	/**
+	 * Persists the usage reported for a chat's turn.
+	 *
+	 * Agent backends do not durably record token/credit usage themselves (the
+	 * Copilot SDK's `assistant.usage` event is explicitly ephemeral, and the
+	 * Claude transcript replay produces none), so a restored session would
+	 * otherwise come back with no context-usage gauge and a session cost of 0.
+	 * See `AgentService._applyPersistedTurnUsage` for which providers can
+	 * currently match these rows back on restore.
+	 *
+	 * Written on every report rather than buffered until the turn ends: the row
+	 * is keyed by turn id and written with `INSERT OR REPLACE` through a
+	 * sequencer, so "last report wins" is already a property of the storage
+	 * layer, and persisting eagerly means a turn cut short by a crash or
+	 * disconnect keeps the usage it had already accrued.
+	 *
+	 * Subagent chats are skipped: their cost is already folded into the parent
+	 * turn's aggregate, so recording it again would double-count.
+	 */
+	private _trackTurnUsage(channel: ProtocolURI, action: ChatAction): void {
+		if (action.type !== ActionType.ChatUsage || isSubagentChatUri(channel)) {
+			return;
+		}
+		// Usage reported with no active turn carries an empty turn id (see
+		// `CopilotAgentSession._turnId`). No turn can ever match it, and no
+		// prune path can remove it, so it would be a permanent orphan row.
+		if (!action.turnId) {
+			return;
+		}
+		// Agents key their storage by the chat's own URI, which is where the
+		// `turns` rows that `getTurnUsages` joins against live.
+		const storage = chatStorageUri(channel);
+		if (!storage) {
+			return;
+		}
+		let ref: IReference<ISessionDatabase>;
+		try {
+			ref = this._options.sessionDataService.openDatabase(storage);
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] Failed to open database to persist turn usage for ${channel}`, err);
+			return;
+		}
+		ref.object.setTurnUsage(action.turnId, JSON.stringify(action.usage)).catch(err => {
+			this._logService.warn(`[AgentSideEffects] Failed to persist turn usage for ${channel}/${action.turnId}`, err);
+		}).finally(() => ref.dispose());
 	}
 
 	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {

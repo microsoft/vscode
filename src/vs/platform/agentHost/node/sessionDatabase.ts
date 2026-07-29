@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
@@ -110,6 +110,25 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			anchor_turn_id TEXT,
 			seq            INTEGER NOT NULL,
 			payload        TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 9,
+		// Deliberately a side table rather than a column on `turns`, and with no
+		// foreign key: `turns` rows are created lazily — only by `setTurnEventId`
+		// (Copilot's `user.message` handler is the sole caller) and by
+		// `storeFileEdit` — so a turn can legitimately report usage while having
+		// no row at all (e.g. a Claude turn that edits no files).
+		//
+		// A foreign key would therefore force `setTurnUsage` to `INSERT OR IGNORE`
+		// a parent row first, and rows created that way carry `event_id IS NULL`.
+		// `getFirstTurnEventId` and `getNextTurnEventId` scan by rowid and return
+		// whatever `event_id` they land on, so a usage-created row could displace
+		// a real one and break fork/truncate boundary resolution. Manual pruning
+		// is the cheaper trade.
+		sql: `CREATE TABLE IF NOT EXISTS turn_usage (
+			turn_id TEXT PRIMARY KEY NOT NULL,
+			usage   TEXT NOT NULL
 		)`,
 	},
 ];
@@ -240,6 +259,24 @@ export class SessionDatabase implements ISessionDatabase {
 	private readonly _metadataSequencer = new SequencerByKey<string>();
 
 	/**
+	 * Serializes every `turn_usage` mutation — writes, prunes, and the fork
+	 * remap alike. `@vscode/sqlite3` runs in parallelized mode (see
+	 * {@link _metadataSequencer}), so a fire-and-forget `setTurnUsage` submitted
+	 * before a truncation can otherwise complete *after* it and resurrect a row
+	 * the truncation was meant to remove. Always go through
+	 * {@link _mutateTurnUsage} rather than queueing on this directly.
+	 */
+	private readonly _turnUsageSequencer = new Sequencer();
+
+	/**
+	 * Runs a mutation that touches `turn_usage`, tracked for {@link whenIdle}
+	 * and serialized against every other such mutation.
+	 */
+	private _mutateTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
+		return this._track(() => this._turnUsageSequencer.queue(async () => operation(await this._ensureDb())));
+	}
+
+	/**
 	 * In-flight write operations. Tracked so {@link whenIdle} can await them
 	 * before the process exits — without this, a `SIGTERM` arriving between
 	 * a fire-and-forget mutating call (e.g. `setMetadata`) being invoked and
@@ -317,9 +354,9 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteTurn(turnId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutateTurnUsage(async db => {
 			await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
+			await dbRun(db, 'DELETE FROM turn_usage WHERE turn_id = ?', [turnId]);
 		});
 	}
 
@@ -366,6 +403,34 @@ export class SessionDatabase implements ISessionDatabase {
 		return row?.event_id as string | undefined ?? undefined;
 	}
 
+	setTurnUsage(turnId: string, usage: string): Promise<void> {
+		return this._mutateTurnUsage(async db => {
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_usage (turn_id, usage) VALUES (?, ?)', [turnId, usage]);
+		});
+	}
+
+	async getTurnUsages(): Promise<Map<string, string>> {
+		const db = await this._ensureDb();
+		// Left-join `turns` so a usage row recorded against a live request id is
+		// also reachable by the SDK event id a restored turn is keyed by.
+		const rows = await dbAll(
+			db,
+			`SELECT u.turn_id AS turn_id, t.event_id AS event_id, u.usage AS usage
+				FROM turn_usage u LEFT JOIN turns t ON t.id = u.turn_id`,
+			[],
+		);
+		const result = new Map<string, string>();
+		for (const row of rows) {
+			const usage = row.usage as string;
+			result.set(row.turn_id as string, usage);
+			const eventId = row.event_id as string | null;
+			if (eventId) {
+				result.set(eventId, usage);
+			}
+		}
+		return result;
+	}
+
 	setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
 		return this._track(async () => {
 			const db = await this._ensureDb();
@@ -400,10 +465,17 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	truncateFromTurn(turnId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutateTurnUsage(async db => {
 			// Delete the target turn and all turns inserted after it (by rowid order).
-			// File edits cascade-delete via the foreign key constraint.
+			// File edits cascade-delete via the foreign key constraint; `turn_usage`
+			// has no foreign key (see migration 9) so it is pruned explicitly, and
+			// before the `turns` rows it joins against.
+			await dbRun(db,
+				`DELETE FROM turn_usage WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
 			await dbRun(db,
 				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
@@ -412,11 +484,17 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteTurnsAfter(turnId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutateTurnUsage(async db => {
 			// Delete all turns inserted after the given turn (by rowid order),
 			// keeping the given turn itself.
-			// File edits cascade-delete via the foreign key constraint.
+			// File edits cascade-delete via the foreign key constraint; see
+			// `truncateFromTurn` for why `turn_usage` is pruned explicitly.
+			await dbRun(db,
+				`DELETE FROM turn_usage WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
 			await dbRun(db,
 				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
@@ -425,9 +503,9 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteAllTurns(): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutateTurnUsage(async db => {
 			await dbExec(db, 'DELETE FROM turns');
+			await dbExec(db, 'DELETE FROM turn_usage');
 		});
 	}
 
@@ -674,8 +752,10 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		// Mutates `turn_usage`, so it must serialize with every other such
+		// mutation — a usage write racing the fork transaction would otherwise
+		// land against either the old or the new turn id unpredictably.
+		return this._mutateTurnUsage(async db => {
 			// Defer FK checks to commit time so we can update turns.id and
 			// file_edits.turn_id in any order without mid-statement violations.
 			// This pragma auto-resets after the transaction ends.
@@ -709,6 +789,23 @@ export class SessionDatabase implements ISessionDatabase {
 				for (const [oldId, newId] of mapping) {
 					await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 					await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
+				}
+
+				// `turn_usage` has no foreign key (see migration 9), so it is
+				// remapped explicitly.
+				// Without this a forked session's usage rows would keep the
+				// source turn ids: `getTurnUsages` would join nothing, the fork
+				// would restore with no gauge and zero cost, and the rows past
+				// the fork point would be unreachable by every prune path.
+				if (oldIds.length > 0) {
+					const placeholders = oldIds.map(() => '?').join(',');
+					await dbRun(db,
+						`DELETE FROM turn_usage WHERE turn_id NOT IN (${placeholders})`,
+						oldIds,
+					);
+				}
+				for (const [oldId, newId] of mapping) {
+					await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				}
 				await dbExec(db, 'COMMIT');
 			} catch (err) {

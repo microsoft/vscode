@@ -482,6 +482,76 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Turn usage ------------------------------------------------------
+
+	suite('turn usage', () => {
+
+		test('getTurnUsages indexes the last usage by both turn id and SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnUsage('request_aaa', '{"inputTokens":1}');
+			await db.setTurnUsage('request_aaa', '{"inputTokens":2}');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [
+				['request_aaa', '{"inputTokens":2}'],
+				['sdk-evt-1', '{"inputTokens":2}'],
+			]);
+		});
+
+		test('records usage for a turn with no `turns` row without creating one', async () => {
+			// Peer-chat turns are not `turns` rows. Inserting them would
+			// interleave with the default chat's rows and perturb the rowid
+			// ordering `getNextTurnEventId` / checkpoint resolution rely on.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.createTurn('turn-2');
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			await db.setTurnUsage('peer-turn', '{"inputTokens":9}');
+
+			assert.deepStrictEqual({
+				usage: (await db.getTurnUsages()).get('peer-turn'),
+				// Ordering is untouched: turn-1's successor is still turn-2.
+				next: await db.getNextTurnEventId('turn-1'),
+			}, {
+				usage: '{"inputTokens":9}',
+				next: 'evt-2',
+			});
+		});
+
+		test('truncation prunes the usage of removed turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.setTurnUsage('turn-1', '{"inputTokens":1}');
+			await db.setTurnUsage('turn-2', '{"inputTokens":2}');
+
+			await db.deleteTurnsAfter('turn-1');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', '{"inputTokens":1}']]);
+		});
+
+		test('remapTurnIds carries usage onto the forked turn ids and drops the rest', async () => {
+			// Fork file-copies the source database then remaps turn ids. Without
+			// remapping `turn_usage` the forked session restores with no gauge
+			// and zero cost, and rows past the fork point leak permanently
+			// (every prune path joins through `turns`).
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.createTurn('old-2');
+			await db.setTurnUsage('old-1', '{"inputTokens":1}');
+			await db.setTurnUsage('old-2', '{"inputTokens":2}');
+
+			// Fork keeping only `old-1`, remapped to a fresh id.
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['new-1', '{"inputTokens":1}']]);
+		});
+	});
+
 	// ---- Turn checkpoint refs -------------------------------------------
 
 	suite('turn checkpoint refs', () => {

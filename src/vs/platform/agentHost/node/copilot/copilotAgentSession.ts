@@ -638,6 +638,16 @@ export class CopilotAgentSession extends Disposable {
 	 * an LLM turn precedes that turn's `tool_use` events.
 	 */
 	private _lastSeenModelId: string | undefined;
+	/**
+	 * Compaction credits (nano-AIU) billed while no turn was active, carried
+	 * forward onto the next turn. Automatic compaction can run outside a turn
+	 * (e.g. after an abort, or between turns); the `chat/usage` reducer only
+	 * applies usage to the *active* turn, so without this the cost — which is
+	 * at its highest exactly here, since an out-of-turn compaction usually
+	 * finds a cold prompt cache and pays the ~12x cache-write rate — would be
+	 * dropped entirely.
+	 */
+	private _carriedCompactionNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
@@ -999,6 +1009,12 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
+		// Seed the parent scope with any compaction billed while no turn was active so the cost
+		// surfaces on this turn rather than being lost.
+		if (this._carriedCompactionNanoAiu > 0) {
+			this._currentTurn.copilotUsageTotalNanoAiuByScope.set('', this._carriedCompactionNanoAiu);
+			this._carriedCompactionNanoAiu = 0;
+		}
 	}
 
 	private _completeActiveTurn(): void {
@@ -1645,10 +1661,19 @@ export class CopilotAgentSession extends Disposable {
 				// `_completeActiveTurn` since the reducer drops usage for a non-active turn.
 				const usedTokens = result.contextWindow?.currentTokens;
 				if (typeof usedTokens === 'number') {
+					// `session.compaction_complete` accumulates the summarization call's credits onto the
+					// turn before this RPC resolves; carry that running total through so the response
+					// footer reports the compaction's cost instead of dropping it.
+					const totalNanoAiu = this._currentTurn?.copilotUsageTotalNanoAiuByScope.get('');
 					this._emitAction({
 						type: ActionType.ChatUsage,
 						turnId: this._turnId,
-						usage: { inputTokens: usedTokens, outputTokens: 0, model: this._lastSeenModelId },
+						usage: {
+							inputTokens: usedTokens,
+							outputTokens: 0,
+							model: this._lastSeenModelId,
+							...(typeof totalNanoAiu === 'number' ? { _meta: { copilotUsage: { totalNanoAiu } } } : {}),
+						},
 					});
 				}
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
@@ -3790,9 +3815,9 @@ export class CopilotAgentSession extends Disposable {
 			if (!parentToolCallId && !e.agentId && !e.data.parentToolCallId && e.data.model) {
 				this._setPromptCacheState(e.data.cacheExpiresAt ? { modelId: e.data.model, cacheExpiresAt: e.data.cacheExpiresAt } : undefined);
 			}
-			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
+			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
 			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
-			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
+			const copilotUsage = readCopilotUsage(e.data);
 			// `quotaSnapshots` is likewise `asInternal` in the SDK schema (not on the generated type) but is
 			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
 			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
@@ -3931,6 +3956,48 @@ export class CopilotAgentSession extends Disposable {
 			} catch (err) {
 				this._logService.trace(`[Copilot:${sessionId}] contextAttribution RPC failed: ${(err as Error)?.message ?? err}`);
 			}
+		}));
+
+		// Compaction (manual `/compact` or automatic mid-turn) runs its own summarization model call.
+		// The SDK bills it separately and reports it on `session.compaction_complete` rather than as an
+		// `assistant.usage` event, so fold those credits into the turn's parent-scope running total the
+		// same way `buildUsage` does. This makes the turn's response footer include the compaction cost.
+		this._register(wrapper.onSessionCompactionComplete(e => {
+			if (e.agentId || e.data.success === false) {
+				return;
+			}
+			const turn = this._currentTurn;
+			const turnId = this._turnId;
+			const copilotUsage = readCopilotUsage(e.data.compactionTokensUsed);
+			if (!copilotUsage) {
+				return;
+			}
+			if (!turn || !turnId) {
+				// Compaction outside a turn: the reducer would discard usage for a non-active
+				// turn, so bank the credits for the next one instead of losing them.
+				this._carriedCompactionNanoAiu += copilotUsage.totalNanoAiu;
+				return;
+			}
+			const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get('') ?? 0) + copilotUsage.totalNanoAiu;
+			turn.copilotUsageTotalNanoAiuByScope.set('', scopedTotal);
+			// Preserve the parent turn's own model/context tokens: the compaction call's tokens describe
+			// the summarization request, not the conversation, so they must not replace what is shown.
+			const base = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
+			const usage: UsageInfo = {
+				...base,
+				model: base?.model ?? this._lastSeenModelId,
+				_meta: {
+					...(base?._meta ?? {}),
+					copilotUsage: { ...copilotUsage, totalNanoAiu: scopedTotal },
+				},
+			};
+			lastParentUsage = usage;
+			lastParentUsageTurnId = turnId;
+			this._emitAction({
+				type: ActionType.ChatUsage,
+				turnId,
+				usage,
+			});
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {
@@ -4758,6 +4825,27 @@ function countUnifiedDiffLines(diff: string): { added: number; removed: number }
 		return undefined;
 	}
 	return { added, removed };
+}
+
+/**
+ * Reads the SDK's internal `copilotUsage` billing payload. It is marked `asInternal` in the SDK
+ * schema, so it is absent from the generated event types (`AssistantUsageData`,
+ * `CompactionCompleteCompactionTokensUsed`) even though it is present at runtime — hence the
+ * dynamic read. Returns `undefined` when the payload carries no usable nano-AIU total.
+ */
+function readCopilotUsage(raw: unknown): { totalNanoAiu: number } & Record<string, unknown> | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const usage = (raw as Record<string, unknown>).copilotUsage;
+	if (!usage || typeof usage !== 'object') {
+		return undefined;
+	}
+	const totalNanoAiu = (usage as Record<string, unknown>).totalNanoAiu;
+	if (typeof totalNanoAiu !== 'number' || !Number.isFinite(totalNanoAiu) || totalNanoAiu < 0) {
+		return undefined;
+	}
+	return { ...(usage as Record<string, unknown>), totalNanoAiu };
 }
 
 /**
