@@ -257,6 +257,12 @@ export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
 	shimmer?: boolean;
+	/**
+	 * Stable identity for a progress message that is updated over time. When
+	 * set, a later message with the same id replaces this one instead of being
+	 * appended, so live progress doesn't stack up rows.
+	 */
+	id?: string;
 }
 
 export interface IChatSystemNotificationPart {
