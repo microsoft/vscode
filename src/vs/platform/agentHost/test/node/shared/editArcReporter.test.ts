@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -36,6 +36,7 @@ class CountingFileService extends FileService {
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ name: string; data: Record<string, unknown> }> = [];
 	readonly githubEvents: Array<{ name: string; properties: TelemetryProps | undefined; measurements: TelemetryMeasurements | undefined }> = [];
+	onEvent: ((event: { name: string; data: Record<string, unknown> }) => void) | undefined;
 
 	constructor() {
 		super();
@@ -43,7 +44,9 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 	}
 
 	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-		this.events.push({ name: eventName ?? '', data: data ?? {} });
+		const event = { name: eventName ?? '', data: data ?? {} };
+		this.events.push(event);
+		this.onEvent?.(event);
 	}
 
 	updateTelemetryLevel(): void { }
@@ -287,12 +290,20 @@ suite('Agent Host Edit ARC Reporter', () => {
 	test('continues sampling after a sample fails', async () => {
 		const resource = URI.file('/workspace/failure.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		const sampleFailed = new DeferredPromise<void>();
+		const finalSampleEmitted = new DeferredPromise<void>();
+		telemetry.onEvent = event => {
+			if (event.data.timeDelayMs === 60) {
+				finalSampleEmitted.complete();
+			}
+		};
 		let branchLookupCount = 0;
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
 			getCurrentBranchName: async () => {
 				branchLookupCount++;
 				if (branchLookupCount === 3) {
+					sampleFailed.complete();
 					throw new Error('branch lookup failed');
 				}
 				return 'main';
@@ -310,9 +321,15 @@ suite('Agent Host Edit ARC Reporter', () => {
 			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
 			completionTime: Date.now(),
 		});
-		await timeout(80);
+		const samplingCompleted = await raceTimeout(Promise.all([sampleFailed.p, finalSampleEmitted.p]), 5_000);
 
-		assert.deepStrictEqual(telemetry.events.map(event => event.data.timeDelayMs), [0, 60]);
+		assert.deepStrictEqual({
+			samplingCompleted: samplingCompleted !== undefined,
+			timeDelays: telemetry.events.map(event => event.data.timeDelayMs),
+		}, {
+			samplingCompleted: true,
+			timeDelays: [0, 60],
+		});
 	});
 
 	test('reports symbolic branch changes', async () => {
