@@ -32,20 +32,6 @@ interface PersistedViewState {
 	selection?: { anchor: number; active: number };
 }
 
-function createStringEdit(previousValue: string, nextValue: string): StringEdit {
-	let start = 0;
-	while (start < previousValue.length && start < nextValue.length && previousValue[start] === nextValue[start]) {
-		start++;
-	}
-	let previousEnd = previousValue.length;
-	let nextEnd = nextValue.length;
-	while (previousEnd > start && nextEnd > start && previousValue[previousEnd - 1] === nextValue[nextEnd - 1]) {
-		previousEnd--;
-		nextEnd--;
-	}
-	return StringEdit.replace(OffsetRange.fromTo(start, previousEnd), nextValue.slice(start, nextEnd));
-}
-
 class EditableCommentModeController extends Disposable {
 
 	readonly #widget: CommentInputWidget;
@@ -454,36 +440,11 @@ class Editor extends Disposable {
 		// read-only, so this is a no-op in that mode; keeping it always registered
 		// means unlocking a read-only editor immediately resumes edit forwarding.
 		let firstTime = true;
-		let previousText = content;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
 			if (!this.isUpdatingFromExtension && !firstTime) {
 				this.#vscode.postMessage({ type: 'edit', content: text });
-				const edit = createStringEdit(previousText, text);
-				const comments = this.#comments.comments.read(undefined);
-				const updatedComments = comments.map(comment => ({
-					...comment,
-					range: OffsetRange.fromTo(
-						edit.mapOffset(comment.range.start),
-						edit.mapOffset(comment.range.endExclusive),
-					),
-				}));
-				this.#isUpdatingComments = true;
-				this.#comments.set(updatedComments);
-				this.#isUpdatingComments = false;
-				this.#commentRanges = new Map(updatedComments.map(comment => [comment.id, comment.range]));
-				for (let index = 0; index < comments.length; index++) {
-					if (!comments[index].range.equals(updatedComments[index].range)) {
-						this.#vscode.postMessage({
-							type: 'updateCommentRange',
-							id: comments[index].id,
-							start: updatedComments[index].range.start,
-							endExclusive: updatedComments[index].range.endExclusive,
-						});
-					}
-				}
 			}
-			previousText = text;
 			firstTime = false;
 		}));
 
