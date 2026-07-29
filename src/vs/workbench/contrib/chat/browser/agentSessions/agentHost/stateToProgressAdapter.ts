@@ -1357,7 +1357,7 @@ function buildTerminalToolSpecificData(
 		commandLine,
 		intention: tc.intention ?? existing?.intention,
 		language: existing?.language ?? getTerminalLanguage(tc),
-		autoApproveRulesApply: readToolCallMeta(tc).autoApproveRulesApply ?? existing?.autoApproveRulesApply,
+		autoApproveRuleResolvable: readToolCallMeta(tc).autoApproveRuleResolvable ?? existing?.autoApproveRuleResolvable,
 		terminalToolSessionId: terminalContentUri
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
 			: existing?.terminalToolSessionId,

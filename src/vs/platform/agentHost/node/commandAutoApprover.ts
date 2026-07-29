@@ -91,15 +91,8 @@ export type CommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 export interface ICommandApprovalEvaluation {
 	/** Final approval outcome, identical to {@link CommandAutoApprover.shouldAutoApprove}. */
 	readonly result: CommandApprovalResult;
-	/**
-	 * Whether adding a persistent auto-approve rule could turn this outcome
-	 * into an approval: the command parsed successfully, nothing matched a
-	 * deny rule, every write-redirect destination is approved, and the only
-	 * blocker is a missing allow rule. False for approved results (nothing
-	 * left to resolve), denials, parser failures, and unapproved write
-	 * redirects — prompts no rule can suppress.
-	 */
-	readonly ruleResolvable: boolean;
+	/** Whether a missing allow rule is the only reason confirmation is required. */
+	readonly autoApproveRuleResolvable: boolean;
 }
 
 /** Options for {@link CommandAutoApprover.shouldAutoApprove}. */
@@ -190,15 +183,11 @@ export class CommandAutoApprover extends Disposable {
 		return this.evaluate(commandLine, options).result;
 	}
 
-	/**
-	 * Like {@link shouldAutoApprove}, but also reports whether the outcome is
-	 * resolvable by adding a persistent auto-approve rule (see
-	 * {@link ICommandApprovalEvaluation.ruleResolvable}).
-	 */
+	/** Evaluates the command and reports whether adding a persistent allow rule could resolve the result. */
 	evaluate(commandLine: string, options?: IShouldAutoApproveOptions): ICommandApprovalEvaluation {
 		const trimmed = commandLine.trimStart();
 		if (trimmed.length === 0) {
-			return { result: 'approved', ruleResolvable: false };
+			return { result: 'approved', autoApproveRuleResolvable: false };
 		}
 
 		const rules = this._compileRules(options?.autoApproveRules);
@@ -206,11 +195,11 @@ export class CommandAutoApprover extends Disposable {
 		const parsed = this._extractSubCommands(trimmed);
 		if (!parsed) {
 			this._logService.trace('[CommandAutoApprover] Tree-sitter unavailable, requiring confirmation');
-			return { result: 'noMatch', ruleResolvable: false };
+			return { result: 'noMatch', autoApproveRuleResolvable: false };
 		}
 
 		if (this._matchesRule(trimmed, rules.denyCommandLineRules)) {
-			return { result: 'denied', ruleResolvable: false };
+			return { result: 'denied', autoApproveRuleResolvable: false };
 		}
 
 		const hasUnapprovedRedirect = () => parsed.unsafeWriteDests.some(dest => dest === undefined || !options?.isWriteDestApproved?.(dest));
@@ -221,11 +210,9 @@ export class CommandAutoApprover extends Disposable {
 		}
 		if (result === 'approved' && hasUnapprovedRedirect()) {
 			this._logService.trace('[CommandAutoApprover] Write redirection to non-approved destination, requiring confirmation');
-			return { result: 'noMatch', ruleResolvable: false };
+			return { result: 'noMatch', autoApproveRuleResolvable: false };
 		}
-		// A `noMatch` blocked only by missing allow rules is rule-resolvable;
-		// one that an unapproved write redirect would still block is not.
-		return { result, ruleResolvable: result === 'noMatch' && !hasUnapprovedRedirect() };
+		return { result, autoApproveRuleResolvable: result === 'noMatch' && !hasUnapprovedRedirect() };
 	}
 
 	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules): CommandApprovalResult {

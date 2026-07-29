@@ -212,14 +212,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			},
 		));
 
-		// Confirmations for Agent Host Copilot sessions arrive without pre-computed actions, so
-		// generate the same rule-creating options the built-in run in terminal tool offers. Only
-		// do this when the backend marked the confirmation as evaluated by its rule-based
-		// auto-approver (`autoApproveRulesApply`) — other confirmations (e.g. sandbox-bypass
-		// prompts) can never be suppressed by a rule, so offering one would be misleading. Other
-		// session types (agent-host-claude/codex, remote agent hosts, extension-contributed
-		// sessions) are deliberately excluded: they don't consume the resulting setting.
-		if (autoApproveEnabled && !customActions && terminalData.autoApproveRulesApply && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
+		// Agent Host Copilot confirmations need client-generated persistent rule actions.
+		if (autoApproveEnabled && !customActions && terminalData.autoApproveRuleResolvable && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
 			const commandForAnalysis = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			const analysisLanguage = terminalData.language === 'powershell' ? 'powershell' : 'shellscript';
 			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage).then(actions => {

@@ -327,16 +327,8 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
-	/**
-	 * Whether adding a persistent terminal auto-approve rule would suppress
-	 * future prompts like this shell event (the current event still prompts):
-	 * the command parsed, matched no deny rule, has no unapproved write
-	 * redirect, and only lacks a matching allow rule. False for non-shell
-	 * events, sandbox-bypass prompts, and disabled auto-approve. Re-parses
-	 * the command (cheap, rules are cached) so {@link getAutoApproval} stays
-	 * untouched.
-	 */
-	canFutureRuleSuppressPrompt(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
+	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
 		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass) {
 			return false;
 		}
@@ -348,7 +340,7 @@ export class SessionPermissionManager extends Disposable {
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
 			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
-		}).ruleResolvable;
+		}).autoApproveRuleResolvable;
 	}
 
 	/**

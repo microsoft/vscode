@@ -253,25 +253,25 @@ suite('CommandAutoApprover', () => {
 		test('reports whether a persistent rule could resolve the outcome', () => {
 			const cases: [commandLine: string, expected: ICommandApprovalEvaluation][] = [
 				// Approved and denied outcomes leave nothing for a rule to resolve.
-				['ls', { result: 'approved', ruleResolvable: false }],
-				['rm file.txt', { result: 'denied', ruleResolvable: false }],
+				['ls', { result: 'approved', autoApproveRuleResolvable: false }],
+				['rm file.txt', { result: 'denied', autoApproveRuleResolvable: false }],
 				// Unknown command blocked only by a missing allow rule.
-				['my-custom-script', { result: 'noMatch', ruleResolvable: true }],
+				['my-custom-script', { result: 'noMatch', autoApproveRuleResolvable: true }],
 				// Transient env-var assignments are denied outright.
-				['FOO=bar my-custom-script', { result: 'denied', ruleResolvable: false }],
+				['FOO=bar my-custom-script', { result: 'denied', autoApproveRuleResolvable: false }],
 				// Unapproved write redirects block regardless of rules, whether
 				// the command itself is approved or unmatched.
-				['echo hi > /etc/passwd', { result: 'noMatch', ruleResolvable: false }],
-				['my-custom-script > /etc/passwd', { result: 'noMatch', ruleResolvable: false }],
+				['echo hi > /etc/passwd', { result: 'noMatch', autoApproveRuleResolvable: false }],
+				['my-custom-script > /etc/passwd', { result: 'noMatch', autoApproveRuleResolvable: false }],
 				// Safe sinks do not block.
-				['echo hi > /dev/null', { result: 'approved', ruleResolvable: false }],
+				['echo hi > /dev/null', { result: 'approved', autoApproveRuleResolvable: false }],
 			];
 			assert.deepStrictEqual(cases.map(([commandLine]) => approver.evaluate(commandLine)), cases.map(([, expected]) => expected));
 		});
 
 		test('is not rule-resolvable while the parser is unavailable', () => {
 			const uninitialized = disposables.add(new CommandAutoApprover(new NullLogService()));
-			assert.deepStrictEqual(uninitialized.evaluate('ls'), { result: 'noMatch', ruleResolvable: false });
+			assert.deepStrictEqual(uninitialized.evaluate('ls'), { result: 'noMatch', autoApproveRuleResolvable: false });
 		});
 	});
 });

@@ -1151,13 +1151,9 @@ export class AgentSideEffects extends Disposable {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
 			this._toolCallAgents.set(toolCallKey, agent.id);
 		}
-		if (autoApproval === undefined && !e.managedApprovalRequired && this._permissionManager.canFutureRuleSuppressPrompt(approvalEvent, sessionKey)) {
-			// Mark shell confirmations whose only blocker is a missing allow
-			// rule, so the client can offer rule-creating actions that will
-			// genuinely suppress future prompts. Managed approvals,
-			// sandbox-bypass prompts, denials, parser failures, and unapproved
-			// write redirects stay unmarked: no rule can satisfy them.
-			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRulesApply: true }) } } };
+		if (autoApproval === undefined && !e.managedApprovalRequired && this._permissionManager.isAutoApproveRuleResolvable(approvalEvent, sessionKey)) {
+			// Mark confirmations where a persistent allow rule can suppress the next equivalent prompt.
+			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRuleResolvable: true }) } } };
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,

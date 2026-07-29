@@ -2887,7 +2887,7 @@ suite('AgentSideEffects', () => {
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
 		});
 
-		test('tool_ready for a shell permission marks autoApproveRulesApply, except for sandbox-bypass and managed confirmations', async () => {
+		test('tool_ready marks autoApproveRuleResolvable only for eligible shell confirmations', async () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -2927,7 +2927,7 @@ suite('AgentSideEffects', () => {
 				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
 			});
 			assert.deepStrictEqual(
-				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRulesApply'] : undefined),
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRuleResolvable'] : undefined),
 				[true, undefined, undefined],
 				'only the rule-resolvable shell confirmation is marked; sandbox-bypass and managed confirmations are not');
 		});
