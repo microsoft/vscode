@@ -1012,7 +1012,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		});
 	});
 
-	it('attaches prompt_cache_breakpoint to a message when its content is not supported', () => {
+	it('does not attach prompt_cache_breakpoint to output_text', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.Assistant,
 			content: [
@@ -1023,12 +1023,11 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		const body = buildBody(messages);
 
-		expect(body.input?.[0]).toMatchObject({
+		expect(body.input?.[0]).toEqual(expect.objectContaining({
 			role: 'assistant',
 			type: 'message',
 			content: [{ type: 'output_text', text: 'final answer' }],
-			prompt_cache_breakpoint: expectedPromptCacheBreakpoint,
-		});
+		}));
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
@@ -1059,7 +1058,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('skips function_call inputs and attaches prompt_cache_breakpoint to the preceding message', () => {
+	it('does not attach prompt_cache_breakpoint to function_call or output_text', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.Assistant,
 			content: [
@@ -1082,7 +1081,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect(firstCall).not.toHaveProperty('prompt_cache_breakpoint');
 
 		const messageItem = input.find(item => (item as { type?: string }).type === 'message');
-		expect(messageItem).toMatchObject({ prompt_cache_breakpoint: expectedPromptCacheBreakpoint });
+		expect(messageItem).not.toHaveProperty('prompt_cache_breakpoint');
 		expect((messageItem as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
@@ -1117,7 +1116,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('attaches prompt_cache_breakpoint to the message instead of input_file', () => {
+	it('attaches prompt_cache_breakpoint to input_file', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.User,
 			content: [
@@ -1134,10 +1133,8 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect(body.input?.[0]).toMatchObject({
 			type: 'message',
 			role: 'user',
-			content: [{ type: 'input_file' }],
-			prompt_cache_breakpoint: expectedPromptCacheBreakpoint,
+			content: [{ type: 'input_file', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
 		});
-		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
 	it('does not synthesize a whitespace text block when the marked message has no other content', () => {
