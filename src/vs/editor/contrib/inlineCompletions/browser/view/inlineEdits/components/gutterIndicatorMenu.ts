@@ -197,6 +197,8 @@ export class GutterIndicatorMenuContent {
 function hoverContent(content: ChildNode) {
 	return n.div({
 		class: 'content',
+		role: 'menu',
+		ariaLabel: localize('inlineEditGutterMenu', "Inline Edit"),
 		style: {
 			margin: 4,
 			minWidth: 180,
@@ -227,13 +229,44 @@ function option(props: {
 }) {
 	return derived({ name: 'inlineEdits.option' }, (_reader) => n.div({
 		class: ['monaco-menu-option', props.isActive?.map(v => v && 'active')],
+		role: 'menuitem',
+		ariaLabel: props.title,
 		onmouseenter: () => props.onHoverChange?.(true),
 		onmouseleave: () => props.onHoverChange?.(false),
+		onfocus: () => props.onHoverChange?.(true),
+		onblur: () => props.onHoverChange?.(false),
 		onclick: props.onAction,
 		onkeydown: e => {
-			if (e.key === 'Enter') {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
 				props.onAction?.();
+				return;
 			}
+
+			const options = Array.from(
+				(e.currentTarget as HTMLElement).closest('[role="menu"]')
+					?.querySelectorAll<HTMLElement>('.monaco-menu-option') ?? []
+			);
+			const idx = options.indexOf(e.currentTarget as HTMLElement);
+			if (idx < 0 || options.length === 0) {
+				return;
+			}
+
+			let next = -1;
+			if (e.key === 'ArrowDown') {
+				next = (idx + 1) % options.length;
+			} else if (e.key === 'ArrowUp') {
+				next = (idx - 1 + options.length) % options.length;
+			} else if (e.key === 'Home') {
+				next = 0;
+			} else if (e.key === 'End') {
+				next = options.length - 1;
+			} else {
+				return;
+			}
+
+			e.preventDefault();
+			options[next].focus();
 		},
 		tabIndex: 0,
 		style: {
@@ -288,6 +321,7 @@ function separator() {
 	return n.div({
 		id: 'inline-edit-gutter-indicator-menu-separator',
 		class: 'menu-separator',
+		role: 'separator',
 		style: {
 			color: asCssVariable(editorActionListForeground),
 			padding: '2px 0',
