@@ -56,10 +56,6 @@ const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.session
 
 type SubscriptionState = SessionState | ChangesetState | ChatState;
 
-class InspectableEmitter<T> extends Emitter<T> {
-	get listenerCount(): number { return this._size; }
-}
-
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
 
@@ -67,7 +63,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
-	private readonly _onDidRootStateChange = new InspectableEmitter<RootState>();
+	private _rootStateListenerCount = 0;
+	private readonly _onDidRootStateChange = new Emitter<RootState>({
+		onDidAddListener: () => this._rootStateListenerCount++,
+		onWillRemoveListener: () => this._rootStateListenerCount--,
+	});
+	private readonly _onDidRootStateError = new Emitter<Error>();
 	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
 
@@ -79,7 +80,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
-	get rootStateListenerCount(): number { return this._onDidRootStateChange.listenerCount; }
+	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -96,6 +97,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			get value() { return self._rootStateValue; },
 			get verifiedValue() { return self._rootStateValue instanceof Error ? undefined : self._rootStateValue; },
 			onDidChange: self._onDidRootStateChange.event,
+			onDidError: self._onDidRootStateError.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
@@ -274,7 +276,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	setRootStateError(): void {
-		this._rootStateValue = new Error('root state failed');
+		const error = new Error('root state failed');
+		this._rootStateValue = error;
+		this._onDidRootStateError.fire(error);
 	}
 
 	fireNotification(n: INotification): void {
@@ -561,17 +565,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const listenerCountAfterSessions = agentHost.rootStateListenerCount;
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+		const supportsMultipleChatsAfterHydration = provider.getSessions()[0].capabilities.get().supportsMultipleChats;
+		agentHost.setRootStateError();
 
 		assert.deepStrictEqual({
 			listenerCountBeforeSessions,
 			listenerCountAfterSessions,
 			sessionCount: provider.getSessions().length,
-			supportsMultipleChats: provider.getSessions()[0].capabilities.get().supportsMultipleChats,
+			supportsMultipleChatsAfterHydration,
+			supportsMultipleChatsAfterError: provider.getSessions()[0].capabilities.get().supportsMultipleChats,
 		}, {
 			listenerCountBeforeSessions: 1,
 			listenerCountAfterSessions: 1,
 			sessionCount: 200,
-			supportsMultipleChats: true,
+			supportsMultipleChatsAfterHydration: true,
+			supportsMultipleChatsAfterError: false,
 		});
 	});
 

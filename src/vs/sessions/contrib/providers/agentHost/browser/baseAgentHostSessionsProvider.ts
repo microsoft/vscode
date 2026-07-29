@@ -220,13 +220,6 @@ function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
 }
 
 /**
- * Resolves the {@link AgentCapabilities} an agent provider advertises.
- */
-function agentCapabilitiesForProvider(agents: readonly AgentInfo[] | undefined, agentProvider: string): AgentCapabilities | undefined {
-	return agents?.find(agent => agent.provider === agentProvider)?.capabilities;
-}
-
-/**
  * Variation points the host provider supplies when building an adapter.
  * Differences between local and remote sessions (icon, description text,
  * workspace builder, optional URI mapping) flow through this options bag so
@@ -257,8 +250,8 @@ export interface IAgentHostAdapterOptions {
 	 * Returns the agent connection for the session, if it exists.
 	 */
 	readonly getConnection: () => IAgentConnection | undefined;
-	/** Agent catalog shared by every adapter owned by this provider. */
-	readonly agentCatalog: IObservable<readonly AgentInfo[] | undefined>;
+	/** Agent capability lookup shared by every adapter owned by this provider. */
+	readonly agentCapabilities: IObservable<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>;
 }
 
 /**
@@ -737,7 +730,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.chats = this._chatsObs;
 
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const agentCapabilities = agentCapabilitiesForProvider(this._options.agentCatalog.read(reader), this.agentProvider);
+			const agentCapabilities = this._options.agentCapabilities.read(reader)?.get(this.agentProvider);
 			return {
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
@@ -1845,7 +1838,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 	protected _sessionTypes: ISessionType[] = [];
 
-	private readonly _agentCatalog = observableValue<readonly AgentInfo[] | undefined>(this, undefined);
+	private _lastAgents: readonly AgentInfo[] | undefined;
+	private readonly _agentCapabilities = observableValue<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>(this, undefined);
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -2132,7 +2126,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
-			agentCatalog: this._agentCatalog,
+			agentCapabilities: this._agentCapabilities,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
@@ -2173,17 +2167,42 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return true;
 	}
 
+	protected _syncRootState(rootState: RootState | Error | undefined): void {
+		if (rootState && !(rootState instanceof Error)) {
+			this._syncSessionTypesFromRootState(rootState);
+			this._syncRootConfigFromRootState(rootState);
+			return;
+		}
+
+		this._syncAgentCapabilities(undefined);
+		if (this._sessionTypes.length > 0) {
+			this._sessionTypes = [];
+			this._onDidChangeSessionTypes.fire();
+		}
+		if (this._rootConfig) {
+			this._rootConfig = undefined;
+			this._onDidChangeRootConfig.fire();
+		}
+	}
+
+	private _syncAgentCapabilities(agents: readonly AgentInfo[] | undefined): void {
+		if (this._lastAgents === agents) {
+			return;
+		}
+
+		this._lastAgents = agents;
+		this._agentCapabilities.set(agents ? new Map(agents.map(agent => [agent.provider, agent.capabilities])) : undefined, undefined);
+		this._onDidChangeCustomAgents.fire();
+		this._onDidChangeCustomizations.fire();
+	}
+
 	/**
 	 * Reconcile {@link _sessionTypes} against the agents advertised by the
 	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
 	 * id/label set actually changed.
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
-		if (this._agentCatalog.get() !== rootState.agents) {
-			this._agentCatalog.set(rootState.agents, undefined);
-			this._onDidChangeCustomAgents.fire();
-			this._onDidChangeCustomizations.fire();
-		}
+		this._syncAgentCapabilities(rootState.agents);
 		const next = rootState.agents
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
@@ -2423,7 +2442,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
-			agentCatalog: this._agentCatalog,
+			agentCapabilities: this._agentCapabilities,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions);
 		this._newSessions.set(newSession.sessionId, newSession);
