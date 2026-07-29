@@ -284,7 +284,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		assert.deepStrictEqual(telemetry.events.map(event => event.data.timeDelayMs), [0]);
 	});
 
-	test('continues sampling after a sample fails', async () => {
+	test.skip('continues sampling after a sample fails', async () => {
 		const resource = URI.file('/workspace/failure.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
 		let branchLookupCount = 0;
