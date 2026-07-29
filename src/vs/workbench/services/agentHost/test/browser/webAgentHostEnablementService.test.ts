@@ -18,19 +18,23 @@ import { WebAgentHostEnablementService } from '../../browser/webAgentHostEnablem
 suite('WebAgentHostEnablementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function getEnablement(remoteAuthority: string | undefined): {
+	function getEnablement(options: {
+		readonly remoteAuthority?: string;
+		readonly configured?: boolean;
+		readonly aiDisabled?: boolean;
+	}): {
 		readonly enabled: boolean;
 		readonly contextKey: boolean | undefined;
 	} {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService({
-			'chat.agentHost.enabled': true,
-			[ChatAIDisabledSettingId]: false,
+			'chat.agentHost.enabled': options.configured ?? true,
+			[ChatAIDisabledSettingId]: options.aiDisabled ?? false,
 		});
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: options.remoteAuthority });
 
 		const service = disposables.add(instantiationService.createInstance(WebAgentHostEnablementService));
 		return {
@@ -40,16 +44,26 @@ suite('WebAgentHostEnablementService', () => {
 	}
 
 	test('enables Agent Host for web with a remote extension host', () => {
-		assert.deepStrictEqual(getEnablement('ssh-remote+test'), {
+		assert.deepStrictEqual(getEnablement({ remoteAuthority: 'ssh-remote+test' }), {
 			enabled: true,
 			contextKey: true,
 		});
 	});
 
 	test('disables Agent Host for serverless web', () => {
-		assert.deepStrictEqual(getEnablement(undefined), {
+		assert.deepStrictEqual(getEnablement({}), {
 			enabled: false,
 			contextKey: false,
+		});
+	});
+
+	test('respects configuration and AI disablement in web with a remote extension host', () => {
+		assert.deepStrictEqual({
+			configuredOff: getEnablement({ remoteAuthority: 'ssh-remote+test', configured: false }),
+			aiDisabled: getEnablement({ remoteAuthority: 'ssh-remote+test', aiDisabled: true }),
+		}, {
+			configuredOff: { enabled: false, contextKey: false },
+			aiDisabled: { enabled: false, contextKey: false },
 		});
 	});
 });

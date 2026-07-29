@@ -43,7 +43,7 @@ const newNode: IConfigurationNode = {
 				localization: {
 					description: {
 						key: 'chat.agentHost.enabled',
-						value: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process.")
+						value: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process. In web, a remote extension host is required.")
 					}
 				},
 			}
