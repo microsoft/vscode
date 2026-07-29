@@ -69,10 +69,7 @@ let pendingOccurrenceCounter = 0;
  * mints a token on first sight. Use `peekPendingId` for an id that came back
  * from the backend, so a part never offered cannot be matched by a stale id.
  */
-/** What the user did with a pending request, as accepted by `respond_to_session`. */
-export type VoiceResponseType = 'approve' | 'reject' | 'answer' | 'skip';
 
-export const VOICE_RESPONSE_TYPES: readonly VoiceResponseType[] = ['approve', 'reject', 'answer', 'skip'];
 
 export function derivePendingId(requestId: string, part: object): string {
 	let token = pendingOccurrenceTokens.get(part);

@@ -8,11 +8,8 @@ import { IChatQuestion, IChatQuestionAnswers } from '../chatService/chatService.
 
 /**
  * One answer as resolved by the voice backend: concrete option values, never
- * ordinals or labels.
- *
- * The user speaks an ordinal ("the second one"); the backend resolves it against
- * its mirror of this same schema and sends values. Snake_case because these
- * cross the voice websocket verbatim.
+ * the ordinal the user spoke. Snake_case because these cross the voice
+ * websocket verbatim.
  */
 export interface IBackendQuestionAnswer {
 	readonly question_id: string;

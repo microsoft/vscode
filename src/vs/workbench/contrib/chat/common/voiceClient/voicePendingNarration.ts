@@ -12,10 +12,9 @@ import { IVoicePendingQuestion } from './voiceClientService.js';
  * against the same fixtures. The client speaks the first question of a form and
  * the backend speaks the rest, so a divergence is audible mid-form.
  *
- * Renders the wire shape rather than the carousel: the numbers it reads out are
- * the ordinals the user says back, and the wire shape is where those ordinals
- * were assigned. Numbering from a second source could read out a number that
- * selects something else.
+ * Renders the wire shape rather than the carousel, because that is where the
+ * ordinals the user says back were assigned. Numbering from a second source
+ * could read out a number that selects something else.
  */
 export function formatQuestionPrompt(question: IVoicePendingQuestion, allowSkip: boolean): string {
 	const parts: string[] = [];

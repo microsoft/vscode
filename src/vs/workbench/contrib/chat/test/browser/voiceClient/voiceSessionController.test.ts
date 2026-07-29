@@ -32,7 +32,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind, IVoiceDispatchResult } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -312,6 +312,7 @@ suite('VoiceSessionController', () => {
 			ttsPlaybackService,
 			new class extends mock<IVoiceToolDispatchService>() {
 				override setDelegate(): void { }
+				override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
 			}(),
 			new class extends mock<IVoicePlaybackService>() {
 				override notifyPlaybackStart(): void { }
@@ -363,6 +364,29 @@ suite('VoiceSessionController', () => {
 		// repopulate the snapshot from the still-pending old session.
 		chatService.setModels([pendingConfirmationModel(URI.parse('agent-host-copilot:/session-1'))]);
 		assert.strictEqual(controller.pendingToolConfirmations.get().length, 0);
+	});
+
+	test('reports only genuine approvals as approvals', async () => {
+		// One tool now carries approve, reject, answer and skip. Widening the
+		// approval event to match would silently change what it counts.
+		const voiceClientService = new TestVoiceClientService();
+		const telemetryService = new TestTelemetryService();
+		const controller = createController(voiceClientService, undefined, undefined, telemetryService);
+		await controller.connect(mainWindow);
+
+		for (const type of ['approve', 'reject', 'answer', 'skip']) {
+			voiceClientService.fireToolCall({
+				callId: `call-${type}`,
+				name: 'respond_to_session',
+				args: { coding_session_id: 'session-1', response: { type } },
+			});
+			await voiceClientService.toolResultReceived;
+		}
+
+		assert.deepStrictEqual(
+			telemetryService.events.filter(event => event.name === 'voiceToolApproval').map(event => (event.data as { approved: boolean }).approved),
+			[true, false],
+		);
 	});
 
 	test('publishes a question form as a structured pending payload', () => {
