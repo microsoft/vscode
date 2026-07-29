@@ -917,6 +917,11 @@ export class AgentSubscriptionManager extends Disposable {
 	/**
 	 * Refetch the snapshot for an existing managed non-root subscription.
 	 *
+	 * Call this only after an operation that can replace the authoritative
+	 * state for the same URI. Applying the replacement snapshot clears pending
+	 * optimistic Session and Chat actions because they were based on the
+	 * previous authoritative state.
+	 *
 	 * A pending subscription already gated by `triggeringCreate` is left to its
 	 * initial subscribe. An earlier pending subscribe is allowed to settle, then
 	 * refreshed so its result cannot predate the triggering create. Refreshes

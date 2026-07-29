@@ -1036,6 +1036,71 @@ suite('AgentSubscriptionManager', () => {
 		ref2.dispose();
 	});
 
+	test('reconnect snapshot does not override an in-flight refresh', async () => {
+		const refreshSnapshot = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			if (subscribeCalls === 1) {
+				return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Snapshot A' }), fromSeq: 1 };
+			}
+			return refreshSnapshot.p;
+		});
+		const uri = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(uri);
+		mgr.applyReconnectSnapshot(sessionUri, makeSessionState(sessionUri, { title: 'Reconnect snapshot' }), 2);
+		const reconnectValue = ref.object.value;
+		refreshSnapshot.complete({ resource: sessionUri, state: makeSessionState(sessionUri, { title: 'Snapshot B' }), fromSeq: 3 });
+		await refresh;
+
+		assert.deepStrictEqual({
+			subscribeCalls,
+			reconnectValue,
+			value: ref.object.value,
+		}, {
+			subscribeCalls: 2,
+			reconnectValue: makeSessionState(sessionUri, { title: 'Reconnect snapshot' }),
+			value: makeSessionState(sessionUri, { title: 'Snapshot B' }),
+		});
+		ref.dispose();
+	});
+
+	test('reconnect missing does not prevent an in-flight refresh from recovering', async () => {
+		const refreshSnapshot = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let subscribeCalls = 0;
+		const mgr = createManager(async resource => {
+			subscribeCalls++;
+			if (subscribeCalls === 1) {
+				return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Snapshot A' }), fromSeq: 1 };
+			}
+			return refreshSnapshot.p;
+		});
+		const uri = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(uri);
+		mgr.markSubscriptionsMissing([uri]);
+		const wasMissing = ref.object.value instanceof Error;
+
+		refreshSnapshot.complete({ resource: sessionUri, state: makeSessionState(sessionUri, { title: 'Snapshot B' }), fromSeq: 3 });
+		await refresh;
+
+		assert.deepStrictEqual({
+			subscribeCalls,
+			wasMissing,
+			value: ref.object.value,
+		}, {
+			subscribeCalls: 2,
+			wasMissing: true,
+			value: makeSessionState(sessionUri, { title: 'Snapshot B' }),
+		});
+		ref.dispose();
+	});
+
 	test('refreshSubscription failure preserves old state and drops buffered envelopes', async () => {
 		const refreshSnapshot = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
 		const logs: string[] = [];
