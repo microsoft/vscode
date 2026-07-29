@@ -55,8 +55,8 @@
 	width: 100%;
 }
 
-.interactive-input-part:has(.voice-mode-onboarding-container.has-voice-mode-onboarding) .chat-getting-started-tip-container,
-.interactive-input-part:has(.dictation-onboarding-container.has-dictation-onboarding) .chat-getting-started-tip-container {
+:is(.interactive-input-part, .new-chat-widget-content):has(.voice-mode-onboarding-container.has-voice-mode-onboarding) .chat-getting-started-tip-container,
+:is(.interactive-input-part, .new-chat-widget-content):has(.dictation-onboarding-container.has-dictation-onboarding) .chat-getting-started-tip-container {
 	display: none;
 }
 
