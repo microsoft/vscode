@@ -213,16 +213,20 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 		}, 60_000);
 
 		const loadKind = (getActionEnvelope(updated).action as { customization?: { load?: { kind?: string } } }).customization?.load?.kind;
-		// Match on the directory this test created rather than a substring.
-		// `tmpdir()` and the path a process reports for it differ (macOS
-		// `/var` vs `/private/var`), so both spellings are accepted.
-		const canonicalPluginRoot = realpathSync(pluginRoot);
+		// Compare both sides through `URI`, never a raw filesystem path: `fsPath`
+		// lower-cases the Windows drive letter, so a served
+		// `file:///c%3A/...` and a `pluginRoot` of `C:\...` describe the same
+		// directory but do not match as strings. `tmpdir()` and its canonical
+		// form also differ on macOS (`/var` vs `/private/var`), so both
+		// spellings of the root are accepted.
+		const pluginRootPaths = [pluginRoot, realpathSync(pluginRoot)].map(path => URI.file(path).fsPath);
 		const servedForPlugin = context.client.servedReverseRequests.filter(request => {
-			if (!request.uri) {
+			const uri = request.uri;
+			if (uri === undefined) {
 				return false;
 			}
-			const requested = URI.parse(request.uri).fsPath;
-			return requested.startsWith(pluginRoot) || requested.startsWith(canonicalPluginRoot);
+			const requested = URI.parse(uri).fsPath;
+			return pluginRootPaths.some(root => requested.startsWith(root));
 		});
 
 		assert.deepStrictEqual({
