@@ -93,11 +93,17 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 				return;
 			}
 			element.classList.toggle('sessions-chat-config-resolving', isResolving);
+			this.setDropdownEnabled(!isResolving);
 			if (isResolving) {
 				element.setAttribute('aria-disabled', 'true');
 			} else {
 				element.removeAttribute('aria-disabled');
 			}
 		}));
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this.setDropdownEnabled(!this._delegate.isResolving.get());
 	}
 }

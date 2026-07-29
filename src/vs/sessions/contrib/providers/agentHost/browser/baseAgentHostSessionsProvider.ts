@@ -2742,10 +2742,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 
-		// New session: re-resolve the full config schema. Flip the
-		// resolving flag and `loading` *before* firing the change event
-		// so the first picker re-render already observes the in-flight
-		// state.
+		// Mark resolution before firing so the first picker render is already inert.
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			// Defense-in-depth: pickers render disabled during a resolve,

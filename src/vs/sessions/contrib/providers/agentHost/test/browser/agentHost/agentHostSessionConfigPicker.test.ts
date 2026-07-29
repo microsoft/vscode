@@ -283,6 +283,7 @@ suite('Agent Host Session Config Picker', () => {
 			focused: document.activeElement === checkbox,
 			checked: resolvingCheckbox.getAttribute('aria-checked'),
 			disabled: resolvingCheckbox.getAttribute('aria-disabled'),
+			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
 			resolving: isolationSlot(container)!.classList.contains('resolving'),
 			dimmed: isolationSlot(container)!.classList.contains('disabled'),
 		};
@@ -305,6 +306,7 @@ suite('Agent Host Session Config Picker', () => {
 				focused: true,
 				checked: 'false',
 				disabled: 'true',
+				disabledPalette: false,
 				resolving: true,
 				dimmed: false,
 			},

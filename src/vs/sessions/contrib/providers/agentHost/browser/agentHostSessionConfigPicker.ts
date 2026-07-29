@@ -262,10 +262,11 @@ class IsolationCheckboxControl extends Disposable {
 	update(checked: boolean, readOnly: boolean, resolving: boolean, tooltip: string | undefined): void {
 		this._enabled = !readOnly && !resolving;
 		this.checkbox.checked = checked;
-		if (this._enabled) {
-			this.checkbox.enable();
-		} else {
+		if (readOnly) {
 			this.checkbox.disable();
+		} else {
+			this.checkbox.enable();
+			this.checkbox.domNode.setAttribute('aria-disabled', resolving ? 'true' : 'false');
 		}
 		this.slot.classList.toggle('disabled', readOnly);
 		this.slot.classList.toggle('resolving', !readOnly && resolving);
