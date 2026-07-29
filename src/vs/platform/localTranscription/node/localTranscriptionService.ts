@@ -471,7 +471,15 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._modelPrepareCts = cts;
 		this._modelPromise = (async () => {
 			try {
-				this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
+				// Report `Loading` (not `Downloading`) while the runtime, SDK and
+				// manager are prepared and the catalog is queried: at this point we
+				// do not yet know whether the model is already cached on disk.
+				// Emitting `Downloading` here would flash "Downloading model" on
+				// every fresh service instance — i.e. once per window/workspace —
+				// even when the model files already exist in the shared on-disk
+				// cache and nothing is actually fetched. The `Downloading` status
+				// is only emitted below, once we determine the model is not cached.
+				this._setStatus({ state: LocalTranscriptionModelState.Loading });
 
 				// Ensure the Foundry Local native runtime (N-API addon + core
 				// libraries) is available before loading the SDK. We do not ship
@@ -507,6 +515,11 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				let didDownload = false;
 				if (!model.isCached) {
 					didDownload = true;
+					// Only now, having confirmed a cache miss, surface the
+					// `Downloading` status. Report it up front (progress 0) so the
+					// download UI appears immediately rather than waiting for the
+					// SDK's first progress callback.
+					this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
 					// Bridge VS Code cancellation to the AbortSignal the SDK expects.
 					const ac = new AbortController();
 					const sub = cts.token.onCancellationRequested(() => ac.abort());
