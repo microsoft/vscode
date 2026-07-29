@@ -114,6 +114,13 @@ type ReverseRequestResultByMethod = {
 	resourceCopy: ResourceCopyResult;
 };
 
+/** A reverse request the host sent to the client, as observed on the wire. */
+export interface IServedReverseRequest {
+	readonly method: ReverseRequestMethod;
+	/** The resource the request targets, or `undefined` if it carries none. */
+	readonly uri: string | undefined;
+}
+
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private readonly _ahpSnapshot = new AhpSnapshotRecorder();
@@ -126,9 +133,11 @@ export class TestProtocolClient {
 	/**
 	 * Reverse requests this client has served, in arrival order. Lets a test
 	 * assert that the host actually reached back to the client for filesystem
-	 * access rather than resolving a path locally.
+	 * access rather than resolving a path locally. `uri` is absent when the
+	 * request carries no resource (rather than being recorded as an empty
+	 * string, which would be indistinguishable from a real one).
 	 */
-	private readonly _servedReverseRequests: { method: ReverseRequestMethod; uri: string }[] = [];
+	private readonly _servedReverseRequests: IServedReverseRequest[] = [];
 
 	constructor(
 		port: number,
@@ -185,8 +194,8 @@ export class TestProtocolClient {
 			if (!this._isReverseRequestMethod(msg.method)) {
 				throw new Error(`Unsupported reverse request method: ${msg.method}`);
 			}
-			const uri = (msg.params as { uri?: string; source?: string } | undefined);
-			this._servedReverseRequests.push({ method: msg.method, uri: uri?.uri ?? uri?.source ?? '' });
+			const params = msg.params as { uri?: string; source?: string } | undefined;
+			this._servedReverseRequests.push({ method: msg.method, uri: params?.uri ?? params?.source });
 			const result = await this._handleServerRequestMethod(msg.method, msg.params as ReverseRequestParamsByMethod[ReverseRequestMethod]);
 			const response: JsonRpcSuccessResponse = { jsonrpc: '2.0', id: msg.id, result };
 			this._ahpSnapshot.record('c2s', response);
@@ -560,12 +569,19 @@ export class TestProtocolClient {
 
 	clearReceived(): void {
 		this._notifications.length = 0;
-		this._servedReverseRequests.length = 0;
 	}
 
-	/** Reverse requests the host has sent to this client, in arrival order. */
-	get servedReverseRequests(): readonly { method: ReverseRequestMethod; uri: string }[] {
+	/**
+	 * Reverse requests the host has sent to this client, in arrival order.
+	 * Separate from {@link clearReceived} so resetting notifications does not
+	 * silently discard this history.
+	 */
+	get servedReverseRequests(): readonly IServedReverseRequest[] {
 		return this._servedReverseRequests;
+	}
+
+	clearServedReverseRequests(): void {
+		this._servedReverseRequests.length = 0;
 	}
 
 	clearAhpSnapshot(): void {

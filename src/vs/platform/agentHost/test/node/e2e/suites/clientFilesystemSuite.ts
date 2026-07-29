@@ -20,14 +20,13 @@
  */
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type {
-	CreateResourceWatchResult,
 	ResourceListResult,
 	ResourceReadResult,
 	ResourceResolveResult,
@@ -159,11 +158,14 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 		await initializeClient('resource-watch');
 		const root = createWorkspace('ahp-resource-watch-');
 
-		const watch = await context.client.call<CreateResourceWatchResult>('createResourceWatch', {
+		// `CreateResourceWatchResult.channel` is declared as a `URI`, but it
+		// crosses the wire as a string, so it is typed here as what actually
+		// arrives rather than what the declaration promises.
+		const watch = await context.client.call<{ channel: string }>('createResourceWatch', {
 			channel: ROOT_STATE_URI, uri: URI.file(root).toString(), recursive: true,
 		});
 
-		assert.strictEqual(URI.parse(watch.channel.toString()).scheme, 'ahp-resource-watch');
+		assert.strictEqual(URI.parse(watch.channel).scheme, 'ahp-resource-watch');
 	});
 
 	conformanceTest(context, 'host reads a client-hosted plugin through reverse resource requests', async function () {
@@ -211,7 +213,17 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 		}, 60_000);
 
 		const loadKind = (getActionEnvelope(updated).action as { customization?: { load?: { kind?: string } } }).customization?.load?.kind;
-		const servedForPlugin = context.client.servedReverseRequests.filter(request => request.uri.includes('ahp-client-plugin-'));
+		// Match on the directory this test created rather than a substring.
+		// `tmpdir()` and the path a process reports for it differ (macOS
+		// `/var` vs `/private/var`), so both spellings are accepted.
+		const canonicalPluginRoot = realpathSync(pluginRoot);
+		const servedForPlugin = context.client.servedReverseRequests.filter(request => {
+			if (!request.uri) {
+				return false;
+			}
+			const requested = URI.parse(request.uri).fsPath;
+			return requested.startsWith(pluginRoot) || requested.startsWith(canonicalPluginRoot);
+		});
 
 		assert.deepStrictEqual({
 			loadKind,
