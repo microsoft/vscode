@@ -34,7 +34,7 @@ import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
-import { getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
@@ -311,6 +311,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	private _listenHoldGesture = false;
 	private _listenSuppressClick = false;
 	private readonly _listenPointerUp = this._register(new MutableDisposable());
+	// Progress ring shown over the dictation glyph during an actual on-disk
+	// model download (cache miss), mirroring the standalone toolbar button.
+	private readonly _dictationRing = this._register(new MutableDisposable<DictationDownloadRing>());
 
 	private _getLabelWithKeybinding(label: string, commandId: string): string {
 		return this.keybindingService.appendKeybinding(label, commandId);
@@ -537,6 +540,18 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				? dictationDownloading.read(reader) ? Codicon.micDownloadCompact : Codicon.loadingCompact
 				: isDictating ? Codicon.micFilled : Codicon.mic;
 			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationIcon)}`;
+
+			// Wrap the download glyph in a determinate progress ring during an
+			// actual on-disk download, matching the standalone toolbar button.
+			// The ring is torn down as soon as the download completes (loading a
+			// cached model, or not preparing at all).
+			if (dictationBusy && dictationDownloading.read(reader)) {
+				if (!this._dictationRing.value) {
+					this._dictationRing.value = new DictationDownloadRing(this._dictationCell!, this.chatSpeechToTextService);
+				}
+			} else {
+				this._dictationRing.clear();
+			}
 
 			// Voice cell — Device EQ bars that transform:
 			//   disconnected → thin grey bars (click to connect)
