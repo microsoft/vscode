@@ -107,6 +107,7 @@ export class InlineCompletionsController extends Disposable {
 			this._positions,
 			this._debounceValue,
 			this._enabled,
+			this._editorDictationInProgress,
 			this.editor,
 		);
 		return model;
