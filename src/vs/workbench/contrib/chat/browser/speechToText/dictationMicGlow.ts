@@ -5,21 +5,46 @@
 
 import './media/dictationMicGlow.css';
 import { getWindow } from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
-const SPEAKING_THRESHOLD = 0.08;
-const GLOW_LEVEL_CLASSES = [
-	'dictation-mic-glow-level-1',
-	'dictation-mic-glow-level-2',
-	'dictation-mic-glow-level-3',
-	'dictation-mic-glow-level-4',
-] as const;
+export type DictationMicGlowPhase = 'off' | 'live' | 'settling';
+
+/** `off` while preparing too, so the glow doesn't compete with the download ring. */
+export function getDictationMicGlowPhase(state: ChatSpeechToTextState, isPreparingModel: boolean): DictationMicGlowPhase {
+	if (isPreparingModel || state === ChatSpeechToTextState.Idle) {
+		return 'off';
+	}
+	return state === ChatSpeechToTextState.Recording ? 'live' : 'settling';
+}
 
 /**
- * Adds audio-reactive feedback to a dictation microphone while recording.
+ * Asymmetric, so the glow swells into speech but drifts back out of it. Tracking
+ * the level symmetrically reads as a level meter rather than as ambient light.
+ */
+export function easeDictationMicLevel(current: number, target: number): number {
+	return current + (target - current) * (target > current ? 0.1 : 0.035);
+}
+
+/** Lifts quiet speech and clamps loud speech, so the glow breathes rather than flashes. */
+export function shapeDictationMicLevel(level: number): number {
+	return Math.min(1, Math.pow(Math.min(1, Math.max(0, level)), 0.7) * 1.15);
+}
+
+/** Held while settling, and whenever no analyser is available. */
+const RESTING_LEVEL = 0.12;
+
+/** Held with reduced motion, so the glow is present but static. */
+const REDUCED_MOTION_LEVEL = 0.45;
+
+/**
+ * Adds audio-reactive feedback to a dictation microphone while recording, so an
+ * open mic is obvious at a glance rather than being conveyed only by the filled
+ * mic glyph. The glow is drawn as a pseudo-element on `target`, so hosts that
+ * rebuild their button contents keep it.
  */
 export function setupDictationMicGlow(
 	target: HTMLElement,
@@ -30,12 +55,11 @@ export function setupDictationMicGlow(
 	const window = getWindow(target);
 	const dataArray = { value: undefined as Uint8Array | undefined };
 	let animationFrame: number | undefined;
+	let level = 0;
 
-	const setGlowLevel = (level: number) => {
-		for (let index = 0; index < GLOW_LEVEL_CLASSES.length; index++) {
-			target.classList.toggle(GLOW_LEVEL_CLASSES[index], index === level - 1);
-		}
-		target.classList.toggle('dictation-mic-speaking', level > 0);
+	const setLevel = (value: number) => {
+		level = value;
+		target.style.setProperty('--dictation-mic-level', value.toFixed(3));
 	};
 
 	const stopAnimation = () => {
@@ -43,26 +67,26 @@ export function setupDictationMicGlow(
 			window.cancelAnimationFrame(animationFrame);
 			animationFrame = undefined;
 		}
-		setGlowLevel(0);
 	};
 
 	const animate = () => {
 		animationFrame = window.requestAnimationFrame(animate);
-		const intensity = readVoiceGlowIntensity(service.analyserNode ?? null, dataArray);
-		const speakingIntensity = Math.max(0, Math.min(1, (intensity - SPEAKING_THRESHOLD) / (1 - SPEAKING_THRESHOLD)));
-		setGlowLevel(speakingIntensity === 0 ? 0 : Math.min(GLOW_LEVEL_CLASSES.length, Math.ceil(speakingIntensity * GLOW_LEVEL_CLASSES.length)));
+		// Reuses Voice Mode's reduction, so both features agree on what "level" means.
+		const measured = service.state === ChatSpeechToTextState.Recording && service.analyserNode
+			? readVoiceGlowIntensity(service.analyserNode, dataArray)
+			: RESTING_LEVEL;
+		setLevel(easeDictationMicLevel(level, shapeDictationMicLevel(measured)));
 	};
 
 	const update = () => {
-		const active = service.state === ChatSpeechToTextState.Recording;
-		target.classList.toggle('dictation-mic-active', active);
-		if (!active) {
+		const phase = getDictationMicGlowPhase(service.state, service.isPreparingModel);
+		target.classList.toggle('dictation-mic-active', phase !== 'off');
+		target.classList.toggle('dictation-mic-settling', phase === 'settling');
+
+		// With reduced motion the glow still shows, just held at a steady level.
+		if (phase === 'off' || accessibilityService.isMotionReduced()) {
 			stopAnimation();
-			return;
-		}
-		if (accessibilityService.isMotionReduced()) {
-			stopAnimation();
-			setGlowLevel(2);
+			setLevel(phase === 'off' ? 0 : REDUCED_MOTION_LEVEL);
 			return;
 		}
 		if (animationFrame === undefined) {
@@ -70,11 +94,12 @@ export function setupDictationMicGlow(
 		}
 	};
 
-	store.add(service.onDidChangeState(update));
+	store.add(Event.any<unknown>(service.onDidChangeState, service.onDidChangePreparingModel)(update));
 	store.add(accessibilityService.onDidChangeReducedMotion(update));
 	store.add(toDisposable(() => {
 		stopAnimation();
-		target.classList.remove('dictation-mic-active');
+		target.classList.remove('dictation-mic-active', 'dictation-mic-settling');
+		target.style.removeProperty('--dictation-mic-level');
 	}));
 	update();
 
