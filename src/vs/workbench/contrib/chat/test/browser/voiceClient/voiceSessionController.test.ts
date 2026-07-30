@@ -623,6 +623,7 @@ suite('VoiceSessionController', () => {
 			new TestConfigurationService({ 'agents.voice.handsFree': true }),
 			undefined,
 			undefined,
+			undefined,
 			new class extends VoiceTestNotificationService {
 				override notify(notification: INotification): INotificationHandle {
 					resetObserved.complete();
