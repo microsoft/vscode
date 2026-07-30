@@ -13,8 +13,11 @@ import {
 	ILocalTranscriptionModelStatus,
 	ILocalTranscriptionResult,
 	ILocalTranscriptionService,
+	DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
+	ILocalTranscriptionModelImportResult,
 	LocalTranscriptionModelState,
 } from '../common/localTranscription.js';
+import { importFoundryLocalModel } from './foundryLocalModelImport.js';
 
 /** PCM audio format the renderer captures and streams: mono 16 kHz signed 16-bit. */
 const SAMPLE_RATE = 16000;
@@ -26,8 +29,6 @@ const BITS_PER_SAMPLE = 16;
  * Nemotron streaming RNN-T model the GitHub Copilot app ships for dictation; it
  * runs through Foundry Local's native streaming ASR engine (ORT + ORT-GenAI).
  */
-const DEFAULT_MODEL = 'nemotron-speech-streaming-en-0.6b';
-
 /** Application name reported to Foundry Local for logs/telemetry and its data dir. */
 const FOUNDRY_APP_NAME = 'vscode-dictation';
 
@@ -270,6 +271,10 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		return this._status;
 	}
 
+	importModel(options: { sourcePath: string; cacheDir: string }): Promise<ILocalTranscriptionModelImportResult> {
+		return importFoundryLocalModel(options.sourcePath, options.cacheDir);
+	}
+
 	private _setStatus(status: ILocalTranscriptionModelStatus): void {
 		this._status = status;
 		this._onDidChangeModelStatus.fire(status);
@@ -298,7 +303,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._pendingChunks = [];
 		this._runtimeError = undefined;
 
-		const model = options.model ?? DEFAULT_MODEL;
+		const model = options.model ?? DEFAULT_LOCAL_TRANSCRIPTION_MODEL;
 		const language = options.language;
 		// Do not block capture on the (possibly first-use) model download/load and
 		// session open; buffer audio until the session is ready, then flush it.
