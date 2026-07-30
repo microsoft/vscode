@@ -26,17 +26,22 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { URI } from '../../../../../base/common/uri.js';
-
-import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { Menus } from '../../../../browser/menus.js';
+import { Action2, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { localize2 } from '../../../../../nls.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../../base/common/actions.js';
 
 const $ = DOM.$;
 
@@ -50,12 +55,9 @@ export class AutomationsCardsWidget extends Disposable {
 	readonly element: HTMLElement;
 
 	private readonly scrollContent: HTMLElement;
-	private readonly scrollable: DomScrollableElement;
 	private readonly cardsContainer: HTMLElement;
 	private readonly emptyContainer: HTMLElement;
 	private readonly historyContainer: HTMLElement;
-	private readonly headerEl: HTMLElement;
-	private newButtonElement!: HTMLElement;
 	private readonly cardDisposables = this._register(new DisposableStore());
 	private readonly historyDisposables = this._register(new DisposableStore());
 
@@ -76,23 +78,14 @@ export class AutomationsCardsWidget extends Disposable {
 		super();
 
 		this.element = $('.automations-cards-widget');
-		this.element.tabIndex = -1;
 		this.scrollContent = $('.automations-cards-scroll-content');
-
-		this.headerEl = DOM.append(this.scrollContent, $('.automations-cards-header'));
-		this.renderHeader();
 
 		this.cardsContainer = DOM.append(this.scrollContent, $('.automations-cards-grid'));
 		this.emptyContainer = DOM.append(this.scrollContent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.historyContainer = DOM.append(this.scrollContent, $('.automations-history'));
 
-		this.scrollable = this._register(new DomScrollableElement(this.scrollContent, {
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
-			useShadows: false,
-		}));
-		DOM.append(this.element, this.scrollable.getDomNode());
+		DOM.append(this.element, this.scrollContent);
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, AutomationsCardsWidget.READ_AUTOMATION_RUNS_KEY, this._store)(() => {
 			this._readStateVersion.set(this._readStateVersion.get() + 1, undefined);
@@ -104,21 +97,7 @@ export class AutomationsCardsWidget extends Disposable {
 			this._readStateVersion.read(reader);
 			this.renderCards(items);
 			this.renderHistory(allRuns, items);
-			this.scrollable.scanDomNode();
 		}));
-	}
-
-	private renderHeader(): void {
-		const buttonRow = DOM.append(this.headerEl, $('.automations-cards-header-row'));
-
-		const newButton = this._register(new Button(buttonRow, {
-			...defaultButtonStyles,
-			title: localize('newAutomation', "New automation"),
-		}));
-		newButton.label = localize('newAutomationLabel', "New Automation");
-		newButton.element.classList.add('automations-cards-new-button');
-		this.newButtonElement = newButton.element;
-		this._register(newButton.onDidClick(() => this.openCreateDialog()));
 	}
 
 	private async openCreateDialog(): Promise<void> {
@@ -171,14 +150,12 @@ export class AutomationsCardsWidget extends Disposable {
 		if (automations.length === 0) {
 			this.cardsContainer.style.display = 'none';
 			this.emptyContainer.style.display = '';
-			this.newButtonElement.style.display = 'none';
 			this.renderEmptyState();
 			return;
 		}
 
 		this.cardsContainer.style.display = '';
 		this.emptyContainer.style.display = 'none';
-		this.newButtonElement.style.display = '';
 
 		for (const automation of automations) {
 			this.renderCard(automation);
@@ -378,11 +355,13 @@ export class AutomationsCardsWidget extends Disposable {
 		// Status icon + timestamp + error (single row)
 		const statusRow = DOM.append(card, $('.automations-run-card-status-row'));
 
-		const statusInfo = runStatusIcon(run.status);
-		const iconEl = DOM.append(statusRow, $('span.automations-run-card-icon.codicon'));
-		iconEl.classList.add(`codicon-${statusInfo.iconId}`);
-		if (statusInfo.spin) {
-			iconEl.classList.add('codicon-modifier-spin');
+		if (run.status === 'running' || run.status === 'pending') {
+			const spinnerContainer = DOM.append(statusRow, $('span.automations-run-card-icon'));
+			createPixelSpinner(spinnerContainer, { variant: 'grid' });
+		} else {
+			const statusInfo = runStatusIcon(run.status);
+			const iconEl = DOM.append(statusRow, $('span.automations-run-card-icon.codicon'));
+			iconEl.classList.add(`codicon-${statusInfo.iconId}`);
 		}
 
 		const timeEl = DOM.append(statusRow, $('span.automations-run-card-time'));
@@ -403,8 +382,8 @@ export class AutomationsCardsWidget extends Disposable {
 				if (!session) {
 					return;
 				}
-				this.sessionsService.openSession(URI.parse(run.sessionResource!), { preserveFocus: false });
 				this.markRunRead(run.id);
+				this.sessionsService.openSession(URI.parse(run.sessionResource!), { preserveFocus: false });
 			}));
 		}
 	}
@@ -502,11 +481,6 @@ export class AutomationsCardsWidget extends Disposable {
 
 	layout(width: number, height: number): void {
 		this.element.style.width = `${width}px`;
-		this.element.style.height = `${height}px`;
-		this.scrollContent.style.width = `${width}px`;
-		this.scrollContent.style.height = `${height}px`;
-		this.scrollable.getDomNode().style.height = `${height}px`;
-		this.scrollable.scanDomNode();
 	}
 }
 
@@ -567,6 +541,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 	}
 
 	render(container: HTMLElement): void {
+		container.style.outline = 'none';
 		this._widget = this._register(this.instantiationService.createInstance(AutomationsCardsWidget));
 		container.appendChild(this._widget.element);
 	}
@@ -585,6 +560,7 @@ class AutomationsCustomViewContribution extends Disposable {
 
 	constructor(
 		@ICustomViewService customViewService: ICustomViewService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
 
@@ -592,10 +568,74 @@ class AutomationsCustomViewContribution extends Disposable {
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
 			title: localize('automationsTitle', "Automations"),
 			ctor: new SyncDescriptor(AutomationsCustomView),
+			actions: { style: 'buttonBar', menuId: Menus.CustomViewAutomations },
+		}));
+
+		// Render the "New Automation" button as primary instead of secondary
+		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(PrimaryButtonActionViewItem, undefined, action, options);
 		}));
 	}
 }
 
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
+
+class PrimaryButtonActionViewItem extends BaseActionViewItem {
+
+	private button: Button | undefined;
+
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+		super(context, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		this.element = container;
+		container.classList.add('chat-composite-bar-meta-item');
+		const button = this.button = this._register(new Button(container, { secondary: false, ...defaultButtonStyles }));
+		button.element.classList.add('monaco-text-button', 'chat-composite-bar-meta-item-button');
+		this._register(button.onDidClick(() => {
+			if (this._action.enabled) {
+				this.actionRunner.run(this._action, this._context);
+			}
+		}));
+		this.updateLabel();
+		this.updateEnabled();
+	}
+
+	override focus(): void { this.button?.focus(); }
+	override blur(): void { if (this.button) { this.button.element.tabIndex = -1; this.button.element.blur(); } }
+	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
+
+	protected override updateEnabled(): void {
+		if (this.button) { this.button.enabled = this._action.enabled; }
+	}
+
+	protected override updateLabel(): void {
+		if (!this.button) { return; }
+		DOM.reset(this.button.element, this._action.label);
+	}
+}
+
+registerAction2(class NewAutomationAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.newAutomation',
+			title: localize2('newAutomation', "New Automation"),
+			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1 }],
+		});
+	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const automationDialogService = accessor.get(IAutomationDialogService);
+		const automationService = accessor.get(IAutomationService);
+		const result = await automationDialogService.showAutomationDialog({});
+		if (!result || result.kind !== 'create') {
+			return;
+		}
+		await automationService.createAutomation(result.value);
+	}
+});
 
 //#endregion
