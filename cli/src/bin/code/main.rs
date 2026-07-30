@@ -114,7 +114,9 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				Some(args::AgentSubcommand::Stop(stop_args)) => {
 					agent_stop::agent_stop(context!(), stop_args).await
 				}
-				Some(args::AgentSubcommand::Kill) => agent_kill::agent_kill(context!()).await,
+				Some(args::AgentSubcommand::Kill(kill_args)) => {
+					agent_kill::agent_kill(context!(), kill_args).await
+				}
 				Some(args::AgentSubcommand::Logs(logs_args)) => {
 					agent_logs::agent_logs(context!(), logs_args).await
 				}

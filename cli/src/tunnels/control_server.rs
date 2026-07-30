@@ -201,8 +201,9 @@ pub async fn serve(
 	let (exit_barrier, signal_exit) = new_barrier();
 
 	// Kick off the agent host supervisor in the background. The supervisor
-	// is the only process that binds the user-facing TCP listener and owns
-	// the canonical lockfile; we never spawn an in-process sidecar here.
+	// is the only process that binds the user-facing TCP listener and
+	// publishes the canonical registry entry; we never spawn an
+	// in-process sidecar here.
 	// We deliberately do NOT await this here — the tunnel needs to start
 	// accepting connections immediately. Consumers that need the
 	// supervisor's endpoint (currently `handle_serve` for the

@@ -6,6 +6,7 @@
 mod context;
 
 pub mod agent;
+pub mod agent_discovery;
 pub mod agent_host;
 pub mod agent_kill;
 pub mod agent_logs;

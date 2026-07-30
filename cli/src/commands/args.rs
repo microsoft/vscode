@@ -243,7 +243,7 @@ pub struct AgentHostArgs {
 	pub host: Option<String>,
 	/// Port the agent host should bind on. If 0 (the default) the OS
 	/// picks a free ephemeral port; the chosen port is recorded in the
-	/// agent host lockfile.
+	/// shared agent-host endpoint registry.
 	#[clap(long, default_value_t = 0)]
 	pub port: u16,
 	/// A secret that must be included with all requests.
@@ -258,6 +258,15 @@ pub struct AgentHostArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
+
+	/// Overrides the resolved user data directory used to home the shared
+	/// local agent-host endpoint registry
+	/// (`<user-data-dir>/agent-host/local-endpoint/metadata.json`), the same
+	/// file editor windows publish to. Defaults to the platform user data
+	/// directory (honoring `VSCODE_PORTABLE` / `VSCODE_APPDATA` when set),
+	/// matching the editor's own resolution rules.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
 
 	/// Stop any agent host already running on this machine and start a
 	/// fresh one. Without this flag, the command reuses an existing live
@@ -304,14 +313,29 @@ pub enum AgentSubcommand {
 	Stop(AgentStopArgs),
 
 	/// Forcefully kill the running agent host process tree.
-	Kill,
+	Kill(AgentKillArgs),
 
 	/// Stream live session events.
 	Logs(AgentLogsArgs),
 }
 
+/// Discovery/connection target shared by every agent-host command that
+/// can either auto-discover a local instance or target one explicitly:
+/// `code agent ps|stop|logs`. `--user-data-dir` scopes automatic
+/// discovery to a specific registry (see
+/// [`crate::commands::agent_discovery::discover_live_endpoints`]);
+/// `--address`/`--tunnel` bypass discovery entirely and connect to
+/// exactly one explicit target (see
+/// [`crate::commands::agent::connect_explicit`]). Passing neither
+/// `--address` nor `--tunnel` means "discover automatically", not
+/// "connect nowhere" — every consumer of this struct must branch on that
+/// itself.
 #[derive(Args, Debug, Clone)]
-pub struct AgentPsArgs {
+pub struct AgentDiscoveryArgs {
+	/// Directory containing the shared agent host registry used for automatic discovery.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+
 	/// WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret).
 	/// If omitted, the CLI discovers a locally running agent host automatically.
 	#[clap(long)]
@@ -320,6 +344,13 @@ pub struct AgentPsArgs {
 	/// Connect via a named dev tunnel instead of the local address.
 	#[clap(long)]
 	pub tunnel: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentPsArgs {
+	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
+	#[clap(flatten)]
+	pub discovery: AgentDiscoveryArgs,
 
 	/// Output results as JSON instead of a human-readable table.
 	#[clap(long)]
@@ -335,14 +366,9 @@ pub struct AgentStopArgs {
 	/// Session URI to cancel the active turn of (e.g. copilot:/<uuid>).
 	pub session: String,
 
-	/// WebSocket address of a running agent host.
-	/// If omitted, the CLI discovers a locally running agent host automatically.
-	#[clap(long)]
-	pub address: Option<String>,
-
-	/// Connect via a named dev tunnel instead of the local address.
-	#[clap(long)]
-	pub tunnel: Option<String>,
+	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
+	#[clap(flatten)]
+	pub discovery: AgentDiscoveryArgs,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -350,14 +376,22 @@ pub struct AgentLogsArgs {
 	/// Session URI to stream events for (e.g. copilot:/<uuid>).
 	pub session: String,
 
-	/// WebSocket address of a running agent host.
-	/// If omitted, the CLI discovers a locally running agent host automatically.
-	#[clap(long)]
-	pub address: Option<String>,
+	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
+	#[clap(flatten)]
+	pub discovery: AgentDiscoveryArgs,
+}
 
-	/// Connect via a named dev tunnel instead of the local address.
+#[derive(Args, Debug, Clone)]
+pub struct AgentKillArgs {
+	/// Directory containing the shared agent host registry used for automatic discovery.
 	#[clap(long)]
-	pub tunnel: Option<String>,
+	pub user_data_dir: Option<String>,
+
+	/// Instance ID of the standalone agent host to kill, as shown when
+	/// multiple are running. Required to select non-interactively when
+	/// more than one live standalone agent host is registered.
+	#[clap(long)]
+	pub instance_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
