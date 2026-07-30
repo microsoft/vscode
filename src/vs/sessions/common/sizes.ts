@@ -12,12 +12,11 @@
 
 import { localize } from '../../nls.js';
 import { registerSize, sizeForAllThemes } from '../../platform/theme/common/sizeUtils.js';
+import { AGENTS_FLOATING_PANEL_GAP } from './layoutConstants.js';
 
 // ============================================================================
 // Agents window — layout
 // ============================================================================
-
-export const AGENTS_FLOATING_PANEL_GAP = 5;
 
 /** Gap between floating panels in the Agents window. */
 export const agentsLayoutFloatingPanelGap = registerSize(
@@ -25,14 +24,6 @@ export const agentsLayoutFloatingPanelGap = registerSize(
 	sizeForAllThemes(AGENTS_FLOATING_PANEL_GAP, 'px'),
 	localize('agents.layout.floatingPanelGap', "Gap between floating panels in the Agents window.")
 );
-
-/**
- * Width the centered content band of a content part is capped to (session
- * views and custom views), so every content surface in the Agents window keeps
- * the same measure.
- */
-export const AGENTS_CENTERED_CONTENT_MAX_WIDTH = 950;
-
 // ============================================================================
 // Agents window — font ramp
 // ============================================================================

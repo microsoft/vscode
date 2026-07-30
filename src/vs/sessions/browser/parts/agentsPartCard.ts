@@ -5,7 +5,7 @@
 
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/sizes.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 
 /**
  * Marks a part as a floating content card. Carries the shared background,

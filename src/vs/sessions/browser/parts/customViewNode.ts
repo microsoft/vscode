@@ -13,7 +13,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/sizes.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { activeSessionViewBackground, activeSessionViewForeground } from '../../common/theme.js';
 import { AbstractCustomView, ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
 import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';

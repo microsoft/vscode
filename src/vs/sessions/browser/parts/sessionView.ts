@@ -26,7 +26,7 @@ import { ISessionContext, SessionContext } from '../../services/sessions/browser
 import { autorun, observableFromEvent, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/sizes.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { ChatInteractivity, SessionStatus } from '../../services/sessions/common/session.js';
