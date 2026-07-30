@@ -65,9 +65,10 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 
-		// Give the chat a turn to page over. A bang command runs locally, so
-		// the turn is real without crossing the model boundary.
-		dispatchTurn(context.client, sessionUri, 'turn-fetch', '!echo FETCH_TURNS', 1);
+		// Give the chat a turn to page over. `/rename` is handled entirely by the
+		// host's local-command dispatcher, so the turn is real without crossing
+		// the model boundary and without depending on a shell.
+		dispatchTurn(context.client, sessionUri, 'turn-fetch', '/rename Fetch Turns', 1);
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-fetch',

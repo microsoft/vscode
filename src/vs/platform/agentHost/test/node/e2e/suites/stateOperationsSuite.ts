@@ -247,13 +247,13 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		// Queueing exists to hold work while a turn is running. With nothing
 		// running there is nothing to wait for, so the host must start the
 		// message rather than park it — otherwise a queued message on an idle
-		// chat would never run at all. A bang command keeps the promoted turn
-		// local to the host.
+		// chat would never run at all. `/rename` keeps the promoted turn inside
+		// the host's local-command dispatcher, with no shell and no model.
 		await dispatchAndWait(chatUri, 1, {
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Queued,
 			id: 'queued-1',
-			message: userMessage('!echo QUEUE_PROMOTED'),
+			message: userMessage('/rename Queue Promoted'),
 		});
 
 		const started = await context.client.waitForNotification(n =>
