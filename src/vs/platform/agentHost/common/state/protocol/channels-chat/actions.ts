@@ -184,16 +184,6 @@ export interface ChatToolCallDeltaAction extends ToolCallActionBase {
  */
 export interface ChatToolCallReadyAction extends ToolCallActionBase {
 	type: ActionType.ChatToolCallReady;
-	/**
-	 * Final contributor metadata. MUST NOT change execution ownership established
-	 * at `chat/toolCallStart`; a client contributor must keep the same `clientId`.
-	 */
-	contributor?: ToolCallContributor;
-	/**
-	 * Final human-readable description of what the tool invocation intends to do.
-	 * When present, replaces the provisional intention from `chat/toolCallStart`.
-	 */
-	intention?: string;
 	/** Message describing what the tool will do or what confirmation is needed */
 	invocationMessage: StringOrMarkdown;
 	/** Raw tool input */

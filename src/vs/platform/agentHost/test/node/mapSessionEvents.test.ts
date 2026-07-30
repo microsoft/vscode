@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
@@ -123,34 +122,6 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 		]);
-	});
-
-	test('resolves relative patch links in restored tool messages', async () => {
-		const patch = [
-			'*** Begin Patch',
-			'*** Update File: src/file.ts',
-			'@@',
-			'-old',
-			'+new',
-			'*** End Patch',
-		].join('\n');
-		const events: ISessionEvent[] = [
-			{ type: 'user.message', data: { interactionId: 'm1', content: 'edit the file' } },
-			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'apply_patch' }] } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'apply_patch', arguments: patch } },
-			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
-		];
-
-		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), URI.file('/workspace'));
-		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall) as ToolCallResponsePart | undefined;
-		assert.ok(part);
-		assert.deepStrictEqual({
-			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
-			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
-		}, {
-			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
-			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
-		});
 	});
 
 	test('restores MCP app data for completed tool calls', async () => {

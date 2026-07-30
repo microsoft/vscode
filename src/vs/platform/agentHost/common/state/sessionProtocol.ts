@@ -16,17 +16,11 @@
 export type {
 	JsonRpcErrorResponse,
 	JsonRpcNotification,
+	JsonRpcParseErrorResponse,
 	JsonRpcRequest,
 	JsonRpcResponse,
 	JsonRpcSuccessResponse,
 } from './protocol/messages.js';
-
-/** A JSON-RPC parse error cannot identify the request that failed to parse. */
-export interface JsonRpcParseErrorResponse {
-	readonly jsonrpc: '2.0';
-	readonly id: null;
-	readonly error: JsonRpcErrorResponse['error'];
-}
 
 // Typed message unions
 export type {

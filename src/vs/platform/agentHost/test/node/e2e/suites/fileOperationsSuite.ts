@@ -9,16 +9,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
-import type { ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
-
-function stringOrMarkdownText(value: StringOrMarkdown | undefined): string | undefined {
-	return typeof value === 'string' ? value : value?.markdown;
-}
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, supportsFileTools, stableSharedServerFileScenarios } = context;
@@ -80,52 +73,6 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		assert.match(result.responseText, /first\.txt/);
 		assert.match(result.responseText, /second\.md/);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
-
-	(supportsFileTools && config.streamingFileCreateToolName ? test : test.skip)('streams rich file creation progress without exposing partial input', async function () {
-		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-streaming-create-'));
-		tempDirs.push(workspace);
-		const sessionUri = await createRealSession(context.client, config, `streaming-create-${config.provider}`, createdSessions, URI.file(workspace));
-		const turnId = 'turn-streaming-create';
-		const expectedContent = 'STREAM_ALPHA\nSTREAM_BETA\nSTREAM_GAMMA';
-
-		await driveTurnToCompletion(context.client, sessionUri, turnId, `Create streaming.txt containing exactly these three lines, with no other content:
-STREAM_ALPHA
-STREAM_BETA
-STREAM_GAMMA
-Use your file creation tool; do not run a shell command. Then reply exactly "done".`, 1);
-
-		const start = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
-			.find(action => action.turnId === turnId && action.toolName === config.streamingFileCreateToolName);
-		const deltas = start ? context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallDeltaAction)
-			.filter(action => action.toolCallId === start.toolCallId) : [];
-		const ready = start ? context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallReadyAction)
-			.filter(action => action.toolCallId === start.toolCallId) : [];
-		const progressMessages = deltas.map(delta => stringOrMarkdownText(delta.invocationMessage));
-		const fileContent = readFileSync(join(workspace, 'streaming.txt'), 'utf8');
-		const normalizedFileContent = fileContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-		const lineCount = fileContent.split(/\r\n|\r|\n/).length;
-		const readyInputs = ready.map(action => action.toolInput).filter(input => input !== undefined);
-
-		assert.deepStrictEqual({
-			fileContent: normalizedFileContent.trimEnd(),
-			hasProgress: deltas.length > 0,
-			hidesPartialInput: deltas.every(delta => delta.content === ''),
-			showsFile: progressMessages.some(message => message?.includes('streaming.txt')),
-			showsLineCount: progressMessages.some(message => message?.includes(`(${lineCount} lines)`)),
-			readyHasFinalInput: readyInputs.some(input => ['STREAM_ALPHA', 'STREAM_BETA', 'STREAM_GAMMA'].every(value => input.includes(value))),
-		}, {
-			fileContent: expectedContent,
-			hasProgress: true,
-			hidesPartialInput: true,
-			showsFile: true,
-			showsLineCount: true,
-			readyHasFinalInput: true,
-		});
 	});
 
 	// Copilot never completes the replayed turn; Codex has no file tools, so it

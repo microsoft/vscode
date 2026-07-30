@@ -29,8 +29,8 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, ToolCallContributorKind, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	runAhpSnapshotTest, type IAgentHostE2EProviderConfig,
@@ -45,7 +45,6 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	shellToolName: 'bash',
 	subagentToolNames: ['task'],
 	exitPlanModeToolName: 'exit_plan_mode',
-	streamingFileCreateToolName: 'create',
 	// The shared suite runs by default in deterministic replay mode (tokenless,
 	// against committed fixtures). Recording new fixtures is opt-in via
 	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).
@@ -107,27 +106,6 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs);
-
-		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
-			.find(action => action.toolName === 'get_magic_word');
-		const ready = start && client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallReadyAction)
-			.find(action => action.toolCallId === start.toolCallId);
-		const deltas = start && client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'))
-			.map(n => getActionEnvelope(n).action as ChatToolCallDeltaAction)
-			.filter(action => action.toolCallId === start.toolCallId);
-
-		// The AHP snapshot projects contributor metadata only on Start, so Ready ownership needs an explicit assertion.
-		assert.deepStrictEqual({
-			startContributor: start?.contributor,
-			readyContributor: ready?.contributor,
-			deltaCount: deltas?.length,
-		}, {
-			startContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
-			readyContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
-			deltaCount: 0,
-		});
 	});
 
 	test('client tool disconnect before permission still completes the turn', async function () {

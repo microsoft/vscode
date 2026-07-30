@@ -1348,33 +1348,12 @@ suite('stateToProgressAdapter', () => {
 		type AnyToolCallState = Parameters<typeof rawToolCallStateToPreparedInvocation>[0];
 
 		test('toolCallStateToStreamingInvocation starts in the native Streaming state', () => {
-			const tc: AnyToolCallState = {
-				toolCallId: 'tc-stream',
-				toolName: 'bash',
-				displayName: 'Bash',
-				status: ToolCallStatus.Streaming,
-				partialInput: '{"command":"npm test","description":"Run',
-				invocationMessage: 'Running npm test',
-			};
+			const tc: AnyToolCallState = { toolCallId: 'tc-stream', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming };
 			const invocation = toolCallStateToStreamingInvocation(tc, undefined);
-			const state = invocation.state.get();
-			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
-			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
-				return;
-			}
-			assert.deepStrictEqual({
-				toolCallId: invocation.toolCallId,
-				toolId: invocation.toolId,
-				partialInput: state.partialInput.get(),
-				streamingMessage: state.streamingMessage.get(),
-				isComplete: IChatToolInvocation.isComplete(invocation),
-			}, {
-				toolCallId: 'tc-stream',
-				toolId: 'bash',
-				partialInput: { command: 'npm test', description: 'Run' },
-				streamingMessage: 'Running npm test',
-				isComplete: false,
-			});
+			assert.strictEqual(invocation.toolCallId, 'tc-stream');
+			assert.strictEqual(invocation.toolId, 'bash');
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Streaming);
+			assert.strictEqual(IChatToolInvocation.isComplete(invocation), false);
 		});
 
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
@@ -1397,32 +1376,6 @@ suite('stateToProgressAdapter', () => {
 				description: 'Review current branch',
 				agentName: 'code-review',
 				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
-			});
-		});
-
-		test('finalizeToolInvocation preserves cancellation from streaming', () => {
-			const invocation = toolCallStateToStreamingInvocation({
-				toolCallId: 'tc-cancelled',
-				toolName: 'client_tool',
-				displayName: 'Client Tool',
-				status: ToolCallStatus.Streaming,
-			}, undefined);
-			finalizeToolInvocation(invocation, {
-				toolCallId: 'tc-cancelled',
-				toolName: 'client_tool',
-				displayName: 'Client Tool',
-				status: ToolCallStatus.Cancelled,
-				invocationMessage: 'Running client tool',
-				reason: ToolCallCancellationReason.Denied,
-				reasonMessage: 'Denied by the server',
-			});
-
-			assert.deepStrictEqual(invocation.state.get(), {
-				type: IChatToolInvocation.StateKind.Cancelled,
-				reason: ToolConfirmKind.Denied,
-				reasonMessage: 'Denied by the server',
-				parameters: undefined,
-				confirmationMessages: undefined,
 			});
 		});
 

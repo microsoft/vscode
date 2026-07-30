@@ -793,22 +793,20 @@ export interface MessageAnnotationsAttachment extends MessageAttachmentBase {
 }
 
 /**
- * An attachment that references a chat transcript through a fixed completed
+ * An attachment that references a chat transcript through a completed turn.
+ *
+ * The referenced chat MAY belong to any session, not only the message's own.
+ * The model representation is a pointer — an `agent-host-session://` link, a
+ * short transcript excerpt, and a hint to call the `get_session_context` server
+ * tool — and both that link and that tool already resolve across sessions, so a
+ * cross-session reference carries the same weight as a same-session one.
+ * The host resolves the transcript from its first retained turn through
+ * `endTurn`, inclusive, when accepting the message. Later turns do not change
+ * the context represented by an already-sent attachment. When `endTurn` is
+ * omitted (e.g. a drag-and-drop client that cannot know turn ids), the host
+ * pins it to the referenced chat's latest completed turn as it accepts the
+ * message; when `endTurn` is provided it MUST reference a completed, retained
  * turn.
- *
- * The referenced chat MAY belong to a different session than the message's
- * chat. The attachment's model representation identifies the chat in a way
- * that hosts can resolve regardless of the session that owns it.
- *
- * When `endTurn` is omitted, the host MUST resolve and pin the referenced
- * chat's latest completed turn when accepting the message. This lets clients
- * attach a chat without knowing its turn identifiers. When provided, `endTurn`
- * MUST reference a completed, retained turn. The host resolves the transcript
- * from its first retained turn through the pinned turn, inclusive. Later turns
- * do not change the context represented by an already-sent attachment.
- *
- * When the referenced chat has no completed retained turns, the resolved
- * transcript is empty and hosts MUST NOT reject the attachment on that basis.
  *
  * Hosts MUST NOT recursively expand chat attachments found inside the
  * referenced transcript. Clients SHOULD keep rendering `label` if the
@@ -823,7 +821,8 @@ export interface MessageChatAttachment extends MessageAttachmentBase {
 	resource: URI;
 	/**
 	 * Last completed turn included in the referenced transcript. When omitted,
-	 * the host pins the latest completed turn when accepting the message.
+	 * the host resolves the referenced chat's latest completed turn as it
+	 * accepts the message.
 	 */
 	endTurn?: string;
 }

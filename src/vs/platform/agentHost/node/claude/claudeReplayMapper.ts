@@ -24,9 +24,8 @@ import {
 } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { formatGenericToolInput } from '../../common/streamingToolCallDisplay.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
-import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
+import { stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
 /**
  * Phase 13 — replay mapper. Reduces a flat `SessionMessage[]` (the SDK's
@@ -267,7 +266,7 @@ class ReplayBuilder {
 	 *   pattern but simpler (replay has the full input synchronously on
 	 *   the `tool_use` block).
 	 */
-	private readonly _toolUses = new Map<string, { readonly turnId: string; readonly parsedInput: Record<string, unknown> | undefined; readonly isClientTool: boolean }>();
+	private readonly _toolUses = new Map<string, { readonly turnId: string; readonly parsedInput: Record<string, unknown> | undefined }>();
 
 	/** Turns opened from a leading assistant envelope because the prompt was missing. Reported once by {@link finish}. */
 	private _recoveredPromptlessTurns = 0;
@@ -377,7 +376,7 @@ class ReplayBuilder {
 				// the workbench-registered tool by its unprefixed name (matches the
 				// live stream mapper). Without this, replayed client-tool calls
 				// fall back to the generic "Run MCP tool" rendering.
-				this._openToolUse(block.id, stripClientToolNamePrefix(block.name), block.input, hasClientToolNamePrefix(block.name));
+				this._openToolUse(block.id, stripClientToolNamePrefix(block.name), block.input);
 			}
 			// Other block types (server_tool_use, etc.) are dropped silently per M7.
 		}
@@ -386,23 +385,21 @@ class ReplayBuilder {
 		}
 	}
 
-	private _openToolUse(toolUseId: string, toolName: string, input: unknown, isClientTool: boolean): void {
+	private _openToolUse(toolUseId: string, toolName: string, input: unknown): void {
 		if (this._active === undefined) {
 			return;
 		}
-		const displayName = isClientTool ? toolName : getClaudeToolDisplayName(toolName);
+		const displayName = getClaudeToolDisplayName(toolName);
 		const parsedInput = input !== null && typeof input === 'object' ? input as Record<string, unknown> : undefined;
-		const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
+		const meta = buildClaudeToolMeta(toolName);
 		// Build a placeholder Cancelled state by default; replaced with Completed when the tool_result lands.
 		const placeholder: ToolCallCancelledState = {
 			status: ToolCallStatus.Cancelled,
 			toolCallId: toolUseId,
 			toolName,
 			displayName,
-			invocationMessage: isClientTool ? displayName : getClaudeInvocationMessage(toolName, displayName, parsedInput),
-			toolInput: parsedInput !== undefined
-				? isClientTool ? formatGenericToolInput(parsedInput) : getClaudeToolInputString(toolName, parsedInput)
-				: (typeof input === 'string' ? input : input !== undefined ? safeStringify(input) : undefined),
+			invocationMessage: getClaudeInvocationMessage(toolName, displayName, parsedInput),
+			toolInput: parsedInput !== undefined ? getClaudeToolInputString(toolName, parsedInput) : (typeof input === 'string' ? input : input !== undefined ? safeStringify(input) : undefined),
 			reason: ToolCallCancellationReason.Skipped,
 			...(meta ? { _meta: meta } : {}),
 		};
@@ -413,7 +410,7 @@ class ReplayBuilder {
 		this._active.responseParts.push(part);
 		this._active.toolCallParts.set(toolUseId, part);
 		this._active.pendingToolUseIds.add(toolUseId);
-		this._toolUses.set(toolUseId, { turnId: this._active.id, parsedInput, isClientTool });
+		this._toolUses.set(toolUseId, { turnId: this._active.id, parsedInput });
 	}
 
 	private _attachToolResult(block: UserToolResultBlock): string | undefined {
@@ -452,9 +449,7 @@ class ReplayBuilder {
 			toolInput: previousState.status === ToolCallStatus.Streaming ? undefined : previousState.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: !isError,
-			pastTenseMessage: entry.isClientTool
-				? previousState.displayName
-				: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError, resultText),
+			pastTenseMessage: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError, resultText),
 			content: content.length > 0 ? content : undefined,
 			...(previousState._meta ? { _meta: previousState._meta } : {}),
 		};
