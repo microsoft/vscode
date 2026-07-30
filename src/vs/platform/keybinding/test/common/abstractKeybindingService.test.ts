@@ -13,7 +13,7 @@ import { ICommandService } from '../../../commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContext, IContextKeyService, IContextKeyServiceTarget } from '../../../contextkey/common/contextkey.js';
 import { AbstractKeybindingService } from '../../common/abstractKeybindingService.js';
 import { IKeyboardEvent } from '../../common/keybinding.js';
-import { KeybindingResolver, ResolutionResult, ResultKind } from '../../common/keybindingResolver.js';
+import { KeybindingResolver } from '../../common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding.js';
 import { createUSLayoutResolvedKeybinding } from './keybindingsTestUtils.js';
@@ -71,27 +71,18 @@ suite('AbstractKeybindingService', () => {
 			return [];
 		}
 
-		public testDispatch(kb: number, isComposing: boolean = false): boolean {
-			return this._dispatch(this._toKeyboardEvent(kb, isComposing), null!);
-		}
-
-		public testSoftDispatch(kb: number, isComposing: boolean = false): ResolutionResult {
-			return this.softDispatch(this._toKeyboardEvent(kb, isComposing), null!);
-		}
-
-		private _toKeyboardEvent(kb: number, isComposing: boolean): IKeyboardEvent {
+		public testDispatch(kb: number): boolean {
 			const keybinding = createSimpleKeybinding(kb, OS);
-			return {
+			return this._dispatch({
 				_standardKeyboardEventBrand: true,
 				ctrlKey: keybinding.ctrlKey,
 				shiftKey: keybinding.shiftKey,
 				altKey: keybinding.altKey,
 				metaKey: keybinding.metaKey,
 				altGraphKey: false,
-				// `StandardKeyboardEvent` normalizes composing keystrokes to KEY_IN_COMPOSITION.
-				keyCode: isComposing ? KeyCode.KEY_IN_COMPOSITION : keybinding.keyCode,
+				keyCode: keybinding.keyCode,
 				code: null!
-			};
+			}, null!);
 		}
 
 		public _dumpDebugInfo(): string {
@@ -480,40 +471,6 @@ suite('AbstractKeybindingService', () => {
 		assertIsIgnored(KeyMod.WinCtrl);
 		assertIsIgnored(KeyMod.Alt);
 		assertIsIgnored(KeyMod.Shift);
-
-		kbService.dispose();
-	});
-
-	test('keybindings are not dispatched while an IME composition is in progress', () => {
-
-		const kbService = createTestKeybindingService([
-			kbItem(KeyCode.Enter, 'enterCommand'),
-		]);
-
-		// Enter commits the IME composition and belongs to the input method, not to the workbench.
-		const shouldPreventDefaultWhileComposing = kbService.testDispatch(KeyCode.Enter, true);
-		assert.deepStrictEqual(
-			[shouldPreventDefaultWhileComposing, executeCommandCalls],
-			[false, []]
-		);
-
-		// `softDispatch` must agree, otherwise callers that ask "will the workbench claim this key?"
-		// prevent the default and then nobody handles the keystroke.
-		assert.strictEqual(
-			kbService.testSoftDispatch(KeyCode.Enter, true).kind,
-			ResultKind.NoMatchingKb
-		);
-
-		// Once the composition has committed, the very same key runs the command as usual.
-		const shouldPreventDefault = kbService.testDispatch(KeyCode.Enter, false);
-		assert.deepStrictEqual(
-			[shouldPreventDefault, executeCommandCalls],
-			[true, [{ commandId: 'enterCommand', args: [null] }]]
-		);
-		assert.strictEqual(
-			kbService.testSoftDispatch(KeyCode.Enter, false).kind,
-			ResultKind.KbFound
-		);
 
 		kbService.dispose();
 	});

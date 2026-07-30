@@ -114,6 +114,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetFocusContext),
 		ContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true),
+		ContextKeyExpr.not('isComposing'),
 		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.UpArrow,
@@ -129,6 +130,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetFocusContext),
 		ContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true),
+		ContextKeyExpr.not('isComposing'),
 		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.DownArrow,
