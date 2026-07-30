@@ -76,6 +76,13 @@ export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilot
  */
 export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
 
+/**
+ * Configuration key gating multiple-working-directory support for the Codex
+ * agent-host provider. Hidden from the Settings UI and off by default while the
+ * feature is dogfooded.
+ */
+export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgent.multiRootEnabled';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.
@@ -1357,6 +1364,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * `sandbox.allowBypass`).
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only shell language for terminal auto-approval.
+	 * Only `bash` and `powershell` are eligible for terminal-rule analysis;
+	 * missing requires explicit confirmation.
+	 */
+	readonly shellLanguage?: 'bash' | 'powershell';
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting
