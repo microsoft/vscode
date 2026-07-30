@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
 		// Throws unless the produced package has the entry points and the native
 		// addon VS Code depends on (see `assertPackageComplete`).
 		materializeRuntimeSourcePackage(outDir, target);
+		smokeRun(outDir, target);
 
 		console.log(`[verify-source-build] OK: ${RUNTIME_REPO}@${ref} (${version}) built a complete ${target} package.`);
 		console.log(`##vso[build.addbuildtag]copilot-source-verified=${target}`);
@@ -64,6 +66,22 @@ async function main(): Promise<void> {
 		clearRuntimeSourceMarker();
 		fs.rmSync(outDir, { recursive: true, force: true });
 	}
+}
+
+/**
+ * Runs the built CLI, because a package can satisfy every structural assertion
+ * and still fail to load (a native addon built against the wrong Node ABI, a
+ * bundling regression). Skipped for cross-compiled targets, which cannot be
+ * executed on this host.
+ */
+function smokeRun(packageDir: string, target: string): void {
+	if (target !== hostTarget()) {
+		console.log(`[verify-source-build] ${target} is cross-compiled; skipping the smoke run.`);
+		return;
+	}
+	const entry = path.join(packageDir, 'index.js');
+	const version = execFileSync(process.execPath, [entry, '--version'], { encoding: 'utf8', timeout: 120_000 }).trim();
+	console.log(`[verify-source-build] smoke run: ${entry} --version -> ${version}`);
 }
 
 main().catch(err => {
