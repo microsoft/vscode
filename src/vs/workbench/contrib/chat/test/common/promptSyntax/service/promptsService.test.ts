@@ -1567,6 +1567,51 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('skills allow-list is only applied for VS Code and default targets', async () => {
+			const rootFolderName = 'custom-agents-skills-by-target';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/github-skills.agent.md`,
+					contents: [
+						'---',
+						'description: \'GitHub Copilot agent with invalid skills.\'',
+						'target: \'github-copilot\'',
+						'skills: []',
+						'---',
+						'Skills should be ignored for github-copilot.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/vscode-skills.agent.md`,
+					contents: [
+						'---',
+						'description: \'VS Code agent with skills.\'',
+						'target: \'vscode\'',
+						'skills: []',
+						'---',
+						'Skills should be honored for vscode.',
+					]
+				},
+			]);
+
+			const result = await service.getCustomAgents(CancellationToken.None);
+			const githubAgent = result.find(a => a.name === 'github-skills');
+			const vscodeAgent = result.find(a => a.name === 'vscode-skills');
+
+			assert.ok(githubAgent);
+			assert.strictEqual(githubAgent.target, Target.GitHubCopilot);
+			assert.strictEqual(githubAgent.skills, undefined, 'github-copilot must not propagate skills');
+
+			assert.ok(vscodeAgent);
+			assert.strictEqual(vscodeAgent.target, Target.VSCode);
+			assert.deepStrictEqual(vscodeAgent.skills, [], 'vscode must propagate skills allow-list');
+		});
+
 		test('header with infer: false sets agentInvocable to false', async () => {
 			const rootFolderName = 'custom-agents-infer-false';
 			const rootFolder = `/${rootFolderName}`;

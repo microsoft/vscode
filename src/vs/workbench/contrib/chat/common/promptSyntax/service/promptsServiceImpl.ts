@@ -43,7 +43,7 @@ import { HookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
-import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptFileAttributes.js';
+import { getTarget, isVSCodeOrDefaultTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptFileAttributes.js';
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
@@ -1658,8 +1658,9 @@ export namespace CustomAgent {
 			tools = mapClaudeTools(tools);
 		}
 		// Claude's `skills:` means "preload into subagent context", not a catalog whitelist.
+		// GitHub Copilot agents do not support `skills:` as a valid attribute.
 		// Only VS Code / default-target agents use `skills:` as an allow-list.
-		const skills = target === Target.Claude ? undefined : ast.header.skills;
+		const skills = isVSCodeOrDefaultTarget(target) ? ast.header.skills : undefined;
 		return { id, uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, skills, agentInstructions, source, sessionTypes, hooks, enabled };
 
 	}
