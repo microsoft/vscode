@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Dragging the frameless chat-input window mirrors how the command center is
+ * made draggable in the title bar: a dedicated, full-size drag region sits
+ * behind the content, and the genuinely interactive controls are painted on
+ * top (higher stacking) and marked no-drag. This gives a large, reliable drag
+ * surface (the input box chrome) without stealing pointer events from the
+ * editor or toolbars.
+ */
+
+.chat-input-window-content {
+	position: relative;
+}
+
+/* The full-size drag layer, behind everything else. */
+.chat-input-window-content > .chat-input-window-drag-region {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	-webkit-app-region: drag;
+}
+
+/* Keep the widget above the drag layer so its controls stay interactive. */
+.chat-input-window-content > .interactive-session {
+	position: relative;
+	z-index: 1;
+}
+
+/* Carve the interactive controls out of the drag region. */
+.chat-input-window-content .chat-editor-container,
+.chat-input-window-content .chat-input-toolbars,
+.chat-input-window-content .chat-secondary-toolbar,
+.chat-input-window-content .chat-attachments-container,
+.chat-input-window-content .monaco-toolbar {
+	-webkit-app-region: no-drag;
+}

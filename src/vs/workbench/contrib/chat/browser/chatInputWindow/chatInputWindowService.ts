@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
+import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -66,6 +67,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	/** Window height (outer) captured before growing to fit the routing picker; restored on close. */
 	private _preExpandHeight: number | undefined;
 	private _actionWidgetRestoreHeight: number | undefined;
+	/** The window that invoked the input window; used to center it on that window. */
+	private _invokingWindow: CodeWindow = mainWindow;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -120,6 +123,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private async _doOpenWindow(): Promise<void> {
+		// Capture the window that invoked us (before the aux window steals focus)
+		// so the input window is centered on it rather than always the main one.
+		this._invokingWindow = dom.getActiveWindow();
 		const bounds = this._defaultBounds();
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
@@ -157,11 +163,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		};
 
 		// The content surface is an invisible host: it stays transparent and adds
-		// a small symmetric padding ring around the input. That ring both centers
-		// the input box and — because a frameless window can only be moved through
-		// a `-webkit-app-region: drag` region — provides the draggable area. The
-		// input box itself is marked no-drag inside the widget so it stays
-		// interactive, leaving only the surrounding ring grabbable.
+		// a small symmetric padding ring around the input. Dragging is provided
+		// the same way the command center is in the title bar: a dedicated,
+		// full-size `.chat-input-window-drag-region` layer sits behind the input
+		// (see chatInputWindow.css) and marks itself `-webkit-app-region: drag`,
+		// while the interactive controls are painted on top and marked no-drag.
 		const contentSurface = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-content'));
 		contentSurface.style.boxSizing = 'border-box';
 		contentSurface.style.width = '100%';
@@ -174,7 +180,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		contentSurface.style.cursor = 'grab';
 		contentSurface.style.display = 'flex';
 		contentSurface.style.flexDirection = 'column';
-		(contentSurface.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
+		// Full-size drag layer behind the input; the widget content sits on top.
+		dom.append(contentSurface, dom.$('.chat-input-window-drag-region'));
 		applyThemeColors();
 		this._windowDisposables.add(this.themeService.onDidColorThemeChange(() => applyThemeColors()));
 
@@ -230,13 +237,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` - the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
-		// wrapper here. Make the whole wrapper draggable so the visible input
-		// box itself moves the frameless window; the genuinely interactive
-		// regions (editor, toolbars) are carved back out as no-drag below. A
-		// transparent padding ring alone is too thin (and too invisible) to be
-		// a reliable drag target on a transparent window.
+		// wrapper here. It renders above the drag layer (see chatInputWindow.css)
+		// so its controls stay interactive; the input-box chrome around them
+		// falls through to the drag layer and moves the window.
 		const parent = dom.append(contentSurface, dom.$('.interactive-session'));
-		(parent.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 		parent.style.flex = '1 1 auto';
 		parent.style.minHeight = '0';
 		parent.style.width = '100%';
@@ -283,13 +287,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		));
 		widget.render(parent);
 		widget.setVisible(true);
-
-		// The wrapper is draggable (see above). `-webkit-app-region` inherits,
-		// so marking the interactive containers no-drag keeps the editor and its
-		// toolbars fully usable while their surrounding input-box chrome still
-		// drags the window. These containers exist synchronously after render;
-		// buttons/suggestions added later inherit no-drag from them.
-		this._markInteractiveRegionsNoDrag(widget.input.interactiveInputElements);
 
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
@@ -367,8 +364,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			contentSurface.style.height = `${contentHeight}px`;
 			const windowChromeHeight = win.outerHeight - win.innerHeight;
 			win.resizeTo(win.outerWidth, contentHeight + windowChromeHeight);
-			const centeredX = Math.round(mainWindow.screenX + (mainWindow.outerWidth - win.outerWidth) / 2);
-			const centeredY = Math.round(mainWindow.screenY + (mainWindow.outerHeight - contentHeight) / 2);
+			const invokingWindow = this._invokingWindow;
+			const centeredX = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - win.outerWidth) / 2);
+			const centeredY = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - contentHeight) / 2);
 			win.moveTo(centeredX, centeredY);
 		};
 
@@ -400,17 +398,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// Refresh editor focus when the auxiliary window becomes active.
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => widget.focusInput()));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
-	}
-
-	/**
-	 * Marks the interactive parts of the chat input (editor, toolbars,
-	 * attachments) as non-draggable so the surrounding input-box chrome can drag
-	 * the frameless window while these controls stay clickable/typable.
-	 */
-	private _markInteractiveRegionsNoDrag(elements: HTMLElement[]): void {
-		for (const element of elements) {
-			(element.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'no-drag';
-		}
 	}
 
 	private async _layoutForModelPicker(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
@@ -453,13 +440,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
+		const invokingWindow = this._invokingWindow;
 		// Match Quick Chat's width so the model-detail hover has room to sit
-		// beside the picker: golden-cut of the main window, capped like the
+		// beside the picker: golden-cut of the invoking window, capped like the
 		// quick input widget (MAX_WIDTH = 600).
-		const width = Math.round(Math.min(mainWindow.innerWidth * 0.62, 600));
-		// Center the omni bar within the main VS Code window.
-		const x = Math.round(mainWindow.screenX + (mainWindow.outerWidth - width) / 2);
-		const y = Math.round(mainWindow.screenY + (mainWindow.outerHeight - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
+		const width = Math.round(Math.min(invokingWindow.innerWidth * 0.62, 600));
+		// Center the omni bar within the window that invoked it.
+		const x = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - width) / 2);
+		const y = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
 		return {
 			x,
 			y,
