@@ -169,6 +169,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.cachedFileLocations[PromptsType.agent] = undefined;
 			this.cachedFileLocations[PromptsType.skill] = undefined;
 			this.cachedFileLocations[PromptsType.hook] = undefined;
+			this.cachedFileLocations[PromptsType.instructions] = undefined;
+			this._onDidChangeAgentInstructions.fire();
 		}));
 
 		// Invalidate the cached file location list whenever an extension contribution
@@ -230,6 +232,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.getFileLocatorEvent(PromptsType.instructions),
 				Event.filter(onDidChangeExtensionPromptFiles, e => e.type === PromptsType.instructions),
 				Event.filter(this._onDidPluginPromptFilesChange.event, t => t === PromptsType.instructions),
+				onDidChangeCustomizationLockdown,
 			)
 		));
 
@@ -801,6 +804,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listNestedAgentMDs(token: CancellationToken): Promise<IAgentInstructionFile[]> {
+		if (this.areStandalonePromptFilesBlocked(PromptsType.instructions)) {
+			return [];
+		}
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useAgentMD) {
 			return [];
@@ -813,6 +819,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listAgentInstructions(token: CancellationToken, logger: Logger | undefined): Promise<IAgentInstructionFile[]> {
+		if (this.areStandalonePromptFilesBlocked(PromptsType.instructions)) {
+			return [];
+		}
 		const resolvedAgentFiles: IAgentInstructionFile[] = [];
 		const promises: Promise<IAgentInstructionFile[]>[] = [];
 

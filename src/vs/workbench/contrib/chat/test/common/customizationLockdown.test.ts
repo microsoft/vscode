@@ -21,7 +21,7 @@ suite('Customization lockdown', () => {
 		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.skill), true);
 		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.agent), true);
 		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.hook), true);
+		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.instructions), true);
 		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.prompt), false);
-		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.instructions), false);
 	});
 });

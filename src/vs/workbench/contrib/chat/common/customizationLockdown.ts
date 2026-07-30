@@ -16,6 +16,7 @@ export function isPromptTypeBlocked(value: StrictPluginOnlyCustomization, type: 
 		case PromptsType.skill:
 		case PromptsType.agent:
 		case PromptsType.hook:
+		case PromptsType.instructions:
 			return isStrictPluginOnlyCustomizationEnabled(value);
 		default:
 			return false;

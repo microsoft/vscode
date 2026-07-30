@@ -4605,6 +4605,61 @@ suite('PromptsService', () => {
 			]);
 		});
 
+		test('plugin-only lockdown filters standalone instructions and preserves plugin instructions', async () => {
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			const rootFolderUri = URI.file('/lockdown-instructions');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			const workspaceInstructionUri = URI.joinPath(rootFolderUri, '.github', 'instructions', 'workspace.instructions.md');
+			const pluginUri = URI.file('/plugins/managed');
+			const pluginInstructionUri = URI.joinPath(pluginUri, 'rules', 'plugin.instructions.md');
+			await mockFiles(fileService, [{
+				path: workspaceInstructionUri.path,
+				contents: ['---', 'description: "Workspace"', '---'],
+			}, {
+				path: pluginInstructionUri.path,
+				contents: ['---', 'description: "Plugin"', '---'],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format: PluginFormat.Copilot,
+				label: 'managed',
+				enablement: observableValue('lockdownInstructionPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('lockdownInstructionPluginHooks', []),
+				commands: observableValue('lockdownInstructionPluginCommands', []),
+				skills: observableValue('lockdownInstructionPluginSkills', []),
+				agents: observableValue('lockdownInstructionPluginAgents', []),
+				instructions: observableValue<readonly IAgentPluginInstruction[]>('lockdownPluginInstructions', [{ uri: pluginInstructionUri, name: 'plugin' }]),
+				mcpServerDefinitions: observableValue('lockdownInstructionPluginMcpServers', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const instructions = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.deepStrictEqual(instructions.map(instruction => ({
+				uri: instruction.uri.toString(),
+				storage: instruction.storage,
+			})), [{
+				uri: pluginInstructionUri.toString(),
+				storage: PromptsStorage.plugin,
+			}]);
+		});
+
+		test('plugin-only lockdown filters workspace agent instruction files', async () => {
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			const rootFolderUri = URI.file('/lockdown-agent-instructions');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: URI.joinPath(rootFolderUri, 'AGENTS.md').path,
+				contents: ['Workspace agent instructions'],
+			}, {
+				path: URI.joinPath(rootFolderUri, 'CLAUDE.md').path,
+				contents: ['Workspace Claude instructions'],
+			}]);
+
+			assert.deepStrictEqual(await service.listAgentInstructions(CancellationToken.None, undefined), []);
+			assert.deepStrictEqual(await service.listNestedAgentMDs(CancellationToken.None), []);
+		});
+
 		test('plugin-only lockdown removes standalone agents with embedded hooks', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
 			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);

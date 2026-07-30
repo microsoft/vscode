@@ -176,7 +176,7 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 The managed customization controls are complementary:
 
 - `strictKnownMarketplaces` restricts which marketplace sources may provide plugins.
-- `strictPluginOnlyCustomization` blocks standalone user and workspace skills, agents, hooks, and MCP servers. Eligible plugin contributions remain available.
+- `strictPluginOnlyCustomization` blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers. Eligible plugin contributions remain available.
 - `allowManagedMcpServersOnly` makes the managed MCP allowlist authoritative; lower-layer allow entries cannot broaden it and deny entries remain restrictive.
 - `allowManagedHooksOnly` permits plugin hooks only when managed `enabledPlugins` force-enables the plugin. User/workspace hooks and hooks from otherwise user-enabled plugins do not load.
 
