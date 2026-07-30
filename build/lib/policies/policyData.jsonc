@@ -810,7 +810,7 @@
             "localization": {
                 "description": {
                     "key": "telemetry.telemetryLevel.policyDescription",
-                    "value": "Controls the level of telemetry. Only the exact values 'all', 'error', 'crash', and 'off' are supported. Any other value, including an empty value or 'none', is invalid and must be replaced."
+                    "value": "Controls the level of telemetry. The supported values are 'all', 'error', 'crash', and 'off'."
                 },
                 "enumDescriptions": [
                     {

@@ -40,7 +40,7 @@ type PolicyAppliedEvent = {
 	telemetryLevel: TelemetryLevelBucket | undefined;
 };
 
-type TelemetryLevelBucket = 'off' | 'crash' | 'error' | 'all' | 'unknown';
+type TelemetryLevelBucket = 'off' | 'crash' | 'error' | 'all' | 'none' | 'empty' | 'unknown';
 
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
@@ -59,7 +59,7 @@ type PolicyAppliedClassification = {
 	toolsAutoApproveForcedOff: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy forces auto-approve off.' };
 	strictMarketplacesLockdown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the strict-marketplaces policy is an empty allowlist (blocks all marketplaces).' };
 	otelForcedEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the OpenTelemetry policy forces export enabled.' };
-	telemetryLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The forced telemetry level bucket (off/crash/error/all, or "unknown") when the telemetry-level policy is applied.' };
+	telemetryLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The forced telemetry level bucket (off/crash/error/all), "none" or "empty" for those invalid values, or "unknown" for other invalid values when the telemetry-level policy is applied.' };
 };
 
 export class PolicyTelemetryContribution extends Disposable implements IWorkbenchContribution {
@@ -148,8 +148,10 @@ function telemetryLevelBucket(rawValue: PolicyValue | undefined): TelemetryLevel
 		case 'error':
 		case 'all':
 			return rawValue;
+		case 'none':
+			return 'none';
 		default:
-			return 'unknown';
+			return rawValue.length === 0 ? 'empty' : 'unknown';
 	}
 }
 
