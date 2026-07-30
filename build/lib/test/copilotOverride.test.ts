@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, suite, test } from 'node:test';
 import { isPinnedSourceRequested, overrideBuildTags, parseLsRemoteTagSha, pinnedRuntimeVersion, PINNED_SOURCE, resolveCopilotOverrides, runtimeSourceTag, sourceBuildVersion } from '../../azure-pipelines/common/copilotOverride.ts';
-import { redactedError, redactSecrets, gitAuthArgs } from '../copilotRuntimeSource.ts';
+import { readNativeArch, redactedError, redactSecrets, stripSourceMaps, gitAuthArgs } from '../copilotRuntimeSource.ts';
 import { execFileSync } from 'child_process';
 
 const SHA = 'a'.repeat(40);
@@ -161,6 +161,83 @@ suite('copilotOverride.pinnedSource', () => {
 		assert.throws(() => parseLsRemoteTagSha('', 'cli-9.9.9'), /has no tag cli-9\.9\.9/);
 		assert.throws(() => parseLsRemoteTagSha(`${SHA}\trefs/tags/cli-1.0.74\n`, 'cli-1.0.73'), /has no tag cli-1\.0\.73/);
 		assert.throws(() => parseLsRemoteTagSha('abc123\trefs/tags/cli-1.0.73\n', 'cli-1.0.73'), /has no tag cli-1\.0\.73/);
+	});
+});
+
+suite('copilotRuntimeSource.stripSourceMaps', () => {
+	test('removes maps and their directives, matching the publish flow', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-maps-'));
+		tmpDirs.push(dir);
+		fs.mkdirSync(path.join(dir, 'sdk'), { recursive: true });
+		fs.writeFileSync(path.join(dir, 'app.js'), 'const a=1;\n//# sourceMappingURL=app.js.map\n');
+		fs.writeFileSync(path.join(dir, 'app.js.map'), '{}');
+		fs.writeFileSync(path.join(dir, 'sdk', 'index.js'), 'const b=2;\n//# sourceMappingURL=index.js.map\n');
+		fs.writeFileSync(path.join(dir, 'sdk', 'index.js.map'), '{}');
+		fs.writeFileSync(path.join(dir, 'keep.node'), 'binary');
+
+		assert.strictEqual(stripSourceMaps(dir), 2);
+
+		assert.strictEqual(fs.existsSync(path.join(dir, 'app.js.map')), false);
+		assert.strictEqual(fs.existsSync(path.join(dir, 'sdk', 'index.js.map')), false);
+		assert.strictEqual(fs.readFileSync(path.join(dir, 'app.js'), 'utf8'), 'const a=1;\n');
+		assert.strictEqual(fs.readFileSync(path.join(dir, 'sdk', 'index.js'), 'utf8'), 'const b=2;\n');
+		// Non-JS payloads must survive untouched.
+		assert.strictEqual(fs.readFileSync(path.join(dir, 'keep.node'), 'utf8'), 'binary');
+	});
+});
+
+suite('copilotRuntimeSource.readNativeArch', () => {
+	// The prebuilds directory is named after the *requested* target, so a
+	// cross-compile that fell back to the host still lands in the right folder.
+	// Only the object header distinguishes them.
+	function write(bytes: Buffer): string {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-arch-'));
+		tmpDirs.push(dir);
+		const file = path.join(dir, 'runtime.node');
+		fs.writeFileSync(file, bytes);
+		return file;
+	}
+
+	function machO(cpuType: number): Buffer {
+		const buf = Buffer.alloc(64);
+		buf.writeUInt32LE(0xfeedfacf, 0);
+		buf.writeUInt32LE(cpuType, 4);
+		return buf;
+	}
+
+	function elf(machine: number): Buffer {
+		const buf = Buffer.alloc(64);
+		buf.writeUInt32BE(0x7f454c46, 0);
+		buf.writeUInt16LE(machine, 18);
+		return buf;
+	}
+
+	function pe(machine: number): Buffer {
+		const buf = Buffer.alloc(0x90);
+		buf.writeUInt16BE(0x4d5a, 0);
+		buf.writeUInt32LE(0x80, 0x3c);
+		buf.writeUInt32BE(0x50450000, 0x80);
+		buf.writeUInt16LE(machine, 0x84);
+		return buf;
+	}
+
+	test('reads the architecture out of each object format', () => {
+		assert.strictEqual(readNativeArch(write(machO(0x0100000c))), 'arm64');
+		assert.strictEqual(readNativeArch(write(machO(0x01000007))), 'x64');
+		assert.strictEqual(readNativeArch(write(elf(0xb7))), 'arm64');
+		assert.strictEqual(readNativeArch(write(elf(0x3e))), 'x64');
+		assert.strictEqual(readNativeArch(write(pe(0xaa64))), 'arm64');
+		assert.strictEqual(readNativeArch(write(pe(0x8664))), 'x64');
+	});
+
+	test('returns undefined rather than guessing on anything unrecognised', () => {
+		// A universal binary, an unknown machine and a truncated file must not be
+		// reported as a mismatch, or a legitimate build would fail.
+		const fat = Buffer.alloc(64);
+		fat.writeUInt32BE(0xcafebabe, 0);
+		assert.strictEqual(readNativeArch(write(fat)), undefined);
+		assert.strictEqual(readNativeArch(write(elf(0x28))), undefined);
+		assert.strictEqual(readNativeArch(write(Buffer.alloc(8))), undefined);
 	});
 });
 

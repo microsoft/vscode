@@ -113,6 +113,15 @@ export function gitEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv 
 	return { ...env, GIT_TERMINAL_PROMPT: '0' };
 }
 
+/**
+ * Environment for the runtime's own toolchain. Corepack asks for confirmation
+ * before downloading the pnpm version pinned by `packageManager`, which blocks
+ * on stdin that no CI job can answer.
+ */
+export function toolEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+	return { ...env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
+}
+
 /** Records a runtime source override so gulp builds it. Called before `npm ci`. */
 export function writeRuntimeSourceMarker(repo: string, ref: string): void {
 	fs.mkdirSync(OVERRIDES_DIR, { recursive: true });
@@ -213,8 +222,8 @@ function ensureCheckout(marker: RuntimeMarker): string {
 	// corepack provisions the pnpm version pinned by the runtime's packageManager
 	// field; `--ignore-scripts` skips dependency lifecycle builds (the runtime's
 	// own native build is invoked explicitly per target below).
-	run(COREPACK, ['enable'], srcDir);
-	run(PNPM, ['install', '--frozen-lockfile', '--ignore-scripts'], srcDir);
+	run(COREPACK, ['enable'], srcDir, toolEnv());
+	run(PNPM, ['install', '--frozen-lockfile', '--ignore-scripts'], srcDir, toolEnv());
 
 	fs.writeFileSync(CHECKOUT_STAMP, marker.ref);
 	console.log(`[copilot-runtime-source] Prepared runtime source ${marker.repo}@${marker.ref} at ${srcDir}`);
@@ -302,19 +311,50 @@ function ensureTargetBuilt(marker: RuntimeMarker, copilotPackagePlatformArch: st
 		// build host's detected libc.
 		runtimeArgs.push(`--libc=${target.libc}`);
 	}
-	run(PNPM, ['run', 'build:runtime', ...runtimeArgs], srcDir, { ...process.env, CARGO_TARGET_DIR: path.resolve(CARGO_TARGET_DIR) });
+	run(PNPM, ['run', 'build:runtime', ...runtimeArgs], srcDir, toolEnv({ ...process.env, CARGO_TARGET_DIR: path.resolve(CARGO_TARGET_DIR) }));
 	// 2. Bundle the JS and copy native addons into dist-cli (CI=1 → minify).
-	run(PNPM, ['exec', 'tsx', 'esbuild.ts'], srcDir, { ...process.env, CI: '1' });
+	run(PNPM, ['exec', 'tsx', 'esbuild.ts'], srcDir, toolEnv({ ...process.env, CI: '1' }));
 	// 3. Assemble the single-platform package (installs target native deps, trims).
 	run('node', ['script/cli-package-json.js', sourceBuildVersion(marker.ref), target.pkgPlatform, target.arch], srcDir);
 
 	assertPackageComplete(distCli, target, copilotPackagePlatformArch, srcDir);
+	stripSourceMaps(distCli);
 
 	fs.rmSync(outDir, { recursive: true, force: true });
 	fs.mkdirSync(outDir, { recursive: true });
 	fs.cpSync(distCli, outDir, { recursive: true });
 	fs.writeFileSync(path.join(outDir, PACKAGE_STAMP), `${marker.ref}\n`);
 	return outDir;
+}
+
+/**
+ * Removes source maps and their trailing `sourceMappingURL` comments, matching
+ * what the runtime's own publish workflow strips before shipping. Without this a
+ * source build ships ~47MB of maps for a private codebase that the published
+ * package does not contain.
+ */
+export function stripSourceMaps(distCli: string): number {
+	let removed = 0;
+	const walk = (dir: string): void => {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(full);
+			} else if (entry.name.endsWith('.map')) {
+				fs.rmSync(full, { force: true });
+				removed++;
+			} else if (entry.name.endsWith('.js')) {
+				const source = fs.readFileSync(full, 'utf8');
+				const stripped = source.replace(/^\/\/# sourceMappingURL=.*$\n?/gm, '');
+				if (stripped !== source) {
+					fs.writeFileSync(full, stripped);
+				}
+			}
+		}
+	};
+	walk(distCli);
+	console.log(`[copilot-runtime-source] Stripped ${removed} source map(s) from ${distCli}`);
+	return removed;
 }
 
 /**
@@ -353,7 +393,57 @@ function assertPackageComplete(distCli: string, target: BuildTarget, copilotPack
 	// Native addons are looked up at `prebuilds/${process.platform}-${process.arch}`,
 	// so musl targets share the `linux-*` directory name with glibc.
 	const prebuilds = path.join(distCli, 'prebuilds', `${target.nodePlatform}-${target.arch}`);
-	if (!fs.existsSync(prebuilds) || !fs.readdirSync(prebuilds).some(name => name.endsWith('.node'))) {
+	const addons = fs.existsSync(prebuilds) ? fs.readdirSync(prebuilds).filter(name => name.endsWith('.node')) : [];
+	if (addons.length === 0) {
 		throw new Error(`[copilot-runtime-source] Runtime build for ${copilotPackagePlatformArch} produced no native addon in ${prebuilds}. Was the target cross-compiled?`);
+	}
+
+	// The directory name comes from the *requested* target, so a cross-compile
+	// that silently fell back to the host would still land here. Read the object
+	// header to confirm the binary really is for the requested architecture.
+	for (const addon of addons) {
+		const actual = readNativeArch(path.join(prebuilds, addon));
+		if (actual && actual !== target.arch) {
+			throw new Error(`[copilot-runtime-source] ${path.join(prebuilds, addon)} is a ${actual} binary but ${copilotPackagePlatformArch} was requested; the cross-compile fell back to the host.`);
+		}
+	}
+}
+
+/**
+ * The architecture a native addon was compiled for, read from its object header
+ * (Mach-O, ELF or PE). Returns undefined for a format or machine this does not
+ * recognise, so an unknown toolchain output is not treated as a mismatch.
+ */
+export function readNativeArch(file: string): 'x64' | 'arm64' | undefined {
+	const fd = fs.openSync(file, 'r');
+	try {
+		const head = Buffer.alloc(64);
+		if (fs.readSync(fd, head, 0, head.length, 0) < 64) {
+			return undefined;
+		}
+
+		// Mach-O 64-bit little-endian: magic 0xfeedfacf, then cputype.
+		if (head.readUInt32LE(0) === 0xfeedfacf) {
+			const cpuType = head.readUInt32LE(4);
+			return cpuType === 0x0100000c ? 'arm64' : cpuType === 0x01000007 ? 'x64' : undefined;
+		}
+		// ELF: magic \x7FELF, then e_machine at offset 18.
+		if (head.readUInt32BE(0) === 0x7f454c46) {
+			const machine = head.readUInt16LE(18);
+			return machine === 0xb7 ? 'arm64' : machine === 0x3e ? 'x64' : undefined;
+		}
+		// PE: 'MZ', PE header offset at 0x3c, machine at that offset + 4.
+		if (head.readUInt16BE(0) === 0x4d5a) {
+			const peOffset = head.readUInt32LE(0x3c);
+			const coff = Buffer.alloc(6);
+			if (fs.readSync(fd, coff, 0, coff.length, peOffset) < 6 || coff.readUInt32BE(0) !== 0x50450000) {
+				return undefined;
+			}
+			const machine = coff.readUInt16LE(4);
+			return machine === 0xaa64 ? 'arm64' : machine === 0x8664 ? 'x64' : undefined;
+		}
+		return undefined;
+	} finally {
+		fs.closeSync(fd);
 	}
 }
