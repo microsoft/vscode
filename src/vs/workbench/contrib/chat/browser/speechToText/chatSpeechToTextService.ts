@@ -34,6 +34,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
+import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -732,6 +733,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._state !== ChatSpeechToTextState.Idle) {
 			return;
 		}
+		const captureWindow = getMediaCaptureWindow(window);
 
 		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
 			return;
@@ -776,7 +778,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		let stream: MediaStream;
 		try {
-			stream = await this._acquireStream(window);
+			stream = await this._acquireStream(captureWindow);
 		} catch (err) {
 			this._sessionErrorCode = this._sessionErrorCode || 'microphone';
 			this._logSessionTelemetry('error');
@@ -788,7 +790,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._mediaStream = stream;
 
 		try {
-			await this._startBackendSession(window);
+			await this._startBackendSession(captureWindow);
 		} catch (err) {
 			this._teardown();
 			this._sessionErrorCode = this._sessionErrorCode || 'connect';
@@ -799,7 +801,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 
 		try {
-			await this._startCapture(window, stream);
+			await this._startCapture(captureWindow, stream);
 		} catch (err) {
 			// Capture setup (AudioContext/nodes) can fail after the mic and the
 			// transcription session are already live; make sure both are torn
