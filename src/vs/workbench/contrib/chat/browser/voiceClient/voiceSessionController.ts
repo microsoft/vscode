@@ -5541,8 +5541,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return stateInfo.state;
 	}
 
-/**
-	 * Returns the oldest open pending part from the last request so narration and answer routing use the same item.
+	/**
+	 * Returns the oldest still-open pending part of the last request.
+	 *
+	 * Answer routing and narration prose MUST both come from here, or they can
+	 * name different forms and a spoken answer lands on the wrong one.
 	 */
 	private _selectPendingPart(model: IChatModel | undefined | null): { requestId: string; part: IChatProgressResponseContent } | undefined {
 		const lastRequest = model?.getRequests().at(-1);

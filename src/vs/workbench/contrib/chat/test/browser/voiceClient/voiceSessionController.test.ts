@@ -25,7 +25,7 @@ import { IAuthenticationService } from '../../../../../services/authentication/c
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
@@ -208,22 +208,40 @@ class TestMicCaptureService extends mock<IMicCaptureService>() {
 
 class TestAgentSessionsService extends mock<IAgentSessionsService>() {
 	override readonly onDidChangeSessionArchivedState = Event.None;
-	override readonly model: IAgentSessionsModel = {
-		onWillResolve: Event.None,
-		onDidResolve: Event.None,
-		sessions: [],
-		onDidChangeSessions: Event.None,
-		onDidChangeSessionArchivedState: Event.None,
-		resolved: true,
-		getSession: () => undefined,
-		observeSession: () => observableValue('session', undefined),
-		resolve: async () => { },
+	override readonly model: IAgentSessionsModel;
+
+	constructor(sessions: readonly unknown[] = []) {
+		super();
+		this.model = {
+			onWillResolve: Event.None,
+			onDidResolve: Event.None,
+			sessions: sessions as IAgentSessionsModel['sessions'],
+			onDidChangeSessions: Event.None,
+			onDidChangeSessionArchivedState: Event.None,
+			resolved: true,
+			getSession: () => undefined,
+			observeSession: () => observableValue('session', undefined),
+			resolve: async () => { },
+		};
+	}
+}
+
+/** An agent session entry as `_buildSessionContext` reads it. */
+function agentSessionEntry(id: string, label: string | undefined, status: AgentSessionStatus) {
+	return {
+		resource: URI.parse(id),
+		label,
+		status,
+		isArchived: () => false,
+		timing: { created: Date.now(), lastRequestEnded: Date.now() },
 	};
 }
 
 class TestChatService extends mock<IChatService>() {
 	override readonly chatModels = observableValue('chatModels', []);
 	override getSession(): undefined { return undefined; }
+	/** A session that never loads: the controller eagerly loads models for waiting sessions. */
+	override async acquireOrLoadSession(): Promise<undefined> { return undefined; }
 }
 
 /**
@@ -348,6 +366,7 @@ suite('VoiceSessionController', () => {
 		promptsService: IPromptsService = new class extends mock<IPromptsService>() {
 			override async getVoiceInstructions(): Promise<undefined> { return undefined; }
 		}(),
+		agentSessionsService: IAgentSessionsService = new TestAgentSessionsService(),
 	): IVoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -363,7 +382,7 @@ suite('VoiceSessionController', () => {
 				override notifyPlaybackStart(): void { }
 				override notifyPlaybackEnd(): void { }
 			}(),
-			new TestAgentSessionsService(),
+			agentSessionsService,
 			chatService,
 			commandService,
 			new class extends mock<IAuthenticationService>() {
@@ -614,6 +633,63 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(info.state, 'waiting_for_confirmation');
 		assert.strictEqual(info.detail, 'questions: Which region?');
 		assert.deepStrictEqual(buildPendingPayload.call(controller, model)?.questions?.map(question => question.title), ['Which region?']);
+	});
+
+	test('sends each agent session label so two waiting sessions can be told apart', () => {
+		// The label is the only human-readable handle the backend has. Without it
+		// every session is "Untitled" and naming one out loud cannot disambiguate
+		// which of two open forms an answer is for.
+		const controller = createController(
+			new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			new TestAgentSessionsService([
+				agentSessionEntry('vscode-chat://a', 'Auth fix', AgentSessionStatus.NeedsInput),
+				agentSessionEntry('vscode-chat://b', 'Billing refactor', AgentSessionStatus.InProgress),
+			]),
+		);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => { sessions: { id: string; label?: string }[] };
+
+		const labels = buildSessionContext.call(controller).sessions.map(session => session.label);
+
+		assert.deepStrictEqual(labels, ['Auth fix', 'Billing refactor']);
+	});
+
+	test('omits the label for an unlabelled agent session rather than sending an empty one', () => {
+		// An empty string would render as a nameless label the model might try to
+		// quote back at the user; absent lets the backend fall back to "Untitled".
+		const controller = createController(
+			new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			new TestAgentSessionsService([agentSessionEntry('vscode-chat://a', undefined, AgentSessionStatus.NeedsInput)]),
+		);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => { sessions: { id: string; label?: string }[] };
+
+		const [session] = buildSessionContext.call(controller).sessions;
+
+		assert.strictEqual(session.id, 'vscode-chat://a');
+		assert.ok(!Object.hasOwn(session, 'label'));
+	});
+
+	test('sends the agent session label once its model is resident too', () => {
+		// The label is emitted from two branches - model resident or not - and a
+		// session flips between them as VS Code loads and disposes models. Only
+		// covering the unloaded branch would let the loaded one lose the label
+		// silently, which is exactly when a form is on screen to disambiguate.
+		const chatService = new ControllableChatService();
+		const resource = URI.parse('vscode-chat://a');
+		chatService.setModels([pendingConfirmationModel(resource)]);
+		const controller = createController(
+			new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService, undefined,
+			new TestAgentSessionsService([agentSessionEntry(resource.toString(), 'Auth fix', AgentSessionStatus.NeedsInput)]),
+		);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => { sessions: { id: string; label?: string; agent_state: string }[] };
+		// Make it the active session: a background confirmation is deliberately
+		// downgraded to `thinking`, which would hide whether the resident branch
+		// ran at all.
+		controller.setTargetSession(resource);
+
+		const [session] = buildSessionContext.call(controller).sessions;
+
+		assert.strictEqual(session.agent_state, 'waiting_for_confirmation');
+		assert.strictEqual(session.label, 'Auth fix');
 	});
 
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {
