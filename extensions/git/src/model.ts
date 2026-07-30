@@ -783,7 +783,10 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			.getConfiguration('git', Uri.file(repository.root))
 			.get<number>('detectWorktreesLimit') as number;
 
-		const checkForSubmodules = () => {
+		let submoduleCheckSequence = 0;
+		const checkForSubmodules = async () => {
+			const sequence = ++submoduleCheckSequence;
+
 			if (!shouldDetectSubmodules) {
 				this.logger.trace('[Model][open] Automatic detection of git submodules is not enabled.');
 				return;
@@ -794,9 +797,29 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				statusListener.dispose();
 			}
 
-			repository.submodules
+			const submodulePaths = repository.submodules.map(r => path.join(repository.root, r.path));
+			const initializedSubmodulePaths = (await Promise.all(submodulePaths.map(async submodulePath => {
+				try {
+					await fs.promises.stat(path.join(submodulePath, '.git'));
+					return submodulePath;
+				} catch {
+					return undefined;
+				}
+			}))).filter(submodulePath => submodulePath !== undefined);
+			if (sequence !== submoduleCheckSequence) {
+				return;
+			}
+
+			for (const openRepository of [...this.openRepositories]) {
+				if (submodulePaths.some(submodulePath => pathEquals(submodulePath, openRepository.repository.root))
+					&& !initializedSubmodulePaths.some(submodulePath => pathEquals(submodulePath, openRepository.repository.root))) {
+					this.logger.trace(`[Model][open] Closing deinitialized submodule: '${openRepository.repository.root}'`);
+					openRepository.dispose();
+				}
+			}
+
+			initializedSubmodulePaths
 				.slice(0, submodulesLimit)
-				.map(r => path.join(repository.root, r.path))
 				.forEach(p => {
 					this.logger.trace(`[Model][open] Opening submodule: '${p}'`);
 					this.eventuallyScanPossibleGitRepository(p);
@@ -839,12 +862,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		};
 
 		const statusListener = repository.onDidRunGitStatus(() => {
-			checkForSubmodules();
+			void checkForSubmodules();
 			checkForWorktrees();
 			updateMergeChanges();
 			this.onDidChangeActiveTextEditor();
 		});
-		checkForSubmodules();
+		void checkForSubmodules();
 		checkForWorktrees();
 		this.onDidChangeActiveTextEditor();
 
