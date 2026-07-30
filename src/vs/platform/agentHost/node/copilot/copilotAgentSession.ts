@@ -2492,14 +2492,19 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'approve-once' };
 			}
 
-			const isShellRequest = request.kind === 'shell'
-				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
+			// The SDK's built-in terminal reports `kind: 'shell'`. The Agent Host's
+			// terminal override is registered as an SDK custom tool named `bash` or
+			// `powershell`, so it reports `kind: 'custom-tool'` instead.
+			const customShellToolName = request.kind === 'custom-tool'
+				&& typeof request.toolName === 'string'
+				&& isShellTool(request.toolName)
+				? request.toolName
+				: undefined;
+			const isShellRequest = request.kind === 'shell' || customShellToolName !== undefined;
 			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName;
 			const shellToolName = request.kind === 'shell'
 				? trackedToolName
-				: request.kind === 'custom-tool'
-					? request.toolName
-					: undefined;
+				: customShellToolName;
 			const shellLanguage: IAgentToolPendingConfirmationSignal['shellLanguage'] = !isShellRequest
 				? undefined
 				: shellToolName === 'bash' || shellToolName === 'powershell'
