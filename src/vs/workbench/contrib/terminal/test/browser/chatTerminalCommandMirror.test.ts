@@ -6,15 +6,19 @@
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../amdX.js';
+import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import type { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import type { ITerminalFont } from '../../common/terminal.js';
+import { ITerminalService, type IDetachedTerminalInstance, type IDetachedXTermOptions } from '../../browser/terminal.js';
 import { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestXtermAddonImporter } from './xterm/xtermTestUtils.js';
-import { computeMaxBufferColumnWidth, computeSnapshotLineCount, vtBoundaryMatches } from '../../browser/chatTerminalCommandMirror.js';
+import { computeChatTerminalMirrorCols, computeMaxBufferColumnWidth, computeSnapshotLineCount, DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror, vtBoundaryMatches } from '../../browser/chatTerminalCommandMirror.js';
 
 const defaultTerminalConfig = {
 	fontFamily: 'monospace',
@@ -26,6 +30,38 @@ const defaultTerminalConfig = {
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '6'
 };
+
+/**
+ * Creates a fake detached terminal instance backed by a real raw xterm.js terminal so mirror
+ * tests can inspect the resulting buffer and count resize/write calls. The fixed font metrics
+ * (charWidth 10, letterSpacing 0) make width-to-cols math deterministic on any machine.
+ */
+function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: IDetachedXTermOptions) {
+	const raw = new RawCtor({ cols: options.cols, rows: options.rows });
+	const counters = { resizeCalls: 0, writeCalls: 0 };
+	const font: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 };
+	const instance = {
+		xterm: {
+			raw,
+			get cols() { return raw.cols; },
+			get rows() { return raw.rows; },
+			get buffer() { return raw.buffer; },
+			getFont: () => font,
+			write: (data: string, callback?: () => void) => {
+				counters.writeCalls++;
+				raw.write(data, callback);
+			},
+			resize: (columns: number, rows: number) => {
+				counters.resizeCalls++;
+				raw.resize(columns, rows);
+			}
+		},
+		onData: Event.None,
+		attachToElement: () => { },
+		dispose: () => raw.dispose()
+	} as unknown as IDetachedTerminalInstance;
+	return { raw, counters, instance };
+}
 
 suite('Workbench - ChatTerminalCommandMirror', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -617,6 +653,256 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const oldVT = '\x1b[31mRed\x1b[0m\r\n';
 			const newVT = '\x1b[31mRed\x1b[0m\r\nGreen';
 			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length), true);
+		});
+	});
+
+	suite('computeChatTerminalMirrorCols', () => {
+
+		function makeFont(charWidth?: number, letterSpacing = 0): ITerminalFont {
+			return { fontFamily: 'monospace', fontSize: 12, letterSpacing, lineHeight: 1, charWidth, charHeight: 14 };
+		}
+
+		test('fills the available width minus the container padding', () => {
+			deepStrictEqual({
+				exact: computeChatTerminalMirrorCols(1224, makeFont(10), 1),
+				floored: computeChatTerminalMirrorCols(1200, makeFont(10), 1),
+			}, {
+				exact: 120, // (1224 - 24) / 10
+				floored: 117, // floor((1200 - 24) / 10)
+			});
+		});
+
+		test('is stable across device pixel ratios when letter spacing is zero', () => {
+			strictEqual(computeChatTerminalMirrorCols(1224, makeFont(10), 2), 120);
+		});
+
+		test('accounts for letter spacing in device pixels', () => {
+			// floor((1224 - 24) * 2 / (10 * 2 + 1))
+			strictEqual(computeChatTerminalMirrorCols(1224, makeFont(10, 1), 2), 114);
+		});
+
+		test('falls back to the default cols when width or font is unmeasurable', () => {
+			deepStrictEqual({
+				zeroWidth: computeChatTerminalMirrorCols(0, makeFont(10), 1),
+				nanWidth: computeChatTerminalMirrorCols(NaN, makeFont(10), 1),
+				missingCharWidth: computeChatTerminalMirrorCols(1224, makeFont(undefined), 1),
+				zeroCharWidth: computeChatTerminalMirrorCols(1224, makeFont(0), 1),
+			}, {
+				zeroWidth: 80,
+				nanWidth: 80,
+				missingCharWidth: 80,
+				zeroCharWidth: 80,
+			});
+		});
+
+		test('treats an invalid device pixel ratio as 1', () => {
+			strictEqual(computeChatTerminalMirrorCols(1224, makeFont(10), 0), 120);
+		});
+
+		test('clamps very narrow widths to a minimum readable column count', () => {
+			strictEqual(computeChatTerminalMirrorCols(100, makeFont(10), 1), 20);
+		});
+	});
+
+	suite('DetachedTerminalSnapshotMirror.layout', () => {
+		let instantiationService: TestInstantiationService;
+		let XTermBaseCtor: typeof Terminal;
+		let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
+
+		setup(async () => {
+			instantiationService = workbenchInstantiationService(undefined, store);
+			XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			fakes = [];
+			instantiationService.stub(ITerminalService, {
+				createDetachedTerminal: async (options: IDetachedXTermOptions) => {
+					const fake = createFakeDetachedTerminal(XTermBaseCtor, options);
+					fakes.push(fake);
+					return fake.instance;
+				}
+			} as Partial<ITerminalService>);
+		});
+
+		function createSnapshotMirror(output: { text: string; lineCount?: number } | undefined): DetachedTerminalSnapshotMirror {
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+		}
+
+		test('resizes the detached terminal to cols computed from the width', async () => {
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			await mirror.layout(1224); // (1224 - 24) / 10 = 120 cols
+			strictEqual(fakes.length, 1);
+			strictEqual(fakes[0].raw.cols, 120);
+		});
+
+		test('first render after layout wraps at the new cols', async () => {
+			const mirror = createSnapshotMirror({ text: 'x'.repeat(100) });
+			await mirror.layout(1224);
+			await mirror.render();
+			deepStrictEqual({
+				cols: fakes[0].raw.cols,
+				lineCount: computeSnapshotLineCount(fakes[0].raw.buffer.active),
+				maxColumnWidth: computeMaxBufferColumnWidth(fakes[0].raw.buffer.active, fakes[0].raw.cols),
+			}, {
+				cols: 120,
+				lineCount: 1,
+				maxColumnWidth: 100,
+			});
+		});
+
+		test('re-wraps already rendered output at the new cols without rewriting', async () => {
+			const mirror = createSnapshotMirror({ text: 'x'.repeat(100) });
+			await mirror.render();
+			strictEqual(computeSnapshotLineCount(fakes[0].raw.buffer.active), 2);
+			const writeCallsBeforeLayout = fakes[0].counters.writeCalls;
+			await mirror.layout(1224);
+			deepStrictEqual({
+				cols: fakes[0].raw.cols,
+				lineCount: computeSnapshotLineCount(fakes[0].raw.buffer.active),
+				maxColumnWidth: computeMaxBufferColumnWidth(fakes[0].raw.buffer.active, fakes[0].raw.cols),
+				// Re-wrapping must come from xterm's native resize reflow, not a buffer
+				// rewrite, which would flash a cleared frame on every resize
+				writeCalls: fakes[0].counters.writeCalls,
+			}, {
+				cols: 120,
+				lineCount: 1,
+				maxColumnWidth: 100,
+				writeCalls: writeCallsBeforeLayout,
+			});
+		});
+
+		test('repeated layout with the same width does not resize or rewrite', async () => {
+			const mirror = createSnapshotMirror({ text: 'x'.repeat(100) });
+			await mirror.render();
+			await mirror.layout(1224);
+			const { resizeCalls, writeCalls } = { ...fakes[0].counters };
+			await mirror.layout(1224);
+			deepStrictEqual(fakes[0].counters, { resizeCalls, writeCalls });
+		});
+
+		test('ignores non-positive widths', async () => {
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			await mirror.layout(0);
+			await mirror.layout(-10);
+			strictEqual(fakes[0].raw.cols, 80);
+		});
+	});
+
+	suite('DetachedTerminalCommandMirror.layout', () => {
+		let instantiationService: TestInstantiationService;
+		let XTermBaseCtor: typeof Terminal;
+		let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
+
+		setup(async () => {
+			const configurationService = new TestConfigurationService({
+				editor: {
+					fastScrollSensitivity: 2,
+					mouseWheelScrollSensitivity: 1
+				} as Partial<IEditorOptions>,
+				files: {},
+				terminal: {
+					integrated: defaultTerminalConfig
+				},
+			});
+			instantiationService = workbenchInstantiationService({
+				configurationService: () => configurationService
+			}, store);
+			XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			fakes = [];
+			instantiationService.stub(ITerminalService, {
+				createDetachedTerminal: async (options: IDetachedXTermOptions) => {
+					const fake = createFakeDetachedTerminal(XTermBaseCtor, options);
+					fakes.push(fake);
+					return fake.instance;
+				}
+			} as Partial<ITerminalService>);
+		});
+
+		async function createXterm(cols = 80, rows = 10): Promise<XtermTerminal> {
+			const capabilities = store.add(new TerminalCapabilityStore());
+			return store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols,
+				rows,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+			}, undefined));
+		}
+
+		function write(xterm: XtermTerminal, data: string): Promise<void> {
+			return new Promise<void>(resolve => xterm.write(data, resolve));
+		}
+
+		function lineText(raw: Terminal, y: number): string {
+			return raw.buffer.active.getLine(y)?.translateToString(true) ?? '';
+		}
+
+		/**
+		 * Writes a finished command whose output is a single 100 character line, which soft-wraps
+		 * onto two rows in the 80 column source terminal.
+		 */
+		async function createWrappedCommand(source: XtermTerminal): Promise<ITerminalCommand> {
+			const executedMarker = source.raw.registerMarker(0)!;
+			await write(source, 'x'.repeat(100) + '\r\n');
+			const endMarker = source.raw.registerMarker(0)!;
+			return { executedMarker, endMarker } as unknown as ITerminalCommand;
+		}
+
+		function createCommandMirror(source: XtermTerminal, command: ITerminalCommand): DetachedTerminalCommandMirror {
+			return store.add(instantiationService.createInstance(DetachedTerminalCommandMirror, source, command));
+		}
+
+		test('resizes before any render without writing content', async () => {
+			const source = await createXterm();
+			const command = await createWrappedCommand(source);
+			const mirror = createCommandMirror(source, command);
+			await mirror.layout(1224); // (1224 - 24) / 10 = 120 cols
+			deepStrictEqual({
+				cols: fakes[0].raw.cols,
+				writeCalls: fakes[0].counters.writeCalls,
+			}, {
+				cols: 120,
+				writeCalls: 0,
+			});
+		});
+
+		test('re-wraps rendered command output at the new cols without rewriting', async () => {
+			const source = await createXterm();
+			const command = await createWrappedCommand(source);
+			const mirror = createCommandMirror(source, command);
+			await mirror.renderCommand();
+			deepStrictEqual({
+				line0: lineText(fakes[0].raw, 0),
+				line1: lineText(fakes[0].raw, 1),
+			}, {
+				line0: 'x'.repeat(80),
+				line1: 'x'.repeat(20),
+			});
+			const writeCallsBeforeLayout = fakes[0].counters.writeCalls;
+			await mirror.layout(1224);
+			deepStrictEqual({
+				cols: fakes[0].raw.cols,
+				line0: lineText(fakes[0].raw, 0),
+				maxColumnWidth: computeMaxBufferColumnWidth(fakes[0].raw.buffer.active, fakes[0].raw.cols),
+				// Re-wrapping must come from xterm's native resize reflow, not a buffer
+				// rewrite, which would flash a cleared frame on every resize
+				writeCalls: fakes[0].counters.writeCalls,
+			}, {
+				cols: 120,
+				line0: 'x'.repeat(100),
+				maxColumnWidth: 100,
+				writeCalls: writeCallsBeforeLayout,
+			});
+		});
+
+		test('repeated layout with the same width does not resize or rewrite', async () => {
+			const source = await createXterm();
+			const command = await createWrappedCommand(source);
+			const mirror = createCommandMirror(source, command);
+			await mirror.renderCommand();
+			await mirror.layout(1224);
+			const { resizeCalls, writeCalls } = { ...fakes[0].counters };
+			await mirror.layout(1224);
+			deepStrictEqual(fakes[0].counters, { resizeCalls, writeCalls });
 		});
 	});
 });
