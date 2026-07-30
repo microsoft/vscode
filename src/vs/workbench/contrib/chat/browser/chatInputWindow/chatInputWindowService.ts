@@ -21,6 +21,7 @@ import { inputBackground, inputBorder } from '../../../../../platform/theme/comm
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { OmniIntentResolver, OmniIntent } from './omniIntent.js';
+import { OmniSessionsStrip } from './omniSessionsStrip.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -219,6 +220,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		}));
 		this._trail = trail;
+
+		// A strip under the input saying whether the work you have already sent
+		// is still running, or waiting on you.
+		const sessionsStrip = this._windowDisposables.add(this.instantiationService.createInstance(
+			OmniSessionsStrip,
+			() => this._fitWindowToContent(),
+		));
+		auxiliaryWindow.container.appendChild(sessionsStrip.element);
 
 		// While either party is speaking there is no turn for you to submit, so
 		// the arrow recedes rather than inviting a press it would not honour.

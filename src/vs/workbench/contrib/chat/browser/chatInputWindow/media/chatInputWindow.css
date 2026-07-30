@@ -203,3 +203,115 @@
 .chat-input-window .chat-intent-badge-mark .codicon[class*='codicon-'] {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
+
+/*
+ * Sessions strip: whether the work you already sent is still running, or
+ * waiting on you. One line until you open it — a floating bar that grew a list
+ * every time an agent started thinking would be pinned open permanently.
+ */
+.chat-input-window .omni-sessions-strip {
+	display: none;
+	flex-direction: column;
+	flex-shrink: 0;
+	border-top: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, .25));
+}
+
+.chat-input-window .omni-sessions-strip.shown {
+	display: flex;
+}
+
+.chat-input-window .omni-sessions-summary {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 14px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	/* Frameless-window drag regions swallow clicks; keep the control live. */
+	-webkit-app-region: no-drag;
+}
+
+.chat-input-window .omni-sessions-summary:hover {
+	color: var(--vscode-foreground);
+}
+
+.chat-input-window .omni-sessions-summary:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/*
+ * Blocked work is the only kind that will not finish without you, so it is the
+ * only kind that earns a colour.
+ */
+.chat-input-window .omni-sessions-strip.needs-input .omni-sessions-summary-label {
+	color: var(--vscode-list-warningForeground);
+}
+
+.chat-input-window .omni-sessions-chevron {
+	display: flex;
+	align-items: center;
+	opacity: .7;
+}
+
+.chat-input-window .omni-sessions-chevron .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-input-window .omni-sessions-list {
+	display: none;
+	flex-direction: column;
+	padding: 0 6px 4px;
+}
+
+.chat-input-window .omni-sessions-list.expanded {
+	display: flex;
+}
+
+.chat-input-window .omni-sessions-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+}
+
+.chat-input-window .omni-sessions-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-input-window .omni-sessions-row:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-input-window .omni-sessions-row-icon {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+}
+
+.chat-input-window .omni-sessions-row-icon .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-input-window .omni-sessions-row-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-input-window .omni-sessions-row-detail {
+	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-descriptionForeground);
+}
