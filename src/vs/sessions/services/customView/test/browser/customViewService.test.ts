@@ -25,7 +25,7 @@ suite('Sessions - CustomViewService', () => {
 	}
 
 	function descriptor(id: string): ICustomViewDescriptor {
-		return { id, title: id, ctor: new SyncDescriptor(TestCustomView) };
+		return { id, ctor: new SyncDescriptor(TestCustomView) };
 	}
 
 	test('shows, replaces and hides registered views', () => {

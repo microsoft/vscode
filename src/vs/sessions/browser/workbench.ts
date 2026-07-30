@@ -2366,14 +2366,18 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		this._applyingCustomViewGridVisibility = true;
 		try {
-			// One pass, revealing before hiding so the row never goes empty in between.
-			if (visible) {
-				this.workbenchGrid.setViewVisible(this.customViewGridPartView, true);
-				this._applyExclusivePartVisibility();
-			} else {
-				this._applyExclusivePartVisibility();
-				this.workbenchGrid.setViewVisible(this.customViewGridPartView, false);
-			}
+			// Suspended so the single-pane width sync cannot read the transient node
+			// widths as a sash drag and write back the desired visibility.
+			this._runWithEditorResizeSyncSuspended(() => {
+				// One pass, revealing before hiding so the row never goes empty in between.
+				if (visible) {
+					this.workbenchGrid.setViewVisible(this.customViewGridPartView, true);
+					this._applyExclusivePartVisibility();
+				} else {
+					this._applyExclusivePartVisibility();
+					this.workbenchGrid.setViewVisible(this.customViewGridPartView, false);
+				}
+			});
 		} finally {
 			this._applyingCustomViewGridVisibility = false;
 		}

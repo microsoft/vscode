@@ -51,7 +51,6 @@ class TestCustomViewContribution extends Disposable {
 
 		this._register(customViewService.registerCustomView({
 			id: TEST_CUSTOM_VIEW_ID,
-			title: localize('testCustomView.title', "Test Custom View"),
 			ctor: new SyncDescriptor(TestCustomView),
 			actions: { style: 'toolbar', menuId: Menus.CustomViewTest },
 		}));

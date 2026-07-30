@@ -25,9 +25,6 @@ export interface ICustomViewDescriptor {
 	/** Stable id, used by `ICustomViewService.showCustomView`. */
 	readonly id: string;
 
-	/** Title used before the view instance exists (aria, command labels). */
-	readonly title: string;
-
 	readonly ctor: SyncDescriptor<AbstractCustomView>;
 
 	readonly actions?: ICustomViewActions;

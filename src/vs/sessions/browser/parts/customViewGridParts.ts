@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { getClientArea } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
 import { ICustomViewGridPartService } from '../../services/customView/browser/customViewGridPartService.js';
 import { CustomViewGridPart } from './customViewGridPart.js';
+import { MobileCustomViewGridPart } from './mobile/mobileCustomViewGridPart.js';
 
 /**
- * Owns the lifecycle of the {@link CustomViewGridPart}. Registered as an eager
- * singleton so the part registers itself with the workbench layout service
+ * Owns the lifecycle of the {@link CustomViewGridPart}. Selects the mobile vs.
+ * desktop variant based on viewport width at construction time. Registered as an
+ * eager singleton so the part registers itself with the workbench layout service
  * before the workbench starts laying out parts.
  */
 export class CustomViewGridParts extends Disposable implements ICustomViewGridPartService {
@@ -26,7 +30,10 @@ export class CustomViewGridParts extends Disposable implements ICustomViewGridPa
 	) {
 		super();
 
-		this._mainPart = this._register(instantiationService.createInstance(CustomViewGridPart));
+		const { width } = getClientArea(mainWindow.document.body);
+		const isPhoneLayout = width < 640;
+
+		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileCustomViewGridPart : CustomViewGridPart));
 	}
 
 	setView(descriptor: ICustomViewDescriptor | undefined): void {

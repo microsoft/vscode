@@ -82,7 +82,6 @@ function renderNode(ctx: ComponentFixtureContext, options: IFixtureOptions): voi
 
 	const descriptor: ICustomViewDescriptor = {
 		id: 'fixture.customView',
-		title: options.title,
 		ctor: new SyncDescriptor(FixtureCustomView, [options.title, options.description, options.itemCount, options.maxWidth]),
 	};
 

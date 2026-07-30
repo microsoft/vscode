@@ -14,9 +14,8 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
-import { applyAgentsPartCardStyles, clearAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
 import { CustomViewNode } from './customViewNode.js';
-import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 
 /**
@@ -40,12 +39,12 @@ export class CustomViewGridPart extends Part {
 	private _contentArea: HTMLElement | undefined;
 	private readonly _node = this._register(new MutableDisposable<CustomViewNode>());
 	private _descriptor: ICustomViewDescriptor | undefined;
-	private _lastContentSize: { readonly width: number; readonly height: number } | undefined;
+	protected _lastContentSize: { readonly width: number; readonly height: number } | undefined;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
+		@IAgentWorkbenchLayoutService protected readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(
@@ -110,13 +109,7 @@ export class CustomViewGridPart extends Part {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertReturnsDefined(this.getContainer());
-		if (isPhoneLayout(this.layoutService)) {
-			clearAgentsPartCardStyles(container);
-			return;
-		}
-
-		applyAgentsPartCardStyles(container, this.theme);
+		applyAgentsPartCardStyles(assertReturnsDefined(this.getContainer()), this.theme);
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -124,18 +117,14 @@ export class CustomViewGridPart extends Part {
 			return;
 		}
 
-		// On phone the part fills the grid cell without the card margins/border.
-		const cardSize = isPhoneLayout(this.layoutService)
-			? { width, height }
-			: getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
-
+		const cardSize = getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 		this._layoutNode(contentSize.width, contentSize.height);
 
 		super.layout(width, height, top, left);
 	}
 
-	private _layoutNode(width: number, height: number): void {
+	protected _layoutNode(width: number, height: number): void {
 		this._lastContentSize = { width, height };
 
 		const node = this._node.value;
