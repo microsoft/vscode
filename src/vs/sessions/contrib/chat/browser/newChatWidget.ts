@@ -49,6 +49,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _chatTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _chatTipContainer: HTMLElement | undefined;
 	private _isChatTipSessionInitialized = false;
+	private _isInputOnboardingVisible = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
@@ -173,6 +174,8 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
+			getInputOnboardingTipContainer: () => this._chatTipContainer,
+			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -354,6 +357,10 @@ export class NewChatWidget extends Disposable {
 		if (!this._chatTipContainer) {
 			return;
 		}
+		if (this.isInputOnboardingVisible()) {
+			this._clearChatTip();
+			return;
+		}
 		// Don't show a tip in the no-agent-host empty state — there is no usable composer.
 		if (this._chatTipContainer.parentElement?.classList.contains('no-agent-host')) {
 			return;
@@ -398,6 +405,19 @@ export class NewChatWidget extends Disposable {
 		if (this._chatTipContainer) {
 			dom.clearNode(this._chatTipContainer);
 			dom.setVisibility(false, this._chatTipContainer);
+		}
+	}
+
+	private isInputOnboardingVisible(): boolean {
+		return this._isInputOnboardingVisible;
+	}
+
+	private setInputOnboardingVisible(visible: boolean): void {
+		this._isInputOnboardingVisible = visible;
+		if (visible) {
+			this._clearChatTip();
+		} else {
+			this._renderChatTip();
 		}
 	}
 

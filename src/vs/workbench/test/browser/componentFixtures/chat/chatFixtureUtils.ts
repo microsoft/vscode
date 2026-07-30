@@ -194,9 +194,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override acceptElicitation() { }
 	}());
 	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
+		override readonly isVisible = false;
 		override registerHost() { return Disposable.None; }
 	}());
 	reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
+		override readonly isVisible = false;
 		override registerHost() { return Disposable.None; }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
