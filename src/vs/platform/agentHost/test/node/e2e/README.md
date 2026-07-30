@@ -466,9 +466,13 @@ A one-off union measurement (protocol + E2E vs. E2E alone) put the protocol suit
 | Client-hosted filesystem (reverse requests) | *migrated* — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` |
 | Turn history paging | `turnExecution` | `fetchTurns`, `chat/turnsLoaded` |
 | Reconnect and multi-client fan-out | `multiClient` | `reconnect` |
-| Changeset lifecycle | `sessionDiffs` | all 8 `changeset/*` actions |
+| Changeset lifecycle | *migrated* — `suites/changesetSuite.ts` | `changeset/fileSet`, `changeset/fileRemoved`, `changeset/operationStatusChanged` |
 | OTLP export | `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` |
 | Liveness | `handshake`, several others | `ping` |
+
+Changeset lifecycle followed. `suites/changesetSuite.ts` covers status, content, review state, operations, and the catalog in the conformance tier, driving real git-backed edits through host-executed bang commands so no scenario crosses the model boundary. The frozen suite's version could not be copied: it drives a mock agent with the magic prompt `terminal-edit:<path>`, which no other AHP implementation would understand.
+
+The three remaining `changeset/*` actions need scenarios this suite does not yet reach: `fileSet` / `fileRemoved` are the incremental per-file updates (the bulk `contentChanged` path is what a fresh session emits), and `operationStatusChanged` needs an invoked operation — `commit` and `discard-changes` are the two that run without network access.
 
 The filesystem family was the largest of these and is now covered by `suites/clientFilesystemSuite.ts` in the conformance tier — both the `resource*` command surface the host executes against its own filesystem, and the reverse direction where the host asks the *client* for a file it cannot otherwise reach. See [The filesystem, in both directions](#the-filesystem-in-both-directions).
 
