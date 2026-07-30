@@ -309,12 +309,15 @@ export class ChatSessionRoutingController extends Disposable {
 			{ kind: 'new', label: localize('chatSessionRouting.startNewSession', "Start a new session") },
 		];
 
-		let selected = Math.max(0, options.findIndex(o =>
+		const preselected = Math.max(0, options.findIndex(o =>
 			target.kind === 'session' ? o.kind === 'session' && o.sessionId === target.sessionId : o.kind === 'new'));
+		// A set, not an index: the same list answers "where should this go" and
+		// "which of these should it go to", and the second is just more than one
+		// of the first. Fan-out is not a separate mode you switch into.
+		const selection = new Set<number>([preselected]);
 
 		const head = dom.append(badge, dom.$('.chat-routing-badge-head'));
 		const headLabel = dom.append(head, dom.$('span.chat-routing-badge-title'));
-		headLabel.textContent = localize('chatSessionRouting.sendTo', "Send to");
 		const countdownEl = dom.append(head, dom.$('span.chat-routing-badge-countdown'));
 
 		const list = dom.append(badge, dom.$('.chat-routing-badge-list'));
@@ -333,8 +336,25 @@ export class ChatSessionRoutingController extends Disposable {
 			score.textContent = option.kind === 'session'
 				? localize('chatSessionRouting.match', "{0}%", Math.round(option.confidence * 100))
 				: '';
-			store.add(dom.addDisposableListener(row, dom.EventType.CLICK, () => {
-				selected = i;
+			store.add(dom.addDisposableListener(row, dom.EventType.CLICK, e => {
+				// Ctrl/Cmd-click adds to the selection, exactly as it does in every
+				// other list in the product — so sending to several sessions is the
+				// motor pattern you already have, not a new one to learn.
+				if (e.ctrlKey || e.metaKey) {
+					if (selection.has(i) && selection.size > 1) {
+						selection.delete(i);
+					} else {
+						selection.add(i);
+					}
+					// You have taken over the choice; a timer finishing it now would
+					// be a surprise.
+					countdownTimer.clear();
+					countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
+					renderSelection();
+					return;
+				}
+				selection.clear();
+				selection.add(i);
 				renderSelection();
 				send();
 			}));
@@ -343,15 +363,22 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const foot = dom.append(badge, dom.$('.chat-routing-badge-foot'));
 		const changeHint = dom.append(foot, dom.$('span'));
-		changeHint.textContent = localize('chatSessionRouting.changeHint', "\u2325 to change");
+		changeHint.textContent = localize('chatSessionRouting.changeHint', "\u2325 to change \u00B7 \u2318click for several");
 		const sendHint = dom.append(foot, dom.$('span.chat-routing-badge-foot-end'));
-		sendHint.textContent = localize('chatSessionRouting.sendNowHint', "Enter to send now");
 
 		const renderSelection = () => {
 			rows.forEach((row, i) => {
-				row.classList.toggle('selected', i === selected);
-				row.setAttribute('aria-selected', String(i === selected));
+				const on = selection.has(i);
+				row.classList.toggle('selected', on);
+				row.setAttribute('aria-selected', String(on));
 			});
+			list.classList.toggle('multiple', selection.size > 1);
+			headLabel.textContent = selection.size > 1
+				? localize('chatSessionRouting.sendToMany', "Send to {0} sessions", selection.size)
+				: localize('chatSessionRouting.sendTo', "Send to");
+			sendHint.textContent = selection.size > 1
+				? localize('chatSessionRouting.sendAllHint', "Enter to send to all")
+				: localize('chatSessionRouting.sendNowHint', "Enter to send now");
 		};
 		renderSelection();
 
@@ -364,13 +391,34 @@ export class ChatSessionRoutingController extends Disposable {
 			// Detach the badge (and its listeners) before dispatch so a clear of
 			// the input during send can't re-enter cancel().
 			this._pendingSend.clear();
-			const sent = options[selected];
-			void this._dispatchTo(sent, submittedInput, utterance, attachedContext, cts.token).then(ok => {
+			const sent = [...selection].sort((a, b) => a - b).map(i => options[i]);
+			if (!sent.length) {
+				return;
+			}
+
+			// Dispatch in parallel: these are independent sessions, and making the
+			// third wait on the first would be an ordering the work does not have.
+			const dispatches = sent.map(target =>
+				this._dispatchTo(target, submittedInput, utterance, attachedContext, cts.token)
+			);
+
+			if (sent.length > 1) {
+				// Confirm as soon as it leaves. `_dispatchTo` resolves when the
+				// session is done answering, and waiting for the slowest of several
+				// would put the confirmation minutes after the act it confirms —
+				// long past the point where it tells you anything. Whether the work
+				// is still running is the sessions strip's job, not this badge's.
+				this._showFanoutConfirmation(sent.length);
+				return;
+			}
+
+			void dispatches[0].then(ok => {
 				// Confirm where the request went so an omni surface that can't show
 				// the response inline still gives feedback. Guard on the current
 				// submission so a newer one isn't overwritten.
-				if (ok && sent.kind === 'session' && this._submitCts.value === cts) {
-					this._showSentConfirmation(sent.label, sent.sessionId);
+				const target = sent[0];
+				if (ok && target.kind === 'session' && this._submitCts.value === cts) {
+					this._showSentConfirmation(target.label, target.sessionId);
 				}
 			});
 		};
@@ -401,12 +449,24 @@ export class ChatSessionRoutingController extends Disposable {
 			const event = new StandardKeyboardEvent(e);
 			if (event.altKey && !event.ctrlKey && !event.metaKey) {
 				event.preventDefault();
-				selected = (selected + 1) % options.length;
+				// Alt moves the single choice along; it does not extend a fan-out,
+				// which is what the modifier click is for.
+				const from = selection.size === 1 ? [...selection][0] : preselected;
+				selection.clear();
+				selection.add((from + 1) % options.length);
 				renderSelection();
 				countdownTimer.clear();
 				countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
+			} else if (event.equals(KeyCode.Enter)) {
+				// Stop it as well as prevent it: the input still holds the text, so
+				// letting Enter reach the editor submits a second time and cancels
+				// the send this keystroke was meant to confirm.
+				event.preventDefault();
+				event.stopPropagation();
+				send();
 			} else if (event.equals(KeyCode.Escape)) {
 				event.preventDefault();
+				event.stopPropagation();
 				cancel();
 			}
 		}, true));
@@ -497,6 +557,34 @@ export class ChatSessionRoutingController extends Disposable {
 		}, SENT_CONFIRMATION_MS);
 		store.add(toDisposable(() => targetWindow.clearTimeout(handle)));
 
+		this._pendingSend.value = store;
+	}
+
+	/**
+	 * Confirms a fan-out. There is no single session to link to, and the
+	 * sessions strip already answers "is it still running" — so this only has to
+	 * say that it left, and get out of the way.
+	 */
+	private _showFanoutConfirmation(count: number): void {
+		const badge = dom.$('.chat-routing-badge');
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(Codicon.pass));
+		const labelEl = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		labelEl.textContent = localize('chatSessionRouting.sentToMany', "Sent to {0} sessions", count);
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		const targetWindow = dom.getWindow(badge);
+		const handle = targetWindow.setTimeout(() => {
+			if (this._pendingSend.value === store) {
+				this._pendingSend.clear();
+			}
+		}, SENT_CONFIRMATION_MS);
+		store.add(toDisposable(() => targetWindow.clearTimeout(handle)));
 		this._pendingSend.value = store;
 	}
 

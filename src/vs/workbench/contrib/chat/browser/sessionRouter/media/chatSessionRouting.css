@@ -129,6 +129,15 @@
 	color: inherit;
 }
 
+/*
+ * Several selected rows are one destination made of parts, not several
+ * competing winners — so a fan-out drops the accent bar that marks "this is
+ * the one" and keeps only the check and the tint.
+ */
+.chat-routing-badge-list.multiple .chat-routing-badge-row.selected::before {
+	display: none;
+}
+
 /* The mark holds its space on every row so the labels stay on one axis. */
 .chat-routing-badge-mark {
 	flex: 0 0 auto;
