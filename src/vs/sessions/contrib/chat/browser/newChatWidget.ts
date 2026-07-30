@@ -377,10 +377,11 @@ export class NewChatWidget extends Disposable {
 			let previousSession = this._session.get();
 			this._register(autorun(reader => {
 				const session = this._session.read(reader);
-				if (previousSession && !session) {
+				const shouldSeedWorkspaceDraft = !!previousSession && !session;
+				previousSession = session;
+				if (shouldSeedWorkspaceDraft) {
 					this._seedWorkspaceDraft();
 				}
-				previousSession = session;
 			}));
 		}
 
