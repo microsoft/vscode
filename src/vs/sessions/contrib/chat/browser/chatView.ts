@@ -145,11 +145,7 @@ export class ChatView extends AbstractChatView {
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
-	/**
-	 * Whether this view is currently visible. `undefined` until the hosting
-	 * `SessionView` pushes the effective visibility right after creating the
-	 * view, so that initial value always reaches the widget.
-	 */
+	/** Whether this view is currently visible. `undefined` so the first push always reaches the widget. */
 	private _isVisible: boolean | undefined;
 
 	/**

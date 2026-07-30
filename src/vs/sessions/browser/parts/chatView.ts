@@ -130,12 +130,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Notifies the view whether it is currently visible, i.e. whether both the
-	 * sessions part and this view's grid leaf are shown. Hidden views live under
-	 * a `display:none` ancestor, so they must pause DOM rendering (measuring
-	 * rows there yields `0px`) and catch up once shown again. Note that this is
-	 * independent of {@link setActive}: inactive side-by-side sessions are still
-	 * visible. The default implementation is a no-op.
+	 * Notifies the view whether it is currently shown. Unlike {@link setActive},
+	 * inactive sessions displayed side by side are still visible.
 	 */
 	setVisible(_visible: boolean): void {
 		// no-op by default

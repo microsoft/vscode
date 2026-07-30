@@ -85,16 +85,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
 
-	/**
-	 * Whether the owning {@link SessionsPart} is visible in the workbench grid.
-	 * Pushed in by the part via {@link setPartVisible}.
-	 */
+	/** Whether the owning {@link SessionsPart} is visible in the workbench grid. */
 	private _isPartVisible = true;
 
-	/**
-	 * Whether this leaf is visible within the part's internal grid. Pushed in by
-	 * the grid via {@link setVisible} when a sibling leaf is maximized.
-	 */
+	/** Whether this leaf is visible within the part's internal grid. */
 	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
@@ -260,11 +254,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 
-		// A hidden leaf sits under a `display:none` ancestor and is laid out at
-		// zero size by the split view, so forwarding those dimensions would make
-		// the chat widget measure and cache bogus geometry. The split view lays
-		// the leaf out again right after it becomes visible, and `setVisible`
-		// re-runs this pass, so no layout is lost.
+		// A hidden or zero-sized leaf would report invalid geometry to the chat widget.
 		const { width, height, top, left } = this._lastLayout;
 		if (!this._isVisible || width === 0 || height === 0) {
 			return;
@@ -376,9 +366,8 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	/**
-	 * Whether this view is actually shown, i.e. neither the part nor this leaf is
-	 * hidden. Note this is unrelated to {@link setActive}: inactive sessions shown
-	 * side by side are still visible.
+	 * Whether this view is actually shown. Unrelated to {@link setActive}:
+	 * inactive sessions shown side by side are still visible.
 	 */
 	private get _isVisible(): boolean {
 		return this._isPartVisible && this._isLeafVisible;

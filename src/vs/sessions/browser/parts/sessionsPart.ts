@@ -93,9 +93,8 @@ export class SessionsPart extends Part {
 	private readonly _sessionsFocusKey: IContextKey<boolean>;
 
 	/**
-	 * Whether the part itself is visible in the workbench grid. Pushed into every
-	 * {@link SessionView} so hidden session views can pause rendering. Starts
-	 * `true` because the workbench grid only calls {@link setVisible} on change.
+	 * Whether the part itself is visible in the workbench grid. Starts `true`
+	 * because the workbench grid only calls {@link setVisible} on change.
 	 */
 	private _isPartVisible = true;
 
@@ -425,11 +424,7 @@ export class SessionsPart extends Part {
 
 	override setVisible(visible: boolean): void {
 		if (this._isPartVisible !== visible) {
-			// Forward the part's visibility to each session view so hidden chats
-			// stop rendering into a `display:none` subtree, where dynamic row
-			// measurement reads a height of zero. Updated before the base class
-			// raises its visibility event, which re-enters this method via the
-			// layout's part-visibility handling.
+			// Update before `super`, whose event re-enters this method.
 			this._isPartVisible = visible;
 			for (const slot of this._slots) {
 				slot.view.setPartVisible(visible);
