@@ -1,0 +1,215 @@
+{
+  "comment_content": "Allowing prior runs for the same PR to continue introduces a race in the single marker-based PR comment below: an older run can finish after a newer commit and overwrite its screenshot result. Keep cancellation enabled so the published result corresponds to the latest run.",
+  "comment_type": "concurrency",
+  "file_location": ".github/workflows/component-fixtures_oea.yml",
+  "start_line": 25,
+  "end_line": 25,
+  "fixed": false,
+  "severity": "moderate",
+  "suggested_fix": "  cancel-in-progress: true"
+}
+
+vscode
+
+vscode
+Repository navigation
+Code
+Issues
+5k+
+ (5k+)
+Review of gh pr checkout 328243
+You
+created the session
+9 minutes ago
+·
+1 session
+You
+requested a review
+
+
+Copilot Code Review
+Reviewing pull request
+
+2m 9s
+
+Setting up environment
+
+Start 'github-mcp-server' MCP server
+MCP server started successfully (version github-mcp-server/remote-55faeb70c50b0792043a2e2057e77a384c1d8bc0) with 35 tools
+
+- github-mcp-server/actions_get
+- github-mcp-server/actions_list
+- github-mcp-server/get_code_scanning_alert
+- github-mcp-server/get_commit
+- github-mcp-server/get_discussion
+- github-mcp-server/get_discussion_comments
+- github-mcp-server/get_file_contents
+- github-mcp-server/get_job_logs
+- github-mcp-server/get_label
+- github-mcp-server/get_latest_release
+- github-mcp-server/get_release_by_tag
+- github-mcp-server/get_secret_scanning_alert
+- github-mcp-server/get_tag
+- github-mcp-server/issue_read
+- github-mcp-server/list_branches
+- github-mcp-server/list_code_scanning_alerts
+- github-mcp-server/list_commits
+- github-mcp-server/list_discussion_categories
+- github-mcp-server/list_discussions
+- github-mcp-server/list_issue_fields
+- github-mcp-server/list_issue_types
+- github-mcp-server/list_issues
+- github-mcp-server/list_label
+- github-mcp-server/list_pull_requests
+- github-mcp-server/list_releases
+- github-mcp-server/list_repository_collaborators
+- github-mcp-server/list_secret_scanning_alerts
+- github-mcp-server/list_tags
+- github-mcp-server/pull_request_read
+- github-mcp-server/search_code
+- github-mcp-server/search_commits
+- github-mcp-server/search_issues
+- github-mcp-server/search_pull_requests
+- github-mcp-server/search_repositories
+- github-mcp-server/search_users
+
+Start 'playwright' MCP server
+MCP server started successfully (version 0.0.40) with 21 tools
+
+- playwright/browser_click
+- playwright/browser_close
+- playwright/browser_console_messages
+- playwright/browser_drag
+- playwright/browser_evaluate
+- playwright/browser_file_upload
+- playwright/browser_fill_form
+- playwright/browser_handle_dialog
+- playwright/browser_hover
+- playwright/browser_navigate
+- playwright/browser_navigate_back
+- playwright/browser_network_requests
+- playwright/browser_press_key
+- playwright/browser_resize
+- playwright/browser_select_option
+- playwright/browser_snapshot
+- playwright/browser_take_screenshot
+- playwright/browser_type
+- playwright/browser_wait_for
+- playwright/browser_tabs
+- playwright/browser_install
+
+View .github/workflows/component-fixtures_oea.yml:1-50
+
+View .github/workflows/component-fixtures_oea.yml:400-435
+
+Find files .github/workflows/component-fixtures*.yml
+
+Search 2 times
+
+github-script|createComment|updateComment|upload-artifact|deploy-pages|artifact
+.github/workflows/component-fixtures_oea.yml
+85:        uses: actions/upload-artifact@v7
+107:        uses: actions/upload-artifact@v7
+127:          # (artifact upload, diff, PR comment) so failures are debuggable.
+181:      - name: Upload screenshots as artifact
+182:        uses: actions/upload-artifact@v7
+324:        uses: actions/github-script@v9
+351:                await github.rest.issues.updateComment({
+364:              await github.rest.issues.updateComment({
+371:              await github.rest.issues.createComment({
+424:      #     DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json…
+
+merge-base|fetch-depth
+.github/workflows/component-fixtures_oea.yml-32- - name: Checkout
+.github/workflows/component-fixtures_oea.yml-33- uses: actions/checkout@v6
+.github/workflows/component-fixtures_oea.yml-34- with:
+.github/workflows/component-fixtures_oea.yml
+35:          # Need enough history for the merge-base lookup below to succeed even
+38:          fetch-depth: 20
+195:            # For PRs, diff against the merge-base with the target branch.
+198:            BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF")
+.github/workflows/component-fixtures_oea.yml-36- # when the target branch has advanced since the PR was opened. Full
+.github/workflows/component-fixtures_oea.yml-37- # clone would be wasteful for this large repo, so cap at 50.
+.github/workflows/component-fixtures_oea.yml-39-
+.github/workflows/component-fixtures_oea.yml-40- - name: Setup Node.js
+.github/workflows/component-fixtures_oea.yml-41- uses: actions/setup-node@v6
+.github/workflows/component-fixtures_oea.yml-192- EVENT_SHA: ${{ github.sha }}
+.github/workflows/component-fixtures_oea.yml-193- run: |
+.github/workflows/component-fixtures_oea.yml-194- if [ "${{ github.event_name }}" = "pull_request" ]; then
+.github/workflows/component-fixtures_oea.yml-196- TARGET_REF="origin/$BASE_REF"
+.github/workflows/component-fixtures_oea.yml-197- git fetch --no-tags --depth=50 origin "$BASE_REF"
+.github/workflows/component-fixtures_oea.yml-199- else
+.github/workflows/component-fixtures_oea.yml-200- # For push events, diff against the parent commit.
+.github/workflows/component-fixtures_oea.yml-201- BASE_SHA=$(git rev-parse "$EVENT_SHA^")
+
+View .github/workflows/component-fixtures_oea.yml:310-380
+
+Search component-fixtures\.yml
+
+store_comment
+
+Store comment
+Input
+{
+  "comment_content": "This no longer parses as a permissions mapping: the missing spaces after `:` turn entries such as `statuses:read` into scalars, and the standalone `write` lines are invalid in this mapping. GitHub will reject the workflow before any job can run; each permission must have one valid access level.",
+  "comment_type": "bug",
+  "file_location": ".github/workflows/component-fixtures_oea.yml",
+  "start_line": 15,
+  "end_line": 19,
+  "fixed": false,
+  "severity": "critical",
+  "suggested_fix": "  contents: read\n  statuses: write\n  pull-requests: write\n  id-token: write",
+  "fix_start_line": 14,
+  "fix_end_line": 21
+}
+Stored bug comment [ID: 001] for lines 15-19 in .github/workflows/component-fixtures_oea.yml Inline fix stored for comment [ID: 001] at lines 14-21
+
+
+Store comment
+Input
+{
+  "comment_content": "Allowing prior runs for the same PR to continue introduces a race in the single marker-based PR comment below: an older run can finish after a newer commit and overwrite its screenshot result. Keep cancellation enabled so the published result corresponds to the latest run.",
+  "comment_type": "concurrency",
+  "file_location": ".github/workflows/component-fixtures_oea.yml",
+  "start_line": 25,
+  "end_line": 25,
+  "fixed": false,
+  "severity": "moderate",
+  "suggested_fix": "  cancel-in-progress: true"
+}
+Stored concurrency comment [ID: 002] for line 25 in .github/workflows/component-fixtures_oea.yml Inline fix stored for comment [ID: 002] at lines 25-25
+
+
+Store comment
+Input
+{
+  "comment_content": "Reducing the checkout history to 20 can make the later `git merge-base \"$EVENT_SHA\" \"$TARGET_REF\"` fail when a PR head is more than 20 commits past the common ancestor. The base branch fetch is still depth 50 and the adjacent comment explicitly relies on a 50-commit cap, so retain that depth for the head history too.",
+  "comment_type": "bug",
+  "file_location": ".github/workflows/component-fixtures_oea.yml",
+  "start_line": 38,
+  "end_line": 38,
+  "fixed": false,
+  "severity": "moderate",
+  "suggested_fix": "          fetch-depth: 50"
+}
+
+{
+  "comment_content": "This no longer matches the `<<EOF` heredoc opener on line 427. If the documented status step is re-enabled, the shell will not terminate the heredoc at this line and the command will fail; preserve the matching terminator.",
+  "comment_type": "documentation",
+  "file_location": ".github/workflows/component-fixtures_oea.yml",
+  "start_line": 429,
+  "end_line": 429,
+  "fixed": false,
+  "severity": "nit",
+  "suggested_fix": "      #     EOF"
+}
+{
+  "comment_content": "This no longer matches the `<<EOF` heredoc opener on line 427. If the documented status step is re-enabled, the shell will not terminate the heredoc at this line and the command will fail; preserve the matching terminator.",
+  "comment_type": "documentation",
+  "file_location": ".github/workflows/component-fixtures_oea.yml",
+  "start_line": 429,
+  "end_line": 429,
+  "fixed": false,
+  "severity": "nit",
+  "suggested_fix": "      #     EOF"
+}
