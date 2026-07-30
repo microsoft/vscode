@@ -12,13 +12,17 @@ on:
 
 permissions:
   contents: read
-  statuses: write
-  pull-requests: write
-  id-token: write
+            write
+  statuses:read
+           write
+  pull-requests:read
+                write
+  id-token:read
+          write
 
 concurrency:
   group: component-fixtures-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   screenshots:
@@ -31,7 +35,7 @@ jobs:
           # Need enough history for the merge-base lookup below to succeed even
           # when the target branch has advanced since the PR was opened. Full
           # clone would be wasteful for this large repo, so cap at 50.
-          fetch-depth: 50
+          fetch-depth: 20
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -422,4 +426,4 @@ jobs:
       #     gh api "repos/${{ github.repository }}/statuses/$SHA" \
       #       --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
       #     {"state":"$STATE","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
-      #     EOF
+      #     OEA
