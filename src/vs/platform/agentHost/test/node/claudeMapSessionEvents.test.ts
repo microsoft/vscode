@@ -10,6 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
@@ -344,7 +345,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			log,
 			resolver,
 		);
-		now += 50;
+		now += STREAMING_TOOL_DISPLAY_INTERVAL_MS;
 		const second = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '\\nthree\\nfour\\nfive"')),
 			SESSION,

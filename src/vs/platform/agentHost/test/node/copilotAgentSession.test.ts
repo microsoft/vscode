@@ -32,6 +32,7 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
@@ -3862,7 +3863,7 @@ suite('CopilotAgentSession', () => {
 				toolName: 'bash',
 				inputDelta: 'test","description":"Run',
 			});
-			await timeout(60);
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-stream',
 				toolName: 'bash',
@@ -3899,7 +3900,7 @@ suite('CopilotAgentSession', () => {
 				toolName: 'edit',
 				inputDelta: ',"new_str":"one\\nupdated\\nthree"',
 			});
-			await timeout(60);
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-edit-stream',
 				toolName: 'edit',
@@ -3945,7 +3946,7 @@ suite('CopilotAgentSession', () => {
 					'*** End Patch',
 				].join('\n'),
 			});
-			await timeout(60);
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
 
 			const delta = getActions(signals).find(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction | undefined;
 			const message = delta?.invocationMessage;
@@ -3970,7 +3971,7 @@ suite('CopilotAgentSession', () => {
 				toolName: 'mcp_tool',
 				inputDelta: '{"topic":"metadata"}',
 			});
-			await timeout(60);
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-stream-mcp',
 				toolName: 'mcp_tool',

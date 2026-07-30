@@ -15,11 +15,9 @@ export type ToolPathResolver = (path: string) => string;
 const identityPathResolver: ToolPathResolver = path => path;
 
 /**
- * Minimum interval between streamed tool-call display updates. Throttling on
- * time alone keeps the cadence steady as the argument grows; a size-based rule
- * would make updates progressively rarer and stall the row on large edits.
+ * Minimum interval between streamed tool-call display updates
  */
-export const STREAMING_TOOL_DISPLAY_INTERVAL_MS = 50;
+export const STREAMING_TOOL_DISPLAY_INTERVAL_MS = 100;
 
 /** Flattens a display message so equal updates can be suppressed. */
 export function streamingToolDisplayText(message: StringOrMarkdown): string {
