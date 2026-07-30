@@ -21,13 +21,12 @@ import {
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
-import { CloudSandboxRequestVolumeReporter, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
+import { ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 
 /** The agent-environment endpoints Mission Control exposes. */
 type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
@@ -75,17 +74,14 @@ const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
 export class CloudSandboxCredentialsService extends Disposable implements ICloudSandboxCredentialsService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _volumeReporter: CloudSandboxRequestVolumeReporter;
-
 	constructor(
 		@IRequestService private readonly _requestService: IRequestService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IProductService private readonly _productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@ICloudSandboxTelemetryService private readonly _telemetry: ICloudSandboxTelemetryService,
 	) {
 		super();
-		this._volumeReporter = this._register(instantiationService.createInstance(CloudSandboxRequestVolumeReporter));
 	}
 
 	async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
@@ -237,12 +233,12 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 				timeout,
 				callSite,
 			}, token);
-			this._volumeReporter.record(action, requestOutcomeForStatus(context.res.statusCode));
+			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
 			return context;
 		} catch (error) {
 			// A cancelled request was never answered, so it is not a failure worth counting.
 			if (!isCancellationError(error) && !token.isCancellationRequested) {
-				this._volumeReporter.record(action, 'networkError');
+				this._telemetry.reportRequest(action, 'networkError');
 			}
 			this._logService.error(`${LOG_PREFIX} GET ${url} failed: ${toErrorMessage(error)}`);
 			throw error;

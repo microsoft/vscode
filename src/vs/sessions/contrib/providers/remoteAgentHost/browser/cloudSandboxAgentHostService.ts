@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -23,7 +22,6 @@ import {
 	ICloudSandboxCredentialsService,
 	isCloudSandboxSealedToken,
 	isRetryableCloudSandboxError,
-	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 	type ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -32,50 +30,12 @@ import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { reportCredentialRefreshStopped, type CloudSandboxRefreshStopReason } from './cloudSandboxTelemetry.js';
+import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
 /** Maximum number of `/connect` "waking" retries before giving up. */
 const MAX_WAKING_RETRIES = 20;
-
-/** Upper bound on a single waking Retry-After wait (ms), guarding against a hostile header. */
-const MAX_WAKING_DELAY_MS = 30_000;
-
-/** Refresh the Web PubSub credentials this long before the access token's `expires_at`. */
-const CREDENTIAL_REFRESH_LEAD_MS = 60_000;
-
-/**
- * Floor / ceiling for the scheduled credential-refresh delay.
- *
- * The floor doubles as the rate limit on `/reconnect`: a token that is already at or past its
- * refresh point re-mints on every tick, so this bounds how fast that can happen. Tokens live for
- * the best part of an hour, so a floor this high only ever applies to a degenerate one.
- */
-const MIN_CREDENTIAL_REFRESH_DELAY_MS = 30_000;
-const MAX_CREDENTIAL_REFRESH_DELAY_MS = 55 * 60_000;
-
-/** Backoff delay after a failed credential refresh before retrying. */
-const CREDENTIAL_REFRESH_RETRY_MS = 30_000;
-
-/**
- * Consecutive refresh cycles that may fail to produce a healthy token before the scheduler gives up.
- *
- * The refresh timer outlives every user interaction — it runs for as long as the window is open — so
- * without a ceiling one unrecoverable environment turns into an unbounded stream of `/reconnect`
- * calls, each of which asks Mission Control to resume a sandbox that cannot be resumed.
- */
-const MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES = 10;
-
-/**
- * Refresh interval used when a token carries no usable `expires_at`.
- *
- * `expires_at` is required by the API, so this only covers a malformed response. Refreshing on a
- * conservative fixed interval keeps such a connection working rather than dropping it outright,
- * while being far enough apart that it cannot amount to a meaningful load on Mission Control.
- */
-const CREDENTIAL_REFRESH_FALLBACK_MS = 15 * 60_000;
 
 /** Maximum time to wait for a sandbox environment to report `online` before giving up. */
 const ENVIRONMENT_READY_TIMEOUT_MS = 120_000;
@@ -91,26 +51,6 @@ const MAX_ESTABLISH_ATTEMPTS = 3;
 
 /** Delay between establish attempts. */
 const ESTABLISH_RETRY_DELAY_MS = 2_000;
-
-/** Mutable holder for the current Web PubSub credentials, read by the transport factory. */
-interface ICloudSandboxCreds {
-	token: ICloudSandboxClientToken;
-}
-
-/**
- * Delay (ms) until credentials should be refreshed, computed as `expires_at` minus a lead time and
- * clamped to a sane range. Returns `undefined` when `expires_at` is missing or unparseable, leaving
- * the caller to decide — there is no basis for scheduling, so silently substituting the floor would
- * make a token that never reports an expiry re-mint on every tick.
- */
-export function credentialRefreshDelayMs(expiresAt: string | undefined, now = Date.now()): number | undefined {
-	const expiryMs = expiresAt ? Date.parse(expiresAt) : NaN;
-	if (Number.isNaN(expiryMs)) {
-		return undefined;
-	}
-	const delay = expiryMs - now - CREDENTIAL_REFRESH_LEAD_MS;
-	return Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delay));
-}
 
 /**
  * Renderer-side coordinator for Copilot cloud sandbox connections.
@@ -136,7 +76,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		// Stop refreshing credentials once a connection is gone.
@@ -287,7 +226,13 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 		// Keep credentials fresh for the life of the connection so reconnects have a valid token.
 		const store = new DisposableStore();
-		this._scheduleCredentialRefresh(store, address, options, clientToken.client_id, creds);
+		store.add(this._instantiationService.createInstance(
+			CloudSandboxCredentialRefresher,
+			address,
+			{ environmentId: options.environmentId, sessionId: options.sessionId },
+			clientToken.client_id,
+			creds,
+		));
 		this._managed.set(address, store);
 		// Expose the sealed GitHub token so the AHP `authenticate` pass can present it to the host.
 		this._creds.set(address, creds);
@@ -346,104 +291,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			}
 			await timeout(ENVIRONMENT_POLL_INTERVAL_MS, token);
 		}
-	}
-
-	/**
-	 * Re-mint Web PubSub credentials shortly before they expire and write them into {@link creds}.
-	 * The open socket is untouched; the new token is used the next time the transport is rebuilt.
-	 *
-	 * The loop is bounded in three ways, because it runs unattended for the life of the window and
-	 * every cycle costs Mission Control a sandbox resume: a permanent rejection stops it outright,
-	 * {@link MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES} caps a run of transient ones, and
-	 * {@link MIN_CREDENTIAL_REFRESH_DELAY_MS} rate-limits a token that always looks due for refresh.
-	 */
-	private _scheduleCredentialRefresh(store: DisposableStore, address: string, options: ICloudSandboxConnectOptions, clientId: string, creds: ICloudSandboxCreds): void {
-		const timer = store.add(new MutableDisposable());
-		/** Consecutive cycles that did not yield a healthy, long-lived token. */
-		let unhealthyCycles = 0;
-
-		// A `MutableDisposable` silently drops a value assigned after it is disposed, so a timeout
-		// armed while a refresh was in flight — the connection can go away mid-request — would never
-		// be cancelled and would keep calling `/reconnect` for the life of the window. Cancelling on
-		// teardown both aborts the in-flight request and stops anything being armed afterwards.
-		const cts = new CancellationTokenSource();
-		store.add(toDisposable(() => cts.dispose(true)));
-
-		const stop = (reason: CloudSandboxRefreshStopReason, detail: string, error?: unknown) => {
-			timer.clear();
-			reportCredentialRefreshStopped(this._telemetryService, reason, unhealthyCycles, error);
-			this._logService.error(`${LOG_PREFIX} Stopped refreshing credentials for ${address}: ${detail}. The connection will drop when the current token expires.`);
-		};
-
-		const arm = (delayMs: number) => {
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-			timer.value = disposableTimeout(() => void refresh(), Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs));
-		};
-
-		/** Re-arm after a cycle that produced no usable token, giving up once too many pile up. */
-		const armUnhealthy = (delayMs: number, reason: CloudSandboxRefreshStopReason, detail: string) => {
-			if (++unhealthyCycles >= MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES) {
-				stop(reason, `${detail} across ${unhealthyCycles} consecutive attempts`);
-				return;
-			}
-			arm(delayMs);
-		};
-
-		const refresh = async () => {
-			let result: CloudSandboxConnectResult;
-			try {
-				result = await this._credentialsService.reconnect(
-					{ environmentId: options.environmentId, sessionId: options.sessionId }, clientId, cts.token,
-				);
-			} catch (err) {
-				// A rejected request (deleted environment, revoked token) fails identically however
-				// often it is repeated, so retrying only adds load without any prospect of recovery.
-				if (!isRetryableCloudSandboxError(err)) {
-					stop('permanentError', toErrorMessage(err), err);
-					return;
-				}
-				this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${address}; retrying`, err);
-				armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'consecutiveFailures', 'credential refresh kept failing');
-				return;
-			}
-
-			if (result.kind === 'waking') {
-				// `/reconnect` refreshes an already-connected client, so a waking environment here is
-				// the sandbox disappearing underneath us rather than a wake worth waiting out.
-				armUnhealthy(Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS), 'environmentWaking', 'environment kept reporting waking');
-				return;
-			}
-
-			// Keep the previous sealed token when a refresh omits it.
-			creds.token = result.token.encrypted_github_token
-				? result.token
-				: { ...result.token, encrypted_github_token: creds.token.encrypted_github_token, host_encryption_key: creds.token.host_encryption_key };
-
-			this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${address}`);
-			const delayMs = credentialRefreshDelayMs(result.token.expires_at);
-			if (delayMs === undefined) {
-				// No basis for scheduling. Keep the connection alive on a conservative interval, but
-				// count the cycles so an endless stream of unschedulable tokens still terminates.
-				armUnhealthy(CREDENTIAL_REFRESH_FALLBACK_MS, 'unusableToken', `tokens kept arriving without a usable 'expires_at'`);
-				return;
-			}
-			if (delayMs <= MIN_CREDENTIAL_REFRESH_DELAY_MS) {
-				// Already at (or past) its refresh point, so the next cycle would re-mint immediately.
-				armUnhealthy(delayMs, 'unusableToken', 'refreshed tokens kept expiring immediately');
-				return;
-			}
-			unhealthyCycles = 0;
-			arm(delayMs);
-		};
-
-		const initialDelayMs = credentialRefreshDelayMs(creds.token.expires_at);
-		if (initialDelayMs === undefined) {
-			armUnhealthy(CREDENTIAL_REFRESH_FALLBACK_MS, 'unusableToken', `tokens kept arriving without a usable 'expires_at'`);
-			return;
-		}
-		arm(initialDelayMs);
 	}
 
 	/** Mint client creds, retrying (bounded) while the environment is waking. */
