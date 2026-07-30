@@ -17,7 +17,7 @@ This extension is just an alternative UI for reference search and extensions imp
 
 ## Issues
 
-This extension ships with Visual Studio Code and uses its issue tracker. Please file issue here: https://github.com/Microsoft/vscode/issues
+This extension ships with Visual Studio Code and uses its issue tracker. Please file issue here: https://github.com/microsoft/vscode/issues
 
 # Contributing
 
