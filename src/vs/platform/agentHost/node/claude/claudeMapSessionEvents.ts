@@ -55,12 +55,8 @@ export class ClaudeMapperState {
 	 * Public so mapper functions can call its lifecycle methods
 	 * directly without forwarding through this class.
 	 */
-	readonly toolCalls: ClaudeToolCallRegistry;
+	readonly toolCalls = new ClaudeToolCallRegistry();
 	private _currentMessageId: string | undefined;
-
-	constructor(now: () => number = Date.now) {
-		this.toolCalls = new ClaudeToolCallRegistry(now);
-	}
 
 	/**
 	 * Phase 8 — file-edit content pre-staged by
