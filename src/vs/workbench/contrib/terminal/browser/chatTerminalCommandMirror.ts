@@ -141,13 +141,25 @@ export function computeChatTerminalMirrorCols(availableWidthPx: number, font: IT
 	return Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 }
 
+function getMirrorRaw(detached: IDetachedTerminalInstance): RawXtermTerminal {
+	return (detached.xterm as IDetachedXtermTerminal & { raw: RawXtermTerminal }).raw;
+}
+
 /**
  * Enables cursor line reflow on a mirror's terminal. The mirror is a readonly output preview
  * with no prompt line to protect, so resize reflow should re-wrap the cursor line like any
  * other line (xterm skips it by default).
  */
 function enableCursorLineReflow(detached: IDetachedTerminalInstance): void {
-	(detached.xterm as IDetachedXtermTerminal & { raw: RawXtermTerminal }).raw.options.reflowCursorLine = true;
+	getMirrorRaw(detached).options.reflowCursorLine = true;
+}
+
+/**
+ * Gets the device pixel ratio of the window the mirror's terminal is rendered in, so cell
+ * math stays correct in auxiliary windows on monitors with different scaling.
+ */
+function getMirrorDevicePixelRatio(detached: IDetachedTerminalInstance): number {
+	return getWindow(getMirrorRaw(detached).element).devicePixelRatio;
 }
 
 /**
@@ -425,7 +437,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._store.isDisposed) {
 			return undefined;
 		}
-		const cols = computeChatTerminalMirrorCols(widthPx, detached.xterm.getFont(), getActiveWindow().devicePixelRatio);
+		const cols = computeChatTerminalMirrorCols(widthPx, detached.xterm.getFont(), getMirrorDevicePixelRatio(detached));
 		if (detached.xterm.cols === cols) {
 			return undefined;
 		}
@@ -440,6 +452,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (!this._lastVT) {
 			return undefined;
 		}
+		this._lineCount = this._getRenderedLineCount();
 		const commandFinished = this._command.endMarker && !this._command.endMarker.isDisposed;
 		if (commandFinished && this._lineCount <= ChatTerminalMirrorMetrics.MaxLinesForColumnWidthComputation) {
 			this._maxColumnWidth = this._computeMaxColumnWidth();
@@ -469,6 +482,13 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _getRenderedLineCount(): number {
+		// Prefer counting the mirror's own rendered rows: they reflect the mirror's column
+		// count, which can differ from the source terminal's after a width layout
+		const detachedBuffer = this._detachedTerminal?.xterm.buffer.active;
+		if (detachedBuffer) {
+			return computeSnapshotLineCount(detachedBuffer);
+		}
+
 		// Calculate line count from the command's markers when available
 		const endMarker = this._command.endMarker;
 		if (this._command.executedMarker && endMarker && !endMarker.isDisposed) {
@@ -783,7 +803,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			if (this._store.isDisposed) {
 				return undefined;
 			}
-			const cols = computeChatTerminalMirrorCols(widthPx, terminal.xterm.getFont(), getActiveWindow().devicePixelRatio);
+			const cols = computeChatTerminalMirrorCols(widthPx, terminal.xterm.getFont(), getMirrorDevicePixelRatio(terminal));
 			if (terminal.xterm.cols === cols) {
 				return undefined;
 			}

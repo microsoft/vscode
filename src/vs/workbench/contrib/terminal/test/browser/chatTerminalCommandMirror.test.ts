@@ -699,8 +699,14 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			strictEqual(computeChatTerminalMirrorCols(1224, makeFont(10), 0), 120);
 		});
 
-		test('clamps very narrow widths to a minimum readable column count', () => {
-			strictEqual(computeChatTerminalMirrorCols(100, makeFont(10), 1), 20);
+		test('narrow widths wrap to the fitting column count, minimum one column', () => {
+			deepStrictEqual({
+				narrow: computeChatTerminalMirrorCols(100, makeFont(10), 1), // floor((100 - 24) / 10)
+				tiny: computeChatTerminalMirrorCols(30, makeFont(10), 1),
+			}, {
+				narrow: 7,
+				tiny: 1,
+			});
 		});
 	});
 
@@ -878,11 +884,14 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				line1: 'x'.repeat(20),
 			});
 			const writeCallsBeforeLayout = fakes[0].counters.writeCalls;
-			await mirror.layout(1224);
+			const result = await mirror.layout(1224);
 			deepStrictEqual({
 				cols: fakes[0].raw.cols,
 				line0: lineText(fakes[0].raw, 0),
 				maxColumnWidth: computeMaxBufferColumnWidth(fakes[0].raw.buffer.active, fakes[0].raw.cols),
+				// The reported line count must reflect the re-wrapped mirror rows, not the
+				// source terminal's wrap at its own cols, so the box height matches
+				lineCount: result?.lineCount,
 				// Re-wrapping must come from xterm's native resize reflow, not a buffer
 				// rewrite, which would flash a cleared frame on every resize
 				writeCalls: fakes[0].counters.writeCalls,
@@ -890,6 +899,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				cols: 120,
 				line0: 'x'.repeat(100),
 				maxColumnWidth: 100,
+				lineCount: 1,
 				writeCalls: writeCallsBeforeLayout,
 			});
 		});
