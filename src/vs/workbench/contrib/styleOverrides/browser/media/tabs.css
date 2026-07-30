@@ -30,8 +30,9 @@
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
 }
 
-.style-override .part.editor .title.tabs {
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
 	background-color: transparent !important;
+	cursor: default;
 	--editor-group-tab-height: 24px !important;
 }
 
@@ -138,6 +139,21 @@
 	background-color: var(--modern-ui-tab-active-background) !important;
 }
 
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
+	display: block;
+	position: absolute;
+	z-index: 8;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	border: 2px solid var(--tab-border-bottom-color);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
 .style-override .part.editor .tabs-container > .tab.selected:not(.active) {
 	background-color: var(--vscode-tab-selectedBackground) !important;
 }
@@ -219,6 +235,10 @@
 	top: var(--vscode-spacing-size20);
 }
 
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-actions {
+	top: 0;
+}
+
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.close-action-off):hover > .tab-actions,
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.close-action-off) > .tab-actions:focus-within {
 	background-color: var(--modern-ui-editor-tab-action-hover-background);
@@ -259,8 +279,7 @@
 	border-left: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
 }
 
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.dirty) > .tab-actions .action-label,
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky:not(.dirty) > .tab-actions .action-label {
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.dirty):not(:hover) > .tab-actions .action-label:not(:focus) {
 	opacity: 0;
 }
 
@@ -314,7 +333,7 @@
 	display: none !important;
 }
 
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.dirty-border-top > .tab-border-top-container {
 	display: block !important;
 	position: absolute;
 	z-index: 8;
@@ -357,16 +376,166 @@
 
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked,
-.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked,
-.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked {
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active),
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) {
 	background-color: var(--vscode-panelTitle-activeBackground) !important;
 }
 
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover,
-.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover,
-.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover {
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover {
 	background-color: var(--modern-ui-tab-hover-background);
+}
+
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover,
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.active,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.selected,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:hover {
+	background-color: transparent !important;
+	box-shadow: none !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:hover > .tab-actions,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions:focus-within {
+	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background)) !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions .action-label {
+	background-color: transparent !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):hover > .tab-actions {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):hover > .tab-actions {
+	border-top: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	border-right: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	border-bottom: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions:focus-within {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected).tab-actions-left:hover > .tab-actions {
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected).tab-actions-left:hover > .tab-actions {
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.tab-actions-left > .tab-actions:focus-within {
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):not(:focus) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):not(:focus):hover {
+	background-color: transparent !important;
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:focus {
+	background-color: transparent !important;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness)) !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):focus:hover {
+	background-color: transparent !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab .tab-label,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab .tab-label a {
+	outline: none !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.active > .tab-border-bottom-container {
+	display: none;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:hover > .tab-border-bottom-container {
+	display: none;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.dirty):not(:hover) > .tab-actions .action-label:not(:focus) {
+	opacity: 0 !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.dirty > .tab-actions .action-label,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:hover > .tab-actions .action-label,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions .action-label:focus {
+	opacity: 1 !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
+	background-color: transparent !important;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
+	box-sizing: border-box;
+	flex: 0 0 24px;
+	width: 24px;
+	min-width: 24px;
+	max-width: 24px;
+	height: 24px;
+	min-height: 24px;
+	max-height: 24px;
+	padding: 0;
+}
+
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label {
+	outline: none !important;
+}
+
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before,
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
+	display: none !important;
+}
+
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus),
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):not(:focus):hover,
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):not(:focus):hover {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus,
+:is(.hc-black, .hc-light).style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 /*
