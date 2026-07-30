@@ -13,7 +13,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { resolveCustomizationRefs } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
+import { resolveCustomizationRefs, shouldSyncWorkspaceDotMcp } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -281,6 +281,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			remoteBundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
 			{ includeUserStorage: true },
 		);
 
@@ -530,6 +531,52 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 0);
 	});
 
+	test('includes workspace-discovered `.mcp.json` servers when includeWorkspaceDotMcp is set (multi-root gate)', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'wsdot.srv', collectionId: 'workspace-dot-mcp.0', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+		]);
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			true,
+		);
+
+		assert.strictEqual(bundler.received.length, 1);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [
+			{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+		]);
+		assert.strictEqual(refs.length, 1);
+	});
+
+	test('still excludes `.code-workspace` servers even when includeWorkspaceDotMcp is set', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'wscfg.srv', collectionId: 'mcp.config.workspace', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE }),
+		]);
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			true,
+		);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+
 	test('syncs `.vscode/mcp.json` servers that resolve without user interaction', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
@@ -642,5 +689,43 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0].map(s => s.name), ['srv']);
 		assert.strictEqual(refs.length, 1);
+	});
+});
+
+suite('shouldSyncWorkspaceDotMcp - multi-root gate', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Pins the production local Copilot Agent Host session type so a drift in the
+	// gate's session-type comparison (the class of bug that would otherwise leave
+	// the feature tests green) fails here.
+	const LOCAL_COPILOT = 'agent-host-copilotcli';
+
+	test('true only for local Copilot + multi-root workspace + setting enabled', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 2, true), true);
+	});
+
+	test('false when the multi-root setting is disabled', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 2, false), false);
+	});
+
+	test('false for a single-folder workspace', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 1, true), false);
+	});
+
+	test('false for an empty workspace', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 0, true), false);
+	});
+
+	test('false for a non-Copilot harness (e.g. Claude)', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('agent-host-claude', 2, true), false);
+	});
+
+	test('false for the Copilot CLI (extension host) harness', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('copilotcli', 2, true), false);
+	});
+
+	test('false for a remote Copilot Agent Host session', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('remote-myauthority-copilotcli', 2, true), false);
 	});
 });
