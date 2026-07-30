@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isActiveDocument, reset } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getWindow, isActiveDocument, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -25,8 +25,20 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
+
+/**
+ * Dragging the command center out of the title bar asks whoever owns the
+ * undocked surface to take over, at the point it was dropped. The title bar
+ * only reports the gesture; it does not know or care what happens next, and if
+ * nothing has registered the command the pill simply is not draggable.
+ */
+export const COMMAND_CENTER_UNDOCK_COMMAND_ID = 'workbench.action.commandCenter.undock';
+
+/** How far the pointer has to leave the title bar before it counts as undocking. */
+const UNDOCK_THRESHOLD = 24;
 
 export class CommandCenterControl {
 
@@ -105,15 +117,81 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
 		@IConfigurationService private _configurationService: IConfigurationService,
+		@ICommandService private _commandService: ICommandService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
+	}
+
+	/**
+	 * Pull the command center down out of the title bar and it hands off to
+	 * whatever owns the undocked surface — the same object moved, rather than a
+	 * separate window that happens to look similar.
+	 *
+	 * This is a pointer drag rather than HTML5 drag-and-drop: the drop target is
+	 * the desktop, outside any document, which a drag-and-drop payload cannot
+	 * address. It also only arms once the pointer has actually left the title
+	 * bar, so a click never becomes an accidental undock.
+	 */
+	private _registerUndockGesture(container: HTMLElement): void {
+		if (!CommandsRegistry.getCommand(COMMAND_CENTER_UNDOCK_COMMAND_ID)) {
+			return;
+		}
+
+		this._store.add(addDisposableListener(container, EventType.POINTER_DOWN, downEvent => {
+			if (downEvent.button !== 0) {
+				return;
+			}
+
+			const startY = downEvent.clientY;
+			const startX = downEvent.clientX;
+			let armed = false;
+
+			const gesture = new DisposableStore();
+			// The command center exists in every window, so resolve the one this
+			// pill is actually in rather than assuming the main one.
+			const targetWindow = getWindow(container);
+
+			gesture.add(addDisposableListener(targetWindow, EventType.POINTER_MOVE, moveEvent => {
+				if (!armed && moveEvent.clientY - startY > UNDOCK_THRESHOLD) {
+					armed = true;
+					container.classList.add('undocking');
+				}
+			}));
+
+			const finish = (upEvent: PointerEvent) => {
+				gesture.dispose();
+				container.classList.remove('undocking');
+				if (!armed) {
+					return;
+				}
+				// Suppress the click that would otherwise open quick access.
+				gesture.add(addDisposableListener(targetWindow, EventType.CLICK, clickEvent => {
+					clickEvent.preventDefault();
+					clickEvent.stopPropagation();
+				}, true));
+				setTimeout(() => gesture.dispose(), 0);
+
+				void this._commandService.executeCommand(COMMAND_CENTER_UNDOCK_COMMAND_ID, {
+					// Screen coordinates, so the surface can appear under the
+					// pointer that placed it rather than at some default.
+					x: Math.round(targetWindow.screenX + upEvent.clientX - (upEvent.clientX - startX) - container.offsetWidth / 2),
+					y: Math.round(targetWindow.screenY + upEvent.clientY),
+					width: container.offsetWidth,
+				});
+			};
+
+			gesture.add(addDisposableListener(targetWindow, EventType.POINTER_UP, finish));
+			this._store.add(gesture);
+		}));
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('command-center-center');
 		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
+
+		this._registerUndockGesture(container);
 
 		const hover = this._store.add(this._hoverService.setupManagedHover(this._hoverDelegate, container, this.getTooltip()));
 
