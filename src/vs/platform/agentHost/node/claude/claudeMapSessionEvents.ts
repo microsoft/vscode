@@ -593,7 +593,7 @@ function mapStreamEvent(
 				// state transitions (D6). Subagent meta from Phase 12 is now
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
-				const meta = buildClaudeToolMeta(toolName);
+				const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
 				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
 				return [{
 					kind: 'action',
