@@ -12,6 +12,7 @@ import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../..
 import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
 	return {
@@ -954,7 +955,7 @@ suite('ChatQuestionCarouselPart', () => {
 				options: Array.from(widget.domNode.querySelectorAll('.chat-question-summary-option')).map(option => ({
 					label: option.querySelector('.chat-question-summary-option-label')?.textContent,
 					selected: option.classList.contains('selected'),
-					hasCheck: !!option.querySelector('.chat-question-summary-option-selected .codicon-check'),
+					hasCompactCheck: !!option.querySelector('.chat-question-summary-option-selected .codicon-check-compact'),
 				})),
 			}, {
 				question: 'Question: What should we prioritize if the refactor affects multiple platforms and may require migration work?',
@@ -965,8 +966,8 @@ suite('ChatQuestionCarouselPart', () => {
 				hasChevron: true,
 				optionsTitle: 'Options',
 				options: [
-					{ label: 'Fix a bug', selected: true, hasCheck: true },
-					{ label: 'Implement a feature', selected: false, hasCheck: false },
+					{ label: 'Fix a bug', selected: true, hasCompactCheck: true },
+					{ label: 'Implement a feature', selected: false, hasCompactCheck: false },
 				],
 			});
 		});
@@ -1058,7 +1059,8 @@ suite('ChatQuestionCarouselPart', () => {
 				],
 				allowSkip: true,
 				isUsed: true,
-				answeredExternally: true
+				answeredExternally: true,
+				answerPresentation: 'conversation',
 			};
 			createWidget(carousel);
 
@@ -1067,10 +1069,10 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container');
 			assert.ok(!summary?.querySelector('.chat-question-summary-skipped'), 'Should not show skipped message');
 			assert.ok(summary?.querySelector('.chat-question-summary-answered'), 'Should show answered message when answered externally');
+			assert.ok(!summary?.querySelector('.codicon-copilot-compact'), 'Should not present a generic external answer as an automatic reply');
 		});
 
 		test('renders a Copilot icon for a structured automatic answer', () => {
-			const automaticAnswer = 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.';
 			const carousel: IChatQuestionCarousel = {
 				kind: 'questionCarousel',
 				questions: [
@@ -1081,7 +1083,7 @@ suite('ChatQuestionCarouselPart', () => {
 				answeredExternally: true,
 				autoReply: true,
 				answerPresentation: 'conversation',
-				data: { q1: automaticAnswer },
+				data: { q1: AgentHostAutoReplyAnswer },
 			};
 			createWidget(carousel);
 
@@ -1092,7 +1094,7 @@ suite('ChatQuestionCarouselPart', () => {
 				hasGenericMessage: !!widget.domNode.querySelector('.chat-question-summary-answered'),
 			}, {
 				question: 'Question: What should we work on next?',
-				answer: `Answered: ${automaticAnswer}`,
+				answer: `Answered: ${AgentHostAutoReplyAnswer}`,
 				answerIcon: true,
 				hasGenericMessage: false,
 			});

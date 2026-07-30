@@ -39,6 +39,7 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import './media/chatQuestionCarousel.css';
 
@@ -1635,11 +1636,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// If no answers, show the terminal-state (Skipped/Answered) message
 		if (this._answers.size === 0) {
 			if (this.carousel.answerPresentation === 'conversation') {
-				if (this.carousel.answeredExternally) {
+				if (this.carousel.autoReply) {
 					this.renderConversationSummary({
 						answerFallback: localize('chat.questionCarousel.answeredAutomatically', "Answered automatically"),
 						answerIcon: Codicon.copilotCompact,
 					});
+				} else if (this.carousel.answeredExternally) {
+					this.renderTerminalStateMessage();
 				} else if (this.carousel.isUsed) {
 					this.renderConversationSummary({
 						answerFallback: localize('chat.questionCarousel.skippedConversation', "Skipped question"),
@@ -1799,7 +1802,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	private renderSelectedOptionState(): HTMLElement {
 		const selectedState = dom.$('span.chat-question-summary-option-selected');
-		const selectedIcon = dom.$('span.codicon.codicon-check');
+		const selectedIcon = dom.$('span');
+		selectedIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.checkCompact));
 		selectedIcon.setAttribute('aria-hidden', 'true');
 		selectedState.appendChild(selectedIcon);
 		return selectedState;
@@ -1809,6 +1813,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Formats an answer for display in the summary.
 	 */
 	private formatAnswerForSummary(question: IChatQuestion, answer: IChatQuestionAnswerValue): string {
+		if (this.carousel.autoReply && answer === AgentHostAutoReplyAnswer) {
+			return localize('chat.questionCarousel.autoReplyAnswer', "The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.");
+		}
+
 		switch (question.type) {
 			case 'text':
 				return String(answer);
