@@ -1413,6 +1413,29 @@ describe('XtabProvider integration', () => {
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 		});
 
+		it('CustomDiffPatch clamps tagged content range to the source document', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({
+				promptingStrategy: PromptingStrategy.PatchBased02,
+				includeTagsInCurrentFile: true,
+			});
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i}`);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'e' });
+			streamingFetcher.setStreamingLines([]);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect({
+				editCount: edits.length,
+				finalReason: finalReason.v.constructor.name,
+			}).toEqual({
+				editCount: 0,
+				finalReason: NoNextEditReason.NoSuggestions.name,
+			});
+		});
+
 		it('UnifiedWithXml INSERT yields insertion edit at cursor line', async () => {
 			const provider = createProvider();
 

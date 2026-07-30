@@ -142,10 +142,28 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 	}
 	return {
 		id: codexTurn.id,
+		...codexTurnTiming(codexTurn),
 		message: { text: userText, origin: { kind: MessageKind.User } },
 		responseParts: parts,
 		usage: undefined,
 		state: turnStateFromStatus(codexTurn.status),
+	};
+}
+
+/** Restores turn timing from codex's persisted thread: Unix-second stamps widen to ISO 8601 `startedAt` plus a millisecond `duration`. */
+function codexTurnTiming(codexTurn: CodexTurn): { startedAt?: string; duration?: number } {
+	const startedAtSeconds = codexTurn.startedAt;
+	if (typeof startedAtSeconds !== 'number' || !Number.isFinite(startedAtSeconds)) {
+		return {};
+	}
+	const duration = typeof codexTurn.durationMs === 'number' && Number.isFinite(codexTurn.durationMs) && codexTurn.durationMs >= 0
+		? codexTurn.durationMs
+		: typeof codexTurn.completedAt === 'number' && Number.isFinite(codexTurn.completedAt)
+			? Math.max(0, (codexTurn.completedAt - startedAtSeconds) * 1000)
+			: undefined;
+	return {
+		startedAt: new Date(startedAtSeconds * 1000).toISOString(),
+		...(duration !== undefined ? { duration } : {}),
 	};
 }
 

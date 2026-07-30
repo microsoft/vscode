@@ -57,7 +57,7 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
-	stableNewScenarioResponse: true,
+	supportsFileTools: true,
 };
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
