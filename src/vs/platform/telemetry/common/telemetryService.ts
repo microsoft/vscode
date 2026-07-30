@@ -315,7 +315,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'telemetry.telemetryLevel.policyDescription',
-						value: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry. Supported values are 'all', 'error', 'crash', and 'off'. Empty values and the legacy 'none' value are invalid and should be replaced with a supported value."),
+						value: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry. Only the exact values 'all', 'error', 'crash', and 'off' are supported. Any other value, including an empty value or 'none', is invalid and must be replaced."),
 					},
 					enumDescriptions: [
 						{
