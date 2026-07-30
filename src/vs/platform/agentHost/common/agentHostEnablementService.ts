@@ -40,7 +40,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[agentHostEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process. In web, a remote extension host is required."),
+			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: true,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
