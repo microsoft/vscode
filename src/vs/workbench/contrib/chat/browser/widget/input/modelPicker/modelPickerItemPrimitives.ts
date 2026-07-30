@@ -40,15 +40,9 @@ function getUpdateHoverContent(updateState: StateType): MarkdownString {
 	return hoverContent;
 }
 
-export type ProviderGroupKey = string;
-
 export interface IProviderGroupInfo {
 	readonly vendor: string;
 	readonly groupName: string;
-}
-
-export function getProviderGroupKey(vendor: string, groupName: string): ProviderGroupKey {
-	return `${vendor}\u0000${groupName}`;
 }
 
 function getVendorDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {

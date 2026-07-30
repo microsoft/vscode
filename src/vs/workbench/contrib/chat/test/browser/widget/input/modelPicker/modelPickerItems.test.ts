@@ -944,6 +944,27 @@ suite('buildModelPickerItems', () => {
 		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'Hugging Face', 'OpenAI']);
 	});
 
+	test('Other Models merges Chat and agent-host CLI into one Copilot section (#327644)', () => {
+		const auto = createAutoModel();
+		const chatModel = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const cliModel = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const openai = createAgentHostModel('openai/gpt-5-nano', 'GPT-5 nano', { id: 'openai' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilot', displayName: 'Copilot', groups: [] },
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [] },
+		]);
+		const items = callBuild([auto, chatModel, cliModel, openai], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'OpenAI']);
+		const otherSectionStart = items.findIndex(i => i.kind === ActionListItemKind.Action && i.isSectionToggle && i.label === 'Other Models');
+		assert.ok(otherSectionStart >= 0);
+		const otherLabels = getActionItems(items.slice(otherSectionStart + 1)).map(a => a.label);
+		assert.ok(otherLabels.includes('GPT-4o'));
+		assert.ok(otherLabels.includes('Claude Haiku 4.5'));
+		assert.ok(otherLabels.includes('GPT-5 nano'));
+	});
+
 	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {
 		const auto = createAutoModel();
 		const a = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
