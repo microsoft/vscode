@@ -95,6 +95,8 @@
 			font-weight: var(--vscode-agents-fontWeight-semiBold);
 			font-size: var(--vscode-agents-fontSize-heading3);
 			margin: 0;
+			user-select: text;
+			-webkit-user-select: text;
 
 			.rendered-markdown {
 				a {
