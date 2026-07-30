@@ -113,6 +113,11 @@ class MockCopilotSession {
 	usageMetricsCalls = 0;
 	/** Awaited inside `usage.getMetrics` so tests can hold a refresh in flight. */
 	usageMetricsGate: Promise<unknown> | undefined;
+	/**
+	 * Per-call gates, consumed in call order, for holding individual reads in flight.
+	 * Lets a test make an earlier-issued read resolve after a later one.
+	 */
+	readonly usageMetricsGates: Array<Promise<unknown>> = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
@@ -283,8 +288,11 @@ class MockCopilotSession {
 					this.usageMetricsError = undefined;
 					throw err;
 				}
-				await this.usageMetricsGate;
-				return { ...this.usageMetricsResult };
+				// Snapshot at call time, like a real RPC whose result reflects the state
+				// when the request was served rather than when the caller observes it.
+				const snapshot = { ...this.usageMetricsResult };
+				await (this.usageMetricsGates.shift() ?? this.usageMetricsGate);
+				return snapshot;
 			},
 		},
 	};
@@ -1288,6 +1296,55 @@ suite('CopilotAgentSession', () => {
 			totalNanoAiu: 1_000_000_000,
 			sessionTotalNanoAiu: 4_000_000_000,
 		});
+	});
+
+	test('overlapping usage events issue one metrics read at a time and converge on the newest', async () => {
+		// `getMetrics` is a real RPC round trip. Letting several overlap means an older
+		// one can resolve last and publish a stale session cost, and a high-water guard
+		// can't reject it because the total legitimately drops after a truncation.
+		// Serializing the reads removes the interleaving entirely and coalesces the
+		// redundant reads a burst of usage events would otherwise issue.
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-overlapping');
+		const slowFirstRead = new DeferredPromise<void>();
+		mockSession.usageMetricsGates.push(slowFirstRead.p);
+
+		const fireUsage = (totalNanoAiu: number) => mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		fireUsage(500_000_000);
+		await timeout(0);
+		fireUsage(1_000_000_000);
+		await timeout(0);
+		fireUsage(500_000_000);
+		await timeout(0);
+		// The first read is still in flight, so the two later events have not started
+		// their own — they are waiting behind it and collapse into a single follow-up.
+		assert.strictEqual(mockSession.usageMetricsCalls, 1);
+
+		slowFirstRead.complete();
+		for (let i = 0; i < 5; i++) {
+			await timeout(0);
+		}
+
+		// One follow-up read for the three events that queued behind the first, and it
+		// observed the newest total rather than any earlier snapshot.
+		assert.strictEqual(mockSession.usageMetricsCalls, 2);
+		session.resetTurnState('turn-after-overlap');
+		fireUsage(250_000_000);
+		for (let i = 0; i < 5; i++) {
+			await timeout(0);
+		}
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		assert.strictEqual(
+			(usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.sessionTotalNanoAiu,
+			2_250_000_000,
+		);
 	});
 
 	test('a turn ending while its usage refresh is in flight still bills that turn', async () => {

@@ -257,6 +257,10 @@ export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
 	const meta = readUsageInfoMeta(usage);
 	// Negative totals are treated as absent, matching how credits are read for display.
 	return (typeof meta.copilotUsage?.totalNanoAiu === 'number' && meta.copilotUsage.totalNanoAiu >= 0)
+		// A report can carry only the session total — a compaction billed while no turn
+		// was active advances it without any per-event billing payload — and that is
+		// still consumption worth showing.
+		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0)
 		|| (typeof meta.cost === 'number' && meta.cost >= 0);
 }
 

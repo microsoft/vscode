@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, CurrentToolMetadata, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, PermissionResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
-import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
+import { raceCancellation, Sequencer, Throttler } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -703,6 +703,16 @@ export class CopilotAgentSession extends Disposable {
 	 * per-event `copilotUsage` instead (see {@link CopilotTurn.copilotNanoAiu}).
 	 */
 	private _sessionTotalNanoAiu = 0;
+	/**
+	 * Serializes the metrics reads behind {@link _refreshSessionTotalNanoAiu}. Several
+	 * handlers refresh the total, so without this their RPCs overlap and an older
+	 * one resolving last would publish a session cost that visibly regresses. A
+	 * high-water mark cannot be used to reject stale reads instead, because the
+	 * total is legitimately non-monotonic (see the truncation note below). Keeping
+	 * one read in flight makes out-of-order resolution impossible, and coalesces
+	 * the redundant reads that a burst of usage events would otherwise issue.
+	 */
+	private readonly _sessionTotalRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
@@ -1065,25 +1075,27 @@ export class CopilotAgentSession extends Disposable {
 	 * Re-reads the SDK's session-wide nano-AIU total. Returns `true` when the
 	 * value changed, i.e. when a usage report is worth re-emitting.
 	 *
-	 * The latest reading always wins — the total is not assumed to only grow.
+	 * Reads are serialized by {@link _sessionTotalRefreshThrottler}, so the value
+	 * always reflects the most recent one. The total is not monotonic —
 	 * `history.truncate` (checkpoint restore, editing an earlier message) makes
-	 * the SDK re-fold usage from the surviving events, so the authoritative
-	 * total legitimately drops; treating a decrease as stale would freeze the
-	 * reported cost until billing climbed back past the pre-truncation figure.
+	 * the SDK re-fold usage from the surviving events, so it legitimately drops —
+	 * which is why a decrease is adopted rather than rejected as stale.
 	 */
 	private async _refreshSessionTotalNanoAiu(): Promise<boolean> {
-		let total: number | undefined;
 		try {
-			total = (await this._wrapper.session.rpc.usage.getMetrics()).totalNanoAiu;
+			return await this._sessionTotalRefreshThrottler.queue(async () => {
+				const total = (await this._wrapper.session.rpc.usage.getMetrics()).totalNanoAiu;
+				if (typeof total !== 'number' || !Number.isFinite(total) || total < 0 || total === this._sessionTotalNanoAiu) {
+					return false;
+				}
+				this._sessionTotalNanoAiu = total;
+				return true;
+			});
 		} catch (err) {
+			// Also covers the rejection from a throttler disposed mid-read.
 			this._logService.trace(`[Copilot:${this.sessionId}] usage.getMetrics RPC failed: ${getErrorMessage(err)}`);
 			return false;
 		}
-		if (typeof total !== 'number' || !Number.isFinite(total) || total < 0 || total === this._sessionTotalNanoAiu) {
-			return false;
-		}
-		this._sessionTotalNanoAiu = total;
-		return true;
 	}
 
 	/**
@@ -4032,11 +4044,11 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onUsage(e => {
 			this._resumeSubagentForEvent(e);
 			// Usage events for a subagent's model calls carry the subagent's
-			// `agentId`. The parent turn's cost comes from the SDK's session-wide
-			// usage metrics, which already include every subagent call, so such an
-			// event only needs the subagent's own running component total emitted
-			// to its child session (via `parentToolCallId`) for the subagent tool
-			// to show its own cost.
+			// `agentId`. Every model call — the parent's own and every subagent's —
+			// is folded into the turn's cost below, so such an event additionally
+			// needs only the subagent's own running component total emitted to its
+			// child session (via `parentToolCallId`) for the subagent tool to show
+			// its own cost.
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (!parentToolCallId && !e.agentId && !e.data.parentToolCallId && e.data.model) {
 				this._setPromptCacheState(e.data.cacheExpiresAt ? { modelId: e.data.model, cacheExpiresAt: e.data.cacheExpiresAt } : undefined);
@@ -4201,38 +4213,50 @@ export class CopilotAgentSession extends Disposable {
 			if (e.agentId || e.data.success === false) {
 				return;
 			}
-			const turn = this._currentTurn;
-			const turnId = this._turnId;
 			const copilotUsage = readCopilotUsage(e.data.compactionTokensUsed);
+			// Report the turn's cost before awaiting anything. The terminal `session.idle`
+			// can arrive while the metrics read is in flight and close the turn, after
+			// which the reducer drops usage for it — so a compaction whose turn ends
+			// immediately (e.g. one followed by a failing model call) would never be
+			// persisted if this waited.
+			const emitParentUsage = (): string | undefined => {
+				const turnId = this._turnId;
+				const parentCopilotUsage = this._parentCopilotUsageMeta();
+				if (!turnId || !parentCopilotUsage) {
+					return undefined;
+				}
+				// Preserve the parent turn's own model/context tokens: the compaction call's tokens describe
+				// the summarization request, not the conversation, so they must not replace what is shown.
+				const base = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
+				const usage: UsageInfo = {
+					...base,
+					model: base?.model ?? this._lastSeenModelId,
+					_meta: {
+						...(base?._meta ?? {}),
+						copilotUsage: parentCopilotUsage,
+					},
+				};
+				lastParentUsage = usage;
+				lastParentUsageTurnId = turnId;
+				this._emitAction({
+					type: ActionType.ChatUsage,
+					turnId,
+					usage,
+				});
+				return turnId;
+			};
+
+			const turn = this._currentTurn;
 			if (turn && copilotUsage) {
 				turn.copilotNanoAiu += copilotUsage.totalNanoAiu;
+				emitParentUsage();
 			}
-			const changed = await this._refreshSessionTotalNanoAiu();
-			if ((!changed && !copilotUsage) || !turnId || turnId !== this._turnId) {
-				return;
+			// Then pick up the session-wide total, which also covers a compaction billed
+			// while no turn was active, and re-emit so the widget reflects it.
+			const turnIdBeforeRefresh = this._turnId;
+			if (await this._refreshSessionTotalNanoAiu() && turnIdBeforeRefresh === this._turnId) {
+				emitParentUsage();
 			}
-			const parentCopilotUsage = this._parentCopilotUsageMeta();
-			if (!parentCopilotUsage) {
-				return;
-			}
-			// Preserve the parent turn's own model/context tokens: the compaction call's tokens describe
-			// the summarization request, not the conversation, so they must not replace what is shown.
-			const base = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
-			const usage: UsageInfo = {
-				...base,
-				model: base?.model ?? this._lastSeenModelId,
-				_meta: {
-					...(base?._meta ?? {}),
-					copilotUsage: parentCopilotUsage,
-				},
-			};
-			lastParentUsage = usage;
-			lastParentUsageTurnId = turnId;
-			this._emitAction({
-				type: ActionType.ChatUsage,
-				turnId,
-				usage,
-			});
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {
@@ -5066,10 +5090,12 @@ function countUnifiedDiffLines(diff: string): { added: number; removed: number }
 }
 
 /**
- * Reads the SDK's internal `copilotUsage` billing payload from an `assistant.usage` event. It is
- * marked `asInternal` in the SDK schema, so it is absent from the generated `AssistantUsageData`
- * type even though it is present at runtime — hence the dynamic read. Only a subagent's own
- * component cost is read this way; the turn and session totals come from the SDK's usage metrics.
+ * Reads the SDK's internal `copilotUsage` billing payload, carried on both the `assistant.usage`
+ * event and `session.compaction_complete`'s `compactionTokensUsed`. It is marked `asInternal` in
+ * the SDK schema, so it is absent from the generated types (`AssistantUsageData`,
+ * `CompactionCompleteCompactionTokensUsed`) even though it is present at runtime — hence the
+ * dynamic read. This is the source for per-turn and per-subagent cost, accumulated synchronously
+ * as each event arrives; only the session-wide total comes from the SDK's usage metrics.
  * Returns `undefined` when the payload carries no usable nano-AIU total.
  */
 function readCopilotUsage(raw: unknown): { totalNanoAiu: number } & Record<string, unknown> | undefined {

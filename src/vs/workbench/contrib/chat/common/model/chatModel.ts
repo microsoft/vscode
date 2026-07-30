@@ -1549,6 +1549,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		// slower-arriving detail resolves — the agent host re-emits with the context
 		// attribution and the session cost once its RPCs return — and those
 		// refinements must update the stored usage without being counted again.
+		//
+		// Two consecutive calls reporting identical tokens are indistinguishable here
+		// and the second is treated as a refinement. That is pre-existing: the
+		// `isSameUsage` guard already discarded such a report wholesale.
 		const isNewCall = !currentUsage
 			|| currentUsage.promptTokens !== usage.promptTokens
 			|| currentUsage.completionTokens !== usage.completionTokens
