@@ -103,5 +103,10 @@
 	box-sizing: border-box;
 	margin: 0 auto;
 	padding: 10px;
-	outline: none;
+}
+
+/* The content is the focus fallback when a view does not focus a child of its own. */
+.custom-view-content:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }

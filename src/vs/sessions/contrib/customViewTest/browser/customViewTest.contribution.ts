@@ -6,7 +6,7 @@
 import './media/customViewTest.css';
 import { $ } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -25,36 +25,19 @@ const TEST_CUSTOM_VIEW_ID = 'sessions.customView.test';
 /** Placeholder content used to exercise the custom view grid until real views exist. */
 class TestCustomView extends AbstractCustomView {
 
-	private readonly _itemCount = observableValue<number>(this, 40);
+	private static readonly ITEM_COUNT = 40;
 
 	readonly title: IObservable<string> = constObservable(localize('testCustomView.title', "Test Custom View"));
 	override readonly description: IObservable<string | undefined> = constObservable(
 		localize('testCustomView.description', "A placeholder view used to verify the custom view grid layout, header and scrolling."));
 
-	private _content: HTMLElement | undefined;
-
 	render(container: HTMLElement): void {
-		this._content = container;
-		this._renderItems();
+		for (let i = 0; i < TestCustomView.ITEM_COUNT; i++) {
+			container.appendChild($('.custom-view-test-item', undefined, localize('testCustomView.item', "Item {0}", i + 1)));
+		}
 	}
 
 	layout(_width: number, _height: number): void { }
-
-	addItem(): void {
-		this._itemCount.set(this._itemCount.get() + 10, undefined);
-		this._renderItems();
-	}
-
-	private _renderItems(): void {
-		if (!this._content) {
-			return;
-		}
-
-		this._content.textContent = '';
-		for (let i = 0; i < this._itemCount.get(); i++) {
-			this._content.appendChild($('.custom-view-test-item', undefined, `Item ${i + 1}`));
-		}
-	}
 }
 
 class TestCustomViewContribution extends Disposable {

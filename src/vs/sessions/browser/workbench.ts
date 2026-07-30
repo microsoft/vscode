@@ -1776,9 +1776,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			// Re-run updateStyles() on pane composite parts so that
 			// mobile Part subclasses can re-apply or clear card-chrome
 			// inline styles based on the new `.phone-layout` class.
-			for (const partId of [Parts.SESSIONS_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART]) {
+			for (const partId of [Parts.SESSIONS_PART, Parts.CUSTOM_VIEW_GRID_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART]) {
 				this.parts.get(partId)?.updateStyles();
 			}
+
+			this._updateMobileCustomViewNavigation();
 		}
 		this._previousViewportClass = currentClass;
 
@@ -2341,6 +2343,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _applyCustomViewGridVisibility(descriptor: ICustomViewDescriptor | undefined): void {
 		const visible = !!descriptor;
 		if (this.partVisibility.customViewGrid === visible) {
+			// Swapping one custom view for another only changes what is rendered.
+			this.customViewGridPartService.setView(descriptor);
 			return;
 		}
 
@@ -2376,14 +2380,21 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		this._updateExclusiveLayoutClasses();
 		this.mainContainer.classList.toggle(LayoutClasses.CUSTOM_VIEW_GRID_HIDDEN, !visible);
-		this._updateMobileCustomViewNavigation(visible);
+		this._updateMobileCustomViewNavigation();
 
+		// Mirror the reveal-before-hide order of the grid updates.
+		if (visible) {
+			this._fireDidChangePartVisibility(Parts.CUSTOM_VIEW_GRID_PART, true);
+		}
 		Workbench._CUSTOM_VIEW_EXCLUSIVE_PARTS.forEach((part, index) => {
 			const nowVisible = this._effectiveVisible(part);
 			if (nowVisible !== wasVisible[index]) {
 				this._fireDidChangePartVisibility(part, nowVisible);
 			}
 		});
+		if (!visible) {
+			this._fireDidChangePartVisibility(Parts.CUSTOM_VIEW_GRID_PART, false);
+		}
 
 		this.layout();
 
@@ -2415,16 +2426,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	/** Keeps the Android back button in sync with a shown custom view. */
-	private _updateMobileCustomViewNavigation(visible: boolean): void {
-		if (this.layoutPolicy.viewportClass.get() !== 'phone') {
+	private _updateMobileCustomViewNavigation(): void {
+		const tracked = this.layoutPolicy.viewportClass.get() === 'phone' && this.partVisibility.customViewGrid;
+		if (tracked === this.mobileNavStack.has('customView')) {
 			return;
 		}
 
-		if (visible) {
-			if (!this.mobileNavStack.has('customView')) {
-				this.mobileNavStack.push('customView');
-			}
-		} else if (this.mobileNavStack.has('customView')) {
+		if (tracked) {
+			this.mobileNavStack.push('customView');
+		} else {
 			this.mobileNavStack.popSilently('customView');
 		}
 	}

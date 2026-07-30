@@ -55,6 +55,7 @@ suite('Sessions - Workbench', () => {
 	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined) => void;
 	const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const setPanelHidden = Reflect.get(Workbench.prototype, 'setPanelHidden') as (this: ITestWorkbench, hidden: boolean) => void;
+	const updateMobileCustomViewNavigation = Reflect.get(Workbench.prototype, '_updateMobileCustomViewNavigation') as (this: ITestWorkbench) => void;
 	const isVisible = Workbench.prototype.isVisible as (this: ITestWorkbench, part: Parts) => boolean;
 	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 
@@ -81,7 +82,9 @@ suite('Sessions - Workbench', () => {
 		readonly focusedParts: Parts[];
 		readonly renderedCustomViews: (object | undefined)[];
 		readonly gridVisibility: Map<object, boolean>;
+		readonly mobileNavLayers: string[];
 		readonly focusedSessions: number;
+		layoutPolicy: { viewportClass: { get(): string } };
 		sessionsPartView: object;
 		panelPartView: object;
 		customViewGridPartView: object;
@@ -154,6 +157,7 @@ suite('Sessions - Workbench', () => {
 		const focusedParts: Parts[] = [];
 		const renderedCustomViews: (object | undefined)[] = [];
 		const gridVisibility = new Map<object, boolean>();
+		const mobileNavLayers: string[] = [];
 		let focusedSessions = 0;
 		const notifyPartVisibility = (view: object, visible: boolean) => notifyPartVisibilityOn(host as unknown as ITestWorkbench, view, visible);
 		let editorNodeVisible = (options.partVisibility?.editor ?? false) || (options.partVisibility?.auxiliaryBar ?? true);
@@ -225,6 +229,11 @@ suite('Sessions - Workbench', () => {
 			hasFocus: (part: Parts) => options.focusedPart === part,
 			focusPart: (part: Parts) => { focusedParts.push(part); },
 			layout: () => { },
+			mobileNavStack: {
+				has: (layer: string) => mobileNavLayers.includes(layer),
+				push: (layer: string) => { mobileNavLayers.push(layer); },
+				popSilently: (layer: string) => { mobileNavLayers.splice(mobileNavLayers.indexOf(layer), 1); },
+			},
 			customViewGridPartService: { setView: (descriptor: object | undefined) => { renderedCustomViews.push(descriptor); }, focusActiveView: () => { } },
 			_customViewVisibleKey: { set: () => { } },
 			sessionsPartService: { focusSession: () => { focusedSessions++; } },
@@ -239,6 +248,7 @@ suite('Sessions - Workbench', () => {
 			focusedParts,
 			renderedCustomViews,
 			gridVisibility,
+			mobileNavLayers,
 			get focusedSessions() { return focusedSessions; },
 		};
 
@@ -1836,6 +1846,7 @@ suite('Sessions - Workbench', () => {
 				panel: false,
 			},
 			events: [
+				{ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true },
 				{ partId: Parts.SESSIONS_PART, visible: false },
 				{ partId: Parts.EDITOR_PART, visible: false },
 				{ partId: Parts.AUXILIARYBAR_PART, visible: false },
@@ -1880,6 +1891,45 @@ suite('Sessions - Workbench', () => {
 			auxiliaryBar: true,
 			panel: false,
 			focusedSessions: 1,
+		});
+	});
+
+	test('swapping to another custom view re-renders it without touching the layout', () => {
+		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, sessions: true } });
+		const first = {};
+		const second = {};
+
+		applyCustomViewGridVisibility.call(host, first);
+		const eventsAfterShow = host.events.length;
+		applyCustomViewGridVisibility.call(host, second);
+
+		assert.deepStrictEqual({
+			renderedCustomViews: host.renderedCustomViews,
+			customViewGridVisible: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
+			sessions: isVisible.call(host, Parts.SESSIONS_PART),
+			eventsAfterSwap: host.events.length - eventsAfterShow,
+		}, {
+			renderedCustomViews: [first, second],
+			customViewGridVisible: true,
+			sessions: false,
+			eventsAfterSwap: 0,
+		});
+	});
+
+	test('tracks the custom view in the phone navigation stack and drops it when leaving phone layout', () => {
+		const host = createHost();
+		host.layoutPolicy.viewportClass.get = () => 'phone';
+
+		applyCustomViewGridVisibility.call(host, {});
+		const onPhone = [...host.mobileNavLayers];
+
+		// Rotating back to a desktop-class viewport must not leave a stale entry behind.
+		host.layoutPolicy.viewportClass.get = () => 'desktop';
+		updateMobileCustomViewNavigation.call(host);
+
+		assert.deepStrictEqual({ onPhone, afterLeavingPhone: host.mobileNavLayers }, {
+			onPhone: ['customView'],
+			afterLeavingPhone: [],
 		});
 	});
 
