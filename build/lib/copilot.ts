@@ -116,6 +116,10 @@ function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 		'prebuilds/*/Copilot Computer Use.app/**',
 		'prebuilds/*/CopilotComputerUse.exe',
 		'prebuilds/*/keytar.node',
+		// macOS voice media-pause helper (MediaRemote adapter). Optional and
+		// nested under prebuilds; keep it out of the product so universal
+		// merge does not need to special-case the framework binary tree.
+		'prebuilds/*/mediaremote-adapter/**',
 	];
 
 	if (platform !== 'win32') {
@@ -304,11 +308,15 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
 	const extVersion = readCopilotPackageVersion(copilotBase);
 	const { dir: platformPackageDir, cleanup } = resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch, extVersion, appNodeModulesDir, options);
 	try {
+		const sdkPrebuildsTarget = path.join(copilotBase, 'sdk', 'prebuilds', copilotPackagePlatformArch);
 		copyRequiredDirectory(
 			path.join(platformPackageDir, 'prebuilds', copilotPackagePlatformArch),
-			path.join(copilotBase, 'sdk', 'prebuilds', copilotPackagePlatformArch),
+			sdkPrebuildsTarget,
 			`Copilot SDK native prebuilds for ${copilotPackagePlatformArch}`
 		);
+		// Built-in materialization copies the whole prebuilds tree (not the gulp
+		// exclude globs above), so drop mediaremote-adapter explicitly afterward.
+		fs.rmSync(path.join(sdkPrebuildsTarget, 'mediaremote-adapter'), { recursive: true, force: true });
 
 		if (!copilotTgrepPlatforms.includes(tgrepPlatformArch)) {
 			return;
