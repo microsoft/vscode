@@ -372,12 +372,12 @@ const SCRIPT: readonly Beat[] = [
 	{
 		note: '\u2026and it asks back. It speaks the question while showing the options.',
 		ms: 7400, home: 'floating', glow: 'speaking', voice: 'speaking', dark: true,
-		text: 'Which search would you like?', body: { kind: 'questions', step: 0 },
+		text: PLAN_Q, body: { kind: 'questions', step: 0 },
 	},
 	{
 		note: 'Answer by clicking, or just say it out loud.',
-		ms: 6600, home: 'floating', glow: 'rest', voice: 'idle', dark: true,
-		body: { kind: 'questions', step: 1, answered: true },
+		ms: 6600, home: 'floating', glow: 'listening', voice: 'listening', dark: true,
+		text: PLAN_Q, body: { kind: 'questions', step: 1, answered: true },
 	},
 
 	// --- Act 9: fan-out --------------------------------------------------------
@@ -836,11 +836,69 @@ const CSS = `
 .omnibar-meter-label { opacity: .65; font-variant-numeric: tabular-nums; }
 
 /* Clarifying questions */
-.omnibar-question-head { display: flex; align-items: baseline; gap: 9px; padding: 3px 14px 6px; }
-.omnibar-question-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; }
-.omnibar-question-step { flex: 0 0 auto; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .45; }
 .omnibar-question-foot { display: flex; align-items: center; padding: 6px 14px 2px; font-size: 11px; opacity: .5; }
 .omnibar-question-hint { margin-left: auto; }
+
+/*
+ * chatQuestionCarouselPart, reproduced class for class so the demo shows the
+ * widget that actually ships rather than an approximation of it.
+ */
+.chat-question-title-row { display: flex; align-items: flex-start; gap: 8px; padding: 2px 14px 6px; }
+.chat-question-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; line-height: 1.4; }
+.chat-question-header-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.chat-question-close { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; opacity: .6; color: var(--vscode-icon-foreground); }
+.chat-question-close .codicon[class*='codicon-'] { font-size: var(--vscode-codiconFontSize-compact, 12px); }
+
+.chat-question-list { display: flex; flex-direction: column; padding: 0 8px; }
+.chat-question-list-item {
+	display: flex; align-items: center; gap: 8px;
+	padding: 5px 8px;
+	border-radius: var(--vscode-cornerRadius-medium, 5px);
+	user-select: none;
+}
+.chat-question-list-item.has-description { align-items: flex-start; }
+.chat-question-list-item.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+.chat-question-list-number {
+	flex: 0 0 auto; min-width: 1ch; text-align: right;
+	font-size: 11px; font-weight: 600; line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-question-list-indicator {
+	flex: 0 0 auto; width: 16px; height: 16px;
+	display: flex; align-items: center; justify-content: center;
+	order: 3; margin-left: auto;
+}
+.chat-question-list-indicator .codicon[class*='codicon-'] { font-size: var(--vscode-codiconFontSize-compact, 12px); }
+.chat-question-list-label { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 12px; font-weight: 600; line-height: 1.4; }
+.chat-question-list-label-title { font-weight: 600; line-height: 1.4; }
+.chat-question-list-label-desc { font-weight: 400; font-size: 11px; color: var(--vscode-descriptionForeground); }
+
+.chat-question-freeform { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 4px 8px; }
+.chat-question-freeform-number { flex: 0 0 auto; min-width: 1ch; text-align: right; font-size: 11px; font-weight: 600; color: var(--vscode-descriptionForeground); }
+.chat-question-freeform-textarea {
+	flex: 1; min-width: 0; min-height: 22px; padding: 3px 8px; box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, rgba(127,127,127,.35));
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-placeholderForeground);
+	border-radius: var(--vscode-cornerRadius-medium, 5px);
+	font-size: 11px; line-height: 16px;
+}
+
+.chat-question-footer-row {
+	display: flex; justify-content: space-between; align-items: center;
+	margin-top: 4px; padding: 4px 12px 2px;
+	border-top: 1px solid var(--vscode-chat-requestBorder, rgba(127,127,127,.2));
+}
+.chat-question-footer-left, .chat-question-footer-right { display: flex; align-items: center; gap: 8px; }
+.chat-question-nav-arrows { display: flex; align-items: center; gap: 4px; }
+.chat-question-nav-arrow { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; color: var(--vscode-foreground); }
+.chat-question-nav-arrow.disabled { opacity: .4; }
+.chat-question-nav-arrow .codicon[class*='codicon-'] { font-size: var(--vscode-codiconFontSize-compact, 12px); }
+.chat-question-step-indicator { font-size: 11px; color: var(--vscode-descriptionForeground); }
+.chat-question-submit-hint { font-size: 11px; color: var(--vscode-descriptionForeground); }
 
 /* Progress through the script */
 .omnibar-timeline { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 3px; }
@@ -1039,7 +1097,7 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 	const head = $('.omnibar-fan-head');
 	head.appendChild(renderIcon(Codicon.arrowRight));
 	const headText = $('span');
-	headText.textContent = 'Sent to 3 sessions · “bump the copyright year”';
+	headText.textContent = 'Sent to 3 sessions · “update the footer copyright to 2026”';
 	head.appendChild(headText);
 	inner.appendChild(head);
 
@@ -1216,42 +1274,108 @@ function buildSent(): HTMLElement {
  * indicator, selectable options, and a way to skip. The agent speaks the
  * question while this is on screen, so you can answer by voice or by clicking.
  */
+/*
+ * The real chatQuestionCarouselPart, class for class: a title row with a skip
+ * action, numbered options with a check indicator, a freeform row on the end,
+ * and a footer carrying nav arrows, an "n/total" step indicator and the submit
+ * hint. Options are numbered rather than radio-marked because you answer them
+ * by typing the number as readily as by clicking.
+ */
 function buildQuestions(step: number, answered: boolean | undefined): HTMLElement {
-	const inner = $('.omnibar-body-inner');
+	const inner = $('.omnibar-body-inner.chat-question-carousel-container');
 
-	const steps: readonly { readonly title: string; readonly options: readonly string[] }[] = [
-		{ title: 'Which search would you like?', options: ['Algolia DocSearch', 'Local index', 'Pagefind'] },
-		{ title: 'What should it cover?', options: ['Docs only', 'The whole site'] },
+	const steps: readonly { readonly title: string; readonly options: readonly (readonly [string, string])[] }[] = [
+		{
+			title: 'Which search would you like?',
+			options: [
+				['Algolia DocSearch', 'Hosted, needs an API key'],
+				['Local index', 'Built at deploy time'],
+				['Pagefind', 'Static, no service'],
+			],
+		},
+		{
+			title: 'What should it cover?',
+			options: [
+				['Docs only', ''],
+				['The whole site', ''],
+			],
+		},
 	];
-	const current = steps[Math.min(step, steps.length - 1)];
+	const index = Math.min(step, steps.length - 1);
+	const current = steps[index];
 
-	const head = $('.omnibar-question-head');
-	const title = $('span.omnibar-question-title');
+	const titleRow = $('.chat-question-title-row');
+	const title = $('.chat-question-title');
 	title.textContent = current.title;
-	const indicator = $('span.omnibar-question-step');
-	indicator.textContent = `Question ${Math.min(step, steps.length - 1) + 1} of ${steps.length}`;
-	head.append(title, indicator);
-	inner.appendChild(head);
+	const actions = $('.chat-question-header-actions');
+	const close = $('span.chat-question-close');
+	close.appendChild(renderIcon(Codicon.close));
+	close.title = 'Skip all questions';
+	actions.appendChild(close);
+	titleRow.append(title, actions);
+	inner.appendChild(titleRow);
 
-	current.options.forEach((label, i) => {
+	const list = $('.chat-question-list');
+	current.options.forEach(([label, desc], i) => {
 		// On the answered beat the first option reads as chosen, so the demo shows
 		// the selection landing rather than only the ask.
-		const chosen = answered && i === 0;
-		const el = row(
-			icon(chosen ? Codicon.pass : Codicon.circleOutline, chosen ? stateColor('done') : undefined),
-			label,
-			undefined,
-			chosen,
-		);
-		inner.appendChild(el);
+		const chosen = !!answered && i === 0;
+		const item = $('.chat-question-list-item');
+		item.classList.toggle('selected', chosen);
+		item.classList.toggle('has-description', !!desc);
+
+		const num = $('.chat-question-list-number');
+		num.textContent = String(i + 1);
+
+		const indicator = $('.chat-question-list-indicator');
+		if (chosen) {
+			indicator.appendChild(renderIcon(Codicon.check));
+		}
+
+		const labelEl = $('.chat-question-list-label');
+		if (desc) {
+			const t = $('span.chat-question-list-label-title');
+			t.textContent = label;
+			const d = $('span.chat-question-list-label-desc');
+			d.textContent = desc;
+			labelEl.append(t, d);
+		} else {
+			labelEl.textContent = label;
+		}
+
+		item.append(num, indicator, labelEl);
+		list.appendChild(item);
 	});
 
-	const foot = $('.omnibar-question-foot');
-	const skip = $('span');
-	skip.textContent = 'Skip all questions';
-	const submit = $('span.omnibar-question-hint');
-	submit.textContent = answered ? 'Next \u00B7 Enter' : 'Say it or click';
-	foot.append(skip, submit);
+	const freeform = $('.chat-question-freeform');
+	const ffNum = $('.chat-question-freeform-number');
+	ffNum.textContent = String(current.options.length + 1);
+	const ffInput = $('.chat-question-freeform-textarea');
+	ffInput.textContent = 'Enter custom answer';
+	freeform.append(ffNum, ffInput);
+	list.appendChild(freeform);
+	inner.appendChild(list);
+
+	const foot = $('.chat-question-footer-row');
+	const left = $('.chat-question-footer-left');
+	const arrows = $('.chat-question-nav-arrows');
+	const prev = $('span.chat-question-nav-arrow');
+	prev.appendChild(renderIcon(Codicon.chevronLeft));
+	prev.classList.toggle('disabled', index === 0);
+	const next = $('span.chat-question-nav-arrow');
+	next.appendChild(renderIcon(Codicon.chevronRight));
+	next.classList.toggle('disabled', index === steps.length - 1);
+	arrows.append(prev, next);
+	const stepIndicator = $('.chat-question-step-indicator');
+	stepIndicator.textContent = `${index + 1}/${steps.length}`;
+	left.append(arrows, stepIndicator);
+
+	const right = $('.chat-question-footer-right');
+	const hint = $('span.chat-question-submit-hint');
+	hint.textContent = '\u2318\u21A9 to submit';
+	right.appendChild(hint);
+
+	foot.append(left, right);
 	inner.appendChild(foot);
 
 	return stagger(inner);
@@ -1543,7 +1667,9 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		badge.classList.toggle('shown', !!beat.badge);
 
 		const voice = beat.voice ?? 'off';
-		voicePill.classList.toggle('shown', voice !== 'off');
+		// The pill is part of the floating input, not something that appears when
+		// you reach for it — so once undocked it is always there, at rest.
+		voicePill.classList.toggle('shown', beat.home === 'floating' || voice !== 'off');
 		const dictationKey = voice === 'dictating' ? 'filled' : 'plain';
 		if (dictationKey !== currentDictation) {
 			currentDictation = dictationKey;
@@ -1551,13 +1677,14 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 			dictationIcon.appendChild(renderIcon(voice === 'dictating' ? Codicon.micFilled : Codicon.mic));
 		}
 		dictationCell.classList.toggle('active', voice === 'dictating');
-		voiceCell.classList.toggle('idle', voice === 'idle');
+		voiceCell.classList.toggle('idle', voice === 'idle' || voice === 'off');
 		voiceCell.classList.toggle('listening', voice === 'listening');
 		voiceCell.classList.toggle('speaking', voice === 'speaking');
 
-		// Dictation and voice are mutually exclusive, so the inactive cell
-		// collapses away and the active one takes the whole pill.
-		const inVoice = voice === 'idle' || voice === 'listening' || voice === 'speaking';
+		// Dictation and voice are mutually exclusive, so whichever is *engaged*
+		// takes the whole pill and the other collapses. With neither engaged the
+		// pill sits at rest showing both, which is the way in to either one.
+		const inVoice = voice === 'listening' || voice === 'speaking';
 		const dictating = voice === 'dictating';
 		dictationCell.classList.toggle('collapsed', inVoice);
 		voiceCell.classList.toggle('collapsed', dictating);
@@ -1596,12 +1723,19 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 
 	// Elapsed comes from the wall clock rather than accumulating ticks, so the
 	// script keeps its timing even when the browser throttles or drops timers.
-	const started = Date.now();
+	let started = Date.now();
 	let currentIndex = -1;
 	let currentHome: Home | undefined;
 
+	// Lets a screenshot harness jump to a beat instead of waiting three minutes
+	// for one to come round.
+	const view = container.ownerDocument.defaultView as (Window & { omnibarSeek?: (ms: number) => void }) | null;
+	if (view) {
+		view.omnibarSeek = ms => { started = Date.now() - ms; };
+	}
+
 	const frame = () => {
-		const elapsed = (Date.now() - started) % TOTAL_MS;
+		const elapsed = (Date.now() - started + TOTAL_MS) % TOTAL_MS;
 
 		let acc = 0;
 		let index = SCRIPT.length - 1;
