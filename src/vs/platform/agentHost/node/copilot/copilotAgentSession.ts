@@ -31,7 +31,7 @@ import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } fr
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -2915,10 +2915,50 @@ export class CopilotAgentSession extends Disposable {
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
+		const requestId = generateUuid();
+		const questionId = generateUuid();
+		const inputRequest: ChatInputRequest = {
+			id: requestId,
+			questions: [request.choices && request.choices.length > 0
+				? {
+					kind: ChatInputQuestionKind.SingleSelect,
+					id: questionId,
+					message: request.question,
+					required: true,
+					options: request.choices.map(c => ({ id: c, label: c })),
+					allowFreeformInput: request.allowFreeform ?? true,
+				}
+				: {
+					kind: ChatInputQuestionKind.Text,
+					id: questionId,
+					message: request.question,
+					required: true,
+				},
+			],
+		};
+
 		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot || this._isAutoReplyEnabled()) {
+			this._emitAction({
+				type: ActionType.ChatInputRequested,
+				request: inputRequest,
+			});
+			this._emitAction({
+				type: ActionType.ChatInputCompleted,
+				requestId,
+				response: ChatInputResponseKind.Accept,
+				answers: {
+					[questionId]: {
+						state: ChatInputAnswerState.Submitted,
+						value: {
+							kind: ChatInputAnswerValueKind.Text,
+							value: AgentHostAutoReplyAnswer,
+						},
+					},
+				},
+			});
 			return {
-				answer: 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.',
+				answer: AgentHostAutoReplyAnswer,
 				wasFreeform: true,
 			};
 		}
@@ -2929,32 +2969,9 @@ export class CopilotAgentSession extends Disposable {
 
 		const questionPreview = request.question.substring(0, 100);
 		try {
-			const requestId = generateUuid();
-			const questionId = generateUuid();
 			this._logService.info(`[Copilot:${this.sessionId}] User input request: requestId=${requestId}, question="${questionPreview}"`);
 
 			const pendingInput = this._pendingUserInputs.register(requestId, { questionId });
-
-			// Build the protocol ChatInputRequest from the SDK's simple format
-			const inputRequest: ChatInputRequest = {
-				id: requestId,
-				questions: [request.choices && request.choices.length > 0
-					? {
-						kind: ChatInputQuestionKind.SingleSelect,
-						id: questionId,
-						message: request.question,
-						required: true,
-						options: request.choices.map(c => ({ id: c, label: c })),
-						allowFreeformInput: request.allowFreeform ?? true,
-					}
-					: {
-						kind: ChatInputQuestionKind.Text,
-						id: questionId,
-						message: request.question,
-						required: true,
-					},
-				],
-			};
 
 			this._emitAction({
 				type: ActionType.ChatInputRequested,

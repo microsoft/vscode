@@ -451,6 +451,8 @@ export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
  */
 export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
 
+export const AgentHostAutoReplyAnswer = 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.';
+
 /**
  * The VS Code setting ID for auto-reply. Defined here so renderer-side
  * agent-host clients can forward it without importing from `workbench/contrib/chat`.
