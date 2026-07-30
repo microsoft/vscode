@@ -26,6 +26,13 @@ export const agentsLayoutFloatingPanelGap = registerSize(
 	localize('agents.layout.floatingPanelGap', "Gap between floating panels in the Agents window.")
 );
 
+/**
+ * Width the centered content band of a content part is capped to (session
+ * views and custom views), so every content surface in the Agents window keeps
+ * the same measure.
+ */
+export const AGENTS_CENTERED_CONTENT_MAX_WIDTH = 950;
+
 // ============================================================================
 // Agents window — font ramp
 // ============================================================================

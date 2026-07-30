@@ -26,6 +26,7 @@ import { ISessionContext, SessionContext } from '../../services/sessions/browser
 import { autorun, observableFromEvent, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/sizes.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { ChatInteractivity, SessionStatus } from '../../services/sessions/common/session.js';
@@ -49,7 +50,7 @@ export interface ISessionViewOptions extends IChatViewOptions { }
 export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
-	private static readonly CENTERED_CONTENT_MAX_WIDTH = 950;
+	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
 	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
 	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
 	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);

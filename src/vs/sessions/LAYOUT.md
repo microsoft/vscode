@@ -37,6 +37,7 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 | Titlebar | Top, full width | Always visible | Session picker, toggle actions, account widget |
 | Sidebar | Left, below titlebar | Visible | Sessions list |
 | Sessions Part | Center of right section | Visible | Grid of one or more session views (each rendering the active chat of its session) |
+| Custom View Grid | Same row as the Sessions Part | Hidden | Grid of custom views shown *instead of* the Sessions Part — see [§2.4](#24-custom-view-grid) |
 | Editor | In grid, beside Sessions Part | Hidden | Shown for explicit editor workflows |
 | Auxiliary Bar | Right side | Visible | Changes view, file tree |
 | Panel | Below Sessions Part + Aux Bar | Hidden | Terminal, debug output |
@@ -52,7 +53,8 @@ Orientation: VERTICAL (root)
         ├── Top Right (HORIZONTAL)
         │   ├── Sessions Part (leaf, remaining width)
         │   ├── Editor (leaf, hidden by default)
-        │   └── Auxiliary Bar (leaf, 340px default)
+        │   ├── Auxiliary Bar (leaf, 340px default)
+        │   └── Custom View Grid (leaf, hidden by default)
         └── Panel (leaf, 300px default, hidden)
 ```
 
@@ -72,12 +74,31 @@ The workbench grid is built with `proportionalLayout: false` (see `createWorkben
 | Sessions Part | **`High`** | The single flexible view — grows/shrinks to absorb every horizontal delta. `minimumWidth` 300, `maximumWidth` ∞. |
 | Editor | `Normal` | Keeps its user-set width (`600` default); only resized via its own sash. |
 | Auxiliary Bar | `Low` | Keeps its user-set width (`340` default); only resized via its own sash. |
+| Custom View Grid | **`High`** | Claims the whole row. Never visible at the same time as the Sessions Part, so the "exactly one `High` view" invariant below still holds. |
 
 In the single-pane detail-panel layout, first-run sidebar width is slightly narrower (280px) so a typical window keeps roughly balanced chat and third-pane widths when the pane is shown. Persisted `_savedPartSizes` always win over these defaults.
 
 **Invariant — exactly one `High` view in the horizontal chain.** A grid branch derives its priority from its children (`BranchNode.priority` in [base/browser/ui/grid/gridview.ts](src/vs/base/browser/ui/grid/gridview.ts)): `High` if any child is `High`, else `Low` if any child is `Low`, else `Normal`. The Top Right row contains a `Low` auxiliary bar, so unless the Sessions Part is `High` the whole Right Section derives to `Low`. The Content Section would then be `Sidebar (Low) | Right Section (Low)` — two equal-priority views — and with no high-priority absorber the resize delta spreads across **both**, growing the sidebar toward half the window. The Sessions Part being `High` is what lifts the Right Section to `High` so it (not the sidebar) absorbs the delta.
 
 > **Pitfall:** the `High` role must live on the Sessions Part, not the editor. It was previously on the editor, but that made the editor drift to its 300px minimum when the auxiliary bar was toggled across session switches. When moving the role, set the Sessions Part to `High` **and** the editor to `Normal` together — removing `High` from the editor without adding it to the Sessions Part leaves the chain with no `High` view and reintroduces the growing-sidebar bug.
+
+### 2.4 Custom View Grid
+
+The Custom View Grid (`CustomViewGridPart` in [browser/parts/customViewGridPart.ts](src/vs/sessions/browser/parts/customViewGridPart.ts)) hosts full-surface views that replace the sessions grid — for example a management or dashboard surface that is not tied to a single session.
+
+**Contract — it is mutually exclusive with the sessions surface.** While a custom view is shown, the Sessions Part, the Editor part *in the grid*, the Auxiliary Bar (side panel) and the Panel (terminal) are all hidden, and vice versa. Only the titlebar and the primary sidebar remain. The *modal* editor part is not affected and may still open over the custom view.
+
+Which view is shown is owned by `ICustomViewService` ([services/customView/browser/customViewService.ts](src/vs/sessions/services/customView/browser/customViewService.ts)): contributions register an `ICustomViewDescriptor` (id, title, view constructor and optional header actions) and call `showCustomView(id)` / `hideCustomView()`. The workbench observes `activeCustomView` and applies the layout; it is not persisted, so a reload always starts on the sessions grid.
+
+**Desired vs. effective visibility.** The covered parts keep their *desired* visibility in `partVisibility` — showing a custom view only changes what the grid renders (`Workbench._effectiveVisible`). So a layout-controller change made while the custom view is shown (e.g. the user opened a different session in the background) is what gets restored when it is hidden, and `_savePartVisibility` never records the forced-hidden state. `IWorkbenchLayoutService.isVisible` reports the effective value and `onDidChangePartVisibility` fires for the parts whose effective visibility flips, so context keys stay truthful; the layout controller's per-session capture listeners skip those transitions (`_isCustomViewVisible`).
+
+> **Pitfall:** `SplitView` calls `Part.setVisible` when a view's grid visibility changes, and the workbench maps that event straight back onto the desired visibility (`setSessionsHidden`, `setPanelHidden`, …). The custom view's grid updates therefore run under `_applyingCustomViewGridVisibility`, which makes that listener bail — without it, hiding the parts for a custom view *overwrites* the state that is supposed to be restored, and hiding the custom view leaves neither grid visible. For the same reason, showing a custom view first exits a maximized editor (a maximized editor owns the row instead of the sessions grid) and the grid descriptor is built from the effective values.
+
+**Dismissal.** Opening a session (`SessionsService._startOpenSession`, which every explicit open gesture funnels through) hides the custom view. On phone layouts showing one pushes a `MobileNavigationStack` layer, so the Android back button dismisses it. Actions that operate on the hidden parts — Toggle Side Panel, Open Terminal, and the secondary side bar toggle — are disabled while it is shown (`CustomViewVisibleContext`).
+
+**Chrome.** Each grid leaf is a `CustomViewNode` ([browser/parts/customViewNode.ts](src/vs/sessions/browser/parts/customViewNode.ts)) that owns the shared header — title, optional description and the contributed actions rendered either as an icon toolbar or a button bar — above a scroll container that grows a bottom border on the header as soon as the content is scrolled. The header band and the content are centred and capped to `AGENTS_CENTERED_CONTENT_MAX_WIDTH` (the same measure the session views use); a view may override it with `AbstractCustomView.maxWidth`. Views only fill the content container and are disposed when hidden.
+
+**Card chrome is shared.** The Sessions Part and the Custom View Grid both carry the `agents-part-card` class (`AGENTS_PART_CARD_CLASS`) and use `agentsPartCard.ts` for their metrics, themed colors and content-box math, so their padding, margins, background, border and corner radius are defined once and are identical.
 
 ---
 
