@@ -40,7 +40,7 @@ class KimiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 				Follow the user's requirements carefully and use the provided workspace context, attachments, and tool results as reference material. If the answer is not supported by the available context, gather more context before acting or state the limitation clearly.
 			</Tag>
 
-			{this.props.modelFamily.toLowerCase().includes('kimi-k3') && <>{KIMI_K3_BIOSECURITY_AND_CHEMICAL_SAFETY_POLICY}<br /></>}
+			{this.props.modelFamily?.toLowerCase().includes('kimi-k3') && <>{KIMI_K3_BIOSECURITY_AND_CHEMICAL_SAFETY_POLICY}<br /></>}
 
 			<Tag name='taskApproach'>
 				Use clear, step-by-step task execution:<br />
