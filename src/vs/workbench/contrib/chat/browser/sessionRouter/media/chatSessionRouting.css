@@ -103,11 +103,25 @@
 /*
  * The preselected row is what will actually happen in a few seconds, so it
  * carries the active selection rather than the inactive one — this is a live
- * decision, not a remembered highlight.
+ * decision, not a remembered highlight. Themes whose active selection is a
+ * quiet tint still need it to be unmistakable, so it also takes a leading
+ * accent bar.
  */
 .chat-routing-badge-row.selected {
+	position: relative;
 	background-color: var(--vscode-list-activeSelectionBackground);
 	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chat-routing-badge-row.selected::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 2px;
+	border-radius: var(--vscode-cornerRadius-circle, 999px);
+	background-color: var(--vscode-focusBorder);
 }
 
 .chat-routing-badge-row.selected .chat-routing-badge-score {
@@ -150,26 +164,28 @@
 
 /*
  * A short meter beside the number: confidence is a quantity, and a bar is read
- * at a glance where a percentage has to be parsed.
+ * at a glance where a percentage has to be parsed. The track is tinted through
+ * its own background rather than `opacity`, which would cascade onto the fill
+ * and make the two indistinguishable.
  */
 .chat-routing-badge-meter {
 	flex: 0 0 auto;
 	width: 44px;
-	height: 2px;
+	height: 3px;
 	border-radius: var(--vscode-cornerRadius-circle, 999px);
-	background-color: var(--vscode-foreground);
-	opacity: .18;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
 	overflow: hidden;
 }
 
 .chat-routing-badge-meter > span {
 	display: block;
 	height: 100%;
-	background-color: var(--vscode-foreground);
+	border-radius: inherit;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
 }
 
-.chat-routing-badge-row.selected .chat-routing-badge-meter {
-	opacity: .35;
+.chat-routing-badge-row.selected .chat-routing-badge-meter > span {
+	background-color: var(--vscode-foreground);
 }
 
 .chat-routing-badge-foot {
@@ -183,4 +199,16 @@
 
 .chat-routing-badge-foot-end {
 	margin-left: auto;
+}
+
+/* Completion mark on the sent confirmation: neutral, at the icon tier. */
+.chat-routing-badge-sent-mark {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-foreground);
+}
+
+.chat-routing-badge-sent-mark .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }

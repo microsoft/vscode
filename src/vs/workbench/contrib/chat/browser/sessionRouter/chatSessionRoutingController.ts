@@ -472,6 +472,11 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 
 		const badge = dom.$('.chat-routing-badge');
+		// White, not green: every other colour in this surface says who is acting
+		// or what is needed, and "finished" is the absence of state rather than a
+		// state of its own.
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(Codicon.pass));
 		const labelEl = dom.append(badge, dom.$('span.chat-routing-badge-label'));
 		labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
 		this.host.placeBadge(badge);
