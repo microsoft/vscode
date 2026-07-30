@@ -538,6 +538,39 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
+		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
+			const turn = createTurn({
+				responseParts: [
+					{
+						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+							toolCallId: 'tc-marked',
+							toolInput: 'my-custom-script',
+							_meta: { toolKind: 'terminal', autoApproveRuleResolvable: true },
+							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///marked', title: 'Terminal' }],
+							success: true,
+						})
+					} as ToolCallResponsePart,
+					{
+						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+							toolCallId: 'tc-unmarked',
+							toolInput: 'echo hello',
+							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///unmarked', title: 'Terminal' }],
+							success: true,
+						})
+					} as ToolCallResponsePart,
+				],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			assert.deepStrictEqual(
+				response.parts.map(part => getSerializedTerminalData(part as IChatToolInvocationSerialized).autoApproveRuleResolvable),
+				[true, undefined],
+				'flag is copied from tool call meta and absent otherwise');
+		});
+
 		test('terminal tool call in history carries the LM intention', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1036,13 +1069,6 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData, undefined, 'no terminal pill without a command');
 			assert.strictEqual(invocation.invocationMessage, 'Running shell command');
-		});
-
-		test('creates invocation without toolArguments', () => {
-			const tc = createToolCallState({});
-
-			const invocation = toolCallStateToInvocation(tc);
-			assert.strictEqual(invocation.toolCallId, 'tc-1');
 		});
 
 		test('sets subagent toolSpecificData from _meta for subagent toolKind', () => {
@@ -2066,6 +2092,52 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
 			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
 			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+		});
+
+		test('preserves an explicitly empty non-PTY retained completion snapshot', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'true',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: '' } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.deepStrictEqual(termData.terminalCommandOutput, { text: '' });
+		});
+
+		test('does not store an explicitly empty PTY completion preview when isPty is omitted', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'true',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///pty-empty', title: 'Run Shell Command', result: { exitCode: 0, preview: '' } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
 		test('does not use text content when a terminal block owns the output', () => {

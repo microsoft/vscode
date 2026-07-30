@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -21,10 +22,12 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	getProvider(accessor: ServicesAccessor) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsService = accessor.get(ISessionsService);
+		const previouslyFocused = getActiveElement();
 
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
+		content.push(localize('sessionsChat.feedbackComments', "When feedback comments are available for a new session, a comments banner appears above the input. You can send the comments without typing a message, or focus the Reveal button to open the first comment in its editor."));
 		content.push(localize('sessionsChat.inputBackground', "Press Alt+Enter to start the session in the background without navigating into it. The started session appears in the Chat Sessions view."));
 		content.push(localize('sessionsChat.workspace', "Shift+Tab to navigate to the workspace picker and choose a workspace for your session."));
 		content.push(localize('sessionsChat.pickFolderQuickPick', "To choose a folder from a searchable list instead, use the New Session in Folder command{0}.", '<keybinding:workbench.action.sessions.newSession.pickFolderQuickPick>'));
@@ -45,6 +48,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.goForward', "Go forward through visited sessions{0}.", '<keybinding:sessions.goForward>'));
 		content.push(localize('sessionsChat.navigatePreviousSession', "Navigate to the previous session in the list{0}.", '<keybinding:sessionsViewPane.navigatePreviousSession>'));
 		content.push(localize('sessionsChat.navigateNextSession', "Navigate to the next session in the list{0}.", '<keybinding:sessionsViewPane.navigateNextSession>'));
+		content.push(localize('sessionsChat.renameSession', "To rename a session, double-click its title in the sessions list. With the keyboard, focus the session, open its context menu (for example, with Shift+F10), and choose Rename."));
 		content.push(localize('sessionsChat.changes', "Focus the Changes view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesView>'));
 		content.push(localize('sessionsChat.viewAllChanges', "The session header shows the diff stats (lines added and removed) as a button. Activate it to open the multi-file diff editor for all of the session's changes{0}.", '<keybinding:workbench.agentSessions.action.viewChanges>'));
 		content.push(localize('sessionsChat.openPullRequest', "When the session is associated with a GitHub pull request, the session header shows the pull request number as a button. Activate it to open the pull request on GitHub{0}.", '<keybinding:workbench.agentSessions.action.openPullRequest>'));
@@ -58,6 +62,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n'),
 			() => {
+				if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
+					previouslyFocused.focus();
+					return;
+				}
 				const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
 				view?.focus();
 			},

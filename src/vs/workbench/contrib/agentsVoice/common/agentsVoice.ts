@@ -32,6 +32,12 @@ export const enum AgentsVoiceStorageKeys {
 	WindowBounds = 'agentsVoice.windowBounds',
 	TranscriptIndex = 'agentsVoice.transcriptIndex',
 	OnboardingCompleted = 'agentsVoice.onboardingCompleted',
+	/**
+	 * First-run introduction shown above the chat input. Distinct from
+	 * {@link OnboardingCompleted}, which tracks the Voice Mode window's own
+	 * onboarding.
+	 */
+	IntroBannerShown = 'agentsVoice.introBannerShown',
 	MicrophoneDevice = 'agentsVoice.microphoneDevice',
 }
 

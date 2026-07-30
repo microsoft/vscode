@@ -71,6 +71,16 @@ export interface IMaterializeContext {
 	 */
 	readonly workingDirectory?: URI;
 	/**
+	 * The full ordered working-directory set the host resolved for this session's
+	 * first send (index 0 = the resolved process root, e.g. a worktree; 1..N =
+	 * additional directories). When present it replaces both the primary
+	 * ({@link workingDirectory}) and the session's additional-directory tail.
+	 * Takes precedence over {@link workingDirectory}; the latter is kept for
+	 * single-root callers that only resolve the primary. Omitted when the host
+	 * did not resolve a set (folder / workspace-less single-root sessions).
+	 */
+	readonly workingDirectories?: readonly URI[];
+	/**
 	 * Agent host's server-tool host. When present, the session exposes the
 	 * agent host's server tools (feedback "comments" today, more in the future)
 	 * as an in-process MCP server and advertises them as server tools. Omitted
@@ -148,6 +158,25 @@ export class ClaudeAgentSession extends Disposable {
 		return this._workingDirectory ?? this.workspace;
 	}
 	private _workingDirectory: URI | undefined;
+
+	/**
+	 * The additional (non-primary) working directories this session's agent is
+	 * granted tool access to, in order (they follow index 0 = the primary
+	 * {@link workingDirectory}). A worktree remap only replaces the primary, so
+	 * this tail is stable from creation and is preserved across every SDK
+	 * (re)materialization. Empty for single-root sessions.
+	 */
+	private _additionalDirectories: readonly URI[];
+
+	/**
+	 * The full ordered working-directory set (index 0 = primary, 1..N =
+	 * {@link _additionalDirectories}). `undefined` only when the session has no
+	 * resolved primary yet (workspace-less, pre-materialize).
+	 */
+	get workingDirectories(): readonly URI[] | undefined {
+		const primary = this.workingDirectory;
+		return primary ? [primary, ...this._additionalDirectories] : undefined;
+	}
 	private readonly _customizationWatcher = this._register(new DisposableStore());
 
 	/** Exposed for the materializer's MCP-server build closure. */
@@ -168,6 +197,7 @@ export class ClaudeAgentSession extends Disposable {
 		permissionModeFallback: ClaudePermissionMode,
 		metadataStore: ClaudeSessionMetadataStore,
 		instantiationService: IInstantiationService,
+		additionalDirectories: readonly URI[] = [],
 	): ClaudeAgentSession {
 		return instantiationService.createInstance(
 			ClaudeAgentSession,
@@ -184,6 +214,7 @@ export class ClaudeAgentSession extends Disposable {
 			new SessionClientToolsDiff(),
 			permissionModeFallback,
 			metadataStore,
+			additionalDirectories,
 		);
 	}
 
@@ -333,6 +364,7 @@ export class ClaudeAgentSession extends Disposable {
 		toolDiff: SessionClientToolsDiff,
 		private readonly _permissionModeFallback: ClaudePermissionMode,
 		private readonly _metadataStore: ClaudeSessionMetadataStore,
+		additionalDirectories: readonly URI[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -349,6 +381,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
 		this.abortController = abortController;
+		this._additionalDirectories = additionalDirectories;
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 
@@ -432,10 +465,18 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		// Adopt the host-resolved working directory (e.g. an isolated worktree)
 		// before it's read below; falls back to the session's `workspace` when the
-		// host didn't resolve a dedicated directory.
-		if (ctx.workingDirectory && !isEqual(ctx.workingDirectory, this.workingDirectory)) {
-			this._workingDirectory = ctx.workingDirectory;
-			this._watchCustomizations(ctx.workingDirectory);
+		// host didn't resolve a dedicated directory. The plural
+		// `workingDirectories` (index 0 = resolved primary, 1..N = additional
+		// roots) takes precedence and also refreshes the additional-directory
+		// tail; the singular `workingDirectory` stays supported for single-root
+		// callers that only resolve the primary.
+		const resolvedPrimary = ctx.workingDirectories?.[0] ?? ctx.workingDirectory;
+		if (resolvedPrimary && !isEqual(resolvedPrimary, this.workingDirectory)) {
+			this._workingDirectory = resolvedPrimary;
+			this._watchCustomizations(resolvedPrimary);
+		}
+		if (ctx.workingDirectories && ctx.workingDirectories.length > 0) {
+			this._additionalDirectories = ctx.workingDirectories.slice(1);
 		}
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
@@ -450,6 +491,7 @@ export class ClaudeAgentSession extends Disposable {
 			{
 				sessionId: this.sessionId,
 				workingDirectory: this.workingDirectory,
+				additionalDirectories: this._additionalDirectories,
 				model: this._provisionalModel,
 				abortController: this.abortController,
 				permissionMode,
@@ -521,6 +563,11 @@ export class ClaudeAgentSession extends Disposable {
 					model: this._provisionalModel,
 					permissionMode,
 					transport: ctx.transport.kind,
+					// Persist the full ordered set so a cold resume / remove-all /
+					// fork can recover the tail (the SDK catalog only stores `cwd`).
+					// Only meaningful when there is a tail; single-root sessions
+					// leave it absent so absence reads as single-root.
+					...(this._additionalDirectories.length > 0 && this.workingDirectories ? { workingDirectories: this.workingDirectories } : {}),
 				});
 			} catch (err) {
 				this._logService.error(`[Claude] Failed to persist customization directory; aborting materialize`, err);
@@ -547,6 +594,7 @@ export class ClaudeAgentSession extends Disposable {
 					{
 						sessionId: this.sessionId,
 						workingDirectory: this.workingDirectory!,
+						additionalDirectories: this._additionalDirectories,
 						model: this._provisionalModel,
 						abortController: rebuildAbort,
 						permissionMode: liveMode,

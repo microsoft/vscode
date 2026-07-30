@@ -88,6 +88,8 @@ export class MockAgent implements IAgent {
 	 * subagent turns via {@link buildSubagentTurnsFromHistory}.
 	 */
 	sessionMessages: IHistoryRecord[] = [];
+	/** Usage stamped onto every reconstructed turn (e.g. an Auto-model stub). */
+	turnUsageOverride: UsageInfo | undefined = undefined;
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -141,7 +143,7 @@ export class MockAgent implements IAgent {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
-		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
+		return { session, project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -192,7 +194,11 @@ export class MockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this.sessionMessages, subagentInfo.toolCallId, session.toString());
 		}
-		return buildTurnsFromHistory(this.sessionMessages);
+		const turns = buildTurnsFromHistory(this.sessionMessages);
+		if (this.turnUsageOverride) {
+			return turns.map(turn => ({ ...turn, usage: this.turnUsageOverride }));
+		}
+		return turns;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -266,7 +272,7 @@ export class MockAgent implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.disposeChat(session, chat);
 		},
-		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},
@@ -949,7 +955,7 @@ export class ScriptedMockAgent implements IAgent {
 		disposeChat: (_chat: URI): Promise<void> => {
 			return Promise.resolve();
 		},
-		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
 		},

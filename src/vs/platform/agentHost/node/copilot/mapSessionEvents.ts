@@ -17,7 +17,7 @@ import { MessageAttachmentKind, type MessageAttachment } from '../../common/stat
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
-import { buildSessionDbUri } from '../shared/fileEditTracker.js';
+import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
@@ -131,6 +131,10 @@ interface ISubagentInfo {
 interface ITurnBuilder {
 	id: string;
 	message: Message;
+	/** ISO 8601 timestamp of the SDK event that opened this turn, when known. */
+	startedAt: string | undefined;
+	/** ISO 8601 timestamp of the most recent SDK event that belonged to this turn. */
+	lastEventAt: string | undefined;
 	readonly responseParts: ResponsePart[];
 	usage: UsageInfo | undefined;
 	error: ErrorInfo | undefined;
@@ -144,7 +148,7 @@ export interface IMapSessionEventsOptions {
 	readonly agent?: AgentSelection;
 }
 
-function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind }): ITurnBuilder {
+function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind; startedAt?: string }): ITurnBuilder {
 	const message: Message = {
 		text,
 		origin: { kind: options?.origin ?? MessageKind.User },
@@ -152,7 +156,13 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, responseParts: [], usage: undefined, error: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, error: undefined, pendingTools: new Map() };
+}
+
+/** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
+function readEventTimestamp(event: SessionEvent): string | undefined {
+	const timestamp: unknown = event.timestamp;
+	return isString(timestamp) && Number.isFinite(Date.parse(timestamp)) ? timestamp : undefined;
 }
 
 function readStringProperty(source: unknown, key: string): string | undefined {
@@ -217,9 +227,17 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	};
 }
 
+/** Seals a turn builder into a {@link Turn}, deriving `duration` from its first and last event timestamps. */
 function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
+	const startedAtMs = builder.startedAt === undefined ? undefined : Date.parse(builder.startedAt);
+	const endedAtMs = builder.lastEventAt === undefined ? undefined : Date.parse(builder.lastEventAt);
+	const duration = startedAtMs !== undefined && endedAtMs !== undefined && Number.isFinite(startedAtMs) && Number.isFinite(endedAtMs)
+		? Math.max(0, endedAtMs - startedAtMs)
+		: undefined;
 	return {
 		id: builder.id,
+		...(builder.startedAt !== undefined ? { startedAt: builder.startedAt } : {}),
+		...(duration !== undefined ? { duration } : {}),
 		message: builder.message,
 		responseParts: builder.responseParts,
 		usage: builder.usage,
@@ -339,6 +357,16 @@ export async function mapSessionEvents(
 	const finishedSubagentTurns = new Set<string>();
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 
+	/** Envelope timestamp of the event currently being processed. */
+	let currentEventTimestamp: string | undefined;
+
+	/** Records the current event as belonging to `builder`, so it bounds that turn's duration. */
+	const touch = (builder: ITurnBuilder | undefined): void => {
+		if (builder && currentEventTimestamp !== undefined) {
+			builder.lastEventAt = currentEventTimestamp;
+		}
+	};
+
 	const flushParent = (): void => {
 		if (!parentBuilder) {
 			return;
@@ -370,12 +398,13 @@ export async function mapSessionEvents(
 	const ensureSubagentBuilder = (parentToolCallId: string): ITurnBuilder => {
 		let builder = subagentBuilders.get(parentToolCallId);
 		if (!builder) {
-			builder = newTurnBuilder(generateUuid(), '');
+			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp });
 			subagentBuilders.set(parentToolCallId, builder);
 			if (!subagentTurnStates.has(parentToolCallId)) {
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
 			}
 		}
+		touch(builder);
 		return builder;
 	};
 
@@ -383,10 +412,12 @@ export async function mapSessionEvents(
 		if (parentToolCallId) {
 			return ensureSubagentBuilder(parentToolCallId);
 		}
+		touch(parentBuilder);
 		return parentBuilder;
 	};
 
 	for (const e of events) {
+		currentEventTimestamp = readEventTimestamp(e);
 		switch (e.type) {
 			case 'assistant.turn_start':
 				if (!e.agentId) {
@@ -394,6 +425,7 @@ export async function mapSessionEvents(
 					if (parentTurnState === TurnState.Error) {
 						rootRequestActive = true;
 					}
+					touch(parentBuilder);
 				} else {
 					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 					if (parentToolCallId) {
@@ -406,6 +438,7 @@ export async function mapSessionEvents(
 				if (!e.agentId) {
 					rootAssistantTurnActive = false;
 					rootRequestActive = false;
+					touch(parentBuilder);
 				} else {
 					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 					if (parentToolCallId) {
@@ -496,7 +529,7 @@ export async function mapSessionEvents(
 					// fork / truncate RPCs operate on.
 					flushParent();
 					const turnId = e.id ?? messageId;
-					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent });
+					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent, startedAt: currentEventTimestamp });
 					rootRequestActive = true;
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
@@ -518,6 +551,7 @@ export async function mapSessionEvents(
 				if (!content && !reasoningText && !hasToolRequests) {
 					if (!parentToolCallId && parentBuilder && !parentTurnAborted) {
 						parentTurnState = TurnState.Complete;
+						touch(parentBuilder);
 					}
 					break;
 				}
@@ -528,7 +562,7 @@ export async function mapSessionEvents(
 				// branch above.
 				const fallbackTurnId = e.id ?? messageId;
 				const builder = targetBuilderFor(parentToolCallId)
-					?? (parentBuilder = newTurnBuilder(fallbackTurnId, ''));
+					?? (parentBuilder = newTurnBuilder(fallbackTurnId, '', { startedAt: currentEventTimestamp }));
 				if (reasoningText) {
 					builder.responseParts.push({
 						kind: ResponsePartKind.Reasoning,
@@ -561,9 +595,10 @@ export async function mapSessionEvents(
 						kind: ResponsePartKind.SystemNotification,
 						content: notification.messageText,
 					});
+					touch(parentBuilder);
 				} else if (notification.startsTurn) {
 					flushParent();
-					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification });
+					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification, startedAt: currentEventTimestamp });
 				}
 				break;
 			}
@@ -580,6 +615,7 @@ export async function mapSessionEvents(
 				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
 				if (!parentToolCallId && parentBuilder) {
 					parentTurnState = TurnState.Cancelled;
+					touch(parentBuilder);
 				}
 				break;
 			}
@@ -628,7 +664,7 @@ export async function mapSessionEvents(
 				const synth = synthesizeSkillToolCall(e.data, e.id);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				const builder = targetBuilderFor(parentToolCallId)
-					?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
+					?? (parentBuilder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp }));
 				if (!parentToolCallId && builder === parentBuilder) {
 					parentTurnState = TurnState.Cancelled;
 				}
@@ -659,6 +695,7 @@ export async function mapSessionEvents(
 					if (parentBuilder) {
 						parentTurnState = TurnState.Cancelled;
 						parentTurnAborted = true;
+						touch(parentBuilder);
 					}
 				}
 				break;
@@ -773,13 +810,13 @@ function sdkAttachmentToProtocol(
 			if (typeof attachment.data !== 'string') {
 				return undefined;
 			}
-			if (attachment.mimeType.startsWith('text/plain')) {
-				const displayKind = readSimpleAttachmentDisplayKindFromMimeType(attachment.mimeType);
+			const simpleDisplayKind = readSimpleAttachmentDisplayKindFromMimeType(attachment.mimeType);
+			if (attachment.mimeType.startsWith('text/plain') || simpleDisplayKind !== undefined) {
 				return {
 					type: MessageAttachmentKind.Simple,
 					label: attachment.displayName ?? 'attachment',
 					modelRepresentation: decodeBase64(attachment.data ?? '').toString(),
-					...(displayKind !== undefined ? { displayKind } : {}),
+					...(simpleDisplayKind !== undefined ? { displayKind: simpleDisplayKind } : {}),
 				};
 			}
 			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;

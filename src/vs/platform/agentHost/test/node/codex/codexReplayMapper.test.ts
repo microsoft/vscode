@@ -42,6 +42,40 @@ suite('codexReplayMapper', () => {
 		assert.strictEqual((part as { content: string }).content, 'hello back');
 	});
 
+	test('restores turn timing from the persisted codex thread', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'hi', text_elements: [] }] }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: 1785060000, completedAt: null, durationMs: 4200,
+			}, {
+				id: 'turn_b',
+				items: [{ type: 'userMessage', id: 'u2', content: [{ type: 'text', text: 'again', text_elements: [] }] }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: 1785060100, completedAt: 1785060103, durationMs: null,
+			}, {
+				id: 'turn_c',
+				items: [{ type: 'userMessage', id: 'u3', content: [{ type: 'text', text: 'legacy', text_elements: [] }] }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn_a', startedAt: '2026-07-26T10:00:00.000Z', duration: 4200 },
+			{ id: 'turn_b', startedAt: '2026-07-26T10:01:40.000Z', duration: 3000 },
+			{ id: 'turn_c', startedAt: undefined, duration: undefined },
+		]);
+	});
+
 	test('failed turn restores resumable error details', () => {
 		const turns = replayThreadToTurns({
 			id: 'thr',
@@ -230,6 +264,30 @@ suite('codexReplayMapper', () => {
 			],
 		} as never);
 		assert.deepStrictEqual(turns.map(t => t.id), ['t1', 't2']);
+	});
+
+	test('adjacent agentMessages in a turn are separated so a heading keeps its own line', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'go on', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'm1', text: 'Consolidating the recommendation and tradeoffs.', phase: null, memoryCitation: null },
+					{ type: 'agentMessage', id: 'm2', text: '## Conclusion\n\nDone.', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		// History replay emits one markdownContent per Markdown part; the chat
+		// model coalesces adjacent ones by plain concatenation, so the joined
+		// text must keep `## Conclusion` at the start of a line.
+		const joined = turns[0].responseParts
+			.map(part => part.kind === ResponsePartKind.Markdown ? (part as { content: string }).content : '')
+			.join('');
+		assert.strictEqual(joined, 'Consolidating the recommendation and tradeoffs.\n\n## Conclusion\n\nDone.');
 	});
 
 	test('commandExecution renders a completed terminal tool call', () => {

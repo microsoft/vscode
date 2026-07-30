@@ -97,6 +97,11 @@ export interface ICodexSessionMapState {
 	 * turn end) so a genuinely output-less command still finalizes.
 	 */
 	pendingPreflight: ICodexPendingPreflight | undefined;
+	/**
+	 * Count of `agentMessage` markdown parts started in the current turn. Reset
+	 * per turn by {@link resetCodexTurnMapState}; see {@link mapItemStartedBody}.
+	 */
+	agentMessagePartCount: number;
 }
 
 /**
@@ -131,6 +136,7 @@ export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> 
 		mcpCustomizationIds: new Map(),
 		declinedToolCalls: new Set(),
 		pendingPreflight: undefined,
+		agentMessagePartCount: 0,
 	};
 }
 
@@ -147,6 +153,7 @@ export function resetCodexTurnMapState(state: ICodexSessionMapState): void {
 	state.itemToReasoningPartId.clear();
 	state.declinedToolCalls.clear();
 	state.pendingPreflight = undefined;
+	state.agentMessagePartCount = 0;
 }
 
 /**
@@ -452,6 +459,10 @@ function mapItemStartedBody(
 	if (params.item.type === 'agentMessage') {
 		const partId = generateUuid();
 		state.itemToPartId.set(params.item.id, partId);
+		// Separate consecutive agent messages so the chat model's separator-less
+		// markdown coalescing doesn't glue a following heading onto the prior line.
+		const separator = state.agentMessagePartCount > 0 ? '\n\n' : '';
+		state.agentMessagePartCount++;
 		return [
 			{
 				type: ActionType.ChatResponsePart,
@@ -459,7 +470,7 @@ function mapItemStartedBody(
 				part: {
 					kind: ResponsePartKind.Markdown,
 					id: partId,
-					content: params.item.text ?? '',
+					content: separator + (params.item.text ?? ''),
 				},
 			},
 		];
