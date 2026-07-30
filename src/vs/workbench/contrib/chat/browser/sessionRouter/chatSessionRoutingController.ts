@@ -6,11 +6,13 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -86,13 +88,6 @@ export interface IChatSessionRoutingHost {
 	 * the controller will fall back to an immediate dispatch.
 	 */
 	placeBadge(badge: HTMLElement): void;
-	/**
-	 * Notify the host that the disambiguation picker is opening or closing, so a
-	 * size-constrained surface (e.g. the frameless aux input window) can grow to
-	 * fit the options and shrink back afterwards. `itemCount` is the number of
-	 * rows the picker will show. Optional; surfaces that don't need it omit it.
-	 */
-	onPickerVisibility?(visible: boolean, itemCount: number): void;
 }
 
 /**
@@ -118,7 +113,6 @@ export class ChatSessionRoutingController extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionRouter private readonly sessionRouter: ISessionRouter,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -240,52 +234,6 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/**
-	 * Ask the user to pick a target, listing the scored sessions (best first,
-	 * capped) plus a new-session option. `preselectedId` is floated to the top so
-	 * it is the default highlighted choice. Returns the chosen session id,
-	 * `'new'` for a new session, or `undefined` if the picker was dismissed.
-	 */
-	private async _promptSessionChoice(results: ISessionRouteResult[], labelById: Map<string, string>, preselectedId?: string): Promise<string | 'new' | undefined> {
-		type RouteChoiceItem = IQuickPickItem & { sessionId?: string; isNew?: boolean };
-		const ordered = results.slice(0, ROUTE_MAX_CHOICES);
-		if (preselectedId && preselectedId !== 'new') {
-			const idx = ordered.findIndex(r => r.sessionId === preselectedId);
-			if (idx > 0) {
-				ordered.unshift(ordered.splice(idx, 1)[0]);
-			}
-		}
-		const items: RouteChoiceItem[] = ordered.map(match => ({
-			label: labelById.get(match.sessionId) ?? match.sessionId,
-			description: localize('chatSessionRouting.matchPercent', "{0}% match", Math.round(match.confidence * 100)),
-			detail: match.reason,
-			sessionId: match.sessionId,
-		}));
-		const newItem: RouteChoiceItem = {
-			label: `$(add) ${localize('chatSessionRouting.newSession', "New session")}`,
-			isNew: true,
-		};
-		if (preselectedId === 'new') {
-			items.unshift(newItem);
-		} else {
-			items.push(newItem);
-		}
-
-		this.host.onPickerVisibility?.(true, items.length);
-		let picked: RouteChoiceItem | undefined;
-		try {
-			picked = await this.quickInputService.pick(items, {
-				placeHolder: localize('chatSessionRouting.choosePlaceholder', "Choose where to send this request"),
-			});
-		} finally {
-			this.host.onPickerVisibility?.(false, items.length);
-		}
-		if (!picked) {
-			return undefined;
-		}
-		return picked.isNew ? 'new' : picked.sessionId;
-	}
-
-	/**
 	 * Show the advisory pending-send badge for a resolved target. A confident
 	 * session match counts down and auto-sends (redirectable/cancelable); a
 	 * no-match creates and sends to a new chat immediately and links to it.
@@ -338,17 +286,74 @@ export class ChatSessionRoutingController extends Disposable {
 		cts: CancellationTokenSource,
 	): void {
 		const targetWindow = dom.getWindow(badge);
-		let current = target;
+		badge.classList.add('chat-routing-badge-ranked');
 
-		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
-		const countdownEl = dom.append(badge, dom.$('span.chat-routing-badge-countdown'));
+		// Rank what it chose between and show it. A single line naming the winner
+		// makes you open a picker to find out what the alternatives even were;
+		// listing them costs three rows and answers the question in place.
+		const labelById = new Map(candidates.map(c => [c.sessionId, c.label]));
+		const ranked = results
+			.filter(r => labelById.has(r.sessionId))
+			.sort((a, b) => b.confidence - a.confidence)
+			.slice(0, ROUTE_MAX_CHOICES)
+			.map(r => ({
+				kind: 'session' as const,
+				sessionId: r.sessionId,
+				label: labelById.get(r.sessionId) ?? r.sessionId,
+				confidence: r.confidence,
+			}));
 
-		const renderLabel = () => {
-			label.textContent = current.kind === 'session'
-				? localize('chatSessionRouting.sendingToSession', "Sending to {0} · {1}% match", current.label, Math.round(current.confidence * 100))
-				: localize('chatSessionRouting.sendingToNew', "Sending to {0}", current.label);
+		// Starting a new session is always available, as the last option.
+		const options: PendingTarget[] = [
+			...ranked,
+			{ kind: 'new', label: localize('chatSessionRouting.startNewSession', "Start a new session") },
+		];
+
+		let selected = Math.max(0, options.findIndex(o =>
+			target.kind === 'session' ? o.kind === 'session' && o.sessionId === target.sessionId : o.kind === 'new'));
+
+		const head = dom.append(badge, dom.$('.chat-routing-badge-head'));
+		const headLabel = dom.append(head, dom.$('span.chat-routing-badge-title'));
+		headLabel.textContent = localize('chatSessionRouting.sendTo', "Send to");
+		const countdownEl = dom.append(head, dom.$('span.chat-routing-badge-countdown'));
+
+		const list = dom.append(badge, dom.$('.chat-routing-badge-list'));
+		const rows = options.map((option, i) => {
+			const row = dom.append(list, dom.$('.chat-routing-badge-row', { role: 'option' }));
+			const mark = dom.append(row, dom.$('span.chat-routing-badge-mark'));
+			mark.appendChild(renderIcon(Codicon.pass));
+			const label = dom.append(row, dom.$('span.chat-routing-badge-name'));
+			label.textContent = option.label;
+			if (option.kind === 'session') {
+				const meter = dom.append(row, dom.$('span.chat-routing-badge-meter'));
+				const fill = dom.append(meter, dom.$('span'));
+				fill.style.width = `${Math.round(option.confidence * 100)}%`;
+			}
+			const score = dom.append(row, dom.$('span.chat-routing-badge-score'));
+			score.textContent = option.kind === 'session'
+				? localize('chatSessionRouting.match', "{0}%", Math.round(option.confidence * 100))
+				: '';
+			store.add(dom.addDisposableListener(row, dom.EventType.CLICK, () => {
+				selected = i;
+				renderSelection();
+				send();
+			}));
+			return row;
+		});
+
+		const foot = dom.append(badge, dom.$('.chat-routing-badge-foot'));
+		const changeHint = dom.append(foot, dom.$('span'));
+		changeHint.textContent = localize('chatSessionRouting.changeHint', "\u2325 to change");
+		const sendHint = dom.append(foot, dom.$('span.chat-routing-badge-foot-end'));
+		sendHint.textContent = localize('chatSessionRouting.sendNowHint', "Enter to send now");
+
+		const renderSelection = () => {
+			rows.forEach((row, i) => {
+				row.classList.toggle('selected', i === selected);
+				row.setAttribute('aria-selected', String(i === selected));
+			});
 		};
-		renderLabel();
+		renderSelection();
 
 		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
 		const renderCountdown = () => {
@@ -359,7 +364,7 @@ export class ChatSessionRoutingController extends Disposable {
 			// Detach the badge (and its listeners) before dispatch so a clear of
 			// the input during send can't re-enter cancel().
 			this._pendingSend.clear();
-			const sent = current;
+			const sent = options[selected];
 			void this._dispatchTo(sent, submittedInput, utterance, attachedContext, cts.token).then(ok => {
 				// Confirm where the request went so an omni surface that can't show
 				// the response inline still gives feedback. Guard on the current
@@ -370,8 +375,6 @@ export class ChatSessionRoutingController extends Disposable {
 			});
 		};
 
-		// Countdown lives in a MutableDisposable so it can be paused while the
-		// "Change" picker is open and restarted afterwards.
 		const countdownTimer = store.add(new MutableDisposable());
 		const startCountdown = () => {
 			remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
@@ -392,32 +395,21 @@ export class ChatSessionRoutingController extends Disposable {
 			this._pendingSend.clear();
 		};
 
-		const change = async () => {
-			countdownTimer.clear();
-			const labelById = new Map(candidates.map(c => [c.sessionId, c.label]));
-			const preselected = current.kind === 'session' ? current.sessionId : 'new';
-			const choice = await this._promptSessionChoice(results, labelById, preselected);
-			if (cts.token.isCancellationRequested || this._pendingSend.value !== store) {
-				return;
+		// Alt steps through the alternatives and stops the clock: once you have
+		// taken over the choice, a timer finishing it for you is a surprise.
+		store.add(dom.addDisposableListener(dom.getWindow(badge), dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.altKey && !event.ctrlKey && !event.metaKey) {
+				event.preventDefault();
+				selected = (selected + 1) % options.length;
+				renderSelection();
+				countdownTimer.clear();
+				countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
+			} else if (event.equals(KeyCode.Escape)) {
+				event.preventDefault();
+				cancel();
 			}
-			if (choice === undefined) {
-				startCountdown();
-				return;
-			}
-			if (choice === 'new') {
-				// Redirecting to a new session follows the same no-delay path.
-				dom.clearNode(badge);
-				this._renderNewSessionBadge(badge, store, submittedInput, utterance, attachedContext, cts);
-				return;
-			}
-			const match = results.find(r => r.sessionId === choice);
-			current = { kind: 'session', sessionId: choice, label: labelById.get(choice) ?? choice, confidence: match?.confidence ?? 0 };
-			renderLabel();
-			startCountdown();
-		};
-
-		this._addActionLink(store, badge, localize('chatSessionRouting.change', "Change"), () => void change());
-		this._addActionLink(store, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel);
+		}, true));
 
 		// Typing in the input cancels the auto-send so an edit never silently sends.
 		store.add(this.host.widget.inputEditor.onDidChangeModelContent(() => cancel()));

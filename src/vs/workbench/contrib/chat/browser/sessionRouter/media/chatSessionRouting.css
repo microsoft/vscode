@@ -15,7 +15,7 @@
 	line-height: 20px;
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
-	border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+	border-top: 1px solid var(--vscode-editorWidget-border, transparent);
 }
 
 .chat-routing-badge .chat-routing-badge-label {
@@ -48,4 +48,139 @@
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 	border-radius: var(--vscode-cornerRadius-small, 2px);
+}
+
+/*
+ * Ranked routing: the bar shows what it chose between rather than naming only
+ * the winner. Seeing the alternatives is what makes a guess correctable — a
+ * single line forces you to open a picker to find out what the options were.
+ */
+.chat-routing-badge.chat-routing-badge-ranked {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0;
+	padding: 6px 0 4px;
+	line-height: normal;
+}
+
+.chat-routing-badge-head {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 0 14px 4px;
+}
+
+.chat-routing-badge-title {
+	flex: 1 1 auto;
+	font-size: 11px;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	opacity: .5;
+}
+
+.chat-routing-badge-list {
+	display: flex;
+	flex-direction: column;
+	padding: 0 6px;
+}
+
+.chat-routing-badge-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	cursor: pointer;
+	/* Frameless-window drag regions swallow clicks; keep rows interactive. */
+	-webkit-app-region: no-drag;
+}
+
+.chat-routing-badge-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/*
+ * The preselected row is what will actually happen in a few seconds, so it
+ * carries the active selection rather than the inactive one — this is a live
+ * decision, not a remembered highlight.
+ */
+.chat-routing-badge-row.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chat-routing-badge-row.selected .chat-routing-badge-score {
+	color: inherit;
+}
+
+/* The mark holds its space on every row so the labels stay on one axis. */
+.chat-routing-badge-mark {
+	flex: 0 0 auto;
+	width: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	visibility: hidden;
+}
+
+.chat-routing-badge-row.selected .chat-routing-badge-mark {
+	visibility: visible;
+}
+
+.chat-routing-badge-mark .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-routing-badge-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-routing-badge-score {
+	flex: 0 0 auto;
+	min-width: 4ch;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-descriptionForeground);
+}
+
+/*
+ * A short meter beside the number: confidence is a quantity, and a bar is read
+ * at a glance where a percentage has to be parsed.
+ */
+.chat-routing-badge-meter {
+	flex: 0 0 auto;
+	width: 44px;
+	height: 2px;
+	border-radius: var(--vscode-cornerRadius-circle, 999px);
+	background-color: var(--vscode-foreground);
+	opacity: .18;
+	overflow: hidden;
+}
+
+.chat-routing-badge-meter > span {
+	display: block;
+	height: 100%;
+	background-color: var(--vscode-foreground);
+}
+
+.chat-routing-badge-row.selected .chat-routing-badge-meter {
+	opacity: .35;
+}
+
+.chat-routing-badge-foot {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 14px 0;
+	font-size: 11px;
+	opacity: .5;
+}
+
+.chat-routing-badge-foot-end {
+	margin-left: auto;
 }

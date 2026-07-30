@@ -143,18 +143,29 @@
 
 /*
  * The submit affordance never leaves, so the way to send never moves. It rests
- * dim, and arms — full strength, heavier glyph — the moment there is something
+ * dim and arms — full strength, heavier glyph — the moment there is something
  * of yours to send.
+ *
+ * No filled block: the accent belongs to the glow, which is the thing actually
+ * carrying state. A solid button beside it reads as two accents competing on
+ * one surface, and the arrow alone is legible enough to press.
  */
 .chat-input-window .chat-submit-button > .action-label.codicon {
+	background: none !important;
+	color: var(--vscode-icon-foreground) !important;
 	opacity: .4;
 	transition: opacity 120ms ease, transform 120ms cubic-bezier(.2, .8, .2, 1);
 }
 
 .chat-input-window .chat-submit-button:not(.disabled) > .action-label.codicon {
+	color: var(--vscode-foreground) !important;
 	opacity: 1;
 	font-weight: 700;
 	transform: scale(1.08);
+}
+
+.chat-input-window .chat-submit-button:not(.disabled) > .action-label.codicon:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 /*
