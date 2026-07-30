@@ -851,8 +851,17 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 	function onValue(value: unknown) {
 		if (Array.isArray(currentParent)) {
 			currentParent.push(value);
-		} else if (currentProperty !== null && currentProperty !== '__proto__') {
-			currentParent[currentProperty] = value;
+		} else if (currentProperty !== null) {
+			if (currentProperty === '__proto__') {
+				Object.defineProperty(currentParent, '__proto__', {
+					value,
+					enumerable: true,
+					writable: true,
+					configurable: true,
+				});
+			} else {
+				currentParent[currentProperty] = value;
+			}
 		}
 	}
 
