@@ -2681,9 +2681,9 @@ pane is first mounted. View switches inside the modal are not animated. */
  *  - "Configure Tools" (`workbench.action.chat.configureTools`,
  *    `.codicon-settings-compact`) — tool selection is not relevant for a
  *    scheduled prompt.
- *  - "Add Context" (`workbench.action.chat.attachContext`, `.codicon-add`,
- *    the `+`) — the dialog doesn't support attachments; the prompt is the
- *    only payload sent at run time.
+ *  - "Add Context" (`workbench.action.chat.attachContext`,
+ *    `.codicon-add-compact`, the `+`) — the dialog doesn't support
+ *    attachments; the prompt is the only payload sent at run time.
  *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`) —
  *    MCP server management belongs in the live chat surface, not a one-off
  *    prompt definition.
@@ -2702,7 +2702,7 @@ pane is first mounted. View switches inside the modal are not animated. */
  * renders these `MenuId.ChatInput` chips at all.
  */
 .automation-form-prompt-host .chat-input-toolbar .action-label.codicon-settings-compact,
-.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-add,
+.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-add-compact,
 .automation-form-prompt-host .chat-input-toolbar .action-item.chat-mcp {
 	display: none;
 }

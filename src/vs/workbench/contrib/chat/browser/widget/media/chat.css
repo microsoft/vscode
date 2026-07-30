@@ -4735,8 +4735,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
-/* Voice mode: green disconnect button */
-.chat-input-container .chat-input-toolbars .codicon-debug-disconnect-compact {
+/* Voice mode: green disconnect button. This has to out-specify the blanket
+	`icon-foreground !important` rule that colors every toolbar codicon, so it
+	carries the full toolbar path rather than a short `.chat-input-container`
+	prefix — with equal `!important` the higher specificity wins, and the short
+	form silently lost the cascade and rendered grey. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
 	color: var(--vscode-charts-green, #3fb950) !important;
 }
 
