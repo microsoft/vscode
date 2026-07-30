@@ -24,7 +24,11 @@ suite('NativeEditContextUtils', () => {
 
 		let focused = false;
 		const tracker = disposables.add(new FocusTracker(new NullLogService(), target, value => focused = value));
-		target.focus();
+		// Use the tracker's own `focus()` so the focus state is refreshed
+		// synchronously. Relying on the DOM `focus` event is unreliable when the
+		// host window is not the active window (as with the frameless auxiliary
+		// chat-input window), which is exactly the case this fix targets.
+		tracker.focus();
 
 		assert.deepStrictEqual({
 			activeElement: iframe.contentDocument!.activeElement === target,
