@@ -6,12 +6,14 @@
 import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { defineAnnotationsTests } from './annotationsSuite.js';
 import { defineChangesetTests } from './changesetSuite.js';
-import { defineCoreTests } from './coreSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
+import { defineCoreTests } from './coreSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
+import { defineProtocolContractTests } from './protocolContractsSuite.js';
 import { defineProtocolLifecycleTests } from './protocolLifecycleSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
@@ -19,9 +21,10 @@ import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const isLinux = process.platform === 'linux';
+
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_RECORD_ONLY_TESTS = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
-const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
 
 interface IDefineOptions {
@@ -34,7 +37,6 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 	(config.enabled ? suite : suite.skip)(options.suiteTitle, function () {
 		const portableShellToolReplayEnabled = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
 		let client: TestProtocolClient;
-		let serverPort = 0;
 		let lease: AgentHostE2EServerLease | undefined;
 		const createdSessions: string[] = [];
 		const tempDirs: string[] = [];
@@ -43,15 +45,21 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			tier: options.tier,
 			config,
 			get client() { return client; },
-			get serverPort() { return serverPort; },
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
-			stableNewScenarioResponse: config.stableNewScenarioResponse,
+			supportsFileTools: config.supportsFileTools,
+			stableSharedServerFileScenarios: config.stableSharedServerFileScenarios ?? true,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
+			connectClient: () => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				return lease.connectClient();
+			},
 		};
 
 		suiteSetup(async function () {
@@ -78,9 +86,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
 			const title = this.currentTest?.title ?? 'unknown';
-			const acquired = await lease.acquire(title, noModelTrafficTestTitles.has(title) ? 'none' : 'recorded');
-			client = acquired.client;
-			serverPort = acquired.server.port;
+			({ client } = await lease.acquire(title, noModelTrafficTestTitles.has(title) ? 'none' : 'recorded'));
 		});
 
 		teardown(async function () {
@@ -104,8 +110,10 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		if (options.tier === 'conformance') {
 			defineHostFeaturesTests(context);
 			defineProtocolLifecycleTests(context);
+			defineProtocolContractTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
+			defineAnnotationsTests(context);
 			defineChangesetTests(context);
 		}
 

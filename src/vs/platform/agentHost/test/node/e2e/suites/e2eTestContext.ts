@@ -24,11 +24,6 @@ export interface IAgentHostE2ETestContext {
 	readonly tier: AgentHostE2ETier;
 	readonly config: IAgentHostE2EProviderConfig;
 	readonly client: TestProtocolClient;
-	/**
-	 * Port of the agent host under test. Used to open secondary WebSocket
-	 * clients against the same server (reconnect / multi-client contracts).
-	 */
-	readonly serverPort: number;
 	readonly createdSessions: string[];
 	readonly tempDirs: string[];
 	/**
@@ -43,11 +38,18 @@ export interface IAgentHostE2ETestContext {
 	 * reason is visible at the call site.
 	 */
 	readonly portableShellToolReplayEnabled: boolean;
-	readonly stableNewScenarioResponse: boolean;
+	readonly supportsFileTools: boolean;
+	readonly stableSharedServerFileScenarios: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
+	/**
+	 * Open an extra connection to the same server. Needed only by tests that
+	 * exercise connection lifecycle, which cannot be expressed on the single
+	 * shared connection. The caller must close what it opens.
+	 */
+	readonly connectClient: () => Promise<TestProtocolClient>;
 }
 
 function registerHostOnlyTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, enabled: boolean): void {

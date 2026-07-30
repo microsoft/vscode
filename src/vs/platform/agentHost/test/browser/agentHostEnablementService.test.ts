@@ -42,7 +42,7 @@ class AgentHostTestConfigurationService extends TestConfigurationService {
 suite('AgentHostEnablementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(enabled: boolean, aiDisabled = false): {
+	function createService(enabled: boolean, aiDisabled = false, runtimeAvailable = true): {
 		readonly service: AgentHostEnablementService;
 		readonly configurationService: AgentHostTestConfigurationService;
 		readonly contextKeyService: MockContextKeyService;
@@ -50,7 +50,7 @@ suite('AgentHostEnablementService', () => {
 		const configurationService = new AgentHostTestConfigurationService(enabled, aiDisabled);
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const service = disposables.add(new AgentHostEnablementService(false, configurationService, contextKeyService));
+		const service = disposables.add(new AgentHostEnablementService(runtimeAvailable, configurationService, contextKeyService));
 		return { service, configurationService, contextKeyService };
 	}
 
@@ -67,6 +67,17 @@ suite('AgentHostEnablementService', () => {
 
 	test('is disabled when AI features are disabled', () => {
 		const { service, contextKeyService } = createService(true, true);
+		assert.deepStrictEqual({
+			enabled: service.enabled.get(),
+			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
+		}, {
+			enabled: false,
+			contextKey: false,
+		});
+	});
+
+	test('is disabled when the runtime is unavailable', () => {
+		const { service, contextKeyService } = createService(true, false, false);
 		assert.deepStrictEqual({
 			enabled: service.enabled.get(),
 			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),

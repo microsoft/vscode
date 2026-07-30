@@ -22,24 +22,19 @@
 		]
 	},
 	"actions": {
-		"covered": 56,
+		"covered": 64,
 		"total": 85,
-		"percentage": 65.88,
+		"percentage": 75.29,
 		"uncovered": [
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"changeset/filesReviewChanged",
 			"changeset/operationStatusChanged",
-			"changeset/operationsChanged",
 			"chat/error",
 			"chat/inputAnswerChanged",
-			"chat/pendingMessageSet",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
 			"chat/toolCallResultConfirmed",
-			"chat/workingDirectoryRemoved",
-			"chat/workingDirectorySet",
 			"resourceWatch/changed",
 			"root/activeSessionsChanged",
 			"root/agentsChanged",
@@ -51,10 +46,7 @@
 			"session/mcpServerStartRequested",
 			"session/mcpServerStateChanged",
 			"session/mcpServerStopRequested",
-			"session/workingDirectoryRemoved",
-			"session/workingDirectorySet",
-			"terminal/commandDetectionAvailable",
-			"terminal/exited"
+			"terminal/commandDetectionAvailable"
 		]
 	}
 }
