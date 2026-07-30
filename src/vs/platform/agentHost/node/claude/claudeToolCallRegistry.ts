@@ -118,7 +118,7 @@ export class ClaudeToolCallRegistry {
 		if (!entry || entry.displayedInputLength === entry.inputBuffer.length) {
 			return undefined;
 		}
-		const now = Date.now();
+		const now = performance.now();
 		if (!force && entry.displayedAt !== undefined && now - entry.displayedAt < STREAMING_TOOL_DISPLAY_INTERVAL_MS) {
 			return undefined;
 		}

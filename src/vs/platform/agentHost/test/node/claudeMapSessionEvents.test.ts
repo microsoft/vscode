@@ -50,9 +50,11 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	const SESSION_STR = SESSION.toString();
 	const SESSION_ID = 'sid-1';
 	const TURN_ID = 'turn-1';
+	let clock: sinon.SinonFakeTimers | undefined;
 
 	teardown(() => {
-		sinon.restore();
+		clock?.restore();
+		clock = undefined;
 	});
 
 	/**
@@ -336,8 +338,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	});
 
 	test('file-edit input deltas emit compact rich invocation messages', () => {
+		clock = sinon.useFakeTimers({ toFake: ['performance'] });
 		const log = new NullLogService();
-		const clock = sinon.useFakeTimers({ now: 1_000 });
 		const state = new ClaudeMapperState();
 		const resolver = r();
 		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
@@ -387,8 +389,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	});
 
 	test('content_block_stop flushes the final rich file-edit message held back by the throttle', () => {
+		clock = sinon.useFakeTimers({ toFake: ['performance'] });
 		const log = new NullLogService();
-		sinon.useFakeTimers({ now: 1_000 });
 		const state = new ClaudeMapperState();
 		const resolver = r();
 		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
