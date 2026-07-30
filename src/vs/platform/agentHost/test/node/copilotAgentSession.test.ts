@@ -3466,6 +3466,17 @@ suite('CopilotAgentSession', () => {
 				startsTurn: false,
 			});
 
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: '<system_notification>\nExternal host ping\n</system_notification>',
+					kind: { type: 'unclassified', metadata: { source: 'host' } },
+				},
+			}), {
+				messageText: 'External host ping',
+				startsTurn: true,
+			});
+
 			assert.strictEqual(buildCopilotSystemNotification({
 				...base,
 				data: {
