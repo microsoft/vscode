@@ -7,7 +7,8 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { CommandsRegistry, ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -100,6 +101,15 @@ suite('ChatTipService', () => {
 		};
 	}
 
+	/**
+	 * Handle to the `workbench.action.chat.openPlan` command registration created
+	 * in setup(). The `tip.planMode` tip requires this command (via
+	 * `requiresCommands`) to be eligible; in production it is contributed
+	 * dynamically when a Plan chat mode is available. Tests that need to simulate
+	 * the command being unavailable can dispose this handle.
+	 */
+	let openPlanCommandRegistration: IDisposable;
+
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		contextKeyService = new MockContextKeyServiceWithRulesMatching();
@@ -132,6 +142,7 @@ suite('ChatTipService', () => {
 			lookupKeybinding: () => undefined,
 		} as Partial<IKeybindingService> as IKeybindingService);
 		instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
+		openPlanCommandRegistration = testDisposables.add(CommandsRegistry.registerCommand('workbench.action.chat.openPlan', () => { }));
 	});
 
 	test('returns a welcome tip', () => {
@@ -1168,6 +1179,18 @@ suite('ChatTipService', () => {
 
 		assert.ok(tip);
 		assert.strictEqual(tip.id, 'tip.planMode', 'Expected foundational tip to be prioritized before eligible QoL tips');
+	});
+
+	test('excludes tip.planMode when the open plan command is not registered', () => {
+		// Simulate an environment where no Plan chat mode (and therefore no
+		// `workbench.action.chat.openPlan` command) is available.
+		openPlanCommandRegistration.dispose();
+
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+
+		assertTipNeverShown(service, 'tip.planMode');
 	});
 
 	test('prioritizes preferred onboarding tips in requested order', () => {

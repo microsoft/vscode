@@ -13,7 +13,7 @@ import { getSelectedModelIdentifier } from '../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -758,6 +758,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 		if (tip.when && !contextKeyService.contextMatchesRules(tip.when)) {
 			this._logService.debug('#ChatTips: tip is not eligible due to when clause', tip.id, tip.when.serialize());
+			return false;
+		}
+		if (tip.requiresCommands?.some(commandId => !CommandsRegistry.getCommand(commandId))) {
+			this._logService.debug('#ChatTips: tip is not eligible because a required command is not registered', tip.id, tip.requiresCommands);
 			return false;
 		}
 		if (this._tracker.isExcluded(tip)) {

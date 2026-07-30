@@ -112,6 +112,13 @@ export interface ITipDefinition extends ITipExclusionConfig {
 	 */
 	readonly when?: ContextKeyExpression;
 	/**
+	 * Command IDs that must be registered for this tip to be eligible. This guards
+	 * against showing tips whose action links point at commands that are not
+	 * currently available (e.g. an optional/custom chat mode that is not installed),
+	 * which would otherwise fail with a "command not found" error when clicked.
+	 */
+	readonly requiresCommands?: readonly string[];
+	/**
 	 * Chat model IDs for which this tip is eligible (lowercase).
 	 */
 	readonly onlyWhenModelIds?: readonly string[];
@@ -251,6 +258,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			);
 		},
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
+		requiresCommands: ['workbench.action.chat.openPlan'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
