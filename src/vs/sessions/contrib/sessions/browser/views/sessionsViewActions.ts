@@ -36,6 +36,10 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -564,11 +568,12 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				// Not on Done itself, and not on the "Chats" (quick chats) section —
-				// quick chats have no archive/Done action.
+				// Not on Done itself, and not on the "Chats" (quick chats) section.
+				// Also not on Automations.
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
 				),
 			}]
 		});
@@ -1247,3 +1252,49 @@ class SessionsArchiveActionsContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(SessionsArchiveActionsContribution.ID, SessionsArchiveActionsContribution, WorkbenchPhase.BlockStartup);
+
+registerAction2(class ManageAutomationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.manageAutomations',
+			title: localize2('manageAutomations', "Manage Automations"),
+			menu: []
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+	}
+});
+
+const MARK_ALL_AUTOMATION_RUNS_READ_COMMAND_ID = 'sessionsView.markAllAutomationRunsRead';
+const READ_AUTOMATION_RUNS_KEY = 'sessionsListControl.readAutomationRuns';
+
+registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
+	constructor() {
+		super({
+			id: MARK_ALL_AUTOMATION_RUNS_READ_COMMAND_ID,
+			title: localize2('markAllAutomationRunsRead', "Mark All as Read"),
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		const automationService = accessor.get(IAutomationService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const storageService = accessor.get(IStorageService);
+
+		const runs = automationService.runs.get();
+		const readIds: string[] = [];
+		for (const run of runs) {
+			if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
+				if (sessionsManagementService.getSession(URI.parse(run.sessionResource))) {
+					readIds.push(run.id);
+				}
+			}
+		}
+		storageService.store(
+			READ_AUTOMATION_RUNS_KEY,
+			JSON.stringify(readIds),
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+	}
+});
