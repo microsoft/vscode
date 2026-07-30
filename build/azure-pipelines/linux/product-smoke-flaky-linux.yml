@@ -175,6 +175,6 @@ jobs:
             env:
               TMPDIR: $(Agent.TempDirectory)
               LD_PRELOAD: $(VSCODE_SMOKE_LD_PRELOAD)
-          displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+            displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
             continueOnError: true
             timeoutInMinutes: 20
