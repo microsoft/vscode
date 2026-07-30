@@ -1,10 +1,10 @@
 # Twice-daily flaky-detection pipeline.
 #
 # Builds VS Code from source on Linux, Windows and macOS and runs the Electron
-# unit tests, integration tests and smoke tests, each repeated 20 times per
-# platform. Each
-# repetition is its own step (continueOnError) so a single flaky failure does
-# not abort the run and every iteration produces its own timeline record. The
+# unit tests, integration tests and smoke tests in parallel jobs, each repeated
+# 20 times per platform. Each repetition is its own step (continueOnError) so a
+# single flaky failure does not abort the run and every iteration produces its
+# own timeline record. The
 # pass/fail tally is read back from the build timeline by the vscode-probot
 # `SmokeFlaky` Azure Function (wired up via an ADO service hook on build
 # completion), which posts a summary to the Slack #build channel.
@@ -187,6 +187,17 @@ extends:
             - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Unit
+                iterations: ${{ parameters.iterations }}
+            - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Integration
+                iterations: ${{ parameters.iterations }}
+            - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Smoke
                 iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -200,6 +211,17 @@ extends:
             - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Unit
+                iterations: ${{ parameters.iterations }}
+            - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Integration
+                iterations: ${{ parameters.iterations }}
+            - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Smoke
                 iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
@@ -212,4 +234,13 @@ extends:
           jobs:
             - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
               parameters:
+                VSCODE_TEST_SUITE: Unit
+                iterations: ${{ parameters.iterations }}
+            - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
+              parameters:
+                VSCODE_TEST_SUITE: Integration
+                iterations: ${{ parameters.iterations }}
+            - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
+              parameters:
+                VSCODE_TEST_SUITE: Smoke
                 iterations: ${{ parameters.iterations }}
