@@ -17,12 +17,12 @@ import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
 
-/**
- * Number of samples buffered in the capture worklet before a chunk is posted to
- * the main thread. Matches the buffer size previously used with
- * `ScriptProcessorNode` so the per-chunk drain/diagnostic bookkeeping is unchanged.
- */
-const MIC_CAPTURE_CHUNK_SIZE = 2048;
+/** Number of samples buffered per 32 ms voice capture chunk at 16 kHz, matching one Silero VAD frame. */
+export const MIC_CAPTURE_CHUNK_SIZE = 512;
+
+export function isMicrophonePermissionDeniedError(error: unknown): boolean {
+	return (error instanceof DOMException || error instanceof Error) && error.name === 'NotAllowedError';
+}
 
 /**
  * Per-PTT-press diagnostic emitted after `pttUp` once the diagnostic
