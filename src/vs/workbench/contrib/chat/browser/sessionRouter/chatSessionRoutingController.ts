@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
@@ -16,7 +17,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
-import { IRoutableSession, ISessionRouteResult, ISessionRouter } from '../../common/sessionRouter.js';
+import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { heuristicScore, IRoutableSession, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
@@ -38,6 +41,13 @@ const ROUTE_AMBIGUITY_MARGIN = 0.2;
 
 /** Maximum number of options shown in the disambiguation picker. */
 const ROUTE_MAX_CHOICES = 6;
+
+/**
+ * How many top pre-ranked candidates get their conversation transcript fetched
+ * for the final content-aware score. Bounds how many session-content resolves a
+ * single submission triggers while still covering the plausible matches.
+ */
+const ROUTE_ENRICH_MAX_CANDIDATES = 5;
 
 /**
  * How long the pending-send badge counts down before auto-dispatching to the
@@ -68,6 +78,36 @@ function statusToString(status: AgentSessionStatus): string {
 		case AgentSessionStatus.InProgress: return 'working';
 		default: return 'unknown';
 	}
+}
+
+/** Flatten a `string | IMarkdownString | undefined` field to plain text. */
+function markdownToText(value: string | IMarkdownString | undefined): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const text = (typeof value === 'string' ? value : value.value).trim();
+	return text || undefined;
+}
+
+/**
+ * Extract plain text from a response history item by concatenating its markdown
+ * parts. Kept coarse and clipped: the router only needs a gist of the latest
+ * response, not a faithful render, so non-text parts (tools, trees, etc.) are
+ * ignored. Returns `undefined` when the response has no textual content.
+ */
+function historyResponseToText(item: Extract<IChatSessionHistoryItem, { type: 'response' }>): string | undefined {
+	let text = '';
+	for (const part of item.parts) {
+		if (part.kind === 'markdownContent') {
+			text += part.content.value;
+			// Enough to characterize the response; avoid walking a huge transcript.
+			if (text.length >= ROUTER_FIELD_CLIP_LENGTH * 2) {
+				break;
+			}
+		}
+	}
+	text = text.trim();
+	return text || undefined;
 }
 
 /**
@@ -117,6 +157,7 @@ export class ChatSessionRoutingController extends Disposable {
 		private readonly debugOwner: string,
 		@IChatService private readonly chatService: IChatService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ISessionRouter private readonly sessionRouter: ISessionRouter,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -152,13 +193,22 @@ export class ChatSessionRoutingController extends Disposable {
 			return true;
 		}
 
-		const results = candidates.length ? await this._route(candidates, utterance, token) : [];
+		// Stage 1: cheaply pre-rank on in-memory metadata to pick a shortlist, then
+		// stage 2: enrich only that shortlist with conversation content before the
+		// final model score. This keeps transcript resolves bounded per submission.
+		const shortlist = this._preRankCandidates(candidates, utterance);
+		const enriched = shortlist.length ? await this._enrichCandidates(shortlist, token) : [];
 		if (token.isCancellationRequested) {
 			return true;
 		}
 
-		const target = this._resolveTarget(results, candidates);
-		this._beginPendingSend(target, results, candidates, query, utterance, attachedContext, cts);
+		const results = enriched.length ? await this._route(enriched, utterance, token) : [];
+		if (token.isCancellationRequested) {
+			return true;
+		}
+
+		const target = this._resolveTarget(results, enriched);
+		this._beginPendingSend(target, results, enriched, query, utterance, attachedContext, cts);
 		return true;
 	}
 
@@ -211,9 +261,12 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/**
-	 * Snapshot the current agent sessions as routing candidates, excluding the
-	 * host's own scratch session so it can never route to itself. Awaits the
-	 * session model so a pending first-load/refresh isn't missed.
+	 * Snapshot the current agent sessions as routing candidates. Excludes the
+	 * host's own scratch session so it can never route to itself, and local chats:
+	 * routing targets the headless, out-of-view agent sessions (cloud/background/
+	 * agent-host) this surface exists to fan requests out to, and those are the
+	 * ones whose conversation content is available and meaningful to match on.
+	 * Awaits the session model so a pending first-load/refresh isn't missed.
 	 */
 	private async _collectCandidateSessions(token: CancellationToken): Promise<IRoutableSession[]> {
 		try {
@@ -226,7 +279,8 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 		const ownResource = this.host.getOwnSessionResource()?.toString();
 		return this.agentSessionsService.model.sessions
-			.filter(session => session.resource.toString() !== ownResource)
+			.filter(session => session.resource.toString() !== ownResource
+				&& session.providerType !== AgentSessionProviders.Local)
 			.map(session => this._toRoutableSession(session));
 	}
 
@@ -236,7 +290,84 @@ export class ChatSessionRoutingController extends Disposable {
 			label: session.label,
 			status: statusToString(session.status),
 			lastActivity: session.timing?.lastRequestEnded ?? session.timing?.lastRequestStarted ?? session.timing?.created,
+			description: markdownToText(session.description),
 		};
+	}
+
+	/**
+	 * Stage 1: cheap, in-memory pre-rank to pick which candidates are worth
+	 * enriching. Uses the offline token-overlap heuristic over the metadata we
+	 * already hold, then keeps the top {@link ROUTE_ENRICH_MAX_CANDIDATES}. Any
+	 * candidate the heuristic can't score (all zero, e.g. empty utterance) still
+	 * passes through up to the cap so routing never starves on a weak pre-rank.
+	 */
+	private _preRankCandidates(candidates: IRoutableSession[], utterance: string): IRoutableSession[] {
+		if (candidates.length <= ROUTE_ENRICH_MAX_CANDIDATES) {
+			return candidates;
+		}
+		const byId = new Map(candidates.map(c => [c.sessionId, c]));
+		const ranked = heuristicScore({ utterance, sessions: candidates });
+		return ranked
+			.slice(0, ROUTE_ENRICH_MAX_CANDIDATES)
+			.map(r => byId.get(r.sessionId))
+			.filter((c): c is IRoutableSession => !!c);
+	}
+
+	/**
+	 * Stage 2: enrich the shortlisted candidates with conversation content (first
+	 * request, most recent request, and a truncated most recent response) so the
+	 * final score can match on what a session is actually about rather than just
+	 * its title. Each fetch degrades independently: a session whose content can't
+	 * be resolved is kept as-is on its metadata.
+	 */
+	private async _enrichCandidates(candidates: IRoutableSession[], token: CancellationToken): Promise<IRoutableSession[]> {
+		return Promise.all(candidates.map(candidate => this._enrichCandidate(candidate, token)));
+	}
+
+	private async _enrichCandidate(candidate: IRoutableSession, token: CancellationToken): Promise<IRoutableSession> {
+		let resource: URI;
+		try {
+			resource = URI.parse(candidate.sessionId);
+		} catch {
+			return candidate;
+		}
+		try {
+			const session = await this.chatSessionsService.getOrCreateChatSession(resource, token);
+			if (token.isCancellationRequested) {
+				return candidate;
+			}
+			return this._applyHistory(candidate, session.history);
+		} catch (err) {
+			if (!token.isCancellationRequested) {
+				this.logService.trace('[chatSessionRouting] enriching candidate failed, using metadata only:', candidate.sessionId, err);
+			}
+			return candidate;
+		}
+	}
+
+	/** Fold the first/most-recent request and most-recent response into a candidate. */
+	private _applyHistory(candidate: IRoutableSession, history: readonly IChatSessionHistoryItem[]): IRoutableSession {
+		let firstRequest: string | undefined;
+		let lastRequest: string | undefined;
+		let lastResponse: string | undefined;
+		for (const item of history) {
+			if (item.type === 'request') {
+				const prompt = item.prompt.trim();
+				if (prompt) {
+					firstRequest ??= prompt;
+					lastRequest = prompt;
+				}
+			} else {
+				const text = historyResponseToText(item);
+				if (text) {
+					lastResponse = text;
+				}
+			}
+		}
+		if (!firstRequest && !lastRequest && !lastResponse) {
+			return candidate;
+		}
+		return { ...candidate, firstRequest, lastRequest, lastResponse };
 	}
 
 	/**

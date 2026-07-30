@@ -29,6 +29,14 @@ export interface IRoutableSession {
 	readonly status?: string;
 	/** Epoch milliseconds of the last activity, when known. */
 	readonly lastActivity?: number;
+	/** Provider-supplied session summary/description, when known. */
+	readonly description?: string;
+	/** The session's opening user request, when known. */
+	readonly firstRequest?: string;
+	/** The session's most recent user request, when known. */
+	readonly lastRequest?: string;
+	/** The session's most recent response (already truncated by the caller), when known. */
+	readonly lastResponse?: string;
 }
 
 /** A single scored candidate produced by the router, sorted best-first. */
@@ -74,6 +82,18 @@ export interface ISessionRouterMessage {
 }
 
 /**
+ * Upper bound on any single free-text field embedded in the router prompt, so
+ * one verbose session (e.g. a long response) can't dominate or blow the prompt.
+ */
+export const ROUTER_FIELD_CLIP_LENGTH = 240;
+
+/** Collapse whitespace and clip a free-text field for embedding in the prompt. */
+function clip(text: string, max: number = ROUTER_FIELD_CLIP_LENGTH): string {
+	const normalized = text.replace(/\s+/g, ' ').trim();
+	return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
+}
+
+/**
  * Build the chat messages sent to the scoring model. Kept pure and exported so
  * the same prompt can back a renderer language-model request, a CAPI utility
  * completion, or a local model without divergence.
@@ -84,11 +104,16 @@ export function buildRouterMessages(request: ISessionRouteRequest): ISessionRout
 		if (session.repo) { parts.push(`repo=${session.repo}`); }
 		if (session.cwd) { parts.push(`cwd=${session.cwd}`); }
 		if (session.status) { parts.push(`status=${session.status}`); }
+		if (session.description) { parts.push(`summary=${JSON.stringify(clip(session.description))}`); }
+		if (session.firstRequest) { parts.push(`firstRequest=${JSON.stringify(clip(session.firstRequest))}`); }
+		if (session.lastRequest) { parts.push(`lastRequest=${JSON.stringify(clip(session.lastRequest))}`); }
+		if (session.lastResponse) { parts.push(`lastResponse=${JSON.stringify(clip(session.lastResponse))}`); }
 		return `- ${parts.join(' ')}`;
 	}).join('\n');
 
 	const system = [
 		'You route a user request to the coding session it most likely refers to.',
+		'Each candidate may include a summary plus its first request, most recent request, and most recent response; weigh these more heavily than the name when present.',
 		'Score every candidate session from 0 (no match) to 1 (certain match).',
 		'Respond with ONLY a JSON array, sorted by confidence descending, of objects:',
 		'[{"sessionId": string, "confidence": number, "reason": string}]',
@@ -156,13 +181,15 @@ export function parseRouterResponse(text: string, validSessionIds: ReadonlySet<s
 }
 
 /**
- * Zero-dependency offline ranking used as the fallback when no scoring model is
- * available. Token-overlap heuristic over the session label/repo/cwd.
+ * Zero-dependency offline ranking used both as the cheap stage-1 pre-rank and as
+ * the fallback when no scoring model is available. Token-overlap heuristic over
+ * the session's identity/content fields (label, repo, cwd, description, and,
+ * when enriched, its first/most-recent request and most-recent response).
  *
  * The score is calibrated against the candidate's own metadata rather than the
  * raw utterance length: it blends how much of the session's strongest identity
- * field the utterance covers (recall, taken as the best match across label /
- * repo / cwd so a strong label match is not diluted by repo or path tokens) with
+ * field the utterance covers (recall, taken as the best match across the fields
+ * so a strong label match is not diluted by repo or path tokens) with
  * how much of the utterance those tokens consume (precision). This keeps an
  * obvious label match routable even for long sentences instead of drowning it in
  * unrelated utterance tokens.
@@ -173,7 +200,7 @@ export function heuristicScore(request: ISessionRouteRequest): ISessionRouteResu
 		if (!terms.size) {
 			return { sessionId: session.sessionId, confidence: 0 };
 		}
-		const fields = [session.label, session.repo, session.cwd].filter(isNonEmpty);
+		const fields = [session.label, session.repo, session.cwd, session.description, session.firstRequest, session.lastRequest, session.lastResponse].filter(isNonEmpty);
 		let bestRecall = 0;
 		const matchedTerms = new Set<string>();
 		for (const field of fields) {

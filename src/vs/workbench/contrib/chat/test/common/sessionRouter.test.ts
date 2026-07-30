@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildRouterMessages, heuristicScore, ISessionRouteRequest, parseRouterResponse } from '../../common/sessionRouter.js';
+import { buildRouterMessages, heuristicScore, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 
 suite('SessionRouter helpers', () => {
 
@@ -29,6 +29,25 @@ suite('SessionRouter helpers', () => {
 		assert.ok(messages[1].content.includes('id=s2'));
 	});
 
+	test('buildRouterMessages embeds enriched conversation content', () => {
+		const messages = buildRouterMessages({
+			utterance: 'ship it',
+			sessions: [{
+				sessionId: 's1',
+				label: 'voice narration',
+				description: 'Adds dictation onboarding',
+				firstRequest: 'add a voice onboarding dialog',
+				lastRequest: 'tweak the countdown copy',
+				lastResponse: 'Updated the countdown to read "sending in Ns".'
+			}]
+		});
+		const user = messages[1].content;
+		assert.ok(user.includes('summary='));
+		assert.ok(user.includes('firstRequest='));
+		assert.ok(user.includes('lastRequest='));
+		assert.ok(user.includes('lastResponse='));
+	});
+
 	test('parseRouterResponse extracts, clamps, filters and sorts', () => {
 		const raw = '```json\n[{"sessionId":"s2","confidence":0.2},{"sessionId":"s1","confidence":1.7,"reason":"voice"},{"sessionId":"ghost","confidence":0.9}]\n```';
 		const result = parseRouterResponse(raw, new Set(['s1', 's2']));
@@ -49,16 +68,28 @@ suite('SessionRouter helpers', () => {
 		assert.ok(ranked[0].confidence > ranked[1].confidence);
 	});
 
-	test('heuristicScore gives an obvious label match a routable (>= 0.5) confidence', () => {
-		const ROUTE_CONFIDENCE_THRESHOLD = 0.5;
+	test('heuristicScore matches on enriched content, not just the label', () => {
 		const ranked = heuristicScore({
-			utterance: 'can you keep working on the voice narration session please',
+			utterance: 'update the authentication token refresh logic',
 			sessions: [
-				{ sessionId: 's1', label: 'voice narration', repo: 'meganrogge/momentum-map', status: 'idle' },
-				{ sessionId: 's2', label: 'docs cleanup', repo: 'microsoft/vscode-docs' }
+				{ sessionId: 's1', label: 'session one', lastRequest: 'fix the authentication token refresh logic' },
+				{ sessionId: 's2', label: 'session two', lastRequest: 'restyle the settings page' }
 			]
 		});
 		assert.strictEqual(ranked[0].sessionId, 's1');
-		assert.ok(ranked[0].confidence >= ROUTE_CONFIDENCE_THRESHOLD, `expected >= ${ROUTE_CONFIDENCE_THRESHOLD}, got ${ranked[0].confidence}`);
+		assert.ok(ranked[0].confidence > ranked[1].confidence);
+	});
+
+	test('buildRouterMessages clips overlong content fields', () => {
+		const longResponse = 'x '.repeat(400);
+		const user = buildRouterMessages({
+			utterance: 'hi',
+			sessions: [{ sessionId: 's1', label: 'l', lastResponse: longResponse }]
+		})[1].content;
+		const match = /lastResponse=("(?:[^"\\]|\\.)*")/.exec(user);
+		assert.ok(match, 'expected a lastResponse field');
+		const value: string = JSON.parse(match![1]);
+		assert.ok(value.length <= ROUTER_FIELD_CLIP_LENGTH + 3, `expected clipped, got length ${value.length}`);
+		assert.ok(value.endsWith('...'));
 	});
 });

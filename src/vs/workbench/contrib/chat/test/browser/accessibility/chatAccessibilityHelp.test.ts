@@ -56,4 +56,20 @@ suite('Chat Accessibility Help', () => {
 			byDefault: false,
 		});
 	});
+
+	test('only describes the floating input window when enabled in panel chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const describesInputWindow = (enabled: boolean) =>
+			getAccessibilityHelpText('panelChat', keybindingService, true, false, false, enabled).includes('floating chat input window');
+
+		assert.deepStrictEqual({
+			enabled: describesInputWindow(true),
+			disabled: describesInputWindow(false),
+		}, {
+			enabled: true,
+			disabled: false,
+		});
+	});
 });

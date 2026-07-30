@@ -254,7 +254,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.omni.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.omni.enabled', "Enables the omni chat experience: when you submit from an omni surface (such as Quick Chat), the request is scored against your existing sessions and an advisory badge routes it to the best match — a confident match counts down and auto-sends (redirectable or cancelable), while no match creates and sends to a new chat and links to it."),
+			markdownDescription: nls.localize('chat.omni.enabled', "Enables the floating chat input window and its entry points. Requests submitted from the window are scored against existing agent sessions and routed with an advisory badge."),
 			default: false,
 			tags: ['experimental']
 		},

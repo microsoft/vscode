@@ -176,7 +176,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// compact ChatWidget. The response list is filtered out so only the input
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
-		this._renderChatWidget(auxiliaryWindow);
+		this._renderChatWidget(auxiliaryWindow, dragHandle);
 
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
@@ -220,7 +220,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}
 	}
 
-	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow): void {
+	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, dragHandle: HTMLElement): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` — the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
@@ -316,8 +316,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		const layout = () => widget.layout(parent.offsetHeight, parent.offsetWidth);
 		layout();
+		this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
+			const windowChromeHeight = auxiliaryWindow.window.outerHeight - auxiliaryWindow.window.innerHeight;
+			const containerBorderHeight = auxiliaryWindow.container.offsetHeight - auxiliaryWindow.container.clientHeight;
+			const contentHeight = dragHandle.offsetHeight + widget.input.height.get() + containerBorderHeight;
+			auxiliaryWindow.window.resizeTo(auxiliaryWindow.window.outerWidth, contentHeight + windowChromeHeight);
+		}));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
-		this._windowDisposables.add(widget.onDidChangeHeight(() => layout()));
 	}
 
 	private _disposeWidget(): void {
@@ -342,4 +347,3 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 }
 
 registerSingleton(IChatInputWindowService, ChatInputWindowService, InstantiationType.Delayed);
-
