@@ -105,6 +105,12 @@ export class NewChatView extends AbstractChatView {
 	override attach(uris: URI[]): void {
 		this._widget.attach(uris);
 	}
+
+	override setVisible(visible: boolean): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.setHostVisible(visible);
+		}
+	}
 }
 
 /**
