@@ -40,7 +40,7 @@ suite('Mic button menu actions', () => {
 			'Configure Keybinding',
 			'Disable',
 			'',
-			'Settings',
+			'Open Settings',
 			'Configure Instructions',
 			'Show Introduction',
 			'Select Microphone',
