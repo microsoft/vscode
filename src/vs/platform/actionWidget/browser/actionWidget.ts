@@ -21,6 +21,7 @@ import { KeybindingWeight } from '../../keybinding/common/keybindingsRegistry.js
 import { inputActiveOptionBackground, registerColor } from '../../theme/common/colorRegistry.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 
 registerColor(
 	'actionBar.toggledBackground',
@@ -76,7 +77,8 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
 	}
@@ -85,6 +87,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
+		const targetContainer = container ?? (dom.isHTMLElement(anchor) ? this._layoutService.getContainer(dom.getWindow(anchor)) : undefined);
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
@@ -96,7 +99,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 				this._onWidgetClosed(didCancel);
 			},
 			get anchorPosition() { return list.anchorPosition; },
-		}, container, false);
+		}, targetContainer, false);
 	}
 
 	acceptSelected(preview?: boolean) {

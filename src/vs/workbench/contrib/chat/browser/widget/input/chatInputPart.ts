@@ -24,6 +24,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -251,6 +252,8 @@ export interface IChatInputPartOptions {
 	 */
 	inputPartHorizontalPadding?: number;
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
+	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
+	inputPickerPosition?: AnchorPosition;
 }
 
 export interface IWorkingSetEntry {
@@ -430,6 +433,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatGoalBannerContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
+	private editorContainer!: HTMLElement;
+	private toolbarsContainer!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
 	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
@@ -442,6 +447,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	/**
+	 * The interactive interior of the input (editor, toolbars, attachments).
+	 * Hosts embedding the input in a draggable frameless window use these to
+	 * exclude the controls from the window drag region.
+	 */
+	get interactiveInputElements(): HTMLElement[] {
+		return [this.editorContainer, this.toolbarsContainer, this.attachmentsContainer].filter((element): element is HTMLElement => !!element);
 	}
 
 	get persistentContentContainerElement(): HTMLElement {
@@ -1170,6 +1184,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
+			onDidChangeVisibility: this.options.onDidChangeModelPickerVisibility,
+			anchorPosition: this.options.inputPickerPosition,
 		};
 	}
 
@@ -2962,9 +2978,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
 		const editorContainer = elements.editorContainer;
+		this.editorContainer = editorContainer;
 		this.attachmentsContainer = elements.attachmentsContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
+		this.toolbarsContainer = toolbarsContainer;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
 		if (this.options.renderStyle === 'compact') {
 			this.secondaryToolbarContainer.style.display = 'none';
@@ -3156,6 +3174,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
+			listOptions: this.options.inputPickerPosition === undefined ? undefined : { anchorPosition: this.options.inputPickerPosition },
 		};
 		const primarySessionPickerOptions: IChatInputPickerOptions = {
 			...pickerOptions,

@@ -8,6 +8,8 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -20,6 +22,10 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING } from './views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID } from '../../../../workbench/contrib/chat/common/chatInputWindow.js';
+import { OmniChatEnabledSettingId } from '../../../../workbench/contrib/chat/common/sessionRouter.js';
+import { Menus } from '../../../browser/menus.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -55,6 +61,20 @@ const sessionsViewPaneDescriptor: IViewDescriptor = {
 };
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([sessionsViewPaneDescriptor], agentSessionsViewContainer);
+
+MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+	command: {
+		id: CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID,
+		title: localize2('chat.toggleInputWindow', "Toggle Floating Chat Input Window"),
+		icon: Codicon.commentDiscussionSparkle,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ContextKeyExpr.equals(`config.${OmniChatEnabledSettingId}`, true)
+	),
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
