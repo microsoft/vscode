@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
+import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { Annotation, AnnotationsState } from '../../../../common/state/protocol/channels-annotations/state.js';
 import { TerminalClaimKind, type TerminalClaim } from '../../../../common/state/protocol/state.js';
 import {
 	buildDefaultChatUri,
@@ -305,6 +307,116 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 				claim: { kind: TerminalClaimKind.Client, clientId },
 			});
 		});
+	});
+
+	conformanceTest(context, 'createTerminal broadcasts root terminals changed', async function () {
+		const { clientId, workspace } = await createSession('terminal-root');
+		const terminalUri = URI.from({ scheme: 'agenthost-terminal', authority: 'e2e', path: `/${generateUuid()}` }).toString();
+		await context.client.call('subscribe', { channel: ROOT_STATE_URI });
+		context.client.clearReceived();
+
+		const changedPromise = context.client.waitForNotification(n =>
+			isActionNotification(n, 'root/terminalsChanged')
+			&& getActionEnvelope(n).channel === ROOT_STATE_URI,
+		);
+		await context.client.call('createTerminal', {
+			channel: terminalUri,
+			claim: { kind: TerminalClaimKind.Client, clientId },
+			name: 'E2E root terminals',
+			cwd: URI.file(workspace).toString(),
+			cols: 80,
+			rows: 24,
+		});
+		const changed = await changedPromise;
+		const action = getActionEnvelope(changed).action as { terminals: readonly { resource: string }[] };
+		assert.ok(action.terminals.some(terminal => terminal.resource === terminalUri));
+
+		await disposeTerminal(terminalUri);
+	});
+
+	conformanceTest(context, 'terminal clear empties the scrollback buffer', async function () {
+		await withTerminal('terminal-clear', async ({ terminalUri }) => {
+			context.client.clearReceived();
+			context.client.dispatch({
+				channel: terminalUri,
+				clientSeq: 1,
+				action: { type: ActionType.TerminalInput, data: 'node -p "1+1"\r' },
+			});
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'terminal/data') || getActionEnvelope(n).channel !== terminalUri) {
+					return false;
+				}
+				return /(?:^|\D)2(?:\D|$)/.test((getActionEnvelope(n).action as { data: string }).data);
+			}, 30_000);
+			const before = (await terminalState(terminalUri)).content
+				.map(part => part.type === 'command' ? part.output : part.value)
+				.join('');
+			assert.match(before, /(?:^|\D)2(?:\D|$)/);
+
+			// Clear is applied immediately; the shell may then redraw a prompt, so
+			// the post-clear snapshot is not always `[]`. The contract is that the
+			// prior scrollback (including the command output) is gone.
+			await dispatchAndWait(terminalUri, 2, { type: ActionType.TerminalCleared });
+			const after = (await terminalState(terminalUri)).content
+				.map(part => part.type === 'command' ? part.output : part.value)
+				.join('');
+			assert.ok(!/(?:^|\D)2(?:\D|$)/.test(after), `cleared terminal still contained prior output: ${JSON.stringify(after)}`);
+		});
+	});
+
+	conformanceTest(context, 'annotations channel supports set update entry and remove', async function () {
+		const { sessionUri, workspace } = await createSession('annotations');
+		const annotationsUri = buildAnnotationsUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: annotationsUri });
+		const resource = URI.file(join(workspace, 'note.ts')).toString();
+		writeFileSync(join(workspace, 'note.ts'), 'export const x = 1;\n');
+
+		const annotation: Annotation = {
+			id: 'ann-1',
+			turnId: 'turn-annotations',
+			resource,
+			resolved: false,
+			entries: [{ id: 'entry-1', text: 'first note' }],
+		};
+
+		await dispatchAndWait(annotationsUri, 1, { type: ActionType.AnnotationsSet, annotation });
+		let state = (await context.client.call<SubscribeResult>('subscribe', { channel: annotationsUri })).snapshot!.state as AnnotationsState;
+		assert.deepStrictEqual(state.annotations.map(item => item.id), ['ann-1']);
+		assert.deepStrictEqual(state.annotations[0].entries.map(entry => entry.text), ['first note']);
+
+		await dispatchAndWait(annotationsUri, 2, {
+			type: ActionType.AnnotationsUpdated,
+			annotationId: 'ann-1',
+			resolved: true,
+		});
+		await dispatchAndWait(annotationsUri, 3, {
+			type: ActionType.AnnotationsEntrySet,
+			annotationId: 'ann-1',
+			entry: { id: 'entry-2', text: 'second note' },
+		});
+		state = (await context.client.call<SubscribeResult>('subscribe', { channel: annotationsUri })).snapshot!.state as AnnotationsState;
+		assert.deepStrictEqual({
+			resolved: state.annotations[0].resolved,
+			entries: state.annotations[0].entries.map(entry => entry.id),
+		}, {
+			resolved: true,
+			entries: ['entry-1', 'entry-2'],
+		});
+
+		await dispatchAndWait(annotationsUri, 4, {
+			type: ActionType.AnnotationsEntryRemoved,
+			annotationId: 'ann-1',
+			entryId: 'entry-1',
+		});
+		state = (await context.client.call<SubscribeResult>('subscribe', { channel: annotationsUri })).snapshot!.state as AnnotationsState;
+		assert.deepStrictEqual(state.annotations[0].entries.map(entry => entry.id), ['entry-2']);
+
+		await dispatchAndWait(annotationsUri, 5, {
+			type: ActionType.AnnotationsRemoved,
+			annotationId: 'ann-1',
+		});
+		state = (await context.client.call<SubscribeResult>('subscribe', { channel: annotationsUri })).snapshot!.state as AnnotationsState;
+		assert.deepStrictEqual(state.annotations, []);
 	});
 
 	conformanceTest(context, 'terminal resize updates terminal dimensions', async function () {

@@ -6,11 +6,13 @@
 import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { defineChangesetTests } from './changesetSuite.js';
 import { defineCoreTests } from './coreSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
+import { defineProtocolLifecycleTests } from './protocolLifecycleSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
@@ -32,6 +34,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 	(config.enabled ? suite : suite.skip)(options.suiteTitle, function () {
 		const portableShellToolReplayEnabled = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
 		let client: TestProtocolClient;
+		let serverPort = 0;
 		let lease: AgentHostE2EServerLease | undefined;
 		const createdSessions: string[] = [];
 		const tempDirs: string[] = [];
@@ -40,6 +43,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			tier: options.tier,
 			config,
 			get client() { return client; },
+			get serverPort() { return serverPort; },
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
@@ -74,7 +78,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
 			const title = this.currentTest?.title ?? 'unknown';
-			({ client } = await lease.acquire(title, noModelTrafficTestTitles.has(title) ? 'none' : 'recorded'));
+			const acquired = await lease.acquire(title, noModelTrafficTestTitles.has(title) ? 'none' : 'recorded');
+			client = acquired.client;
+			serverPort = acquired.server.port;
 		});
 
 		teardown(async function () {
@@ -97,8 +103,10 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {
 			defineHostFeaturesTests(context);
+			defineProtocolLifecycleTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
+			defineChangesetTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.

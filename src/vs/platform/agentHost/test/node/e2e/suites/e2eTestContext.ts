@@ -24,6 +24,11 @@ export interface IAgentHostE2ETestContext {
 	readonly tier: AgentHostE2ETier;
 	readonly config: IAgentHostE2EProviderConfig;
 	readonly client: TestProtocolClient;
+	/**
+	 * Port of the agent host under test. Used to open secondary WebSocket
+	 * clients against the same server (reconnect / multi-client contracts).
+	 */
+	readonly serverPort: number;
 	readonly createdSessions: string[];
 	readonly tempDirs: string[];
 	/**
