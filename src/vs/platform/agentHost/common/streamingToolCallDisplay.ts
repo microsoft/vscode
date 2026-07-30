@@ -14,8 +14,16 @@ export type ToolPathResolver = (path: string) => string;
 
 const identityPathResolver: ToolPathResolver = path => path;
 
-export function shouldUpdateStreamingToolDisplay(displayedInputLength: number, inputLength: number): boolean {
-	return displayedInputLength === 0 || inputLength - displayedInputLength >= Math.max(16, Math.ceil(displayedInputLength / 4));
+/**
+ * Minimum interval between streamed tool-call display updates. Throttling on
+ * time alone keeps the cadence steady as the argument grows; a size-based rule
+ * would make updates progressively rarer and stall the row on large edits.
+ */
+export const STREAMING_TOOL_DISPLAY_INTERVAL_MS = 50;
+
+/** Flattens a display message so equal updates can be suppressed. */
+export function streamingToolDisplayText(message: StringOrMarkdown): string {
+	return typeof message === 'string' ? message : message.markdown;
 }
 
 export function formatGenericToolInput(input: Record<string, unknown> | undefined, rawFallback?: string): string | undefined {

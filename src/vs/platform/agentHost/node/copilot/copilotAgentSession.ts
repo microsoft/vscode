@@ -39,7 +39,7 @@ import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiM
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
-import { shouldUpdateStreamingToolDisplay } from '../../common/streamingToolCallDisplay.js';
+import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
@@ -120,6 +120,7 @@ interface ICopilotStreamingToolCall {
 	parentToolCallId: string | undefined;
 	started: boolean;
 	displayedInputLength: number;
+	displayedMessage: string | undefined;
 }
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
@@ -1103,6 +1104,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const display = this._getStreamingToolCallDisplay(streaming.toolName, streaming.input);
 		streaming.displayedInputLength = streaming.input.length;
+		const message = streamingToolDisplayText(display.invocationMessage);
+		if (message === streaming.displayedMessage) {
+			return;
+		}
+		streaming.displayedMessage = message;
 		this._emitAction({
 			type: ActionType.ChatToolCallDelta,
 			turnId: this._turnId,
@@ -1121,11 +1127,11 @@ export class CopilotAgentSession extends Disposable {
 				if (!streaming?.started || !streaming.toolName) {
 					return;
 				}
-				if (!shouldUpdateStreamingToolDisplay(streaming.displayedInputLength, streaming.input.length)) {
+				if (streaming.displayedInputLength === streaming.input.length) {
 					return;
 				}
 				this._emitStreamingToolCallDisplay(toolCallId, streaming);
-			}, 50);
+			}, STREAMING_TOOL_DISPLAY_INTERVAL_MS);
 			this._streamingToolDisplaySchedulers.set(toolCallId, scheduler);
 		}
 		if (!scheduler.isScheduled()) {
@@ -3615,6 +3621,7 @@ export class CopilotAgentSession extends Disposable {
 				parentToolCallId: undefined,
 				started: false,
 				displayedInputLength: 0,
+				displayedMessage: undefined,
 			};
 			streaming.input += e.data.inputDelta;
 			if (e.data.toolName) {

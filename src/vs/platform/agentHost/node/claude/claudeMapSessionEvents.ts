@@ -13,7 +13,7 @@ import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
-import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeStreamingInvocationMessage, getClaudeToolDisplayName, isClaudeFileEditTool } from './claudeToolDisplay.js';
+import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName, isClaudeFileEditTool } from './claudeToolDisplay.js';
 import { claudeToolDenialCode } from './claudeToolDenial.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -55,8 +55,12 @@ export class ClaudeMapperState {
 	 * Public so mapper functions can call its lifecycle methods
 	 * directly without forwarding through this class.
 	 */
-	readonly toolCalls = new ClaudeToolCallRegistry();
+	readonly toolCalls: ClaudeToolCallRegistry;
 	private _currentMessageId: string | undefined;
+
+	constructor(now: () => number = Date.now) {
+		this.toolCalls = new ClaudeToolCallRegistry(now);
+	}
 
 	/**
 	 * Phase 8 — file-edit content pre-staged by
@@ -183,7 +187,7 @@ export class ClaudeMapperState {
 	}
 }
 
-function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, toolName: string, input: Record<string, unknown> | undefined): AgentSignal {
+function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, invocationMessage: StringOrMarkdown): AgentSignal {
 	return {
 		kind: 'action',
 		resource: chat,
@@ -192,7 +196,7 @@ function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, toolNa
 			turnId,
 			toolCallId,
 			content: '',
-			invocationMessage: getClaudeStreamingInvocationMessage(toolName, input),
+			invocationMessage,
 		},
 	};
 }
@@ -668,7 +672,7 @@ function mapStreamEvent(
 					if (!update) {
 						return [];
 					}
-					return [fileEditToolDelta(chat, turnId, tracked.toolUseId, tracked.toolName, update.input)];
+					return [fileEditToolDelta(chat, turnId, tracked.toolUseId, update.invocationMessage)];
 				}
 				return [{
 					kind: 'action',
@@ -702,7 +706,7 @@ function mapStreamEvent(
 			const meta = tracked.isClientTool ? undefined : buildClaudeToolMeta(tracked.toolName);
 			const signals: AgentSignal[] = [];
 			if (finalStreamingUpdate) {
-				signals.push(fileEditToolDelta(chat, turnId, tracked.toolUseId, tracked.toolName, finalStreamingUpdate.input));
+				signals.push(fileEditToolDelta(chat, turnId, tracked.toolUseId, finalStreamingUpdate.invocationMessage));
 			}
 			signals.push({
 				kind: 'action',

@@ -5,9 +5,9 @@
 
 import type { ILogService } from '../../../log/common/log.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
-import { formatGenericToolInput, shouldUpdateStreamingToolDisplay } from '../../common/streamingToolCallDisplay.js';
+import { formatGenericToolInput, STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
-import { getClaudeInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
+import { getClaudeInvocationMessage, getClaudeStreamingInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 
 /**
  * Phase 8.5 — per-tool-call info computed at `content_block_stop` and
@@ -32,11 +32,13 @@ interface IRegistryEntry {
 	readonly isClientTool: boolean;
 	inputBuffer: string;
 	displayedInputLength: number;
+	displayedAt: number | undefined;
+	displayedMessage: string | undefined;
 	info: IClaudeToolStartInfo | undefined;
 }
 
 export interface IClaudeStreamingToolInputUpdate {
-	readonly input: Record<string, unknown> | undefined;
+	readonly invocationMessage: StringOrMarkdown;
 }
 
 /**
@@ -72,6 +74,8 @@ export interface IClaudeStreamingToolInputUpdate {
 export class ClaudeToolCallRegistry {
 	private readonly _entries = new Map<string, IRegistryEntry>();
 
+	constructor(private readonly _now: () => number = Date.now) { }
+
 	/**
 	 * Begin tracking a tool call. Called from `content_block_start`
 	 * for a `tool_use` block. Allocates the delta buffer; the
@@ -84,6 +88,8 @@ export class ClaudeToolCallRegistry {
 			isClientTool,
 			inputBuffer: '',
 			displayedInputLength: 0,
+			displayedAt: undefined,
+			displayedMessage: undefined,
 			info: undefined,
 		});
 	}
@@ -101,17 +107,35 @@ export class ClaudeToolCallRegistry {
 		entry.inputBuffer += partialJson;
 	}
 
+	/**
+	 * Renders the next streaming display message for a file-edit tool, or
+	 * `undefined` when nothing new should be shown. Throttled on elapsed time
+	 * only: the SDK streams argument text token by token, so a size-based rule
+	 * would make updates rarer as the edit grows. `force` bypasses the interval
+	 * for the final flush at `content_block_stop`. Identical messages are
+	 * suppressed so a steady tick does not re-send an unchanged row.
+	 */
 	streamingInputUpdate(toolUseId: string, force = false): IClaudeStreamingToolInputUpdate | undefined {
 		const entry = this._entries.get(toolUseId);
-		if (!entry) {
+		if (!entry || entry.displayedInputLength === entry.inputBuffer.length) {
 			return undefined;
 		}
-		if (entry.displayedInputLength === entry.inputBuffer.length
-			|| (!force && !shouldUpdateStreamingToolDisplay(entry.displayedInputLength, entry.inputBuffer.length))) {
+		const now = this._now();
+		if (!force && entry.displayedAt !== undefined && now - entry.displayedAt < STREAMING_TOOL_DISPLAY_INTERVAL_MS) {
+			return undefined;
+		}
+		const invocationMessage = getClaudeStreamingInvocationMessage(entry.toolName, parsePartialToolInput(entry.inputBuffer));
+		if (!invocationMessage) {
 			return undefined;
 		}
 		entry.displayedInputLength = entry.inputBuffer.length;
-		return { input: parsePartialToolInput(entry.inputBuffer) };
+		entry.displayedAt = now;
+		const message = streamingToolDisplayText(invocationMessage);
+		if (message === entry.displayedMessage) {
+			return undefined;
+		}
+		entry.displayedMessage = message;
+		return { invocationMessage };
 	}
 
 	/**

@@ -331,7 +331,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 	test('file-edit input deltas emit compact rich invocation messages', () => {
 		const log = new NullLogService();
-		const state = new ClaudeMapperState();
+		let now = 1_000;
+		const state = new ClaudeMapperState(() => now);
 		const resolver = r();
 		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
 
@@ -343,6 +344,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			log,
 			resolver,
 		);
+		now += 50;
 		const second = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '\\nthree\\nfour\\nfive"')),
 			SESSION,
@@ -378,9 +380,10 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		]);
 	});
 
-	test('content_block_stop flushes the final rich file-edit message below the growth threshold', () => {
+	test('content_block_stop flushes the final rich file-edit message held back by the throttle', () => {
 		const log = new NullLogService();
-		const state = new ClaudeMapperState();
+		const now = 1_000;
+		const state = new ClaudeMapperState(() => now);
 		const resolver = r();
 		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
 
@@ -392,7 +395,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			log,
 			resolver,
 		);
-		const belowThreshold = mapSDKMessageToAgentSignals(
+		const withinInterval = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '\\ntwo"}')),
 			SESSION,
 			TURN_ID,
@@ -411,7 +414,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual({
 			first: first.map(signal => signal.kind === 'action' ? signal.action : undefined),
-			belowThreshold,
+			withinInterval,
 			stopped: stopped.map(signal => signal.kind === 'action' ? signal.action : undefined),
 		}, {
 			first: [{
@@ -421,7 +424,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				content: '',
 				invocationMessage: { markdown: 'Creating [new.ts](file:///src/new.ts) (1 line)' },
 			}],
-			belowThreshold: [],
+			withinInterval: [],
 			stopped: [{
 				type: ActionType.ChatToolCallDelta,
 				turnId: TURN_ID,
