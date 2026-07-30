@@ -154,19 +154,14 @@ export interface IChatListItemTemplate {
 	completedResponseDisclosure?: HTMLDetailsElement;
 	completedResponseStartIndex?: number;
 	completedResponseDisclosureOpen?: boolean;
-	/** Summary element of the current disclosure, target of the token-stats hover. */
-	completedResponseSummary?: HTMLElement;
-	/** Visible label of the current disclosure, reused as the summary's aria-label prefix. */
-	completedResponseLabel?: string;
 	wasResponseComplete?: boolean;
 	readonly completedResponseDisclosureDisposables: DisposableStore;
 	/**
-	 * Token-stats hover for the current disclosure. Held separately from
-	 * {@link completedResponseDisclosureDisposables} because usage can arrive
-	 * after the disclosure is built, so the hover is replaced independently of
-	 * the disclosure's own lifetime.
+	 * Token-usage breakdown hover for the response footer's model/credits stat.
+	 * Template-scoped because the footer is re-rendered (and its DOM replaced)
+	 * on every model change, so the hover must be reattached rather than reused.
 	 */
-	readonly completedResponseTokenStatsHover: MutableDisposable<IManagedHover>;
+	readonly responseTokenStatsHover: MutableDisposable<IManagedHover>;
 
 	/** Drag handle element for reordering pending requests, if currently rendered. */
 	dragHandle?: HTMLElement;
@@ -301,15 +296,15 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 }
 
 /**
- * Token consumption summary shown when hovering a completed response's collapsed
- * section. The counts cover the whole turn rather than only the collapsed steps —
- * providers report usage per turn, not per rendered item — so the label says so.
+ * Token consumption summary shown when hovering the response footer's model and
+ * credits stat. The counts cover the whole turn — providers report usage per
+ * turn, not per model call — so the title says so.
  *
  * Returns `undefined` when the provider reported no totals, in which case no
  * hover should be shown at all. The result doubles as managed-hover content and
  * carries an `ariaLabel` with exact, unabbreviated counts.
  */
-export function formatCompletedResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
+export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
 	if (!modelTotals?.length) {
 		return undefined;
 	}
@@ -396,7 +391,12 @@ export function reconcileChatItemHeight(
 	return { nextRenderedHeight: normalizedHeight, kind: 'scheduleInitial', height: normalizedHeight };
 }
 
-export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean): HTMLElement | undefined {
+/**
+ * Renders the response footer: completion timestamp and the model/credits stat.
+ * `tokenStatsAriaLabel` is folded into the container's accessible name so the
+ * token breakdown offered on hover is also available to screen readers.
+ */
+export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string): HTMLElement | undefined {
 	dom.clearNode(container);
 	container.classList.remove('chat-response-flip-active', 'chat-response-flip-down', 'chat-response-flip-reset');
 
@@ -429,7 +429,7 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 	const accessibleElapsed = elapsed
 		? localize('chatResponseElapsed', "Elapsed time {0}", elapsed)
 		: undefined;
-	container.ariaLabel = [accessibleTiming, accessibleElapsed, details].filter(Boolean).join(', ');
+	container.ariaLabel = [accessibleTiming, accessibleElapsed, details, tokenStatsAriaLabel].filter(Boolean).join(', ');
 	container.classList.toggle('hidden', !responseDetails);
 	container.tabIndex = responseDetails ? 0 : -1;
 	return completedAtElement;
@@ -930,7 +930,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const requestTimestampContainer = dom.append(valueParent, $('.chat-request-timestamp-container'));
 		const elementDisposables = templateDisposables.add(new DisposableStore());
 		const completedResponseDisclosureDisposables = templateDisposables.add(new DisposableStore());
-		const completedResponseTokenStatsHover = templateDisposables.add(new MutableDisposable<IManagedHover>());
+		const responseTokenStatsHover = templateDisposables.add(new MutableDisposable<IManagedHover>());
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		if (this.rendererOptions.noFooter) {
@@ -1003,7 +1003,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, completedResponseTokenStatsHover };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -1174,13 +1174,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseTimingListeners = templateData.elementDisposables.add(new MutableDisposable());
 		const updateResponseDetails = () => {
 			const details = isResponseVM(element) ? element.result?.details : undefined;
+			// Providers report usage asynchronously, often after the footer has already
+			// rendered, so the breakdown is recomputed on every render pass. Sessions
+			// whose provider reports no totals get no hover rather than an empty one.
+			const tokenStats = isResponseVM(element)
+				? formatResponseTokenStats(element.model.usage?.modelTotals)
+				: undefined;
 			const completedAtElement = renderChatResponseDetails(
 				templateData.footerDetailsContainer,
 				details,
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
 				isResponseVM(element) ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
+				tokenStats?.ariaLabel,
 			);
+			// The container (rather than the stat span) is the hover target because it
+			// is the focusable element, which keeps the breakdown reachable by keyboard
+			// as well as by pointer. It is created once per template and survives the
+			// re-render above, so an existing hover is updated in place: replacing it
+			// would re-key the hover service's target map and leave the container
+			// unregistered for `workbench.action.showHover`.
+			const tokenStatsHover = templateData.responseTokenStatsHover;
+			if (!tokenStats) {
+				tokenStatsHover.clear();
+			} else if (tokenStatsHover.value) {
+				tokenStatsHover.value.update(tokenStats);
+			} else {
+				tokenStatsHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.footerDetailsContainer, tokenStats);
+			}
 			if (!completedAtElement) {
 				responseTimingListeners.clear();
 				return;
@@ -2367,9 +2388,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& existingDisclosure.nextSibling === finalResponseRoot
 			&& templateData.renderedParts?.slice(0, finalResponseStartIndex).every(part => !part?.domNode || existingDisclosure.contains(part.domNode))
 		) {
-			// Usage can land after the disclosure was built, so refresh the stats
-			// even when the disclosure itself is reused unchanged.
-			this.updateCompletedResponseTokenStats(element, templateData);
 			return;
 		}
 
@@ -2391,7 +2409,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
-		summary.ariaLabel = disclosureLabel;
 
 		const activeElement = dom.getActiveElement();
 		const keepOpenForFocus = nodesToCollapse.some(node => node.contains(activeElement));
@@ -2413,9 +2430,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		details.append(...nodesToCollapse);
 		templateData.completedResponseDisclosure = details;
 		templateData.completedResponseStartIndex = finalResponseStartIndex;
-		templateData.completedResponseSummary = summary;
-		templateData.completedResponseLabel = disclosureLabel;
-		this.updateCompletedResponseTokenStats(element, templateData);
 		templateData.completedResponseDisclosureDisposables.add(dom.addDisposableListener(details, 'toggle', () => {
 			templateData.completedResponseDisclosureOpen = details.open;
 			updateExpansionState();
@@ -2432,36 +2446,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	/**
-	 * Attaches (or refreshes) the token breakdown shown when hovering the collapsed
-	 * section's summary. Providers report usage asynchronously, so this runs both
-	 * when the disclosure is built and when an unchanged one is reused. Sessions
-	 * whose provider reports no totals get no hover at all rather than an empty one.
-	 */
-	private updateCompletedResponseTokenStats(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
-		const summary = templateData.completedResponseSummary;
-		if (!summary) {
-			templateData.completedResponseTokenStatsHover.clear();
-			return;
-		}
-
-		const tokenStats = formatCompletedResponseTokenStats(element.model.usage?.modelTotals);
-		const hover = templateData.completedResponseTokenStatsHover;
-		if (!tokenStats) {
-			hover.clear();
-			return;
-		}
-
-		summary.ariaLabel = templateData.completedResponseLabel
-			? `${templateData.completedResponseLabel}. ${tokenStats.ariaLabel}`
-			: tokenStats.ariaLabel;
-		if (hover.value) {
-			hover.value.update(tokenStats);
-		} else {
-			hover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), summary, tokenStats);
-		}
-	}
-
 	private removeCompletedResponseDisclosure(templateData: IChatListItemTemplate): void {
 		const details = templateData.completedResponseDisclosure;
 		if (!details) {
@@ -2469,17 +2453,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.completedResponseDisclosureDisposables.clear();
-		// The summary is destroyed along with the disclosure, so its hover must go
-		// with it rather than being carried over to the next one.
-		templateData.completedResponseTokenStatsHover.clear();
 		while (details.childNodes.length > 1) {
 			details.before(details.childNodes[1]);
 		}
 		details.remove();
 		templateData.completedResponseDisclosure = undefined;
 		templateData.completedResponseStartIndex = undefined;
-		templateData.completedResponseSummary = undefined;
-		templateData.completedResponseLabel = undefined;
 	}
 
 	/**
@@ -4198,6 +4177,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.footerToolbar.context = undefined;
 		templateData.checkpointToolbar.context = undefined;
 		templateData.checkpointRestoreToolbar.context = undefined;
+		// The footer hover is template-scoped, so it outlives the element unless
+		// released here; a virtualized row would otherwise keep showing (and
+		// retaining) the previous element's token breakdown.
+		templateData.responseTokenStatsHover.clear();
 	}
 
 	private renderMcpServersInteractionRequired(content: IChatMcpServersStarting | IChatMcpServersStartingSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
