@@ -71,6 +71,8 @@ open existing:  view.openSession(uri, { preserveFocus })
                   → view arranges visible slot (activeSession = active slot) + focuses    // focus skipped when preserveFocus
 external link:   workbench openSessionByResource(uri)
                   → Agents-window opener participant → view.openSession(uri)
+folder handoff:  Agents-window opener participant → view.openNewSession({ folderUri })
+                  → persists the selected workspace after trust succeeds; retries when the provider registers late
 new session:    composer → view.openNewSession({ folderUri, ... })  // view: management.createNewSession() (model draft) + activates it
                   → view observes activeSession == draft → shows draft slot
 delegate:       command → management.createNewSession({ providerId, sessionTypeId })

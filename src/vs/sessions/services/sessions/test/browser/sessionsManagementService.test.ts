@@ -190,7 +190,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 function createSessionsManagementService(
 	session: ISession,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
-	provider: ISessionsProvider = new TestSessionsProvider(session),
+	provider: ISessionsProvider | readonly ISessionsProvider[] = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -200,7 +200,7 @@ function createSessionsManagementService(
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]));
 	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IProgressService, new TestProgressService());
@@ -1040,6 +1040,44 @@ suite('SessionsManagementService', () => {
 			() => service.createNewSession(URI.parse('test:///folder'), { providerId: 'test', sessionTypeId: 'missing' }),
 			/does not advertise session type 'missing'/,
 		);
+	});
+
+	test('createNewSession skips workspace resolvers without advertised session types', () => {
+		const folderUri = URI.parse('test:///folder');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri,
+			label: 'Folder',
+			icon: Codicon.folder,
+			folders: [],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const unavailableSession = stubSession({ sessionId: 'unavailable', providerId: 'unavailable' });
+		const unavailable = new class extends TestSessionsProvider {
+			override readonly id = 'unavailable';
+			override readonly order = 0;
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			override getSessionTypes(): ISessionType[] { return []; }
+		}(unavailableSession);
+
+		const availableSession = stubSession({ sessionId: 'available', providerId: 'available', sessionType: 'available-type' });
+		const available = new class extends TestSessionsProvider {
+			override readonly id = 'available';
+			override readonly order = 1;
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			override getSessionTypes(): ISessionType[] { return [{ id: 'available-type', label: 'Available', icon: Codicon.vm }]; }
+		}(availableSession);
+		const { service } = createSessionsManagementService(availableSession, disposables, [unavailable, available]);
+
+		const created = service.createNewSession(folderUri);
+
+		assert.deepStrictEqual({
+			providerId: created.providerId,
+			sessionType: created.sessionType,
+		}, {
+			providerId: 'available',
+			sessionType: 'available-type',
+		});
 	});
 
 	test('inheritableSessionTarget drops a harness the folder no longer offers', () => {

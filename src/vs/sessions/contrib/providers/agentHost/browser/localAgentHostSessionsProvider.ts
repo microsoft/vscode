@@ -115,7 +115,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 
-		this._syncRootState(this._agentHostService.rootState.value);
 		this._register(this._agentHostService.rootState.onDidChange(() => {
 			this._syncRootState(this._agentHostService.rootState.value);
 		}));
@@ -124,6 +123,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				this._syncRootState(error);
 			}));
 		}
+		this._syncRootState(this._agentHostService.rootState.value);
 
 		// Eagerly populate the session cache once authentication has settled.
 		// Without this, the sidebar would only call `getSessions()` after some

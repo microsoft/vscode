@@ -12,7 +12,6 @@ import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/brows
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -20,6 +19,7 @@ import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessio
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -36,12 +36,12 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionsRecentWorkspacesService private readonly sessionsRecentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -175,8 +175,9 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	private async selectFolder(folderUri: URI): Promise<void> {
 		// Wait for the welcome/setup flow to complete before selecting the folder
 		await this.sessionsSetUpService.whenWelcomeDone();
+		this.logService.info(`[AgentsHandoff] selecting folder: ${folderUri.toString()}`);
 
-		this.sessionsService.openNewSession();
+		await this.sessionsService.openNewSession();
 
 		// Tell the sessions list this folder is the open-window source folder
 		// so it ranks the matching folder section first. Get the view if it
@@ -184,29 +185,36 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
 		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
 
-		if (this.tryResolveAndSelect(folderUri)) {
-			return;
-		}
-
-		// Provider not registered yet — wait for it, but give up at Eventually phase
-		const disposable = this.sessionsProvidersService.onDidChangeProviders(() => {
-			if (this.tryResolveAndSelect(folderUri)) {
-				disposable.dispose();
+		const listener = this._register(new MutableDisposable());
+		let opening = false;
+		const openWhenAvailable = (): Promise<void> | undefined => {
+			const available = this.sessionsManagementService.isNewSessionTargetAvailable(folderUri);
+			this.logService.info(`[AgentsHandoff] folder target check: available=${available}, opening=${opening}`);
+			if (opening || !available) {
+				return undefined;
 			}
+			opening = true;
+			listener.clear();
+			return this.openFolderDraft(folderUri);
+		};
+		listener.value = this.sessionsManagementService.onDidChangeSessionTypes(() => {
+			void openWhenAvailable()?.catch(error => this.logService.error('[AgentsHandoff] failed to open folder draft', error));
 		});
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => disposable.dispose());
+		await openWhenAvailable();
 	}
 
-	private tryResolveAndSelect(folderUri: URI): boolean {
-		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
-		if (!resolved) {
-			return false;
-		}
+	private async openFolderDraft(folderUri: URI): Promise<void> {
 		const activeSession = this.sessionsService.activeSession.get();
-		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
-			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
+		if (activeSession && activeSession.status.get() !== SessionStatus.Untitled) {
+			return;
 		}
-		return true;
+		const result = await this.sessionsService.openNewSession({ folderUri });
+		this.logService.info(`[AgentsHandoff] folder draft result: session=${result.session?.sessionId ?? '(none)'}, trustDeclined=${result.trustDeclined}`);
+		if (result.trustDeclined) {
+			this.sessionsRecentWorkspacesService.removeRecentWorkspace(folderUri);
+		} else if (result.session) {
+			this.sessionsRecentWorkspacesService.addRecentWorkspace(folderUri, result.session.providerId, true);
+		}
 	}
 }
 

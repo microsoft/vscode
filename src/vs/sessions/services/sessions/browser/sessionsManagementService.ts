@@ -347,7 +347,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				if (!candidateWorkspace) {
 					continue;
 				}
-				if (options?.sessionTypeId && !candidate.getSessionTypes(folderUri).some(t => t.id === options.sessionTypeId)) {
+				const sessionTypes = candidate.getSessionTypes(folderUri);
+				if (options?.sessionTypeId ? !sessionTypes.some(t => t.id === options.sessionTypeId) : sessionTypes.length === 0) {
 					continue;
 				}
 				provider = candidate;
