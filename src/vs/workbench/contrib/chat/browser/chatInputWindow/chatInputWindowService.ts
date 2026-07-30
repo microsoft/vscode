@@ -371,7 +371,23 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// Lay the widget out against its own content height rather than the
 		// window's, then size the window to match. Otherwise the input floats in
 		// a fixed 110px box with dead space under it.
+		// Laying out changes sizes, which the observer below reports as a change,
+		// which lays out again. Without a guard the compensation pass turns that
+		// into unbounded recursion.
+		let layingOut = false;
 		const layout = () => {
+			if (layingOut) {
+				return;
+			}
+			layingOut = true;
+			try {
+				doLayout();
+			} finally {
+				layingOut = false;
+			}
+		};
+
+		const doLayout = () => {
 			// Give the widget an explicit width rather than leaving it to flex: the
 			// chat input's inner boxes overflow their parent instead of shrinking,
 			// which pushes the close button past the window edge.
@@ -380,6 +396,16 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const available = row ? Math.max(0, row.clientWidth - chrome) : parent.offsetWidth;
 			parent.style.width = `${available}px`;
 			widget.layout(widget.contentHeight || parent.offsetHeight, available);
+
+			// The chat input reserves a little more than it is given — it is built
+			// for a panel that owns its full column — so its toolbars can spill
+			// past the width we hand it and collide with the close control.
+			// Measure the spill on our own element and give the width back once.
+			const spill = parent.scrollWidth - parent.clientWidth;
+			if (spill > 0) {
+				widget.layout(widget.contentHeight || parent.offsetHeight, Math.max(0, available - spill));
+			}
+
 			this._fitWindowToContent();
 		};
 		layout();

@@ -1107,7 +1107,10 @@
 		"--vscode-inline-chat-affordance-height",
 		"--collapse-from-width",
 		"--slide-from-x",
-		"--slide-from-y"
+		"--slide-from-y",
+		"--omni-icon-column",
+		"--omni-rail",
+		"--omni-row-gap"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

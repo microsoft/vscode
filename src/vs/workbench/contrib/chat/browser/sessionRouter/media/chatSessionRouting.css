@@ -68,7 +68,7 @@
 	display: flex;
 	align-items: baseline;
 	gap: 8px;
-	padding: 0 14px 4px;
+	padding: 0 var(--omni-rail, 14px) 4px;
 }
 
 .chat-routing-badge-title {
@@ -82,13 +82,14 @@
 .chat-routing-badge-list {
 	display: flex;
 	flex-direction: column;
-	padding: 0 6px;
+	/* Row padding makes up the rest of the rail, so the marks land on it. */
+	padding: 0 calc(var(--omni-rail, 14px) - 8px);
 }
 
 .chat-routing-badge-row {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--omni-row-gap, 8px);
 	padding: 4px 8px;
 	border-radius: var(--vscode-cornerRadius-medium, 6px);
 	cursor: pointer;
@@ -131,7 +132,7 @@
 /* The mark holds its space on every row so the labels stay on one axis. */
 .chat-routing-badge-mark {
 	flex: 0 0 auto;
-	width: 16px;
+	width: var(--omni-icon-column, 16px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -192,7 +193,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 5px 14px 0;
+	padding: 5px var(--omni-rail, 14px) 0;
 	font-size: 11px;
 	opacity: .5;
 }

@@ -12,6 +12,16 @@
  */
 
 .chat-input-window {
+	/*
+	 * One rail down the left for every row of content — input text, section
+	 * headers, footers — and the same air on the right. Rows indent from it by
+	 * exactly the width of their status column, so labels line up as a second
+	 * rail rather than drifting.
+	 */
+	--omni-rail: 20px;
+	--omni-icon-column: 16px;
+	--omni-row-gap: 8px;
+
 	/* The most prominent surface in the product: it floats above every window. */
 	border-radius: var(--vscode-cornerRadius-xLarge, 12px);
 	overflow: hidden;
@@ -32,7 +42,7 @@
 	align-items: center;
 	flex: 1 1 auto;
 	min-height: 0;
-	padding-right: 10px;
+	padding-right: var(--omni-rail);
 }
 
 /*
@@ -56,7 +66,8 @@
 	display: flex;
 	align-items: center;
 	flex: 0 0 auto;
-	padding-left: 6px;
+	/* The arrow and the close control were touching at 6px. */
+	padding-left: 8px;
 }
 
 .chat-input-window .chat-input-window-close {
@@ -193,8 +204,8 @@
  * carried out. A guess you can see is a guess you can correct.
  */
 .chat-input-window .chat-intent-badge {
-	gap: 8px;
-	padding: 5px 14px;
+	gap: var(--omni-row-gap);
+	padding: 5px var(--omni-rail);
 }
 
 .chat-input-window .chat-intent-badge-mark {
@@ -228,7 +239,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 5px 14px;
+	padding: 5px var(--omni-rail);
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
@@ -266,7 +277,8 @@
 .chat-input-window .omni-sessions-list {
 	display: none;
 	flex-direction: column;
-	padding: 0 6px 4px;
+	/* Row padding makes up the rest of the rail, so icons land on it. */
+	padding: 0 calc(var(--omni-rail) - 8px) 4px;
 }
 
 .chat-input-window .omni-sessions-list.expanded {
@@ -276,7 +288,7 @@
 .chat-input-window .omni-sessions-row {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--omni-row-gap);
 	padding: 4px 8px;
 	border-radius: var(--vscode-cornerRadius-medium, 6px);
 	color: var(--vscode-foreground);
@@ -298,8 +310,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 16px;
-	height: 16px;
+	width: var(--omni-icon-column);
+	height: var(--omni-icon-column);
 }
 
 .chat-input-window .omni-sessions-row-icon .codicon[class*='codicon-'] {
