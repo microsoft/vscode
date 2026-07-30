@@ -2942,9 +2942,9 @@ suite('AgentSideEffects', () => {
 			await sideEffects.initialize();
 
 			const cases = [
-				['tc-shell-rules-1', { requestSandboxBypass: false }],
-				['tc-shell-rules-2', { requestSandboxBypass: true }],
-				['tc-shell-rules-3', { managedApprovalRequired: true }],
+				['tc-shell-rules-1', { requestSandboxBypass: false, shellLanguage: 'bash' as const }],
+				['tc-shell-rules-2', { requestSandboxBypass: true, shellLanguage: 'bash' as const }],
+				['tc-shell-rules-3', { managedApprovalRequired: true, shellLanguage: 'bash' as const }],
 			] as const;
 			for (const [toolCallId, signalOverrides] of cases) {
 				agent.fireProgress({
@@ -2986,11 +2986,12 @@ suite('AgentSideEffects', () => {
 			await sideEffects.initialize();
 
 			// `get-childitem` only matches the default `Get-ChildItem` allow rule
-			// under PowerShell's case-insensitive matching: the powershell
-			// confirmation auto-approves while the bash one stays rule-resolvable.
+			// under PowerShell's case-insensitive matching. Missing language fails
+			// closed before rule analysis.
 			const cases = [
 				['tc-shell-lang-1', 'powershell'],
-				['tc-shell-lang-2', undefined],
+				['tc-shell-lang-2', 'bash'],
+				['tc-shell-lang-3', undefined],
 			] as const;
 			for (const [toolCallId, shellLanguage] of cases) {
 				agent.fireProgress({
@@ -3023,8 +3024,8 @@ suite('AgentSideEffects', () => {
 				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
 					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
 					: undefined),
-				[[true, undefined], [undefined, true]],
-				'the powershell confirmation auto-approves by setting; the bash one is only rule-resolvable');
+				[[true, undefined], [undefined, true], [undefined, undefined]],
+				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
 		});
 
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {

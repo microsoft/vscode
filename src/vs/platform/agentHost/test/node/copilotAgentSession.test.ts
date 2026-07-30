@@ -2320,12 +2320,12 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'denied-interactively-by-user');
 		});
 
-		test('shell permissions carry the tracked shell language or unknown', async () => {
+		test('shell permissions carry the tracked shell language when known', async () => {
 			const cases = [
 				{ toolCallId: 'tc-powershell-language', trackedToolName: 'powershell', requestToolName: undefined, expected: 'powershell' },
 				{ toolCallId: 'tc-bash-language', trackedToolName: 'bash', requestToolName: undefined, expected: 'bash' },
-				{ toolCallId: 'tc-unrecognized-language', trackedToolName: 'unexpected-shell-tool', requestToolName: undefined, expected: 'unknown' },
-				{ toolCallId: 'tc-unknown-language', trackedToolName: undefined, requestToolName: undefined, expected: 'unknown' },
+				{ toolCallId: 'tc-unrecognized-language', trackedToolName: 'unexpected-shell-tool', requestToolName: undefined, expected: undefined },
+				{ toolCallId: 'tc-missing-language', trackedToolName: undefined, requestToolName: undefined, expected: undefined },
 				// `PermissionRequestShell` has no toolName. If a loose or synthetic
 				// request includes one anyway, the tracked runtime tool remains authoritative.
 				{ toolCallId: 'tc-conflicting-language', trackedToolName: 'powershell', requestToolName: 'bash', expected: 'powershell' },

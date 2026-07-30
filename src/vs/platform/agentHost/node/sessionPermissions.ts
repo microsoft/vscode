@@ -308,8 +308,10 @@ export class SessionPermissionManager extends Disposable {
 
 		// 6. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
-			if (e.shellLanguage === 'unknown') {
-				this._logService.trace('[SessionPermissionManager] Shell language is unknown, requiring confirmation');
+			// Terminal-rule analysis needs an explicit shell dialect. Producers
+			// that omit `shellLanguage` (or fail to correlate one) must prompt.
+			if (!e.shellLanguage) {
+				this._logService.trace('[SessionPermissionManager] Shell language is missing, requiring confirmation');
 				return undefined;
 			}
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
@@ -335,7 +337,7 @@ export class SessionPermissionManager extends Disposable {
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
 	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
-		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || e.shellLanguage === 'unknown') {
+		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {
 			return false;
 		}
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {

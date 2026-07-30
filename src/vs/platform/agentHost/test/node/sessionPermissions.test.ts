@@ -56,12 +56,12 @@ suite('SessionPermissionManager', () => {
 		return { toolCallId: 'tc-read', session: URI.parse(resource), permissionKind: 'read', permissionPath };
 	}
 
-	function shellEvent(commandLine: string): IToolApprovalEvent {
-		return { toolCallId: 'tc-shell', session: URI.parse(sessionUri), permissionKind: 'shell', toolInput: commandLine };
+	function shellEvent(commandLine: string, shellLanguage: IToolApprovalEvent['shellLanguage'] = 'bash'): IToolApprovalEvent {
+		return { toolCallId: 'tc-shell', session: URI.parse(sessionUri), permissionKind: 'shell', toolInput: commandLine, shellLanguage };
 	}
 
 	function powershellEvent(commandLine: string): IToolApprovalEvent {
-		return { ...shellEvent(commandLine), shellLanguage: 'powershell' };
+		return shellEvent(commandLine, 'powershell');
 	}
 
 	setup(async () => {
@@ -318,8 +318,8 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
-	test('unknown shell language disables terminal rules and rule suggestions', async () => {
-		const event: IToolApprovalEvent = { ...shellEvent('Get-ChildItem'), shellLanguage: 'unknown' };
+	test('missing shell language disables terminal rules and rule suggestions', async () => {
+		const event = shellEvent('Get-ChildItem', undefined);
 		assert.deepStrictEqual({
 			approval: await permissions.getAutoApproval(event, sessionUri),
 			ruleResolvable: permissions.isAutoApproveRuleResolvable(event, sessionUri),
