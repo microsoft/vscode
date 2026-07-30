@@ -13,14 +13,14 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 /**
  * Omnibar — a self-running demo of the natural-language command center.
  *
- * Where `omniChat.fixture.ts` shows each state as a still, this plays the whole
- * story on a loop: type a request in plain language, watch it resolve to a
- * command, hand off to voice, get routed to the right session, and get
- * interrupted when a background session needs an answer.
+ * The omnibar is **one surface that changes shape**. It is a single element that
+ * grows downward to reveal secondary content, separated by a hairline rather
+ * than floating as a detached popup — the input and its results are one object,
+ * so the glow can wrap the whole thing.
  *
- * The island is deliberately a *single persistent element* — it morphs (height,
- * contents, glow) rather than being swapped out, because "one surface that
- * changes shape" is the whole idea.
+ * The script plays on a loop: type a request in plain language, watch it resolve
+ * to a real command, hand off to voice, get routed to the right session, and get
+ * interrupted when a background session needs an answer.
  */
 
 // The ocean palette sits around this hue; rotating by (target - base) recenters
@@ -31,27 +31,45 @@ const LISTENING_HUE = 212;
 /** Speaking / assistant — purple, rgb(163,113,247). */
 const SPEAKING_HUE = 262;
 
-const ISLAND_WIDTH = 560;
-const ISLAND_RADIUS = 14;
+const SURFACE_WIDTH = 560;
+const SURFACE_RADIUS = 14;
 const TICK_MS = 60;
 
-type Glow = 'neutral' | 'listening' | 'speaking' | 'alert';
+/**
+ * A glow is a colour *and* a motion.
+ *
+ * `pulse` breathes in place and reads as a state (listening, speaking, blocked).
+ * `rotate` sends a beam travelling around the border and reads as *work in
+ * progress* — it has direction, so it says "something is happening" in a way a
+ * symmetrical pulse cannot.
+ */
+type Glow = 'rest' | 'listening' | 'speaking' | 'alert' | 'thinking' | 'working' | 'matching';
 
 interface GlowTone {
+	readonly size: IBorderBeamOptions['size'];
 	readonly colorVariant: IBorderBeamOptions['colorVariant'];
 	readonly saturation: number;
 	readonly strength: number;
 	readonly brightness: number;
 	readonly hueBaseDeg: number;
+	/** Rotate family only: seconds per revolution. Slower reads as calmer. */
+	readonly duration?: number;
 }
 
-// `mono` is attenuated ~4x internally, so the neutral tone needs full strength
+// `mono` is attenuated ~4x internally, so neutral tones need near-full strength
 // to sit at a weight comparable to the coloured ones.
 const GLOWS: Record<Glow, GlowTone> = {
-	neutral: { colorVariant: 'mono', saturation: 0, strength: 0.85, brightness: 1.35, hueBaseDeg: 0 },
-	listening: { colorVariant: 'ocean', saturation: 0.55, strength: 0.95, brightness: 1.35, hueBaseDeg: LISTENING_HUE - OCEAN_BASE_HUE },
-	speaking: { colorVariant: 'ocean', saturation: 0.6, strength: 0.95, brightness: 1.4, hueBaseDeg: SPEAKING_HUE - OCEAN_BASE_HUE },
-	alert: { colorVariant: 'sunset', saturation: 0.55, strength: 0.9, brightness: 1.35, hueBaseDeg: 0 },
+	rest: { size: 'pulse-inner', colorVariant: 'mono', saturation: 0, strength: 0.8, brightness: 1.3, hueBaseDeg: 0 },
+	listening: { size: 'pulse-inner', colorVariant: 'ocean', saturation: 0.55, strength: 0.95, brightness: 1.35, hueBaseDeg: LISTENING_HUE - OCEAN_BASE_HUE },
+	speaking: { size: 'pulse-inner', colorVariant: 'ocean', saturation: 0.6, strength: 0.95, brightness: 1.4, hueBaseDeg: SPEAKING_HUE - OCEAN_BASE_HUE },
+	alert: { size: 'pulse-inner', colorVariant: 'sunset', saturation: 0.55, strength: 0.9, brightness: 1.35, hueBaseDeg: 0 },
+
+	// Processing states — the traveling beam. Neutral while it parses, accent
+	// once it is acting on your behalf, and a quicker sweep while it scans
+	// sessions for a match.
+	thinking: { size: 'md', colorVariant: 'mono', saturation: 0, strength: 0.9, brightness: 1.5, hueBaseDeg: 0, duration: 2.4 },
+	working: { size: 'md', colorVariant: 'ocean', saturation: 0.5, strength: 0.95, brightness: 1.55, hueBaseDeg: LISTENING_HUE - OCEAN_BASE_HUE, duration: 2.0 },
+	matching: { size: 'md', colorVariant: 'ocean', saturation: 0.45, strength: 0.9, brightness: 1.5, hueBaseDeg: LISTENING_HUE - OCEAN_BASE_HUE, duration: 1.5 },
 };
 
 function isDark(ctx: ComponentFixtureContext): boolean {
@@ -63,9 +81,10 @@ function isDark(ctx: ComponentFixtureContext): boolean {
 // Script
 // ============================================================================
 
-type Panel =
+type Body =
 	| { readonly kind: 'none' }
 	| { readonly kind: 'commandCenter' }
+	| { readonly kind: 'scanning' }
 	| { readonly kind: 'resolved'; readonly label: string }
 	| { readonly kind: 'routing' };
 
@@ -74,15 +93,16 @@ interface Beat {
 	readonly note: string;
 	readonly ms: number;
 	readonly glow: Glow;
-	/** Text in the island. `type: true` reveals it a character at a time. */
+	/** Text in the input row. `type: true` reveals it a character at a time. */
 	readonly text?: string;
 	readonly type?: boolean;
 	readonly placeholder?: string;
 	/** Leading status glyph — only when there is something to say. */
 	readonly glyph?: string;
-	readonly pill?: { readonly label: string; readonly tone: 'listening' | 'speaking' | 'alert' };
-	readonly panel?: Panel;
-	/** Show the caret, as if focused. */
+	/** Leading glyph spins, for processing states. */
+	readonly spin?: boolean;
+	readonly pill?: { readonly label: string; readonly tone: 'listening' | 'speaking' | 'alert' | 'busy' };
+	readonly body?: Body;
 	readonly caret?: boolean;
 }
 
@@ -91,45 +111,61 @@ const SPOKEN = 'change the theme to red for the website I\u2019ve been working o
 
 const SCRIPT: readonly Beat[] = [
 	{
-		note: 'At rest, the command center is just a place to type \u2014 no AI chrome.',
-		ms: 2600, glow: 'neutral', panel: { kind: 'commandCenter' },
+		note: 'At rest the omnibar is just a place to type \u2014 no AI chrome.',
+		ms: 2600, glow: 'rest', body: { kind: 'commandCenter' },
 	},
 	{
 		note: 'Type in plain language instead of hunting through the palette.',
-		ms: 2400, glow: 'neutral', text: TYPED, type: true, caret: true, panel: { kind: 'commandCenter' },
+		ms: 2400, glow: 'rest', text: TYPED, type: true, caret: true, body: { kind: 'commandCenter' },
 	},
 	{
-		note: 'A fast classifier maps it to a real command.',
-		ms: 1300, glow: 'neutral', text: TYPED, glyph: '\u25CC', panel: { kind: 'resolved', label: 'Preferences: Color Theme \u2192 Red Velvet' },
+		note: 'The beam travels while it parses \u2014 motion with direction reads as work.',
+		ms: 1800, glow: 'thinking', text: TYPED, glyph: '\u25CC', spin: true,
+		pill: { label: 'Thinking', tone: 'busy' },
 	},
 	{
-		note: 'Safe and reversible, so it just runs.',
-		ms: 1600, glow: 'neutral', text: 'Theme changed to Red Velvet', glyph: '\u2713',
+		note: 'Resolved to a real command, ready to run.',
+		ms: 1900, glow: 'rest', text: TYPED, body: { kind: 'resolved', label: 'Preferences: Color Theme \u2192 Red Velvet' },
 	},
 	{
-		note: 'The same box takes voice \u2014 the glow turns blue while it listens.',
-		ms: 3600, glow: 'listening', text: SPOKEN, type: true, caret: true, pill: { label: 'Listening', tone: 'listening' },
+		note: 'Safe and reversible, so it just runs \u2014 the beam turns accent while it acts.',
+		ms: 1500, glow: 'working', text: 'Applying Red Velvet\u2026', glyph: '\u25CC', spin: true,
 	},
 	{
-		note: '\u201Cthe website\u201D is ambiguous, so it shows which session it picked.',
-		ms: 4200, glow: 'neutral', text: SPOKEN, panel: { kind: 'routing' },
+		note: 'Done.',
+		ms: 1500, glow: 'rest', text: 'Theme changed to Red Velvet', glyph: '\u2713',
+	},
+	{
+		note: 'The same surface takes voice \u2014 the glow turns blue while it listens.',
+		ms: 3600, glow: 'listening', text: SPOKEN, type: true, caret: true,
+		pill: { label: 'Listening', tone: 'listening' },
+	},
+	{
+		note: '\u201Cthe website\u201D is ambiguous, so it scans your sessions for a match.',
+		ms: 1900, glow: 'matching', text: SPOKEN, glyph: '\u25CC', spin: true,
+		pill: { label: 'Matching', tone: 'busy' }, body: { kind: 'scanning' },
+	},
+	{
+		note: 'It shows which one it picked, and gives you time to change it.',
+		ms: 4200, glow: 'rest', text: SPOKEN, body: { kind: 'routing' },
 	},
 	{
 		note: 'Confirmed \u2014 the request goes to that session.',
-		ms: 1600, glow: 'neutral', text: 'Sent to portfolio-site', glyph: '\u2713',
+		ms: 1600, glow: 'rest', text: 'Sent to portfolio-site', glyph: '\u2713',
 	},
 	{
 		note: 'Meanwhile another session gets blocked and says so.',
-		ms: 3200, glow: 'alert', placeholder: 'Ask anything, or start a new session\u2026',
+		ms: 3000, glow: 'alert', placeholder: 'Ask anything, or start a new session\u2026',
 		pill: { label: 'Fix login bug needs input', tone: 'alert' },
 	},
 	{
 		note: 'It reads the question aloud and opens the mic for your answer.',
-		ms: 3400, glow: 'speaking', text: 'It wants to run \u201Crm -rf build\u201D. Allow it?', pill: { label: 'Speaking', tone: 'speaking' },
+		ms: 3400, glow: 'speaking', text: 'It wants to run \u201Crm -rf build\u201D. Allow it?',
+		pill: { label: 'Speaking', tone: 'speaking' },
 	},
 	{
 		note: 'Answered \u2014 back to rest.',
-		ms: 2000, glow: 'neutral', panel: { kind: 'commandCenter' },
+		ms: 2000, glow: 'rest', body: { kind: 'commandCenter' },
 	},
 ];
 
@@ -144,7 +180,7 @@ const CSS = `
 .omnibar-demo {
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: 16px;
 	align-items: flex-start;
 	font-family: var(--vscode-font-family);
 	color: var(--vscode-foreground);
@@ -155,30 +191,54 @@ const CSS = `
 	min-height: 17px;
 	font-size: 12px;
 	line-height: 17px;
-	opacity: .62;
-	transition: opacity 220ms ease;
+	opacity: .6;
+	letter-spacing: .01em;
 }
-.omnibar-note[data-swap] { opacity: 0; }
 
-/* The island: one persistent surface that changes shape. */
-.omnibar-island {
+/*
+ * The surface. One object: the input row and everything it reveals live inside
+ * the same rounded rect, so the glow can wrap the whole thing and the growth
+ * reads as the surface changing shape rather than a popup appearing.
+ */
+.omnibar-surface {
 	position: relative;
 	box-sizing: border-box;
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	width: ${ISLAND_WIDTH}px;
-	min-height: 40px;
-	padding: 7px 8px 7px 14px;
-	border-radius: ${ISLAND_RADIUS}px;
+	width: ${SURFACE_WIDTH}px;
+	border-radius: ${SURFACE_RADIUS}px;
 	background: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	color: var(--vscode-input-foreground);
+	/* Elevation deepens as it expands — a taller object casts more shadow. */
+	box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 8px 24px -12px rgba(0, 0, 0, .5);
+	transition: box-shadow 320ms cubic-bezier(.2, .8, .2, 1);
 }
-.omnibar-glyph { flex: 0 0 auto; width: 14px; text-align: center; opacity: .75; font-size: 12px; }
+.omnibar-surface[data-expanded] {
+	box-shadow: 0 2px 4px rgba(0, 0, 0, .22), 0 18px 44px -16px rgba(0, 0, 0, .62);
+}
+
+/* Input row — the part that is always visible. */
+.omnibar-input {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 42px;
+	padding: 8px 8px 8px 15px;
+}
+.omnibar-glyph {
+	flex: 0 0 auto;
+	width: 14px;
+	text-align: center;
+	font-size: 12px;
+	opacity: .75;
+}
+.omnibar-glyph[data-spin] { animation: omnibar-spin 1.1s linear infinite; }
+@keyframes omnibar-spin { to { transform: rotate(360deg); } }
+
 .omnibar-text {
 	flex: 1;
+	min-width: 0;
 	font-size: 13px;
+	letter-spacing: .005em;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -191,94 +251,186 @@ const CSS = `
 	margin-left: 1px;
 	vertical-align: text-bottom;
 	background: currentColor;
+	animation: omnibar-blink 1.06s steps(1, end) infinite;
 }
+@keyframes omnibar-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+
 .omnibar-mic {
 	flex: 0 0 auto;
-	display: flex; align-items: center; justify-content: center;
-	width: 26px; height: 26px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 8px;
 	color: var(--vscode-icon-foreground);
 	font-size: 13px;
+	opacity: .85;
 }
 .omnibar-pill {
 	flex: 0 0 auto;
-	display: flex; align-items: center; gap: 6px;
-	height: 22px; padding: 0 10px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	padding: 0 10px;
 	border-radius: 999px;
-	font-size: 11px; white-space: nowrap;
+	font-size: 11px;
+	white-space: nowrap;
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 }
 .omnibar-pill[data-tone="listening"] { background: color-mix(in srgb, rgb(88,166,255) 24%, transparent); color: var(--vscode-foreground); }
 .omnibar-pill[data-tone="speaking"] { background: color-mix(in srgb, rgb(163,113,247) 24%, transparent); color: var(--vscode-foreground); }
 .omnibar-pill[data-tone="alert"] { background: color-mix(in srgb, var(--vscode-notificationsWarningIcon-foreground) 24%, transparent); color: var(--vscode-foreground); }
+.omnibar-pill[data-tone="busy"] { background: color-mix(in srgb, var(--vscode-foreground) 11%, transparent); color: var(--vscode-foreground); opacity: .9; }
 .omnibar-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.omnibar-pill[data-tone="listening"] .omnibar-dot,
+.omnibar-pill[data-tone="speaking"] .omnibar-dot,
+.omnibar-pill[data-tone="busy"] .omnibar-dot { animation: omnibar-breathe 1.5s ease-in-out infinite; }
+@keyframes omnibar-breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
-/* Panel below the island */
-.omnibar-panel {
-	box-sizing: border-box;
-	width: ${ISLAND_WIDTH}px;
-	border-radius: 10px;
-	background: var(--vscode-editorWidget-background, var(--vscode-input-background));
-	border: 1px solid var(--vscode-editorWidget-border, transparent);
-	font-size: 12px;
+/*
+ * The expanding half. Height is animated explicitly so growth is a smooth,
+ * weighted motion rather than a jump.
+ */
+.omnibar-body {
+	height: 0;
 	overflow: hidden;
-	transition: opacity 200ms ease;
+	transition: height 340ms cubic-bezier(.2, .8, .2, 1);
 }
-.omnibar-panel[data-swap] { opacity: 0; }
-.omnibar-panel-body { padding: 8px 0; }
-.omnibar-group { padding: 5px 14px 3px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .5; }
-.omnibar-row { display: flex; align-items: center; gap: 10px; padding: 5px 14px; line-height: 18px; }
-.omnibar-row[data-selected] { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
-.omnibar-row-glyph { width: 14px; text-align: center; opacity: .7; }
-.omnibar-row-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.omnibar-row-hint { opacity: .55; font-size: 11px; white-space: nowrap; }
+/* The hairline is the only thing separating the two halves. */
+.omnibar-divider {
+	height: 1px;
+	margin: 0 1px;
+	background: var(--vscode-foreground);
+	opacity: .08;
+}
+.omnibar-body-inner { padding: 7px 0 8px; }
+
+/* Rows */
+.omnibar-group {
+	padding: 5px 15px 3px;
+	font-size: 10px;
+	letter-spacing: .07em;
+	text-transform: uppercase;
+	opacity: .45;
+}
+.omnibar-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0 6px;
+	padding: 5px 9px;
+	border-radius: 7px;
+	font-size: 12px;
+	line-height: 18px;
+	/* Rows arrive just after the surface starts growing, so the motion reads as
+	one gesture rather than two competing ones. */
+	animation: omnibar-row-in 260ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes omnibar-row-in { from { opacity: 0; transform: translateY(-3px); } }
+.omnibar-row[data-selected] {
+	background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 82%, transparent);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+.omnibar-row-glyph { flex: 0 0 auto; width: 14px; text-align: center; opacity: .65; font-size: 11px; }
+.omnibar-row-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.omnibar-row-hint { flex: 0 0 auto; opacity: .5; font-size: 11px; white-space: nowrap; }
+.omnibar-row[data-selected] .omnibar-row-hint,
+.omnibar-row[data-selected] .omnibar-row-glyph { opacity: .8; }
+
+/* Session status dots */
+.omnibar-status {
+	display: block;
+	width: 7px;
+	height: 7px;
+	margin: 0 auto;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: .45;
+}
+.omnibar-status[data-state="blocked"] { background: var(--vscode-notificationsWarningIcon-foreground); opacity: 1; }
+.omnibar-status[data-state="running"] { background: rgb(88, 166, 255); opacity: 1; animation: omnibar-breathe 1.9s ease-in-out infinite; }
+
+/* Scanning — sessions being considered for a match */
+.omnibar-scan-bar {
+	position: relative;
+	height: 2px;
+	margin: 3px 15px 7px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	overflow: hidden;
+}
+.omnibar-scan-bar::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	width: 38%;
+	border-radius: 999px;
+	background: rgb(88, 166, 255);
+	animation: omnibar-scan 1.15s cubic-bezier(.5, 0, .5, 1) infinite;
+}
+@keyframes omnibar-scan { from { transform: translateX(-100%); } to { transform: translateX(320%); } }
 
 /* Routing card */
-.omnibar-card { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.omnibar-card-head { display: flex; align-items: center; gap: 8px; }
+.omnibar-card { padding: 4px 15px 12px; display: flex; flex-direction: column; gap: 11px; }
+.omnibar-card-head { display: flex; align-items: center; gap: 9px; }
 .omnibar-avatar {
-	width: 20px; height: 20px; border-radius: 6px;
-	display: flex; align-items: center; justify-content: center; font-size: 10px;
-	background: var(--vscode-badge-background); color: var(--vscode-badge-foreground);
+	width: 22px; height: 22px; border-radius: 7px;
+	display: flex; align-items: center; justify-content: center;
+	font-size: 9px; font-weight: 600; letter-spacing: .03em;
+	background: color-mix(in srgb, rgb(88,166,255) 26%, transparent);
+	color: var(--vscode-foreground);
 }
-.omnibar-card-name { font-weight: 600; }
-.omnibar-card-repo { opacity: .55; }
-.omnibar-card-match { margin-left: auto; opacity: .7; font-size: 11px; }
+.omnibar-card-name { font-size: 12px; font-weight: 600; }
+.omnibar-card-repo { font-size: 12px; opacity: .5; }
+.omnibar-card-match { margin-left: auto; font-size: 11px; opacity: .6; font-variant-numeric: tabular-nums; }
 .omnibar-transcript {
-	display: flex; flex-direction: column; gap: 6px;
-	padding: 8px 10px; border-radius: 8px;
-	background: var(--vscode-textBlockQuote-background, rgba(127,127,127,.08));
+	display: flex; flex-direction: column; gap: 5px;
+	padding: 9px 11px;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
 }
-.omnibar-turn { display: flex; gap: 8px; line-height: 16px; }
-.omnibar-turn-who { flex: 0 0 38px; opacity: .5; font-size: 11px; }
-.omnibar-turn-text { flex: 1; opacity: .85; }
-.omnibar-countdown { display: flex; align-items: center; gap: 10px; }
-.omnibar-progress { flex: 1; height: 3px; border-radius: 999px; background: rgba(127,127,127,.25); overflow: hidden; }
-.omnibar-progress-fill { height: 100%; border-radius: 999px; background: var(--vscode-progressBar-background); }
-.omnibar-action { opacity: .8; }
-.omnibar-action[data-primary] { color: var(--vscode-textLink-foreground); }
+.omnibar-turn { display: flex; gap: 9px; font-size: 12px; line-height: 17px; }
+.omnibar-turn-who { flex: 0 0 36px; opacity: .42; font-size: 11px; }
+.omnibar-turn-text { flex: 1; min-width: 0; opacity: .82; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.omnibar-countdown { display: flex; align-items: center; gap: 11px; font-size: 11px; }
+.omnibar-progress { flex: 1; height: 2px; border-radius: 999px; background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent); overflow: hidden; }
+.omnibar-progress-fill { height: 100%; border-radius: 999px; background: rgb(88, 166, 255); }
+.omnibar-timer { opacity: .55; font-variant-numeric: tabular-nums; }
+.omnibar-action { opacity: .75; }
+.omnibar-action[data-primary] { color: var(--vscode-textLink-foreground); opacity: 1; }
 
 /* Progress through the script */
-.omnibar-timeline { display: flex; gap: 4px; width: ${ISLAND_WIDTH}px; }
-.omnibar-tick { flex: 1; height: 2px; border-radius: 999px; background: currentColor; opacity: .13; }
-.omnibar-tick[data-on] { opacity: .5; }
+.omnibar-timeline { display: flex; gap: 3px; width: ${SURFACE_WIDTH}px; }
+.omnibar-tick {
+	flex: 1; height: 2px; border-radius: 999px;
+	background: currentColor; opacity: .1;
+	transition: opacity 260ms ease;
+}
+.omnibar-tick[data-on] { opacity: .42; }
 `;
 
 
 // ============================================================================
-// Panels
+// Body content
 // ============================================================================
 
-function row(glyph: string, label: string, hint?: string, selected?: boolean): HTMLElement {
+function row(glyph: HTMLElement | string, label: string, hint?: string, selected?: boolean): HTMLElement {
 	const el = $('.omnibar-row');
 	if (selected) {
 		el.setAttribute('data-selected', '');
 	}
-	const g = $('span.omnibar-row-glyph');
-	g.textContent = glyph;
-	const l = $('span.omnibar-row-label');
-	l.textContent = label;
-	el.append(g, l);
+	const holder = $('span.omnibar-row-glyph');
+	if (typeof glyph === 'string') {
+		holder.textContent = glyph;
+	} else {
+		holder.appendChild(glyph);
+	}
+	const label_ = $('span.omnibar-row-label');
+	label_.textContent = label;
+	el.append(holder, label_);
 	if (hint) {
 		const h = $('span.omnibar-row-hint');
 		h.textContent = hint;
@@ -287,34 +439,58 @@ function row(glyph: string, label: string, hint?: string, selected?: boolean): H
 	return el;
 }
 
+function statusDot(state: 'blocked' | 'running'): HTMLElement {
+	const dot = $('span.omnibar-status');
+	dot.setAttribute('data-state', state);
+	return dot;
+}
+
 function group(label: string): HTMLElement {
 	const el = $('.omnibar-group');
 	el.textContent = label;
 	return el;
 }
 
-function buildPanelBody(panel: Panel, beatProgress: number): HTMLElement | undefined {
-	if (panel.kind === 'none') {
+/** Stagger the rows so the reveal reads as one gesture. */
+function stagger(root: HTMLElement): HTMLElement {
+	root.querySelectorAll<HTMLElement>('.omnibar-row').forEach((el, i) => {
+		el.style.animationDelay = `${60 + i * 34}ms`;
+	});
+	return root;
+}
+
+function buildBody(body: Body, beatProgress: number): HTMLElement | undefined {
+	if (body.kind === 'none') {
 		return undefined;
 	}
 
-	const body = $('.omnibar-panel-body');
+	const inner = $('.omnibar-body-inner');
 
-	if (panel.kind === 'commandCenter') {
-		body.append(
+	if (body.kind === 'commandCenter') {
+		inner.append(
 			group('Recent'),
 			row('\u21BB', 'Change the theme to Red Velvet', 'Preferences: Color Theme'),
 			row('\u21BB', 'Run the build task', 'Tasks: Run Build Task'),
 			group('Sessions'),
-			row('\u25CF', 'portfolio-site', 'needs input'),
-			row('\u25CF', 'api-gateway', 'running'),
+			row(statusDot('blocked'), 'portfolio-site', 'needs input'),
+			row(statusDot('running'), 'api-gateway', 'running'),
 		);
-		return body;
+		return stagger(inner);
 	}
 
-	if (panel.kind === 'resolved') {
-		body.append(group('Run'), row('\u2318', panel.label, 'Enter', true));
-		return body;
+	if (body.kind === 'scanning') {
+		inner.append(
+			group('Matching sessions'),
+			$('.omnibar-scan-bar'),
+			row(statusDot('running'), 'portfolio-site', 'eli/portfolio'),
+			row(statusDot('running'), 'api-gateway', 'eli/api'),
+		);
+		return stagger(inner);
+	}
+
+	if (body.kind === 'resolved') {
+		inner.append(group('Run'), row('\u2318', body.label, 'Enter', true));
+		return stagger(inner);
 	}
 
 	// Routing card — a deliberate surface, because picking the wrong session is
@@ -349,7 +525,7 @@ function buildPanelBody(panel: Panel, beatProgress: number): HTMLElement | undef
 	const remaining = Math.max(0, 1 - beatProgress);
 	fill.style.width = `${(remaining * 100).toFixed(1)}%`;
 	progress.appendChild(fill);
-	const timer = $('span.omnibar-row-hint');
+	const timer = $('span.omnibar-timer');
 	timer.textContent = `Sending in ${Math.max(1, Math.ceil(remaining * 10))}s`;
 	const change = $('span.omnibar-action');
 	change.setAttribute('data-primary', '');
@@ -359,8 +535,8 @@ function buildPanelBody(panel: Panel, beatProgress: number): HTMLElement | undef
 	countdown.append(progress, timer, change, cancel);
 
 	card.append(head, transcript, countdown);
-	body.appendChild(card);
-	return body;
+	inner.appendChild(card);
+	return inner;
 }
 
 
@@ -371,16 +547,17 @@ function buildPanelBody(panel: Panel, beatProgress: number): HTMLElement | undef
 function beamFor(glow: Glow, ctx: ComponentFixtureContext, interactive: boolean): IBorderBeamOptions {
 	const tone = GLOWS[glow];
 	return {
-		size: 'pulse-inner',
+		size: tone.size,
 		colorVariant: tone.colorVariant,
 		saturation: tone.saturation,
 		strength: tone.strength,
 		brightness: tone.brightness,
 		hueBaseDeg: tone.hueBaseDeg,
+		duration: tone.duration,
 		// Colour is the state indicator, so it must not drift off its base hue.
 		hueRange: 0,
 		theme: isDark(ctx) ? 'dark' : 'light',
-		borderRadius: ISLAND_RADIUS,
+		borderRadius: SURFACE_RADIUS,
 		startVisible: !interactive,
 		staticPreview: !interactive,
 	};
@@ -388,10 +565,10 @@ function beamFor(glow: Glow, ctx: ComponentFixtureContext, interactive: boolean)
 
 function renderDemo(ctx: ComponentFixtureContext): void {
 	const { container, disposableStore, isInteractive } = ctx;
-	// A fixed frame: the panel grows and shrinks between beats, and letting the
+	// A fixed frame: the surface grows and shrinks between beats, and letting the
 	// whole stage reflow around it makes the demo feel jumpy on playback.
 	container.style.cssText = [
-		'padding:30px 26px', 'box-sizing:border-box', 'min-height:330px',
+		'padding:30px 26px', 'box-sizing:border-box', 'min-height:340px',
 		'background:var(--vscode-editor-background)',
 	].join(';');
 	if (isInteractive) {
@@ -404,36 +581,35 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 
 	const stage = $('.omnibar-demo');
 	const note = $('.omnibar-note');
-	const island = $('.omnibar-island');
-	const panel = $('.omnibar-panel');
+
+	const surface = $('.omnibar-surface');
+	const inputRow = $('.omnibar-input');
+	const bodyWrap = $('.omnibar-body');
+	surface.append(inputRow, bodyWrap);
+
 	const timeline = $('.omnibar-timeline');
 	const ticks = SCRIPT.map(() => {
 		const tick = $('.omnibar-tick');
 		timeline.appendChild(tick);
 		return tick;
 	});
-	stage.append(note, island, panel, timeline);
+
+	stage.append(note, surface, timeline);
 	container.appendChild(stage);
 
 	const beam = disposableStore.add(new MutableDisposable<IDisposable>());
 
-	/**
-	 * Rebuilds the island's contents in place, so the surface itself persists.
-	 *
-	 * Only our own children are cleared: `applyBorderBeam` appends a
-	 * `[data-beam-bloom]` element to its host, and wiping that would tear a hole
-	 * in the glow.
-	 */
-	const paintIsland = (beat: Beat, progress: number) => {
-		for (const child of [...island.children]) {
-			if (!child.hasAttribute('data-beam-bloom')) {
-				child.remove();
-			}
-		}
+	/** Repaints the input row in place, so the surface itself persists. */
+	const paintInput = (beat: Beat, progress: number) => {
+		inputRow.textContent = '';
+
 		if (beat.glyph) {
 			const glyph = $('span.omnibar-glyph');
 			glyph.textContent = beat.glyph;
-			island.appendChild(glyph);
+			if (beat.spin) {
+				glyph.setAttribute('data-spin', '');
+			}
+			inputRow.appendChild(glyph);
 		}
 
 		const text = $('span.omnibar-text');
@@ -450,7 +626,7 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		if (beat.caret) {
 			text.appendChild($('span.omnibar-caret'));
 		}
-		island.appendChild(text);
+		inputRow.appendChild(text);
 
 		if (beat.pill) {
 			const pill = $('span.omnibar-pill');
@@ -459,12 +635,33 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 			const label = $('span');
 			label.textContent = beat.pill.label;
 			pill.appendChild(label);
-			island.appendChild(pill);
+			inputRow.appendChild(pill);
 		}
 
 		const mic = $('span.omnibar-mic');
 		mic.textContent = '\u25CF';
-		island.appendChild(mic);
+		inputRow.appendChild(mic);
+	};
+
+	/** Swaps the lower half and animates the surface to its new height. */
+	const paintBody = (beat: Beat, progress: number) => {
+		const content = buildBody(beat.body ?? { kind: 'none' }, progress);
+		bodyWrap.textContent = '';
+
+		if (!content) {
+			bodyWrap.style.height = '0px';
+			surface.removeAttribute('data-expanded');
+			return;
+		}
+
+		const divider = $('.omnibar-divider');
+		bodyWrap.append(divider, content);
+		surface.setAttribute('data-expanded', '');
+		// The children lay out at their natural height even though the wrapper is
+		// clipped to zero, so they can be measured directly. Round-tripping the
+		// wrapper through `height: auto` instead would collapse into a single
+		// style recalc and the transition would never leave its start value.
+		bodyWrap.style.height = `${divider.offsetHeight + content.offsetHeight}px`;
 	};
 
 	// Elapsed comes from the wall clock rather than accumulating ticks, so the
@@ -490,32 +687,24 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		}
 		const beat = SCRIPT[index];
 		const progress = Math.min(1, (elapsed - acc) / beat.ms);
-		const entering = index !== currentIndex;
 
-		if (entering) {
+		if (index !== currentIndex) {
 			currentIndex = index;
 			note.textContent = beat.note;
-			replaceBeam(beam, island, beamFor(beat.glow, ctx, isInteractive));
+			replaceBeam(beam, surface, beamFor(beat.glow, ctx, isInteractive));
 			ticks.forEach((tick, i) => tick.toggleAttribute('data-on', i <= index));
-
-			const body = buildPanelBody(beat.panel ?? { kind: 'none' }, progress);
-			panel.textContent = '';
-			if (body) {
-				panel.appendChild(body);
-				panel.style.display = '';
-			} else {
-				panel.style.display = 'none';
-			}
-		} else if (beat.panel?.kind === 'routing') {
-			// Only the routing card animates within a beat (the countdown drains).
-			const body = buildPanelBody(beat.panel, progress);
-			panel.textContent = '';
-			if (body) {
-				panel.appendChild(body);
+			paintBody(beat, progress);
+		} else if (beat.body?.kind === 'routing') {
+			// Only the routing card animates within a beat (the countdown drains),
+			// and it does so without disturbing the surface height.
+			const content = buildBody(beat.body, progress);
+			const existing = bodyWrap.querySelector('.omnibar-body-inner');
+			if (content && existing) {
+				existing.replaceWith(content);
 			}
 		}
 
-		paintIsland(beat, progress);
+		paintInput(beat, progress);
 	};
 
 	frame();

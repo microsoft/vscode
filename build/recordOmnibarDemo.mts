@@ -22,11 +22,11 @@ const FIXTURE = 'voice%2FomnibarDemo%2FomnibarDemo%2FDemo%2FDark';
 const URL = `http://localhost:5123/___explorer?fixture=${FIXTURE}&mode=embedded`;
 
 /** One full pass of the script, plus a little lead-in and tail. */
-const SCRIPT_MS = 25900;
+const SCRIPT_MS = 30900;
 const LEAD_IN_MS = 1200;
 const TAIL_MS = 600;
 
-const VIEWPORT = { width: 612, height: 330 };
+const VIEWPORT = { width: 612, height: 340 };
 
 async function main(): Promise<void> {
 	const outArg = process.argv.indexOf('--out');
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
 	// Wait for the fixture to actually mount before the recording gets interesting.
 	await page.waitForFunction(() => {
 		const visit = (node: Document | ShadowRoot): Element | null => {
-			const hit = node.querySelector('.omnibar-island');
+			const hit = node.querySelector('.omnibar-surface');
 			if (hit) {
 				return hit;
 			}
