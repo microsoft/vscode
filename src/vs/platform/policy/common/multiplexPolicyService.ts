@@ -7,9 +7,11 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from './policy.js';
 
 export class MultiplexPolicyService extends AbstractPolicyService implements IPolicyService {
+
+	private readonly policyValueSources = new Map<string, PolicyValueSource>();
 
 	constructor(
 		private readonly policyServices: ReadonlyArray<IPolicyService>,
@@ -34,8 +36,13 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 		this.updatePolicies();
 	}
 
+	override getPolicyValueSource(name: string): PolicyValueSource | undefined {
+		return this.policyValueSources.get(name);
+	}
+
 	private updatePolicies(): void {
 		this.policies.clear();
+		this.policyValueSources.clear();
 		const updated: string[] = [];
 		for (const service of this.policyServices) {
 			const definitions = service.policyDefinitions;
@@ -45,6 +52,7 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 				if (value !== undefined) {
 					updated.push(name);
 					this.policies.set(name, value);
+					this.policyValueSources.set(name, service.getPolicyValueSource(name) ?? PolicyValueSource.Admin);
 				}
 			}
 		}

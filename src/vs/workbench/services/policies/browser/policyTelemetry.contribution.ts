@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { PolicyName } from '../../../../base/common/policy.js';
-import { IPolicyService, PolicyValue } from '../../../../platform/policy/common/policy.js';
+import { IPolicyService, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
@@ -24,6 +24,9 @@ const enum PolicyNames {
 
 type PolicyAppliedEvent = {
 	policyCount: number;
+	adminPolicyCount: number;
+	accountPolicyCount: number;
+	accountGatePolicyCount: number;
 	defaultModelSet: boolean;
 	toolsAutoApproveSet: boolean;
 	enabledPluginsSet: boolean;
@@ -42,8 +45,11 @@ type PolicyAppliedEvent = {
 
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
-	comment: 'Reports which enterprise-managed settings and device policies are applied and their value buckets, to understand managed-configuration adoption. No raw policy values are collected.';
-	policyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of policies with an applied value (the "applied" denominator).' };
+	comment: 'Reports effective policy values by privacy-safe source family and selected value buckets, to distinguish administrator policy adoption from account-driven restrictions. No raw policy values are collected.';
+	policyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from all sources, including administrator policy, account policy data, and the approved-account gate.' };
+	adminPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from direct administrator policy or managed-settings channels.' };
+	accountPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values derived from GitHub account policy or entitlement data.' };
+	accountGatePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values forced by an unsatisfied approved-account gate.' };
 	defaultModelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the default chat model policy is applied.' };
 	toolsAutoApproveSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy is applied.' };
 	enabledPluginsSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the enabled-plugins policy is applied.' };
@@ -89,9 +95,23 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 	private buildEvent(): PolicyAppliedEvent {
 		const value = (name: PolicyName): PolicyValue | undefined => this.policyService.getPolicyValue(name);
 		let policyCount = 0;
+		let adminPolicyCount = 0;
+		let accountPolicyCount = 0;
+		let accountGatePolicyCount = 0;
 		for (const name in this.policyService.policyDefinitions) {
 			if (value(name) !== undefined) {
 				policyCount++;
+				switch (this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Admin) {
+					case PolicyValueSource.Admin:
+						adminPolicyCount++;
+						break;
+					case PolicyValueSource.Account:
+						accountPolicyCount++;
+						break;
+					case PolicyValueSource.AccountGate:
+						accountGatePolicyCount++;
+						break;
+				}
 			}
 		}
 
@@ -103,6 +123,9 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 
 		return {
 			policyCount,
+			adminPolicyCount,
+			accountPolicyCount,
+			accountGatePolicyCount,
 			defaultModelSet: defaultModel !== undefined,
 			toolsAutoApproveSet: toolsAutoApprove !== undefined,
 			enabledPluginsSet: value(PolicyNames.EnabledPlugins) !== undefined,

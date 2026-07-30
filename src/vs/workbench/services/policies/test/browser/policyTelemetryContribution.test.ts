@@ -7,15 +7,26 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { PolicyName } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AbstractPolicyService, PolicyValue } from '../../../../../platform/policy/common/policy.js';
+import { AbstractPolicyService, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { PolicyTelemetryContribution } from '../../browser/policyTelemetry.contribution.js';
 
 class TestPolicyService extends AbstractPolicyService {
 
-	setPolicy(name: PolicyName, value: PolicyValue): void {
+	private readonly sources = new Map<PolicyName, PolicyValueSource>();
+
+	setPolicy(name: PolicyName, value: PolicyValue, source: PolicyValueSource | undefined = PolicyValueSource.Admin): void {
 		const type = typeof value === 'string' ? 'string' : typeof value === 'number' ? 'number' : 'boolean';
 		this.policyDefinitions[name] = { type };
 		this.policies.set(name, value);
+		if (source !== undefined) {
+			this.sources.set(name, source);
+		} else {
+			this.sources.delete(name);
+		}
+	}
+
+	override getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
+		return this.sources.get(name);
 	}
 
 	fireChange(): void {
@@ -27,6 +38,9 @@ class TestPolicyService extends AbstractPolicyService {
 
 const EMPTY_EVENT = {
 	policyCount: 0,
+	adminPolicyCount: 0,
+	accountPolicyCount: 0,
+	accountGatePolicyCount: 0,
 	defaultModelSet: false,
 	toolsAutoApproveSet: false,
 	enabledPluginsSet: false,
@@ -87,6 +101,7 @@ suite('PolicyTelemetryContribution', () => {
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
 			policyCount: 9,
+			adminPolicyCount: 9,
 			defaultModelSet: true,
 			toolsAutoApproveSet: true,
 			enabledPluginsSet: true,
@@ -115,6 +130,7 @@ suite('PolicyTelemetryContribution', () => {
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
 			policyCount: 2,
+			adminPolicyCount: 2,
 			strictMarketplacesSet: true,
 			telemetryLevelSet: true,
 			telemetryLevel: 'unknown',
@@ -131,6 +147,26 @@ suite('PolicyTelemetryContribution', () => {
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
 			policyCount: 1,
+			adminPolicyCount: 1,
+		});
+	});
+
+	test('partitions effective policies by source and preserves the total count', () => {
+		const policyService = new TestPolicyService();
+		policyService.setPolicy('AdminPolicy', true, PolicyValueSource.Admin);
+		policyService.setPolicy('AccountPolicy', true, PolicyValueSource.Account);
+		policyService.setPolicy('AccountGatePolicy', false, PolicyValueSource.AccountGate);
+		policyService.setPolicy('UnknownSourcePolicy', true, undefined);
+
+		const { events, clock } = createContribution(policyService);
+		clock.tick(500);
+
+		assert.deepStrictEqual(events[0].data, {
+			...EMPTY_EVENT,
+			policyCount: 4,
+			adminPolicyCount: 2,
+			accountPolicyCount: 1,
+			accountGatePolicyCount: 1,
 		});
 	});
 
@@ -154,6 +190,7 @@ suite('PolicyTelemetryContribution', () => {
 				data: {
 					...EMPTY_EVENT,
 					policyCount: 1,
+					adminPolicyCount: 1,
 					telemetryLevelSet: true,
 					telemetryLevel: 'off',
 				},
@@ -163,6 +200,7 @@ suite('PolicyTelemetryContribution', () => {
 				data: {
 					...EMPTY_EVENT,
 					policyCount: 1,
+					adminPolicyCount: 1,
 					telemetryLevelSet: true,
 					telemetryLevel: 'all',
 				},

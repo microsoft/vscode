@@ -12,6 +12,12 @@ import { IManagedSettingsPolicyDefinitions, PolicyName } from '../../../base/com
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export type PolicyValue = string | number | boolean;
+/** The source family that produced an effective policy value. */
+export const enum PolicyValueSource {
+	Admin = 'admin',
+	Account = 'account',
+	AccountGate = 'accountGate',
+}
 export type PolicyDefinition = {
 	type: 'string' | 'number' | 'boolean';
 	value?: (policyData: IPolicyData) => string | number | boolean | undefined;
@@ -48,6 +54,7 @@ export interface IPolicyService {
 	readonly onDidChange: Event<readonly PolicyName[]>;
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
+	getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined;
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> | undefined;
 	readonly policyDefinitions: IStringDictionary<PolicyDefinition>;
 }
@@ -82,6 +89,10 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 		return this.policies.get(name);
 	}
 
+	getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
+		return this.policies.has(name) ? PolicyValueSource.Admin : undefined;
+	}
+
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> {
 		return Iterable.reduce<[PolicyName, PolicyDefinition], IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>>(Object.entries(this.policyDefinitions), (r, [name, definition]) => ({ ...r, [name]: { definition: toSerializablePolicyDefinition(definition), value: this.policies.get(name)! } }), {});
 	}
@@ -94,6 +105,7 @@ export class NullPolicyService implements IPolicyService {
 	readonly onDidChange = Event.None;
 	async updatePolicyDefinitions() { return {}; }
 	getPolicyValue() { return undefined; }
+	getPolicyValueSource() { return undefined; }
 	serialize() { return undefined; }
 	policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 }
