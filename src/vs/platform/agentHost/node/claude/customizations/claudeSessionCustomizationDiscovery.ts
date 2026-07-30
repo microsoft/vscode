@@ -89,8 +89,8 @@ function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
 }
 
 /**
- * The scope a discovered customization belongs to, derived from which
- * `.claude/` tree contains its source file.
+ * A URI-backed scope bucket. The base URI distinguishes workspace A,
+ * workspace B, and user scope without a separate scope enum.
  */
 interface ICustomizationBucket {
 	readonly base: URI;
