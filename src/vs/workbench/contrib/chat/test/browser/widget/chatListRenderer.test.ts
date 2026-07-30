@@ -16,10 +16,10 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithCompletedQuestionInteraction, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
-import { IChatMcpServersStartingSlow, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
@@ -499,6 +499,36 @@ suite('ChatListRenderer', () => {
 				executingWithoutConfirmation: true,
 				executingWithMcpApp: false,
 				streamingWithMcpApp: false,
+			});
+
+			suite('endsWithCompletedQuestionInteraction', () => {
+				test('resumes working progress after completed ask interactions', () => {
+					const completedTool: IChatToolInvocationSerialized = {
+						kind: 'toolInvocationSerialized',
+						toolCallId: 'ask-1',
+						toolId: 'ask_user',
+						invocationMessage: 'Waiting for answer...',
+						originMessage: undefined,
+						pastTenseMessage: undefined,
+						isComplete: true,
+						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+						presentation: undefined,
+						source: ToolDataSource.Internal,
+					};
+					const completedQuestion: IChatQuestionCarousel = {
+						kind: 'questionCarousel',
+						questions: [],
+						allowSkip: true,
+						isUsed: true,
+					};
+
+					assert.deepStrictEqual([
+						endsWithCompletedQuestionInteraction([completedTool]),
+						endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
+						endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
+						endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
+					], [true, true, false, false]);
+				});
 			});
 		});
 	});
