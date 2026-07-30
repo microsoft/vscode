@@ -485,7 +485,11 @@ export class CommandAutoApprover extends Disposable {
 		const denyCommandLineRules: IAutoApproveRule[] = [];
 
 		for (const [key, value] of Object.entries(ruleConfig)) {
-			const rule = convertAutoApproveEntryToRule(key);
+			const regex = convertAutoApproveEntryToRegex(key);
+			const rule = {
+				regex,
+				regexCaseInsensitive: regex.flags.includes('i') ? regex : new RegExp(regex.source, regex.flags + 'i'),
+			};
 			if (value === true) {
 				allowRules.push(rule);
 			} else if (value === false) {
@@ -512,14 +516,6 @@ export class CommandAutoApprover extends Disposable {
 }
 
 // ---- Regex conversion -------------------------------------------------------
-
-function convertAutoApproveEntryToRule(value: string): IAutoApproveRule {
-	const regex = convertAutoApproveEntryToRegex(value);
-	if (regex.flags.includes('i')) {
-		return { regex, regexCaseInsensitive: regex };
-	}
-	return { regex, regexCaseInsensitive: new RegExp(regex.source, regex.flags + 'i') };
-}
 
 function convertAutoApproveEntryToRegex(value: string): RegExp {
 	// If wrapped in `/`, treat as regex

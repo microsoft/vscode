@@ -287,7 +287,10 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Get-ChildItem `\n  -Path .', pwsh),
 				// Expression-style invocations capture the inner command without the parentheses.
 				approver.shouldAutoApprove('(Get-Content README.md).Length', pwsh),
-			], ['approved', 'approved', 'approved', 'approved']);
+				// Subexpressions are traversed so their nested commands are checked.
+				approver.shouldAutoApprove('Write-Host $(Get-Date)', pwsh),
+				approver.shouldAutoApprove('Write-Host $(Remove-Item x)', pwsh),
+			], ['approved', 'approved', 'approved', 'approved', 'approved', 'denied']);
 		});
 
 		test('matches rules case-insensitively like PowerShell itself', () => {

@@ -1361,10 +1361,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	 */
 	readonly requestSandboxBypass?: boolean;
 	/**
-	 * Host-only shell grammar hint for terminal auto-approval (not part of the
-	 * dispatched action). Set by shell tools so PowerShell commands are parsed
-	 * with the PowerShell grammar instead of bash. `unknown` means the shell
-	 * request could not be correlated with its tool and must not be auto-approved.
+	 * Host-only shell grammar hint for terminal auto-approval. Set by shell tools
+	 * so PowerShell commands are parsed with the PowerShell grammar instead of
+	 * bash. `unknown` means the shell request could not be correlated with its
+	 * tool and must not be auto-approved by terminal rules.
 	 */
 	readonly shellLanguage?: 'bash' | 'powershell' | 'unknown';
 	/**
