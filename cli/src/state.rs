@@ -237,6 +237,18 @@ impl LauncherPaths {
 		})
 	}
 
+	/// Lockfile for the running agent host. Pinned to the canonical
+	/// server data dir (see [`agent_host_root`]) so a `code agent host`
+	/// invoked locally and the supervisor spawned by the SSH
+	/// `command-shell` path agree on the same lockfile regardless of
+	/// `--cli-data-dir`.
+	pub fn agent_host_lockfile(&self) -> PathBuf {
+		self.agent_host_root().join(format!(
+			"agent-host-{}.lock",
+			VSCODE_CLI_QUALITY.unwrap_or("oss")
+		))
+	}
+
 	/// Suggested path for the detached `code agent host` supervisor's log
 	/// file. The supervisor severs its inherited stdio after signalling
 	/// readiness, so a file log is the only way to debug post-handoff
@@ -248,10 +260,10 @@ impl LauncherPaths {
 		))
 	}
 
-	/// Canonical machine-wide directory holding the detached `code agent
-	/// host` supervisor's log file. Anchored on `serverDataFolderName`
+	/// Canonical machine-wide directory holding agent host coordination
+	/// files (lockfile + supervisor log). Anchored on `serverDataFolderName`
 	/// rather than `self.root` so different `--cli-data-dir` values still
-	/// land on the same log file. Falls back to `self.root` when no home
+	/// land on the same lockfile. Falls back to `self.root` when no home
 	/// directory is available.
 	fn agent_host_root(&self) -> PathBuf {
 		match dirs::home_dir() {

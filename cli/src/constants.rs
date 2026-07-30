@@ -67,16 +67,6 @@ pub const QUALITYLESS_PRODUCT_NAME: &str = match option_env!("VSCODE_CLI_QUALITY
 	None => "Code",
 };
 
-/// Short product name, mirroring `product.json`'s `nameShort` (e.g. `Code -
-/// OSS`, `Visual Studio Code`). Used as the leaf directory name when
-/// resolving the platform user data directory, matching the TypeScript
-/// resolver in `src/vs/platform/environment/node/userDataPath.ts` (which is
-/// passed `product.nameShort`).
-pub const PRODUCT_NAME_SHORT: &str = match option_env!("VSCODE_CLI_NAME_SHORT") {
-	Some(n) => n,
-	None => "Code - OSS",
-};
-
 /// Name of the application without quality information.
 pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " Server");
 
@@ -104,10 +94,9 @@ pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DATA_FOL
 
 /// Canonical, machine-wide parent directory used to coordinate the agent
 /// host across CLI invocations. Mirrors the `serverDataFolderName` in
-/// `product.json` so the supervisor log written by `code agent host`
-/// lines up with the directory the SSH `command-shell` entry point
-/// already uses (otherwise local + remote would race on different
-/// directories).
+/// `product.json` so the lockfile/log written by `code agent host` lines
+/// up with the directory the SSH `command-shell` entry point already uses
+/// (otherwise local + remote would race on different lockfiles).
 pub const SERVER_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_SERVER_DATA_FOLDER_NAME") {
 	Some(n) => n,
 	None => ".vscode-server-oss",

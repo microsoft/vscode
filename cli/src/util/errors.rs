@@ -523,16 +523,6 @@ pub enum CodeError {
 	ServerUnexpectedExit(String),
 	#[error("Server binary is not executable: {0}")]
 	ServerNotExecutable(String),
-	#[error("no agent host could be reached: {0}")]
-	NoAgentHostReachable(String),
-	#[error("no session matching \"{0}\" was found on any discovered agent host")]
-	SessionNotFoundOnAnyHost(String),
-	#[error("could not confirm whether session \"{0}\" exists: {1} could not be searched")]
-	IncompleteSessionSearch(String, String),
-	#[error("multiple live standalone agent hosts are registered ({0}); pass --instance-id to select one")]
-	AmbiguousAgentHostInstance(String),
-	#[error("no live standalone agent host with instance id \"{0}\" was found")]
-	UnknownAgentHostInstance(String),
 }
 
 makeAnyError!(

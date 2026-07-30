@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import { dirname, join } from '../../../../base/common/path.js';
@@ -38,10 +37,10 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			pid: metadata.pid,
 			protocolVersion: metadata.protocolVersion,
 			tokenLength: metadata.connectionToken.length,
-			isScoped: metadata.endpoint.path !== other.endpoint.path,
+			isScoped: metadata.endpointPath !== other.endpointPath,
 		}, {
 			type: 'editor',
-			schemaVersion: 2,
+			schemaVersion: 1,
 			pid: process.pid,
 			protocolVersion: metadata.protocolVersion,
 			tokenLength: 43,
@@ -55,8 +54,8 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			const metadata = createLocalAgentHostEndpointMetadata(deeplyNested);
 
 			assert.deepStrictEqual({
-				isUnderTemp: dirname(dirname(metadata.endpoint.path)) === os.tmpdir(),
-				isShort: Buffer.byteLength(metadata.endpoint.path) < 104,
+				isUnderTemp: dirname(dirname(metadata.endpointPath)) === os.tmpdir(),
+				isShort: Buffer.byteLength(metadata.endpointPath) < 104,
 			}, {
 				isUnderTemp: true,
 				isShort: true,
@@ -69,88 +68,25 @@ suite('Local Agent Host Endpoint Metadata', () => {
 		});
 	}
 
-	test('preserves distinct writers and removes only the exact owner', async () => {
+	test('atomically replaces and owner-checks metadata', async () => {
 		const first = createLocalAgentHostEndpointMetadata(userDataPath);
 		const second = createLocalAgentHostEndpointMetadata(userDataPath);
 
 		await publishLocalAgentHostEndpointMetadata(userDataPath, first);
 		await publishLocalAgentHostEndpointMetadata(userDataPath, second);
-		const publishedBoth = JSON.parse(await fs.promises.readFile(metadataPath, 'utf8'));
-
 		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, first);
-		const publishedAfterFirstRemoved = JSON.parse(await fs.promises.readFile(metadataPath, 'utf8'));
+		const published = JSON.parse(await fs.promises.readFile(metadataPath, 'utf8'));
 		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, second);
 
 		assert.deepStrictEqual({
-			publishedBoth,
-			publishedAfterFirstRemoved,
+			published,
 			removed: !fs.existsSync(metadataPath),
 			files: await fs.promises.readdir(dirname(metadataPath)),
 		}, {
-			publishedBoth: [first, second],
-			publishedAfterFirstRemoved: [second],
+			published: [second],
 			removed: true,
 			files: [],
 		});
-	});
-
-	test('concurrent writers preserve every entry (no lost updates)', async () => {
-		const writers = Array.from({ length: 5 }, () => createLocalAgentHostEndpointMetadata(userDataPath));
-
-		await Promise.all(writers.map(metadata => publishLocalAgentHostEndpointMetadata(userDataPath, metadata)));
-
-		const published: Array<{ instanceId: string }> = JSON.parse(await fs.promises.readFile(metadataPath, 'utf8'));
-		assert.deepStrictEqual(
-			new Set(published.map(entry => entry.instanceId)),
-			new Set(writers.map(writer => writer.instanceId)),
-		);
-	});
-
-	test('reclaims a lock abandoned by a dead process', async () => {
-		// A process that has already exited by the time spawnSync returns, so
-		// its PID is guaranteed to no longer be alive. `process.execPath` is
-		// Electron under the unit test runner, so it must be told to run as
-		// plain Node (matching the pattern used elsewhere in this codebase,
-		// e.g. node/claude/claudeSdkOptions.ts) rather than launch the full app.
-		const deadPid = spawnSync(process.execPath, ['-e', '0'], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }).pid!;
-		const lockDirectoryPath = `${metadataPath}.lock`;
-		await fs.promises.mkdir(lockDirectoryPath);
-		await fs.promises.writeFile(join(lockDirectoryPath, 'owner.json'), JSON.stringify({ pid: deadPid, instanceId: 'stale-owner' }), 'utf8');
-
-		const metadata = createLocalAgentHostEndpointMetadata(userDataPath);
-		await publishLocalAgentHostEndpointMetadata(userDataPath, metadata);
-
-		assert.deepStrictEqual({
-			published: JSON.parse(await fs.promises.readFile(metadataPath, 'utf8')).map((entry: { instanceId: string }) => entry.instanceId),
-			lockRemoved: !fs.existsSync(lockDirectoryPath),
-		}, {
-			published: [metadata.instanceId],
-			lockRemoved: true,
-		});
-	});
-
-	test('fails closed (throws) rather than bypassing a lock a live process holds', async function () {
-		this.timeout(10_000);
-
-		// Our own PID is alive by definition, so recording it (with a different
-		// instanceId) as the lock owner simulates another live writer holding
-		// the lock for the entire bounded acquisition window.
-		const lockDirectoryPath = `${metadataPath}.lock`;
-		await fs.promises.mkdir(lockDirectoryPath);
-		await fs.promises.writeFile(join(lockDirectoryPath, 'owner.json'), JSON.stringify({ pid: process.pid, instanceId: 'other-live-writer' }), 'utf8');
-
-		const metadata = createLocalAgentHostEndpointMetadata(userDataPath);
-		await assert.rejects(() => publishLocalAgentHostEndpointMetadata(userDataPath, metadata));
-
-		assert.deepStrictEqual({
-			metadataFileWritten: fs.existsSync(metadataPath),
-			lockStillHeld: fs.existsSync(lockDirectoryPath),
-		}, {
-			metadataFileWritten: false,
-			lockStillHeld: true,
-		});
-
-		await fs.promises.rm(lockDirectoryPath, { recursive: true, force: true });
 	});
 
 	if (process.platform !== 'win32') {

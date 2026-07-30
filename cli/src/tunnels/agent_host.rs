@@ -21,9 +21,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-use crate::async_pipe::{
-	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipeListener,
-};
+use crate::async_pipe::{get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipeListener};
 use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
@@ -38,9 +36,8 @@ use crate::util::http::{empty_body, full_body, HyperBody};
 use crate::util::io::SilentCopyProgress;
 use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
-use super::agent_host_registry::{
-	self, AgentHostEndpointIdentity, AgentHostEndpointMetadata, AgentHostServerType,
-	AGENT_HOST_PROTOCOL_VERSION,
+use super::agent_host_metadata::{
+	remove_agent_host_metadata_for_pid, write_agent_host_metadata, AgentHostMetadata,
 };
 use super::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use super::shutdown_signal::ShutdownSignal;
@@ -637,21 +634,13 @@ impl AgentHostManager {
 		let mut listener = match listen_socket_rw_stream(path).await {
 			Ok(l) => l,
 			Err(e) => {
-				warning!(
-					self.log,
-					"Failed to bind management socket {:?}: {}",
-					path,
-					e
-				);
+				warning!(self.log, "Failed to bind management socket {:?}: {}", path, e);
 				self.management_listener_started
 					.store(false, Ordering::SeqCst);
 				return;
 			}
 		};
-		debug!(
-			self.log,
-			"Listening for agent host management requests on {:?}", path
-		);
+		debug!(self.log, "Listening for agent host management requests on {:?}", path);
 		self.run_management_accept_loop(&mut listener).await;
 	}
 
@@ -715,11 +704,7 @@ impl AgentHostManager {
 		let new_release = match self.get_latest_release().await {
 			Ok(r) => r,
 			Err(e) => {
-				warning!(
-					self.log,
-					"Upgrade request: latest release lookup failed: {}",
-					e
-				);
+				warning!(self.log, "Upgrade request: latest release lookup failed: {}", e);
 				return json_response(
 					503,
 					&UpgradeResponse {
@@ -777,12 +762,7 @@ impl AgentHostManager {
 		// `upgradeStarted`. The background update loop usually pre-fetches
 		// this, so the common path is a no-op.
 		if let Err(e) = self.ensure_downloaded(&new_release).await {
-			warning!(
-				self.log,
-				"Failed to download upgrade {}: {}",
-				new_release,
-				e
-			);
+			warning!(self.log, "Failed to download upgrade {}: {}", new_release, e);
 			self.upgrade_in_progress.store(false, Ordering::SeqCst);
 			return json_response(
 				503,
@@ -811,15 +791,9 @@ impl AgentHostManager {
 			// ready endpoint instead of paying for startup again.
 			match self_clone.start_server().await {
 				Ok(_) => info!(self_clone.log, "Restarted agent host on {}", release_commit),
-				Err(e) => warning!(
-					self_clone.log,
-					"Failed to restart agent host after upgrade: {}",
-					e
-				),
+				Err(e) => warning!(self_clone.log, "Failed to restart agent host after upgrade: {}", e),
 			}
-			self_clone
-				.upgrade_in_progress
-				.store(false, Ordering::SeqCst);
+			self_clone.upgrade_in_progress.store(false, Ordering::SeqCst);
 		});
 
 		json_response(
@@ -1026,32 +1000,21 @@ pub struct AgentHostSidecar {
 	listener: TcpListener,
 	bound_addr: SocketAddr,
 	public_token: Option<String>,
-	user_data_path: PathBuf,
-	instance_id: String,
+	lockfile_path: PathBuf,
 	pid: u32,
-	/// Set once registry cleanup for this instance's identity has been
-	/// performed (successfully or not — a best-effort attempt counts), so
-	/// `Drop` never redundantly repeats it after an explicit [`Self::shutdown`].
-	registry_cleaned_up: AtomicBool,
 }
 
 impl AgentHostSidecar {
-	/// Binds a TCP listener at `addr`, publishes a `standalone` entry to the
-	/// shared local agent-host endpoint registry (schema v2, see
-	/// [`agent_host_registry`]) pointing at the bound port, and returns a
-	/// sidecar ready to [`serve`](Self::serve) connections. The agent host
-	/// backend is *not* started here — the wrapped [`AgentHostManager`]
-	/// starts it on demand when the first request arrives.
+	/// Binds a TCP listener at `addr`, writes the canonical agent host
+	/// lockfile pointing at the bound port, and returns a sidecar ready to
+	/// [`serve`](Self::serve) connections. The agent host backend is *not*
+	/// started here — the wrapped [`AgentHostManager`] starts it on demand
+	/// when the first request arrives.
 	///
 	/// `loopback_auth` decides whether the local TCP accept loop enforces a
 	/// connection token. The caller MUST make this choice deliberately:
 	/// loopback is reachable from any local process, so binding without a
 	/// token must be a conscious user opt-in (e.g. `--without-connection-token`).
-	///
-	/// `user_data_path` is the resolved user data directory that homes the
-	/// registry (see [`super::user_data_path`]); `instance_id` is this
-	/// process's stable identity within the registry, used to disambiguate
-	/// PID reuse and to scope `--replace`/removal to exactly this entry.
 	pub async fn bind_tcp(
 		log: log::Logger,
 		manager: Arc<AgentHostManager>,
@@ -1059,8 +1022,7 @@ impl AgentHostSidecar {
 		host_label: Option<String>,
 		loopback_auth: LoopbackAuth,
 		tunnel_name: Option<String>,
-		user_data_path: PathBuf,
-		instance_id: String,
+		lockfile_path: PathBuf,
 	) -> Result<Arc<Self>, AnyError> {
 		let public_token = loopback_auth.into_token();
 		let listener = TcpListener::bind(addr)
@@ -1077,44 +1039,15 @@ impl AgentHostSidecar {
 		// character-equal without spuriously flagging hostname-vs-IP
 		// equivalents as a config conflict.
 		let host = host_label.unwrap_or_else(|| bound_addr.ip().to_string());
-		let entry = AgentHostEndpointMetadata::new_standalone(
+		let metadata = build_metadata(
 			pid,
-			instance_id.clone(),
 			host,
 			bound_addr.port(),
-			public_token.clone().unwrap_or_default(),
-			AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			VSCODE_CLI_QUALITY.map(str::to_string),
-			tunnel_name,
+			public_token.clone(),
+			tunnel_name.as_deref(),
 		);
-
-		// Registry publish does blocking filesystem I/O and may briefly
-		// spin-retry on a contended lock; run it on a blocking-safe thread
-		// so it never stalls the tokio runtime.
-		{
-			let publish_log = log.clone();
-			let publish_path = user_data_path.clone();
-			match tokio::task::spawn_blocking(move || {
-				agent_host_registry::publish_agent_host_endpoint(
-					&publish_log,
-					&publish_path,
-					&entry,
-				)
-			})
-			.await
-			{
-				Ok(Ok(())) => {}
-				Ok(Err(e)) => warning!(
-					log,
-					"Failed to publish agent host endpoint registry entry: {}",
-					e
-				),
-				Err(e) => warning!(
-					log,
-					"Agent host endpoint registry publish task failed: {}",
-					e
-				),
-			}
+		if let Err(e) = write_agent_host_metadata(&lockfile_path, &metadata) {
+			warning!(log, "Failed to write agent host lockfile: {}", e);
 		}
 
 		Ok(Arc::new(Self {
@@ -1123,10 +1056,8 @@ impl AgentHostSidecar {
 			listener,
 			bound_addr,
 			public_token,
-			user_data_path,
-			instance_id,
+			lockfile_path,
 			pid,
-			registry_cleaned_up: AtomicBool::new(false),
 		}))
 	}
 
@@ -1200,78 +1131,37 @@ impl AgentHostSidecar {
 		}
 	}
 
-	/// Stops the agent host backend and removes this instance's entry from
-	/// the shared local agent-host endpoint registry. Safe to call multiple
-	/// times: only the first call performs registry cleanup, and `Drop`
-	/// will not repeat it afterwards (see `registry_cleaned_up`).
+	/// Stops the agent host backend and removes the lockfile if it still
+	/// belongs to this process. Safe to call multiple times.
 	pub async fn shutdown(&self) {
 		self.manager.kill_running_server().await;
-		if self.registry_cleaned_up.swap(true, Ordering::SeqCst) {
-			return;
-		}
-		let identity = AgentHostEndpointIdentity {
-			server_type: AgentHostServerType::Standalone,
-			pid: self.pid,
-			instance_id: self.instance_id.clone(),
-		};
-		let log = self.log.clone();
-		let user_data_path = self.user_data_path.clone();
-		if let Err(e) = tokio::task::spawn_blocking(move || {
-			agent_host_registry::remove_agent_host_endpoint(&log, &user_data_path, &identity);
-		})
-		.await
-		{
-			warning!(
-				self.log,
-				"Agent host endpoint registry cleanup task failed: {}",
-				e
-			);
+		if let Err(e) = remove_agent_host_metadata_for_pid(&self.lockfile_path, self.pid) {
+			warning!(self.log, "Failed to clean up agent host lockfile: {}", e);
 		}
 	}
 }
 
 impl Drop for AgentHostSidecar {
 	fn drop(&mut self) {
-		// If `shutdown` already performed (or is performing) registry
-		// cleanup, don't repeat it here.
-		if self.registry_cleaned_up.swap(true, Ordering::SeqCst) {
-			return;
-		}
-
-		// Best-effort cleanup for the case where the caller forgot to call
-		// `shutdown`. `remove_agent_host_endpoint` only removes the entry
-		// that exactly matches our own `(type, pid, instanceId)` identity.
-		let identity = AgentHostEndpointIdentity {
-			server_type: AgentHostServerType::Standalone,
-			pid: self.pid,
-			instance_id: self.instance_id.clone(),
-		};
-		let log = self.log.clone();
-		let user_data_path = self.user_data_path.clone();
-
-		// `drop` is synchronous and must not block a Tokio worker thread
-		// with this call's blocking filesystem I/O (lock acquisition,
-		// reads/writes). If a runtime is reachable from here, hand the
-		// cleanup off to a blocking-safe thread and don't wait for it —
-		// this is already a best-effort fallback, so fire-and-forget is
-		// acceptable. If no runtime is available (e.g. this sidecar
-		// outlived it), there is no worker thread left to protect, so it's
-		// safe to just do the blocking removal inline.
-		match tokio::runtime::Handle::try_current() {
-			Ok(handle) => {
-				handle.spawn_blocking(move || {
-					agent_host_registry::remove_agent_host_endpoint(
-						&log,
-						&user_data_path,
-						&identity,
-					);
-				});
-			}
-			Err(_) => {
-				agent_host_registry::remove_agent_host_endpoint(&log, &user_data_path, &identity);
-			}
-		}
+		// Best-effort cleanup if the caller forgot to call `shutdown`. Only
+		// removes the lockfile when the recorded PID still matches us.
+		let _ = remove_agent_host_metadata_for_pid(&self.lockfile_path, self.pid);
 	}
+}
+
+fn build_metadata(
+	pid: u32,
+	host: String,
+	port: u16,
+	connection_token: Option<String>,
+	tunnel_name: Option<&str>,
+) -> AgentHostMetadata {
+	let mut metadata = AgentHostMetadata::new(pid, port);
+	metadata.host = Some(host);
+	metadata.connection_token = connection_token;
+	metadata.quality = VSCODE_CLI_QUALITY.map(str::to_string);
+	metadata.tunnel_name = tunnel_name.map(str::to_string);
+	metadata
 }
 
 /// How the loopback TCP accept loop authenticates incoming connections.
@@ -1320,68 +1210,76 @@ async fn handle_request_with_auth(
 	handle_request(manager, req).await
 }
 
-// ---- Registry-based reuse ---------------------------------------------------
+// ---- Lockfile-aware reuse ---------------------------------------------------
 
-/// Decision derived from consulting the shared local agent-host endpoint
-/// registry (schema v2; see [`agent_host_registry`]). Used by CLI entry
-/// points (e.g. `code tunnel`, `code agent host`) to decide whether they
-/// may safely start their own supervisor or should forward to / share an
-/// existing one.
+/// Decision derived from inspecting `agent-host-<quality>.lock`. Used by
+/// CLI entry points (e.g. `code tunnel`, `code agent host`) to decide
+/// whether they may safely own the agent host lockfile or should forward
+/// to / share the existing one.
 ///
 /// The agent host server is downloaded on demand and may speak a newer
 /// protocol than the CLI itself is built with, so we deliberately do NOT
 /// check the protocol version: any live registered supervisor is always
 /// considered reusable.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AgentHostReuseDecision {
-	/// No live standalone agent host registered; the caller may start its
-	/// own sidecar.
+pub enum AgentHostLockfileDecision {
+	/// No live agent host registered; the caller may start its own sidecar.
 	SpawnFresh,
-	/// A live standalone agent host supervisor owns a registry entry.
-	/// Tunnel callers should forward to `127.0.0.1:port` instead of
-	/// binding a second listener / publishing a conflicting entry. `host`
-	/// and `tunnel_name` expose the supervisor's effective config so
-	/// foreground callers can detect a configuration conflict and refuse
-	/// to silently reuse.
+	/// A live agent host supervisor owns the lockfile. Tunnel callers
+	/// should forward to `127.0.0.1:port` instead of binding a second
+	/// listener / clobbering the lockfile. `host` and `tunnel_name`
+	/// expose the supervisor's effective config so foreground callers
+	/// can detect a configuration conflict and refuse to silently reuse.
 	Reuse {
 		pid: u32,
 		host: Option<String>,
 		port: u16,
 		token: Option<String>,
 		tunnel_name: Option<String>,
-		/// This entry's stable identity within the registry, used by
-		/// `--replace` to scope removal to exactly this instance.
-		instance_id: String,
 	},
 }
 
-/// Preferred entry point for CLI commands that need to discover a live
-/// standalone agent host: consults the shared local agent-host endpoint
-/// registry (schema v2), the sole source of truth for automatic
-/// discovery.
-///
-/// `editor` entries are never selected here — they are owned by running VS
-/// Code windows and must remain invisible to (and unkillable by) the
-/// standalone CLI's discovery/`--replace` path. See
-/// [`agent_host_registry::select_live_standalone_endpoint`].
-pub fn classify_agent_host(
+/// Inspect the agent host lockfile at `path` and decide whether the caller
+/// should spawn a fresh sidecar or reuse an existing live one. Missing /
+/// unreadable / stale (dead-PID) lockfiles all map to
+/// [`AgentHostLockfileDecision::SpawnFresh`].
+pub fn classify_agent_host_lockfile(
 	log: &log::Logger,
-	user_data_path: &std::path::Path,
-) -> AgentHostReuseDecision {
-	match agent_host_registry::select_live_standalone_endpoint(log, user_data_path) {
-		Some(selected) => AgentHostReuseDecision::Reuse {
-			pid: selected.pid,
-			host: Some(selected.host),
-			port: selected.port,
-			token: if selected.connection_token.is_empty() {
-				None
-			} else {
-				Some(selected.connection_token)
-			},
-			tunnel_name: selected.tunnel_name,
-			instance_id: selected.instance_id,
-		},
-		None => AgentHostReuseDecision::SpawnFresh,
+	path: &std::path::Path,
+) -> AgentHostLockfileDecision {
+	use super::agent_host_metadata::read_agent_host_metadata;
+	use crate::util::machine::process_exists;
+
+	let metadata = match read_agent_host_metadata(path) {
+		Ok(Some(m)) => m,
+		Ok(None) => return AgentHostLockfileDecision::SpawnFresh,
+		Err(e) => {
+			debug!(
+				log,
+				"Could not read agent host lockfile {}: {}",
+				path.display(),
+				e
+			);
+			return AgentHostLockfileDecision::SpawnFresh;
+		}
+	};
+
+	if !process_exists(metadata.pid) {
+		debug!(
+			log,
+			"Agent host lockfile {} references dead PID {}; treating as stale",
+			path.display(),
+			metadata.pid
+		);
+		return AgentHostLockfileDecision::SpawnFresh;
+	}
+
+	AgentHostLockfileDecision::Reuse {
+		pid: metadata.pid,
+		host: metadata.host,
+		port: metadata.port,
+		token: metadata.connection_token,
+		tunnel_name: metadata.tunnel_name,
 	}
 }
 
@@ -1484,7 +1382,9 @@ fn inject_connection_token(uri: &::http::Uri, token: &str) -> ::http::Uri {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tunnels::agent_host_registry::AgentHostEndpointAddress;
+	use crate::tunnels::agent_host_metadata::{
+		read_agent_host_metadata, AGENT_HOST_PROTOCOL_VERSION,
+	};
 	use crate::util::http::ReqwestSimpleHttp;
 	use std::path::Path;
 
@@ -1592,10 +1492,36 @@ mod tests {
 		assert!(json.contains(r#""restartDelayMs":3000"#), "got: {}", json);
 	}
 
+	#[test]
+	fn metadata_includes_quality_and_no_tunnel() {
+		let metadata = build_metadata(
+			42,
+			"127.0.0.1".to_string(),
+			8080,
+			Some("tok".to_string()),
+			None,
+		);
+
+		assert_eq!(metadata.pid, 42);
+		assert_eq!(metadata.host.as_deref(), Some("127.0.0.1"));
+		assert_eq!(metadata.port, 8080);
+		assert_eq!(metadata.connection_token.as_deref(), Some("tok"));
+		assert_eq!(metadata.protocol_version, AGENT_HOST_PROTOCOL_VERSION);
+		assert_eq!(metadata.tunnel_name, None);
+	}
+
+	#[test]
+	fn metadata_records_tunnel_name() {
+		let metadata = build_metadata(42, "0.0.0.0".to_string(), 8080, None, Some("my-tunnel"));
+
+		assert_eq!(metadata.host.as_deref(), Some("0.0.0.0"));
+		assert_eq!(metadata.tunnel_name.as_deref(), Some("my-tunnel"));
+	}
+
 	#[tokio::test]
-	async fn bind_tcp_publishes_registry_entry_with_bound_port_and_pid() {
+	async fn bind_tcp_writes_lockfile_with_bound_port_and_pid() {
 		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
+		let lockfile = dir.path().join("agent-host.lock");
 		let manager = make_test_manager(dir.path());
 
 		let sidecar = AgentHostSidecar::bind_tcp(
@@ -1605,36 +1531,24 @@ mod tests {
 			Some("localhost".to_string()),
 			LoopbackAuth::Token("tok".to_string()),
 			Some("my-tunnel".to_string()),
-			user_data_path.clone(),
-			"instance-a".to_string(),
+			lockfile.clone(),
 		)
 		.await
 		.unwrap();
 
-		let entries =
-			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path).unwrap();
-		assert_eq!(entries.len(), 1);
-		let entry = &entries[0];
-		assert_eq!(entry.server_type, AgentHostServerType::Standalone);
-		assert_eq!(entry.pid, std::process::id());
-		assert_eq!(entry.instance_id, "instance-a");
-		assert_eq!(entry.connection_token, "tok");
-		assert_eq!(entry.tunnel_name.as_deref(), Some("my-tunnel"));
-		assert_eq!(entry.protocol_version, AGENT_HOST_PROTOCOL_VERSION);
-		match &entry.endpoint {
-			AgentHostEndpointAddress::Tcp { host, port } => {
-				assert_eq!(host, "localhost");
-				assert_eq!(*port, sidecar.bound_addr().port());
-				assert_ne!(*port, 0);
-			}
-			other => panic!("expected a tcp endpoint, got {:?}", other),
-		}
+		let metadata = read_agent_host_metadata(&lockfile).unwrap().unwrap();
+		assert_eq!(metadata.pid, std::process::id());
+		assert_eq!(metadata.host.as_deref(), Some("localhost"));
+		assert_eq!(metadata.port, sidecar.bound_addr().port());
+		assert_ne!(metadata.port, 0);
+		assert_eq!(metadata.connection_token.as_deref(), Some("tok"));
+		assert_eq!(metadata.tunnel_name.as_deref(), Some("my-tunnel"));
 	}
 
 	#[tokio::test]
-	async fn drop_removes_registry_entry_matching_our_identity_without_blocking_worker() {
+	async fn drop_removes_lockfile_when_pid_matches() {
 		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
+		let lockfile = dir.path().join("agent-host.lock");
 		let manager = make_test_manager(dir.path());
 
 		{
@@ -1645,43 +1559,20 @@ mod tests {
 				None,
 				LoopbackAuth::Disabled,
 				None,
-				user_data_path.clone(),
-				"instance-fallback".to_string(),
+				lockfile.clone(),
 			)
 			.await
 			.unwrap();
-			assert_eq!(
-				agent_host_registry::read_registry(&log::Logger::test(), &user_data_path)
-					.unwrap()
-					.len(),
-				1
-			);
+			assert!(lockfile.exists());
 		}
 
-		// `shutdown` was never called, so `Drop`'s fallback cleanup is
-		// responsible here. It dispatches the blocking removal to a
-		// separate blocking-safe thread rather than doing it inline on
-		// this async task's worker, so poll briefly for it to land instead
-		// of asserting immediately.
-		let deadline = Instant::now() + Duration::from_secs(2);
-		loop {
-			if agent_host_registry::read_registry(&log::Logger::test(), &user_data_path)
-				.unwrap()
-				.is_empty()
-			{
-				break;
-			}
-			if Instant::now() >= deadline {
-				panic!("drop's fallback registry cleanup did not complete in time");
-			}
-			tokio::time::sleep(Duration::from_millis(20)).await;
-		}
+		assert!(!lockfile.exists());
 	}
 
 	#[tokio::test]
-	async fn shutdown_leaves_registry_entry_owned_by_a_different_instance() {
+	async fn shutdown_leaves_lockfile_when_pid_was_overwritten() {
 		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
+		let lockfile = dir.path().join("agent-host.lock");
 		let manager = make_test_manager(dir.path());
 
 		let sidecar = AgentHostSidecar::bind_tcp(
@@ -1691,180 +1582,96 @@ mod tests {
 			None,
 			LoopbackAuth::Disabled,
 			None,
-			user_data_path.clone(),
-			"instance-c".to_string(),
+			lockfile.clone(),
 		)
 		.await
 		.unwrap();
 
-		// Simulate another live process taking over with a distinct
-		// instance ID; `shutdown`/`Drop` must only ever remove the entry
-		// exactly matching our own `(type, pid, instanceId)` identity.
-		let foreign = AgentHostEndpointMetadata::new_standalone(
-			std::process::id(),
-			"instance-foreign".to_string(),
-			"127.0.0.1".to_string(),
-			9999,
-			String::new(),
-			AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			None,
-			None,
-		);
-		agent_host_registry::publish_agent_host_endpoint(
-			&log::Logger::test(),
-			&user_data_path,
-			&foreign,
-		)
-		.unwrap();
+		// Simulate another process taking over the same lockfile path.
+		let foreign_pid = std::process::id().wrapping_add(1);
+		write_agent_host_metadata(&lockfile, &AgentHostMetadata::new(foreign_pid, 9999)).unwrap();
 
 		sidecar.shutdown().await;
 
-		let entries =
-			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path).unwrap();
-		assert_eq!(entries.len(), 1);
-		assert_eq!(entries[0].instance_id, "instance-foreign");
-	}
-
-	#[tokio::test]
-	async fn drop_does_not_redundantly_clean_up_after_shutdown() {
-		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
-		let manager = make_test_manager(dir.path());
-
-		let sidecar = AgentHostSidecar::bind_tcp(
-			log::Logger::test(),
-			manager,
-			SocketAddr::from(([127, 0, 0, 1], 0)),
-			None,
-			LoopbackAuth::Disabled,
-			None,
-			user_data_path.clone(),
-			"instance-shutdown-then-drop".to_string(),
-		)
-		.await
-		.unwrap();
-
-		sidecar.shutdown().await;
-		assert!(
-			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path)
-				.unwrap()
-				.is_empty()
-		);
-
-		// Republish an entry reusing our own identity, simulating a case
-		// where some other writer took over that exact (type, pid,
-		// instanceId) slot right after `shutdown` removed it. If `Drop`
-		// were to redundantly repeat cleanup after `shutdown` already
-		// claimed it, it would incorrectly remove this entry too.
-		let republished = AgentHostEndpointMetadata::new_standalone(
-			std::process::id(),
-			"instance-shutdown-then-drop".to_string(),
-			"127.0.0.1".to_string(),
-			9999,
-			String::new(),
-			AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			None,
-			None,
-		);
-		agent_host_registry::publish_agent_host_endpoint(
-			&log::Logger::test(),
-			&user_data_path,
-			&republished,
-		)
-		.unwrap();
-
-		drop(sidecar);
-
-		// Give any (incorrectly) dispatched fallback cleanup a moment to
-		// run before asserting it left the republished entry untouched.
-		tokio::time::sleep(Duration::from_millis(100)).await;
-
-		let entries =
-			agent_host_registry::read_registry(&log::Logger::test(), &user_data_path).unwrap();
-		assert_eq!(entries.len(), 1);
-		assert_eq!(entries[0].instance_id, "instance-shutdown-then-drop");
+		let preserved = read_agent_host_metadata(&lockfile).unwrap().unwrap();
+		assert_eq!(preserved.pid, foreign_pid);
+		assert_eq!(preserved.port, 9999);
 	}
 
 	#[test]
-	fn classify_agent_host_returns_spawn_fresh_when_registry_empty() {
+	fn classify_returns_spawn_fresh_when_lockfile_missing() {
 		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
+		let lockfile = dir.path().join("missing.lock");
 
-		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
+		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
 
-		assert_eq!(decision, AgentHostReuseDecision::SpawnFresh);
+		assert_eq!(decision, AgentHostLockfileDecision::SpawnFresh);
 	}
 
 	#[test]
-	fn classify_agent_host_prefers_live_registry_standalone_entry() {
+	fn classify_returns_spawn_fresh_for_stale_pid() {
 		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
+		let lockfile = dir.path().join("agent-host.lock");
+		// Use a PID that is extremely unlikely to exist (max u32 - 1).
+		// `process_exists` returns false for unknown PIDs.
+		let mut metadata = AgentHostMetadata::new(u32::MAX - 1, 1234);
+		metadata.connection_token = Some("ignored".to_string());
+		write_agent_host_metadata(&lockfile, &metadata).unwrap();
+
+		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+
+		assert_eq!(decision, AgentHostLockfileDecision::SpawnFresh);
+	}
+
+	#[test]
+	fn classify_returns_reuse_for_live_compatible_lockfile() {
+		let dir = tempfile::tempdir().unwrap();
+		let lockfile = dir.path().join("agent-host.lock");
 		let pid = std::process::id();
+		let mut metadata = AgentHostMetadata::new(pid, 4321);
+		metadata.host = Some("127.0.0.1".to_string());
+		metadata.connection_token = Some("tok".to_string());
+		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
-		let entry = AgentHostEndpointMetadata::new_standalone(
-			pid,
-			"instance-registry".to_string(),
-			"127.0.0.1".to_string(),
-			4321,
-			"registry-tok".to_string(),
-			AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			None,
-			None,
-		);
-		agent_host_registry::publish_agent_host_endpoint(
-			&log::Logger::test(),
-			&user_data_path,
-			&entry,
-		)
-		.unwrap();
-
-		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
+		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
 
 		assert_eq!(
 			decision,
-			AgentHostReuseDecision::Reuse {
+			AgentHostLockfileDecision::Reuse {
 				pid,
 				host: Some("127.0.0.1".to_string()),
 				port: 4321,
-				token: Some("registry-tok".to_string()),
+				token: Some("tok".to_string()),
 				tunnel_name: None,
-				instance_id: "instance-registry".to_string(),
 			}
 		);
 	}
 
 	#[test]
-	fn classify_agent_host_never_selects_an_editor_registry_entry() {
+	fn classify_returns_reuse_for_live_newer_protocol() {
+		// The agent host server is downloaded on demand and may speak a
+		// newer protocol than the CLI is built with; we must still treat
+		// it as reusable rather than refusing to share it.
 		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
+		let lockfile = dir.path().join("agent-host.lock");
+		let pid = std::process::id();
+		let mut metadata = AgentHostMetadata::new(pid, 4321);
+		metadata.protocol_version = "9.9.9".to_string();
+		metadata.connection_token = Some("tok".to_string());
+		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
-		let editor = AgentHostEndpointMetadata {
-			schema_version:
-				crate::tunnels::agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
-			server_type: AgentHostServerType::Editor,
-			pid: std::process::id(),
-			instance_id: "editor-instance".to_string(),
-			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			connection_token: "editor-tok".to_string(),
-			endpoint: AgentHostEndpointAddress::Socket {
-				path: "/tmp/editor.sock".to_string(),
-			},
-			quality: None,
-			tunnel_name: None,
-		};
-		agent_host_registry::publish_agent_host_endpoint(
-			&log::Logger::test(),
-			&user_data_path,
-			&editor,
-		)
-		.unwrap();
+		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
 
-		// With only an (ignored) editor entry present, the caller must be
-		// told to spawn a fresh standalone supervisor rather than ever
-		// touching the editor entry.
-		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
-
-		assert_eq!(decision, AgentHostReuseDecision::SpawnFresh);
+		assert_eq!(
+			decision,
+			AgentHostLockfileDecision::Reuse {
+				pid,
+				host: None,
+				port: 4321,
+				token: Some("tok".to_string()),
+				tunnel_name: None,
+			}
+		);
 	}
 
 	#[test]
