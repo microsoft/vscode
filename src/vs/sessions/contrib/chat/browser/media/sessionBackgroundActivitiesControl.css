@@ -30,7 +30,9 @@
 	text-overflow: ellipsis;
 }
 
-.session-background-activities .session-background-activities-button .codicon {
+/* Outrank `.monaco-workbench .codicon[class*='codicon-']`, which otherwise
+ * resets compact activity icons to the workbench codicon font size. */
+.session-background-activities .session-background-activities-button .codicon[class*='codicon-'] {
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 }

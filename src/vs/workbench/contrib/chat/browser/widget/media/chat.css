@@ -1850,8 +1850,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 }
 
-.interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
-.interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+/* Outrank `.monaco-workbench .part.auxiliarybar > .content .monaco-editor` so
+ * embedded chat inputs use the input background instead of the sidebar one. */
+.interactive-session .interactive-input-part .chat-input-container .chat-editor-container .interactive-input-editor .monaco-editor,
+.interactive-session .interactive-input-part .chat-input-container .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background);
 }
 
