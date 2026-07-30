@@ -26,6 +26,7 @@ export const enum Parts {
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
+	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }

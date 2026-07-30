@@ -99,7 +99,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -2837,7 +2837,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				&& previousStatus !== ToolCallStatus.PendingConfirmation;
 			previousStatus = status;
 
-			if (enteringConfirmation) {
+			if (status === ToolCallStatus.Streaming) {
+				updateStreamingToolInvocation(invocation, tc, this._config.connectionAuthority);
+			} else if (enteringConfirmation) {
 				if (!IChatToolInvocation.isComplete(invocation)) {
 					const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
 					invocation.requestConfirmation(prepared);
@@ -2873,7 +2875,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			if ((status === ToolCallStatus.Completed || status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
 				// Detach live non-PTY output before completion synchronously rebuilds the terminal subpart.
-				this._ensureLeftStreaming(invocation, tc, opts);
+				if (status === ToolCallStatus.Completed) {
+					this._ensureLeftStreaming(invocation, tc, opts);
+				}
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, outputTerminalAttachment);
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 				if (fileEdits.length > 0) {
@@ -3171,11 +3175,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// nobody will consume. In the normal path we complete the call
 				// ourselves first, so `invokeTool` has already settled and this
 				// cancellation is a harmless no-op.
+				if (state.type === IChatToolInvocation.StateKind.Streaming) {
+					const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
+					if (fileEdits.length > 0) {
+						opts.onFileEdits?.(tc, fileEdits);
+					}
+				}
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
 				cts.cancel();
-				if (!invoked && tc.status === ToolCallStatus.Cancelled) {
+				if (!invoked && tc.status === ToolCallStatus.Cancelled && state.type !== IChatToolInvocation.StateKind.Streaming) {
 					// No `invokeTool` is listening to the CTS — transition
 					// the invocation to `Cancelled` ourselves.
 					invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
@@ -4284,28 +4294,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// (each streaming delta), not just draft changes.
 		let lastRemoteDraft = syncedDraft;
 		let appliedRemoteDraft: Message | undefined;
+		const syncDraft = (state: IChatModelInputState | undefined): void => {
+			if (state?.origin === ChatInputStateOrigin.Remote) {
+				return;
+			}
+			const draft = this._inputStateToDraft(sessionResource, state);
+			if (equals(syncedDraft, draft)) {
+				return;
+			}
+			if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
+				syncedDraft = draft;
+				return;
+			}
+			appliedRemoteDraft = undefined;
+			syncedDraft = draft;
+
+			this._config.connection.dispatch(chatKey, {
+				type: ActionType.ChatDraftChanged,
+				draft,
+			});
+		};
 		store.add(autorun(reader => {
 			const state = inputModel.state.read(reader);
-			delayer.trigger(() => {
-				if (state?.origin === ChatInputStateOrigin.Remote) {
-					return;
-				}
-				const draft = this._inputStateToDraft(sessionResource, state);
-				if (equals(syncedDraft, draft)) {
-					return;
-				}
-				if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
-					syncedDraft = draft;
-					return;
-				}
-				appliedRemoteDraft = undefined;
-				syncedDraft = draft;
-
-				this._config.connection.dispatch(chatKey, {
-					type: ActionType.ChatDraftChanged,
-					draft,
-				});
-			}).catch(() => { /* delayer disposed */ });
+			delayer.trigger(() => syncDraft(state)).catch(() => { /* delayer disposed */ });
 		}));
 		store.add(chatSubscription.onDidChange(() => {
 			const remoteDraft = readRemoteDraft();
@@ -4324,6 +4335,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			syncedDraft = remoteDraft;
 			appliedRemoteDraft = remoteDraft;
 			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
+		}));
+		store.add(toDisposable(() => {
+			delayer.cancel();
+			syncDraft(inputModel.state.get());
 		}));
 	}
 
