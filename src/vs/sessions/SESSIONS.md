@@ -323,6 +323,11 @@ when one exists or showing the empty placeholder otherwise. Internal callers
 (restore fallback, archive, background reseed, and the close-session fallback)
 invoke `openNewSession()` the same way.
 
+`NewChatWidget` is reused when a created session returns to the new-session
+view. When its previous draft is cleared and no replacement draft exists, it
+re-seeds one from the workspace picker's selected folder so the session-type and
+model pickers remain available.
+
 The new-session input separately persists its text and attachments in
 workspace-scoped machine storage. `NewChatWidget` saves that draft when it is
 disposed (for example, when navigating to an existing session), and the
