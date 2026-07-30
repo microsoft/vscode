@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -207,6 +207,7 @@ export interface IAgentFeedbackService {
 	 * `undefined` when the file is out of scope.
 	 */
 	getFeedbackSessionResource(resourceUri: URI): URI | undefined;
+	registerFeedbackResourceScope(resourceUri: URI): IDisposable;
 
 	/**
 	 * Resolve the most recently updated session that has feedback for a given resource.
@@ -302,6 +303,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	/** fileResource → sessionResource active when the editor for that file was first seen */
 	private readonly _fileToSession = new ResourceMap<URI>();
+	private readonly _explicitResourceScopes = new ResourceMap<URI>();
 
 	/** Workspace the shared new-session comments are bound to; `undefined` when there are none. */
 	private _boundNewSessionWorkspaceKey: string | undefined;
@@ -455,6 +457,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
+		const explicitScope = this._explicitResourceScopes.get(resourceUri);
+		if (explicitScope) {
+			return explicitScope;
+		}
 		if (resourceUri.scheme === Schemas.outputChannel) {
 			return undefined;
 		}
@@ -471,6 +477,18 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		return this.getSessionForFile(resourceUri)?.resource;
+	}
+
+	registerFeedbackResourceScope(resourceUri: URI): IDisposable {
+		const sessionResource = this.activeFeedbackSessionResource.get();
+		this._explicitResourceScopes.set(resourceUri, sessionResource);
+		return {
+			dispose: () => {
+				if (isEqual(this._explicitResourceScopes.get(resourceUri), sessionResource)) {
+					this._explicitResourceScopes.delete(resourceUri);
+				}
+			},
+		};
 	}
 
 	/**

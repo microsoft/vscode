@@ -8,13 +8,25 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatPlanReviewResult } from '../../common/chatService/chatService.js';
+import { IChatPlanApprovalAction } from '../../common/chatService/chatService.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { IAgentEditorComment, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
 
 export interface IPlanReviewFeedbackItem {
 	readonly id: string;
+	readonly resource: URI;
+	readonly range: IRange;
 	readonly line: number;
 	readonly column: number;
 	readonly text: string;
+}
+
+export interface IPlanReviewFeedbackRegistration {
+	readonly actions: readonly IChatPlanApprovalAction[];
+	readonly hasOverallFeedback: () => boolean;
+	readonly submitFeedback: () => Promise<void>;
+	readonly submitAction: (action: IChatPlanApprovalAction) => Promise<void>;
+	readonly reject: () => Promise<void>;
 }
 
 export const IPlanReviewFeedbackService = createDecorator<IPlanReviewFeedbackService>('planReviewFeedbackService');
@@ -25,9 +37,13 @@ export interface IPlanReviewFeedbackService {
 	readonly onDidChangeFeedback: Event<URI>;
 	readonly onDidChangeNavigation: Event<URI>;
 	readonly onDidChangeRegistrations: Event<void>;
+	readonly onDidChangePlanReviewScope: Event<{ readonly planUri: URI; readonly active: boolean }>;
+	readonly onDidSubmitFeedback: Event<URI>;
 
-	registerPlanReview(planUri: URI, onSubmit: (result: IChatPlanReviewResult) => void): IDisposable;
+	registerPlanReview(planUri: URI, registration: IPlanReviewFeedbackRegistration): IDisposable;
 	isActivePlanReview(uri: URI): boolean;
+	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined;
+	notifyFeedbackChanged(planUri: URI): void;
 	addFeedback(planUri: URI, line: number, column: number, text: string): string;
 	removeFeedback(planUri: URI, feedbackId: string): void;
 	updateFeedback(planUri: URI, feedbackId: string, newText: string): void;
@@ -36,18 +52,22 @@ export interface IPlanReviewFeedbackService {
 	getNextFeedback(planUri: URI, next: boolean): IPlanReviewFeedbackItem | undefined;
 	getNavigationBearing(planUri: URI): { activeIdx: number; totalCount: number };
 	setNavigationAnchor(planUri: URI, itemId: string | undefined): void;
-	submitAllFeedback(planUri: URI): void;
+	markFeedbackSubmitted(planUri: URI): void;
+	submitAllFeedback(planUri: URI): Promise<void>;
+	submitPlanAction(planUri: URI, action: IChatPlanApprovalAction): Promise<void>;
+	rejectPlan(planUri: URI): Promise<void>;
 }
 
 interface IPlanReviewRegistration {
-	readonly onSubmit: (result: IChatPlanReviewResult) => void;
+	readonly review: IPlanReviewFeedbackRegistration;
 	readonly items: IPlanReviewFeedbackItem[];
 	navigationAnchor: string | undefined;
 }
 
-export class PlanReviewFeedbackService extends Disposable implements IPlanReviewFeedbackService {
+export class PlanReviewFeedbackService extends Disposable implements IPlanReviewFeedbackService, IAgentEditorCommentsProvider {
 
 	declare readonly _serviceBrand: undefined;
+	readonly priority = 0;
 
 	private readonly _registrations = new Map<string, IPlanReviewRegistration>();
 
@@ -59,13 +79,28 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	private readonly _onDidChangeRegistrations = this._register(new Emitter<void>());
 	readonly onDidChangeRegistrations: Event<void> = this._onDidChangeRegistrations.event;
+	private readonly _onDidChangePlanReviewScope = this._register(new Emitter<{ readonly planUri: URI; readonly active: boolean }>());
+	readonly onDidChangePlanReviewScope = this._onDidChangePlanReviewScope.event;
+	private readonly _onDidSubmitFeedback = this._register(new Emitter<URI>());
+	readonly onDidSubmitFeedback = this._onDidSubmitFeedback.event;
+	readonly onDidChangeComments = Event.signal(this.onDidChangeFeedback);
+	readonly onDidRevealComment = Event.None;
 
-	registerPlanReview(planUri: URI, onSubmit: (result: IChatPlanReviewResult) => void): IDisposable {
+	constructor(
+		@IAgentEditorCommentsBridge private readonly _commentsBridge: IAgentEditorCommentsBridge,
+	) {
+		super();
+		this._register(this._commentsBridge.registerProvider(this));
+	}
+
+	registerPlanReview(planUri: URI, review: IPlanReviewFeedbackRegistration): IDisposable {
 		const key = planUri.toString();
-		this._registrations.set(key, { onSubmit, items: [], navigationAnchor: undefined });
+		this._registrations.set(key, { review, items: [], navigationAnchor: undefined });
+		this._onDidChangePlanReviewScope.fire({ planUri, active: true });
 		this._onDidChangeRegistrations.fire();
 		return toDisposable(() => {
 			this._registrations.delete(key);
+			this._onDidChangePlanReviewScope.fire({ planUri, active: false });
 			this._onDidChangeRegistrations.fire();
 		});
 	}
@@ -74,16 +109,40 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		return this._registrations.has(uri.toString());
 	}
 
+	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined {
+		return this._registrations.get(uri.toString())?.review;
+	}
+
+	notifyFeedbackChanged(planUri: URI): void {
+		if (this.isActivePlanReview(planUri)) {
+			this._onDidChangeFeedback.fire(planUri);
+		}
+	}
+
 	addFeedback(planUri: URI, line: number, column: number, text: string): string {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
+		return this._addFeedback(planUri, {
+			startLineNumber: line,
+			startColumn: column,
+			endLineNumber: line,
+			endColumn: column,
+		}, text);
+	}
+
+	private _addFeedback(planUri: URI, range: IRange, text: string): string {
+		const registration = this._registrations.get(planUri.toString());
 		if (!registration) {
 			return '';
 		}
 
 		const id = generateUuid();
-		registration.items.push({ id, line, column, text });
-		// Keep items sorted by line number
+		registration.items.push({
+			id,
+			resource: planUri,
+			range,
+			line: range.startLineNumber,
+			column: range.startColumn,
+			text,
+		});
 		registration.items.sort((a, b) => a.line - b.line || a.column - b.column);
 		this._onDidChangeFeedback.fire(planUri);
 		return id;
@@ -100,6 +159,11 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		if (idx >= 0) {
 			registration.items.splice(idx, 1);
 			this._onDidChangeFeedback.fire(planUri);
+			return;
+		}
+		const item = this.getFeedback(planUri).find(candidate => candidate.id === feedbackId);
+		if (item) {
+			this._commentsBridge.deleteComment(item.resource, item.id);
 		}
 	}
 
@@ -113,24 +177,37 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		const idx = registration.items.findIndex(item => item.id === feedbackId);
 		if (idx >= 0) {
 			const old = registration.items[idx];
-			registration.items[idx] = { id: old.id, line: old.line, column: old.column, text: newText };
+			registration.items[idx] = { ...old, text: newText };
 			this._onDidChangeFeedback.fire(planUri);
 		}
 	}
 
 	getFeedback(planUri: URI): readonly IPlanReviewFeedbackItem[] {
-		const key = planUri.toString();
-		return this._registrations.get(key)?.items ?? [];
+		return this._commentsBridge.getComments(planUri, true)
+			.map(comment => ({
+				id: comment.id,
+				resource: comment.resource,
+				range: comment.range,
+				line: comment.range.startLineNumber,
+				column: comment.range.startColumn,
+				text: comment.body,
+			}));
 	}
 
 	clearFeedback(planUri: URI): void {
 		const key = planUri.toString();
 		const registration = this._registrations.get(key);
-		if (!registration || registration.items.length === 0) {
+		if (!registration) {
 			return;
 		}
+		const localIds = new Set(registration.items.map(item => item.id));
 		registration.items.length = 0;
 		registration.navigationAnchor = undefined;
+		for (const item of [...this.getFeedback(planUri)]) {
+			if (!localIds.has(item.id)) {
+				this._commentsBridge.deleteComment(item.resource, item.id);
+			}
+		}
 		this._onDidChangeFeedback.fire(planUri);
 	}
 
@@ -185,26 +262,47 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		}
 	}
 
-	submitAllFeedback(planUri: URI): void {
+	markFeedbackSubmitted(planUri: URI): void {
+		this._onDidSubmitFeedback.fire(planUri);
+	}
+
+	async submitAllFeedback(planUri: URI): Promise<void> {
 		const key = planUri.toString();
 		const registration = this._registrations.get(key);
-		if (!registration || registration.items.length === 0) {
+		if (!registration || (this.getFeedback(planUri).length === 0 && !registration.review.hasOverallFeedback())) {
 			return;
 		}
 
-		const formatted = this._formatFeedback(registration.items);
-		registration.onSubmit({ rejected: false, feedback: formatted });
+		await registration.review.submitFeedback();
+		this.markFeedbackSubmitted(planUri);
 	}
 
-	private _formatFeedback(items: readonly IPlanReviewFeedbackItem[]): string {
-		const parts: string[] = ['Here\'s the feedback:'];
-		for (const item of items) {
-			if (item.column > 1) {
-				parts.push(`Line ${item.line}: Column ${item.column}: ${item.text}`);
-			} else {
-				parts.push(`Line ${item.line}: ${item.text}`);
-			}
-		}
-		return parts.join('\n');
+	submitPlanAction(planUri: URI, action: IChatPlanApprovalAction): Promise<void> {
+		return this._registrations.get(planUri.toString())?.review.submitAction(action) ?? Promise.resolve();
+	}
+
+	rejectPlan(planUri: URI): Promise<void> {
+		return this._registrations.get(planUri.toString())?.review.reject() ?? Promise.resolve();
+	}
+
+	acceptsComments(resource: URI): boolean {
+		return this.isActivePlanReview(resource);
+	}
+
+	getComments(resource: URI): readonly IAgentEditorComment[] {
+		return this._registrations.get(resource.toString())?.items.map(item => ({
+			id: item.id,
+			resource,
+			range: item.range,
+			body: item.text,
+		})) ?? [];
+	}
+
+	addComment(resource: URI, range: IRange, body: string): void {
+		this._addFeedback(resource, range, body);
+	}
+
+	deleteComment(resource: URI, id: string): void {
+		this.removeFeedback(resource, id);
 	}
 }

@@ -357,6 +357,11 @@ opening the composer first when it is not mounted in the grid, and opens the
 workspace picker without clearing input or comments when no concrete draft exists
 yet.
 
+The editor feedback toolbar's visual widget is shared with workbench plan review
+through `AgentEditorCommentsOverlayWidget`. Each host keeps its own menu actions
+and state adapter, while the toolbar layout, count presentation, action rendering,
+keyboard labels, and styling have one workbench-owned implementation.
+
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
 `_sessionStates` map and serialized to workspace-scoped machine storage. The
