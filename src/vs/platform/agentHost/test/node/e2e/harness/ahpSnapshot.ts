@@ -8,6 +8,7 @@ import { readFileSync, realpathSync, writeFileSync } from 'fs';
 import { FileAccess } from '../../../../../../base/common/network.js';
 import { dirname, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { scrubUserName } from './userNameScrub.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../common/state/sessionActions.js';
@@ -595,8 +596,8 @@ function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormali
 	}
 	normalized = normalized
 		.replaceAll(normalization.homeDirectory, '${homedir}')
-		.replaceAll(URI.file(normalization.homeDirectory).toString(), '${homedir}')
-		.replaceAll(normalization.userName, '${user}');
+		.replaceAll(URI.file(normalization.homeDirectory).toString(), '${homedir}');
+	normalized = scrubUserName(normalized, normalization.userName);
 	if (!normalized.includes('${temp}')) {
 		normalized = normalized.replace(/ahp-coverage-([a-z-]+)-[A-Za-z0-9]{6}/g, 'ahp-coverage-$1-${temp}');
 	}

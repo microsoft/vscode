@@ -462,7 +462,7 @@ import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/btwSlashCommand.contribution.js';
-import './contrib/promptTimeline/browser/promptTimeline.contribution.js';
+import './contrib/chat/browser/sideChatProvider.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';

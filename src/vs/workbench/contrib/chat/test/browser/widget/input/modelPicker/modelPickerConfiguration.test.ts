@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -63,8 +63,22 @@ suite('ModelPickerConfiguration', () => {
 			getModelConfigurationActions: () => [],
 		};
 		let shownItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
+		let shownOptions: IActionListOptions | undefined;
 		const actionWidgetService = {
-			show: (_id: string, _supportsPreview: boolean, items: IActionListItem<IActionWidgetDropdownAction>[]) => shownItems = items,
+			show: (
+				_id: string,
+				_supportsPreview: boolean,
+				items: IActionListItem<IActionWidgetDropdownAction>[],
+				_delegate: unknown,
+				_anchor: unknown,
+				_container: unknown,
+				_actions: unknown,
+				_accessibilityProvider: unknown,
+				options: IActionListOptions,
+			) => {
+				shownItems = items;
+				shownOptions = options;
+			},
 			focusItemById: () => { },
 			updateItems: () => { },
 		} as unknown as IActionWidgetService;
@@ -84,7 +98,11 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual({
 			label: button.textContent,
 			ariaLabel: button.ariaLabel,
+			listOptions: {
+				reserveSubmenuSpace: shownOptions?.reserveSubmenuSpace,
+			},
 			sections: shownItems.map(item => item.kind === ActionListItemKind.Action ? {
+				className: item.className,
 				label: item.label,
 				checked: item.item!.checked,
 				ariaDescription: item.ariaDescription,
@@ -92,14 +110,17 @@ suite('ModelPickerConfiguration', () => {
 		}, {
 			label: 'Medium 64K',
 			ariaLabel: 'Thinking Effort: Medium, Context Size: 64K',
+			listOptions: {
+				reserveSubmenuSpace: false,
+			},
 			sections: [
 				{ kind: ActionListItemKind.Header, label: 'Thinking Effort' },
-				{ label: 'Low', checked: false, ariaDescription: 'Default, Faster' },
-				{ label: 'Medium', checked: true, ariaDescription: 'Balanced' },
+				{ className: 'chat-model-picker-config-option', label: 'Low', checked: false, ariaDescription: 'Default, Faster' },
+				{ className: 'chat-model-picker-config-option', label: 'Medium', checked: true, ariaDescription: 'Balanced' },
 				{ kind: ActionListItemKind.Separator, label: undefined },
 				{ kind: ActionListItemKind.Header, label: 'Context Size' },
-				{ label: '32K', checked: false, ariaDescription: 'Default' },
-				{ label: '64K', checked: true, ariaDescription: undefined },
+				{ className: 'chat-model-picker-config-option', label: '32K', checked: false, ariaDescription: 'Default' },
+				{ className: 'chat-model-picker-config-option', label: '64K', checked: true, ariaDescription: undefined },
 			],
 		});
 	});

@@ -37,6 +37,7 @@ import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
 	VoiceDisabledClassification, VoiceDisabledEvent,
@@ -48,6 +49,8 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
+import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
+import { SHOW_VOICE_MODE_ONBOARDING_COMMAND } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 
 // --- Context Keys ---
 
@@ -112,6 +115,35 @@ class AgentsVoiceTelemetryContribution extends Disposable implements IWorkbenchC
 }
 
 registerWorkbenchContribution2(AgentsVoiceTelemetryContribution.ID, AgentsVoiceTelemetryContribution, WorkbenchPhase.AfterRestored);
+
+// --- First-run introduction ---
+
+/**
+ * Shows the Voice Mode introduction the first time a session starts. This
+ * watches the connection state rather than any one entry point, because Voice
+ * Mode can be started from the input-mode pill, a command, a keybinding or the
+ * Agents window - all of which land here.
+ */
+class AgentsVoiceOnboardingContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentsVoiceOnboarding';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@IVoiceModeOnboardingService voiceModeOnboardingService: IVoiceModeOnboardingService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			if (voiceSessionController.isConnecting.read(reader) || voiceSessionController.isConnected.read(reader)) {
+				voiceModeOnboardingService.showIfNeeded();
+			}
+		}));
+	}
+}
+
+// Registered at the same late phase as the connected-key contribution so it
+// does not force `IVoiceSessionController` to instantiate early.
+registerWorkbenchContribution2(AgentsVoiceOnboardingContribution.ID, AgentsVoiceOnboardingContribution, WorkbenchPhase.Eventually);
 
 // --- Voice mode button in Chat toolbar ---
 // Shows the voice mode icon in both idle and active states.
@@ -379,6 +411,23 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_VOICE_MODE_ONBOARDING_COMMAND,
+			title: nls.localize2('agentsVoice.showOnboarding', "Voice Mode: Show Introduction"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		if (!accessor.get(IVoiceModeOnboardingService).show()) {
+			accessor.get(INotificationService).info(nls.localize('agentsVoice.onboardingNeedsChat', "Open a chat to see the Voice Mode introduction."));
+		}
+	}
+});
+
 // --- Simulate Voice Connection (dev utility, backend down) ---
 
 registerAction2(class extends Action2 {
@@ -408,6 +457,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const storageService = accessor.get(IStorageService);
 		storageService.remove(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE);
+		storageService.remove(AgentsVoiceStorageKeys.IntroBannerShown, StorageScope.APPLICATION);
 	}
 });
 
@@ -432,6 +482,11 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		// Capture hold mode before awaiting so the dispatching command is still available.
+		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.pushToTalk');
+
 		// Auto-connect on first PTT press
 		if (!voiceController.isConnected.get() && !voiceController.isConnecting.get()) {
 			await voiceController.connect(mainWindow);
@@ -439,7 +494,20 @@ registerAction2(class extends Action2 {
 		if (!voiceController.isConnected.get()) {
 			return;
 		}
+
 		voiceController.pttDown();
+
+		if (!holdMode) {
+			// Not invoked via a held keybinding: emulate a tap so the controller
+			// enters toggle mode and keeps listening. Pressing again stops.
+			voiceController.pttUp();
+			return;
+		}
+
+		// The shortcut is being held: wait for release, then finish the turn.
+		// The controller decides tap-vs-hold based on how long it was held.
+		await holdMode;
+		voiceController.pttUp();
 	}
 });
 

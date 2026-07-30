@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -21,6 +22,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	getProvider(accessor: ServicesAccessor) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsService = accessor.get(ISessionsService);
+		const previouslyFocused = getActiveElement();
 
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
@@ -32,7 +34,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.quickChat', "To start a workspace-less quick chat, use the New Quick Chat command{0} or the plus button on the Chats section in the sessions list. A quick chat has no workspace, so the workspace picker does not apply and the Toggle Side Panel command is disabled.", '<keybinding:sessionsView.newQuickChat>'));
 		content.push(localize('sessionsChat.mobileConfig', "On mobile, the mode and model pickers appear as tappable chips below the input. Tap a chip to open a bottom sheet where you can change the selection."));
 		content.push(localize('sessionsChat.history', "Use up and down arrows to navigate your request history in the input box."));
-		content.push(localize('sessionsChat.vscodePet', "Type /vscode-pet to show or hide the VS Code pet above the input. Drag it horizontally to reposition it, or use Tab to focus it and the left and right arrow keys to move it. Press Enter or Space to show it some love."));
+		content.push(localize('sessionsChat.vscodePet', "Use the checked Pet item in the new-session view context menu, or type /vscode-pet, to show or hide the VS Code pet above the input. Drag it horizontally to reposition it, or use Tab to focus it and the left and right arrow keys to move it. Press Enter or Space to show it some love."));
+		content.push(localize('sessionsChat.aquariumAction', "To show or hide the aquarium action on the new-session view, use the checked Aquarium item in the context menu outside the composer, or run the Toggle Aquarium Action Visibility command."));
 		content.push(localize('sessionsChat.dictation', "When dictation is configured, dictate your message into the input{0}. Tap to start and stop, or hold to dictate only while pressed. If the speech-to-text model is still preparing, activate the dictation control again to cancel.", '<keybinding:sessions.action.chat.toggleDictation>'));
 		content.push(localize('sessionsChat.voiceMode', "Start or stop Voice Mode to interact with the agent using your microphone{0}.", '<keybinding:agentsVoice.startVoiceInChat>'));
 		content.push(localize('sessionsChat.micContextMenu', "To choose a microphone or turn off dictation or Voice Mode, focus the microphone button in the input toolbar and open its context menu (for example Shift+F10)."));
@@ -46,6 +49,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.goForward', "Go forward through visited sessions{0}.", '<keybinding:sessions.goForward>'));
 		content.push(localize('sessionsChat.navigatePreviousSession', "Navigate to the previous session in the list{0}.", '<keybinding:sessionsViewPane.navigatePreviousSession>'));
 		content.push(localize('sessionsChat.navigateNextSession', "Navigate to the next session in the list{0}.", '<keybinding:sessionsViewPane.navigateNextSession>'));
+		content.push(localize('sessionsChat.renameSession', "To rename a session, double-click its title in the sessions list. With the keyboard, focus the session, open its context menu (for example, with Shift+F10), and choose Rename."));
 		content.push(localize('sessionsChat.changes', "Focus the Changes view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesView>'));
 		content.push(localize('sessionsChat.viewAllChanges', "The session header shows the diff stats (lines added and removed) as a button. Activate it to open the multi-file diff editor for all of the session's changes{0}.", '<keybinding:workbench.agentSessions.action.viewChanges>'));
 		content.push(localize('sessionsChat.openPullRequest', "When the session is associated with a GitHub pull request, the session header shows the pull request number as a button. Activate it to open the pull request on GitHub{0}.", '<keybinding:workbench.agentSessions.action.openPullRequest>'));
@@ -59,6 +63,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n'),
 			() => {
+				if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
+					previouslyFocused.focus();
+					return;
+				}
 				const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
 				view?.focus();
 			},

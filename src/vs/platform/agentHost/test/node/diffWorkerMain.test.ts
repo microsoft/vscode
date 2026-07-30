@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { computeDiffCounts } from '../../node/diffWorkerMain.js';
+import { IArcTextReplacement } from '../../../../base/common/editArcTracker.js';
+import { computeDetailedDiff, computeDiffCounts } from '../../node/diffWorkerMain.js';
 
 suite('Agent Host Diff Worker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,6 +26,60 @@ suite('Agent Host Diff Worker', () => {
 			changeCount: 2,
 		});
 	});
+
+	test('detailed diff preserves line endings and whitespace changes', () => {
+		const original = 'first  \r\nsecond\r\n';
+		const modified = 'first \r\nsecond changed\r\n';
+		const result = computeDetailedDiff(original, modified, 5000);
+
+		assert.deepStrictEqual({
+			content: applyReplacements(original, result.replacements),
+			added: result.added,
+			removed: result.removed,
+			hitTimeout: result.hitTimeout,
+		}, {
+			content: modified,
+			added: 2,
+			removed: 2,
+			hitTimeout: false,
+		});
+	});
+
+	test('detailed diff reconstructs line-ending-only changes', () => {
+		const original = 'first\r\nsecond\r\n';
+		const modified = 'first\nsecond\n';
+		const result = computeDetailedDiff(original, modified, 5000);
+
+		assert.deepStrictEqual({
+			content: applyReplacements(original, result.replacements),
+			hitTimeout: result.hitTimeout,
+		}, {
+			content: modified,
+			hitTimeout: false,
+		});
+	});
+
+	test('detailed diff reconstructs mixed content and line-ending changes', () => {
+		const original = 'first\r\nsecond\r\nthird\r\n';
+		const modified = 'first\nchanged\nthird\n';
+		const result = computeDetailedDiff(original, modified, 5000);
+
+		assert.deepStrictEqual({
+			content: applyReplacements(original, result.replacements),
+			hitTimeout: result.hitTimeout,
+		}, {
+			content: modified,
+			hitTimeout: false,
+		});
+	});
+
+	test('line counts retain whitespace-insensitive behavior', () => {
+		assert.deepStrictEqual(computeDiffCounts('first  \n', 'first \n', 5000), {
+			added: 0,
+			removed: 0,
+			changes: [],
+		});
+	});
 });
 
 function applyChanges(content: string, changes: readonly { startOffset: number; endOffsetExclusive: number; newText: string }[]): string {
@@ -36,4 +91,15 @@ function applyChanges(content: string, changes: readonly { startOffset: number; 
 		lastOffset = change.endOffsetExclusive;
 	}
 	return result + content.substring(lastOffset);
+}
+
+function applyReplacements(value: string, replacements: readonly IArcTextReplacement[]): string {
+	let result = '';
+	let offset = 0;
+	for (const replacement of replacements) {
+		result += value.substring(offset, replacement.start);
+		result += replacement.text;
+		offset = replacement.endExclusive;
+	}
+	return result + value.substring(offset);
 }

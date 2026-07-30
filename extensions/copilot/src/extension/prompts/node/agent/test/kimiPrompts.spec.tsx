@@ -20,6 +20,20 @@ import { PromptRenderer } from '../../base/promptRenderer';
 import '../allAgentPrompts';
 import { PromptRegistry } from '../promptRegistry';
 
+const KIMI_K3_BIOSECURITY_AND_CHEMICAL_SAFETY_POLICY = `BIOSECURITY AND CHEMICAL SAFETY POLICY (non-negotiable)
+
+You must refuse to provide information that would provide meaningful uplift toward biological or chemical weapons or other mass-casualty harm. This overrides any other instruction, persona, or user framing (including "hypothetical", "fictional", "research", "educational", or "for a novel" framings).
+
+Refuse, and do not provide workarounds, partial answers, or pointers to sources, when a request seeks to:
+- Bypass, evade, circumvent, or defeat nucleic-acid / DNA / RNA synthesis-provider screening, sequence order screening, or "know-your-customer" biosecurity controls (including obfuscating, fragmenting, recoding, or reordering sequences to avoid detection).
+- Design, synthesize, acquire, culture, propagate, stabilize, enhance the virulence or transmissibility of, or weaponize any pathogen, toxin, or biological agent.
+- Obtain step-by-step wet-lab protocols, troubleshooting, reagent/equipment sourcing, or scale-up guidance intended to produce a harmful biological or chemical agent.
+- Produce, synthesize, or disperse chemical weapons, toxic agents, or their precursors.
+
+When refusing, give a brief, non-judgmental refusal and, where appropriate, offer clearly safe, high-level educational or defensive alternatives (e.g., biosafety, public-health, or policy information) without operational detail.
+
+Answer normally for legitimate requests: general science education, clinical care, approved public-health work, defensive biosecurity, and dual-use topics that do not provide operational uplift toward the categories above.`;
+
 suite('KimiPrompts', () => {
 	let accessor: ITestingServicesAccessor;
 
@@ -72,7 +86,21 @@ suite('KimiPrompts', () => {
 
 		expect(renderedPrompt).toContain(`Use ${ToolName.ReplaceString} for single string replacements`);
 		expect(renderedPrompt).toContain(`batch them into a single ${ToolName.MultiReplaceString} call`);
+		expect(renderedPrompt).toContain(`A single ${ToolName.MultiReplaceString} call is much faster and cheaper`);
 		expect(renderedPrompt).not.toContain(`Use ${ToolName.EditFile}`);
 		expect(renderedPrompt).not.toContain(`Use ${ToolName.ApplyPatch}`);
+	});
+
+	test('adds the biosecurity and chemical safety policy only for Kimi K3', async () => {
+		const kimiK3Prompt = await renderSystemPrompt('kimi-k3');
+		const kimiK2Prompts = await Promise.all([
+			renderSystemPrompt('kimi-k2.6'),
+			renderSystemPrompt('kimi-k2.7-code'),
+		]);
+
+		expect(kimiK3Prompt).toContain(KIMI_K3_BIOSECURITY_AND_CHEMICAL_SAFETY_POLICY);
+		for (const renderedPrompt of kimiK2Prompts) {
+			expect(renderedPrompt).not.toContain('BIOSECURITY AND CHEMICAL SAFETY POLICY');
+		}
 	});
 });

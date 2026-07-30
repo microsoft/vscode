@@ -257,6 +257,12 @@ export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
 	shimmer?: boolean;
+	/**
+	 * Stable identity for a progress message that is updated over time. When
+	 * set, a later message with the same id replaces this one instead of being
+	 * appended, so live progress doesn't stack up rows.
+	 */
+	id?: string;
 }
 
 export interface IChatSystemNotificationPart {
@@ -483,14 +489,18 @@ export interface IChatQuestionCarousel {
 	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
-	/** True when accepted/answered outside the carousel UI (e.g. via voice) without structured answers. */
+	/** True when accepted/answered outside the carousel UI, such as by voice or automatic reply. */
 	answeredExternally?: boolean;
+	/** True when Copilot supplied the answer through automatic reply. */
+	autoReply?: boolean;
 	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
 	source?: ToolDataSource;
 	/** Terminal ID when the carousel was triggered by a terminal needing input */
 	terminalId?: string;
+	/** Visual treatment for the answered state. */
+	answerPresentation?: 'conversation';
 	kind: 'questionCarousel';
 }
 
@@ -631,6 +641,8 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
+	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */

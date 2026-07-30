@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -43,6 +43,7 @@ import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSes
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
@@ -193,6 +194,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override acceptElicitation() { }
 	}());
 	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
+		override readonly isVisible = false;
+		override registerHost() { return Disposable.None; }
+	}());
+	reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
+		override readonly isVisible = false;
 		override registerHost() { return Disposable.None; }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
@@ -291,7 +297,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getFolder() { return undefined; }
 	}());
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
-		override readonly enabled = false;
+		override readonly enabled = constObservable(false);
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);
