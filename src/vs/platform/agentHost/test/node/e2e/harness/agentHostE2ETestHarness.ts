@@ -180,12 +180,12 @@ const POSIX_COMMAND_EXCEPTIONS = new Set<string>([]);
  * `harness/modelRequestProjection.ts`.
  */
 const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
-	// Re-recording drives a real provider-context fork, which Claude rejects
-	// with "Invalid upToMessageId: turn-source" — the same defect that gates
-	// `supportsChatForkE2E`. The capture predates the host's
-	// `<side-chat-context>` preamble and cannot be refreshed until that is
-	// fixed. Claude only: the other providers fork fine and their captures are
-	// current.
+	// Re-recording anchors a side chat on a source turn, which hits the same
+	// anchor-resolution defect that gates `supportsChatForkE2E`: Claude cannot
+	// resolve a client-assigned turn id, so the fork silently degrades to an
+	// injected context preamble. The capture predates that preamble and cannot
+	// be refreshed until the defect is fixed. Claude only: the other providers
+	// fork fine and their captures are current.
 	'claude:side chat receives bounded source context without copied history',
 ]);
 

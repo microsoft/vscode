@@ -123,7 +123,7 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 - Test: `side chat receives bounded source context without copied history`.
 - Scope: Claude.
 - Expected: re-recording the capture drives a real side chat and stores the request the host now sends.
-- Observed: recording fails with `Invalid upToMessageId: turn-source`. The side chat is created against a source turn, so recording exercises the same provider-context fork defect that gates `supportsChatForkE2E`; see [Claude provider-context fork](#claude-provider-context-fork).
+- Observed: recording does not reproduce the committed capture, because the side chat is anchored on a source turn and therefore hits the same anchor-resolution defect that gates `supportsChatForkE2E` — the side chat falls back to an injected `<side-chat-context>` preamble instead of a provider fork. See [Claude provider-context fork](#claude-provider-context-fork).
 - Consequence: the committed capture predates the host's `<side-chat-context>` preamble, so its recorded request no longer matches the live one. The test still replays correctly — only the request comparison is disabled, via `STALE_RECORDED_REQUEST_EXCEPTIONS`.
 - Reproduce:
 
@@ -144,8 +144,33 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   - `unknown-turn fork does not inherit source provider context`
 - Scope: Claude.
 - Expected: Claude advertises multi-chat fork support, and a provider-backed fork can continue from the requested source history.
-- Observed: exercising a real provider-context fork rejects the AHP turn id as an invalid `upToMessageId`. The unknown-turn context test currently shares the same provider E2E fork gate.
+- Observed: the fork **silently produces a chat with no provider context**. The forked chat's AHP state looks correct — the source turn is seeded into its transcript — but the model request carries no prior history, so the model cannot answer questions about the source conversation. No error reaches the client.
+
+  Verified against the live SDK by enabling the gate and recording. Of the four assertions, only the AHP-level one passes:
+
+  ```
+  seededMessages:                  ok   (source turn present in the forked chat)
+  requestHasPriorUserMessage:      FAIL (model request has no source user turn)
+  requestHasPriorAssistantMessage: FAIL (model request has no source reply)
+  responseHasCodeWord:             FAIL (model cannot recall the source code word)
+  ```
+
+  The same test passes for Copilot, whose capture shows the full inherited history, so this is provider-specific rather than a fault in the test or the shared fork contract.
+
+  Root cause: `resolveForkAnchorUuid` (`claudeReplayMapper.ts`) matches the requested turn id against **Claude SDK envelope uuids**, so it only resolves when the AHP turn id happens to *be* an SDK uuid. AHP lets a client choose its own turn id on dispatch — Copilot honors that — and for such an id the anchor never resolves:
+
+  ```
+  resolveForkAnchorUuid(messages, 'u1')          -> 'a1'        (SDK uuid, resolves)
+  resolveForkAnchorUuid(messages, 'fork-source') -> undefined   (client turn id, never resolves)
+  ```
+
+  `_forkChat` then logs a warning and returns `undefined`, and `createChat` continues with a fresh chat. The degradation is invisible to the client, which is the part that makes this a defect rather than a limitation: a required contract fails silently instead of surfacing a typed error.
+
+  The earlier description of this entry — that the fork "rejects the AHP turn id as an invalid `upToMessageId`" — was inaccurate. That string comes from a unit-test stub and the SDK; the E2E fork path never reaches `forkSession` at all.
+
+- Note: `unknown-turn fork does not inherit source provider context` asserts the *correct* behavior for an unresolvable anchor and shares this gate only because both are `forkProviderTest`s. It is expected to pass once the resolvable case works.
 - Gate: `supportsChatForkE2E: false`.
+- Issue: [#328104](https://github.com/microsoft/vscode/issues/328104).
 - Reproduce:
 
   ```bash
