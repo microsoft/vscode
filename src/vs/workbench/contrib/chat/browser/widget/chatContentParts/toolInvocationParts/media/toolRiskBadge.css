@@ -34,9 +34,7 @@
 .chat-confirmation-widget2 > .tool-risk-badge .tool-risk-text {
 	min-width: 0;
 	flex: 1 1 auto;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
 }
 
 .chat-confirmation-widget2 > .tool-risk-badge .tool-risk-details-icon {
