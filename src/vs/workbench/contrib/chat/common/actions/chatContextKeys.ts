@@ -157,13 +157,8 @@ export namespace ChatContextKeys {
 	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', undefined, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	/**
-	 * Whether the agent session item has an associated pull request.
-	 *
-	 * Deliberately tri-state rather than boolean: the key is left unset when the session's pull
-	 * request state is unknown (including on VS Code versions that predate this key), so `when`
-	 * clauses should gate with `chatSessionPullRequest != 'none'` — "show unless we positively
-	 * know there is no pull request" — instead of a truthiness check that would also hide the
-	 * contribution wherever the state is simply unknown.
+	 * Whether the agent session item has an associated pull request. Tri-state, so gate with
+	 * `chatSessionPullRequest != 'none'` to keep contributions visible when the state is unknown.
 	 */
 	export const agentSessionPullRequest = new RawContextKey<string>('chatSessionPullRequest', '', { type: 'string', description: localize('agentSessionPullRequest', "Whether the current agent session item has an associated pull request: 'available' or 'none'. Unset when the pull request state is unknown.") });
 	export const chatSessionSupportsDelegation = new RawContextKey<boolean>('chatSessionSupportsDelegation', true, { type: 'boolean', description: localize('chatSessionSupportsDelegation', "True when the current session type supports delegation.") });

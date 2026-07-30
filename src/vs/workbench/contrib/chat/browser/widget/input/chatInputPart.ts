@@ -4251,9 +4251,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (sessionResource) {
 			scopedContextKeyService.createKey(ChatContextKeys.agentSessionType.key, getChatSessionType(sessionResource));
 
-			// Provider metadata — and with it the session's pull request — can arrive after the
-			// session is first rendered, so track it rather than sampling once. An unknown session
-			// leaves the key empty so contributions gated on `!= 'none'` still show.
+			// Metadata can arrive after first render, so track it rather than sampling once.
 			const sessionPullRequest = observableFromEvent(
 				this,
 				this.agentSessionsService.model.onDidChangeSessions,

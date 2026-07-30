@@ -175,7 +175,7 @@ export function getAgentSessionPullRequestUri(session: Pick<IAgentSession, 'meta
 	const prNumber = metadata.pullRequestNumber;
 	const owner = metadata.owner;
 	const name = metadata.name;
-	if (typeof prNumber === 'number' && typeof owner === 'string' && typeof name === 'string') {
+	if (typeof prNumber === 'number' && typeof owner === 'string' && owner && typeof name === 'string' && name) {
 		return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
 	}
 

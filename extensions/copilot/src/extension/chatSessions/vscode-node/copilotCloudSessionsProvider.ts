@@ -525,9 +525,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				pullRequestNumber = SessionIdForPr.parsePullRequestNumber(resource);
 			}
 
-			// A cloud task without a pull request uses a `task/<taskId>` URI, so there is no PR
-			// number to parse. Actions that can reach this state are hidden via
-			// `chatSessionPullRequest != 'none'`, so this is just a safety net.
+			// Reachable when `chatSessionPullRequest` is unknown, which keeps the action visible.
 			if (!pullRequestNumber) {
 				this.logService.warn('No pull request number could be resolved for the requested cloud session action.');
 				return;

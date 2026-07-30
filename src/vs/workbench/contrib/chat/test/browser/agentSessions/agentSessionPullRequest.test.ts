@@ -28,6 +28,9 @@ suite('agentSessionPullRequest', () => {
 			probe({ owner: 'microsoft', name: 'vscode', branch: 'copilot/fix-1' }),
 			// Partial data is not enough to build a pull request url.
 			probe({ pullRequestNumber: 42, owner: 'microsoft' }),
+			// Empty owner/name would produce `https://github.com///pull/42`.
+			probe({ pullRequestNumber: 42, owner: '', name: '' }),
+			probe({ pullRequestNumber: 42, owner: 'microsoft', name: '' }),
 			// Non-string/number metadata must not be coerced.
 			probe({ pullRequestUrl: 42 }),
 			probe({ pullRequestNumber: '42', owner: 'microsoft', name: 'vscode' }),
@@ -36,6 +39,8 @@ suite('agentSessionPullRequest', () => {
 			{ uri: undefined, contextValue: 'none' },
 			{ uri: 'https://github.com/microsoft/vscode/pull/42', contextValue: 'available' },
 			{ uri: 'https://github.com/microsoft/vscode/pull/42', contextValue: 'available' },
+			{ uri: undefined, contextValue: 'none' },
+			{ uri: undefined, contextValue: 'none' },
 			{ uri: undefined, contextValue: 'none' },
 			{ uri: undefined, contextValue: 'none' },
 			{ uri: undefined, contextValue: 'none' },
