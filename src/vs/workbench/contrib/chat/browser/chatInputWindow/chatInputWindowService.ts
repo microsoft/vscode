@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -329,22 +329,60 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		const layout = () => widget.layout(parent.offsetHeight, parent.offsetWidth);
 		layout();
-		this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
-			const windowChromeHeight = auxiliaryWindow.window.outerHeight - auxiliaryWindow.window.innerHeight;
-			// Size the surface to the input box plus a symmetric padding ring on
-			// every side, so the box is centered and its rounded corners aren't
-			// clipped.
+
+		// Fit the frameless window to the input box plus a symmetric padding ring
+		// on every side, so the box is centered and its rounded corners aren't
+		// clipped. Skip while a picker (model / routing disambiguation) has grown
+		// the window taller so we don't fight its manual resize. Only touch the OS
+		// window when the size actually changed: `resizeTo`/`moveTo` steal focus
+		// from the input (blanking the caret), so an idempotent no-op keeps the
+		// caret visible while the input height is stable.
+		let lastContentHeight: number | undefined;
+		const fitWindowToInput = () => {
+			if (this._preExpandHeight !== undefined || this._actionWidgetRestoreHeight !== undefined) {
+				return;
+			}
+			const win = this._window?.window;
+			if (!win || win !== auxiliaryWindow.window) {
+				return;
+			}
 			const inputHeight = widget.input.inputContainerElement?.getBoundingClientRect().height;
 			const contentHeight = inputHeight === undefined
 				? CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT
 				: Math.ceil(inputHeight + 2 * CHAT_INPUT_WINDOW_SURFACE_PADDING);
+			if (contentHeight === lastContentHeight) {
+				return;
+			}
+			lastContentHeight = contentHeight;
 			contentSurface.style.height = `${contentHeight}px`;
-			auxiliaryWindow.window.resizeTo(auxiliaryWindow.window.outerWidth, contentHeight + windowChromeHeight);
-			const centeredX = Math.round(mainWindow.screenX + (mainWindow.outerWidth - auxiliaryWindow.window.outerWidth) / 2);
+			const windowChromeHeight = win.outerHeight - win.innerHeight;
+			win.resizeTo(win.outerWidth, contentHeight + windowChromeHeight);
+			const centeredX = Math.round(mainWindow.screenX + (mainWindow.outerWidth - win.outerWidth) / 2);
 			const centeredY = Math.round(mainWindow.screenY + (mainWindow.outerHeight - contentHeight) / 2);
-			auxiliaryWindow.window.moveTo(centeredX, centeredY);
-			// Place the caret in the input so it's ready to type into.
-			widget.focusInput();
+			win.moveTo(centeredX, centeredY);
+		};
+
+		// Keep the window fitted as the input grows/shrinks (e.g. multi-line
+		// text), instead of relying on a single racy measurement that can catch
+		// the input before it collapses to its compact single-line height.
+		const inputContainer = widget.input.inputContainerElement;
+		if (inputContainer) {
+			const resizeObserver = new auxiliaryWindow.window.ResizeObserver(() => fitWindowToInput());
+			resizeObserver.observe(inputContainer);
+			this._windowDisposables.add(toDisposable(() => resizeObserver.disconnect()));
+		}
+
+		this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
+			fitWindowToInput();
+			// Focus the input only after the window has been positioned: the
+			// `moveTo`/`resizeTo` above blur the editor, so focusing in a
+			// follow-up frame (after the OS window is settled and keyed) is what
+			// makes the caret actually render. Focus the OS window first so
+			// macOS treats it as key and shows a live (not dimmed) caret.
+			this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
+				auxiliaryWindow.window.focus();
+				widget.focusInput();
+			}));
 		}));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
