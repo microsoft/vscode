@@ -5335,6 +5335,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const cachedSummary = fallbackState === 'idle' ? this._lastResponseSummaryById.get(sessionIdStr) : undefined;
 				return {
 					id: sessionIdStr,
+					...(s.label ? { label: s.label } : {}),
 					is_active: isActive,
 					agent_state: scoped.state,
 					...(cachedSummary ? { last_response_summary: cachedSummary } : {}),
@@ -5360,6 +5361,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const pending = this._buildPendingPayload(model);
 			return {
 				id: s.resource.toString(),
+				...(s.label ? { label: s.label } : {}),
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
@@ -5386,6 +5388,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const pending = this._buildPendingPayload(chatModel);
 			sessionList.push({
 				id: key,
+				...(chatModel.title ? { label: chatModel.title } : {}),
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
@@ -5394,24 +5397,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			});
 		}
 
-		// Try to get active session from chatViewPane via command
-		let activeSession: { id: string; last_message: string | null } | undefined;
-		try {
-			// This is fire-and-forget; the sync command bridge populates active_session
-			// For now, we omit active_session when called from controller
-			// (the chatViewPane's context already had this, the floating window didn't)
-		} catch {
-			// ignore
-		}
-
-		const context: IVoiceSessionContext = {
+		// `active_session` is not sent: the per-session `is_active` flag already
+		// names the focused session, and the backend keys the marker off it.
+		return {
 			sessions: sessionList,
 			display_locale: this._window?.navigator.language || 'en-US',
 		};
-		if (activeSession) {
-			context.active_session = activeSession;
-		}
-		return context;
 	}
 
 	/**
