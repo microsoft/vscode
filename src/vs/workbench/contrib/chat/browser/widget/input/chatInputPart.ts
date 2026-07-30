@@ -433,6 +433,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatGoalBannerContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
+	private editorContainer!: HTMLElement;
+	private toolbarsContainer!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
 	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
@@ -445,6 +447,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	/**
+	 * The interactive interior of the input (editor, toolbars, attachments).
+	 * Hosts embedding the input in a draggable frameless window use these to
+	 * exclude the controls from the window drag region.
+	 */
+	get interactiveInputElements(): HTMLElement[] {
+		return [this.editorContainer, this.toolbarsContainer, this.attachmentsContainer].filter((element): element is HTMLElement => !!element);
 	}
 
 	get persistentContentContainerElement(): HTMLElement {
@@ -2967,9 +2978,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
 		const editorContainer = elements.editorContainer;
+		this.editorContainer = editorContainer;
 		this.attachmentsContainer = elements.attachmentsContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
+		this.toolbarsContainer = toolbarsContainer;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
 		if (this.options.renderStyle === 'compact') {
 			this.secondaryToolbarContainer.style.display = 'none';

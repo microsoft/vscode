@@ -228,12 +228,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, contentSurface: HTMLElement): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
-		// .chat-input-container` — the aux container already tracks the
+		// .chat-input-container` - the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
-		// wrapper here. Mark it no-drag so the visible input box stays fully
-		// interactive; only the transparent padding ring around it drags.
+		// wrapper here. Make the whole wrapper draggable so the visible input
+		// box itself moves the frameless window; the genuinely interactive
+		// regions (editor, toolbars) are carved back out as no-drag below. A
+		// transparent padding ring alone is too thin (and too invisible) to be
+		// a reliable drag target on a transparent window.
 		const parent = dom.append(contentSurface, dom.$('.interactive-session'));
-		(parent.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'no-drag';
+		(parent.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 		parent.style.flex = '1 1 auto';
 		parent.style.minHeight = '0';
 		parent.style.width = '100%';
@@ -280,6 +283,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		));
 		widget.render(parent);
 		widget.setVisible(true);
+
+		// The wrapper is draggable (see above). `-webkit-app-region` inherits,
+		// so marking the interactive containers no-drag keeps the editor and its
+		// toolbars fully usable while their surrounding input-box chrome still
+		// drags the window. These containers exist synchronously after render;
+		// buttons/suggestions added later inherit no-drag from them.
+		this._markInteractiveRegionsNoDrag(widget.input.interactiveInputElements);
 
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
@@ -390,6 +400,17 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// Refresh editor focus when the auxiliary window becomes active.
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => widget.focusInput()));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
+	}
+
+	/**
+	 * Marks the interactive parts of the chat input (editor, toolbars,
+	 * attachments) as non-draggable so the surrounding input-box chrome can drag
+	 * the frameless window while these controls stay clickable/typable.
+	 */
+	private _markInteractiveRegionsNoDrag(elements: HTMLElement[]): void {
+		for (const element of elements) {
+			(element.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'no-drag';
+		}
 	}
 
 	private async _layoutForModelPicker(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
