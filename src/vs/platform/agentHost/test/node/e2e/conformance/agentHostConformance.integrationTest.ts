@@ -50,7 +50,7 @@ const REFERENCE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
-	stableNewScenarioResponse: true,
+	supportsFileTools: true,
 };
 
 defineAgentHostConformanceTests(REFERENCE_CONFIG);

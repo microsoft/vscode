@@ -18,9 +18,10 @@ import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const isLinux = process.platform === 'linux';
+
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_RECORD_ONLY_TESTS = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
-const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
 
 interface IDefineOptions {
@@ -44,7 +45,8 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
-			stableNewScenarioResponse: config.stableNewScenarioResponse,
+			supportsFileTools: config.supportsFileTools,
+			stableSharedServerFileScenarios: config.stableSharedServerFileScenarios ?? true,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),

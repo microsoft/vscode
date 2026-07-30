@@ -282,11 +282,19 @@
 	padding: 4px 8px;
 	display: flex;
 	justify-content: space-between;
+	align-items: flex-start;
 	column-gap: 10px;
 
 	.chat-title {
+		flex: 1 1 auto;
+		min-width: 0;
 		font-size: var(--vscode-agents-fontSize-heading3);
 		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		overflow-wrap: anywhere;
+	}
+
+	.chat-toolbar-container {
+		flex: 0 0 auto;
 	}
 
 	.rendered-markdown {
@@ -488,6 +496,8 @@
 
 	.chat-buttons {
 		display: flex;
+		flex-wrap: wrap;
+		min-width: 0;
 		column-gap: 4px;
 		align-items: center;
 

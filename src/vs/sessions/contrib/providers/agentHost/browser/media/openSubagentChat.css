@@ -3,11 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.chat-subagent-open-chat-toolbar {
+	width: 560px;
+	max-width: 100%;
+}
+
+.chat-subagent-open-chat-toolbar .monaco-toolbar,
+.chat-subagent-open-chat-toolbar .monaco-action-bar,
+.chat-subagent-open-chat-toolbar .actions-container {
+	width: 100%;
+	min-width: 0;
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget {
 	display: inline-flex;
 	flex-direction: column;
 	align-items: flex-start;
-	width: fit-content;
+	width: 100%;
 	max-width: 100%;
 	line-height: 1em;
 	font-size: var(--vscode-agents-fontSize-body2);
@@ -63,6 +75,15 @@
 	min-width: 0;
 }
 
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-label.rendered-markdown p > code {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-label .chat-inline-anchor-widget {
 	display: inline-flex;
 	align-items: center;
@@ -104,10 +125,11 @@
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool {
 	display: flex;
 	align-items: flex-start;
-	width: fit-content;
+	width: calc(100% - var(--vscode-spacing-size80));
 	max-width: 560px;
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
+	overflow: hidden;
 	margin-top: var(--vscode-spacing-size40);
 	margin-left: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);

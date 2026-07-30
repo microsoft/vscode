@@ -13,7 +13,7 @@ import { StorageScope } from '../../../../../platform/storage/common/storage.js'
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
+import { McpCollectionSortOrder, McpServerDefinition, McpServerTrust, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
@@ -52,7 +52,7 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 
 	private _watchFolder(folder: IWorkspaceFolder) {
 		const configFile = joinPath(folder.uri, '.mcp.json');
-		const collectionId = `workspace-dot-mcp.${folder.index}`;
+		const collectionId = `${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${folder.index}`;
 		const serverDefinitions = observableValue<readonly McpServerDefinition[]>(this, []);
 
 		const collection = {
