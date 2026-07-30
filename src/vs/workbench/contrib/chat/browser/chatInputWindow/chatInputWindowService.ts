@@ -18,7 +18,7 @@ import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/
 import { IRectangle } from '../../../../../platform/window/common/window.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
+import { inputBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { localize } from '../../../../../nls.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -36,7 +36,9 @@ const CHAT_INPUT_WINDOW_PICKER_MAX_ROWS = 8;
 /** Extra height for the picker's filter input and padding on top of the rows. */
 const CHAT_INPUT_WINDOW_PICKER_CHROME = 60;
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
-const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
+const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 48;
+/** Symmetric transparent padding around the input box; also the draggable ring. */
+const CHAT_INPUT_WINDOW_SURFACE_PADDING = 8;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -148,38 +150,32 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		this._windowDisposables.clear();
 
-		// Resolve theme colors so the aux window matches the chat input box, and
-		// re-apply them on theme changes (a light/dark/high-contrast switch would
-		// otherwise leave the window on the old inline colors).
+		// Keep the window body itself fully transparent; the only visible chrome
+		// is the chat input box, which brings its own background, border and
+		// rounded corners. Re-assert transparency on theme changes.
 		const applyThemeColors = () => {
-			const theme = this.themeService.getColorTheme();
-			const bgColor = theme.getColor(editorBackground)?.toString() ?? '#1e1e1e';
-			const inputBg = theme.getColor(inputBackground)?.toString() ?? '#3C3C3C';
-			const inputBd = theme.getColor(inputBorder)?.toString() ?? 'transparent';
-
-			auxiliaryWindow.container.style.setProperty('--vscode-chat-input-window-background', bgColor);
-			contentSurface.style.backgroundColor = inputBg;
-			contentSurface.style.border = `1px solid ${inputBd}`;
 			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
 		};
 
-		// A frameless window can only be dragged through a `-webkit-app-region:
-		// drag` region, so add a dedicated handle strip above the input. Its
-		// interactive descendants are marked no-drag inside the widget below.
+		// The content surface is an invisible host: it stays transparent and adds
+		// a small symmetric padding ring around the input. That ring both centers
+		// the input box and — because a frameless window can only be moved through
+		// a `-webkit-app-region: drag` region — provides the draggable area. The
+		// input box itself is marked no-drag inside the widget so it stays
+		// interactive, leaving only the surrounding ring grabbable.
 		const contentSurface = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-content'));
 		contentSurface.style.boxSizing = 'border-box';
 		contentSurface.style.width = '100%';
 		contentSurface.style.height = `${CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT}px`;
 		contentSurface.style.flex = '0 0 auto';
-		contentSurface.style.overflow = 'hidden';
+		contentSurface.style.overflow = 'visible';
+		contentSurface.style.backgroundColor = 'transparent';
+		contentSurface.style.border = 'none';
+		contentSurface.style.padding = `${CHAT_INPUT_WINDOW_SURFACE_PADDING}px`;
+		contentSurface.style.cursor = 'grab';
 		contentSurface.style.display = 'flex';
 		contentSurface.style.flexDirection = 'column';
-		const dragHandle = dom.append(contentSurface, dom.$('.chat-input-window-drag-handle'));
-		(dragHandle.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
-		dragHandle.style.height = '12px';
-		dragHandle.style.width = '100%';
-		dragHandle.style.flexShrink = '0';
-		dragHandle.style.cursor = 'grab';
+		(contentSurface.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 		applyThemeColors();
 		this._windowDisposables.add(this.themeService.onDidColorThemeChange(() => applyThemeColors()));
 
@@ -187,7 +183,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// compact ChatWidget. The response list is filtered out so only the input
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
-		this._renderChatWidget(auxiliaryWindow, contentSurface, dragHandle);
+		this._renderChatWidget(auxiliaryWindow, contentSurface);
 
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
@@ -231,11 +227,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}
 	}
 
-	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, contentSurface: HTMLElement, dragHandle: HTMLElement): void {
+	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, contentSurface: HTMLElement): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` — the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
-		// wrapper here.
+		// wrapper here. Mark it no-drag so the visible input box stays fully
+		// interactive; only the transparent padding ring around it drags.
 		const parent = dom.append(contentSurface, dom.$('.interactive-session'));
 		(parent.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'no-drag';
 		parent.style.flex = '1 1 auto';
@@ -335,8 +332,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		layout();
 		this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
 			const windowChromeHeight = auxiliaryWindow.window.outerHeight - auxiliaryWindow.window.innerHeight;
-			const containerBorderHeight = contentSurface.offsetHeight - contentSurface.clientHeight;
-			const contentHeight = dragHandle.offsetHeight + (widget.input.inputContainerElement?.offsetHeight ?? CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) + containerBorderHeight;
+			// Size the surface to the input box plus a symmetric padding ring on
+			// every side, so the box is centered and its rounded corners aren't
+			// clipped.
+			const inputHeight = widget.input.inputContainerElement?.getBoundingClientRect().height;
+			const contentHeight = inputHeight === undefined
+				? CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT
+				: Math.ceil(inputHeight + 2 * CHAT_INPUT_WINDOW_SURFACE_PADDING);
 			contentSurface.style.height = `${contentHeight}px`;
 			auxiliaryWindow.window.resizeTo(auxiliaryWindow.window.outerWidth, contentHeight + windowChromeHeight);
 			const centeredX = Math.round(mainWindow.screenX + (mainWindow.outerWidth - auxiliaryWindow.window.outerWidth) / 2);
