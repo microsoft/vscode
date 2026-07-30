@@ -4,30 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Color } from '../../../../../../base/common/color.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { computeVoiceGlowStyle, isGlowingVoiceState } from '../../../browser/voiceClient/voiceGlow.js';
+import { chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
+import { isGlowingVoiceState, isIdleGlowVoiceState, resolveVoiceGlowColors, VOICE_GLOW_PROCESSING_HUE_SHIFT, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
 
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders a blue listening glow that intensifies with audio', () => {
-		const listeningStyle = computeVoiceGlowStyle('listening', 0.5, false);
+	test('every state maps to exactly one glow treatment', () => {
+		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
+		assert.deepStrictEqual(
+			states.map(state => ({ state, active: isGlowingVoiceState(state), idle: isIdleGlowVoiceState(state) })),
+			[
+				{ state: 'idle', active: false, idle: true },
+				{ state: 'listening', active: true, idle: false },
+				{ state: 'speaking', active: true, idle: false },
+				{ state: 'processing', active: true, idle: false },
+				{ state: 'error', active: false, idle: false },
+			]
+		);
+	});
+
+	test('derives the per-state accents from the theme base color', () => {
+		const base = Color.fromHex('#58A6FF');
+		const colors = resolveVoiceGlowColors({ getColor: id => id === chatVoiceGlowBaseColor ? base : undefined });
 		assert.deepStrictEqual(
 			{
-				borderColor: listeningStyle.borderColor,
-				boxShadow: listeningStyle.boxShadow,
+				listening: colors.listening.toString(),
+				speakingHue: Math.round(colors.speaking.hsla.h),
+				processingHue: Math.round(colors.processing.hsla.h),
 			},
 			{
-				borderColor: 'rgba(88,166,255,0.44999999999999996)',
-				boxShadow: '0 0 6px rgba(88,166,255,0.2), inset 0 0 2.4000000000000004px rgba(88,166,255,0.06)'
+				listening: base.toString(),
+				speakingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT + 360) % 360),
+				processingHue: Math.round((base.hsla.h + VOICE_GLOW_PROCESSING_HUE_SHIFT + 360) % 360),
 			}
 		);
 	});
 
-	test('connected-idle voice mode does not render a glow', () => {
-		assert.deepStrictEqual(
-			['idle', 'listening', 'speaking', 'processing', 'error'].map(isGlowingVoiceState as (s: string) => boolean),
-			[false, true, true, false, false]
-		);
+	test('an explicitly themed state wins over the derived hue', () => {
+		const pinned = Color.fromHex('#FF00AA');
+		const colors = resolveVoiceGlowColors({
+			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF') : id === chatVoiceSpeakingGlow ? pinned : undefined,
+		});
+		assert.strictEqual(colors.speaking.toString(), pinned.toString());
 	});
 });

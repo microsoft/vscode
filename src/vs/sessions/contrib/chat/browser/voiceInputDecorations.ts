@@ -17,7 +17,11 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { breathingIntensity, isGlowingVoiceState, isIdleGlowVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { createVoiceGlowController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlowController.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 
 export interface IVoiceInputDecorationsServices {
 	readonly voiceSessionController: IVoiceSessionController;
@@ -25,6 +29,8 @@ export interface IVoiceInputDecorationsServices {
 	readonly micCaptureService: IMicCaptureService;
 	readonly configurationService: IConfigurationService;
 	readonly keybindingService: IKeybindingService;
+	readonly themeService: IThemeService;
+	readonly accessibilityService: IAccessibilityService;
 }
 
 export interface IVoiceInputDecorationsOptions {
@@ -50,7 +56,7 @@ export interface IVoiceInputDecorationsOptions {
  * Decorations show only while this surface is active and voice targets it.
  */
 export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServices, options: IVoiceInputDecorationsOptions): IDisposable {
-	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService } = services;
+	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService, themeService, accessibilityService } = services;
 	const { inputContainer: inputContainerEl, isActive, getCurrentResource, currentVoiceInputResource } = options;
 
 	const store = new DisposableStore();
@@ -71,6 +77,12 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	const win = dom.getWindow(inputContainerEl);
 	let animFrameId: number | undefined;
 	const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
+	const glowController = store.add(createVoiceGlowController(
+		inputContainerEl,
+		() => isDark(themeService.getColorTheme().type) ? 'dark' : 'light',
+		() => resolveVoiceGlowColors(themeService.getColorTheme()),
+	));
+	store.add(themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 	const startGlowAnimation = () => {
 		if (animFrameId !== undefined) {
 			return;
@@ -82,15 +94,13 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			const analyser = ttsPlaybackService.analyserNode
 				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
 				?? null;
-			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+			// Processing and connected-idle have no live audio to react to, so they
+			// breathe instead of sitting frozen.
+			const intensity = analyser
+				? readVoiceGlowIntensity(analyser, glowDataArrayRef)
+				: breathingIntensity(Date.now());
 
-			const transcriptHidden = configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
-			const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
-			inputContainerEl.style.borderColor = borderColor;
-			inputContainerEl.style.boxShadow = boxShadow;
-			inputContainerEl.classList.add('voice-active');
-			inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
-			inputContainerEl.classList.toggle('voice-speaking', voiceState === 'speaking');
+			glowController.render(voiceState, intensity, accessibilityService.isMotionReduced());
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -99,9 +109,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			win.cancelAnimationFrame(animFrameId);
 			animFrameId = undefined;
 		}
-		inputContainerEl.style.borderColor = '';
-		inputContainerEl.style.boxShadow = '';
-		inputContainerEl.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
+		glowController.clear();
 	};
 
 	store.add(autorun(reader => {
@@ -113,7 +121,8 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		// Glow only the single input voice is bound to, so at most one surface
 		// glows even when several sessions are visible.
 		const isOwner = !!current && !!owner && isEqual(current, owner);
-		if (connected && active && isOwner && isGlowingVoiceState(voiceState)) {
+		const glows = isGlowingVoiceState(voiceState) || isIdleGlowVoiceState(voiceState);
+		if (connected && active && isOwner && glows) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();

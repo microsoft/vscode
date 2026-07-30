@@ -23,6 +23,8 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { resolveVoiceGlowColors } from '../voiceClient/voiceGlow.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -347,13 +349,27 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super(undefined, action);
+	}
+
+	/** Set the per-state pill/waveform colors from the theme-derived voice accent. */
+	private _updateVoiceStateColors(container: HTMLElement): void {
+		const colors = resolveVoiceGlowColors(this.themeService.getColorTheme());
+		container.style.setProperty('--voice-color-listening', colors.listening.toString());
+		container.style.setProperty('--voice-color-speaking', colors.speaking.toString());
+		container.style.setProperty('--voice-color-processing', colors.processing.toString());
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('monaco-segmented-icon-toggle-container', 'chat-voice-input-mode-item');
+
+		// Drive the pill + waveform colors from the same theme-derived accent as the
+		// input-box glow, so all three always match and adapt to the active theme.
+		this._updateVoiceStateColors(container);
+		this._register(this.themeService.onDidColorThemeChange(() => this._updateVoiceStateColors(container)));
 
 		// A masked 2-slot viewport ("slot machine reel"). The reel holds three cells:
 		//   [ dictation ][ voice ][ listen ]

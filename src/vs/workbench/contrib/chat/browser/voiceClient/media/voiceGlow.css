@@ -1,0 +1,250 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Voice Mode ambient glow.
+ *
+ * Two treatments, both mounted as absolutely-positioned overlay "slots" on the
+ * chat input box (see `voiceGlowController.ts`):
+ *
+ * - `.voice-glow-rim`    — an audio-reactive interior rim: a perimeter of soft
+ *                          colored blobs, masked to a hairline ring plus a wider
+ *                          inner wash and a blurred bloom. Cool while listening,
+ *                          warm while speaking, near-white while idle.
+ * - `.voice-glow-border` — a light that travels around the input edge (a masked
+ *                          conic gradient) plus an inner glow. Used for the calm
+ *                          "thinking" state.
+ *
+ * Everything animated is a CSS custom property driven from JS, so the layers are
+ * painted from one shared animation frame rather than a dozen CSS animations.
+ */
+
+@property --vg-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 0deg;
+}
+
+@keyframes voice-glow-border-spin {
+	to {
+		--vg-angle: 360deg;
+	}
+}
+
+.voice-glow-slot {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	opacity: 0;
+	border-radius: var(--vg-radius, 6px);
+	will-change: opacity, transform;
+}
+
+/* --- Rim ------------------------------------------------------------------ */
+
+.voice-glow-rim {
+	/* Motion, driven per frame from JS. */
+	--vg-w1: 1;
+	--vg-h1: 1;
+	--vg-w2: 1;
+	--vg-h2: 1;
+	--vg-w3: 1;
+	--vg-h3: 1;
+	--vg-x1: 0px;
+	--vg-y1: 0px;
+	--vg-x2: 0px;
+	--vg-y2: 0px;
+	--vg-x3: 0px;
+	--vg-y3: 0px;
+	--vg-breath: 1;
+	--vg-op-tl: 1;
+	--vg-op-tr: 1;
+	--vg-op-bl: 1;
+	--vg-op-br: 1;
+	/* Color + intensity, driven from the theme accent and the audio level. */
+	--vg-hue: 212;
+	--vg-sat: 90%;
+	--vg-light: 66%;
+	--vg-strength: 1;
+	--vg-blob-scale: 1;
+	--vg-ring-width: 1px;
+	/* How far in from the edge the inner wash fades out. */
+	--vg-inner-fade: 28px;
+	overflow: hidden;
+	isolation: isolate;
+}
+
+/*
+ * One perimeter of blobs shared by all three rim layers. Each blob belongs to one
+ * of three size/drift regions (so they breathe out of step) and one quadrant (so
+ * their opacity swells out of step), and carries a small hue offset so the rim
+ * reads as a living wash rather than one flat color.
+ */
+.voice-glow-rim::after,
+.voice-glow-rim::before,
+.voice-glow-rim > .voice-glow-rim-bloom {
+	background:
+		radial-gradient(ellipse calc(72px * var(--vg-w1) * var(--vg-blob-scale)) calc(40px * var(--vg-h1) * var(--vg-breath) * var(--vg-blob-scale)) at calc(31% + var(--vg-x1)) calc(-7% + var(--vg-y1)), hsl(calc(var(--vg-hue) - 14) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(60px * var(--vg-w2) * var(--vg-blob-scale)) calc(35px * var(--vg-h2) * var(--vg-breath) * var(--vg-blob-scale)) at calc(12% + var(--vg-x2)) calc(-5% + var(--vg-y2)), hsl(calc(var(--vg-hue) + 8) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(40px * var(--vg-w3) * var(--vg-blob-scale)) calc(70px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(2% + var(--vg-x3)) calc(68% + var(--vg-y3)), hsl(calc(var(--vg-hue) - 6) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-bl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(20px * var(--vg-w1) * var(--vg-blob-scale)) calc(35px * var(--vg-h1) * var(--vg-breath) * var(--vg-blob-scale)) at calc(2% + var(--vg-x1)) calc(68% + var(--vg-y1)), hsl(calc(var(--vg-hue) + 16) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-bl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(180px * var(--vg-w2) * var(--vg-blob-scale)) calc(32px * var(--vg-h2) * var(--vg-breath) * var(--vg-blob-scale)) at calc(74% + var(--vg-x2)) calc(100% + var(--vg-y2)), hsl(calc(var(--vg-hue) + 20) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-br) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(85px * var(--vg-w3) * var(--vg-blob-scale)) calc(26px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(55% + var(--vg-x3)) calc(100% + var(--vg-y3)), hsl(calc(var(--vg-hue) + 2) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-br) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(74px * var(--vg-w1) * var(--vg-blob-scale)) calc(32px * var(--vg-h1) * var(--vg-breath) * var(--vg-blob-scale)) at calc(94% + var(--vg-x1)) calc(0% + var(--vg-y1)), hsl(calc(var(--vg-hue) + 12) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(26px * var(--vg-w2) * var(--vg-blob-scale)) calc(42px * var(--vg-h2) * var(--vg-breath) * var(--vg-blob-scale)) at calc(100% + var(--vg-x2)) calc(27% + var(--vg-y2)), hsl(calc(var(--vg-hue) - 10) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(52px * var(--vg-w3) * var(--vg-blob-scale)) calc(48px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(100% + var(--vg-x3)) calc(27% + var(--vg-y3)), hsl(calc(var(--vg-hue) + 18) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent);
+}
+
+/* The hairline ring itself: the blob wash clipped to the border. */
+.voice-glow-rim::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: var(--vg-ring-width);
+	clip-path: inset(0 round var(--vg-radius, 6px));
+	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+	pointer-events: none;
+	z-index: 2;
+	opacity: var(--vg-ring-opacity, 1);
+}
+
+/*
+ * The wider inner wash. Faded out towards the middle of the box so the light
+ * stays on the perimeter and never washes over the text being typed.
+ */
+.voice-glow-rim::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	clip-path: inset(0 round var(--vg-radius, 6px));
+	--vg-blob-scale: 0.72;
+	-webkit-mask-image:
+		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
+		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
+	-webkit-mask-composite: source-over;
+	mask-image:
+		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
+		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
+	mask-composite: add;
+	pointer-events: none;
+	z-index: 1;
+	opacity: var(--vg-inner-opacity, 0.44);
+}
+
+/* The soft bloom riding on top of the ring, blurred so the edge reads as light. */
+.voice-glow-rim > .voice-glow-rim-bloom {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	clip-path: inset(0 round var(--vg-radius, 6px));
+	padding: var(--vg-ring-width);
+	--vg-blob-scale: 1.22;
+	filter: blur(8px);
+	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+	pointer-events: none;
+	z-index: 3;
+	opacity: var(--vg-bloom-opacity, 0.66);
+}
+
+/* Corner accents, so the rounded corners catch the light like a real edge. They
+	ride at the inner wash's weight — at full strength they read as smudges. */
+.voice-glow-rim > .voice-glow-rim-corners {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	clip-path: inset(0 round var(--vg-radius, 6px));
+	pointer-events: none;
+	z-index: 1;
+	opacity: var(--vg-inner-opacity, 0.44);
+	background:
+		radial-gradient(ellipse 60px 60px at 0% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tl))), transparent 70%),
+		radial-gradient(ellipse 60px 60px at 100% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tr))), transparent 70%),
+		radial-gradient(ellipse 60px 60px at 0% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-bl))), transparent 70%),
+		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-br))), transparent 70%);
+}
+
+/* On light backgrounds the corner catch has to be a shadow, not a highlight. */
+.vs .voice-glow-rim > .voice-glow-rim-corners,
+.hc-light .voice-glow-rim > .voice-glow-rim-corners {
+	background:
+		radial-gradient(ellipse 60px 60px at 0% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tl))), transparent 70%),
+		radial-gradient(ellipse 60px 60px at 100% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tr))), transparent 70%),
+		radial-gradient(ellipse 60px 60px at 0% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-bl))), transparent 70%),
+		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
+}
+
+/* --- Border --------------------------------------------------------------- */
+
+.voice-glow-border {
+	--vg-hue: 212;
+	--vg-sat: 90%;
+	--vg-level: 0.3;
+	--vg-spin: 7s;
+	/* Ring lightness / alpha, theme-tuned below. */
+	--vg-border-light: 72%;
+	--vg-border-head-light: 78%;
+	--vg-border-alpha-base: 0.32;
+	--vg-border-alpha-head: 0.98;
+	--vg-border-alpha-mid: 0.55;
+	--vg-border-glow-light: 66%;
+	--vg-border-glow-alpha: 0.2;
+}
+
+.vs .voice-glow-border,
+.hc-light .voice-glow-border {
+	--vg-border-light: 52%;
+	--vg-border-head-light: 56%;
+	--vg-border-alpha-base: 0.28;
+	--vg-border-alpha-head: 0.9;
+	--vg-border-alpha-mid: 0.45;
+	--vg-border-glow-light: 56%;
+	--vg-border-glow-alpha: 0.16;
+}
+
+/*
+ * A continuous lit ring with a brighter travelling head, rather than isolated
+ * arcs — otherwise it reads as though only part of the box is glowing.
+ */
+.voice-glow-border::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: 1.4px;
+	background: conic-gradient(from var(--vg-angle, 0deg),
+			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-base)) 0deg,
+			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-head-light) / var(--vg-border-alpha-head)) 45deg,
+			hsl(calc(var(--vg-hue) + 20) var(--vg-sat) var(--vg-border-head-light) / var(--vg-border-alpha-mid)) 110deg,
+			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-base)) 200deg,
+			hsl(calc(var(--vg-hue) - 16) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-mid)) 290deg,
+			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-base)) 360deg);
+	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	mask-composite: exclude;
+	animation: voice-glow-border-spin var(--vg-spin) linear infinite;
+}
+
+.voice-glow-border::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: inset 0 0 12px hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-glow-light) / calc(var(--vg-border-glow-alpha) + 0.34 * var(--vg-level)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.voice-glow-border::before {
+		animation: none;
+	}
+}
