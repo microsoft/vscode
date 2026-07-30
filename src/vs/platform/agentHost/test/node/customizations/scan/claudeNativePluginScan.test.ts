@@ -159,6 +159,25 @@ suite('claudeNativePluginScan', () => {
 		]);
 	});
 
+	test('uses the primary root for cached plugin hooks when an additional root contains userHome', async () => {
+		const broadRoot = workspace.with({ path: '/home' });
+		await seed('/home/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'cached@m': true } }));
+		await seed('/home/.claude/plugins/cache/m/cached/1.0.0/.claude-plugin/plugin.json', manifest('cached'));
+		await seed('/home/.claude/plugins/cache/m/cached/1.0.0/hooks/hooks.json', JSON.stringify({
+			hooks: {
+				PreToolUse: [{
+					hooks: [{ type: 'command', command: 'echo cached', cwd: 'scripts' }],
+				}],
+			},
+		}));
+
+		const plugins = await scanClaudeNativePluginsForRoots([workspace, broadRoot], userHome, fileService, logService);
+
+		assert.deepStrictEqual(plugins[0].parsed.hooks.flatMap(group => group.commands).map(hook => hook.cwd?.path), [
+			'/workspace/scripts',
+		]);
+	});
+
 	test('uses ordered root precedence for conflicting plugin enablement', async () => {
 		const workspaceB = workspace.with({ path: '/workspace-b' });
 		await seed('/workspace/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'mine@skills-dir': false } }));

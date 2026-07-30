@@ -72,6 +72,22 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			);
 		});
 
+		test('keeps user customizations in the user bucket when an additional root contains userHome', () => {
+			const broadRoot = URI.from({ scheme: Schemas.inMemory, path: '/home' });
+			const userSkill = URI.joinPath(userHome, '.claude', 'skills', 'user-skill', 'SKILL.md');
+			const result = mapDiscoveredCustomizations([
+				toParsedSkill({ uri: userSkill, name: 'user-skill' }),
+			], [], [], [], [workspace, broadRoot], userHome);
+
+			assert.deepStrictEqual(
+				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
+				[
+					{ uri: URI.joinPath(userHome, '.claude', 'skills').toString(), children: ['user-skill'] },
+				],
+			);
+		});
+
 		test('maps discovered entries into per-scope Directory containers with real child URIs + top-level MCP', () => {
 			const wsAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/agents/wa.md' });
 			const wsSkillUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/skills/ws/SKILL.md' });

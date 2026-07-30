@@ -46,15 +46,17 @@ export async function discoverClaudeMultiRootCustomizations(
 	logService: ILogService,
 ): Promise<IClaudeMultiRootCustomizations> {
 	const roots = distinctClaudeWorkingDirectories(workingDirectories);
-	const scopes = await Promise.all([
-		...roots.map((root, index) => scanClaudeCustomizationScope(root, fileService, index === 0)),
-		scanClaudeCustomizationScope(userHome, fileService),
+	const [scopes, nativePlugins] = await Promise.all([
+		Promise.all([
+			...roots.map((root, index) => scanClaudeCustomizationScope(root, fileService, index === 0)),
+			scanClaudeCustomizationScope(userHome, fileService),
+		]),
+		scanClaudeNativePluginsForRoots(roots, userHome, fileService, logService),
 	]);
 	const discovered = [
 		...selectFirstClaudeCustomizationByKey(scopes.map(items => items.filter(isParsedAgent)), item => item.name),
 		...selectFirstClaudeCustomizationByKey(scopes.map(items => items.filter(isParsedSkill)), item => item.name),
 	];
-	const nativePlugins = await scanClaudeNativePluginsForRoots(roots, userHome, fileService, logService);
 	return {
 		workingDirectories: roots,
 		discovered,

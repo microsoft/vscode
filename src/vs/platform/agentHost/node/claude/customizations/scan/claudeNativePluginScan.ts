@@ -248,7 +248,9 @@ async function resolveNativePlugins(
 		}
 		seenRoots.add(root);
 		try {
-			const workspaceRoot = findMostSpecificClaudeWorkspaceRoot(root, workingDirectories);
+			const workspaceRoot = parts.marketplace === SKILLS_DIR_MARKETPLACE
+				? findMostSpecificClaudeWorkspaceRoot(root, workingDirectories)
+				: undefined;
 			const parsed = await parsePlugin(root, fileService, workspaceRoot ?? workingDirectories[0], userHome, root);
 			result.push({ id, root, parsed });
 		} catch (err) {

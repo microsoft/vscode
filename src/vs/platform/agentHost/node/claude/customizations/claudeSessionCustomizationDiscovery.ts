@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../files/common/files.js';
@@ -105,6 +106,9 @@ function createBucket(base: URI): ICustomizationBucket {
 
 function findCustomizationBucket(uri: URI, workspaceBuckets: readonly ICustomizationBucket[], userBucket: ICustomizationBucket): ICustomizationBucket {
 	const root = findMostSpecificClaudeWorkspaceRoot(uri, workspaceBuckets.map(bucket => bucket.base));
+	if (uri.scheme === userBucket.base.scheme && isEqualOrParent(uri, userBucket.base) && (!root || userBucket.base.path.length > root.path.length)) {
+		return userBucket;
+	}
 	return workspaceBuckets.find(bucket => bucket.base === root) ?? userBucket;
 }
 
