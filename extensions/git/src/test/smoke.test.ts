@@ -45,6 +45,9 @@ suite('git smoke test', function () {
 		fs.writeFileSync(file('app.js'), 'hello', 'utf8');
 		fs.writeFileSync(file('index.pug'), 'hello', 'utf8');
 		fs.writeFileSync(file('crlf.txt'), 'first\r\nsecond\r\nthird\r\n', 'utf8');
+		fs.writeFileSync(file('crlf[1].txt'), 'first\r\nsecond\r\nthird\r\n', 'utf8');
+		fs.writeFileSync(file('crlf1.txt'), 'first\nsecond\nthird\n', 'utf8');
+		fs.writeFileSync(file('mixed.txt'), 'first\r\nsecond\nthird\r\n', 'utf8');
 		cp.execSync('git init -b main', { cwd });
 		cp.execSync('git config user.name testuser', { cwd });
 		cp.execSync('git config user.email monacotools@example.com', { cwd });
@@ -75,17 +78,23 @@ suite('git smoke test', function () {
 		const logger = window.createOutputChannel('Git Test', { log: true });
 		const gitClient = new Git({ gitPath: 'git', userAgent: 'git-test', version });
 		const gitRepository = gitClient.open(cwd, undefined, { path: path.join(cwd, '.git'), isBare: false }, logger);
-		const contents = Buffer.from('first\r\nchanged\r\nthird\r\n');
+		const cases = [
+			{ path: 'crlf.txt', contents: Buffer.from('first\r\nchanged\r\nthird\r\n') },
+			{ path: 'crlf[1].txt', contents: Buffer.from('first\r\nchanged\r\nthird\r\n') },
+			{ path: 'mixed.txt', contents: Buffer.from('first\r\nchanged\nthird\r\n') },
+		];
 
 		try {
 			cp.execSync('git config core.autocrlf true', { cwd });
-			await gitRepository.stage(file('crlf.txt'), contents);
-
-			const stagedContents = cp.execFileSync('git', ['show', ':crlf.txt'], { cwd });
-			assert.deepStrictEqual(stagedContents, contents);
+			for (const testCase of cases) {
+				await gitRepository.stage(file(testCase.path), testCase.contents);
+				const stagedContents = cp.execFileSync('git', ['show', `:${testCase.path}`], { cwd });
+				assert.deepStrictEqual(stagedContents, testCase.contents);
+			}
 		} finally {
-			cp.execFileSync('git', ['reset', '--quiet', 'HEAD', '--', 'crlf.txt'], { cwd });
+			cp.execFileSync('git', ['reset', '--quiet', 'HEAD', '--', ...cases.map(testCase => testCase.path)], { cwd });
 			cp.execSync('git config core.autocrlf false', { cwd });
+			gitClient.dispose();
 			logger.dispose();
 		}
 	});
