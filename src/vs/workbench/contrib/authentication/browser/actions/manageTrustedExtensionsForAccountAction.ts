@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
