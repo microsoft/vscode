@@ -330,6 +330,15 @@ replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
 replacement.
 
+The new-session view mounts the aquarium action outside
+`.new-chat-widget-content`. Its surrounding surface has checked **Aquarium** and
+**Pet** context-menu items. `AquariumService` owns the application-scoped action
+visibility preference; `IChatPetService` owns the same persisted pet state used
+by `/vscode-pet`. Context-menu events from inside `.new-chat-widget-content` are
+left untouched so the composer retains its own context-menu behavior. The
+aquarium preference is also keyboard-accessible through the **Developer: Toggle
+Aquarium Action Visibility** command.
+
 Agent feedback created while the active session is undefined or uncreated uses
 one shared new-session feedback scope, so it follows every undefined/uncreated
 new-session view. The comments belong to the draft's workspace: a draft that has
