@@ -9,9 +9,8 @@ import { Event } from '../../../../base/common/event.js';
 export const CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleInputWindow';
 
 /**
- * Default dimensions for the floating chat input window.
+ * Default height for the floating chat input window.
  */
-export const CHAT_INPUT_WINDOW_DEFAULT_WIDTH = 520;
 export const CHAT_INPUT_WINDOW_DEFAULT_HEIGHT = 110;
 
 /**

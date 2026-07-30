@@ -12,7 +12,6 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
@@ -27,7 +26,7 @@ import { IChatModelReference, IChatService } from '../../common/chatService/chat
 import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
-import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_WIDTH, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT } from '../../common/chatInputWindow.js';
+import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT } from '../../common/chatInputWindow.js';
 
 /** Approx. rendered height of one quick-pick row, used to size the window to fit the routing picker. */
 const CHAT_INPUT_WINDOW_PICKER_ROW_HEIGHT = 22;
@@ -263,7 +262,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				filter: () => false,
 				enableImplicitContext: false,
 				defaultMode: ChatMode.Ask,
-				menus: { inputSideToolbar: MenuId.ChatInputWindowSide, telemetrySource: 'chatInputWindow' },
+				menus: { telemetrySource: 'chatInputWindow' },
 				// Routing seam: intercept submission before local execution and
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
@@ -344,6 +343,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const centeredX = Math.round(mainWindow.screenX + (mainWindow.outerWidth - auxiliaryWindow.window.outerWidth) / 2);
 			const centeredY = Math.round(mainWindow.screenY + (mainWindow.outerHeight - contentHeight) / 2);
 			auxiliaryWindow.window.moveTo(centeredX, centeredY);
+			// Place the caret in the input so it's ready to type into.
+			widget.focusInput();
 		}));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
@@ -388,13 +389,17 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
+		// Match Quick Chat's width so the model-detail hover has room to sit
+		// beside the picker: golden-cut of the main window, capped like the
+		// quick input widget (MAX_WIDTH = 600).
+		const width = Math.round(Math.min(mainWindow.innerWidth * 0.62, 600));
 		// Center the omni bar within the main VS Code window.
-		const x = Math.round(mainWindow.screenX + (mainWindow.outerWidth - CHAT_INPUT_WINDOW_DEFAULT_WIDTH) / 2);
+		const x = Math.round(mainWindow.screenX + (mainWindow.outerWidth - width) / 2);
 		const y = Math.round(mainWindow.screenY + (mainWindow.outerHeight - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
 		return {
 			x,
 			y,
-			width: CHAT_INPUT_WINDOW_DEFAULT_WIDTH,
+			width,
 			height: CHAT_INPUT_WINDOW_DEFAULT_HEIGHT,
 		};
 	}
