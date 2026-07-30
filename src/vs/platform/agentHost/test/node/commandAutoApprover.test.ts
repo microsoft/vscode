@@ -332,6 +332,22 @@ suite('CommandAutoApprover', () => {
 			], ['approved', 'approved', 'approved', 'approved', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch']);
 		});
 
+		test('distinguishes embedded greater-than text from a redirect operator', () => {
+			const seen: string[] = [];
+			const options = {
+				...pwsh,
+				isWriteDestApproved: (dest: string) => {
+					seen.push(dest);
+					return false;
+				},
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Write-Host hi>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host hi >../../outside.txt', options),
+			], ['approved', 'noMatch']);
+			assert.deepStrictEqual(seen, ['../../outside.txt']);
+		});
+
 		// The grammar parses `--flag=value` as an assignment expression that
 		// truncates the command (microsoft/vscode#294010). Without masking, the
 		// truncated capture could match an allow rule while the real command
@@ -351,17 +367,21 @@ suite('CommandAutoApprover', () => {
 			], ['approved', 'noMatch']);
 		});
 
-		test('PowerShell matchCommandLine deny rules are case-insensitive', () => {
-			const autoApproveRules = {
+		test('PowerShell matchCommandLine deny rules retain configured casing', () => {
+			const caseSensitiveRules = {
 				'Get-ChildItem': true,
 				'/^Get-ChildItem -Force$/': { approve: false, matchCommandLine: true },
 			};
+			const caseInsensitiveRules = {
+				'Get-ChildItem': true,
+				'/^Get-ChildItem -Force$/i': { approve: false, matchCommandLine: true },
+			};
 			assert.deepStrictEqual([
-				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'powershell', autoApproveRules }),
-				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules }),
-				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'bash', autoApproveRules }),
-				approver.shouldAutoApprove('get-childitem -Force', { language: 'bash', autoApproveRules }),
-			], ['denied', 'denied', 'denied', 'noMatch']);
+				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'powershell', autoApproveRules: caseSensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules: caseSensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules: caseInsensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'bash', autoApproveRules: caseSensitiveRules }),
+			], ['denied', 'approved', 'denied', 'noMatch']);
 		});
 
 		test('reports rule resolvability', () => {

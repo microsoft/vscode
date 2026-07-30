@@ -148,9 +148,9 @@ export interface IShouldAutoApproveOptions {
 	readonly autoApproveRules?: AgentHostTerminalAutoApproveRules;
 	/**
 	 * Shell grammar to parse the command line with. PowerShell commands are
-	 * parsed with the PowerShell grammar. Sub-command rules and full-command
-	 * deny rules are matched case-insensitively, like PowerShell itself;
-	 * full-command allow rules retain their configured casing. Defaults to `bash`.
+	 * parsed with the PowerShell grammar. Sub-command rules are matched
+	 * case-insensitively, like PowerShell itself; full-command rules retain
+	 * their configured casing. Defaults to `bash`.
 	 */
 	readonly language?: 'bash' | 'powershell';
 }
@@ -235,7 +235,7 @@ export class CommandAutoApprover extends Disposable {
 		const rules = this._compileRules(options?.autoApproveRules);
 		const isPowerShell = options?.language === 'powershell';
 
-		if (this._matchesCommandLineRule(trimmed, rules.denyCommandLineRules, isPowerShell)) {
+		if (this._matchesCommandLineRule(trimmed, rules.denyCommandLineRules)) {
 			return { result: 'denied', autoApproveRuleResolvable: false };
 		}
 
@@ -291,13 +291,8 @@ export class CommandAutoApprover extends Disposable {
 		return 'noMatch';
 	}
 
-	private _matchesCommandLineRule(commandLine: string, rules: readonly IAutoApproveRule[], caseInsensitive = false): boolean {
-		for (const rule of rules) {
-			if ((caseInsensitive ? rule.regexCaseInsensitive : rule.regex).test(commandLine)) {
-				return true;
-			}
-		}
-		return false;
+	private _matchesCommandLineRule(commandLine: string, rules: readonly IAutoApproveRule[]): boolean {
+		return rules.some(rule => rule.regex.test(commandLine));
 	}
 
 	private _matchesRule(command: string, rules: readonly IAutoApproveRule[], isPowerShell?: boolean): boolean {
