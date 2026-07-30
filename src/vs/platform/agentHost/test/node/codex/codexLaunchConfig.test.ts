@@ -54,5 +54,11 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'vscode-proxy',
 			config: { mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
+		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-c', {}, ['/repo-a', '/repo-b']), {
+			threadId: 'thread-c',
+			modelProvider: 'openai',
+			cwd: '/repo-a',
+			runtimeWorkspaceRoots: ['/repo-a', '/repo-b'],
+		});
 	});
 });
