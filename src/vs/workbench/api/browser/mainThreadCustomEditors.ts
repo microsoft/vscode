@@ -149,7 +149,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				throw createEditorOpenError(localize('customEditorUnavailable', "Cannot open resource with custom editor type '{0}'. Make sure its extension is installed and enabled.", webview.viewType), [
 					toAction({
 						id: 'workbench.customEditor.openWithDefault',
-						label: localize('customEditorOpenWithDefault', "Open With Default Editor"),
+						label: localize('customEditorOpenWithDefault', "Open with Default Editor"),
 						run: async () => {
 							const replacement = webview.toUntyped();
 							if (!replacement || typeof webview.group !== 'number') {

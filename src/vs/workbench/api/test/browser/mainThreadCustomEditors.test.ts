@@ -34,6 +34,16 @@ suite('MainThreadCustomEditors', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createCustomEditorInput(viewType: string): CustomEditorInput {
+		const input = Object.create(CustomEditorInput.prototype) as CustomEditorInput;
+		Object.defineProperties(input, {
+			viewType: { value: viewType },
+			resource: { value: URI.file('/test.png') },
+			group: { value: 7 },
+		});
+		return input;
+	}
+
 	test('restored editor fails with a recovery action when its provider is unavailable', async () => {
 		type WebviewResolver = Parameters<IWebviewWorkbenchService['registerResolver']>[0];
 
@@ -94,12 +104,7 @@ suite('MainThreadCustomEditors', () => {
 		));
 
 		assert.ok(resolver);
-		const input = Object.create(CustomEditorInput.prototype) as CustomEditorInput;
-		Object.defineProperties(input, {
-			viewType: { value: 'missing.customEditor' },
-			resource: { value: URI.file('/test.png') },
-			group: { value: 7 },
-		});
+		const input = createCustomEditorInput('missing.customEditor');
 
 		const error = await resolver.resolveWebview(input, CancellationToken.None).then(() => undefined, error => error);
 		assert.ok(isEditorOpenError(error));
@@ -112,7 +117,7 @@ suite('MainThreadCustomEditors', () => {
 			activations: ['onCustomEditor:missing.customEditor'],
 			message: 'Cannot open resource with custom editor type \'missing.customEditor\'. Make sure its extension is installed and enabled.',
 			forceMessage: true,
-			actions: ['Open With Default Editor'],
+			actions: ['Open with Default Editor'],
 		});
 
 		await error.actions[0].run();
@@ -128,5 +133,72 @@ suite('MainThreadCustomEditors', () => {
 			resource: 'file:///test.png',
 			override: 'default',
 		});
+	});
+
+	test('restored editor delegates to a provider registered during activation', async () => {
+		type WebviewResolver = Parameters<IWebviewWorkbenchService['registerResolver']>[0];
+
+		const resolvers: WebviewResolver[] = [];
+		const webviewWorkbenchService = new class extends mock<IWebviewWorkbenchService>() {
+			override registerResolver(resolver: WebviewResolver) {
+				resolvers.push(resolver);
+				return Disposable.None;
+			}
+
+			override async resolveWebview(webview: CustomEditorInput, cancellation: CancellationToken): Promise<void> {
+				const resolver = resolvers.find(resolver => resolver.canResolve(webview));
+				assert.ok(resolver);
+				await resolver.resolveWebview(webview, cancellation);
+			}
+		};
+
+		let capabilitiesAvailable = false;
+		let providerResolveCount = 0;
+		const providerResolver: WebviewResolver = {
+			canResolve: () => capabilitiesAvailable,
+			resolveWebview: async () => { providerResolveCount++; }
+		};
+		const extensionService = new class extends mock<IExtensionService>() {
+			override activateByEvent(): Promise<void> {
+				capabilitiesAvailable = true;
+				webviewWorkbenchService.registerResolver(providerResolver);
+				return Promise.resolve();
+			}
+		};
+		const customEditorService = new class extends mock<ICustomEditorService>() {
+			override getCustomEditorCapabilities() {
+				return capabilitiesAvailable ? {} : undefined;
+			}
+		};
+		const workingCopyFileService = new class extends mock<IWorkingCopyFileService>() {
+			override readonly onWillRunWorkingCopyFileOperation = Event.None;
+			override registerWorkingCopyProvider() { return Disposable.None; }
+		};
+
+		store.add(new MainThreadCustomEditors(
+			SingleProxyRPCProtocol(null),
+			undefined!,
+			undefined!,
+			extensionService,
+			store.add(new TestStorageService()),
+			new class extends mock<IWorkingCopyService>() { override readonly workingCopies = []; },
+			workingCopyFileService,
+			customEditorService,
+			new class extends mock<IEditorGroupsService>() { },
+			new class extends mock<IEditorService>() { },
+			new class extends mock<IInstantiationService>() { },
+			webviewWorkbenchService,
+			new class extends mock<IUriIdentityService>() { },
+			new class extends mock<IUntitledTextEditorService>() { },
+		));
+
+		const activationResolver = resolvers[0];
+		const input = createCustomEditorInput('available.customEditor');
+		assert.ok(activationResolver.canResolve(input));
+
+		await activationResolver.resolveWebview(input, CancellationToken.None);
+
+		assert.strictEqual(providerResolveCount, 1);
+		assert.ok(!activationResolver.canResolve(input));
 	});
 });
