@@ -5732,6 +5732,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const cachedSummary = fallbackState === 'idle' ? this._lastResponseSummaryById.get(sessionIdStr) : undefined;
 				return {
 					id: sessionIdStr,
+					...(s.label ? { label: s.label } : {}),
 					is_active: isActive,
 					agent_state: scoped.state,
 					...(cachedSummary ? { last_response_summary: cachedSummary } : {}),
@@ -5757,6 +5758,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const pending = this._buildPendingPayload(model);
 			return {
 				id: s.resource.toString(),
+				...(s.label ? { label: s.label } : {}),
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
@@ -5784,6 +5786,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const pending = this._buildPendingPayload(chatModel);
 			sessionList.push({
 				id: key,
+				...(chatModel.title ? { label: chatModel.title } : {}),
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
@@ -5793,24 +5796,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			});
 		}
 
-		// Try to get active session from chatViewPane via command
-		let activeSession: { id: string; last_message: string | null } | undefined;
-		try {
-			// This is fire-and-forget; the sync command bridge populates active_session
-			// For now, we omit active_session when called from controller
-			// (the chatViewPane's context already had this, the floating window didn't)
-		} catch {
-			// ignore
-		}
-
-		const context: IVoiceSessionContext = {
+		// `active_session` is not sent: the per-session `is_active` flag already
+		// names the focused session, and the backend keys the marker off it.
+		return {
 			sessions: sessionList,
 			display_locale: this._window?.navigator.language || 'en-US',
 		};
-		if (activeSession) {
-			context.active_session = activeSession;
-		}
-		return context;
 	}
 
 	/**
@@ -6202,33 +6193,42 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		], fallback);
 	}
 
-	private _selectedVoiceConfirmationPart(parts: readonly IChatProgressResponseContent[]): { type: VoiceConfirmationType; part?: IChatProgressResponseContent } | undefined {
-		const type = getVoiceConfirmationType(parts);
-		if (!type) {
+	private _selectPendingPart(model: IChatModel | undefined | null): { requestId: string; type: VoiceConfirmationType; part: IChatProgressResponseContent } | undefined {
+		const lastRequest = model?.getRequests().at(-1);
+		const parts = lastRequest?.response?.response.value;
+		if (!lastRequest || !parts) {
 			return undefined;
 		}
-		for (let index = parts.length - 1; index >= 0; index--) {
-			const part = parts[index];
-			if (type === 'questionnaire') {
-				if ((part.kind === 'questionCarousel' && !part.isUsed) || isPendingVoiceQuestionnaireInvocation(part)) {
-					return { type, part };
-				}
-			} else if (type === 'elicitation' && part.kind === 'elicitation2' && part.state.get() === 'pending') {
-				return { type, part };
-			} else if (type === 'plan' && part.kind === 'planReview' && !part.isUsed) {
-				return { type, part };
-			} else if (type === 'tool' && part.kind === 'toolInvocation') {
-				const state = part.state.get();
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					return { type, part };
-				}
-			} else if (type === 'generic') {
-				if ((part.kind === 'confirmation' && !part.isUsed) || (part.kind === 'toolInvocation' && part.state.get().type === IChatToolInvocation.StateKind.WaitingForAuthentication)) {
-					return { type, part };
-				}
+
+		for (const part of parts) {
+			const type = getVoiceConfirmationType([part]);
+			if (type && this._isOpenPendingPart(part)) {
+				return { requestId: lastRequest.id, type, part };
 			}
 		}
-		return { type };
+		return undefined;
+	}
+
+	private _isOpenPendingPart(part: IChatProgressResponseContent): boolean {
+		if (part.kind === 'questionCarousel') {
+			return !part.isUsed && !part.answeredExternally && part.questions.length > 0;
+		}
+		if (part.kind === 'elicitation2') {
+			return part.state.get() === 'pending';
+		}
+		if (part.kind === 'planReview' || part.kind === 'confirmation') {
+			return !part.isUsed;
+		}
+		if (isPendingVoiceQuestionnaireInvocation(part)) {
+			return true;
+		}
+		if (part.kind === 'toolInvocation') {
+			const state = part.state.get();
+			return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+				|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication;
+		}
+		return false;
 	}
 
 	private _getPendingConfirmationInfo(model: IChatModel): { type: VoiceConfirmationType; detail?: string } | undefined {
@@ -6238,7 +6238,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const parts = lastResponse.response.value;
-		const selected = this._selectedVoiceConfirmationPart(parts);
+		const selected = this._selectPendingPart(model);
 		if (!selected) {
 			return undefined;
 		}
@@ -6324,17 +6324,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * receives an id for a different action than the one the user heard.
 	 */
 	private _buildPendingPayload(model: IChatModel | undefined | null): IVoiceSessionPending | undefined {
-		const lastRequest = model?.getRequests().at(-1);
-		const parts = lastRequest?.response?.response.value;
-		if (!lastRequest || !parts) {
+		const selected = this._selectPendingPart(model);
+		if (!selected || (selected.type !== 'questionnaire' && selected.type !== 'plan' && selected.type !== 'tool')) {
 			return undefined;
 		}
-		const selected = this._selectedVoiceConfirmationPart(parts);
-		if (!selected?.part || (selected.type !== 'questionnaire' && selected.type !== 'plan' && selected.type !== 'tool')) {
-			return undefined;
-		}
-		const { type, part } = selected;
-		const routing = () => ({ pending_id: derivePendingId(lastRequest.id, part), request_id: lastRequest.id });
+		const { requestId, type, part } = selected;
+		const routing = () => ({ pending_id: derivePendingId(requestId, part), request_id: requestId });
 		if (type === 'questionnaire' && part.kind === 'questionCarousel') {
 			const carousel = part as IChatQuestionCarousel;
 			if (carousel.answeredExternally || carousel.questions.length === 0) {

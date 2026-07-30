@@ -245,7 +245,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		})),
 	}),
 
-	// --- Background activity pill ------------------------------------------
+	// --- Browser and background activity pills ------------------------------
 
 	SessionChatPills_BackgroundBrowser: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({ browsers: [{ title: 'Visual Studio Code' }] })),

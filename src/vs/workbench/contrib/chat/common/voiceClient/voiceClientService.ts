@@ -98,6 +98,8 @@ export function peekPendingId(requestId: string, part: object): string | undefin
 export interface IVoiceSessionContext {
 	sessions: {
 		id: string;
+		/** Human-readable name, so the backend can tell two sessions apart. */
+		label?: string;
 		is_active: boolean;
 		agent_state: string;
 		agent_state_detail?: string;
@@ -105,10 +107,6 @@ export interface IVoiceSessionContext {
 		last_response_summary?: string;
 		pending?: IVoiceSessionPending;
 	}[];
-	active_session?: {
-		id: string;
-		last_message: string | null;
-	};
 	display_locale: string;
 }
 
