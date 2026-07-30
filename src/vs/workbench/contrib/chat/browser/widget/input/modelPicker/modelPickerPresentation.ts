@@ -15,10 +15,11 @@ export function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifi
 }
 
 export function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
+	// The value originates from extension provided metadata, so it may not be a string at runtime
+	if (typeof priceCategory !== 'string' || priceCategory.length === 0) {
+		return undefined;
+	}
 	switch (priceCategory) {
-		case undefined:
-		case '':
-			return undefined;
 		case 'low':
 			return localize('chat.priceCategory.low', "Low cost");
 		case 'medium':
