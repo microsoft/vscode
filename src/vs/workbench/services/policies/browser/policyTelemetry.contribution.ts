@@ -42,7 +42,7 @@ type PolicyAppliedEvent = {
 
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
-	comment: 'Reports which enterprise-managed settings and device policies are applied and their value buckets, to understand managed-configuration adoption. No raw policy values are collected.';
+	comment: 'Reports which enterprise-managed settings and device policies are applied and their value buckets, to understand managed-configuration adoption. The corresponding classified telemetry event is monacoworkbench/policy.applied; every property is a count, boolean flag, or coarse bucket, and no raw policy values are collected.';
 	policyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of policies with an applied value (the "applied" denominator).' };
 	defaultModelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the default chat model policy is applied.' };
 	toolsAutoApproveSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy is applied.' };
