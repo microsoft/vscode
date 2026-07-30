@@ -59,49 +59,6 @@ import type { ComponentToState, RootState, StateComponents } from '../common/sta
 
 const LOG_PREFIX = '[AgentHost:renderer]';
 
-class DelayedAgentSubscription<T> extends Disposable implements IAgentSubscription<T> {
-
-	private delegate: IAgentSubscription<T> | undefined;
-	private readonly delegateListeners = this._register(new DisposableStore());
-
-	private readonly _onDidChange = this._register(new Emitter<T>());
-	readonly onDidChange = this._onDidChange.event;
-
-	private readonly _onDidError = this._register(new Emitter<Error>());
-	readonly onDidError = this._onDidError.event;
-
-	private readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
-	readonly onWillApplyAction = this._onWillApplyAction.event;
-
-	private readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
-	readonly onDidApplyAction = this._onDidApplyAction.event;
-
-	get value(): T | Error | undefined {
-		return this.delegate?.value;
-	}
-
-	get verifiedValue(): T | undefined {
-		return this.delegate?.verifiedValue;
-	}
-
-	setDelegate(delegate: IAgentSubscription<T>): void {
-		this.delegate = delegate;
-		this.delegateListeners.add(delegate.onDidChange(value => this._onDidChange.fire(value)));
-		if (delegate.onDidError) {
-			this.delegateListeners.add(delegate.onDidError(error => this._onDidError.fire(error)));
-		}
-		this.delegateListeners.add(delegate.onWillApplyAction(action => this._onWillApplyAction.fire(action)));
-		this.delegateListeners.add(delegate.onDidApplyAction(action => this._onDidApplyAction.fire(action)));
-
-		const value = delegate.value;
-		if (value instanceof Error) {
-			this._onDidError.fire(value);
-		} else if (value !== undefined) {
-			this._onDidChange.fire(value);
-		}
-	}
-}
-
 /**
  * Renderer-side implementation of {@link IAgentHostService} for the local
  * agent host. State and request traffic use AHP over the Protocol channel;
@@ -115,7 +72,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
 	private readonly _management: IAgentHostManagementService;
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
-	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private readonly _protocolClient: RemoteAgentHostProtocolClient;
 	private _connectStarted = false;
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
@@ -128,11 +85,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
-	private readonly _initializeResult = observableValue<InitializeResult | undefined>(this, undefined);
-	private readonly _rootState = this._register(new DelayedAgentSubscription<RootState>());
-	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
-	private readonly _onDidNotification = this._register(new Emitter<INotification>());
-	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 
 	constructor(
 		private readonly _clientInfo: Implementation,
@@ -154,6 +106,20 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}))
 			: undefined;
 
+		const transport = new AgentHostIpcChannelTransport(
+			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
+			this._ahpLogger,
+		);
+		this._protocolClient = this._register(this._instantiationService.createInstance(
+			RemoteAgentHostProtocolClient,
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			transport,
+			undefined,
+			this.clientId,
+			this._clientInfo,
+		));
+		this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
+
 		this._register(autorun(reader => {
 			if (agentHostEnablementService.enabled.read(reader)) {
 				this.startAgentHost();
@@ -162,29 +128,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	startAgentHost(): void {
-		if (!this._protocolClient) {
-			const transport = new AgentHostIpcChannelTransport(
-				getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
-				this._ahpLogger,
-			);
-			const protocolClient = this._protocolClient = this._register(this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient,
-				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
-				transport,
-				undefined,
-				this.clientId,
-				this._clientInfo,
-			));
-			this._register(protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
-			this._rootState.setDelegate(protocolClient.rootState);
-			this._register(protocolClient.onDidAction(action => this._onDidAction.fire(action)));
-			this._register(protocolClient.onDidNotification(notification => this._onDidNotification.fire(notification)));
-			this._register(protocolClient.onMcpNotification(notification => this._onMcpNotification.fire(notification)));
-			this._register(autorun(reader => this._initializeResult.set(protocolClient.initializeResult.read(reader), undefined)));
-		}
-
 		void this._connect().catch(error => {
-			this._protocolClient?.notifyTransportClosed();
+			this._protocolClient.notifyTransportClosed();
 			this._logService.error(`${LOG_PREFIX} Protocol connection failed`, error);
 		});
 	}
@@ -220,9 +165,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _requireClient(): RemoteAgentHostProtocolClient {
-		if (!this._protocolClient) {
-			throw new Error('Local agent host is not connected.');
-		}
 		return this._protocolClient;
 	}
 
@@ -237,23 +179,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	get initializeResult(): IObservable<InitializeResult | undefined> {
-		return this._initializeResult;
+		return this._protocolClient.initializeResult;
 	}
 
 	get rootState(): IAgentSubscription<RootState> {
-		return this._rootState;
+		return this._protocolClient.rootState;
 	}
 
 	get onDidAction(): Event<ActionEnvelope> {
-		return this._onDidAction.event;
+		return this._protocolClient.onDidAction;
 	}
 
 	get onDidNotification(): Event<INotification> {
-		return this._onDidNotification.event;
+		return this._protocolClient.onDidNotification;
 	}
 
 	get onMcpNotification(): Event<IMcpNotification> {
-		return this._onMcpNotification.event;
+		return this._protocolClient.onMcpNotification;
 	}
 
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
@@ -261,15 +203,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
-		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
+		return this._protocolClient.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
 	}
 
 	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
-		return this._protocolClient?.getInflightSessionCreate(resource);
+		return this._protocolClient.getInflightSessionCreate(resource);
 	}
 
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
-		return this._protocolClient?.getActiveSubscriptions() ?? [];
+		return this._protocolClient.getActiveSubscriptions();
 	}
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
