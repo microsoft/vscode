@@ -1335,27 +1335,23 @@ configurationRegistry.registerConfiguration({
 			},
 		},
 		[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]: {
-			type: ['boolean', 'array', 'null'],
-			items: {
-				type: 'string',
-				enum: ['skills', 'agents', 'hooks', 'mcpServers'],
-			},
-			default: null,
+			type: 'boolean',
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
-			description: nls.localize('chat.customizations.strictPluginOnlyCustomization', "Blocks standalone user and workspace customizations for all or selected surfaces while keeping eligible plugin customizations available."),
+			description: nls.localize('chat.customizations.strictPluginOnlyCustomization', "Blocks standalone user and workspace skills, agents, hooks, and MCP servers while keeping eligible plugin customizations available."),
 			policy: {
 				name: 'ChatStrictPluginOnlyCustomization',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.132',
 				value: managedSettingValue(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY),
 				managedSettings: {
-					[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: { type: 'string' },
+					[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: { type: 'boolean' },
 				},
 				localization: {
 					description: {
 						key: 'chat.customizations.strictPluginOnlyCustomization.policy',
-						value: nls.localize('chat.customizations.strictPluginOnlyCustomization.policy', "Blocks standalone user and workspace customizations for all or selected surfaces while keeping eligible plugin customizations available.")
+						value: nls.localize('chat.customizations.strictPluginOnlyCustomization.policy', "Blocks standalone user and workspace skills, agents, hooks, and MCP servers while keeping eligible plugin customizations available.")
 					}
 				},
 			}

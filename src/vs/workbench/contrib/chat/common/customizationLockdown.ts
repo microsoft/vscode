@@ -5,21 +5,18 @@
 
 import { PromptsType } from './promptSyntax/promptTypes.js';
 
-export type CustomizationLockdownSurface = 'skills' | 'agents' | 'hooks' | 'mcpServers';
-export type StrictPluginOnlyCustomization = boolean | readonly CustomizationLockdownSurface[] | null | undefined;
+export type StrictPluginOnlyCustomization = boolean | null | undefined;
 
-export function isCustomizationSurfaceBlocked(value: StrictPluginOnlyCustomization, surface: CustomizationLockdownSurface): boolean {
-	return value === true || (Array.isArray(value) && value.includes(surface));
+export function isStrictPluginOnlyCustomizationEnabled(value: StrictPluginOnlyCustomization): boolean {
+	return value === true;
 }
 
 export function isPromptTypeBlocked(value: StrictPluginOnlyCustomization, type: PromptsType): boolean {
 	switch (type) {
 		case PromptsType.skill:
-			return isCustomizationSurfaceBlocked(value, 'skills');
 		case PromptsType.agent:
-			return isCustomizationSurfaceBlocked(value, 'agents');
 		case PromptsType.hook:
-			return isCustomizationSurfaceBlocked(value, 'hooks');
+			return isStrictPluginOnlyCustomizationEnabled(value);
 		default:
 			return false;
 	}

@@ -92,14 +92,14 @@ suite('adaptManagedSettings', () => {
 
 	test('carries customization lockdown controls', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
-			strictPluginOnlyCustomization: ['skills', 'agents'],
+			strictPluginOnlyCustomization: true,
 			allowManagedMcpServersOnly: true,
 			allowManagedHooksOnly: true,
 		}), {
 			managedSettings: {
+				strictPluginOnlyCustomization: true,
 				allowManagedMcpServersOnly: true,
 				allowManagedHooksOnly: true,
-				strictPluginOnlyCustomization: '["skills","agents"]',
 			},
 		});
 	});

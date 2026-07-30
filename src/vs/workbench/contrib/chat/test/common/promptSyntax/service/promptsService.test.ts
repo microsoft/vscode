@@ -4546,16 +4546,16 @@ suite('PromptsService', () => {
 
 			assert.strictEqual((await service.getCustomAgents(CancellationToken.None)).length, 1);
 
-			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['agents']);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
 			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
 
 			assert.deepStrictEqual(await service.getCustomAgents(CancellationToken.None), []);
 		});
 
-		test('selective agent lockdown filters workspace agents without affecting prompts', async () => {
+		test('plugin-only lockdown filters workspace agents without affecting prompts', async () => {
 			const rootFolderUri = URI.file('/lockdown-agents');
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
-			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['agents']);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
 
 			await mockFiles(fileService, [
 				{
@@ -4574,7 +4574,7 @@ suite('PromptsService', () => {
 
 		test('skill lockdown filters standalone skills before discovery and preserves plugin skills', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
-			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['skills']);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
 			const rootFolderUri = URI.file('/lockdown-skills');
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 			await mockFiles(fileService, [{
@@ -4605,9 +4605,9 @@ suite('PromptsService', () => {
 			]);
 		});
 
-		test('hook lockdown removes hooks embedded in standalone agents', async () => {
+		test('plugin-only lockdown removes standalone agents with embedded hooks', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
-			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['hooks']);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
 			const rootFolderUri = URI.file('/lockdown-agent-hooks');
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 			await mockFiles(fileService, [{
@@ -4624,8 +4624,7 @@ suite('PromptsService', () => {
 			}]);
 
 			const agents = await service.getCustomAgents(CancellationToken.None);
-			assert.strictEqual(agents.length, 1);
-			assert.strictEqual(agents[0].hooks, undefined);
+			assert.deepStrictEqual(agents, []);
 		});
 
 		test('managed-only hooks preserve frontmatter hooks from force-enabled plugin agents', async () => {

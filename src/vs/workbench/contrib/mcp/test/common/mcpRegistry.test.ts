@@ -277,7 +277,7 @@ suite('Workbench - MCP - Registry', () => {
 		};
 		store.add(registry.registerCollection(spoofedCollection));
 
-		configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['mcpServers']);
+		configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
 		} as unknown as IConfigurationChangeEvent);
@@ -552,7 +552,7 @@ suite('Workbench - MCP - Registry', () => {
 				},
 			};
 			store.add(registry.registerCollection(lazyCollection));
-			configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['mcpServers']);
+			configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
 			} as unknown as IConfigurationChangeEvent);

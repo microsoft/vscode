@@ -37,7 +37,7 @@ import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
 import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { isCustomizationSurfaceBlocked, StrictPluginOnlyCustomization } from '../../chat/common/customizationLockdown.js';
+import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization } from '../../chat/common/customizationLockdown.js';
 
 const notTrustedNonce = '__vscode_not_trusted';
 
@@ -495,7 +495,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	private isCollectionAllowed(collection: McpCollectionDefinition, strictPluginOnly: StrictPluginOnlyCustomization): boolean {
-		return !isCustomizationSurfaceBlocked(strictPluginOnly, 'mcpServers')
+		return !isStrictPluginOnlyCustomizationEnabled(strictPluginOnly)
 			|| collection.provenance === McpCollectionProvenance.Plugin;
 	}
 

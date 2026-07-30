@@ -43,7 +43,7 @@ export const COPILOT_ALLOWED_MCP_SERVERS_KEY = 'allowedMcpServers';
 /** Managed-settings key for the per-server MCP denylist (carried as a JSON-encoded array of matcher entries; deny always takes precedence over allow). */
 export const COPILOT_DENIED_MCP_SERVERS_KEY = 'deniedMcpServers';
 
-/** Managed-settings key that blocks standalone user/workspace customizations for all or selected surfaces. */
+/** Managed-settings key that blocks standalone user/workspace customizations. */
 export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY = 'strictPluginOnlyCustomization';
 
 /** Managed-settings key that makes the enterprise MCP allowlist authoritative. */
@@ -436,21 +436,6 @@ function encodeArray(value: unknown): unknown[] | undefined {
 	return Array.isArray(value) ? value : undefined;
 }
 
-const STRICT_PLUGIN_ONLY_CUSTOMIZATION_SURFACES = new Set(['skills', 'agents', 'hooks', 'mcpServers']);
-
-function encodeStrictPluginOnlyCustomization(value: unknown, onWarn?: (msg: string) => void): boolean | readonly string[] | undefined {
-	if (typeof value === 'boolean') {
-		return value;
-	}
-	if (Array.isArray(value) && value.every(entry => isString(entry) && STRICT_PLUGIN_ONLY_CUSTOMIZATION_SURFACES.has(entry))) {
-		return value;
-	}
-	if (value !== undefined) {
-		onWarn?.('Ignoring managed setting "strictPluginOnlyCustomization": expected a boolean or an array containing skills, agents, hooks, and/or mcpServers');
-	}
-	return undefined;
-}
-
 /**
  * Encode the schema's `{ [id]: { source } }` marketplace map into the canonical
  * `{ [name]: url-or-shorthand }` dict; drops malformed entries (with an optional warning) and omits
@@ -476,10 +461,6 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	{
 		key: COPILOT_DENIED_MCP_SERVERS_KEY,
 		encode: encodeArray,
-	},
-	{
-		key: COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY,
-		encode: encodeStrictPluginOnlyCustomization,
 	},
 	{
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,

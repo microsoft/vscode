@@ -46,28 +46,20 @@ suite('normalizeManagedSettings', () => {
 
 	test('normalizes customization lockdown controls', () => {
 		assert.deepStrictEqual(normalizeManagedSettings({
-			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: ['skills', 'hooks'],
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: true,
 			[COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY]: true,
 			[COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY]: false,
 		}), {
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: true,
 			[COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY]: true,
 			[COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY]: false,
-			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: '["skills","hooks"]',
 		});
 	});
 
-	test('normalizes boolean strictPluginOnlyCustomization and rejects malformed arrays', () => {
-		assert.deepStrictEqual(normalizeManagedSettings({
-			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: true,
-		}), {
-			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: 'true',
-		});
-
-		const warnings: string[] = [];
+	test('drops a non-boolean strictPluginOnlyCustomization value', () => {
 		assert.deepStrictEqual(normalizeManagedSettings({
 			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: ['skills', 'unknown'],
-		}, message => warnings.push(message)), {});
-		assert.strictEqual(warnings.length, 1);
+		}), {});
 	});
 
 	test('normalizes extraKnownMarketplaces from schema format to config dict', () => {
