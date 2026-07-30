@@ -141,9 +141,7 @@
 	border-bottom-right-radius: 8px;
 }
 
-/* Floating content card. Shared by every full-surface content part (the
-	sessions grid and the custom view grid) so they are visually identical. */
-.agent-sessions-workbench .agents-part-card {
+.agent-sessions-workbench .part.sessionspart {
 	margin: 0 var(--vscode-agents-layout-floatingPanelGap) 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
@@ -151,7 +149,7 @@
 	box-sizing: border-box;
 }
 
-.agent-sessions-workbench.noeditorpane .agents-part-card {
+.agent-sessions-workbench.noeditorpane .part.sessionspart {
 	margin-right: 0;
 }
 
@@ -185,7 +183,7 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .agents-part-card,
+.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart,
 .monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
 .monaco-workbench.vs.agent-sessions-workbench .part.panel {
 	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
@@ -330,7 +328,7 @@
 
 .agent-sessions-workbench .part.auxiliarybar,
 .agent-sessions-workbench .part.panel,
-.agent-sessions-workbench .agents-part-card {
+.agent-sessions-workbench .part.sessionspart {
 	transition:
 		opacity 250ms ease-out,
 		margin-top 250ms ease-out,
@@ -348,7 +346,7 @@
 
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .agents-part-card {
+	.agent-sessions-workbench .part.sessionspart {
 		opacity: 0;
 		border-color: transparent;
 		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
@@ -367,7 +365,7 @@
 		margin: 0 16px 0 6px;
 	}
 
-	.agent-sessions-workbench .agents-part-card {
+	.agent-sessions-workbench .part.sessionspart {
 		margin: 6px 16px 0 16px;
 	}
 }
@@ -376,7 +374,7 @@
 
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .agents-part-card,
+	.agent-sessions-workbench .part.sessionspart,
 	.agent-sessions-workbench .part.sidebar > .content {
 		transition: none;
 	}

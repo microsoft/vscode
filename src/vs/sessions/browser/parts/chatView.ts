@@ -130,14 +130,6 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Notifies the view whether it is currently shown. Unlike {@link setActive},
-	 * inactive sessions displayed side by side are still visible.
-	 */
-	setVisible(_visible: boolean): void {
-		// no-op by default
-	}
-
-	/**
 	 * Shows an indeterminate progress bar at the top of this leaf while the
 	 * given promise is pending, mirroring how each editor group surfaces
 	 * progress on its own {@link ProgressBar} (see `EditorGroupView` /

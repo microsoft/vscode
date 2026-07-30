@@ -274,7 +274,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			[Parts.AUXILIARYBAR_PART, true],
 			[Parts.PANEL_PART, false],
 			[Parts.EDITOR_PART, true],
-			[Parts.CUSTOM_VIEW_GRID_PART, false],
 			...(options.initialPartVisibility ?? []),
 		]),
 		openedViewContainers: [],

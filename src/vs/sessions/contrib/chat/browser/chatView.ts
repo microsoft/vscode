@@ -145,9 +145,6 @@ export class ChatView extends AbstractChatView {
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
-	/** Whether this view is currently visible. `undefined` so the first push always reaches the widget. */
-	private _isVisible: boolean | undefined;
-
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
 	 * Keeps post-connect voice controls anchored to the active session view.
@@ -201,6 +198,7 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
+		this._widget.setVisible(true);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget));
 
@@ -419,14 +417,6 @@ export class ChatView extends AbstractChatView {
 		this._isActiveObs.set(active, undefined);
 		this._banners.setActive(active);
 		this._widget.setStyles(this._buildStyles(active));
-	}
-
-	override setVisible(visible: boolean): void {
-		if (this._isVisible === visible) {
-			return;
-		}
-		this._isVisible = visible;
-		this._widget.setVisible(visible);
 	}
 }
 
