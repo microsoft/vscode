@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.automations-cards-widget {
-	position: relative;
-	height: 100%;
-	overflow: hidden;
-	outline: none;
+/* Override the inline width constraint set by customViewNode so the scrollbar
+   sits at the right edge, matching chat session layout. */
+.automations-custom-view-content {
+	width: 100% !important;
 }
 
-
-
-.automations-cards-widget > .monaco-scrollable-element {
-	width: 100%;
+.automations-cards-widget {
+	position: relative;
+	max-width: 950px;
+	margin: 0 auto;
+	padding: 0 10px;
+	box-sizing: border-box;
 }
 
 .automations-cards-scroll-content {
