@@ -12,8 +12,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IAutomation, IAutomationRun, AutomationRunStatus } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -37,8 +37,6 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { localize2 } from '../../../../../nls.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -202,12 +200,6 @@ export class AutomationsCardsWidget extends Disposable {
 		this.cardDisposables.add(DOM.addStandardDisposableListener(runBtn, 'click', (e) => {
 			DOM.EventHelper.stop(e, true);
 			this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
-		}));
-
-		const editBtn = this.createIconButton(actions, Codicon.edit, localize('editAutomation', "Edit"), false);
-		this.cardDisposables.add(DOM.addStandardDisposableListener(editBtn, 'click', (e) => {
-			DOM.EventHelper.stop(e, true);
-			this.openEditDialog(automation);
 		}));
 
 		const deleteBtn = this.createIconButton(actions, Codicon.trash, localize('deleteAutomation', "Delete"), false);
