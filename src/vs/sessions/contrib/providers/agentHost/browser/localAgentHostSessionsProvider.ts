@@ -115,7 +115,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 
-		this._syncRootState(this._agentHostService.rootState.value);
+		// Subscribe before reading the current value so a root-state update that
+		// lands while we are wiring the listener is not missed (the session-type
+		// picker stays empty/hidden until session types hydrate from root state).
 		this._register(this._agentHostService.rootState.onDidChange(() => {
 			this._syncRootState(this._agentHostService.rootState.value);
 		}));
@@ -124,6 +126,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				this._syncRootState(error);
 			}));
 		}
+		this._syncRootState(this._agentHostService.rootState.value);
 
 		// Eagerly populate the session cache once authentication has settled.
 		// Without this, the sidebar would only call `getSessions()` after some

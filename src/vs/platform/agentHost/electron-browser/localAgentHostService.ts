@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -72,7 +72,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
 	private readonly _management: IAgentHostManagementService;
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
-	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	/**
+	 * Created eagerly so callers can subscribe to {@link rootState} /
+	 * {@link onDidAction} before the MessagePort is acquired. A delayed
+	 * transport resolves once `_connect()` completes the client; until then
+	 * subscriptions are live on this object and receive the initialize
+	 * snapshot when it arrives. Creating the client lazily (and returning a
+	 * noop `Event.None` placeholder until then) caused Agents Window smoke
+	 * flakes: providers subscribed to the placeholder, missed later root-
+	 * state updates, and left the session-type picker empty/hidden.
+	 */
+	private readonly _protocolClient: RemoteAgentHostProtocolClient;
 	private _connectStarted = false;
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
@@ -85,13 +95,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
-	private readonly _noopRootState: IAgentSubscription<RootState> = {
-		value: undefined,
-		verifiedValue: undefined,
-		onDidChange: Event.None,
-		onWillApplyAction: Event.None,
-		onDidApplyAction: Event.None,
-	};
 
 	constructor(
 		private readonly _clientInfo: Implementation,
@@ -113,6 +116,20 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}))
 			: undefined;
 
+		const transport = new AgentHostIpcChannelTransport(
+			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
+			this._ahpLogger,
+		);
+		this._protocolClient = this._register(this._instantiationService.createInstance(
+			RemoteAgentHostProtocolClient,
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			transport,
+			undefined,
+			this.clientId,
+			this._clientInfo,
+		));
+		this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
+
 		this._register(autorun(reader => {
 			if (agentHostEnablementService.enabled.read(reader)) {
 				this.startAgentHost();
@@ -121,24 +138,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	startAgentHost(): void {
-		if (!this._protocolClient) {
-			const transport = new AgentHostIpcChannelTransport(
-				getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
-				this._ahpLogger,
-			);
-			this._protocolClient = this._register(this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient,
-				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
-				transport,
-				undefined,
-				this.clientId,
-				this._clientInfo,
-			));
-			this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
-		}
-
 		void this._connect().catch(error => {
-			this._protocolClient?.notifyTransportClosed();
+			this._protocolClient.notifyTransportClosed();
 			this._logService.error(`${LOG_PREFIX} Protocol connection failed`, error);
 		});
 	}
@@ -174,9 +175,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _requireClient(): RemoteAgentHostProtocolClient {
-		if (!this._protocolClient) {
-			throw new Error('Local agent host is not connected.');
-		}
 		return this._protocolClient;
 	}
 
@@ -191,23 +189,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	get initializeResult(): IObservable<InitializeResult | undefined> {
-		return this._protocolClient?.initializeResult ?? constObservable(undefined);
+		return this._protocolClient.initializeResult;
 	}
 
 	get rootState(): IAgentSubscription<RootState> {
-		return this._protocolClient?.rootState ?? this._noopRootState;
+		return this._protocolClient.rootState;
 	}
 
 	get onDidAction(): Event<ActionEnvelope> {
-		return this._protocolClient?.onDidAction ?? Event.None;
+		return this._protocolClient.onDidAction;
 	}
 
 	get onDidNotification(): Event<INotification> {
-		return this._protocolClient?.onDidNotification ?? Event.None;
+		return this._protocolClient.onDidNotification;
 	}
 
 	get onMcpNotification(): Event<IMcpNotification> {
-		return this._protocolClient?.onMcpNotification ?? Event.None;
+		return this._protocolClient.onMcpNotification;
 	}
 
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
@@ -215,15 +213,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
-		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
+		return this._protocolClient.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
 	}
 
 	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
-		return this._protocolClient?.getInflightSessionCreate(resource);
+		return this._protocolClient.getInflightSessionCreate(resource);
 	}
 
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
-		return this._protocolClient?.getActiveSubscriptions() ?? [];
+		return this._protocolClient.getActiveSubscriptions();
 	}
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {

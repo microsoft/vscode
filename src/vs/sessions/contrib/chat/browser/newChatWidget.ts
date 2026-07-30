@@ -371,19 +371,19 @@ export class NewChatWidget extends Disposable {
 		// from a new-session draft when navigating back from another session).
 		this._seedWorkspaceDraft();
 
-		// Re-seed the workspace draft when the composer swaps out of quick-chat
-		// mode (e.g. Cmd+N discards a quick chat, leaving the reused composer
-		// session-less): without an active session the session-type picker has no
-		// folder types and hides itself, so restore the last folder to match a
-		// freshly-opened new-session composer.
+		// Re-seed the workspace draft when the reused composer loses its previous
+		// draft (e.g. Cmd+N after sending, or Agents Window smoke warm-up which
+		// returns to the new-session view after a throwaway turn). Without a
+		// draft the session-type picker has no folder types and hides itself.
 		if (!isWeb) {
-			let wasQuickChat = this._isQuickChatComposer.get();
+			let previousSession = this._session.get();
 			this._register(autorun(reader => {
-				const isQuickChat = this._isQuickChatComposer.read(reader);
-				if (wasQuickChat && !isQuickChat && !this._session.read(reader)) {
+				const session = this._session.read(reader);
+				const shouldSeedWorkspaceDraft = !!previousSession && !session;
+				previousSession = session;
+				if (shouldSeedWorkspaceDraft) {
 					this._seedWorkspaceDraft();
 				}
-				wasQuickChat = isQuickChat;
 			}));
 		}
 
