@@ -23,6 +23,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -3025,6 +3026,74 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
 		});
 
+		test('promotes steering when the SDK echoes before send resolves', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const sendGate = new DeferredPromise<string>();
+			mockSession.send = async request => {
+				mockSession.sendRequests.push(request);
+				return sendGate.p;
+			};
+
+			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await timeout(0);
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const turnStarted = signals
+				.filter(s => s.kind === 'action')
+				.map(s => (s as IAgentActionSignal).action)
+				.find(a => a.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual(turnStarted && {
+				message: turnStarted.message,
+				queuedMessageId: turnStarted.queuedMessageId,
+			}, {
+				message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
+				queuedMessageId: 'steer-1',
+			});
+			sendGate.complete('message-1');
+			await steeringPromise;
+		});
+
+		test('promotes steering when the SDK idles before echoing it', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const sendGate = new DeferredPromise<string>();
+			mockSession.send = async request => {
+				mockSession.sendRequests.push(request);
+				return sendGate.p;
+			};
+
+			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await timeout(0);
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const actions = signals.filter(s => s.kind === 'action').map(s => (s as IAgentActionSignal).action);
+			assert.deepStrictEqual(actions
+				.filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted)
+				.map(action => action.type === ActionType.ChatTurnComplete
+					? { type: action.type, turnId: action.turnId }
+					: { type: action.type, message: action.message, queuedMessageId: action.queuedMessageId }), [
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+				{
+					type: ActionType.ChatTurnStarted,
+					message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
+					queuedMessageId: 'steer-1',
+				},
+			]);
+			sendGate.complete('message-1');
+			await steeringPromise;
+		});
+
 		test('routes subsequent SDK events into the steering turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
@@ -3544,7 +3613,6 @@ suite('CopilotAgentSession', () => {
 					},
 					meta: {
 						mcpServerName: 'docs',
-						toolArguments: '{"topic":"metadata"}',
 						ui: {
 							resourceUri: 'ui://docs',
 							channel: 'mcp://copilot/test-session-1/docs',
@@ -4025,15 +4093,6 @@ suite('CopilotAgentSession', () => {
 			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
 				const action = readySignal.action as ChatToolCallReadyAction;
 				assert.strictEqual(action.toolInput, 'npm test');
-			}
-			// toolArguments in _meta on the tool_start signal (signals[0])
-			const startSignal = signals[0];
-			assert.ok(isAction(startSignal, ActionType.ChatToolCallStart));
-			if (isAction(startSignal, ActionType.ChatToolCallStart)) {
-				const meta = (startSignal.action as ChatToolCallStartAction)._meta;
-				const toolArgs = meta?.['toolArguments'] as string | undefined;
-				assert.ok(toolArgs && toolArgs.includes('"npm test"'), `toolArguments should contain rewritten command, was: ${toolArgs}`);
-				assert.ok(!toolArgs?.includes('cd /repo/project'), 'toolArguments should not contain stripped prefix');
 			}
 		});
 
@@ -7693,7 +7752,7 @@ suite('CopilotAgentSession', () => {
 					telemetryEndpoint: 'https://telemetry.example',
 				},
 			});
-			session.resetTurnState('turn-auto');
+			session.resetTurnState('turn-auto', undefined, AgentHostClientType.AgentsWindow);
 
 			mockSession.fire('session.auto_mode_resolved', {
 				chosenModel: 'subagent-model',
@@ -7713,6 +7772,7 @@ suite('CopilotAgentSession', () => {
 					properties: {
 						conversationId: 'test-session-1',
 						vscodeRequestId: 'turn-auto',
+						initiatorClientType: 'agents_window',
 						predictedLabel: 'needs_reasoning',
 						candidateModel: 'gpt-5',
 						chosenModel: 'gpt-5',
@@ -7755,7 +7815,7 @@ suite('CopilotAgentSession', () => {
 
 			mockSession.fire('assistant.turn_start', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
 			mockSession.fire('assistant.turn_end', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
-			session.resetTurnState('request-1');
+			session.resetTurnState('request-1', undefined, AgentHostClientType.EditorWindow);
 			mockSession.fire('assistant.turn_start', { turnId: 'root-round-1' });
 			await timeout(0);
 			mockSession.fire('assistant.turn_end', { turnId: 'root-round-1' });
@@ -7766,11 +7826,11 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(telemetryService.events
 				.filter(event => event.eventName === 'request.repoInfo')
-				.map(event => ({ destination: event.destination, location: event.properties?.location, telemetryMessageId: event.properties?.telemetryMessageId, result: event.properties?.result })), [
-				{ destination: 'enhanced', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'internal', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'enhanced', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'internal', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+				.map(event => ({ destination: event.destination, initiatorClientType: event.properties?.initiatorClientType, location: event.properties?.location, telemetryMessageId: event.properties?.telemetryMessageId, result: event.properties?.result })), [
+				{ destination: 'enhanced', initiatorClientType: 'editor_window', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', initiatorClientType: 'editor_window', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'enhanced', initiatorClientType: 'editor_window', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', initiatorClientType: 'editor_window', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
 			]);
 		});
 

@@ -2032,12 +2032,13 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
+			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 			await this._wrapper.session.send({
 				prompt: steeringMessage.message.text,
 				mode: 'immediate',
 			});
-			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 		} catch (err) {
+			this._pendingSteeringFlips.delete(steeringMessage.id);
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
@@ -3219,7 +3220,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _beginRepoInfoTelemetry(telemetryMessageId: string, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
+	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
 		let resolved: { readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined;
 		try {
 			resolved = await this._resolveRepoInfoTelemetryContext();
@@ -3230,7 +3231,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!resolved || this._store.isDisposed || !isCurrent()) {
 			return undefined;
 		}
-		await this._repoInfoTelemetry.reportBegin(resolved.context, this.sessionUri.toString(), telemetryMessageId, this._workingDirectory, resolved.baseBranch, isCurrent);
+		await this._repoInfoTelemetry.reportBegin(resolved.context, this.sessionUri.toString(), telemetryMessageId, clientType, this._workingDirectory, resolved.baseBranch, isCurrent);
 		return resolved;
 	}
 
@@ -3569,9 +3570,6 @@ export class CopilotAgentSession extends Disposable {
 			if (subagentMeta?.agentName) {
 				meta.subagentAgentName = subagentMeta.agentName;
 			}
-			if (toolArgs !== undefined) {
-				meta.toolArguments = toolArgs;
-			}
 			if (e.data.mcpServerName) {
 				meta.mcpServerName = e.data.mcpServerName;
 			}
@@ -3823,6 +3821,7 @@ export class CopilotAgentSession extends Disposable {
 			// Restricted `skillContentRead`: which skill file was loaded. Main-agent only, like the other restricted events.
 			if (!e.agentId) {
 				this._telemetryReporter.skillContentRead({
+					clientType: this._currentTurn?.clientType ?? AgentHostClientType.Unknown,
 					name: e.data.name,
 					path: e.data.path,
 					content: e.data.content,
@@ -3927,6 +3926,7 @@ export class CopilotAgentSession extends Disposable {
 				this._telemetryReporter.autoModeRouterDecision({
 					session: this.sessionUri.toString(),
 					turnId,
+					clientType: this._currentTurn?.clientType ?? AgentHostClientType.Unknown,
 					chosenModel: e.data.chosenModel,
 					predictedLabel: e.data.predictedLabel,
 					confidence: e.data.confidence,
@@ -4740,7 +4740,7 @@ export class CopilotAgentSession extends Disposable {
 					begin: Promise.resolve(undefined),
 				};
 				const isCurrent = () => !turn.cancelled && this._isLaunchTokenCurrent();
-				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, isCurrent);
+				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, this._currentTurn?.clientType ?? AgentHostClientType.Unknown, isCurrent);
 				this._activeRepoInfoTurn = turn;
 			}
 		}));

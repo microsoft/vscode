@@ -678,6 +678,17 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 export interface IAgentHostSessionHandlerConfig {
 	readonly provider: AgentProvider;
+	/**
+	 * The URI scheme the host addresses sessions under, when it differs from
+	 * {@link provider}. Defaults to {@link provider}.
+	 *
+	 * Session URIs are client-chosen. For agents core spawns, core picks the URI and
+	 * uses the provider as the scheme. For sessions core *joins* rather than creates
+	 * (cloud sandbox, where Mission Control created the session as `ahp-session:/<id>`),
+	 * the creator's scheme must be used because the host's registry is keyed by the
+	 * exact URI — while the UI still routes the session to the `copilot` provider.
+	 */
+	readonly backendSessionScheme?: string;
 	readonly agentId: string;
 	readonly sessionType: string;
 	readonly fullName: string;
@@ -3987,7 +3998,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Maps a UI session resource to a backend provider URI. */
 	private _resolveSessionUri(sessionResource: URI): URI {
 		const rawId = sessionResource.path.substring(1);
-		return AgentSession.uri(this._config.provider, rawId);
+		return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {

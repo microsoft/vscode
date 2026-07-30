@@ -1071,13 +1071,6 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.invocationMessage, 'Running shell command');
 		});
 
-		test('creates invocation without toolArguments', () => {
-			const tc = createToolCallState({});
-
-			const invocation = toolCallStateToInvocation(tc);
-			assert.strictEqual(invocation.toolCallId, 'tc-1');
-		});
-
 		test('sets subagent toolSpecificData from _meta for subagent toolKind', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Review code', subagentAgentName: 'code-reviewer' },
