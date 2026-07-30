@@ -41,10 +41,14 @@ export class LanguageModelAccessPrompt extends PromptElement<Props> {
 				// There should only be one string part per message
 				const content = filteredContent.find(part => part instanceof LanguageModelTextPart);
 				const toolCalls = filteredContent.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-				const thinking = filteredContent.find(part => part instanceof vscode.LanguageModelThinkingPart);
+				const thinkingParts = filteredContent.filter(part => part instanceof vscode.LanguageModelThinkingPart);
+				const thinking = thinkingParts.find(part => typeof part.metadata?.encrypted_content === 'string') ?? thinkingParts.at(-1);
+				const thinkingText = thinkingParts.flatMap(part => Array.isArray(part.value) ? part.value : [part.value]);
+				const thinkingMetadata = Object.assign({}, ...thinkingParts.map(part => part.metadata));
 
 				const statefulMarkerElement = statefulMarker && <StatefulMarkerContainer statefulMarker={statefulMarker} />;
-				const thinkingElement = thinking && thinking.id && <ThinkingDataContainer thinking={{ id: thinking.id, text: thinking.value, metadata: thinking.metadata }} />;
+				const encrypted = typeof thinkingMetadata.encrypted_content === 'string' ? thinkingMetadata.encrypted_content : undefined;
+				const thinkingElement = thinking && thinking.id && <ThinkingDataContainer thinking={{ id: thinking.id, text: thinkingText, metadata: thinkingMetadata, encrypted }} />;
 				chatMessages.push(<AssistantMessage name={message.name} toolCalls={toolCalls.map(tc => ({ id: tc.callId, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))}>{statefulMarkerElement}{content?.value}{thinkingElement}</AssistantMessage>);
 			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {
 				for (const part of message.content) {

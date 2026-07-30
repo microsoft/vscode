@@ -840,8 +840,13 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		let thinkingActive = false;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
-				// Show thinking progress for unencrypted thinking deltas
-				if (!isEncryptedThinkingDelta(delta.thinking)) {
+				if (isEncryptedThinkingDelta(delta.thinking)) {
+					progress.report(new vscode.LanguageModelThinkingPart(
+						delta.thinking.text ?? '',
+						delta.thinking.id,
+						{ encrypted_content: delta.thinking.encrypted }
+					));
+				} else {
 					const text = delta.thinking.text ?? '';
 					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, delta.thinking.metadata));
 					thinkingActive = true;

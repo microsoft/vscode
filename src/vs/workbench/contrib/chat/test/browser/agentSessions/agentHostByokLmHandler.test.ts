@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -128,30 +129,49 @@ suite('AgentHostByokLmHandler', () => {
 		]);
 	});
 
-	test('resolves the BYOK model and buffers text + tool calls', async () => {
+	test('buffers ordered thinking, text, tool calls, continuation and usage', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
 			() => responseOf([
+				{ type: 'thinking', value: 'considered ', id: 'rs_1' },
+				{ type: 'thinking', value: ['options'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
 				{ type: 'text', value: 'hello ' },
 				{ type: 'text', value: 'world' },
 				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+				{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
+				{ type: 'data', mimeType: 'stateful_marker', data: VSBuffer.fromString('claude\\resp_provider') },
+				{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString('{"prompt_tokens":10,"completion_tokens":5,"completion_tokens_details":{"reasoning_tokens":2}}') },
 			]),
 		);
 		const handler = createHandler(service);
 
 		const result = await handler.chat(
-			{ vendor: 'acme', modelId: 'claude', messages: [{ role: 'user', content: 'hi' }] },
+			{
+				vendor: 'acme',
+				modelId: 'claude',
+				input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+				tools: [
+					{ type: 'function', name: 'getWeather' },
+					{ type: 'custom', name: 'apply_patch' },
+				],
+			},
 			CancellationToken.None,
 		);
 
 		assert.strictEqual(service.captured?.modelId, 'id-acme-claude');
 		assert.deepStrictEqual(result, {
-			content: 'hello world',
-			toolCalls: [{ id: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' }],
+			output: [
+				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'message', content: [{ type: 'text', text: 'hello ' }, { type: 'text', text: 'world' }] },
+				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
+				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
+			],
+			responseId: 'resp_provider',
+			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
 		});
 	});
 
-	test('maps bridge messages to LM API chat messages', async () => {
+	test('maps ordered Responses input and options to LM API chat messages', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('acme', 'claude')]]),
 			() => responseOf([{ type: 'text', value: 'ok' }]),
@@ -162,41 +182,60 @@ suite('AgentHostByokLmHandler', () => {
 			{
 				vendor: 'acme',
 				modelId: 'claude',
-				messages: [
-					{ role: 'system', content: 'be helpful' },
-					{ role: 'user', content: 'hi' },
-					{ role: 'assistant', content: '', toolCalls: [{ id: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' }] },
-					{ role: 'tool', content: 'sunny', toolCallId: 't1' },
+				instructions: 'be helpful',
+				previousResponseId: 'resp_previous',
+				reasoningEffort: 'high',
+				modelOptions: { temperature: 0.5 },
+				tools: [
+					{ type: 'function', name: 'getWeather', parametersSchema: { type: 'object' } },
+					{ type: 'custom', name: 'apply_patch' },
+				],
+				input: [
+					{ type: 'reasoning', id: 'rs_1', summary: ['thought'], encryptedContent: 'opaque' },
+					{ type: 'message', role: 'assistant', content: [{ type: 'text', text: 'checking' }] },
+					{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
+					{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
+					{ type: 'function_call_output', callId: 't1', output: 'sunny' },
+					{ type: 'custom_tool_call_output', callId: 't2', output: 'Done!' },
+					{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] },
 				],
 			},
 			CancellationToken.None,
 		);
 
-		assert.deepStrictEqual(service.captured?.messages, [
-			{ role: ChatMessageRole.System, content: [{ type: 'text', value: 'be helpful' }] },
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
-			{ role: ChatMessageRole.Assistant, content: [{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } }] },
-			// A `tool` message (with a toolCallId) rides on a User-role message and carries its
-			// payload solely in the tool_result part — no duplicate leading text part.
-			{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
-		]);
-	});
-
-	test('maps a tool message without a toolCallId to a plain user text part', async () => {
-		const service = new TestLanguageModelsService(
-			new Map([['id', byokModel('acme', 'claude')]]),
-			() => responseOf([{ type: 'text', value: 'ok' }]),
-		);
-		const handler = createHandler(service);
-
-		await handler.chat(
-			{ vendor: 'acme', modelId: 'claude', messages: [{ role: 'tool', content: 'orphaned tool output' }] },
-			CancellationToken.None,
-		);
-
-		assert.deepStrictEqual(service.captured?.messages, [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'orphaned tool output' }] },
-		]);
+		const messages = service.captured?.messages.map(message => ({
+			role: message.role,
+			content: message.content.map(part => part.type === 'data' ? { ...part, data: part.data.toString() } : part),
+		}));
+		assert.deepStrictEqual({
+			messages,
+			options: service.captured?.options,
+		}, {
+			messages: [
+				{ role: ChatMessageRole.Assistant, content: [{ type: 'data', mimeType: 'stateful_marker', data: 'claude\\resp_previous' }] },
+				{ role: ChatMessageRole.System, content: [{ type: 'text', value: 'be helpful' }] },
+				{
+					role: ChatMessageRole.Assistant,
+					content: [
+						{ type: 'thinking', value: ['thought'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+						{ type: 'text', value: 'checking' },
+						{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+						{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
+					],
+				},
+				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
+				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't2', value: [{ type: 'text', value: 'Done!' }] }] },
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
+			],
+			options: {
+				modelOptions: { temperature: 0.5 },
+				configuration: { reasoningEffort: 'high' },
+				tools: [
+					{ name: 'getWeather', description: '', inputSchema: { type: 'object' } },
+					{ name: 'apply_patch', description: '', inputSchema: { type: 'object', properties: { input: { type: 'string' } }, required: ['input'] } },
+				],
+			},
+		});
 	});
 
 	test('returns an error result when no BYOK model matches', async () => {
@@ -204,11 +243,11 @@ suite('AgentHostByokLmHandler', () => {
 		const handler = createHandler(service);
 
 		const result = await handler.chat(
-			{ vendor: 'acme', modelId: 'missing', messages: [] } satisfies IByokLmChatRequest,
+			{ vendor: 'acme', modelId: 'missing', input: [] } satisfies IByokLmChatRequest,
 			CancellationToken.None,
 		);
 
-		assert.strictEqual(result.content, '');
+		assert.deepStrictEqual(result.output, []);
 		assert.ok(result.error?.includes('acme/missing'), `expected error to name the model: ${result.error}`);
 	});
 
@@ -220,10 +259,10 @@ suite('AgentHostByokLmHandler', () => {
 		const handler = createHandler(service);
 
 		const result = await handler.chat(
-			{ vendor: 'acme', modelId: 'claude', messages: [{ role: 'user', content: 'hi' }] },
+			{ vendor: 'acme', modelId: 'claude', input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }] },
 			CancellationToken.None,
 		);
 
-		assert.deepStrictEqual(result, { content: '', error: 'provider exploded' });
+		assert.deepStrictEqual(result, { output: [], error: 'provider exploded' });
 	});
 });
