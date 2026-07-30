@@ -116,21 +116,14 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		const { sessionUri } = await createSession('reconnect');
 		const chatUri = buildDefaultChatUri(sessionUri);
 
+		// The cutoff comes from the subscribe response rather than from watching
+		// this client receive its own dispatch: a subscription is not guaranteed
+		// to be installed before a dispatch sent immediately after it is handled,
+		// so waiting for that echo races. `fromSeq` is the same boundary and the
+		// response itself guarantees it.
 		const { carried: seenThrough, revived } = await afterConnectionDrop(`reconnect-${config.provider}`, async first => {
-			await first.call<SubscribeResult>('subscribe', { channel: chatUri });
-			const seq = nextClientSeq();
-			first.dispatch({
-				channel: chatUri,
-				clientSeq: seq,
-				action: { type: ActionType.ChatDraftChanged, draft: { text: 'seen before the drop', origin: { kind: MessageKind.User } } },
-			});
-			const echoed = await first.waitForNotification(n =>
-				isActionNotification(n, 'chat/draftChanged')
-				&& getActionEnvelope(n).channel === chatUri
-				&& getActionEnvelope(n).origin?.clientSeq === seq,
-				30_000,
-			);
-			return getActionEnvelope(echoed).serverSeq;
+			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
+			return subscribed.snapshot!.fromSeq;
 		});
 
 		try {
