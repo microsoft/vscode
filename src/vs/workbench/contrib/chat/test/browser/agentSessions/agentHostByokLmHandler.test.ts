@@ -134,8 +134,7 @@ suite('AgentHostByokLmHandler', () => {
 			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
 			() => responseOf([
 				{ type: 'thinking', value: 'considered ', id: 'rs_1' },
-				{ type: 'thinking', value: ['options'], id: 'rs_1' },
-				{ type: 'data', mimeType: 'application/vnd.code.agent-host-byok-reasoning+json', data: VSBuffer.fromString('{"id":"rs_1","encryptedContent":"opaque"}') },
+				{ type: 'thinking', value: ['options'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
 				{ type: 'text', value: 'hello ' },
 				{ type: 'text', value: 'world' },
 				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
@@ -162,7 +161,7 @@ suite('AgentHostByokLmHandler', () => {
 		assert.strictEqual(service.captured?.modelId, 'id-acme-claude');
 		assert.deepStrictEqual(result, {
 			output: [
-				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: undefined },
+				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: { encrypted_content: 'opaque' } },
 				{ type: 'message', content: [{ type: 'text', text: 'hello ' }, { type: 'text', text: 'world' }] },
 				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
 				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
@@ -218,8 +217,7 @@ suite('AgentHostByokLmHandler', () => {
 				{
 					role: ChatMessageRole.Assistant,
 					content: [
-						{ type: 'thinking', value: ['thought'], id: 'rs_1', metadata: undefined },
-						{ type: 'data', mimeType: 'application/vnd.code.agent-host-byok-reasoning+json', data: '{"id":"rs_1","encryptedContent":"opaque"}' },
+						{ type: 'thinking', value: ['thought'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
 					],
 				},
 				{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: 'checking' }] },
@@ -230,7 +228,8 @@ suite('AgentHostByokLmHandler', () => {
 				{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
 			],
 			options: {
-				modelOptions: { temperature: 0.5, _vscodeAgentHostByokReasoningBridge: true },
+				modelOptions: { temperature: 0.5 },
+				includeEncryptedThinking: true,
 				configuration: { reasoningEffort: 'high' },
 				tools: [
 					{ name: 'getWeather', description: '', inputSchema: { type: 'object' } },

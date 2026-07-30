@@ -15,16 +15,6 @@ import { EditorIntegrationRules } from '../../prompts/node/panel/editorIntegrati
 import { imageDataPartToTSX, ToolResult } from '../../prompts/node/panel/toolCalling';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 
-const AGENT_HOST_BYOK_REASONING_MIME_TYPE = 'application/vnd.code.agent-host-byok-reasoning+json';
-
-function decodeAgentHostByokReasoning(data: Uint8Array): { id?: string; encryptedContent: string } {
-	const value = JSON.parse(new TextDecoder().decode(data)) as { id?: unknown; encryptedContent?: unknown };
-	if ((value.id !== undefined && typeof value.id !== 'string') || typeof value.encryptedContent !== 'string') {
-		throw new Error('Invalid Agent Host BYOK reasoning data');
-	}
-	return { id: value.id, encryptedContent: value.encryptedContent };
-}
-
 export type Props = PromptElementProps<{
 	noSafety: boolean;
 	messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>;
@@ -47,22 +37,18 @@ export class LanguageModelAccessPrompt extends PromptElement<Props> {
 			} else if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
 				const statefulMarkerPart = message.content.find(part => part instanceof vscode.LanguageModelDataPart && part.mimeType === CustomDataPartMimeTypes.StatefulMarker) as vscode.LanguageModelDataPart | undefined;
 				const statefulMarker = statefulMarkerPart && decodeStatefulMarker(statefulMarkerPart.data);
-				const reasoningDataPart = message.content.find(part => part instanceof vscode.LanguageModelDataPart && part.mimeType === AGENT_HOST_BYOK_REASONING_MIME_TYPE) as vscode.LanguageModelDataPart | undefined;
-				const reasoningData = reasoningDataPart && decodeAgentHostByokReasoning(reasoningDataPart.data);
 				const filteredContent = message.content.filter(part => !(part instanceof vscode.LanguageModelDataPart));
 				// There should only be one string part per message
 				const content = filteredContent.find(part => part instanceof LanguageModelTextPart);
 				const toolCalls = filteredContent.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-				const thinking = filteredContent.find(part => part instanceof vscode.LanguageModelThinkingPart);
+				const thinkingParts = filteredContent.filter(part => part instanceof vscode.LanguageModelThinkingPart);
+				const thinking = thinkingParts.find(part => typeof part.metadata?.encrypted_content === 'string') ?? thinkingParts.at(-1);
+				const thinkingText = thinkingParts.flatMap(part => Array.isArray(part.value) ? part.value : [part.value]);
+				const thinkingMetadata = Object.assign({}, ...thinkingParts.map(part => part.metadata));
 
 				const statefulMarkerElement = statefulMarker && <StatefulMarkerContainer statefulMarker={statefulMarker} />;
-				const thinkingId = reasoningData?.id ?? thinking?.id;
-				const thinkingElement = thinkingId && <ThinkingDataContainer thinking={{
-					id: thinkingId,
-					text: thinking?.value ?? '',
-					metadata: thinking?.metadata,
-					encrypted: reasoningData?.encryptedContent,
-				}} />;
+				const encrypted = typeof thinkingMetadata.encrypted_content === 'string' ? thinkingMetadata.encrypted_content : undefined;
+				const thinkingElement = thinking && thinking.id && <ThinkingDataContainer thinking={{ id: thinking.id, text: thinkingText, metadata: thinkingMetadata, encrypted }} />;
 				chatMessages.push(<AssistantMessage name={message.name} toolCalls={toolCalls.map(tc => ({ id: tc.callId, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))}>{statefulMarkerElement}{content?.value}{thinkingElement}</AssistantMessage>);
 			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {
 				for (const part of message.content) {
