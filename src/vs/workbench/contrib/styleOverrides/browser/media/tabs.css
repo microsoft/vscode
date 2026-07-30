@@ -310,8 +310,7 @@
 	background-color: var(--modern-ui-tab-hover-background) !important;
 }
 
-.style-override .part.editor .tabs-container > .tab .tab-border-top-container,
-.style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
+.style-override .part.editor .tabs-container > .tab .tab-border-top-container {
 	display: none !important;
 }
 
@@ -357,23 +356,25 @@
 }
 
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked {
-	background-color: var(--modern-ui-tab-active-background) !important;
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked,
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked,
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked {
+	background-color: var(--vscode-panelTitle-activeBackground) !important;
 }
 
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover {
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover,
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover,
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover {
 	background-color: var(--modern-ui-tab-hover-background);
 }
 
 /*
- * Drop the underline indicator in favour of the rounded background. The base
- * rules paint the indicator with `!important`, so these declarations must match.
+ * Drop the checked underline in favour of the rounded background while retaining
+ * the base keyboard-focus indicator.
  */
-.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked .active-item-indicator:before,
-.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):focus .active-item-indicator:before,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked .active-item-indicator:before,
-.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):focus .active-item-indicator:before {
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked:not(:focus) .active-item-indicator:before,
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked:not(:focus) .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;
@@ -396,6 +397,10 @@
  */
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent) !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
+	color: var(--vscode-tab-selectedForeground) !important;
 }
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a {

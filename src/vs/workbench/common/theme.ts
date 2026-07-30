@@ -499,6 +499,13 @@ export const PANEL_TITLE_BORDER = registerColor('panelTitle.border', {
 	hcLight: PANEL_BORDER
 }, localize('panelTitleBorder', "Panel title border color on the bottom, separating the title from the views. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_ACTIVE_TITLE_BACKGROUND = registerColor('panelTitle.activeBackground', {
+	dark: transparent(foreground, 0.22),
+	light: transparent(foreground, 0.16),
+	hcDark: transparent(foreground, 0.22),
+	hcLight: transparent(foreground, 0.22)
+}, localize('panelActiveTitleBackground', "Background color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
 	dark: '#E7E7E7',
 	light: '#424242',
