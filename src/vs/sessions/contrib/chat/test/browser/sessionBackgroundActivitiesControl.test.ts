@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -21,12 +22,15 @@ interface IControlSpec {
 	readonly subagents?: readonly string[];
 	readonly subagentStatus?: SessionStatus;
 	readonly enabled?: boolean;
+	/** Make `openChat` reject, to check the failure reaches the error handler. */
+	readonly openChatError?: Error;
 }
 
 interface IControlHarness {
 	readonly control: SessionBackgroundActivitiesControl;
 	readonly getPickerItems: () => readonly ICapturedPickerItem[];
 	readonly getOpenedChat: () => URI | undefined;
+	readonly hidePicker: () => void;
 }
 
 interface ICapturedPickerItem {
@@ -54,16 +58,18 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 	}();
 
 	let pickerItems: ICapturedPickerItem[] = [];
+	let hidePicker = () => { };
 	const actionWidgetService = new class extends mock<IActionWidgetService>() {
 		override get isVisible() { return false; }
 		override hide(): void { }
-		override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], _delegate: IActionListDelegate<T>): void {
+		override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
 			pickerItems = items.map(item => ({
 				kind: item.kind,
 				label: item.label ?? '',
 				category: item.group?.title ?? '',
 				icon: item.group?.icon?.id ?? '',
 			}));
+			hidePicker = () => delegate.onHide(false);
 		}
 	}();
 
@@ -71,6 +77,9 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override async openChat(_session: ISession, chatUri: URI): Promise<void> {
 			openedChat = chatUri;
+			if (spec.openChatError) {
+				throw spec.openChatError;
+			}
 		}
 	}();
 
@@ -86,6 +95,7 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 		control,
 		getPickerItems: () => pickerItems,
 		getOpenedChat: () => openedChat,
+		hidePicker: () => hidePicker(),
 	};
 }
 
@@ -212,5 +222,47 @@ suite('SessionBackgroundActivitiesControl', () => {
 		click(harness.control);
 
 		assert.deepStrictEqual(harness.getOpenedChat()?.toString(), 'chat:subagent-0');
+	});
+
+	test('reports a failed subagent open instead of dropping the rejection', async () => {
+		const error = new Error('could not open chat');
+		const reported: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(e => reported.push(e));
+		try {
+			const harness = createControl({ subagents: ['Research'], openChatError: error }, store);
+			click(harness.control);
+			await new Promise(resolve => setTimeout(resolve, 0));
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual(reported, [error]);
+	});
+
+	test('marks only a multi-activity pill as a popup trigger and tracks its open state', () => {
+		const single = createControl({ subagents: ['Research'] }, store);
+		const multiple = createControl({ subagents: ['Research', 'Review'] }, store);
+		const popupState = (harness: IControlHarness) => {
+			const button = harness.control.element.querySelector<HTMLElement>('.session-activity-pill-button')!;
+			return { hasPopup: button.getAttribute('aria-haspopup'), expanded: button.getAttribute('aria-expanded') };
+		};
+
+		const closed = popupState(multiple);
+		click(multiple.control);
+		const open = popupState(multiple);
+		multiple.hidePicker();
+
+		assert.deepStrictEqual({
+			single: popupState(single),
+			multipleClosed: closed,
+			multipleOpen: open,
+			multipleAfterHide: popupState(multiple),
+		}, {
+			single: { hasPopup: null, expanded: null },
+			multipleClosed: { hasPopup: 'listbox', expanded: 'false' },
+			multipleOpen: { hasPopup: 'listbox', expanded: 'true' },
+			multipleAfterHide: { hasPopup: 'listbox', expanded: 'false' },
+		});
 	});
 });

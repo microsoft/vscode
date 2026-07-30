@@ -111,9 +111,10 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 		};
 	}
 
-	private _openActivity(activity: IBackgroundActivity): void {
+	private _openActivity(activity: IBackgroundActivity): Promise<void> | undefined {
 		if (activity.chat && this._currentSession) {
-			this._sessionsService.openChat(this._currentSession, activity.chat.resource);
+			return this._sessionsService.openChat(this._currentSession, activity.chat.resource);
 		}
+		return undefined;
 	}
 }

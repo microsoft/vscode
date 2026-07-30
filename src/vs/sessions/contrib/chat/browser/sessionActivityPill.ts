@@ -63,6 +63,7 @@ export class SessionActivityPill<T extends ISessionActivity> extends Disposable 
 	private readonly _isVisible = observableValue(this, false);
 	private _categories: readonly ISessionActivityCategory<T>[] = [];
 	private _activities: readonly T[] = [];
+	private _isOpen = false;
 
 	constructor(
 		private readonly _options: ISessionActivityPillOptions<T>,
@@ -106,6 +107,16 @@ export class SessionActivityPill<T extends ISessionActivity> extends Disposable 
 		this._button.label = label;
 		this._button.setTitle(accessibleLabel);
 		this._button.setAriaLabel(accessibleLabel);
+
+		// Only a pill standing for several activities opens the picker; a single
+		// activity is opened directly, so it must not claim to be a popup trigger.
+		if (count === 1) {
+			this._button.element.removeAttribute('aria-haspopup');
+			this._button.element.removeAttribute('aria-expanded');
+		} else {
+			this._button.element.setAttribute('aria-haspopup', 'listbox');
+			this._button.element.setAttribute('aria-expanded', String(this._isOpen));
+		}
 	}
 
 	private _onDidClick(): void {
@@ -149,8 +160,15 @@ export class SessionActivityPill<T extends ISessionActivity> extends Disposable 
 				this._actionWidgetService.hide();
 				this._openActivity(activity);
 			},
-			onHide: () => triggerElement.focus(),
+			onHide: () => {
+				this._isOpen = false;
+				triggerElement.setAttribute('aria-expanded', 'false');
+				triggerElement.focus();
+			},
 		};
+
+		this._isOpen = true;
+		triggerElement.setAttribute('aria-expanded', 'true');
 		this._actionWidgetService.show(
 			this._options.widgetId,
 			false,
