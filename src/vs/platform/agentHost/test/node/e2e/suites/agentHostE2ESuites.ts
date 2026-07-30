@@ -7,7 +7,9 @@ import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDi
 import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
+import { defineAnnotationsTests } from './annotationsSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
+import { defineProtocolContractTests } from './protocolContractsSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
@@ -17,9 +19,10 @@ import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const isLinux = process.platform === 'linux';
+
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_RECORD_ONLY_TESTS = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
-const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
 
 interface IDefineOptions {
@@ -43,11 +46,18 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
-			stableNewScenarioResponse: config.stableNewScenarioResponse,
+			supportsFileTools: config.supportsFileTools,
+			stableSharedServerFileScenarios: config.stableSharedServerFileScenarios ?? true,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
+			connectClient: () => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				return lease.connectClient();
+			},
 		};
 
 		suiteSetup(async function () {
@@ -99,6 +109,8 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineHostFeaturesTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
+			defineAnnotationsTests(context);
+			defineProtocolContractTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.

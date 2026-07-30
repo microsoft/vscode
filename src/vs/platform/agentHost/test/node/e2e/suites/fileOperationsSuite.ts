@@ -14,7 +14,7 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, stableNewScenarioResponse } = context;
+	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, supportsFileTools, stableSharedServerFileScenarios } = context;
 	const BEHAVIOR_SNAPSHOT = { profile: 'behavior' } as const;
 	/**
 	 * Steers the agent toward its own file tools instead of a shell command.
@@ -27,8 +27,9 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	 * and exercises the more meaningful path.
 	 */
 	const PREFER_FILE_TOOLS = ' Use your file tools; do not run a shell command.';
-	// Expected to pass, but Copilot never completed this turn during recording and Codex duplicates its response.
-	(stableNewScenarioResponse && config.provider === 'claude' ? test : test.skip)('reads an existing text file', async function () {
+	// Expected to pass. Copilot never completed this turn during recording; Codex
+	// has no file tools, so it cannot honor this prompt's steer away from the shell.
+	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('reads an existing text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-read-'));
 		tempDirs.push(workspace);
@@ -41,7 +42,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableNewScenarioResponse ? test : test.skip)('reads a file from a nested directory', async function () {
+	(supportsFileTools ? test : test.skip)('reads a file from a nested directory', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-read-'));
 		tempDirs.push(workspace);
@@ -55,7 +56,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableNewScenarioResponse && portableShellToolReplayEnabled ? test : test.skip)('lists workspace entries', async function () {
+	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-list-'));
 		tempDirs.push(workspace);
@@ -74,8 +75,9 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Codex does not honor the exact-response contract on replay; Copilot never completes the replayed turn.
-	(stableNewScenarioResponse && config.provider === 'claude' ? test : test.skip)('reads a value from JSON', async function () {
+	// Copilot never completes the replayed turn; Codex has no file tools, so it
+	// cannot honor this prompt's steer away from the shell.
+	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('reads a value from JSON', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-json-'));
 		tempDirs.push(workspace);
@@ -88,8 +90,9 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Codex duplicates its response.
-	(stableNewScenarioResponse && portableShellToolReplayEnabled ? test : test.skip)('counts lines in a file', async function () {
+	// Codex has no file tools, so it cannot honor this prompt's steer away from
+	// the shell — it answers from guesswork instead of reading the file.
+	(supportsFileTools && portableShellToolReplayEnabled ? test : test.skip)('counts lines in a file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-lines-'));
 		tempDirs.push(workspace);
@@ -106,7 +109,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableNewScenarioResponse ? test : test.skip)('handles a missing file without a session error', async function () {
+	(supportsFileTools ? test : test.skip)('handles a missing file without a session error', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-missing-'));
 		tempDirs.push(workspace);
@@ -119,7 +122,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	});
 
 	// Copilot does not consistently emit tool completion for this scenario.
-	(stableNewScenarioResponse && config.provider !== 'copilotcli' ? test : test.skip)('creates a new text file', async function () {
+	(supportsFileTools && stableSharedServerFileScenarios && config.provider !== 'copilotcli' ? test : test.skip)('creates a new text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-create-'));
 		tempDirs.push(workspace);
@@ -132,7 +135,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	});
 
 	// Copilot never completes this turn.
-	(stableNewScenarioResponse && config.provider === 'claude' ? test : test.skip)('edits an existing text file', async function () {
+	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('edits an existing text file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-edit-'));
 		tempDirs.push(workspace);
@@ -146,7 +149,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	});
 
 	// Copilot's fixture uses a POSIX shell.
-	(stableNewScenarioResponse ? test : test.skip)('creates a file in a new nested directory', async function () {
+	(stableSharedServerFileScenarios ? test : test.skip)('creates a file in a new nested directory', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-create-'));
 		tempDirs.push(workspace);
@@ -163,7 +166,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableNewScenarioResponse && portableShellToolReplayEnabled ? test : test.skip)('renames a workspace file', async function () {
+	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('renames a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-rename-'));
 		tempDirs.push(workspace);
@@ -183,7 +186,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	});
 
 	// Copilot never completed this turn.
-	(stableNewScenarioResponse && config.provider === 'claude' ? test : test.skip)('deletes a workspace file', async function () {
+	(supportsFileTools && config.provider === 'claude' ? test : test.skip)('deletes a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-delete-'));
 		tempDirs.push(workspace);
@@ -199,7 +202,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(portableShellToolReplayEnabled && stableNewScenarioResponse ? test : test.skip)('runs a deterministic shell command', async function () {
+	(stableSharedServerFileScenarios && portableShellToolReplayEnabled ? test : test.skip)('runs a deterministic shell command', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-shell-'));
 		tempDirs.push(workspace);
@@ -217,7 +220,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	});
 
 	// Claude and Codex emit customization/changeset updates at nondeterministic points in this snapshot.
-	(portableShellToolReplayEnabled && stableNewScenarioResponse && config.provider === 'copilotcli' ? test : test.skip)('inspects git status', async function () {
+	(portableShellToolReplayEnabled && config.provider === 'copilotcli' ? test : test.skip)('inspects git status', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-git-'));
 		tempDirs.push(workspace);
@@ -235,7 +238,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(stableNewScenarioResponse ? test : test.skip)('reads a filename containing spaces', async function () {
+	(stableSharedServerFileScenarios ? test : test.skip)('reads a filename containing spaces', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-spaces-'));
 		tempDirs.push(workspace);
