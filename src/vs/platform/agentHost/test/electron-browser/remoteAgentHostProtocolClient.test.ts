@@ -15,12 +15,12 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
-import { AgentHostPermissionMode, AgentHostResourcePermissionError, IAgentHostResourceService } from '../../common/agentHostResourceService.js';
+import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -29,8 +29,8 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostCodexMultiRootEnabledSettingId, AgentHostCopilotMultiRootEnabledSettingId, AgentHostClaudeMultiRootEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, EDIT_TELEMETRY_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
@@ -146,11 +146,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 	}
 
 	interface IResourceServiceStubOpts {
-		granted?: (address: string, uri: URI, mode: AgentHostPermissionMode) => boolean;
-		onRequest?: (address: string, params: { uri: string; read?: boolean; write?: boolean }) => Promise<void>;
-		onGrantImplicitRead?: (address: string, uri: URI) => void;
+		granted?: (identity: AgentHostResourceIdentity, uri: URI, mode: AgentHostPermissionMode) => boolean;
+		onRequest?: (identity: AgentHostResourceIdentity, params: { uri: string; read?: boolean; write?: boolean }) => Promise<void>;
+		onGrantImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		/** Test hook that observes disposal of the implicit-read grant. */
-		onRevokeImplicitRead?: (address: string, uri: URI) => void;
+		onRevokeImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		readBytes?: VSBuffer;
 	}
 
@@ -166,11 +166,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 		const empty = observableValue<readonly never[]>('test', []);
 		const denyRead = (uri: string) => new AgentHostResourcePermissionError({ channel: 'ahp-root://', uri, read: true });
 		const denyWrite = (uri: string) => new AgentHostResourcePermissionError({ channel: 'ahp-root://', uri, write: true });
-		const gateRead = async (addr: string, uri: URI) => {
-			if (!grant(addr, uri, AgentHostPermissionMode.Read)) { throw denyRead(uri.toString()); }
+		const gateRead = async (identity: AgentHostResourceIdentity, uri: URI) => {
+			if (!grant(identity, uri, AgentHostPermissionMode.Read)) { throw denyRead(uri.toString()); }
 		};
-		const gateWrite = async (addr: string, uri: URI) => {
-			if (!grant(addr, uri, AgentHostPermissionMode.Write)) { throw denyWrite(uri.toString()); }
+		const gateWrite = async (identity: AgentHostResourceIdentity, uri: URI) => {
+			if (!grant(identity, uri, AgentHostPermissionMode.Write)) { throw denyWrite(uri.toString()); }
 		};
 		return {
 			_serviceBrand: undefined,
@@ -201,9 +201,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService));
+	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		const client = disposables.add(new RemoteAgentHostProtocolClient(identity, transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService));
 		return { client, transport, configurationService };
+	}
+
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		return createClientForIdentity('test.example:1234', transport, permissionService, loadEstimator, logService, configurationService, clientId, clientInfo);
 	}
 
 	async function connectClient(client: RemoteAgentHostProtocolClient, transport: TestProtocolTransport): Promise<void> {
@@ -792,10 +796,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 		}, {
-			protocolVersions: [PROTOCOL_VERSION],
+			// Every negotiable version is offered so an older host can negotiate down,
+			// newest first so a current host still picks it.
+			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: 'renderer-client-id',
 			clientInfo,
 		});
+		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.
@@ -942,6 +949,40 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostCopilotMultiRootEnabledConfigKey]: false });
 	});
 
+	test('forwards Claude multi-root enablement on connect and when the setting changes', async () => {
+		const configurationService = new TestConfigurationService({ [AgentHostClaudeMultiRootEnabledSettingId]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+
+		await connectClient(client, transport);
+
+		const multiRootEnabled = findRootConfigNotification(transport.sentMessages, AgentHostClaudeMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(multiRootEnabled), { [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(AgentHostClaudeMultiRootEnabledSettingId, false);
+		fireConfigurationChange(configurationService, AgentHostClaudeMultiRootEnabledSettingId);
+
+		const updatedMultiRootEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostClaudeMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostClaudeMultiRootEnabledConfigKey]: false });
+	});
+
+	test('forwards Codex multi-root enablement on connect and when the setting changes', async () => {
+		const configurationService = new TestConfigurationService({ [AgentHostCodexMultiRootEnabledSettingId]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+
+		await connectClient(client, transport);
+
+		const multiRootEnabled = findRootConfigNotification(transport.sentMessages, AgentHostCodexMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(multiRootEnabled), { [AgentHostCodexMultiRootEnabledConfigKey]: true });
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(AgentHostCodexMultiRootEnabledSettingId, false);
+		fireConfigurationChange(configurationService, AgentHostCodexMultiRootEnabledSettingId);
+
+		const updatedMultiRootEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostCodexMultiRootEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(updatedMultiRootEnabled), { [AgentHostCodexMultiRootEnabledConfigKey]: false });
+	});
+
 	test('forwards auto-reply on connect and when the setting changes', async () => {
 		const configurationService = new TestConfigurationService({ [AUTO_REPLY_SETTING_ID]: true });
 		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
@@ -974,6 +1015,23 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const enabled = findLastRootConfigNotification(transport.sentMessages, AgentHostDisableRepoInfoTelemetryConfigKey);
 		assert.deepStrictEqual(getRootConfig(enabled), { [AgentHostDisableRepoInfoTelemetryConfigKey]: false });
+	});
+
+	test('forwards edit telemetry on connect and change', async () => {
+		const configurationService = new TestConfigurationService({ [EDIT_TELEMETRY_ENABLED_SETTING_ID]: false });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+
+		await connectClient(client, transport);
+
+		const disabled = findRootConfigNotification(transport.sentMessages, AgentHostEditTelemetryEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(disabled), { [AgentHostEditTelemetryEnabledConfigKey]: false });
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(EDIT_TELEMETRY_ENABLED_SETTING_ID, true);
+		fireConfigurationChange(configurationService, EDIT_TELEMETRY_ENABLED_SETTING_ID);
+
+		const enabled = findLastRootConfigNotification(transport.sentMessages, AgentHostEditTelemetryEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(enabled), { [AgentHostEditTelemetryEnabledConfigKey]: true });
 	});
 
 	test('forwards terminal auto-approve rules on connect', async () => {
@@ -1129,6 +1187,57 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	suite('reverse permission gating', () => {
 
+		test('remote local address does not receive trusted local access', async () => {
+			const permissionService = createResourceServiceStub({
+				granted: identity => identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			});
+			const { client, transport } = createClientForIdentity('local', undefined, permissionService);
+			const uri = URI.file('/etc/passwd').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 41, method: 'resourceRead', params: { channel: 'ahp-root://', uri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual({
+				address: client.address,
+				response: transport.sentMessages.pop(),
+			}, {
+				address: 'local',
+				response: {
+					jsonrpc: '2.0',
+					id: 41,
+					error: {
+						code: AhpErrorCodes.PermissionDenied,
+						message: `Access to ${uri} is not granted.`,
+						data: { request: { channel: ROOT_STATE_URI, uri, read: true } },
+					},
+				},
+			});
+		});
+
+		test('trusted local identity retains local resource access', async () => {
+			const permissionService = createResourceServiceStub({
+				granted: identity => identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+				readBytes: VSBuffer.fromString('trusted'),
+			});
+			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, undefined, permissionService);
+			const uri = URI.file('/etc/passwd').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 40, method: 'resourceRead', params: { channel: 'ahp-root://', uri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual({
+				address: client.address,
+				response: transport.sentMessages.pop(),
+			}, {
+				address: 'local',
+				response: {
+					jsonrpc: '2.0',
+					id: 40,
+					result: { data: 'dHJ1c3RlZA==', encoding: ContentEncoding.Base64 },
+				},
+			});
+		});
+
 		test('resourceRead is denied with PermissionDeniedErrorData when not granted', async () => {
 			const { transport } = createClient(undefined, createPermissionService(false));
 			const uri = URI.file('/etc/passwd').toString();
@@ -1224,7 +1333,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 
 		test('reverse resourceRequest delegates to permission service and replies with empty result', async () => {
-			let lastRequest: { address: string; params: { uri: string; read?: boolean; write?: boolean } } | undefined;
+			let lastRequest: { address: AgentHostResourceIdentity; params: { uri: string; read?: boolean; write?: boolean } } | undefined;
 			const stub = createResourceServiceStub({
 				granted: () => false,
 				onRequest: async (address, params) => { lastRequest = { address, params }; },
@@ -1267,8 +1376,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	suite('implicit grants for outgoing actions', () => {
 
-		function createCapturingPermissionService(): { service: IAgentHostResourceService; calls: { address: string; uri: URI }[] } {
-			const calls: { address: string; uri: URI }[] = [];
+		function createCapturingPermissionService(): { service: IAgentHostResourceService; calls: { address: AgentHostResourceIdentity; uri: URI }[] } {
+			const calls: { address: AgentHostResourceIdentity; uri: URI }[] = [];
 			const service = createResourceServiceStub({
 				onGrantImplicitRead: (address, uri) => calls.push({ address, uri }),
 			});

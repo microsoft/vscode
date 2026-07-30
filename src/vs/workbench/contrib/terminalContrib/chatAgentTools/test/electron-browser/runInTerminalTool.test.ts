@@ -1401,7 +1401,7 @@ suite('RunInTerminalTool', () => {
 				requestAllowNetworkReason: 'Needs registry access while remaining sandboxed',
 			});
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestAllowNetworkReason, 'Needs registry access while remaining sandboxed');
@@ -1432,7 +1432,7 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'curl https://evil.com' });
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestUnsandboxedExecution, false);

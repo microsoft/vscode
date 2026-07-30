@@ -45,6 +45,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentChatDataChange, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
@@ -909,6 +910,20 @@ suite('ClaudeAgent', () => {
 			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0 },
 			{ provider: 'claude', displayName: 'Claude', hasDescription: true },
 		);
+	});
+
+	test('advertises multipleWorkingDirectories only when the hidden setting is enabled', () => {
+		const { agent, configService } = createTestContext(disposables);
+		const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+		const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: false });
+		const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+		assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
+			disabledByDefault: undefined,
+			whenEnabled: { immutablePrimary: true },
+			afterDisabling: undefined,
+		});
 	});
 
 	test('getProtectedResources returns the GitHub resource', () => {
@@ -1828,6 +1843,39 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('createSession({ fork }) ignores requested working directories and inherits the live source set', async () => {
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourcePrimary = URI.file('/source-a');
+		const sourceAdditional = URI.file('/source-b');
+		const requestedPrimary = URI.file('/requested-a');
+		const requestedAdditional = URI.file('/requested-b');
+		const source = await agent.createSession({ workingDirectories: [sourcePrimary, sourceAdditional] });
+		const sourceId = AgentSession.id(source.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sourceId), makeResultSuccess(sourceId)];
+		await agent.chats.sendMessage(defaultChatUri(source.session), 'seed', [sourcePrimary, sourceAdditional], undefined, 'turn-source');
+
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: sourcePrimary.fsPath }];
+
+		const forked = await agent.createSession({
+			workingDirectories: [requestedPrimary, requestedAdditional],
+			fork: { session: source.session, turnIndex: 0, turnId: 'u1' },
+		});
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.chats.sendMessage(defaultChatUri(forked.session), 'continue', undefined, undefined, 'turn-fork');
+
+		assert.deepStrictEqual({
+			cwd: sdk.capturedStartupOptions[1]?.cwd,
+			additionalDirectories: sdk.capturedStartupOptions[1]?.additionalDirectories,
+		}, {
+			cwd: sourcePrimary.fsPath,
+			additionalDirectories: [sourceAdditional.fsPath],
+		});
+	});
+
 	test('createSession({ fork }) at the last turn anchors on that turn\'s assistant', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -2197,6 +2245,147 @@ suite('ClaudeAgent', () => {
 			eventCwd: URI.file('/work').fsPath,
 			startupOptionsCwd: URI.file('/work').fsPath,
 			startupOptionsSessionId: sessionId,
+		});
+	});
+
+	test('multi-root session passes additionalDirectories to the SDK and emits the full resolved set', async () => {
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const created = await agent.createSession({ workingDirectories: [repoA, repoB] });
+		const sessionId = AgentSession.id(created.session);
+		const events: IAgentMaterializeSessionEvent[] = [];
+		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [repoA, repoB], undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			cwd: sdk.capturedStartupOptions[0]?.cwd,
+			additionalDirectories: sdk.capturedStartupOptions[0]?.additionalDirectories,
+			eventDirs: events[0]?.workingDirectories?.map(d => d.fsPath),
+		}, {
+			cwd: repoA.fsPath,
+			additionalDirectories: [repoB.fsPath],
+			eventDirs: [repoA.fsPath, repoB.fsPath],
+		});
+	});
+
+	test('multi-root session discovers and retains customizations from an additional directory', async () => {
+		const { agent, sdk, fileService } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const skillUri = URI.joinPath(repoB, '.claude', 'skills', 'from-b', 'SKILL.md');
+		await fileService.writeFile(skillUri, VSBuffer.fromString('---\nname: from-b\ndescription: Skill from B\n---\nbody'));
+		const created = await agent.createSession({ workingDirectories: [repoA, repoB] });
+		const before = await agent.getSessionCustomizations(created.session);
+		const sessionId = AgentSession.id(created.session);
+		sdk.supportedAgentsResult = [];
+		sdk.supportedCommandsResult = [{ name: 'from-b', description: 'Skill from B', argumentHint: '' }];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [repoA, repoB], undefined, 'turn-1');
+		const after = await agent.getSessionCustomizations(created.session);
+		const skillContainerUri = URI.joinPath(repoB, '.claude', 'skills').toString();
+		const names = (customizations: readonly Customization[]) => {
+			const container = customizations.find(customization => customization.uri === skillContainerUri);
+			return container?.type === CustomizationType.Directory ? container.children?.map(skill => skill.name) : undefined;
+		};
+
+		assert.deepStrictEqual({
+			before: names(before),
+			after: names(after),
+		}, {
+			before: ['from-b'],
+			after: ['from-b'],
+		});
+	});
+
+	test('cold resume recovers the additional directories from the persisted overlay', async () => {
+		const database = new TestSessionDatabase();
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+
+		// First "process": create + first send persists the overlay working set.
+		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctxA.agent.createSession({ workingDirectories: [repoA, repoB] });
+		const sessionId = AgentSession.id(created.session);
+		ctxA.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctxA.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [repoA, repoB], undefined, 'turn-1');
+
+		// Second "process" over the same DB: the SDK catalog only knows the cwd,
+		// and the send carries no resolved set — the tail must come from the overlay.
+		const ctxB = createTestContext(disposables, { database });
+		await ctxB.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		ctxB.sdk.sessionList = [{ sessionId, summary: 's', lastModified: 1, cwd: repoA.fsPath }];
+		ctxB.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await ctxB.agent.chats.sendMessage(defaultChatUri(created.session), 'again', undefined, undefined, 'turn-2');
+
+		assert.deepStrictEqual({
+			cwd: ctxB.sdk.capturedStartupOptions[0]?.cwd,
+			additionalDirectories: ctxB.sdk.capturedStartupOptions[0]?.additionalDirectories,
+		}, {
+			cwd: repoA.fsPath,
+			additionalDirectories: [repoB.fsPath],
+		});
+	});
+
+	test('getSessionMetadata hydrates the additional directories from the persisted overlay', async () => {
+		const database = new TestSessionDatabase();
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+
+		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctxA.agent.createSession({ workingDirectories: [repoA, repoB] });
+		const sessionId = AgentSession.id(created.session);
+		ctxA.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctxA.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [repoA, repoB], undefined, 'turn-1');
+
+		// A fresh agent over the same DB reconstructs the summary from the SDK's
+		// cwd (single) plus the persisted overlay tail.
+		const ctxB = createTestContext(disposables, { database });
+		await ctxB.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		ctxB.sdk.sessionList = [{ sessionId, summary: 's', lastModified: 1, cwd: repoA.fsPath }];
+
+		const meta = await ctxB.agent.getSessionMetadata(created.session);
+
+		assert.deepStrictEqual(
+			meta?.workingDirectories?.map(d => d.fsPath),
+			[repoA.fsPath, repoB.fsPath],
+		);
+	});
+
+	test('a forked peer chat inherits the parent session additional directories', async () => {
+		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const created = await agent.createSession({ workingDirectories: [repoA, repoB] });
+		const parentId = AgentSession.id(created.session);
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: repoA.fsPath }];
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' });
+
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.chats.sendMessage(chatUri, 'hi', undefined, undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			cwd: sdk.capturedStartupOptions[0]?.cwd,
+			additionalDirectories: sdk.capturedStartupOptions[0]?.additionalDirectories,
+		}, {
+			cwd: repoA.fsPath,
+			additionalDirectories: [repoB.fsPath],
 		});
 	});
 

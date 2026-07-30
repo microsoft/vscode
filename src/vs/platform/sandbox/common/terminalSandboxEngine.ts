@@ -244,7 +244,7 @@ export class TerminalSandboxEngine extends Disposable {
 		// unsandbox fallback for commands with statically-detected blocked domains.
 		if (!requestUnsandboxedExecution && !retryWithAllowNetworkRequests && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
 			return {
-				command: this._wrapUnsandboxedCommand(command, shell),
+				command: this._wrapUnsandboxedCommand(command, shell, cwd),
 				isSandboxWrapped: false,
 				blockedDomains: blockedDomainResult.blockedDomains,
 				deniedDomains: blockedDomainResult.deniedDomains,
@@ -255,7 +255,7 @@ export class TerminalSandboxEngine extends Disposable {
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
 		if (requestUnsandboxedExecution && allowUnsandboxedCommands) {
 			return {
-				command: this._wrapUnsandboxedCommand(command, shell),
+				command: this._wrapUnsandboxedCommand(command, shell, cwd),
 				isSandboxWrapped: false,
 			};
 		}
@@ -488,17 +488,18 @@ export class TerminalSandboxEngine extends Disposable {
 			: sandboxRuntimeCommand;
 	}
 
-	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
+	private _wrapUnsandboxedCommand(command: string, shell?: string, cwd?: URI): string {
 		if (this._os === OperatingSystem.Windows) {
 			return this._windowsMxcRuntime.wrapUnsandboxedCommand(command);
 		}
 		if (!this._tempDir?.path) {
 			return command;
 		}
+		const commandWithPreservedCwd = this._getSandboxCommandWithPreservedCwd(command, cwd);
 		if (!shell) {
-			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})`;
+			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${commandWithPreservedCwd})`;
 		}
-		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(command)}`;
+		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(commandWithPreservedCwd)}`;
 	}
 
 	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {

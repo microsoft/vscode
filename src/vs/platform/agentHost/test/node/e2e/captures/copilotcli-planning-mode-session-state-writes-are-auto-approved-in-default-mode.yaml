@@ -19,14 +19,14 @@ exchanges:
 
               Create `hello.py` that prints `hello world` to stdout.
 
-              ## Todos
-              - create-hello-script: Create hello.py with `print("hello world")`
+              ## Todo
+              - Create `hello.py` with `print("hello world")`
         - type: tool_use
           id: toolcall_1
           name: sql
           input:
+            query: INSERT INTO todos (id, title, description) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py containing print("hello world") so running `python hello.py` prints hello world to stdout.')
             description: Insert hello world todo
-            query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -46,21 +46,21 @@ exchanges:
 
                   Create `hello.py` that prints `hello world` to stdout.
 
-                  ## Todos
-                  - create-hello-script: Create hello.py with `print("hello world")`
+                  ## Todo
+                  - Create `hello.py` with `print("hello world")`
             - type: tool_use
               name: sql
               input:
+                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py containing print("hello world") so running `python hello.py` prints hello world to stdout.')
                 description: Insert hello world todo
-                query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
         - role: user
           content:
             - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 140 characters
+            - type: tool_result
               tool_use_id: toolcall_1
               content: '1 row(s) inserted. Last inserted row ID: 1.'
-            - type: tool_result
-              tool_use_id: toolcall_0
-              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 160 characters
     response:
       content:
         - type: tool_use
@@ -87,21 +87,21 @@ exchanges:
 
                   Create `hello.py` that prints `hello world` to stdout.
 
-                  ## Todos
-                  - create-hello-script: Create hello.py with `print("hello world")`
+                  ## Todo
+                  - Create `hello.py` with `print("hello world")`
             - type: tool_use
               name: sql
               input:
+                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py containing print("hello world") so running `python hello.py` prints hello world to stdout.')
                 description: Insert hello world todo
-                query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
         - role: user
           content:
             - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 140 characters
+            - type: tool_result
               tool_use_id: toolcall_1
               content: '1 row(s) inserted. Last inserted row ID: 1.'
-            - type: tool_result
-              tool_use_id: toolcall_0
-              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 160 characters
         - role: assistant
           content:
             - type: tool_use
@@ -117,7 +117,7 @@ exchanges:
 
                 You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
     response:
-      content: Plan approved. Let me know when you'd like me to create `hello.py` with `print("hello world")`.
+      content: Plan approved. Let me know when you'd like me to proceed with creating `hello.py`.
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
@@ -137,21 +137,21 @@ exchanges:
 
                   Create `hello.py` that prints `hello world` to stdout.
 
-                  ## Todos
-                  - create-hello-script: Create hello.py with `print("hello world")`
+                  ## Todo
+                  - Create `hello.py` with `print("hello world")`
             - type: tool_use
               name: sql
               input:
+                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py containing print("hello world") so running `python hello.py` prints hello world to stdout.')
                 description: Insert hello world todo
-                query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
         - role: user
           content:
             - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 140 characters
+            - type: tool_result
               tool_use_id: toolcall_1
               content: '1 row(s) inserted. Last inserted row ID: 1.'
-            - type: tool_result
-              tool_use_id: toolcall_0
-              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 160 characters
         - role: assistant
           content:
             - type: tool_use
@@ -167,7 +167,7 @@ exchanges:
 
                 You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
         - role: assistant
-          content: Plan approved. Let me know when you'd like me to create `hello.py` with `print("hello world")`.
+          content: Plan approved. Let me know when you'd like me to proceed with creating `hello.py`.
         - role: user
           content: What did the plan I just approved say to print? Reply with exactly "hello world".
     response:

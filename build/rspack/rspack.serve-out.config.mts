@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
+const isStaticComponentExplorerBuild = process.env['COMPONENT_EXPLORER_STATIC_BUILD'] === '1';
 
 function findFreePort(startPort: number): Promise<number> {
 	return new Promise(resolve => {
@@ -30,14 +31,14 @@ export default {
 	target: 'web',
 	devtool: 'source-map',
 	entry: {
-		workbench: path.join(repoRoot, 'out', 'vs', 'code', 'browser', 'workbench', 'workbench.js'),
+		workbench: path.join(repoRoot, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench.ts'),
 	},
 	output: {
 		path: path.join(repoRoot, '.build', 'rspack-serve-out'),
 		filename: 'bundled/[name].js',
 		chunkFilename: 'bundled/[name].js',
 		assetModuleFilename: 'bundled/assets/[name][ext][query]',
-		publicPath: '/',
+		publicPath: isStaticComponentExplorerBuild ? './' : '/',
 		clean: true,
 		devtoolModuleFilenameTemplate: (info: { absoluteResourcePath: string }) => {
 			return `file:///${info.absoluteResourcePath.replace(/\\/g, '/')}`;
@@ -134,6 +135,12 @@ export default {
 			template: path.join(__dirname, 'workbench-rspack.html'),
 			chunks: ['workbench'],
 		}),
+		...(isStaticComponentExplorerBuild ? [new HtmlRspackPlugin({
+			filename: '___explorer.html',
+			templateContent: '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Component Explorer</title><style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{height:100%;width:100%}</style></head><body><div id="root"></div></body></html>',
+			chunks: ['___explorer'],
+			scriptLoading: 'module',
+		})] : []),
 	],
 	lazyCompilation: false,
 	devServer: {
