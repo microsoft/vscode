@@ -201,15 +201,13 @@ export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.en
 /**
  * Selects which Claude integration fulfills Claude sessions opened from the
  * **Agents Window**:
- *  - `true` — Claude is provided by the agent host process.
- *  - `false` (default) — Claude is provided by the GitHub Copilot Chat extension.
+ *  - `true` (default) — Claude is provided by the agent host process.
+ *  - `false` — Claude is provided by the GitHub Copilot Chat extension.
  *
- * The agent host always registers Claude when its SDK is reachable; this
- * setting only controls whether the per-window bridge in
- * `AgentHostContribution` actually surfaces the AH provider in the Agents
- * Window. The extension's `chatSessions` contribution mirrors the rule
- * declaratively (its `when` clause hides the EH provider when this is `true`),
- * so flipping the setting takes effect live without a window reload.
+ * When Agent Host is enabled, this controls whether the per-window bridge in
+ * `AgentHostContribution` surfaces the AH provider in the Agents Window. The
+ * extension's `chatSessions` contribution mirrors the rule declaratively and
+ * remains visible when Agent Host is unavailable.
  *
  * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
  * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
