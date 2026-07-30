@@ -84,7 +84,7 @@ export interface ISessionTypePickerOptions {
 	readonly telemetrySource?: string;
 	/**
 	 * When `false`, the dropdown chevron is not rendered on the trigger.
-	 * The picker is still interactive; Defaults to `true`.
+	 * The picker is still interactive. Defaults to `true`.
 	 */
 	readonly showChevron?: boolean;
 }

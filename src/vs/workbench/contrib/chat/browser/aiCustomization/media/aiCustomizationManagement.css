@@ -2463,6 +2463,10 @@ pane is first mounted. View switches inside the modal are not animated. */
 	position: relative;
 }
 
+.monaco-workbench .monaco-dialog-box.automation-dialog:focus:not(:focus-visible) {
+	outline: none;
+}
+
 /*
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,
