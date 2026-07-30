@@ -109,11 +109,9 @@ export class AutomationsCardsWidget extends Disposable {
 	}
 
 	private renderHeader(): void {
-		const titleRow = DOM.append(this.headerEl, $('.automations-cards-header-row'));
-		const titleEl = DOM.append(titleRow, $('span.automations-cards-header-title'));
-		titleEl.textContent = localize('automationsTitle', "Automations");
+		const buttonRow = DOM.append(this.headerEl, $('.automations-cards-header-row'));
 
-		const newButton = this._register(new Button(titleRow, {
+		const newButton = this._register(new Button(buttonRow, {
 			...defaultButtonStyles,
 			title: localize('newAutomation', "New automation"),
 		}));
@@ -121,9 +119,6 @@ export class AutomationsCardsWidget extends Disposable {
 		newButton.element.classList.add('automations-cards-new-button');
 		this.newButtonElement = newButton.element;
 		this._register(newButton.onDidClick(() => this.openCreateDialog()));
-
-		const descEl = DOM.append(this.headerEl, $('p.automations-cards-header-description'));
-		descEl.textContent = localize('automationsDescription', "Schedule agent sessions to run automatically on a cadence you choose.");
 	}
 
 	private async openCreateDialog(): Promise<void> {
