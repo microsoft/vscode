@@ -23,7 +23,6 @@ const enum PolicyNames {
 }
 
 type PolicyAppliedEvent = {
-	policyCount: number;
 	adminPolicyCount: number;
 	accountPolicyCount: number;
 	accountGatePolicyCount: number;
@@ -46,7 +45,6 @@ type PolicyAppliedEvent = {
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
 	comment: 'Reports effective policy values by privacy-safe source family and selected value buckets, to distinguish administrator policy adoption from account-driven restrictions. No raw policy values are collected.';
-	policyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from all sources, including administrator policy, account policy data, and the approved-account gate.' };
 	adminPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from direct administrator policy or managed-settings channels.' };
 	accountPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values derived from GitHub account policy or entitlement data.' };
 	accountGatePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values forced by an unsatisfied approved-account gate.' };
@@ -94,14 +92,12 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 
 	private buildEvent(): PolicyAppliedEvent {
 		const value = (name: PolicyName): PolicyValue | undefined => this.policyService.getPolicyValue(name);
-		let policyCount = 0;
 		let adminPolicyCount = 0;
 		let accountPolicyCount = 0;
 		let accountGatePolicyCount = 0;
 		for (const name in this.policyService.policyDefinitions) {
 			if (value(name) !== undefined) {
-				policyCount++;
-				switch (this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Admin) {
+				switch (this.policyService.getPolicyValueSource(name)) {
 					case PolicyValueSource.Admin:
 						adminPolicyCount++;
 						break;
@@ -122,7 +118,6 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 		const telemetryLevel = value(PolicyNames.TelemetryLevel);
 
 		return {
-			policyCount,
 			adminPolicyCount,
 			accountPolicyCount,
 			accountGatePolicyCount,

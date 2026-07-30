@@ -14,11 +14,11 @@ class TestPolicyService extends AbstractPolicyService {
 
 	private readonly sources = new Map<PolicyName, PolicyValueSource>();
 
-	setPolicy(name: PolicyName, value: PolicyValue, source: PolicyValueSource | undefined = PolicyValueSource.Admin): void {
+	setPolicy(name: PolicyName, value: PolicyValue, source: PolicyValueSource | null = PolicyValueSource.Admin): void {
 		const type = typeof value === 'string' ? 'string' : typeof value === 'number' ? 'number' : 'boolean';
 		this.policyDefinitions[name] = { type };
 		this.policies.set(name, value);
-		if (source !== undefined) {
+		if (source !== null) {
 			this.sources.set(name, source);
 		} else {
 			this.sources.delete(name);
@@ -37,7 +37,6 @@ class TestPolicyService extends AbstractPolicyService {
 }
 
 const EMPTY_EVENT = {
-	policyCount: 0,
 	adminPolicyCount: 0,
 	accountPolicyCount: 0,
 	accountGatePolicyCount: 0,
@@ -100,7 +99,6 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			policyCount: 9,
 			adminPolicyCount: 9,
 			defaultModelSet: true,
 			toolsAutoApproveSet: true,
@@ -129,7 +127,6 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			policyCount: 2,
 			adminPolicyCount: 2,
 			strictMarketplacesSet: true,
 			telemetryLevelSet: true,
@@ -146,25 +143,23 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			policyCount: 1,
 			adminPolicyCount: 1,
 		});
 	});
 
-	test('partitions effective policies by source and preserves the total count', () => {
+	test('partitions effective policies by source', () => {
 		const policyService = new TestPolicyService();
 		policyService.setPolicy('AdminPolicy', true, PolicyValueSource.Admin);
 		policyService.setPolicy('AccountPolicy', true, PolicyValueSource.Account);
 		policyService.setPolicy('AccountGatePolicy', false, PolicyValueSource.AccountGate);
-		policyService.setPolicy('UnknownSourcePolicy', true, undefined);
+		policyService.setPolicy('UnknownSourcePolicy', true, null);
 
 		const { events, clock } = createContribution(policyService);
 		clock.tick(500);
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			policyCount: 4,
-			adminPolicyCount: 2,
+			adminPolicyCount: 1,
 			accountPolicyCount: 1,
 			accountGatePolicyCount: 1,
 		});
@@ -189,7 +184,6 @@ suite('PolicyTelemetryContribution', () => {
 				name: 'policy.applied',
 				data: {
 					...EMPTY_EVENT,
-					policyCount: 1,
 					adminPolicyCount: 1,
 					telemetryLevelSet: true,
 					telemetryLevel: 'off',
@@ -199,7 +193,6 @@ suite('PolicyTelemetryContribution', () => {
 				name: 'policy.applied',
 				data: {
 					...EMPTY_EVENT,
-					policyCount: 1,
 					adminPolicyCount: 1,
 					telemetryLevelSet: true,
 					telemetryLevel: 'all',

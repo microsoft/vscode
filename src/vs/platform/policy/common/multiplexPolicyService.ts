@@ -52,7 +52,10 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 				if (value !== undefined) {
 					updated.push(name);
 					this.policies.set(name, value);
-					this.policyValueSources.set(name, service.getPolicyValueSource(name) ?? PolicyValueSource.Admin);
+					const source = service.getPolicyValueSource(name);
+					if (source !== undefined) {
+						this.policyValueSources.set(name, source);
+					}
 				}
 			}
 		}
