@@ -148,31 +148,35 @@
  *
  * No filled block: the accent belongs to the glow, which is the thing actually
  * carrying state. A solid button beside it reads as two accents competing on
- * one surface, and the arrow alone is legible enough to press.
+ * one surface, and the arrow alone is legible enough to press. The chat input
+ * paints that block with `!important` from a deep selector, so these have to
+ * carry the same chain to out-specify it — a shorter selector loses and leaves
+ * a white glyph on a light bar.
  */
-.chat-input-window .chat-submit-button > .action-label.codicon {
+.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
 	background: none !important;
 	color: var(--vscode-icon-foreground) !important;
 	opacity: .4;
 	transition: opacity 120ms ease, transform 120ms cubic-bezier(.2, .8, .2, 1);
 }
 
-.chat-input-window .chat-submit-button:not(.disabled) > .action-label.codicon {
+.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label {
+	background: none !important;
 	color: var(--vscode-foreground) !important;
 	opacity: 1;
 	font-weight: 700;
 	transform: scale(1.08);
 }
 
-.chat-input-window .chat-submit-button:not(.disabled) > .action-label.codicon:hover {
-	background-color: var(--vscode-toolbar-hoverBackground) !important;
+.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label:hover {
+	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 /*
  * While either party is speaking there is no turn for you to submit, so the
  * arrow recedes instead of inviting a press it would not honour.
  */
-.chat-input-window[data-voice='active'] .chat-submit-button > .action-label.codicon {
+.chat-input-window[data-voice='active'] .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
 	opacity: .25;
 	font-weight: inherit;
 	transform: none;
