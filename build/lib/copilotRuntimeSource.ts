@@ -390,9 +390,10 @@ function assertPackageComplete(distCli: string, target: BuildTarget, copilotPack
 			throw new Error(`[copilot-runtime-source] Runtime build for ${copilotPackagePlatformArch} is missing ${entry}.`);
 		}
 	}
-	// Native addons are looked up at `prebuilds/${process.platform}-${process.arch}`,
-	// so musl targets share the `linux-*` directory name with glibc.
-	const prebuilds = path.join(distCli, 'prebuilds', `${target.nodePlatform}-${target.arch}`);
+	// The runtime stages addons under the package platform name, so musl targets
+	// use `linuxmusl-<arch>`, and `cli-package-json.js` prunes every other
+	// target's directory. The Node platform name would miss musl entirely.
+	const prebuilds = path.join(distCli, 'prebuilds', copilotPackagePlatformArch);
 	const addons = fs.existsSync(prebuilds) ? fs.readdirSync(prebuilds).filter(name => name.endsWith('.node')) : [];
 	if (addons.length === 0) {
 		throw new Error(`[copilot-runtime-source] Runtime build for ${copilotPackagePlatformArch} produced no native addon in ${prebuilds}. Was the target cross-compiled?`);
