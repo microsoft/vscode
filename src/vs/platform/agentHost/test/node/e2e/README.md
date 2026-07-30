@@ -51,7 +51,7 @@ flowchart LR
 
 Key properties:
 
-- **Sequence-based matching**, keyed by `(method, path)`: the *Nth* request to an endpoint replays the *Nth* recorded response. There is **no request-body matching** — the recorded responses drive the agent, so it reproduces the same call sequence. (Bodies are stored only for human review.)
+- **Sequence-based matching**, keyed by `(method, path)`: the *Nth* request to an endpoint replays the *Nth* recorded response. There is **no request-body matching** — the recorded responses drive the agent, so it reproduces the same call sequence. The recorded request is separately *asserted* (see [Asserting the model request](#asserting-the-model-request)).
 - **Wire-agnostic**: works for Anthropic Messages (`/v1/messages`) and OpenAI Responses (`/responses`) SSE dialects.
 - **Strict on replay**: a request with no recorded response is a hard cache miss that fails the test — CI can never silently reach real CAPI.
 - **Ancillary bootstrap endpoints are stubbed, not recorded** (see [What's stubbed](#whats-stubbed-vs-recorded)) — keeps identity, tokens, and the model catalog out of fixtures.
@@ -123,7 +123,7 @@ Fixtures are intentionally minimal and human-reviewable:
 version: 1
 dialect: anthropic          # anthropic → POST /v1/messages, responses → POST /responses
 exchanges:
-  - request:                # normalized request summary (for review only; not matched)
+  - request:                # normalized request summary; asserted as a projection
       model: claude-opus-4.8
       system: ${system}
       messages:
@@ -153,6 +153,26 @@ exchanges:
 
 ---
 
+## Asserting the model request
+
+Response *selection* is ordinal, but the recorded request is not decorative: on every replayed turn the live request is compared against the committed one via `harness/modelRequestProjection.ts`. Without this, the request body — prompt assembly, retained history, truncation, attachment marshalling, tool-result hand-back, all of it host-authored — was never checked, so a regression replayed green and became the new expected value at the next re-record.
+
+Both sides go through the same projection, so captures keep their existing shape:
+
+| Asserted (host-authored) | Elided (environment-derived) |
+|---|---|
+| Message roles and ordering | `tool_result` payloads |
+| Retained history | Run-time identifiers (`${uuid_0}`, real UUIDs) |
+| Whether a system prompt was sent | Filesystem paths |
+| Text and attachment content | The model id |
+| Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
+
+Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red — see [KNOWN_ISSUES](./KNOWN_ISSUES.md#recorded-model-requests-are-asserted-as-a-projection). Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
+
+A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and prints both projections. It usually means the capture is stale — the prompt or the host's prompt assembly changed without a re-record — so **re-record it** (see [Updating snapshots and fixtures](#updating-snapshots-and-fixtures)). Never hand-edit the request block to match. If a capture genuinely cannot be refreshed, add its test title to `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts` with a `KNOWN_ISSUES.md` entry.
+
+---
+
 ## Running the tests
 
 Replay is the default — no setup, no token:
@@ -179,7 +199,7 @@ The lease also owns a fresh suite data directory. Every server it starts uses th
 
 - **Shared** (the default in replay, for every provider) — fork the server + proxy **once** for the whole suite, then between tests swap the per-test fixture and reconnect a fresh client. The agent host's cached SDK client / CLI subprocess is reused, so only the first test pays that startup. This roughly halves the suite wall-clock.
 
-The swap is what makes sharing cheap: the proxy is an `http.Server` running **inside the test process**, so `CapiReplayProxy.resetForReplay(fixturePath)` is a plain in-process method call — no IPC, no re-fork. It reloads the replay buckets and clears the cache-miss log while keeping the **same proxy URL**, so the long-lived agent host (forked against that URL) keeps talking to the same proxy and just receives the next fixture's recorded responses. Teardown calls `assertNoCacheMisses()` to verify a test's traffic *without* stopping the server (vs `stop()`, which verifies then closes); the suite's `suiteTeardown` closes it via `close()`.
+The swap is what makes sharing cheap: the proxy is an `http.Server` running **inside the test process**, so `CapiReplayProxy.resetForReplay(fixturePath)` is a plain in-process method call — no IPC, no re-fork. It reloads the replay buckets and clears the cache-miss log while keeping the **same proxy URL**, so the long-lived agent host (forked against that URL) keeps talking to the same proxy and just receives the next fixture's recorded responses. Per-test state must be reset there rather than read from the proxy's constructor options, which belong to whichever test started the shared server. Teardown calls `assertNoReplayMismatches()` to verify a test's traffic *without* stopping the server (vs `stop()`, which verifies then closes); the suite's `suiteTeardown` closes it via `close()`.
 
 **The one invariant: a shared-server test must not leave a turn in flight.** Because one server serves every test, each test's request/response traffic must land inside its own fixture window. If a test returns mid-turn, the SDK's continuation HTTP call fires *after* the fixture has been swapped for the next test — landing in that test's window as an unrecorded call and failing the strict cache-miss check (attributed, confusingly, to the next test). So **drain every turn to `turnComplete` before the test ends**; that consumes the continuation against the fixture that owns it. This is why the permission test drains its post-tool continuation even in replay, and it's the whole reason server reuse is safe: with no mid-turn returns there is nothing to leak.
 
@@ -380,8 +400,17 @@ The SDK made a model call the fixture doesn't have. Causes:
 - **A new ancillary endpoint** is being hit → if it's a bootstrap/probe (not a real model turn), add it to `capiStubs.ts` instead of recording it. (This is how `/models/session` was handled.)
 - **Stale subagent fixtures after an SDK bump** — parent + subagent calls share one `/v1/messages` sequence; once the recorded responses are from an older SDK they can drive the current SDK to diverge (an extra call, or the subagent never reaching its tool call). The flow is deterministic, so **re-record** the subagent fixtures to fix it.
 
-### `replay mode requires a fixture but none exists`
+### `[capi-replay] N model request mismatch(es)`
 
+The live request no longer matches the one recorded for that turn (see [Asserting the model request](#asserting-the-model-request)). The error prints both projections; the first differing field is the signal.
+
+- **A prompt in the test changed** without a re-record → **re-record** the fixture.
+- **The host's prompt assembly changed** (history retention, injected context preambles, attachment marshalling) → decide whether the new request is correct; if it is, **re-record**.
+- **The capture recorded a one-off ordering** of parallel `tool_result` blocks → re-record; replay ordering is deterministic.
+
+Never hand-edit the `request:` block to silence this. If the capture genuinely cannot be refreshed — e.g. recording it hits a known provider defect — add the test title to `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts` and record why in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
+
+### `replay mode requires a fixture but none exists`
 The fixture was never recorded (or the test title changed and orphaned it). Record it, or fix the name.
 
 ### A test times out waiting for a notification, only on one OS
@@ -393,6 +422,12 @@ Codex fixtures use its unified `exec_command` tool, so Codex record/replay serve
 ### A turn hangs or times out with no OS pattern
 
 When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. For the **Copilot** provider, a failed test tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log` into the test output — look for the `[agent-host-e2e] # …` lines. That is the SDK/CLI's own account of startup, auth, the model request, and the turn lifecycle; a turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and the full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down. (Claude and Codex use their own runtimes and are not captured here — check their provider CLI's own logs.)
+
+### Replayed text is doubled (`VALUEVALUE`)
+
+The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
+
+`responsesMessageToSse` therefore sends the added item empty. Recording is unaffected (it proxies real bytes), which is why this only ever showed up on replay — and why the recorded capture looked correct while the replayed snapshot did not.
 
 ### A test passes on macOS/Linux but fails on Windows
 

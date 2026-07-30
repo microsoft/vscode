@@ -421,12 +421,32 @@
 	}
 }
 
-.interactive-item-container.interactive-request:not(.show-verbose-details) .value .chat-request-timestamp {
+.interactive-item-container.interactive-request:not(.show-verbose-details):not(.editing):not(.editing-input) .chat-request-timestamp-container {
 	display: none;
 }
 
 .interactive-item-container .value {
 	width: 100%;
+}
+
+.interactive-item-container .chat-request-timestamp-container {
+	width: 100%;
+}
+
+.interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+	align-items: center;
+	height: 22px;
+	margin-top: -22px;
+	pointer-events: none;
+}
+
+.interactive-item-container.interactive-request.editing .chat-request-timestamp {
+	pointer-events: auto;
+}
+
+.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+	box-sizing: border-box;
+	padding-inline-end: var(--vscode-spacing-size160);
 }
 
 .interactive-item-container .completed-response-disclosure {
@@ -442,7 +462,7 @@
 		margin-inline-start: var(--vscode-spacing-size60);
 		padding-inline-start: var(--vscode-spacing-size120);
 		border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
-		border-image: linear-gradient(to bottom, var(--vscode-chat-requestBorder) 0 95%, transparent 95%) 1;
+		border-image: linear-gradient(to bottom, var(--vscode-chat-requestBorder) 0 calc(100% - var(--vscode-spacing-size80)), transparent calc(100% - var(--vscode-spacing-size80))) 1;
 		transition:
 			block-size 180ms cubic-bezier(0.2, 0, 0, 1),
 			opacity 140ms cubic-bezier(0.2, 0, 0, 1),
@@ -3913,7 +3933,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		transition: opacity 0.1s ease-in-out;
 	}
 
-	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp {
+	.interactive-item-container.interactive-request .chat-request-timestamp-container {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.interactive-item-container.interactive-request:not(.group-hovered):not(.editing):not(.editing-input) .chat-request-timestamp {
 		opacity: 0;
 		transition: opacity 0.1s ease-in-out;
 	}
@@ -4779,10 +4804,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transition: stroke-dashoffset 120ms ease;
 }
 
-/* Indeterminate: spin a fixed arc while the download fraction is unknown or the
-	model is loading into memory. Gated on enable-motion to respect reduced
-	motion. */
-.monaco-workbench.monaco-enable-motion .action-item.dictation-download-item > .dictation-download-ring.indeterminate {
+/* Keep the progress arc moving while the model downloads or loads so the
+	affordance reads as active even between percentage updates. Gated on
+	enable-motion to respect reduced motion. */
+.monaco-workbench.monaco-enable-motion .dictation-download-ring {
 	animation: dictation-download-ring-spin 1.2s linear infinite;
 }
 

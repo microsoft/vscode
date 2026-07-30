@@ -1185,6 +1185,53 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- turn usage persistence -------------------------------------------
+
+	suite('turn usage persistence', () => {
+
+		const usage = { inputTokens: 100, outputTokens: 20, model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } };
+
+		function createUsageSideEffects(db: TestSessionDatabase): void {
+			const sessionDataService = createSessionDataService(db);
+			createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService,
+				localTurns: new AgentHostLocalTurns(sessionDataService, new NullLogService()),
+				onTurnComplete: () => { },
+			});
+		}
+
+		test('persists the latest usage of a turn, without waiting for the turn to end', async () => {
+			// Written eagerly rather than buffered until a terminal action: a turn
+			// cut short by a crash or disconnect must keep the usage it accrued,
+			// which is the class of loss this persistence exists to prevent.
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			createUsageSideEffects(db);
+
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 1, outputTokens: 1 } });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage });
+
+			// No ChatTurnComplete/Cancelled/Error — the rows are already durable.
+			await new Promise(r => setTimeout(r, 10));
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', JSON.stringify(usage)]]);
+		});
+
+		test('does not persist usage reported on a subagent chat', async () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			createUsageSideEffects(db);
+
+			const subagentChatUri = buildSubagentChatUri(sessionUri.toString(), 'tool-call-1');
+			stateManager.dispatchServerAction(subagentChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage });
+			stateManager.dispatchServerAction(subagentChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 });
+
+			await new Promise(r => setTimeout(r, 10));
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], []);
+		});
+	});
+
 	// ---- immediate title on first turn -----------------------------------
 
 	suite('immediate title on first turn', () => {
@@ -1395,6 +1442,24 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.strictEqual(await db.getMetadata('isRead'), '');
+		});
+
+		test('persists read state exactly once for client- and server-dispatched changes', () => {
+			const { db } = setupPersisting();
+			setupSession();
+
+			// A client marking the session read (e.g. the user opened it in the
+			// editor window or the agent window).
+			stateManager.dispatchClientAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, { clientId: 'client-1', clientSeq: 1 });
+			// The host marking it unread after background output.
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: false });
+			// A rejected client action never reached state and must not persist.
+			stateManager.rejectClientAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, { clientId: 'client-1', clientSeq: 2 }, 'nope');
+
+			assert.deepStrictEqual(db.setMetadataCalls.filter(c => c.key === 'isRead'), [
+				{ key: 'isRead', value: 'true' },
+				{ key: 'isRead', value: '' },
+			]);
 		});
 
 		test('marks the parent session unread when a subagent turn completes', () => {
@@ -2212,6 +2277,57 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
+		test('waits for pending steering before consuming a queued message', async () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-original');
+
+			const queuedAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'queued-1',
+				message: { text: 'queued', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, queuedAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, queuedAction);
+
+			const steeringAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Steering,
+				id: 'steering-1',
+				message: { text: 'steering', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, steeringAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, steeringAction);
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-original', duration: 1000 },
+			});
+			assert.strictEqual(agent.sendMessageCalls.length, 0, 'queued message must wait for steering to start');
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-steering',
+					startedAt: new Date().toISOString(),
+					message: steeringAction.message,
+					queuedMessageId: steeringAction.id,
+				},
+			});
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-steering', duration: 1000 },
+			});
+
+			await waitForSendMessageCalls(1);
+			assert.deepStrictEqual(agent.sendMessageCalls.map(call => call.prompt), ['queued']);
+		});
+
 		test('does not drain queued messages when the cancelled turn completes late', () => {
 			// Cancelling a turn means "stop": messages queued behind it must stay
 			// queued for the user to dequeue/run manually, not auto-start. (A
@@ -2885,6 +3001,100 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
 			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.PendingConfirmation,
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
+		});
+
+		test('tool_ready marks autoApproveRuleResolvable only for eligible shell confirmations', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			// Rule resolvability requires a successful tree-sitter parse.
+			await sideEffects.initialize();
+
+			const cases = [
+				['tc-shell-rules-1', { requestSandboxBypass: false, shellLanguage: 'bash' as const }],
+				['tc-shell-rules-2', { requestSandboxBypass: true, shellLanguage: 'bash' as const }],
+				['tc-shell-rules-3', { managedApprovalRequired: true, shellLanguage: 'bash' as const }],
+			] as const;
+			for (const [toolCallId, signalOverrides] of cases) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'shell', displayName: 'Shell', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+						_meta: { toolKind: undefined, language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId, toolName: '', displayName: '',
+						invocationMessage: 'Run command', toolInput: 'foo --bar',
+						confirmationTitle: 'Run in terminal?', edits: undefined,
+					},
+					permissionKind: 'shell', permissionPath: undefined,
+					...signalOverrides,
+				});
+			}
+
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const parts = s?.activeTurn?.responseParts;
+				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+			});
+			assert.deepStrictEqual(
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRuleResolvable'] : undefined),
+				[true, undefined, undefined],
+				'only the rule-resolvable shell confirmation is marked; sandbox-bypass and managed confirmations are not');
+		});
+
+		test('tool_ready forwards the signal shell language into shell approval', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			await sideEffects.initialize();
+
+			// `get-childitem` only matches the default `Get-ChildItem` allow rule
+			// under PowerShell's case-insensitive matching. Missing language fails
+			// closed before rule analysis.
+			const cases = [
+				['tc-shell-lang-1', 'powershell'],
+				['tc-shell-lang-2', 'bash'],
+				['tc-shell-lang-3', undefined],
+			] as const;
+			for (const [toolCallId, shellLanguage] of cases) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'shell', displayName: 'Shell', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+						_meta: { toolKind: undefined, language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId, toolName: '', displayName: '',
+						invocationMessage: 'Run command', toolInput: 'get-childitem',
+						confirmationTitle: 'Run in terminal?', edits: undefined,
+					},
+					permissionKind: 'shell', permissionPath: undefined,
+					shellLanguage,
+				});
+			}
+
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const parts = s?.activeTurn?.responseParts;
+				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+			});
+			assert.deepStrictEqual(
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
+					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
+					: undefined),
+				[[true, undefined], [undefined, true], [undefined, undefined]],
+				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
 		});
 
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {

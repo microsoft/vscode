@@ -295,7 +295,8 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
 			default: 'nemotron-speech-streaming-en-0.6b',
-			tags: ['experimental']
+			tags: ['experimental'],
+			experiment: { mode: 'auto' }
 		},
 		[DictationSettingId.ShowTranscript]: {
 			type: 'boolean',
@@ -867,14 +868,14 @@ configurationRegistry.registerConfiguration({
 		[ClaudePreferAgentHostAgentsSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agents.claude.preferAgentHost', "When enabled, Claude sessions opened from the Agents Window run inside the agent host process instead of the GitHub Copilot Chat extension. Only one Claude implementation surfaces per window. Requires `#chat.agentHost.enabled#`."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
 		[ClaudePreferAgentHostEditorSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.editor.claude.preferAgentHost', "When enabled, Claude sessions opened from the regular workbench (sidebar chat) run inside the agent host process instead of the GitHub Copilot Chat extension. Only one Claude implementation surfaces per window."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
@@ -2025,7 +2026,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AutoExpandToolFailures]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.tools.autoExpandFailures', "When enabled, tool failures are automatically expanded in the chat UI to show error details."),
+			markdownDescription: nls.localize('chat.tools.autoExpandFailures', "When enabled, terminal tool failures are automatically expanded in the chat UI to show error details."),
 		},
 		[ChatAIDisabledSettingId]: {
 			type: 'boolean',

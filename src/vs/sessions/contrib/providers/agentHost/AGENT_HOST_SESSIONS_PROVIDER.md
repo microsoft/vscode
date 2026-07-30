@@ -26,6 +26,7 @@ Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions
 Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
 
 - **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
+- In web, Agent Host enablement additionally requires a remote authority. Web windows with a remote extension host use that server's Agent Host; serverless web keeps Agent Host disabled.
 - The local Codex session type is additionally gated directly on `chat.agentHost.codexAgent.enabled`. The Agents window does not register the OpenAI extension's Codex session type, so it has no separate Codex `preferAgentHost` setting.
 - The enablement bit is read once through the sessions-layer `AgentHostEnablementService`; the contribution does not subscribe to config changes.
 - Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
@@ -34,7 +35,7 @@ Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contributi
   - `AgentHostContribution` — agent discovery, session-handler registration, language-model providers, customization harness (via `IChatSessionsService`).
   - `AgentHostTerminalContribution` — terminal integration for agent host sessions.
   - The classic chat sidebar item controller is registered separately in the editor window only; the Agents window does not load or register `AgentHostSessionListController`.
-- Registers the experimental `chat.agentHost.defaultSessionsProvider` setting (`LocalAgentHostDefaultProviderSettingId`, default `false`, startup experiment).
+- Registers the experimental `chat.agentHost.defaultSessionsProvider` setting (`LocalAgentHostDefaultProviderSettingId`, default `true`, startup experiment).
 
 The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only wiring on top.
 
@@ -76,7 +77,7 @@ A single agent host session uses several distinct identifiers:
 
 ## Architecture
 
-- **`AgentHostSessionAdapter`** (`baseAgentHostSessionsProvider.ts`) is the `ISession` implementation. It wraps an `IAgentSessionMetadata` from the backend and exposes the observable session surface (`status`, `title`, `workspace`, `mainChat`, `mode`, …). The base provider keeps a `_sessionCache` of adapters keyed by `rawId`.
+- **`AgentHostSessionAdapter`** (`baseAgentHostSessionsProvider.ts`) is the `ISession` implementation. It wraps an `IAgentSessionMetadata` from the backend and exposes the observable session surface (`status`, `title`, `workspace`, `mainChat`, `mode`, …). The base provider keeps a `_sessionCache` of adapters keyed by `rawId`. Adapter capabilities derive from a shared provider-to-capabilities lookup, so one root-state event listener and one catalog scan serve the entire cache; root-state errors and disconnects clear the lookup so stale capabilities are not retained.
 - **`NewSession`** is a disposable draft (pre-creation) session. Several can be in flight simultaneously; the management layer tears down superseded drafts via `deleteNewSession`. A draft eagerly creates its backend session once authentication settles, then **graduates** into a committed `AgentHostSessionAdapter` on first send.
 - The base provider is abstract; concrete providers supply: `connection`, `authenticationPending`, `resourceSchemeForProvider`, `_formatSessionTypeLabel`, `_adapterOptions` (workspace builder), `resolveWorkspace`, and optionally `_diffUriMapper`.
 
