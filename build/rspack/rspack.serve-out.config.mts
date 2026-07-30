@@ -13,13 +13,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const isStaticComponentExplorerBuild = process.env['COMPONENT_EXPLORER_STATIC_BUILD'] === '1';
 
-function findFreePort(startPort: number): Promise<number> {
-	return new Promise(resolve => {
+function findFreePort(startPort: number, maxRetries = 20): Promise<number> {
+	return new Promise((resolve, reject) => {
+		if (maxRetries <= 0) {
+			return reject(new Error('Could not find an open port after maximum retries.'));
+		}
 		const server = net.createServer();
 		server.listen(startPort, 'localhost', () => {
 			server.close(() => resolve(startPort));
 		});
-		server.on('error', () => resolve(findFreePort(startPort + 1)));
+		server.on('error', () => {
+			server.close();
+			resolve(findFreePort(startPort + 1, maxRetries - 1));
+		});
 	});
 }
 
