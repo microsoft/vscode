@@ -13,7 +13,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from '../../../../base/common/path.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -363,8 +363,9 @@ function distinctAbsolutePaths(paths: readonly string[]): string[] {
 	const result: string[] = [];
 	for (const path of paths) {
 		const normalized = normalize(path);
-		if (isAbsolute(normalized) && !seen.has(normalized)) {
-			seen.add(normalized);
+		const key = filesystemPathComparisonKey(normalized);
+		if (key && !seen.has(key)) {
+			seen.add(key);
 			result.push(normalized);
 		}
 	}
@@ -379,12 +380,21 @@ function distinctWorkingDirectories(directories: readonly URI[] | undefined): re
 	const result: URI[] = [];
 	for (const directory of directories) {
 		const path = normalize(directory.fsPath);
-		if (isAbsolute(path) && !seen.has(path)) {
-			seen.add(path);
+		const key = filesystemPathComparisonKey(path);
+		if (key && !seen.has(key)) {
+			seen.add(key);
 			result.push(directory);
 		}
 	}
 	return result.length > 0 ? result : undefined;
+}
+
+function filesystemPathComparisonKey(path: string): string | undefined {
+	if (!isAbsolute(path)) {
+		return undefined;
+	}
+	const resource = extUriBiasedIgnorePathCase.removeTrailingPathSeparator(URI.file(path));
+	return extUriBiasedIgnorePathCase.getComparisonKey(resource);
 }
 
 const CodexPrewarmTtlMs = 60_000;

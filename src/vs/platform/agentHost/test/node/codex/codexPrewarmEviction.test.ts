@@ -9,6 +9,8 @@ import { PassThrough } from 'stream';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { sep } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -236,11 +238,11 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('multi-root start and turn separate workspace roots from additional writable directories', async () => {
-		const additionalDirectory = '/manual-write';
+		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'multi-root');
 		const agent = await createAgent(disposables, {
 			multiRootEnabled: true,
-			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
+			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory, `${additionalDirectory}${sep}`] },
 		});
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
@@ -254,15 +256,18 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
+		const duplicateRepoA = URI.file(`${repoA.fsPath}${sep}`);
+		const caseVariantRepoA = URI.file(repoA.fsPath.toUpperCase());
 
 		try {
-			const { session } = await agent.createSession({ session: sessionUri, workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const workingDirectories = [repoA, duplicateRepoA, ...(isWindows ? [caseVariantRepoA] : []), repoB];
+			const { session } = await agent.createSession({ session: sessionUri, workingDirectories, model: { id: 'gpt-test' } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'thread' }, runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath] } });
 			await entry.materializePromise;
 
-			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repoA, repoB], undefined, 'turn-1');
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', workingDirectories, undefined, 'turn-1');
 			const turn = await readNextRequest(peer.outbound);
 			peer.push({ id: turn.id, result: {} });
 			await send;
@@ -314,7 +319,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('disabled multi-root preserves the existing additional-directory payload', async () => {
-		const additionalDirectory = '/manual-write';
+		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'single-root');
 		const agent = await createAgent(disposables, {
 			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
