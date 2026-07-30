@@ -312,18 +312,21 @@ suite('CommandAutoApprover', () => {
 			], ['denied', 'denied']);
 		});
 
-		// `$null` discards output like /dev/null; both the spaced form (a
+		// An unquoted `$null` discards PowerShell output; both the spaced form (a
 		// `redirection` node) and the no-space form (a `generic_token`) must be
-		// recognized. Real file targets still require confirmation.
-		test('treats $null redirects as safe sinks but blocks file writes', () => {
+		// recognized. POSIX sinks and real file targets still require confirmation.
+		test('treats unquoted $null redirects as safe sinks but blocks file writes', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('Get-Content file.txt 2>$null', pwsh),
 				approver.shouldAutoApprove('Get-Content file.txt 2> $null', pwsh),
 				approver.shouldAutoApprove('Write-Host hi >$null', pwsh),
 				approver.shouldAutoApprove('Write-Host hi 2>&1', pwsh),
+				approver.shouldAutoApprove('Write-Host hi > /dev/null', pwsh),
+				approver.shouldAutoApprove('Write-Host hi >/dev/null', pwsh),
+				approver.shouldAutoApprove(`Write-Host hi > '$null'`, pwsh),
 				approver.shouldAutoApprove('Write-Host hi > out.txt', pwsh),
 				approver.shouldAutoApprove('Write-Host hi >out.txt', pwsh),
-			], ['approved', 'approved', 'approved', 'approved', 'noMatch', 'noMatch']);
+			], ['approved', 'approved', 'approved', 'approved', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch']);
 		});
 
 		// The grammar parses `--flag=value` as an assignment expression that

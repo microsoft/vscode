@@ -18,7 +18,7 @@ import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApprov
  * on disk: the /dev sinks that discard output (`/dev/null`) or write back to
  * the same terminal (`/dev/stdout`, `/dev/stderr`, `/dev/tty`).
  */
-const SAFE_REDIRECT_TARGETS: ReadonlySet<string> = new Set([
+const SAFE_POSIX_REDIRECT_TARGETS: ReadonlySet<string> = new Set([
 	'/dev/null',
 	'/dev/stdout',
 	'/dev/stderr',
@@ -27,13 +27,18 @@ const SAFE_REDIRECT_TARGETS: ReadonlySet<string> = new Set([
 
 /**
  * Returns true when the given redirection destination is known to be safe:
- * either a known-safe /dev sink or a file-descriptor duplication target
+ * either the shell's null/output sink or a file-descriptor duplication target
  * like `&1` (used in `2>&1`).
  */
 function isSafeRedirectDestination(dest: string, isPowerShell?: boolean): boolean {
 	let cleaned = dest.trim();
 	if (cleaned.length === 0) {
 		return false;
+	}
+	// `$null` discards output in PowerShell like /dev/null; variable names are
+	// case-insensitive. Quoted forms are strings rather than the null sink.
+	if (isPowerShell && cleaned.toLowerCase() === '$null') {
+		return true;
 	}
 	if ((cleaned.startsWith(`'`) && cleaned.endsWith(`'`)) ||
 		(cleaned.startsWith('"') && cleaned.endsWith('"'))) {
@@ -43,12 +48,9 @@ function isSafeRedirectDestination(dest: string, isPowerShell?: boolean): boolea
 	if (/^&[0-9]+-?$/.test(cleaned)) {
 		return true;
 	}
-	// `$null` discards output in PowerShell like /dev/null; variable names are
-	// case-insensitive.
-	if (isPowerShell && cleaned.toLowerCase() === '$null') {
-		return true;
-	}
-	return SAFE_REDIRECT_TARGETS.has(cleaned);
+	// PowerShell uses `$null` as its null sink. In particular, `/dev/null`
+	// resolves as a filesystem path on Windows.
+	return !isPowerShell && SAFE_POSIX_REDIRECT_TARGETS.has(cleaned);
 }
 
 /**
