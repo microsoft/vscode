@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -49,6 +50,10 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	const SESSION_STR = SESSION.toString();
 	const SESSION_ID = 'sid-1';
 	const TURN_ID = 'turn-1';
+
+	teardown(() => {
+		sinon.restore();
+	});
 
 	/**
 	 * Captures `warn` calls so defense-in-depth tests can assert the
@@ -332,8 +337,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 	test('file-edit input deltas emit compact rich invocation messages', () => {
 		const log = new NullLogService();
-		let now = 1_000;
-		const state = new ClaudeMapperState(() => now);
+		const clock = sinon.useFakeTimers({ now: 1_000 });
+		const state = new ClaudeMapperState();
 		const resolver = r();
 		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
 
@@ -345,7 +350,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			log,
 			resolver,
 		);
-		now += STREAMING_TOOL_DISPLAY_INTERVAL_MS;
+		clock.tick(STREAMING_TOOL_DISPLAY_INTERVAL_MS);
 		const second = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '\\nthree\\nfour\\nfive"')),
 			SESSION,
@@ -383,8 +388,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 	test('content_block_stop flushes the final rich file-edit message held back by the throttle', () => {
 		const log = new NullLogService();
-		const now = 1_000;
-		const state = new ClaudeMapperState(() => now);
+		sinon.useFakeTimers({ now: 1_000 });
+		const state = new ClaudeMapperState();
 		const resolver = r();
 		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
 

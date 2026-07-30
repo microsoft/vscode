@@ -74,8 +74,6 @@ export interface IClaudeStreamingToolInputUpdate {
 export class ClaudeToolCallRegistry {
 	private readonly _entries = new Map<string, IRegistryEntry>();
 
-	constructor(private readonly _now: () => number = Date.now) { }
-
 	/**
 	 * Begin tracking a tool call. Called from `content_block_start`
 	 * for a `tool_use` block. Allocates the delta buffer; the
@@ -120,7 +118,7 @@ export class ClaudeToolCallRegistry {
 		if (!entry || entry.displayedInputLength === entry.inputBuffer.length) {
 			return undefined;
 		}
-		const now = this._now();
+		const now = Date.now();
 		if (!force && entry.displayedAt !== undefined && now - entry.displayedAt < STREAMING_TOOL_DISPLAY_INTERVAL_MS) {
 			return undefined;
 		}
