@@ -10,6 +10,8 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
@@ -34,6 +36,14 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
+
+/**
+ * Command that imports a locally supplied Foundry Local dictation model package
+ * into the model cache. Registered in the desktop layer
+ * (`installDictationModelAction.ts`); referenced here so a failed download in a
+ * registry-blocked environment can offer the offline install as a next step.
+ */
+export const INSTALL_DICTATION_MODEL_COMMAND_ID = 'workbench.action.chat.installDictationModel';
 
 function joinIncrementalDictationText(prefix: string, suffix: string): string {
 	if (!prefix || !suffix) {
@@ -567,6 +577,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@ILogService private readonly _logService: ILogService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -1211,7 +1222,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		} else if (status.state === LocalTranscriptionModelState.Error) {
 			this._logModelPrepareTelemetry(status);
 			this._setPreparingModel(false);
-			this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
+			this._failModelSession(status);
 		}
 	}
 
@@ -1287,11 +1298,33 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	/**
+	 * Handle a terminal model-preparation error. A download failure caused by a
+	 * blocked/unreachable model registry (common on locked-down corporate
+	 * networks) is recoverable by importing the model from a locally supplied
+	 * package, so in that case the error surfaces an action that launches the
+	 * offline install flow. Other failures show a plain error.
+	 */
+	private _failModelSession(status: ILocalTranscriptionModelStatus): void {
+		const message = localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? '');
+		const canImport = this._localTranscription.isSupported
+			&& (status.errorCode === 'network' || status.errorCode === 'notFound');
+		const importAction = canImport
+			? toAction({
+				id: INSTALL_DICTATION_MODEL_COMMAND_ID,
+				label: localize('chatStt.installFromPackage', "Install from Local Package..."),
+				run: () => this._commandService.executeCommand(INSTALL_DICTATION_MODEL_COMMAND_ID),
+			})
+			: undefined;
+		this._failSession('model', message, importAction);
+	}
+
+	/**
 	 * Abort the active recording because of an unrecoverable error (e.g. the
 	 * model failed to download/load), surfacing a notification instead of
-	 * silently returning an empty transcript.
+	 * silently returning an empty transcript. An optional recovery action is
+	 * attached to the notification when the failure is actionable.
 	 */
-	private _failSession(errorCode: string, message: string): void {
+	private _failSession(errorCode: string, message: string, action?: IAction): void {
 		if (this._state === ChatSpeechToTextState.Idle) {
 			return;
 		}
@@ -1300,7 +1333,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
-		this._notificationService.error(message);
+		if (action) {
+			this._notificationService.notify({ severity: Severity.Error, message, actions: { primary: [action] } });
+		} else {
+			this._notificationService.error(message);
+		}
 	}
 
 	/**
