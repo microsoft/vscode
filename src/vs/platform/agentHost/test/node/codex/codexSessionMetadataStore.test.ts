@@ -34,11 +34,14 @@ suite('CodexSessionMetadataStore', () => {
 
 	test('ignores malformed working directory metadata', async () => {
 		const database = new TestSessionDatabase();
-		await database.setMetadata('codex.workingDirectories', '{');
+		await database.setMetadata('codex.cwd', '{"cwd":');
 		const store = new CodexSessionMetadataStore(createSessionDataService(database), new NullLogService());
 
 		const overlay = await store.read(URI.parse('codex:/session'));
 
-		assert.strictEqual(overlay.workingDirectories, undefined);
+		assert.deepStrictEqual({ cwd: overlay.cwd, workingDirectories: overlay.workingDirectories }, {
+			cwd: undefined,
+			workingDirectories: undefined,
+		});
 	});
 });

@@ -573,6 +573,10 @@ interface ICodexSession {
 	readonly clientCustomizations: CodexClientCustomizationStore;
 }
 
+type ICodexSessionRead = ThreadReadResponse & {
+	readonly persistedWorkingDirectories?: readonly URI[];
+};
+
 /**
  * A live Codex collab-agent (subagent) child thread. Codex runs each spawned
  * subagent as its OWN app-server thread that emits a full item/turn event
@@ -1205,7 +1209,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return { type: 'readOnly', networkAccess: false };
 		}
 		const additionalDirectories = narrowAdditionalDirectories(config[CodexSessionConfigKey.AdditionalDirectories]) ?? [];
-		const writableRoots = session.multiRootEnabled
+		const writableRoots = this._isMultiRootActive(session)
 			? distinctAbsolutePaths([
 				...this._runtimeWorkspaceRoots(session),
 				...additionalDirectories,
@@ -1227,7 +1231,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const config = this._readSessionConfig(session);
 		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(session);
 		const sandboxPolicy = this._sandboxPolicy(session, config, sandboxMode);
-		const runtimeWorkspaceRoots = session.multiRootEnabled
+		const runtimeWorkspaceRoots = this._isMultiRootActive(session)
 			? this._runtimeWorkspaceRoots(session)
 			: (sandboxPolicy.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined);
 		const effort = this._getReasoningEffort(session);
@@ -1259,6 +1263,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		const workingDirectories = session.workingDirectories
 			?? (session.workingDirectory ? [session.workingDirectory] : []);
 		return distinctAbsolutePaths(workingDirectories.map(directory => directory.fsPath));
+	}
+
+	private _isMultiRootActive(session: ICodexSession): boolean {
+		return session.multiRootEnabled && (session.workingDirectories?.length ?? 0) > 1;
 	}
 
 	private async _refreshModels(): Promise<void> {
@@ -2772,7 +2780,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
 		const sessionUri = config.session ?? AgentSession.uri(this.id, sessionId);
 		const multiRootEnabled = this._isMultiRootEnabled();
-		const workingDirectories = multiRootEnabled ? distinctWorkingDirectories(config.workingDirectories) : undefined;
+		const workingDirectories = multiRootEnabled && (config.workingDirectories?.length ?? 0) > 1
+			? distinctWorkingDirectories(config.workingDirectories)
+			: undefined;
 
 		// If the workbench is rebinding this URI (createSession arriving
 		// after a previous dispose for the same id), reuse the existing
@@ -2851,7 +2861,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionUri,
 			workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
-			multiRootEnabled: multiRootEnabled ?? ((effectiveWorkingDirectories?.length ?? 0) > 1 || this._isMultiRootEnabled()),
+			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
 			managedWorkingDirectory: undefined,
 			mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
@@ -2904,15 +2914,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sourceThreadId = sourceRead.thread.id;
 		const sourceTurns = sourceRead.thread.turns ?? [];
 		const sourceSession = this._sessions.get(AgentSession.id(fork.session));
-		const sourceOverlay = sourceSession?.workingDirectories ? undefined : await this._metadataStore.read(fork.session);
 		const sourcePrimary = sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : config.workingDirectories?.[0];
-		const sourceStoredWorkingDirectories = sourceSession?.workingDirectories ?? sourceOverlay?.workingDirectories;
+		const sourceStoredWorkingDirectories = sourceSession?.workingDirectories ?? sourceRead.persistedWorkingDirectories;
 		const inheritedWorkingDirectories = sourcePrimary
 			? distinctWorkingDirectories([sourcePrimary, ...(sourceStoredWorkingDirectories?.slice(1) ?? [])])
 			: undefined;
-		const multiRootEnabled = sourceSession?.multiRootEnabled
-			?? ((inheritedWorkingDirectories?.length ?? 0) > 1 || this._isMultiRootEnabled());
-		const runtimeWorkspaceRoots = multiRootEnabled && inheritedWorkingDirectories
+		const multiRootEnabled = sourceSession?.multiRootEnabled ?? (inheritedWorkingDirectories?.length ?? 0) > 1;
+		const runtimeWorkspaceRoots = multiRootEnabled && inheritedWorkingDirectories && inheritedWorkingDirectories.length > 1
 			? distinctAbsolutePaths(inheritedWorkingDirectories.map(directory => directory.fsPath))
 			: undefined;
 
@@ -3100,7 +3108,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			threadConfig.mcp_servers = mcpServers as JsonValue;
 			this._logService.info(`[Codex] thread/start for session=${session.sessionUri.toString()} with ${mcpServerNames.length} MCP server(s): ${mcpServerNames.join(', ')}`);
 		}
-		const runtimeWorkspaceRoots = session.multiRootEnabled ? this._runtimeWorkspaceRoots(session) : undefined;
+		const multiRootActive = this._isMultiRootActive(session);
+		const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
 		const startResult = await conn.client.request<'thread/start', ThreadStartResponse>('thread/start', {
 			cwd: session.workingDirectory.fsPath,
 			...(runtimeWorkspaceRoots?.length ? { runtimeWorkspaceRoots } : {}),
@@ -3112,7 +3121,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			dynamicTools: this._buildDynamicTools(session),
 		});
 		const threadId = startResult.thread.id;
-		if (session.multiRootEnabled && !session.workingDirectories && startResult.runtimeWorkspaceRoots?.length) {
+		if (multiRootActive && !session.workingDirectories && startResult.runtimeWorkspaceRoots?.length) {
 			session.workingDirectories = startResult.runtimeWorkspaceRoots.map(path => URI.file(path));
 			session.workingDirectory = session.workingDirectories[0];
 		}
@@ -3241,16 +3250,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		// Persist only once the prewarmed thread is claimed by a turn. This
 		// avoids restoring an expired, never-used prewarm as a live session.
+		const multiRootActive = this._isMultiRootActive(session);
 		const fields = {
 			threadId: session.threadId,
 			cwd: session.workingDirectory,
 			modelId: session.model?.id,
-			workingDirectories: session.multiRootEnabled ? session.workingDirectories : undefined,
+			workingDirectories: multiRootActive ? session.workingDirectories : undefined,
 		};
 		void this._metadataStore.write(session.sessionUri, fields);
-		const canonicalSessionUri = AgentSession.uri(this.id, session.threadId);
-		if (!isEqual(session.sessionUri, canonicalSessionUri)) {
-			void this._metadataStore.write(canonicalSessionUri, fields);
+		if (multiRootActive) {
+			const canonicalSessionUri = AgentSession.uri(this.id, session.threadId);
+			if (!isEqual(session.sessionUri, canonicalSessionUri)) {
+				void this._metadataStore.write(canonicalSessionUri, fields);
+			}
 		}
 	}
 
@@ -3269,7 +3281,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.prewarmClaimed) {
 			if (session.threadId === undefined && !session.materializePromise) {
 				session.workingDirectory = workingDirectory;
-				if (session.multiRootEnabled) {
+				if (this._isMultiRootActive(session)) {
 					session.workingDirectories = distinctWorkingDirectories([
 						workingDirectory,
 						...(session.workingDirectories?.slice(1) ?? []),
@@ -3335,7 +3347,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// assign when the send supplied one, so the resume path keeps emitting the
 		// singular working directory.
 		if (workingDirectories) {
-			session.workingDirectories = session.multiRootEnabled
+			session.workingDirectories = session.multiRootEnabled && workingDirectories.length > 1
 				? distinctWorkingDirectories([
 					session.workingDirectory ?? workingDirectories[0],
 					...workingDirectories.slice(1),
@@ -3396,12 +3408,13 @@ export class CodexAgent extends Disposable implements IAgent {
 				// so a resumed thread reconnects auth-gated servers, matching
 				// the config a fresh `thread/start` would apply.
 				const mcpServers = this._buildSessionMcpServers(session);
-				const runtimeWorkspaceRoots = session.multiRootEnabled ? this._runtimeWorkspaceRoots(session) : undefined;
+				const multiRootActive = this._isMultiRootActive(session);
+				const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
 				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
 					'thread/resume',
 					buildCodexResumeParams(this._usageSource, threadId, mcpServers, runtimeWorkspaceRoots),
 				);
-				if (session.multiRootEnabled && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
+				if (multiRootActive && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
 					session.workingDirectories = resumeResult.runtimeWorkspaceRoots.map(path => URI.file(path));
 					session.workingDirectory = session.workingDirectories[0];
 				}
@@ -3785,7 +3798,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		// thread/resume (Decision 8). The threadId came from the metadata
 		// overlay or from `thread/list` (when the session was materialized
 		// in a prior process); `_readSession` returns the resolved id.
-		const metadata = await this._withPersistedWorkingDirectories(session, this._threadToMetadata(read.thread, session));
+		const metadata = this._withWorkingDirectories(
+			this._threadToMetadata(read.thread, session),
+			read.persistedWorkingDirectories,
+		);
 		if (!this._sessions.has(sessionId)) {
 			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
 			const threadId = read.thread.id;
@@ -3806,7 +3822,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return metadata;
 	}
 
-	private async _readSession(session: URI): Promise<ThreadReadResponse | undefined> {
+	private async _readSession(session: URI): Promise<ICodexSessionRead | undefined> {
 		// Resolve the codex thread id for this session URI. Resolution
 		// order: in-memory session → persisted metadata overlay → URI host
 		// (for sessions materialized in a prior process where sessionId
@@ -3814,9 +3830,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		const existing = this._sessions.get(sessionId);
 		let threadId = existing?.threadId;
+		let persistedWorkingDirectories = existing?.workingDirectories;
 		if (threadId === undefined) {
 			const overlay = await this._metadataStore.read(session);
 			threadId = overlay.threadId ?? sessionId;
+			persistedWorkingDirectories = overlay.workingDirectories;
 		}
 		try {
 			const conn = await this._ensureConnection();
@@ -3824,7 +3842,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				threadId,
 				includeTurns: true,
 			});
-			return response;
+			return { ...response, persistedWorkingDirectories };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			// `thread not loaded` is app-server's expected response for any
@@ -3871,10 +3889,11 @@ export class CodexAgent extends Disposable implements IAgent {
 					liveUriByThreadId.set(s.threadId, s.sessionUri);
 				}
 			}
-			return Promise.all(response.data.map(async thread => {
+			return response.data.map(thread => {
 				const sessionUri = liveUriByThreadId.get(thread.id) ?? AgentSession.uri(this.id, thread.id);
-				return this._withPersistedWorkingDirectories(sessionUri, this._threadToMetadata(thread, sessionUri));
-			}));
+				const liveWorkingDirectories = this._sessions.get(AgentSession.id(sessionUri))?.workingDirectories;
+				return this._withWorkingDirectories(this._threadToMetadata(thread, sessionUri), liveWorkingDirectories);
+			});
 		} catch (err) {
 			this._logService.warn(`[Codex] thread/list failed: ${err instanceof Error ? err.message : String(err)}`);
 			return [];
@@ -3892,16 +3911,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _withPersistedWorkingDirectories(sessionUri: URI, metadata: IAgentSessionMetadata): Promise<IAgentSessionMetadata> {
+	private _withWorkingDirectories(metadata: IAgentSessionMetadata, storedWorkingDirectories: readonly URI[] | undefined): IAgentSessionMetadata {
 		const primary = metadata.workingDirectories?.[0];
-		if (!primary) {
+		if (!primary || !storedWorkingDirectories || storedWorkingDirectories.length <= 1) {
 			return metadata;
 		}
-		const liveWorkingDirectories = this._sessions.get(AgentSession.id(sessionUri))?.workingDirectories;
-		const storedWorkingDirectories = liveWorkingDirectories ?? (await this._metadataStore.read(sessionUri)).workingDirectories;
 		const workingDirectories = distinctWorkingDirectories([
 			primary,
-			...(storedWorkingDirectories?.slice(1) ?? []),
+			...storedWorkingDirectories.slice(1),
 		]);
 		return workingDirectories && workingDirectories.length > 1
 			? { ...metadata, workingDirectories }

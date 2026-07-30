@@ -363,6 +363,89 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('enabled multi-root preserves single-folder protocol and sandbox behavior', async () => {
+		const additionalDirectory = `${URI.file('/manual-write').fsPath}${sep}`;
+		const sessionUri = AgentSession.uri('codex', 'enabled-single-root');
+		const agent = await createAgent(disposables, {
+			multiRootEnabled: true,
+			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
+		});
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repo = URI.file('/repo');
+
+		try {
+			const { session } = await agent.createSession({ session: sessionUri, workingDirectories: [repo], model: { id: 'gpt-test' } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repo], undefined, 'turn-1');
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+			const configurationService = agent['_configurationService'];
+			assert.ok(configurationService instanceof TestCodexConfigurationService);
+			configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
+			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			configurationService.setSessionConfig({ [CodexSessionConfigKey.SandboxMode]: 'read-only' });
+			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
+
+			assert.deepStrictEqual({
+				start: {
+					cwd: start.params.cwd,
+					runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
+				},
+				turn: {
+					runtimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots,
+					sandboxPolicy: turn.params.sandboxPolicy,
+				},
+				fullAccess: {
+					runtimeWorkspaceRoots: fullAccess.runtimeWorkspaceRoots,
+					sandboxPolicy: fullAccess.sandboxPolicy,
+				},
+				readOnly: {
+					runtimeWorkspaceRoots: readOnly.runtimeWorkspaceRoots,
+					sandboxPolicy: readOnly.sandboxPolicy,
+				},
+			}, {
+				start: {
+					cwd: repo.fsPath,
+					runtimeWorkspaceRoots: undefined,
+				},
+				turn: {
+					runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
+					sandboxPolicy: {
+						type: 'workspaceWrite',
+						writableRoots: [repo.fsPath, additionalDirectory],
+						networkAccess: false,
+						excludeTmpdirEnvVar: false,
+						excludeSlashTmp: false,
+					},
+				},
+				fullAccess: {
+					runtimeWorkspaceRoots: undefined,
+					sandboxPolicy: { type: 'dangerFullAccess' },
+				},
+				readOnly: {
+					runtimeWorkspaceRoots: undefined,
+					sandboxPolicy: { type: 'readOnly', networkAccess: false },
+				},
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('fork inherits the source workspace roots instead of requested replacements', async () => {
 		const agent = await createAgent(disposables, { multiRootEnabled: true });
 		const peer = disposables.add(createTestPeer());

@@ -21,10 +21,11 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
  *                      materialize time.
  *   `codex.cwd`      — absolute path to the working directory the
  *                      session was created against (URI string).
+ *                      Multi-root sessions store a JSON object in this same
+ *                      field so single-root reads retain their original shape.
  *   `codex.model`    — serialized {@link ModelSelection.id} string,
  *                      remembered for restore so resumed sessions reuse
  *                      the model picked during the prior process.
- *   `codex.workingDirectories` — ordered URI strings for multi-root restore.
  */
 
 export interface ICodexSessionOverlay {
@@ -46,8 +47,6 @@ export class CodexSessionMetadataStore {
 	private static readonly KEY_THREAD_ID = 'codex.threadId';
 	private static readonly KEY_CWD = 'codex.cwd';
 	private static readonly KEY_MODEL = 'codex.model';
-	private static readonly KEY_WORKING_DIRECTORIES = 'codex.workingDirectories';
-
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
@@ -69,16 +68,13 @@ export class CodexSessionMetadataStore {
 					work.push(db.setMetadata(CodexSessionMetadataStore.KEY_THREAD_ID, fields.threadId));
 				}
 				if (fields.cwd !== undefined) {
-					work.push(db.setMetadata(CodexSessionMetadataStore.KEY_CWD, fields.cwd.toString()));
+					work.push(db.setMetadata(
+						CodexSessionMetadataStore.KEY_CWD,
+						serializeCwd(fields.cwd, fields.workingDirectories),
+					));
 				}
 				if (fields.modelId !== undefined) {
 					work.push(db.setMetadata(CodexSessionMetadataStore.KEY_MODEL, fields.modelId));
-				}
-				if (fields.workingDirectories !== undefined) {
-					work.push(db.setMetadata(
-						CodexSessionMetadataStore.KEY_WORKING_DIRECTORIES,
-						JSON.stringify(fields.workingDirectories.map(directory => directory.toString())),
-					));
 				}
 				await Promise.all(work);
 			} finally {
@@ -101,17 +97,17 @@ export class CodexSessionMetadataStore {
 				return {};
 			}
 			try {
-				const [threadId, cwdRaw, modelId, workingDirectoriesRaw] = await Promise.all([
+				const [threadId, cwdRaw, modelId] = await Promise.all([
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_THREAD_ID),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_CWD),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_MODEL),
-					ref.object.getMetadata(CodexSessionMetadataStore.KEY_WORKING_DIRECTORIES),
 				]);
+				const cwd = parseCwd(cwdRaw);
 				return {
 					threadId: threadId ?? undefined,
-					cwd: cwdRaw ? URI.parse(cwdRaw) : undefined,
+					cwd: cwd.cwd,
 					modelId: modelId ?? undefined,
-					workingDirectories: parseWorkingDirectories(workingDirectoriesRaw),
+					workingDirectories: cwd.workingDirectories,
 				};
 			} finally {
 				ref.dispose();
@@ -124,20 +120,38 @@ export class CodexSessionMetadataStore {
 
 }
 
-function parseWorkingDirectories(raw: string | undefined): readonly URI[] | undefined {
+function serializeCwd(cwd: URI, workingDirectories: readonly URI[] | undefined): string {
+	if (!workingDirectories || workingDirectories.length <= 1) {
+		return cwd.toString();
+	}
+	return JSON.stringify({
+		cwd: cwd.toString(),
+		workingDirectories: workingDirectories.map(directory => directory.toString()),
+	});
+}
+
+function parseCwd(raw: string | undefined): { readonly cwd?: URI; readonly workingDirectories?: readonly URI[] } {
 	if (!raw) {
-		return undefined;
+		return {};
+	}
+	if (!raw.startsWith('{')) {
+		return { cwd: URI.parse(raw) };
 	}
 	try {
-		const value: unknown = JSON.parse(raw);
-		if (Array.isArray(value)) {
-			const directories = value
-				.filter((directory): directory is string => typeof directory === 'string')
-				.map(directory => URI.parse(directory));
-			return directories.length > 0 ? directories : undefined;
+		const value: { cwd?: unknown; workingDirectories?: unknown } = JSON.parse(raw);
+		if (typeof value.cwd !== 'string') {
+			return {};
 		}
+		const workingDirectories = Array.isArray(value.workingDirectories)
+			? value.workingDirectories
+				.filter((directory): directory is string => typeof directory === 'string')
+				.map(directory => URI.parse(directory))
+			: undefined;
+		return {
+			cwd: URI.parse(value.cwd),
+			workingDirectories: workingDirectories && workingDirectories.length > 1 ? workingDirectories : undefined,
+		};
 	} catch {
-		// Invalid optional metadata is ignored.
+		return {};
 	}
-	return undefined;
 }
