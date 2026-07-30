@@ -52,11 +52,21 @@ interface IObservedChangesetFile {
 
 interface IContentChangedAction {
 	readonly files: readonly IObservedChangesetFile[];
-	readonly operations?: readonly { readonly id: string }[];
+	readonly operations?: readonly { readonly id: string; readonly scopes: readonly string[] }[];
 }
 
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
+
+	/**
+	 * Client sequence numbers must strictly increase for the lifetime of a
+	 * client, and the suite shares one across tests, so they cannot be
+	 * hard-coded per scenario.
+	 */
+	let clientSeq = 1000;
+	function nextClientSeq(): number {
+		return clientSeq++;
+	}
 
 	/** A git repository with one committed file, so a branch point exists. */
 	function createGitWorkspace(prefix: string): string {
@@ -78,9 +88,13 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	 * disk the way an agent's shell edit would rather than from the test
 	 * process. Paths are relative so no Windows backslash has to survive into a
 	 * JavaScript string literal.
+	 *
+	 * The file name and contents are passed as `process.argv` entries rather
+	 * than interpolated into the script, so a value containing a quote or a
+	 * backslash cannot break out of the literal or change what runs.
 	 */
 	function writeFileCommand(file: string, contents: string): string {
-		return `!node -e "require('fs').writeFileSync('${file}','${contents}')"`;
+		return `!node -e "require('fs').writeFileSync(process.argv[1],process.argv[2])" ${file} ${contents}`;
 	}
 
 	function fileUri(file: IObservedChangesetFile): string {
@@ -104,6 +118,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const action = getActionEnvelope(notification).action as IContentChangedAction;
 		return action.files.find(file => fileUri(file).endsWith(`/${basename}`))!;
 	}
+
 
 	conformanceTest(context, 'subscribing to a changeset reports its computation status', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-status-');
@@ -196,7 +211,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		// echoes it back so other connected clients converge.
 		context.client.dispatch({
 			channel: branchUri,
-			clientSeq: 50,
+			clientSeq: nextClientSeq(),
 			action: { type: ActionType.ChangesetFilesReviewChanged, files: [file.id], reviewed: true },
 		});
 
@@ -211,6 +226,34 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			files: [file.id],
 			reviewed: true,
 		});
+	});
+
+	conformanceTest(context, 'uncommitted changes advertise the operations that act on them', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-ops-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-ops');
+		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
+
+		context.client.clearReceived();
+		dispatchTurn(context.client, sessionUri, 'turn-changeset-ops', writeFileCommand('operate.txt', 'OPERATE'), 1);
+
+		// Operations are what a client turns into affordances, and they are
+		// only offered once there is something to act on — a session with no
+		// uncommitted changes advertises none. Each carries the scope it
+		// applies to, so a client knows whether to offer it for the whole
+		// changeset or per file.
+		const notification = await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'changeset/contentChanged') || getActionEnvelope(n).channel !== uncommittedUri) {
+				return false;
+			}
+			return ((getActionEnvelope(n).action as IContentChangedAction).operations ?? []).length > 0;
+		}, 60_000);
+
+		const operations = (getActionEnvelope(notification).action as IContentChangedAction).operations ?? [];
+		assert.deepStrictEqual(operations.map(operation => ({ id: operation.id, scopes: operation.scopes })), [
+			{ id: 'commit', scopes: ['changeset'] },
+			{ id: 'discard-changes', scopes: ['resource'] },
+		]);
 	});
 
 	conformanceTest(context, 'the session advertises its changeset catalog on separate channels', async function () {

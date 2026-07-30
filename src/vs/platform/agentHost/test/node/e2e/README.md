@@ -470,7 +470,7 @@ A one-off union measurement (protocol + E2E vs. E2E alone) put the protocol suit
 | OTLP export | `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` |
 | Liveness | `handshake`, several others | `ping` |
 
-Changeset lifecycle followed. `suites/changesetSuite.ts` covers status, content, review state, operations, and the catalog in the conformance tier, driving real git-backed edits through host-executed bang commands so no scenario crosses the model boundary. The frozen suite's version could not be copied: it drives a mock agent with the magic prompt `terminal-edit:<path>`, which no other AHP implementation would understand.
+Changeset lifecycle followed. `suites/changesetSuite.ts` covers status, content, review state, the operations a changeset advertises, and the catalog in the conformance tier, driving real git-backed edits through host-executed bang commands so no scenario crosses the model boundary. The frozen suite's version could not be copied: it drives a mock agent with the magic prompt `terminal-edit:<path>`, which no other AHP implementation would understand.
 
 The three remaining `changeset/*` actions need scenarios this suite does not yet reach: `fileSet` / `fileRemoved` are the incremental per-file updates (the bulk `contentChanged` path is what a fresh session emits), and `operationStatusChanged` needs an invoked operation — `commit` and `discard-changes` are the two that run without network access.
 
