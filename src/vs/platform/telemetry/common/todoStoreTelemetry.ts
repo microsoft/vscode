@@ -22,6 +22,6 @@ export type TodoStoreOperationClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the todo storage operation belongs to a subagent session.' };
-	owner: 'bhavyaus';
+	owner: 'amunger';
 	comment: 'Tracks successful Agent Host SQL operations that access todo item or dependency storage.';
 };
