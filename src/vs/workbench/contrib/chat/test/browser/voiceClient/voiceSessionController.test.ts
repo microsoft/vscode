@@ -183,7 +183,10 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 }
 
 class VoiceTestNotificationService extends TestNotificationService {
-	override notify(_notification: INotification): INotificationHandle {
+	readonly notifications: INotification[] = [];
+
+	override notify(notification: INotification): INotificationHandle {
+		this.notifications.push(notification);
 		return new NoOpNotification();
 	}
 }
@@ -631,6 +634,49 @@ suite('VoiceSessionController', () => {
 			},
 			startCaptureCalls: 2,
 			sessionCommands: ['start'],
+		});
+	});
+
+	test('hands-free permission denial does not add a generic connection notification', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const notificationService = new VoiceTestNotificationService();
+		const permissionError = new Error('Permission denied');
+		permissionError.name = 'NotAllowedError';
+		const micCaptureService = new class extends RecordingMicCaptureService {
+			override async startCapture(): Promise<void> {
+				this.startCaptureCalls++;
+				throw permissionError;
+			}
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+			undefined,
+			undefined,
+			notificationService,
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await clock.tickAsync(0);
+
+		assert.deepStrictEqual({
+			startCaptureCalls: micCaptureService.startCaptureCalls,
+			notifications: notificationService.notifications.map(notification => notification.message),
+			sessionCommands: voiceClientService.sessionCommands,
+			connecting: controller.isConnecting.get(),
+			connected: controller.isConnected.get(),
+			status: controller.statusText.get(),
+		}, {
+			startCaptureCalls: 1,
+			notifications: [],
+			sessionCommands: [],
+			connecting: false,
+			connected: false,
+			status: 'Tap to start',
 		});
 	});
 

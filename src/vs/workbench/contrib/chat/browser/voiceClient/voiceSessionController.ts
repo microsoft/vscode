@@ -20,7 +20,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId } from '../../common/voiceClient/voiceClientService.js';
-import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
+import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
@@ -1190,7 +1190,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							return;
 						}
 						this.logService.warn('[voice] failed to warm microphone capture for hands-free mode; resetting voice mode', err);
-						this._resetFailedConnection();
+						const permissionDenied = isMicrophonePermissionDeniedError(err);
+						this._resetFailedConnection(!permissionDenied);
 						return;
 					}
 					if (
@@ -1932,12 +1933,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, VoiceSessionController._CONNECT_TIMEOUT_MS);
 	}
 
-	private _resetFailedConnection(): void {
+	private _resetFailedConnection(notifyUser = true): void {
 		this.disconnect();
-		this.notificationService.notify({
-			severity: Severity.Warning,
-			message: localize('voice.connectFailed', "Voice mode could not connect. Please try again."),
-		});
+		if (notifyUser) {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('voice.connectFailed', "Voice mode could not connect. Please try again."),
+			});
+		}
 	}
 
 	/**

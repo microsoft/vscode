@@ -20,6 +20,10 @@ export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptur
 /** Number of samples buffered per 32 ms voice capture chunk at 16 kHz, matching one Silero VAD frame. */
 export const MIC_CAPTURE_CHUNK_SIZE = 512;
 
+export function isMicrophonePermissionDeniedError(error: unknown): boolean {
+	return (error instanceof DOMException || error instanceof Error) && error.name === 'NotAllowedError';
+}
+
 /**
  * Per-PTT-press diagnostic emitted after `pttUp` once the diagnostic
  * window closes. Logged + sent to backend so we can correlate frontend
@@ -431,7 +435,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 
 		const cleanupFailedCapture = () => {
 			if (this._micStream === micStream) {
-				this.stopCapture();
+				this._stopCaptureResources();
 			} else {
 				micStream.getTracks().forEach(track => track.stop());
 			}
@@ -552,7 +556,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	}
 
 	private _notifyMicPermissionDenied(err: unknown): void {
-		if (err instanceof DOMException && err.name === 'NotAllowedError') {
+		if (isMicrophonePermissionDeniedError(err)) {
 			this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('mic.permissionDenied', "Microphone access was denied. Grant microphone permission in your system settings to use Voice Mode."),
@@ -572,21 +576,9 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		});
 	}
 
-	stopCapture(): void {
+	private _stopCaptureResources(): void {
 		this._captureGeneration++;
 		this._capturePromise = undefined;
-		this._pttGeneration++;
-		this._pttAcquiring = false;
-		// Cancel any in-flight drain; do NOT fire `_onPttEnd` here
-		// because callers (reconnect / disconnect / dispose) have
-		// already torn down or are about to tear down the backend
-		// connection.
-		if (this._pttDrainFallbackTimer) {
-			clearTimeout(this._pttDrainFallbackTimer);
-			this._pttDrainFallbackTimer = undefined;
-		}
-		this._pttDrainTargetSamples = 0;
-		this._pttDrainSamplesSent = 0;
 		if (this._workletNode) {
 			this._workletNode.port.onmessage = null;
 			try { this._workletNode.disconnect(); } catch { /* ignore */ }
@@ -602,6 +594,22 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._micTrackListeners.clear();
 		this._micMutedNotified = false;
 		this._isCapturing = false;
+	}
+
+	stopCapture(): void {
+		this._stopCaptureResources();
+		this._pttGeneration++;
+		this._pttAcquiring = false;
+		// Cancel any in-flight drain; do NOT fire `_onPttEnd` here
+		// because callers (reconnect / disconnect / dispose) have
+		// already torn down or are about to tear down the backend
+		// connection.
+		if (this._pttDrainFallbackTimer) {
+			clearTimeout(this._pttDrainFallbackTimer);
+			this._pttDrainFallbackTimer = undefined;
+		}
+		this._pttDrainTargetSamples = 0;
+		this._pttDrainSamplesSent = 0;
 		this._pttHeld = false;
 		this._pttStreaming = false;
 		this._pttReleasedDuringAcquire = false;
