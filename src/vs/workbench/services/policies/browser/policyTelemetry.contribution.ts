@@ -37,8 +37,10 @@ type PolicyAppliedEvent = {
 	toolsAutoApproveForcedOff: boolean;
 	strictMarketplacesLockdown: boolean;
 	otelForcedEnabled: boolean;
-	telemetryLevel: string | undefined;
+	telemetryLevel: TelemetryLevelBucket | undefined;
 };
+
+type TelemetryLevelBucket = 'off' | 'crash' | 'error' | 'all' | 'none' | 'empty' | 'unknown';
 
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
@@ -57,7 +59,7 @@ type PolicyAppliedClassification = {
 	toolsAutoApproveForcedOff: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy forces auto-approve off.' };
 	strictMarketplacesLockdown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the strict-marketplaces policy is an empty allowlist (blocks all marketplaces).' };
 	otelForcedEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the OpenTelemetry policy forces export enabled.' };
-	telemetryLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The forced telemetry level bucket (off/crash/error/all, or "unknown") when the telemetry-level policy is applied.' };
+	telemetryLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The forced telemetry level bucket (off/crash/error/all), the legacy "none" value, "empty" for empty values, or "unknown" for other invalid values when the telemetry-level policy is applied.' };
 };
 
 export class PolicyTelemetryContribution extends Disposable implements IWorkbenchContribution {
@@ -133,13 +135,24 @@ function isEmptyMarketplaceAllowlist(rawValue: PolicyValue | undefined): boolean
 	}
 }
 
-const KNOWN_TELEMETRY_LEVELS: ReadonlySet<string> = new Set(['off', 'crash', 'error', 'all']);
-
-function telemetryLevelBucket(rawValue: PolicyValue | undefined): string | undefined {
+function telemetryLevelBucket(rawValue: PolicyValue | undefined): TelemetryLevelBucket | undefined {
 	if (rawValue === undefined) {
 		return undefined;
 	}
-	return typeof rawValue === 'string' && KNOWN_TELEMETRY_LEVELS.has(rawValue) ? rawValue : 'unknown';
+	if (typeof rawValue !== 'string') {
+		return 'unknown';
+	}
+	switch (rawValue) {
+		case 'off':
+		case 'crash':
+		case 'error':
+		case 'all':
+			return rawValue;
+		case 'none':
+			return 'none';
+		default:
+			return rawValue.trim().length === 0 ? 'empty' : 'unknown';
+	}
 }
 
 registerWorkbenchContribution2(PolicyTelemetryContribution.ID, PolicyTelemetryContribution, WorkbenchPhase.AfterRestored);

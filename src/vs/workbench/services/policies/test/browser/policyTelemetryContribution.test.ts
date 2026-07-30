@@ -121,6 +121,37 @@ suite('PolicyTelemetryContribution', () => {
 		});
 	});
 
+	const telemetryLevelCases: { name: string; value: PolicyValue; bucket: string }[] = [
+		{ name: 'canonical off', value: 'off', bucket: 'off' },
+		{ name: 'canonical crash', value: 'crash', bucket: 'crash' },
+		{ name: 'canonical error', value: 'error', bucket: 'error' },
+		{ name: 'canonical all', value: 'all', bucket: 'all' },
+		{ name: 'legacy none', value: 'none', bucket: 'none' },
+		{ name: 'empty string', value: '', bucket: 'empty' },
+		{ name: 'whitespace-only string', value: '   ', bucket: 'empty' },
+		{ name: 'case variant', value: 'OFF', bucket: 'unknown' },
+		{ name: 'padded value', value: ' off ', bucket: 'unknown' },
+		{ name: 'invalid string', value: 'invalid', bucket: 'unknown' },
+		{ name: 'number', value: 1, bucket: 'unknown' },
+		{ name: 'boolean', value: true, bucket: 'unknown' },
+	];
+
+	for (const { name, value, bucket } of telemetryLevelCases) {
+		test(`reports ${name} telemetry level as ${bucket}`, () => {
+			const policyService = new TestPolicyService();
+			policyService.setPolicy('TelemetryLevel', value);
+			const { events, clock } = createContribution(policyService);
+			clock.tick(500);
+
+			assert.deepStrictEqual(events[0].data, {
+				...EMPTY_EVENT,
+				policyCount: 1,
+				telemetryLevelSet: true,
+				telemetryLevel: bucket,
+			});
+		});
+	}
+
 	test('counts applied policies outside the reported set', () => {
 		const policyService = new TestPolicyService();
 		policyService.setPolicy('OtherPolicy', true);
