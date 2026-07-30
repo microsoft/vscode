@@ -140,6 +140,8 @@ The shared plugin discovery pipeline selects format-specific component paths whi
 
 Runtime projection is provider-specific. Copilot receives strict skills and MCP explicitly rather than through legacy SDK plugin-directory discovery. Codex receives strict skill roots plus MCP, with remote transport selected by its existing auto-detection. Claude excludes strict packages from legacy plugin discovery and can project remote MCP through its existing auto-detection, but its current SDK cannot register external skill directories or provide the per-server working directory required by strict stdio MCP, so those components are reported and skipped.
 
+Claude Agent Host multi-root customization discovery is gated by the hidden, default-off `chat.agentHost.claudeAgent.multiRootEnabled` setting. When enabled, the primary working directory and each SDK `additionalDirectories` root contribute standalone `.claude/agents`, `.claude/skills`, and native plugin enablement to the Customizations editor. Roots are processed in session order, followed by user scope; same-named standalone agents or skills use the first visible definition as the display source. This display policy is centralized because the SDK reports standalone entries by name rather than source URI. Native plugin loaded state remains authoritative from the SDK snapshot. Rules, hooks, MCP configuration, commands, and CLAUDE.md remain primary-root/user scoped because Claude additional directories do not load those configuration types. Each contributing root has its own writable directory container, and secondary-root watchers observe only agents, skills, and plugin settings.
+
 ### IHarnessDescriptor
 
 Key properties on the harness descriptor:

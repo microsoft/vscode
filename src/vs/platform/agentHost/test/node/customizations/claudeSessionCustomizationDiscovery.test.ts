@@ -53,6 +53,25 @@ suite('claudeSessionCustomizationDiscovery', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('mapDiscoveredCustomizations', () => {
+		test('maps agents and skills into separate ordered workspace-root containers', () => {
+			const workspaceB = URI.from({ scheme: Schemas.inMemory, path: '/workspace/packages/b' });
+			const rootAgent = URI.joinPath(workspace, '.claude', 'agents', 'root.md');
+			const nestedAgent = URI.joinPath(workspaceB, '.claude', 'agents', 'nested.md');
+			const result = mapDiscoveredCustomizations([
+				toParsedAgent({ uri: rootAgent, name: 'root' }),
+				toParsedAgent({ uri: nestedAgent, name: 'nested' }),
+			], [], [], [], [workspace, workspaceB], userHome);
+
+			assert.deepStrictEqual(
+				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
+				[
+					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), children: ['root'] },
+					{ uri: URI.joinPath(workspaceB, '.claude', 'agents').toString(), children: ['nested'] },
+				],
+			);
+		});
+
 		test('maps discovered entries into per-scope Directory containers with real child URIs + top-level MCP', () => {
 			const wsAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/agents/wa.md' });
 			const wsSkillUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/skills/ws/SKILL.md' });
@@ -390,6 +409,25 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				seed('/home/.claude/agents/a.md', 'a'),
 				seed('/workspace/.claude/skills/s/SKILL.md', 's'),
 				seed('/workspace/.mcp.json', '{}'),
+			]);
+			await settle();
+			assert.strictEqual(fires, 1);
+		});
+
+		test('watches agents, skills, and plugin settings under additional roots', async () => {
+			const workspaceB = URI.from({ scheme: Schemas.inMemory, path: '/workspace-b' });
+			const watcher = disposables.add(new ClaudeCustomizationWatcher([workspace, workspaceB], userHome, fileService, new NullLogService(), debounceMs));
+			let fires = 0;
+			disposables.add(watcher.onDidChange(() => { fires++; }));
+
+			await seed('/workspace-b/unrelated.txt', 'x');
+			await settle();
+			assert.strictEqual(fires, 0);
+
+			await Promise.all([
+				seed('/workspace-b/.claude/agents/a.md', 'a'),
+				seed('/workspace-b/.claude/skills/s/SKILL.md', 's'),
+				seed('/workspace-b/.claude/settings.json', '{}'),
 			]);
 			await settle();
 			assert.strictEqual(fires, 1);
