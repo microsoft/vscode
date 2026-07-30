@@ -479,9 +479,8 @@ export class AutomationsCardsWidget extends Disposable {
 		return { label: monthLabel, kind: 'month', order };
 	}
 
-	layout(_width: number, _height: number): void {
-		// Width is determined by the parent .custom-view-content element's CSS.
-		// No explicit sizing needed — the widget flows naturally.
+	layout(width: number, height: number): void {
+		this.element.style.width = `${width}px`;
 	}
 }
 
@@ -543,7 +542,6 @@ export class AutomationsCustomView extends AbstractCustomView {
 
 	render(container: HTMLElement): void {
 		container.style.outline = 'none';
-		container.classList.add('automations-custom-view-content');
 		this._widget = this._register(this.instantiationService.createInstance(AutomationsCardsWidget));
 		container.appendChild(this._widget.element);
 	}
