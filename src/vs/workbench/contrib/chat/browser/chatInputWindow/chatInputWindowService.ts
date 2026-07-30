@@ -364,10 +364,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		// Keep the window fitted as the input grows/shrinks (e.g. multi-line
 		// text), instead of relying on a single racy measurement that can catch
-		// the input before it collapses to its compact single-line height.
+		// the input before it collapses to its compact single-line height. Defer
+		// the fit out of the observer callback so the `resizeTo`/`moveTo` don't
+		// reenter the layout pass that triggered the notification.
 		const inputContainer = widget.input.inputContainerElement;
-		if (inputContainer) {
-			const resizeObserver = new auxiliaryWindow.window.ResizeObserver(() => fitWindowToInput());
+		if (inputContainer && typeof auxiliaryWindow.window.ResizeObserver === 'function') {
+			const scheduledFit = this._windowDisposables.add(new MutableDisposable());
+			const resizeObserver = new auxiliaryWindow.window.ResizeObserver(() => {
+				scheduledFit.value = dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => fitWindowToInput());
+			});
 			resizeObserver.observe(inputContainer);
 			this._windowDisposables.add(toDisposable(() => resizeObserver.disconnect()));
 		}
@@ -382,13 +387,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				widget.focusInput();
 			}));
 		}));
-		// Monaco's edit-context focus tracker only re-checks its focus state on
-		// DOM focus/blur events. When this frameless window is created it may not
-		// be the OS key window yet, so the initial `focusInput()` runs while
-		// `document.hasFocus()` is false and the tracker latches `_isFocused =
-		// false` — leaving the caret hidden even though the edit context holds DOM
-		// focus. Re-focus the input whenever the window becomes key so the tracker
-		// re-evaluates and renders a live caret.
+		// Refresh editor focus when the auxiliary window becomes active.
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => widget.focusInput()));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
