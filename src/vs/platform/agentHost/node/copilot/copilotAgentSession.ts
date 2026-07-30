@@ -2495,20 +2495,16 @@ export class CopilotAgentSession extends Disposable {
 			const isShellRequest = request.kind === 'shell'
 				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
 			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName;
-			const shellToolName = typeof request.toolName === 'string' ? request.toolName : trackedToolName;
-			let shellLanguage: IAgentToolPendingConfirmationSignal['shellLanguage'];
-			if (isShellRequest) {
-				switch (shellToolName) {
-					case 'bash':
-						shellLanguage = 'bash';
-						break;
-					case 'powershell':
-						shellLanguage = 'powershell';
-						break;
-					default:
-						shellLanguage = 'unknown';
-				}
-			}
+			const shellToolName = request.kind === 'shell'
+				? trackedToolName
+				: request.kind === 'custom-tool'
+					? request.toolName
+					: undefined;
+			const shellLanguage: IAgentToolPendingConfirmationSignal['shellLanguage'] = !isShellRequest
+				? undefined
+				: shellToolName === 'bash' || shellToolName === 'powershell'
+					? shellToolName
+					: 'unknown';
 			if (shellLanguage === 'unknown') {
 				this._logService.warn(`[Copilot:${this.sessionId}] Shell permission request has no recognized shell tool name; requiring confirmation: toolCallId=${toolCallId}, toolName=${shellToolName ?? '(missing)'}`);
 			}

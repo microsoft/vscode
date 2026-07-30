@@ -2322,19 +2322,22 @@ suite('CopilotAgentSession', () => {
 
 		test('shell permissions carry the tracked shell language or unknown', async () => {
 			const cases = [
-				{ toolCallId: 'tc-powershell-language', toolName: 'powershell', expected: 'powershell' },
-				{ toolCallId: 'tc-bash-language', toolName: 'bash', expected: 'bash' },
-				{ toolCallId: 'tc-unrecognized-language', toolName: 'unexpected-shell-tool', expected: 'unknown' },
-				{ toolCallId: 'tc-unknown-language', toolName: undefined, expected: 'unknown' },
+				{ toolCallId: 'tc-powershell-language', trackedToolName: 'powershell', requestToolName: undefined, expected: 'powershell' },
+				{ toolCallId: 'tc-bash-language', trackedToolName: 'bash', requestToolName: undefined, expected: 'bash' },
+				{ toolCallId: 'tc-unrecognized-language', trackedToolName: 'unexpected-shell-tool', requestToolName: undefined, expected: 'unknown' },
+				{ toolCallId: 'tc-unknown-language', trackedToolName: undefined, requestToolName: undefined, expected: 'unknown' },
+				// `PermissionRequestShell` has no toolName. If a loose or synthetic
+				// request includes one anyway, the tracked runtime tool remains authoritative.
+				{ toolCallId: 'tc-conflicting-language', trackedToolName: 'powershell', requestToolName: 'bash', expected: 'powershell' },
 			] as const;
 			const actual: string[] = [];
 
-			for (const { toolCallId, toolName } of cases) {
+			for (const { toolCallId, trackedToolName, requestToolName } of cases) {
 				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
-				if (toolName) {
+				if (trackedToolName) {
 					mockSession.fire('tool.execution_start', {
 						toolCallId,
-						toolName,
+						toolName: trackedToolName,
 						arguments: { command: 'Get-ChildItem' },
 					} as SessionEventPayload<'tool.execution_start'>['data']);
 				}
@@ -2342,6 +2345,7 @@ suite('CopilotAgentSession', () => {
 					kind: 'shell',
 					toolCallId,
 					fullCommandText: 'Get-ChildItem',
+					toolName: requestToolName,
 				});
 				const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === toolCallId);
 				assert.strictEqual(signal.kind, 'pending_confirmation');
