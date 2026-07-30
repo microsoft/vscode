@@ -130,6 +130,18 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
+	 * Notifies the view whether it is currently visible, i.e. whether both the
+	 * sessions part and this view's grid leaf are shown. Hidden views live under
+	 * a `display:none` ancestor, so they must pause DOM rendering (measuring
+	 * rows there yields `0px`) and catch up once shown again. Note that this is
+	 * independent of {@link setActive}: inactive side-by-side sessions are still
+	 * visible. The default implementation is a no-op.
+	 */
+	setVisible(_visible: boolean): void {
+		// no-op by default
+	}
+
+	/**
 	 * Shows an indeterminate progress bar at the top of this leaf while the
 	 * given promise is pending, mirroring how each editor group surfaces
 	 * progress on its own {@link ProgressBar} (see `EditorGroupView` /

@@ -85,6 +85,18 @@ export class SessionView extends Disposable implements ISerializableView {
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
 
+	/**
+	 * Whether the owning {@link SessionsPart} is visible in the workbench grid.
+	 * Pushed in by the part via {@link setPartVisible}.
+	 */
+	private _isPartVisible = true;
+
+	/**
+	 * Whether this leaf is visible within the part's internal grid. Pushed in by
+	 * the grid via {@link setVisible} when a sibling leaf is maximized.
+	 */
+	private _isLeafVisible = true;
+
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
 	constructor(
@@ -214,6 +226,7 @@ export class SessionView extends Disposable implements ISerializableView {
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._isActive);
+				view.setVisible(this._isVisible);
 			}
 
 			if (session) {
@@ -246,7 +259,16 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (!this._lastLayout) {
 			return;
 		}
+
+		// A hidden leaf sits under a `display:none` ancestor and is laid out at
+		// zero size by the split view, so forwarding those dimensions would make
+		// the chat widget measure and cache bogus geometry. The split view lays
+		// the leaf out again right after it becomes visible, and `setVisible`
+		// re-runs this pass, so no layout is lost.
 		const { width, height, top, left } = this._lastLayout;
+		if (!this._isVisible || width === 0 || height === 0) {
+			return;
+		}
 
 		// Apply the centered band's width first so the header and tabs wrap to
 		// their final layout before we measure their combined height. Measuring
@@ -324,6 +346,54 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._isActive = active;
 		this._applyActiveSessionStyles();
 		this._currentView.value?.setActive(active);
+	}
+
+	/**
+	 * Grid hook invoked by the part's internal split view when this leaf is
+	 * hidden or shown (e.g. when a sibling session is maximized).
+	 */
+	setVisible(visible: boolean): void {
+		if (this._isLeafVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isLeafVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Called by the owning {@link SessionsPart} when the part itself is hidden or
+	 * shown in the workbench grid. Combined with this leaf's own visibility to
+	 * form the view's effective visibility.
+	 */
+	setPartVisible(visible: boolean): void {
+		if (this._isPartVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isPartVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Whether this view is actually shown, i.e. neither the part nor this leaf is
+	 * hidden. Note this is unrelated to {@link setActive}: inactive sessions shown
+	 * side by side are still visible.
+	 */
+	private get _isVisible(): boolean {
+		return this._isPartVisible && this._isLeafVisible;
+	}
+
+	private _updateVisibility(wasVisible: boolean): void {
+		const visible = this._isVisible;
+		if (visible === wasVisible) {
+			return;
+		}
+		this._currentView.value?.setVisible(visible);
+		if (visible) {
+			// Catch up on the layout passes that were skipped while hidden.
+			this._layoutChildren();
+		}
 	}
 
 	private _applyActiveSessionStyles(): void {
