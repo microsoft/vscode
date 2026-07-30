@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Dimension, getWindow } from '../../../base/browser/dom.js';
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Severity } from '../../../platform/notification/common/notification.js';
@@ -17,9 +18,10 @@ suite('NotificationsToasts', () => {
 	suiteSetup(async () => {
 		const warmupDisposables = new DisposableStore();
 		try {
-			const { model, flushAnimationFrame } = await createToasts(warmupDisposables);
+			const { model, toasts } = await createToasts(warmupDisposables);
+			const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
 			model.addNotification({ severity: Severity.Error, message: 'Warmup' });
-			await flushAnimationFrame();
+			await toastVisible;
 		} finally {
 			warmupDisposables.dispose();
 		}
@@ -47,7 +49,8 @@ suite('NotificationsToasts', () => {
 		}));
 
 		const toasts = testDisposables.add(instantiationService.createInstance(NotificationsToasts, container, model));
-		toasts.layout(new Dimension(1024, 768));
+		// Avoid viewport-dependent hiding because these tests assert scheduled toast counts.
+		toasts.layout(new Dimension(1024, Number.MAX_SAFE_INTEGER));
 		await Promise.resolve();
 
 		return {
@@ -59,7 +62,8 @@ suite('NotificationsToasts', () => {
 	}
 
 	test('shows one toast for rapidly added duplicate notifications', async () => {
-		const { container, model, toasts, flushAnimationFrame } = await createToasts();
+		const { container, model, toasts } = await createToasts();
+		const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
 
 		for (let i = 0; i < 15; i++) {
 			model.addNotification({ severity: Severity.Error, message: 'Hello!' });
@@ -71,8 +75,7 @@ suite('NotificationsToasts', () => {
 			toasts: container.querySelectorAll('.notification-toast-container').length
 		};
 
-		await flushAnimationFrame();
-
+		await toastVisible;
 		assert.deepStrictEqual({
 			beforeAnimationFrame,
 			notifications: model.notifications.length,
@@ -90,13 +93,14 @@ suite('NotificationsToasts', () => {
 	});
 
 	test('limits rapidly added distinct notification toasts', async () => {
-		const { container, model, toasts, flushAnimationFrame } = await createToasts();
+		const { container, model, toasts } = await createToasts();
+		const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
 
 		for (let i = 0; i < 15; i++) {
 			model.addNotification({ severity: Severity.Error, message: `Message ${i}` });
 		}
 
-		await flushAnimationFrame();
+		await toastVisible;
 
 		assert.deepStrictEqual({
 			notifications: model.notifications.length,
