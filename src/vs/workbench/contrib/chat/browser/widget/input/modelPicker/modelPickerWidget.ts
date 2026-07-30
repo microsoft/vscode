@@ -14,7 +14,6 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
@@ -106,8 +105,6 @@ export class ModelPickerWidget extends Disposable {
 	private _workspaceTrustInitialized = false;
 	private _activatingAfterTrust = false;
 	private readonly _activatingTimer = this._register(new MutableDisposable());
-	private readonly _pendingAuxiliaryRelayout = this._register(new MutableDisposable());
-	private _showRequestId = 0;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -414,9 +411,6 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
-			this._showRequestId++;
-			this._nameButton.setAttribute('aria-expanded', 'false');
-			this._delegate.onDidChangeVisibility?.(false);
 			this._actionWidgetService.hide(true);
 			return;
 		}
@@ -533,7 +527,6 @@ export class ModelPickerWidget extends Disposable {
 				void this._openerService.open(uri, { allowCommands: true });
 			},
 			minWidth: 200,
-			anchorPosition: this._delegate.anchorPosition ?? AnchorPosition.ABOVE,
 		});
 		const previouslyFocusedElement = dom.getActiveElement();
 
@@ -543,10 +536,8 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
-				this._showRequestId++;
 				hoverDisposables.dispose();
 				this._nameButton?.setAttribute('aria-expanded', 'false');
-				this._delegate.onDidChangeVisibility?.(false);
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -554,34 +545,18 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		this._nameButton?.setAttribute('aria-expanded', 'true');
-		const showRequestId = ++this._showRequestId;
-		const showActionWidget = () => {
-			if (showRequestId !== this._showRequestId || this._nameButton?.getAttribute('aria-expanded') !== 'true') {
-				return;
-			}
-			this._actionWidgetService.show(
-				'ChatModelPicker',
-				false,
-				items,
-				delegate,
-				anchorElement,
-				undefined,
-				[],
-				getModelPickerAccessibilityProvider(),
-				listOptions
-			);
-			if (this._delegate.onDidChangeVisibility) {
-				this._pendingAuxiliaryRelayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(anchorElement), () => {
-					this._actionWidgetService.updateItems(items);
-				});
-			}
-		};
-		const visibilityChange = this._delegate.onDidChangeVisibility?.(true);
-		if (visibilityChange) {
-			void visibilityChange.then(showActionWidget);
-		} else {
-			showActionWidget();
-		}
+
+		this._actionWidgetService.show(
+			'ChatModelPicker',
+			false,
+			items,
+			delegate,
+			anchorElement,
+			undefined,
+			[],
+			getModelPickerAccessibilityProvider(),
+			listOptions
+		);
 	}
 
 	private _updateBadge(): void {

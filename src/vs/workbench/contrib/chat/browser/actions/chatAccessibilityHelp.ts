@@ -18,8 +18,6 @@ import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { TerminalContribCommandId } from '../../../terminal/terminalContribExports.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID } from '../../common/chatInputWindow.js';
-import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { IChatWidgetService } from '../chat.js';
@@ -45,16 +43,6 @@ export class QuickChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export class ChatInputWindowAccessibilityHelp implements IAccessibleViewImplementation {
-	readonly priority = 121;
-	readonly name = 'chatInputWindow';
-	readonly type = AccessibleViewType.Help;
-	readonly when = ChatContextKeys.inChatInputWindow;
-	getProvider(accessor: ServicesAccessor) {
-		return getChatAccessibilityHelpProvider(accessor, undefined, 'chatInputWindow');
-	}
-}
-
 export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 119;
 	readonly name = 'editsView';
@@ -75,17 +63,8 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, inputWindowEnabled: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false): string {
 	const content = [];
-	if (type === 'chatInputWindow') {
-		content.push(localize('chatInputWindow.overview', 'The floating chat input window is an input-only surface. It has no response list; instead each request you submit is routed to the coding session it best matches, and its response appears in that session rather than here.'));
-		content.push(localize('chatInputWindow.routing', 'When no existing session is a confident match, a new session is started for the request. When several sessions match with comparable confidence, you are asked to choose one from a picker, which also offers starting a new session.'));
-		content.push(localize('chatInputWindow.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use Enter or the submit button to route a new request.'));
-		content.push(localize('chatInputWindow.dictate', 'To dictate your request using on-device speech-to-text, invoke the Dictate command{0}. Invoke it again to stop.', '<keybinding:workbench.action.chat.toggleSpeechToText>'));
-		content.push(localize('chatInputWindow.close', 'To close the floating chat input window, invoke the Close Floating Chat Input Window command, or toggle it with the Toggle Floating Chat Input Window command{0}.', '<keybinding:workbench.action.chat.toggleInputWindow>'));
-		content.push(localize('chatInputWindow.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
-		return content.join('\n');
-	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files.'));
 	}
@@ -101,9 +80,6 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('workbench.action.openAgentsWindow', 'To open the Agents Window, invoke the Open Agents Window command{0}. In screen reader mode, this keybinding includes Alt to avoid conflicts with screen reader shortcuts.', '<keybinding:workbench.action.openAgentsWindow>'));
 			content.push(localize('workbench.action.chat.openAgentHostFolderPicker', 'When starting an agent session in a multi-root workspace, you can choose which root folder it runs in by invoking the Folder command{0}, then selecting a folder from the list.', '<keybinding:workbench.action.chat.openAgentHostFolderPicker>'));
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
-			if (type === 'panelChat' && inputWindowEnabled) {
-				content.push(localize('chat.toggleInputWindow.help', 'To open the floating chat input window, invoke the Toggle Floating Chat Input Window command{0}.', `<keybinding:${CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID}>`));
-			}
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
 		content.push(localize('chat.vscodePet', 'Type /vscode-pet to show or hide the VS Code pet above the input. Drag it horizontally to reposition it, or use Tab to focus it and the left and right arrow keys to move it. Press Enter or Space to show it some love.'));
@@ -191,7 +167,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	return content.join('\n');
 }
 
-export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow'): AccessibleContentProvider | undefined {
+export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView'): AccessibleContentProvider | undefined {
 	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
@@ -209,20 +185,13 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
-	const helpText = getAccessibilityHelpText(
-		type,
-		keybindingService,
-		widget.supportsFileReferences,
-		environmentService.isSessionsWindow,
-		isStickyPromptHeaderShown(widget, configurationService),
-		configurationService.getValue<boolean>(OmniChatEnabledSettingId)
-	);
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService));
 	return new AccessibleContentProvider(
-		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : type === 'chatInputWindow' ? AccessibleViewProviderId.ChatInputWindow : AccessibleViewProviderId.QuickChat,
+		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => {
-			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat' || type === 'chatInputWindow') {
+			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat') {
 				if (cachedPosition) {
 					inputEditor.setPosition(cachedPosition);
 				}

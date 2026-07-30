@@ -14,13 +14,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { AgentsVoiceStorageKeys } from '../../../../contrib/agentsVoice/common/agentsVoice.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
-
-export function getMediaCaptureWindow(targetWindow: Window & typeof globalThis): Window & typeof globalThis {
-	return targetWindow === mainWindow ? targetWindow : mainWindow;
-}
 
 /**
  * Number of samples buffered in the capture worklet before a chunk is posted to
@@ -244,7 +239,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	}
 
 	prepare(window: Window & typeof globalThis): void {
-		this._window = getMediaCaptureWindow(window);
+		this._window = window;
 	}
 
 	async pttDown(turnId: string, passive: boolean = false): Promise<void> {
@@ -362,8 +357,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	}
 
 	async startCapture(window: Window & typeof globalThis): Promise<void> {
-		const captureWindow = getMediaCaptureWindow(window);
-		this._window = captureWindow;
+		this._window = window;
 		if (this._isCapturing) { return; }
 		const deviceId = this.storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
 		const audioConstraints: MediaTrackConstraints = {
@@ -378,7 +372,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 
 		let micStream: MediaStream;
 		try {
-			micStream = await captureWindow.navigator.mediaDevices.getUserMedia({
+			micStream = await window.navigator.mediaDevices.getUserMedia({
 				audio: audioConstraints,
 			});
 		} catch (err) {
@@ -390,7 +384,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 				this.logService.warn(`[mic] Preferred device ${deviceId.slice(0, 8)}… unavailable, falling back to default`);
 				delete audioConstraints.deviceId;
 				try {
-					micStream = await captureWindow.navigator.mediaDevices.getUserMedia({
+					micStream = await window.navigator.mediaDevices.getUserMedia({
 						audio: audioConstraints,
 					});
 				} catch (retryErr) {
@@ -419,7 +413,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		}
 
 		if (!this._micCtx) {
-			this._micCtx = new captureWindow.AudioContext({ sampleRate: 16000 });
+			this._micCtx = new window.AudioContext({ sampleRate: 16000 });
 		}
 		const ctx = this._micCtx;
 		const source = ctx.createMediaStreamSource(micStream);
@@ -429,7 +423,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		source.connect(analyser);
 		this._analyserNode = analyser;
 
-		const { node } = await createPcmCaptureNode(captureWindow, ctx, MIC_CAPTURE_CHUNK_SIZE, samples => {
+		const { node } = await createPcmCaptureNode(window, ctx, MIC_CAPTURE_CHUNK_SIZE, samples => {
 			const nowTs = Date.now();
 			const ptUpTs = this._diagPttUpTs;
 			// A callback is a "drain" callback while we're still in the
