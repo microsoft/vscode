@@ -121,7 +121,7 @@ function createVoiceModeSettingsAction(commandService: ICommandService): IAction
 function createDictationSettingsAction(commandService: ICommandService): IAction {
 	return toAction({
 		id: 'chat.dictation.openSettings',
-		label: localize('dictation.openSettings', "Settings"),
+		label: localize('dictation.openSettings', "Open Settings"),
 		run: () => commandService.executeCommand(OPEN_SETTINGS_COMMAND, { query: DICTATION_SETTINGS_QUERY }),
 	});
 }
