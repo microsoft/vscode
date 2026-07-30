@@ -113,7 +113,7 @@ export function getDictationContextMenuActions(commandService: ICommandService, 
 function createVoiceModeSettingsAction(commandService: ICommandService): IAction {
 	return toAction({
 		id: VOICE_OPEN_SETTINGS_COMMAND,
-		label: localize('voiceMode.openSettings', "Settings"),
+		label: localize('voiceMode.openSettings', "Open Settings"),
 		run: () => commandService.executeCommand(VOICE_OPEN_SETTINGS_COMMAND),
 	});
 }
