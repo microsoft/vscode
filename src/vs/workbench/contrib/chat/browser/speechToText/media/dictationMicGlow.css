@@ -55,6 +55,12 @@
 	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
 }
 
+/* The standalone chat-toolbar dictation button is a disc, so the glow has to be
+	one too — otherwise the light spills past the button's own edge. */
+.chat-execute-toolbar .monaco-action-bar .action-item.dictation-mic-active {
+	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
+}
+
 /* High-contrast themes replace the soft glow with a solid outline, which must
 	stay fully opaque to keep its contrast at low levels. */
 .hc-black .dictation-mic-active::after,
