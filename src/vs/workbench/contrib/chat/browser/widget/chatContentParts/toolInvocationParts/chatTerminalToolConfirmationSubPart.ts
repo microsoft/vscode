@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { append, h } from '../../../../../../../base/browser/dom.js';
+import { append, DisposableResizeObserver, h } from '../../../../../../../base/browser/dom.js';
 import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
@@ -191,6 +191,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
+		const editorResizeObserver = this._register(new DisposableResizeObserver('ChatTerminalToolConfirmationSubPart.editor', entries => {
+			const width = entries[0]?.contentRect.width;
+			if (width) {
+				editor.object.layout(width);
+			}
+		}));
+		this._register(editorResizeObserver.observe(elements.editor));
 		this._register(hoverService.setupDelayedHover(elements.editor, {
 			content: message || '',
 			style: HoverStyle.Pointer,
