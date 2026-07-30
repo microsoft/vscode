@@ -110,10 +110,11 @@ const enum ChatTerminalMirrorMetrics {
 	MirrorRowCount = 10,
 	MirrorColCountFallback = 80,
 	/**
-	 * Horizontal space in the output container that the mirror content cannot use, accounting
-	 * for the horizontal bleed the scrollable element applies (+/- 12px).
+	 * Pre-attach estimate of the horizontal space the mirror content cannot use: the gutter
+	 * every workbench xterm gets via `.monaco-workbench .xterm { padding-left: 20px }`
+	 * (terminal.css). Once attached, the real value is measured from computed styles.
 	 */
-	MirrorHorizontalPaddingPx = 24,
+	MirrorHorizontalPaddingPx = 20,
 	/**
 	 * Maximum number of lines for which we compute the max column width.
 	 * Computing max column width iterates the entire buffer, so we skip it
@@ -461,7 +462,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 		// Wait for any in-flight streaming flush so the resize does not interleave with it
 		await this._flushPromise;
-		if (this._store.isDisposed) {
+		if (this._store.isDisposed || detached.xterm.cols === cols) {
 			return undefined;
 		}
 		// Native resize reflow re-wraps the buffer in place; rewriting the cached VT here
@@ -831,7 +832,9 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			if (!this._lastRenderedText) {
 				return undefined;
 			}
-			const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active);
+			// Same rule as _render: a truncated snapshot's buffer under-represents the real
+			// output, so its explicit lineCount must survive the resize
+			const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, this._output?.truncated ? this._output.lineCount : undefined);
 			this._lastRenderedLineCount = lineCount;
 			if (this._shouldComputeMaxColumnWidth(lineCount)) {
 				this._lastRenderedMaxColumnWidth = this._computeMaxColumnWidth(terminal);

@@ -662,13 +662,13 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			return { fontFamily: 'monospace', fontSize: 12, letterSpacing, lineHeight: 1, charWidth, charHeight: 14 };
 		}
 
-		test('fills the available width minus the container padding', () => {
+		test('fills the available width minus the gutter', () => {
 			deepStrictEqual({
-				exact: computeChatTerminalMirrorCols(1224, makeFont(10), 1),
+				wide: computeChatTerminalMirrorCols(1224, makeFont(10), 1),
 				floored: computeChatTerminalMirrorCols(1200, makeFont(10), 1),
 			}, {
-				exact: 120, // (1224 - 24) / 10
-				floored: 117, // floor((1200 - 24) / 10)
+				wide: 120, // floor((1224 - 20) / 10)
+				floored: 118, // (1200 - 20) / 10
 			});
 		});
 
@@ -711,10 +711,10 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 
 		test('narrow widths wrap to the fitting column count, minimum one column', () => {
 			deepStrictEqual({
-				narrow: computeChatTerminalMirrorCols(100, makeFont(10), 1), // floor((100 - 24) / 10)
-				tiny: computeChatTerminalMirrorCols(30, makeFont(10), 1),
+				narrow: computeChatTerminalMirrorCols(100, makeFont(10), 1), // (100 - 20) / 10
+				tiny: computeChatTerminalMirrorCols(25, makeFont(10), 1),
 			}, {
-				narrow: 7,
+				narrow: 8,
 				tiny: 1,
 			});
 		});
@@ -744,7 +744,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 
 		test('resizes the detached terminal to cols computed from the width', async () => {
 			const mirror = createSnapshotMirror({ text: 'hello' });
-			await mirror.layout(1224); // (1224 - 24) / 10 = 120 cols
+			await mirror.layout(1224); // floor((1224 - 20) / 10) = 120 cols
 			strictEqual(fakes.length, 1);
 			strictEqual(fakes[0].raw.cols, 120);
 		});
@@ -815,6 +815,37 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const mirror = createSnapshotMirror({ text: 'short', truncated: true, lineCount: 42 });
 			const result = await mirror.render();
 			strictEqual(result?.lineCount, 42);
+		});
+
+		test('keeps a truncated snapshot height across layout', async () => {
+			const mirror = createSnapshotMirror({ text: 'x'.repeat(100), truncated: true, lineCount: 42 });
+			const first = await mirror.render();
+			const laidOut = await mirror.layout(1224);
+			const cached = await mirror.render();
+			deepStrictEqual({
+				first: first?.lineCount,
+				laidOut: laidOut?.lineCount,
+				cached: cached?.lineCount,
+			}, {
+				first: 42,
+				laidOut: 42,
+				cached: 42,
+			});
+		});
+
+		test('measures horizontal chrome from the attached element computed padding', async () => {
+			const mirror = createSnapshotMirror({ text: 'hello' });
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			try {
+				fakes[0].raw.open(container);
+				fakes[0].raw.element!.style.paddingLeft = '4px';
+				fakes[0].raw.element!.style.paddingRight = '0px';
+				await mirror.layout(1224);
+				strictEqual(fakes[0].raw.cols, 122); // floor((1224 - 4) / 10)
+			} finally {
+				container.remove();
+			}
 		});
 	});
 
@@ -887,7 +918,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const source = await createXterm();
 			const command = await createWrappedCommand(source);
 			const mirror = createCommandMirror(source, command);
-			await mirror.layout(1224); // (1224 - 24) / 10 = 120 cols
+			await mirror.layout(1224); // floor((1224 - 20) / 10) = 120 cols
 			deepStrictEqual({
 				cols: fakes[0].raw.cols,
 				writeCalls: fakes[0].counters.writeCalls,

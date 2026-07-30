@@ -5,6 +5,7 @@
 
 import { h } from '../../../../../../../base/browser/dom.js';
 import { createPixelSpinner } from '../../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -1700,7 +1701,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		if (this.isExpanded) {
-			this._layoutMirrorWidth();
+			this._layoutMirrorWidth().catch(onUnexpectedError);
 			this._layoutOutput();
 			this._scrollOutputToBottom();
 		} else {
