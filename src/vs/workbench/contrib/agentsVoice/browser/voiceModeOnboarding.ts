@@ -39,7 +39,7 @@ const VOICE_LANGUAGE_SETTING = 'agents.voice.language';
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
-type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
 
 type VoiceModeOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
@@ -957,7 +957,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			status(localize('voiceMode.onboarding.voice.localizedStopped', "{0} preview stopped.", voice.label));
 			return;
 		}
-		this.logAction('selectVoice');
+		this.logAction('previewVoice');
 		this.player.play(voice.id);
 		status(localize('voiceMode.onboarding.voice.localizedPlaying', "Playing {0} preview.", voice.label));
 	}
