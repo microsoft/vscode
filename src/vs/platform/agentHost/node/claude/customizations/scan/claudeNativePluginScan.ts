@@ -72,14 +72,16 @@ async function readEnabledPlugins(uri: URI, fileService: IFileService): Promise<
 async function resolveEnabledPluginIds(workingDirectory: URI | undefined, userHome: URI, fileService: IFileService): Promise<string[]> {
 	const effective = new Map<string, boolean>();
 	const seenFiles = new ResourceSet();
-	for (const uri of claudeSettingsFilesByPrecedence(workingDirectory, userHome)) {
+	const settingsFiles = claudeSettingsFilesByPrecedence(workingDirectory, userHome).filter(uri => {
 		if (seenFiles.has(uri)) {
-			// The same settings file can be reached from two scopes (cwd ===
-			// userHome) — read it once. Mirrors the per-scanner dedupe.
-			continue;
+			return false;
 		}
 		seenFiles.add(uri);
-		for (const [id, enabled] of await readEnabledPlugins(uri, fileService)) {
+		return true;
+	});
+	const settings = await Promise.all(settingsFiles.map(uri => readEnabledPlugins(uri, fileService)));
+	for (const enabledPlugins of settings) {
+		for (const [id, enabled] of enabledPlugins) {
 			effective.set(id, enabled);
 		}
 	}
