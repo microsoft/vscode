@@ -2049,6 +2049,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
 			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
+			onDidChangeModelPickerVisibility: this.viewOptions.onDidChangeModelPickerVisibility,
+			inputPickerPosition: this.viewOptions.inputPickerPosition,
 		};
 
 		if (this.viewModel?.editing) {

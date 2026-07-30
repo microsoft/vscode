@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -34,6 +35,8 @@ const CHAT_INPUT_WINDOW_PICKER_ROW_HEIGHT = 22;
 const CHAT_INPUT_WINDOW_PICKER_MAX_ROWS = 8;
 /** Extra height for the picker's filter input and padding on top of the rows. */
 const CHAT_INPUT_WINDOW_PICKER_CHROME = 60;
+const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
+const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -61,6 +64,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _openOperation: Promise<void> | undefined;
 	/** Window height (outer) captured before growing to fit the routing picker; restored on close. */
 	private _preExpandHeight: number | undefined;
+	private _actionWidgetRestoreHeight: number | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -121,11 +125,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			bounds,
 			alwaysOnTop: true,
 			frameless: true,
-			transparent: false,
+			transparent: true,
 			disableFullscreen: true,
 			nativeTitlebar: false,
 			noBackgroundThrottling: true,
-			backgroundColor: this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e',
+			backgroundColor: '#00000000',
 		});
 
 		this._window = auxiliaryWindow;
@@ -138,6 +142,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			: localize('chatInputWindow.title', "Chat Input");
 
 		auxiliaryWindow.container.style.overflow = 'hidden';
+		auxiliaryWindow.container.style.backgroundColor = 'transparent';
+		auxiliaryWindow.container.style.border = 'none';
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
 
 		this._windowDisposables.clear();
@@ -152,31 +158,36 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const inputBd = theme.getColor(inputBorder)?.toString() ?? 'transparent';
 
 			auxiliaryWindow.container.style.setProperty('--vscode-chat-input-window-background', bgColor);
-			auxiliaryWindow.container.style.backgroundColor = inputBg;
-			auxiliaryWindow.container.style.border = `1px solid ${inputBd}`;
-			auxiliaryWindow.container.style.boxSizing = 'border-box';
-			auxiliaryWindow.window.document.body.style.setProperty('background-color', inputBg, 'important');
+			contentSurface.style.backgroundColor = inputBg;
+			contentSurface.style.border = `1px solid ${inputBd}`;
+			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
 		};
-		applyThemeColors();
-		this._windowDisposables.add(this.themeService.onDidColorThemeChange(() => applyThemeColors()));
 
 		// A frameless window can only be dragged through a `-webkit-app-region:
 		// drag` region, so add a dedicated handle strip above the input. Its
 		// interactive descendants are marked no-drag inside the widget below.
-		const dragHandle = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-drag-handle'));
-		dragHandle.style.setProperty('-webkit-app-region', 'drag');
-		dragHandle.style.height = '6px';
+		const contentSurface = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-content'));
+		contentSurface.style.boxSizing = 'border-box';
+		contentSurface.style.width = '100%';
+		contentSurface.style.height = `${CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT}px`;
+		contentSurface.style.flex = '0 0 auto';
+		contentSurface.style.overflow = 'hidden';
+		contentSurface.style.display = 'flex';
+		contentSurface.style.flexDirection = 'column';
+		const dragHandle = dom.append(contentSurface, dom.$('.chat-input-window-drag-handle'));
+		(dragHandle.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
+		dragHandle.style.height = '12px';
 		dragHandle.style.width = '100%';
 		dragHandle.style.flexShrink = '0';
 		dragHandle.style.cursor = 'grab';
-		auxiliaryWindow.container.style.display = 'flex';
-		auxiliaryWindow.container.style.flexDirection = 'column';
+		applyThemeColors();
+		this._windowDisposables.add(this.themeService.onDidColorThemeChange(() => applyThemeColors()));
 
 		// Host the real chat input (dictation, voice mode, glow) by rendering a
 		// compact ChatWidget. The response list is filtered out so only the input
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
-		this._renderChatWidget(auxiliaryWindow, dragHandle);
+		this._renderChatWidget(auxiliaryWindow, contentSurface, dragHandle);
 
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
@@ -220,12 +231,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}
 	}
 
-	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, dragHandle: HTMLElement): void {
+	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, contentSurface: HTMLElement, dragHandle: HTMLElement): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` — the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
 		// wrapper here.
-		const parent = dom.append(auxiliaryWindow.container, dom.$('.interactive-session'));
+		const parent = dom.append(contentSurface, dom.$('.interactive-session'));
+		(parent.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'no-drag';
 		parent.style.flex = '1 1 auto';
 		parent.style.minHeight = '0';
 		parent.style.width = '100%';
@@ -259,6 +271,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
 				submitHandler: (query, mode, attachedContext) => this._routingController?.handleSubmit(query, mode, attachedContext) ?? Promise.resolve(false),
+				onDidChangeModelPickerVisibility: visible => this._layoutForModelPicker(auxiliaryWindow, visible),
+				inputPickerPosition: AnchorPosition.BELOW,
 			},
 			{
 				inputEditorBackground: inputBackground,
@@ -282,7 +296,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
 			placeBadge: (badge) => {
-				const container = this._window?.container;
+				const container = this._widgetParent?.parentElement;
 				if (container && this._widgetParent) {
 					container.insertBefore(badge, this._widgetParent);
 				}
@@ -297,6 +311,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				}
 				try {
 					if (visible) {
+						auxiliaryWindow.container.style.height = '100%';
 						if (this._preExpandHeight === undefined) {
 							this._preExpandHeight = win.outerHeight;
 						}
@@ -305,8 +320,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 						const screenBottom = win.screen.availHeight;
 						const maxHeight = Math.max(screenBottom - win.screenY, this._preExpandHeight);
 						win.resizeTo(win.outerWidth, Math.min(desired, maxHeight));
+						win.dispatchEvent(new win.Event('resize'));
 					} else if (this._preExpandHeight !== undefined) {
 						win.resizeTo(win.outerWidth, this._preExpandHeight);
+						win.dispatchEvent(new win.Event('resize'));
 						this._preExpandHeight = undefined;
 					}
 				} catch { /* resize may not be supported */ }
@@ -318,25 +335,60 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		layout();
 		this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
 			const windowChromeHeight = auxiliaryWindow.window.outerHeight - auxiliaryWindow.window.innerHeight;
-			const containerBorderHeight = auxiliaryWindow.container.offsetHeight - auxiliaryWindow.container.clientHeight;
-			const contentHeight = dragHandle.offsetHeight + widget.input.height.get() + containerBorderHeight;
+			const containerBorderHeight = contentSurface.offsetHeight - contentSurface.clientHeight;
+			const contentHeight = dragHandle.offsetHeight + (widget.input.inputContainerElement?.offsetHeight ?? CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) + containerBorderHeight;
+			contentSurface.style.height = `${contentHeight}px`;
 			auxiliaryWindow.window.resizeTo(auxiliaryWindow.window.outerWidth, contentHeight + windowChromeHeight);
+			const centeredX = Math.round(mainWindow.screenX + (mainWindow.outerWidth - auxiliaryWindow.window.outerWidth) / 2);
+			const centeredY = Math.round(mainWindow.screenY + (mainWindow.outerHeight - contentHeight) / 2);
+			auxiliaryWindow.window.moveTo(centeredX, centeredY);
 		}));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
+	}
+
+	private async _layoutForModelPicker(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
+		const win = auxiliaryWindow.window;
+		if (visible) {
+			if (this._actionWidgetRestoreHeight !== undefined) {
+				return;
+			}
+
+			this._actionWidgetRestoreHeight = win.outerHeight;
+			const desiredHeight = Math.max(win.outerHeight, CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT);
+			const windowChromeHeight = win.outerHeight - win.innerHeight;
+			win.resizeTo(win.outerWidth, desiredHeight);
+			await this._waitForWindowHeight(auxiliaryWindow, desiredHeight - windowChromeHeight);
+			win.focus();
+		} else if (this._actionWidgetRestoreHeight !== undefined) {
+			const restoreHeight = this._actionWidgetRestoreHeight;
+			this._actionWidgetRestoreHeight = undefined;
+			win.resizeTo(win.outerWidth, restoreHeight);
+			win.dispatchEvent(new win.Event('resize'));
+		}
+	}
+
+	private async _waitForWindowHeight(auxiliaryWindow: IAuxiliaryWindow, minimumInnerHeight: number): Promise<void> {
+		for (let attempt = 0; attempt < 30 && this._window === auxiliaryWindow; attempt++) {
+			if (auxiliaryWindow.window.innerHeight >= minimumInnerHeight) {
+				return;
+			}
+			await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => resolve()));
+		}
 	}
 
 	private _disposeWidget(): void {
 		this._routingController = undefined;
 		this._widgetParent = undefined;
 		this._preExpandHeight = undefined;
+		this._actionWidgetRestoreHeight = undefined;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;
 	}
 
 	private _defaultBounds(): IRectangle {
-		// Center horizontally within the main VS Code window, near the bottom.
+		// Center the omni bar within the main VS Code window.
 		const x = Math.round(mainWindow.screenX + (mainWindow.outerWidth - CHAT_INPUT_WINDOW_DEFAULT_WIDTH) / 2);
-		const y = mainWindow.screenY + mainWindow.outerHeight - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT - 100;
+		const y = Math.round(mainWindow.screenY + (mainWindow.outerHeight - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
 		return {
 			x,
 			y,

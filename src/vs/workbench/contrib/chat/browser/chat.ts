@@ -7,6 +7,7 @@ import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AnchorPosition } from '../../../../base/common/layout.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
@@ -314,6 +315,8 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[]) => Promise<boolean>;
+	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
+	inputPickerPosition?: AnchorPosition;
 
 	/**
 	 * Whether we are running in the sessions window.

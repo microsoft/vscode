@@ -11,6 +11,7 @@ import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionb
 import { IAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
@@ -73,6 +74,8 @@ export interface IModelPickerDelegate {
 	 * writes configuration through the global {@link ILanguageModelsService}.
 	 */
 	readonly modelConfiguration?: IModelConfigurationAccess;
+	onDidChangeVisibility?(visible: boolean): void | Promise<void>;
+	readonly anchorPosition?: AnchorPosition;
 }
 
 /**

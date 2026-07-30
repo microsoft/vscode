@@ -24,6 +24,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -251,6 +252,8 @@ export interface IChatInputPartOptions {
 	 */
 	inputPartHorizontalPadding?: number;
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
+	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
+	inputPickerPosition?: AnchorPosition;
 }
 
 export interface IWorkingSetEntry {
@@ -1170,6 +1173,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
+			onDidChangeVisibility: this.options.onDidChangeModelPickerVisibility,
+			anchorPosition: this.options.inputPickerPosition,
 		};
 	}
 
@@ -3156,6 +3161,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
+			listOptions: this.options.inputPickerPosition === undefined ? undefined : { anchorPosition: this.options.inputPickerPosition },
 		};
 		const primarySessionPickerOptions: IChatInputPickerOptions = {
 			...pickerOptions,
