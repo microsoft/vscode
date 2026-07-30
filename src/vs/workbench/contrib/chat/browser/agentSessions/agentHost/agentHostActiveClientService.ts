@@ -24,9 +24,9 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
+import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, shouldSyncWorkspaceDotMcp } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
+import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 
@@ -114,13 +114,13 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 		const customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
 		// Gate for seeding folder-root `.mcp.json` servers from every workspace
-		// folder (not just the session's primary): local Copilot Agent Host
-		// harness, a multi-root workspace, and the multi-root setting enabled.
-		// Evaluated fresh on each sync so folder/setting changes are reflected.
-		const shouldIncludeWorkspaceDotMcp = () =>
-			sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
-			&& this._workspaceContextService.getWorkspace().folders.length > 1
-			&& this._configurationService.getValue(AgentHostCopilotMultiRootEnabledSettingId) === true;
+		// folder (not just the session's primary). Evaluated fresh on each sync
+		// so folder/setting changes are reflected. See `shouldSyncWorkspaceDotMcp`.
+		const shouldIncludeWorkspaceDotMcp = () => shouldSyncWorkspaceDotMcp(
+			sessionType,
+			this._workspaceContextService.getWorkspace().folders.length,
+			this._configurationService.getValue(AgentHostCopilotMultiRootEnabledSettingId) === true,
+		);
 		let updateSeq = 0;
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;

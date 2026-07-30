@@ -22,6 +22,7 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 
@@ -192,6 +193,23 @@ async function resolveConfigurationForSync(
 }
 
 /**
+ * Whether folder-root `.mcp.json` servers from *every* workspace folder should
+ * be seeded into a session's synced customizations, rather than only the
+ * primary (working-directory) folder's — which the SDK already auto-discovers.
+ *
+ * True only for the local Copilot Agent Host harness, in a multi-root workspace,
+ * with the multi-root setting enabled. Kept as a pure function so the gate can
+ * be unit-tested independently of {@link AgentHostActiveClientService}'s wiring
+ * (a regression here would otherwise leave the feature tests — which call the
+ * collector with the flag hardcoded — green).
+ */
+export function shouldSyncWorkspaceDotMcp(sessionType: string, workspaceFolderCount: number, multiRootSettingEnabled: boolean): boolean {
+	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+		&& workspaceFolderCount > 1
+		&& multiRootSettingEnabled;
+}
+
+/**
  * Enumerates MCP servers configured directly in VS Code — i.e. those that
  * are not contributed by an agent plugin — so they can be bundled into the
  * synthetic synced plugin. Plugin-sourced servers are excluded because they
@@ -243,6 +261,10 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 				configuration = resolved;
 			} else if (includeWorkspaceDotMcp && McpCollectionDefinition.isWorkspaceDotMcpJson(collection)) {
 				// Folder-root `.mcp.json`: pass as-is (no variables to resolve; cwd is absolute).
+				// Intentional tradeoff: servers are keyed by name in the flat synced bundle
+				// (`SyncedCustomizationBundler`), so two folders defining the same server name
+				// collide and the last one wins. Accepted — matches the existing behavior for
+				// same-named `.vscode/mcp.json` servers across folders.
 			} else {
 				// `.cursor/mcp.json`, the `.code-workspace` workspace-level config,
 				// or the gate is off — leave discovery to the agent host.
