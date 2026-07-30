@@ -61,7 +61,7 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 	readonly enabled: IObservable<boolean>;
 
 	constructor(
-		private readonly _isWebRuntime: boolean,
+		private readonly _isAgentHostRuntimeAvailable: boolean,
 		configurationService: IConfigurationService,
 		contextKeyService: IContextKeyService,
 	) {
@@ -82,7 +82,7 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 	}
 
 	private _readEnabled(configurationService: IConfigurationService): boolean {
-		return !this._isWebRuntime
+		return this._isAgentHostRuntimeAvailable
 			&& (configurationService.getValue<boolean>(agentHostEnabledSettingId) ?? false)
 			&& configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true;
 	}
@@ -103,7 +103,7 @@ class BrowserAgentHostEnablementService extends AgentHostEnablementService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(isWeb, configurationService, contextKeyService);
+		super(!isWeb, configurationService, contextKeyService);
 	}
 }
 

@@ -12,22 +12,26 @@ import { ToolRiskLevel } from '../../../../../browser/tools/chatToolRiskAssessme
 suite('ToolRiskBadgeWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders red risk with error codicon', () => {
+	test('renders compact risk codicons', () => {
 		const widget = store.add(new ToolRiskBadgeWidget(NullHoverService));
-		widget.setAssessment({
-			risk: ToolRiskLevel.Red,
-			explanation: 'High risk',
-		});
-
 		const icon = widget.domNode.querySelector('.tool-risk-icon');
+		const classNames = [icon?.className];
+		for (const risk of [ToolRiskLevel.Green, ToolRiskLevel.Orange, ToolRiskLevel.Red]) {
+			widget.setAssessment({ risk, explanation: 'Risk assessment' });
+			classNames.push(icon?.className);
+		}
+
 		assert.deepStrictEqual({
 			ariaHidden: icon?.getAttribute('aria-hidden'),
-			className: icon?.className,
-			textContent: icon?.textContent,
+			classNames,
 		}, {
 			ariaHidden: 'true',
-			className: 'tool-risk-icon codicon codicon-error',
-			textContent: '',
+			classNames: [
+				'tool-risk-icon codicon codicon-loading-compact codicon-modifier-spin',
+				'tool-risk-icon codicon codicon-pass-compact',
+				'tool-risk-icon codicon codicon-warning-compact',
+				'tool-risk-icon codicon codicon-error-compact',
+			],
 		});
 	});
 });
