@@ -1,0 +1,174 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The floating chat input window is a single surface that sits above every
+ * other app, so it is styled as one object rather than as a miniature
+ * workbench: rounded at the surface tier, opaque, and only as tall as what it
+ * is holding. Everything here is scoped to `.chat-input-window` so the same
+ * chat input keeps its normal appearance everywhere else.
+ */
+
+.chat-input-window {
+	/* The most prominent surface in the product: it floats above every window. */
+	border-radius: var(--vscode-cornerRadius-xLarge, 12px);
+	overflow: hidden;
+}
+
+/*
+ * The window itself is transparent so the rounded corners read against
+ * whatever is behind it; the surface underneath supplies the opaque fill.
+ */
+.chat-input-window-body {
+	background: transparent !important;
+	overflow: hidden;
+}
+
+/* One row: what you are talking about, then what you are saying. */
+.chat-input-window .chat-input-window-row {
+	display: flex;
+	align-items: center;
+	flex: 1 1 auto;
+	min-height: 0;
+	padding-right: 10px;
+}
+
+/*
+ * A frameless window can only be moved by a drag region, so the row opens with
+ * one. It stays blank and narrow: the bar spends its width on what you are
+ * saying, not on a picture of a handle.
+ */
+.chat-input-window .chat-input-window-lead {
+	flex: 0 0 auto;
+	width: 14px;
+	align-self: stretch;
+	cursor: grab;
+}
+
+.chat-input-window .chat-input-window-lead:active {
+	cursor: grabbing;
+}
+
+/* Trailing chrome: the way out of the bar. */
+.chat-input-window .chat-input-window-trail {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	padding-left: 6px;
+}
+
+.chat-input-window .chat-input-window-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	color: var(--vscode-icon-foreground);
+	opacity: .7;
+	cursor: pointer;
+	/* Frameless-window drag regions swallow clicks; keep the control live. */
+	-webkit-app-region: no-drag;
+}
+
+.chat-input-window .chat-input-window-close:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-window .chat-input-window-close:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	opacity: 1;
+}
+
+.chat-input-window .chat-input-window-close .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+/* The chat input's own side toolbar is replaced by the bar's trailing chrome. */
+.chat-input-window .chat-side-toolbar {
+	display: none;
+}
+
+/*
+ * Model selection and attachments belong to the surface you read responses in.
+ * This bar is for saying the thing and getting out of the way, so they are
+ * dropped rather than shrunk — fewer controls competing with the sentence.
+ */
+.chat-input-window .chat-input-toolbars .chat-input-picker-item,
+.chat-input-window .chat-input-toolbars .action-item > .codicon-add {
+	display: none;
+}
+
+/* The input carries no chrome of its own; the window is the surface. */
+.chat-input-window .chat-input-container {
+	border: none !important;
+	background: transparent !important;
+}
+
+/*
+ * The chat input sizes itself for a panel that owns its full column, so left
+ * alone it overflows the row and pushes the close control off the right edge.
+ * Pin every box between the row and the editor to the width it is given.
+ */
+.chat-input-window .chat-input-window-row > .interactive-session,
+.chat-input-window .interactive-session,
+.chat-input-window .interactive-input-part,
+.chat-input-window .interactive-input-and-edit-session,
+.chat-input-window .interactive-input-and-side-toolbar,
+.chat-input-window .chat-input-container,
+.chat-input-window .chat-editor-container {
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.chat-input-window .interactive-input-part,
+.chat-input-window .interactive-input-and-edit-session,
+.chat-input-window .interactive-input-and-side-toolbar {
+	width: 100%;
+}
+
+/* The editor takes what the controls leave, rather than a fixed share. */
+.chat-input-window .chat-input-container {
+	width: 100%;
+}
+
+.chat-input-window .chat-editor-container {
+	flex: 1 1 auto;
+}
+
+/*
+ * The submit affordance never leaves, so the way to send never moves. It rests
+ * dim, and arms — full strength, heavier glyph — the moment there is something
+ * of yours to send.
+ */
+.chat-input-window .chat-submit-button > .action-label.codicon {
+	opacity: .4;
+	transition: opacity 120ms ease, transform 120ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.chat-input-window .chat-submit-button:not(.disabled) > .action-label.codicon {
+	opacity: 1;
+	font-weight: 700;
+	transform: scale(1.08);
+}
+
+/*
+ * While either party is speaking there is no turn for you to submit, so the
+ * arrow recedes instead of inviting a press it would not honour.
+ */
+.chat-input-window[data-voice='active'] .chat-submit-button > .action-label.codicon {
+	opacity: .25;
+	font-weight: inherit;
+	transform: none;
+}
+
+/* The routing badge sits above the input, separated by a hairline. */
+.chat-input-window .chat-routing-badge {
+	background-color: transparent;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, .25));
+}
