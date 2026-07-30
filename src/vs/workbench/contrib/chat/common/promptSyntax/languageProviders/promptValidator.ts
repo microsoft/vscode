@@ -998,7 +998,7 @@ export class PromptValidator {
 		}
 	}
 
-	private async validateSkillsAttribute(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): Promise<undefined> {
+	private async validateSkillsAttribute(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): Promise<void> {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
 		if (!attribute) {
 			return;
@@ -1012,14 +1012,27 @@ export class PromptValidator {
 			return;
 		}
 
-		const skills = await this.promptsService.findAgentSkills(CancellationToken.None) ?? [];
-		const availableSkillNames = new Set<string>(skills.map(skill => skill.name));
-
+		const namesToValidate: { value: string; range: Range }[] = [];
 		for (const item of value.items) {
 			if (item.type !== 'scalar') {
 				report(toMarker(localize('promptValidator.eachSkillMustBeString', "Each skill name in the 'skills' attribute must be a string."), item.range, MarkerSeverity.Error));
-			} else if (item.value && item.value !== '*' && !availableSkillNames.has(item.value)) {
-				report(toMarker(localize('promptValidator.skillInSkillsNotFound', "Unknown skill '{0}'. Available skills: {1}.", item.value, Array.from(availableSkillNames).sort().join(', ') || localize('promptValidator.noSkillsAvailable', 'none')), item.range, MarkerSeverity.Warning));
+			} else if (item.value && item.value !== '*') {
+				namesToValidate.push({ value: item.value, range: item.range });
+			}
+		}
+
+		// Empty list / only '*' need no lookup against known skills.
+		if (namesToValidate.length === 0) {
+			return;
+		}
+
+		const skills = await this.promptsService.findAgentSkills(CancellationToken.None) ?? [];
+		const availableSkillNames = new Set<string>(skills.map(skill => skill.name));
+		const availableSkillsDisplay = Array.from(availableSkillNames).sort().join(', ') || localize('promptValidator.noSkillsAvailable', 'none');
+
+		for (const item of namesToValidate) {
+			if (!availableSkillNames.has(item.value)) {
+				report(toMarker(localize('promptValidator.skillInSkillsNotFound', "Unknown skill '{0}'. Available skills: {1}.", item.value, availableSkillsDisplay), item.range, MarkerSeverity.Warning));
 			}
 		}
 	}

@@ -316,6 +316,8 @@ export class PromptHeader {
 	 * Skills available to this agent (`skills:` frontmatter).
 	 * Supports a YAML sequence or a comma-separated scalar, matching `tools:`.
 	 * `undefined` means all skills; `[]` means none; `['*']` means all.
+	 * When the attribute is present but not a valid string list (e.g. a YAML map),
+	 * returns `[]` (deny-all) rather than `undefined`, so malformed values fail closed.
 	 */
 	public get skills(): string[] | undefined {
 		const skillsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
@@ -335,7 +337,8 @@ export class PromptHeader {
 			}
 			return skills;
 		}
-		return undefined;
+		// Attribute present but not a list — fail closed for whitelist semantics.
+		return [];
 	}
 
 	public get userInvocable(): boolean | undefined {

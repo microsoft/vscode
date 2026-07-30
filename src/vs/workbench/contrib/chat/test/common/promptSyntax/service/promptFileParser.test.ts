@@ -575,6 +575,21 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.skills, undefined);
 	});
 
+	test('agent with invalid skills type fails closed to empty list', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with invalid skills"`,
+			'skills:',
+			'  foo: bar',
+			'---',
+			'Malformed skills should deny all.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.skills, []);
+	});
+
 	suite('parseCommaSeparatedList', () => {
 
 		function assertCommaSeparatedList(input: string, expected: IScalarValue[]): void {

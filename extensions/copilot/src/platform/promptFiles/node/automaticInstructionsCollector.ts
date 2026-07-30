@@ -441,29 +441,31 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			// ── <skills> section (lives inside the readTool branch) ───────
 			const allSkills = await this._promptsService.getSkills(token);
 			const isFileLoggingEnabled = this._configurationService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.ChatDebugFileLogging, this._experimentationService) === true;
-			const modelInvocableSkills = allSkills.filter(skill => {
-				if (!skill.description) {
-					return false;
-				}
-				if (skill.disableModelInvocation) {
-					return false;
-				}
-				if (!matchesSessionType(skill.sessionTypes, sessionType)) {
-					return false;
-				}
-				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
-					return false;
-				}
-				if (enabledSkills !== undefined) {
-					if (enabledSkills.length === 0) {
+			const denyAllSkills = enabledSkills !== undefined && enabledSkills.length === 0;
+			const allowAllSkills = enabledSkills === undefined || enabledSkills.includes('*');
+			const allowedSkillNames = (!denyAllSkills && !allowAllSkills && enabledSkills)
+				? new Set(enabledSkills)
+				: undefined;
+			const modelInvocableSkills = denyAllSkills
+				? []
+				: allSkills.filter(skill => {
+					if (!skill.description) {
 						return false;
 					}
-					if (!enabledSkills.includes('*') && !enabledSkills.includes(skill.name)) {
+					if (skill.disableModelInvocation) {
 						return false;
 					}
-				}
-				return true;
-			});
+					if (!matchesSessionType(skill.sessionTypes, sessionType)) {
+						return false;
+					}
+					if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
+						return false;
+					}
+					if (allowedSkillNames && !allowedSkillNames.has(skill.name)) {
+						return false;
+					}
+					return true;
+				});
 			if (modelInvocableSkills.length > 0) {
 				this._logSkillLoadedTelemetry(modelInvocableSkills);
 

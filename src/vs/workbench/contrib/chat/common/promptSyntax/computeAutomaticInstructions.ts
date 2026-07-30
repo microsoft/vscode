@@ -408,35 +408,36 @@ export class ComputeAutomaticInstructions {
 			// Also filter out the troubleshoot skill when  agent debug log file logging setting is disabled
 			// Also apply the agent-level skills whitelist when set (omit = all, [] = none, ['*'] = all)
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
-			const modelInvocableSkills = agentSkills?.filter(skill => {
-				if (!skill.description) {
-					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNoDescription', 'no description for model invocation') });
-					return false;
-				}
-				if (skill.disableModelInvocation) {
-					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotModelInvocable', 'model invocation disabled') });
-					return false;
-				}
-				if (!matchesSessionType(skill.sessionTypes, currentSessionType)) {
-					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillSessionType', 'session type not matched') });
-					return false;
-				}
-				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
-					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillDebugDisabled', 'debug logging disabled') });
-					return false;
-				}
-				if (this._enabledSkills !== undefined) {
-					if (this._enabledSkills.length === 0) {
+			const denyAllSkills = this._enabledSkills !== undefined && this._enabledSkills.length === 0;
+			const allowAllSkills = this._enabledSkills === undefined || this._enabledSkills.includes('*');
+			const allowedSkillNames = (!denyAllSkills && !allowAllSkills && this._enabledSkills)
+				? new Set(this._enabledSkills)
+				: undefined;
+			const modelInvocableSkills = denyAllSkills
+				? []
+				: agentSkills?.filter(skill => {
+					if (!skill.description) {
+						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNoDescription', 'no description for model invocation') });
+						return false;
+					}
+					if (skill.disableModelInvocation) {
+						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotModelInvocable', 'model invocation disabled') });
+						return false;
+					}
+					if (!matchesSessionType(skill.sessionTypes, currentSessionType)) {
+						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillSessionType', 'session type not matched') });
+						return false;
+					}
+					if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
+						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillDebugDisabled', 'debug logging disabled') });
+						return false;
+					}
+					if (allowedSkillNames && !allowedSkillNames.has(skill.name)) {
 						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotInAgentWhitelist', 'not in agent skills whitelist') });
 						return false;
 					}
-					if (!this._enabledSkills.includes('*') && !this._enabledSkills.includes(skill.name)) {
-						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotInAgentWhitelist', 'not in agent skills whitelist') });
-						return false;
-					}
-				}
-				return true;
-			});
+					return true;
+				});
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
 				// Log per-skill telemetry for each skill loaded into context
 				this._logSkillLoadedTelemetry(modelInvocableSkills);

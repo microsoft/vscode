@@ -1435,8 +1435,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, // Enable readFile tool
-				undefined, undefined, localSessionType);
+			// Enable readFile tool
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
@@ -1585,8 +1585,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { [TerminalToolId.RunInTerminal]: true }, // Enable runInTerminal tool only
-				undefined, undefined, localSessionType);
+			// Enable runInTerminal tool only
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { [TerminalToolId.RunInTerminal]: true }, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
@@ -1670,10 +1670,11 @@ suite('ComputeAutomaticInstructions', () => {
 				}
 			]);
 
+			// Enable runSubagent tool; enable all subagents
 			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions,
 				ChatModeKind.Agent,
-				{ 'vscode_runSubagent': true }, // Enable runSubagent tool,
-				['*'], // Enable all subagents,
+				{ 'vscode_runSubagent': true },
+				['*'],
 				undefined,
 				localSessionType
 			);
@@ -1733,8 +1734,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, // Enable readFile tool
-				undefined, undefined, localSessionType);
+			// Enable readFile tool
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
@@ -1832,8 +1833,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { [TerminalToolId.RunInTerminal]: true }, // Enable runInTerminal tool only
-				undefined, undefined, localSessionType);
+			// Enable runInTerminal tool only
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { [TerminalToolId.RunInTerminal]: true }, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
@@ -1876,8 +1877,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, // No tools available
-				undefined, undefined, localSessionType);
+			// No tools available
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
@@ -1908,8 +1909,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, // Enable readFile tool
-				undefined, undefined, localSessionType);
+			// Enable readFile tool
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
@@ -1957,8 +1958,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, // Enable readFile tool
-				undefined, undefined, localSessionType);
+			// Enable readFile tool
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
@@ -2023,8 +2024,8 @@ suite('ComputeAutomaticInstructions', () => {
 				},
 			]);
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, // Enable readFile tool
-				undefined, undefined, localSessionType);
+			// Enable readFile tool
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, { 'vscode_readFile': true }, undefined, undefined, localSessionType);
 			const variables = new ChatRequestVariableSet();
 
 			await contextComputer.collect(variables, CancellationToken.None);
