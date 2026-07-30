@@ -206,6 +206,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						content: instructions.content,
 						toolReferences: this.languageModelToolsService.toToolReferences(instructions.toolReferences),
 						allowedSubagents: undefined,
+						allowedSkills: subagent.skills,
 						metadata: instructions.metadata,
 						isBuiltin: isBuiltinAgent(subagent.source, subagent.uri, this.productService),
 					};
@@ -302,7 +303,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const variableSet = new ChatRequestVariableSet();
 			// When the extension is responsible for instruction collection, skip the core path entirely.
 			if (this.configurationService.getValue<boolean>(ChatConfiguration.CollectInstructionsInExtension) !== true) {
-				const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, undefined, getChatSessionType(invocation.context.sessionResource));
+				const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, modeInstructions?.allowedSkills, getChatSessionType(invocation.context.sessionResource));
 				await computer.collect(variableSet, token);
 			}
 

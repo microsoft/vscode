@@ -925,12 +925,17 @@ suite('RunSubagentTool', () => {
 			allowInvocationsFromSubagents: boolean;
 			capturedRequests: IChatAgentRequest[];
 			currentModeInstructions?: IChatRequestModeInstructions;
+			customAgents?: ICustomAgent[];
+			capturedComputeArgs?: unknown[][];
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService({
 				[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
 			});
 			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
 
 			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
 				getDefaultAgent() {
@@ -961,7 +966,8 @@ suite('RunSubagentTool', () => {
 			};
 
 			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
-				createInstance(..._args: never[]): { collect: () => Promise<void> } {
+				createInstance(...args: never[]): { collect: () => Promise<void> } {
+					opts.capturedComputeArgs?.push([...args]);
 					return { collect: async () => { } };
 				},
 			};
@@ -981,11 +987,11 @@ suite('RunSubagentTool', () => {
 			return { tool, mockChatAgentService };
 		}
 
-		function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools): IToolInvocation {
+		function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools, agentName?: string): IToolInvocation {
 			return {
 				callId: `call-${++callIdCounter}`,
 				toolId: 'runSubagent',
-				parameters: { prompt: 'do something', description: 'test' },
+				parameters: { prompt: 'do something', description: 'test', agentName },
 				context: { sessionResource: sessionUri },
 				userSelectedTools: userSelectedTools ?? { runSubagent: true },
 			} as IToolInvocation;
@@ -1074,6 +1080,63 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests.length, 1);
 			assert.strictEqual(capturedRequests[0].subAgentName, 'CurrentAgent');
 			assert.deepStrictEqual(capturedRequests[0].modeInstructions, currentModeInstructions);
+		});
+
+		test('threads named subagent skills into modeInstructions and ComputeAutomaticInstructions', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const capturedComputeArgs: unknown[][] = [];
+			const customAgent: ICustomAgent = {
+				id: 'file:///test/restricted-agent.md',
+				uri: URI.parse('file:///test/restricted-agent.md'),
+				name: 'RestrictedAgent',
+				description: 'A test agent with restricted skills',
+				agentInstructions: { content: 'Restricted agent body', toolReferences: [] },
+				skills: [],
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true,
+			};
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: false,
+				capturedRequests,
+				customAgents: [customAgent],
+				capturedComputeArgs,
+			});
+			const sessionUri = URI.parse('test://session/skills-filter');
+
+			await tool.invoke(createInvocation(sessionUri, undefined, 'RestrictedAgent'), countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.deepStrictEqual(capturedRequests[0].modeInstructions?.allowedSkills, []);
+			assert.strictEqual(capturedComputeArgs.length, 1);
+			// ComputeAutomaticInstructions(modeKind, enabledTools, enabledSubagents, enabledSkills, sessionType, ...)
+			assert.deepStrictEqual(capturedComputeArgs[0][3], []);
+		});
+
+		test('threads current mode allowedSkills into ComputeAutomaticInstructions when agentName is omitted', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const capturedComputeArgs: unknown[][] = [];
+			const currentModeInstructions: IChatRequestModeInstructions = {
+				name: 'CurrentAgent',
+				content: 'Current agent instructions',
+				toolReferences: [],
+				allowedSkills: ['security-review'],
+			};
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: false,
+				capturedRequests,
+				currentModeInstructions,
+				capturedComputeArgs,
+			});
+			const sessionUri = URI.parse('test://session/current-skills');
+
+			await tool.invoke(createInvocation(sessionUri), countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.deepStrictEqual(capturedRequests[0].modeInstructions?.allowedSkills, ['security-review']);
+			assert.strictEqual(capturedComputeArgs.length, 1);
+			assert.deepStrictEqual(capturedComputeArgs[0][3], ['security-review']);
 		});
 	});
 
