@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { randomUUID } from 'crypto';
-import { promises as fs } from 'fs';
+import { createHash, randomUUID } from 'crypto';
+import { createReadStream, promises as fs } from 'fs';
 import { basename, dirname, join } from '../../../base/common/path.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { extract } from '../../../base/node/zip.js';
@@ -109,7 +109,7 @@ async function materializeOciModel(indexPath: string, workDirectory: string, can
 		throw new Error('The selected dictation model package has no OCI manifest.');
 	}
 	for (const descriptor of index.manifests) {
-		const manifest = JSON.parse((await fs.readFile(resolveOciBlob(ociRoot, descriptor.digest))).toString('utf8')) as IOciManifest;
+		const manifest = JSON.parse((await readVerifiedOciBlob(ociRoot, descriptor.digest)).toString('utf8')) as IOciManifest;
 		const titledLayers = manifest.layers?.filter(layer => layer.annotations?.[OCI_TITLE_ANNOTATION]);
 		if (!titledLayers?.length) {
 			continue;
@@ -140,15 +140,17 @@ async function materializeOciModel(indexPath: string, workDirectory: string, can
 			const target = join(materializedRoot, `v${version}`, ...pathSegments);
 			await fs.mkdir(dirname(target), { recursive: true });
 			const blob = resolveOciBlob(ociRoot, layer.digest);
+			await verifyOciBlob(blob);
 			if (canMove) {
-				await fs.rename(blob, target);
+				await fs.rename(blob.path, target);
 			} else {
-				await fs.copyFile(blob, target);
+				await fs.copyFile(blob.path, target);
 			}
 		}
 
 		if (version !== undefined) {
 			const versionDirectory = join(materializedRoot, `v${version}`);
+			await assertMaterializedIdentity(versionDirectory, version);
 			await writeInferenceModel(versionDirectory, version);
 			return { version, versionDirectory, canMove: true };
 		}
@@ -157,23 +159,80 @@ async function materializeOciModel(indexPath: string, workDirectory: string, can
 	throw new Error('The selected package does not contain a dictation model OCI payload.');
 }
 
-function resolveOciBlob(ociRoot: string, digest: string): string {
+function resolveOciBlob(ociRoot: string, digest: string): { readonly path: string; readonly hash: string } {
 	const match = /^sha256:(?<hash>[a-fA-F0-9]{64})$/.exec(digest);
 	if (!match?.groups?.hash) {
 		throw new Error(`Unsupported OCI digest: ${digest}`);
 	}
-	return join(ociRoot, 'blobs', 'sha256', match.groups.hash.toLowerCase());
+	const hash = match.groups.hash.toLowerCase();
+	return { path: join(ociRoot, 'blobs', 'sha256', hash), hash };
+}
+
+/** Read a (small) OCI blob into memory and verify it against its content digest. */
+async function readVerifiedOciBlob(ociRoot: string, digest: string): Promise<Buffer> {
+	const blob = resolveOciBlob(ociRoot, digest);
+	const contents = await fs.readFile(blob.path);
+	if (createHash('sha256').update(contents).digest('hex') !== blob.hash) {
+		throw new Error('The selected model package is corrupt (checksum mismatch).');
+	}
+	return contents;
+}
+
+/** Verify a blob against its content digest by streaming it (no full buffering). */
+async function verifyOciBlob(blob: { readonly path: string; readonly hash: string }): Promise<void> {
+	const hash = createHash('sha256');
+	for await (const chunk of createReadStream(blob.path)) {
+		hash.update(chunk as Buffer);
+	}
+	if (hash.digest('hex') !== blob.hash) {
+		throw new Error('The selected model package is corrupt (checksum mismatch).');
+	}
+}
+
+/**
+ * Interpret a Foundry Local `inference_model.json` `Name`. Returns the model
+ * version when the name identifies the supported nemotron CPU model, throws when
+ * it names a *different* model, and returns `undefined` when there is no name to
+ * check (a truly unlabeled package we accept on trust).
+ */
+function modelVersionFromName(name: string | undefined): number | undefined {
+	if (!name) {
+		return undefined;
+	}
+	const match = new RegExp(`^${MODEL_VARIANT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:(?<version>[1-9]\\d*)$`).exec(name);
+	if (!match?.groups?.version) {
+		throw new Error(`The selected package is not the ${DEFAULT_LOCAL_TRANSCRIPTION_MODEL} CPU model.`);
+	}
+	return Number(match.groups.version);
+}
+
+/**
+ * Guard the OCI path against mislabeling: if the materialized payload already
+ * carries an `inference_model.json`, it must identify the supported model at
+ * this version before we (re)write our own scanner metadata over it. A payload
+ * with no embedded identity is accepted on trust.
+ */
+async function assertMaterializedIdentity(versionDirectory: string, version: number): Promise<void> {
+	let metadata: { Name?: string };
+	try {
+		metadata = JSON.parse(await fs.readFile(join(versionDirectory, INFERENCE_MODEL_FILE), 'utf8'));
+	} catch {
+		return;
+	}
+	const named = modelVersionFromName(metadata.Name);
+	if (named !== undefined && named !== version) {
+		throw new Error('The selected package identifies a different model version than its files.');
+	}
 }
 
 async function findPreparedModel(root: string, canMove: boolean): Promise<IPreparedModel> {
 	const inferenceModel = (await findNamedFiles(root, INFERENCE_MODEL_FILE))[0];
 	if (inferenceModel) {
 		const metadata = JSON.parse(await fs.readFile(inferenceModel, 'utf8')) as { Name?: string };
-		const match = new RegExp(`^${MODEL_VARIANT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:(?<version>[1-9]\\d*)$`).exec(metadata.Name ?? '');
-		if (!match?.groups?.version) {
+		const version = modelVersionFromName(metadata.Name);
+		if (version === undefined) {
 			throw new Error(`The selected folder is not the ${DEFAULT_LOCAL_TRANSCRIPTION_MODEL} CPU model.`);
 		}
-		const version = Number(match.groups.version);
 		const versionDirectory = dirname(inferenceModel);
 		if (basename(versionDirectory) !== `v${version}`) {
 			throw new Error(`The model files must be stored in a v${version} folder.`);
@@ -226,10 +285,11 @@ async function installPreparedModel(model: IPreparedModel, cacheDir: string): Pr
 		await writeInferenceModel(stagedVersion, model.version);
 		await replaceDirectory(staged, target, backup);
 	} finally {
-		await Promise.all([
-			fs.rm(staged, { recursive: true, force: true }),
-			fs.rm(backup, { recursive: true, force: true }),
-		]);
+		// Only the staging area is always safe to remove. The backup is owned by
+		// `replaceDirectory`: it is deleted there once the swap succeeds and is
+		// otherwise the sole surviving copy of a previously working model, so it
+		// must never be force-removed here (a failed rollback would lose it).
+		await fs.rm(staged, { recursive: true, force: true });
 	}
 }
 

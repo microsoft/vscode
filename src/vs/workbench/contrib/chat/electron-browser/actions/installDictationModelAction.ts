@@ -11,7 +11,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { ILocalTranscriptionService } from '../../../../../platform/localTranscription/common/localTranscription.js';
+import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL, ILocalTranscriptionService } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
@@ -50,7 +50,7 @@ export function registerInstallDictationModelAction(): void {
 			}
 
 			const sources = await fileDialogService.showOpenDialog({
-				title: localize('chat.installDictationModel.dialogTitle', "Select a Dictation Model Package or Folder"),
+				title: localize('chat.installDictationModel.dialogTitle', "Select the {0} CPU model package (.zip) or folder", DEFAULT_LOCAL_TRANSCRIPTION_MODEL),
 				openLabel: localize('chat.installDictationModel.openLabel', "Install"),
 				canSelectFiles: true,
 				canSelectFolders: true,

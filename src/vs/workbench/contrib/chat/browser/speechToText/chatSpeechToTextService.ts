@@ -23,7 +23,7 @@ import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
+import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL, ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceClientService, IVoiceSessionContext, IVoiceTranscription, IVoiceTurnConfig } from '../../common/voiceClient/voiceClientService.js';
@@ -1305,16 +1305,20 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * offline install flow. Other failures show a plain error.
 	 */
 	private _failModelSession(status: ILocalTranscriptionModelStatus): void {
-		const message = localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? '');
 		const canImport = this._localTranscription.isSupported
 			&& (status.errorCode === 'network' || status.errorCode === 'notFound');
-		const importAction = canImport
-			? toAction({
-				id: INSTALL_DICTATION_MODEL_COMMAND_ID,
-				label: localize('chatStt.installFromPackage', "Install from Local Package..."),
-				run: () => this._commandService.executeCommand(INSTALL_DICTATION_MODEL_COMMAND_ID),
-			})
-			: undefined;
+		if (!canImport) {
+			this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
+			return;
+		}
+		// Name the specific model so users know exactly which package to obtain
+		// on a machine that can reach the download, then sideload via the command.
+		const message = localize('chatStt.modelErrorOffline', "Could not download the {0} speech-to-text model, which can happen on networks that block the model registry. You can install it from a downloaded package instead.", DEFAULT_LOCAL_TRANSCRIPTION_MODEL);
+		const importAction = toAction({
+			id: INSTALL_DICTATION_MODEL_COMMAND_ID,
+			label: localize('chatStt.installFromPackage', "Install from Local Package..."),
+			run: () => this._commandService.executeCommand(INSTALL_DICTATION_MODEL_COMMAND_ID),
+		});
 		this._failSession('model', message, importAction);
 	}
 

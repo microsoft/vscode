@@ -121,6 +121,61 @@ suite('FoundryLocalModelImport', () => {
 		assert.strictEqual(fs.existsSync(join(cacheDirectory, 'Microsoft')), false);
 	});
 
+	test('rejects an OCI package whose embedded metadata names a different model', async () => {
+		const source = join(testDirectory, 'oci-wrong-model');
+		const configContents = '{}';
+		const inferenceContents = JSON.stringify({ Name: 'some-other-model-generic-cpu:3' });
+		const configDigest = digest(configContents);
+		const inferenceDigest = digest(inferenceContents);
+		const manifestContents = JSON.stringify({
+			layers: [
+				{ digest: configDigest, annotations: { 'org.opencontainers.image.title': 'v3/genai_config.json' } },
+				{ digest: inferenceDigest, annotations: { 'org.opencontainers.image.title': 'v3/inference_model.json' } },
+			],
+		});
+		const manifestDigest = digest(manifestContents);
+		await fs.promises.mkdir(join(source, 'blobs', 'sha256'), { recursive: true });
+		await fs.promises.writeFile(join(source, 'oci-layout'), JSON.stringify({ imageLayoutVersion: '1.0.0' }));
+		await fs.promises.writeFile(join(source, 'index.json'), JSON.stringify({ manifests: [{ digest: manifestDigest }] }));
+		await fs.promises.writeFile(join(source, 'blobs', 'sha256', manifestDigest.slice('sha256:'.length)), manifestContents);
+		await fs.promises.writeFile(join(source, 'blobs', 'sha256', configDigest.slice('sha256:'.length)), configContents);
+		await fs.promises.writeFile(join(source, 'blobs', 'sha256', inferenceDigest.slice('sha256:'.length)), inferenceContents);
+
+		await assert.rejects(
+			importFoundryLocalModel(source, cacheDirectory),
+			new RegExp(`not the ${DEFAULT_LOCAL_TRANSCRIPTION_MODEL}`),
+		);
+		assert.strictEqual(fs.existsSync(join(cacheDirectory, 'Microsoft')), false);
+	});
+
+	test('rejects an OCI package with a blob that fails its checksum', async () => {
+		const source = join(testDirectory, 'oci-corrupt');
+		const configContents = '{}';
+		const modelContents = 'model';
+		const configDigest = digest(configContents);
+		const modelDigest = digest(modelContents);
+		const manifestContents = JSON.stringify({
+			layers: [
+				{ digest: configDigest, annotations: { 'org.opencontainers.image.title': 'v3/genai_config.json' } },
+				{ digest: modelDigest, annotations: { 'org.opencontainers.image.title': 'v3/encoder.onnx' } },
+			],
+		});
+		const manifestDigest = digest(manifestContents);
+		await fs.promises.mkdir(join(source, 'blobs', 'sha256'), { recursive: true });
+		await fs.promises.writeFile(join(source, 'oci-layout'), JSON.stringify({ imageLayoutVersion: '1.0.0' }));
+		await fs.promises.writeFile(join(source, 'index.json'), JSON.stringify({ manifests: [{ digest: manifestDigest }] }));
+		await fs.promises.writeFile(join(source, 'blobs', 'sha256', manifestDigest.slice('sha256:'.length)), manifestContents);
+		await fs.promises.writeFile(join(source, 'blobs', 'sha256', configDigest.slice('sha256:'.length)), configContents);
+		// Content that does not hash to the digest used as its blob filename.
+		await fs.promises.writeFile(join(source, 'blobs', 'sha256', modelDigest.slice('sha256:'.length)), 'tampered');
+
+		await assert.rejects(
+			importFoundryLocalModel(source, cacheDirectory),
+			/corrupt/,
+		);
+		assert.strictEqual(fs.existsSync(join(cacheDirectory, 'Microsoft')), false);
+	});
+
 	test('rejects prepared directories for other models', async () => {
 		const source = join(testDirectory, 'prepared', 'v3');
 		await fs.promises.mkdir(source, { recursive: true });
