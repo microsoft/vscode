@@ -270,6 +270,7 @@ export class PromptValidator {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
 					await this.validateAgentsAttribute(attributes, header, report);
+					await this.validateSkillsAttribute(attributes, report);
 					this.validateGithubPermissions(attributes, report);
 				} else if (target === Target.Claude) {
 					this.validateClaudeAttributes(attributes, report);
@@ -997,6 +998,45 @@ export class PromptValidator {
 		}
 	}
 
+	private async validateSkillsAttribute(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
+		if (!attribute) {
+			return;
+		}
+		let value = attribute.value;
+		if (value.type === 'scalar') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type !== 'sequence') {
+			report(toMarker(localize('promptValidator.skillsMustBeArray', "The 'skills' attribute must be an array of skill names."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+
+		const namesToValidate: { value: string; range: Range }[] = [];
+		for (const item of value.items) {
+			if (item.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.eachSkillMustBeString', "Each skill name in the 'skills' attribute must be a string."), item.range, MarkerSeverity.Error));
+			} else if (item.value && item.value !== '*') {
+				namesToValidate.push({ value: item.value, range: item.range });
+			}
+		}
+
+		// Empty list / only '*' need no lookup against known skills.
+		if (namesToValidate.length === 0) {
+			return;
+		}
+
+		const skills = await this.promptsService.findAgentSkills(CancellationToken.None) ?? [];
+		const availableSkillNames = new Set<string>(skills.map(skill => skill.name));
+		const availableSkillsDisplay = Array.from(availableSkillNames).sort().join(', ') || localize('promptValidator.noSkillsAvailable', 'none');
+
+		for (const item of namesToValidate) {
+			if (!availableSkillNames.has(item.value)) {
+				report(toMarker(localize('promptValidator.skillInSkillsNotFound', "Unknown skill '{0}'. Available skills: {1}.", item.value, availableSkillsDisplay), item.range, MarkerSeverity.Warning));
+			}
+		}
+	}
+
 	private validateGithubPermissions(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
 		const attribute = attributes.find(attr => attr.key === GithubPromptHeaderAttributes.github);
 		if (!attribute) {
@@ -1058,7 +1098,7 @@ function isTrueOrFalse(value: IValue): boolean {
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.skills, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.context],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
@@ -1143,6 +1183,8 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 					return localize('promptHeader.agent.infer', 'Controls visibility of the agent.');
 				case PromptHeaderAttributes.agents:
 					return localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+				case PromptHeaderAttributes.skills:
+					return localize('promptHeader.agent.skills', 'Skills available to this agent. Omit for all skills; use `[]` for none; use `[\'*\']` for all.');
 				case PromptHeaderAttributes.hooks:
 					return localize('promptHeader.agent.hooks', 'Lifecycle hooks scoped to this agent. Define hooks that run only while this agent is active.');
 				case PromptHeaderAttributes.userInvocable:

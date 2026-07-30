@@ -2897,7 +2897,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			instructionContext: autoAttachEnabled ? {
 				modeKind,
 				enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
-				enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
+				enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined,
+				enabledSkills: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().customSkills?.get() : undefined
 			} : undefined,
 		});
 

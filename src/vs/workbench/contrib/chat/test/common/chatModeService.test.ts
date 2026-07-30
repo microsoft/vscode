@@ -257,6 +257,43 @@ suite('ChatModeService', () => {
 		assert.deepStrictEqual(updatedCustomMode.source, workspaceSource);
 	});
 
+	test('should update customSkills when agent skills change', async () => {
+		const uri = URI.parse('file:///test/skills-mode.md');
+		const initialMode: ICustomAgent = {
+			id: 'skills-mode',
+			uri,
+			name: 'Skills Mode',
+			description: 'Initial',
+			skills: ['alpha'],
+			agentInstructions: { content: 'body', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		promptsService.setCustomModes([initialMode]);
+		await waitForRefresh();
+
+		const mode = (await chatModeService.getLocalModes()).custom[0];
+		assert.deepStrictEqual(mode.customSkills?.get(), ['alpha']);
+
+		promptsService.setCustomModes([{ ...initialMode, skills: ['alpha', 'beta'] }]);
+		await waitForRefresh();
+
+		assert.deepStrictEqual(mode.customSkills?.get(), ['alpha', 'beta']);
+
+		promptsService.setCustomModes([{ ...initialMode, skills: [] }]);
+		await waitForRefresh();
+
+		assert.deepStrictEqual(mode.customSkills?.get(), []);
+
+		promptsService.setCustomModes([{ ...initialMode, skills: undefined }]);
+		await waitForRefresh();
+
+		assert.strictEqual(mode.customSkills?.get(), undefined);
+	});
+
 	test('should not fire change event when custom mode payload is unchanged', async () => {
 		const baseMode: ICustomAgent = {
 			id: 'stable-mode',

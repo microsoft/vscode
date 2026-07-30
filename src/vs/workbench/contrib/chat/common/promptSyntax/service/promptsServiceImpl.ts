@@ -1657,7 +1657,10 @@ export namespace CustomAgent {
 		if (target === Target.Claude && tools) {
 			tools = mapClaudeTools(tools);
 		}
-		return { id, uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
+		// Claude's `skills:` means "preload into subagent context", not a catalog whitelist.
+		// Only VS Code / default-target agents use `skills:` as an allow-list.
+		const skills = target === Target.Claude ? undefined : ast.header.skills;
+		return { id, uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, skills, agentInstructions, source, sessionTypes, hooks, enabled };
 
 	}
 }

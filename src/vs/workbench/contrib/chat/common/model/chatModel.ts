@@ -360,6 +360,7 @@ export interface IChatRequestModeInstructions {
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
 	readonly allowedSubagents?: readonly string[];
+	readonly allowedSkills?: readonly string[];
 	readonly metadata?: Record<string, boolean | string | number>;
 	readonly isBuiltin?: boolean;
 }

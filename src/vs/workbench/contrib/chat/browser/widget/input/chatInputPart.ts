@@ -598,6 +598,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				content: modeInstructions.content,
 				toolReferences: this.toolService.toToolReferences(modeInstructions.toolReferences),
 				allowedSubagents: mode.agents?.get(),
+				allowedSkills: mode.customSkills?.get(),
 				metadata: modeInstructions.metadata,
 				isBuiltin: mode.isBuiltin
 			} : undefined,

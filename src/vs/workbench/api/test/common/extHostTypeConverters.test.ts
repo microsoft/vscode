@@ -184,6 +184,7 @@ suite('extHostTypeConverters', function () {
 					range: { start: 0, endExclusive: 5 },
 				}],
 				allowedSubagents: ['agent1', 'agent2'],
+				allowedSkills: ['skill1'],
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			};
@@ -195,6 +196,7 @@ suite('extHostTypeConverters', function () {
 				content: 'test content',
 				toolReferences: [{ name: 'tool1', range: [0, 5] }],
 				allowedSubagents: ['agent1', 'agent2'],
+				allowedSkills: ['skill1'],
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			});
@@ -207,6 +209,7 @@ suite('extHostTypeConverters', function () {
 				content: 'test content',
 				toolReferences: [],
 				allowedSubagents: undefined,
+				allowedSkills: undefined,
 				metadata: undefined,
 				isBuiltin: true,
 			};
@@ -242,6 +245,7 @@ suite('extHostTypeConverters', function () {
 					range: { start: 0, endExclusive: 5 },
 				}],
 				allowedSubagents: undefined,
+				allowedSkills: undefined,
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			});

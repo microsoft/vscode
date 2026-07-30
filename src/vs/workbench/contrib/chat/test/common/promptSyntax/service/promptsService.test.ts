@@ -633,7 +633,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.getInstructionFiles(CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, 'local');
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined, 'local');
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -804,7 +804,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.getInstructionFiles(CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, 'local');
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined, 'local');
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -878,7 +878,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, 'local');
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined, 'local');
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -946,6 +946,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
@@ -1006,6 +1007,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
@@ -1089,6 +1091,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
@@ -1111,6 +1114,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
@@ -1185,6 +1189,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					sessionTypes: undefined,
@@ -1207,6 +1212,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					sessionTypes: undefined,
@@ -1229,6 +1235,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					sessionTypes: undefined,
@@ -1310,6 +1317,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
 					sessionTypes: undefined,
@@ -1334,6 +1342,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
 					sessionTypes: undefined,
@@ -1357,6 +1366,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
 					sessionTypes: undefined,
@@ -1417,6 +1427,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					skills: undefined,
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
@@ -1446,6 +1457,7 @@ suite('PromptsService', () => {
 						'---',
 						'description: \'Agent with restricted access.\'',
 						'agents: [ subagent1, subagent2 ]',
+						'skills: [ security-review, owasp-checklist ]',
 						'tools: [ tool1 ]',
 						'---',
 						'This agent has restricted access.',
@@ -1457,6 +1469,7 @@ suite('PromptsService', () => {
 						'---',
 						'description: \'Agent with no access to subagents, skills, or instructions.\'',
 						'agents: []',
+						'skills: []',
 						'---',
 						'This agent has no access.',
 					]
@@ -1467,6 +1480,7 @@ suite('PromptsService', () => {
 						'---',
 						'description: \'Agent with full access.\'',
 						'agents: [ "*" ]',
+						'skills: [ "*" ]',
 						'---',
 						'This agent has full access.',
 					]
@@ -1480,6 +1494,7 @@ suite('PromptsService', () => {
 					name: 'restricted-agent',
 					description: 'Agent with restricted access.',
 					agents: ['subagent1', 'subagent2'],
+					skills: ['security-review', 'owasp-checklist'],
 					tools: ['tool1'],
 					agentInstructions: {
 						content: 'This agent has restricted access.',
@@ -1502,6 +1517,7 @@ suite('PromptsService', () => {
 					name: 'no-access-agent',
 					description: 'Agent with no access to subagents, skills, or instructions.',
 					agents: [],
+					skills: [],
 					agentInstructions: {
 						content: 'This agent has no access.',
 						toolReferences: [],
@@ -1524,6 +1540,7 @@ suite('PromptsService', () => {
 					name: 'full-access-agent',
 					description: 'Agent with full access.',
 					agents: ['*'],
+					skills: ['*'],
 					agentInstructions: {
 						content: 'This agent has full access.',
 						toolReferences: [],

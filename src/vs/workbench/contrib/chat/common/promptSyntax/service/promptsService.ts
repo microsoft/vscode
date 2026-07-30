@@ -332,6 +332,12 @@ export interface ICustomAgent {
 	readonly agents?: readonly string[];
 
 	/**
+	 * List of skill names that can be advertised to this agent.
+	 * If empty, no skills are available. If ['*'] or undefined, all model-invocable skills can be used.
+	 */
+	readonly skills?: readonly string[];
+
+	/**
 	 * Lifecycle hooks scoped to this subagent.
 	 */
 	readonly hooks?: ChatRequestHooks;
