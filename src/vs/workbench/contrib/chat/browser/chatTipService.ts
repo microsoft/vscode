@@ -28,6 +28,7 @@ import { ChatTipExperiment, ChatTipTier, extractCommandIds, ITipBuildContext, IT
 import { ChatTipStorageKeys, TipTrackingCommands } from './chatTipStorageKeys.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IChatWidgetService } from './chat.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -217,6 +218,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._tracker = this._register(instantiationService.createInstance(TipEligibilityTracker, TIP_CATALOG));
@@ -760,6 +762,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip is not eligible due to when clause', tip.id, tip.when.serialize());
 			return false;
 		}
+		if (tip.requiresModeNames?.some(modeName => !this._isModeAvailable(modeName, contextKeyService))) {
+			this._logService.debug('#ChatTips: tip is not eligible because a required mode is not available', tip.id, tip.requiresModeNames);
+			return false;
+		}
 		if (tip.requiresCommands?.some(commandId => !CommandsRegistry.getCommand(commandId))) {
 			this._logService.debug('#ChatTips: tip is not eligible because a required command is not registered', tip.id, tip.requiresCommands);
 			return false;
@@ -773,6 +779,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
 		return true;
+	}
+
+	private _isModeAvailable(modeName: string, contextKeyService: IContextKeyService): boolean {
+		const widget = this._chatWidgetService.getAllWidgets().find(widget => widget.scopedContextKeyService === contextKeyService);
+		return !!widget?.input.currentChatModesObs.get().findModeByName(modeName);
 	}
 
 	private _isSettingModified(key: string): boolean {

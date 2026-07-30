@@ -7,8 +7,9 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { CommandsRegistry, ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -20,7 +21,9 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
+import { IChatMode, IChatModes } from '../../common/chatModes.js';
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
@@ -74,6 +77,7 @@ suite('ChatTipService', () => {
 	let mockInstructionFiles: IAgentInstructionFile[];
 	let mockPromptInstructionFiles: IPromptPath[];
 	let chatEntitlementService: TestChatEntitlementService;
+	let currentChatModes: IChatModes;
 
 	function createProductService(hasCopilot: boolean): IProductService {
 		return {
@@ -101,14 +105,28 @@ suite('ChatTipService', () => {
 		};
 	}
 
-	/**
-	 * Handle to the `workbench.action.chat.openPlan` command registration created
-	 * in setup(). The `tip.planMode` tip requires this command (via
-	 * `requiresCommands`) to be eligible; in production it is contributed
-	 * dynamically when a Plan chat mode is available. Tests that need to simulate
-	 * the command being unavailable can dispose this handle.
-	 */
-	let openPlanCommandRegistration: IDisposable;
+	function createMockMode(overrides: Omit<Partial<IChatMode>, 'name' | 'label' | 'icon' | 'description'> & { id: string; name?: string }): IChatMode {
+		const { name = overrides.id, ...rest } = overrides;
+		return {
+			name: constObservable(name),
+			label: constObservable(name),
+			icon: constObservable(undefined),
+			description: constObservable(undefined),
+			isBuiltin: rest.isBuiltin ?? false,
+			...rest,
+		} as IChatMode;
+	}
+
+	function createMockChatModes(builtin: readonly IChatMode[], custom: readonly IChatMode[]): IChatModes {
+		return {
+			onDidChange: Event.None,
+			builtin,
+			custom,
+			findModeById: id => builtin.find(mode => mode.id === id) ?? custom.find(mode => mode.id === id),
+			findModeByName: name => builtin.find(mode => mode.name.get() === name) ?? custom.find(mode => mode.name.get() === name),
+			waitForPendingUpdates: async () => { },
+		};
+	}
 
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
@@ -137,12 +155,37 @@ suite('ChatTipService', () => {
 		chatEntitlementService.entitlement = ChatEntitlement.Available;
 		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
 		instantiationService.stub(IChatService, new MockChatService());
+		currentChatModes = createMockChatModes([], [createMockMode({ id: 'plan', name: 'Plan' })]);
+		const widget = {
+			scopedContextKeyService: contextKeyService,
+			input: {
+				currentChatModesObs: {
+					get: () => currentChatModes,
+				},
+			},
+		} as unknown as IChatWidget;
+		instantiationService.stub(IChatWidgetService, {
+			_serviceBrand: undefined,
+			lastFocusedWidget: undefined,
+			onDidAddWidget: Event.None,
+			onDidChangeWidgetVisibility: Event.None,
+			onDidBackgroundSession: Event.None,
+			onDidChangeFocusedWidget: Event.None,
+			onDidChangeFocusedSession: Event.None,
+			reveal: async () => true,
+			revealWidget: async () => undefined,
+			getAllWidgets: () => [widget],
+			getWidgetByInputUri: () => undefined,
+			getWidgetBySessionResource: () => undefined,
+			getWidgetsByLocations: () => [],
+			openSession: async () => undefined,
+			register: () => Disposable.None,
+		} as unknown as IChatWidgetService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IKeybindingService, {
 			lookupKeybinding: () => undefined,
 		} as Partial<IKeybindingService> as IKeybindingService);
 		instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
-		openPlanCommandRegistration = testDisposables.add(CommandsRegistry.registerCommand('workbench.action.chat.openPlan', () => { }));
 	});
 
 	test('returns a welcome tip', () => {
@@ -1181,16 +1224,25 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tip.id, 'tip.planMode', 'Expected foundational tip to be prioritized before eligible QoL tips');
 	});
 
-	test('excludes tip.planMode when the open plan command is not registered', () => {
-		// Simulate an environment where no Plan chat mode (and therefore no
-		// `workbench.action.chat.openPlan` command) is available.
-		openPlanCommandRegistration.dispose();
-
+	test('excludes tip.planMode when Plan mode is not available in the current widget', () => {
+		currentChatModes = createMockChatModes([], []);
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
 		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
 
 		assertTipNeverShown(service, 'tip.planMode');
+	});
+
+	test('tip.planMode uses the stable open chat command', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+
+		const tip = findTipById(service, 'tip.planMode');
+
+		assert.ok(tip);
+		assert.ok(tip.enabledCommands?.includes('workbench.action.chat.open'));
+		assert.ok(!tip.enabledCommands?.includes('workbench.action.chat.openPlan'));
 	});
 
 	test('prioritizes preferred onboarding tips in requested order', () => {

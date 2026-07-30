@@ -112,12 +112,14 @@ export interface ITipDefinition extends ITipExclusionConfig {
 	 */
 	readonly when?: ContextKeyExpression;
 	/**
-	 * Command IDs that must be registered for this tip to be eligible. This guards
-	 * against showing tips whose action links point at commands that are not
-	 * currently available (e.g. an optional/custom chat mode that is not installed),
-	 * which would otherwise fail with a "command not found" error when clicked.
+	 * Command IDs that must be registered for this tip to be eligible.
 	 */
 	readonly requiresCommands?: readonly string[];
+	/**
+	 * Chat mode names that must be available in the current widget for this tip to
+	 * be eligible.
+	 */
+	readonly requiresModeNames?: readonly string[];
 	/**
 	 * Chat model IDs for which this tip is eligible (lowercase).
 	 */
@@ -251,14 +253,14 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.planMode',
-					"Try the [{0}](command:workbench.action.chat.openPlan \"Start Plan Mode\"){1} to research and plan before implementing changes.",
+					"Try the [{0}](command:workbench.action.chat.open?%5B%7B%22mode%22%3A%22Plan%22%7D%5D \"Start Plan Mode\"){1} to research and plan before implementing changes.",
 					'Plan agent',
 					kb
 				)
 			);
 		},
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
-		requiresCommands: ['workbench.action.chat.openPlan'],
+		requiresModeNames: ['Plan'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
