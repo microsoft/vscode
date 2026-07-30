@@ -6219,9 +6219,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (part.kind === 'planReview' || part.kind === 'confirmation') {
 			return !part.isUsed;
 		}
-		if (isPendingVoiceQuestionnaireInvocation(part)) {
-			return true;
-		}
 		if (part.kind === 'toolInvocation') {
 			const state = part.state.get();
 			return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
