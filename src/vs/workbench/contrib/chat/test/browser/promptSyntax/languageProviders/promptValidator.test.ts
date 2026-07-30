@@ -1204,6 +1204,43 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `Unknown agent 'UnknownAgent' will be ignored. Available agents: Plan, agent.`);
 		});
 
+		test('skills attribute must be array of strings', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`skills: { name: 'x' }`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.ok(markers.some(m => m.message.includes("'skills' attribute must be an array")));
+		});
+
+		test('unknown skill in skills attribute shows warning', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`skills: ['UnknownSkill']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const unknown = markers.find(m => m.message.includes("Unknown skill 'UnknownSkill'"));
+			assert.ok(unknown);
+			assert.strictEqual(unknown!.severity, MarkerSeverity.Warning);
+		});
+
+		test('skills attribute accepts wildcard and empty array', async () => {
+			for (const skillsValue of [`['*']`, `[]`]) {
+				const content = [
+					'---',
+					'description: "Test"',
+					`skills: ${skillsValue}`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers.filter(m => m.message.toLowerCase().includes('skill')), [], `Unexpected skill markers for ${skillsValue}: ${markers.map(m => m.message).join('; ')}`);
+			}
+		});
+
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
 			const content = [
 				'---',

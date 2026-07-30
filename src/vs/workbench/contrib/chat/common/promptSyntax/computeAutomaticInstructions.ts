@@ -66,6 +66,7 @@ export class ComputeAutomaticInstructions {
 		private readonly _modeKind: ChatModeKind,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
+		private readonly _enabledSkills: (readonly string[]) | undefined,
 		private readonly _currentSessionType: string,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
@@ -405,6 +406,7 @@ export class ComputeAutomaticInstructions {
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
 			// Also filter by session type in consumers outside the prompts service
 			// Also filter out the troubleshoot skill when  agent debug log file logging setting is disabled
+			// Also apply the agent-level skills whitelist when set (omit = all, [] = none, ['*'] = all)
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 			const modelInvocableSkills = agentSkills?.filter(skill => {
 				if (!skill.description) {
@@ -422,6 +424,16 @@ export class ComputeAutomaticInstructions {
 				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
 					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillDebugDisabled', 'debug logging disabled') });
 					return false;
+				}
+				if (this._enabledSkills !== undefined) {
+					if (this._enabledSkills.length === 0) {
+						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotInAgentWhitelist', 'not in agent skills whitelist') });
+						return false;
+					}
+					if (!this._enabledSkills.includes('*') && !this._enabledSkills.includes(skill.name)) {
+						debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotInAgentWhitelist', 'not in agent skills whitelist') });
+						return false;
+					}
 				}
 				return true;
 			});

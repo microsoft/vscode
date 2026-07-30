@@ -118,12 +118,13 @@ suite('AutomaticInstructionsCollector', () => {
 
 	/**
 	 * Invoke the collector with a flat options bag. Wraps `tools` into the
-	 * `Map<tool, enabled>` shape and `allowedSubagents` into a minimal
+	 * `Map<tool, enabled>` shape and `allowedSubagents`/`allowedSkills` into a minimal
 	 * `ChatRequestModeInstructions` value.
 	 */
 	function callCollect(opts: {
 		tools?: readonly LanguageModelToolInformation[];
 		allowedSubagents?: readonly string[];
+		allowedSkills?: readonly string[];
 		sessionResource?: URI;
 		references?: readonly ChatPromptReference[];
 	} = {}, token: CancellationToken = CancellationToken.None) {
@@ -131,7 +132,9 @@ suite('AutomaticInstructionsCollector', () => {
 		for (const t of opts.tools ?? []) {
 			toolsMap.set(t, true);
 		}
-		const modeInstructions2 = opts.allowedSubagents !== undefined ? { name: '', content: '', allowedSubagents: opts.allowedSubagents } satisfies ChatRequestModeInstructions : undefined;
+		const modeInstructions2 = (opts.allowedSubagents !== undefined || opts.allowedSkills !== undefined)
+			? { name: '', content: '', allowedSubagents: opts.allowedSubagents, allowedSkills: opts.allowedSkills } satisfies ChatRequestModeInstructions
+			: undefined;
 		return collector.collect({
 			tools: toolsMap,
 			modeInstructions2,
@@ -502,6 +505,35 @@ suite('AutomaticInstructionsCollector', () => {
 			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(1);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('auto');
+		});
+
+		test('respects allowedSkills filter', async () => {
+			const alphaUri = URI.joinPath(rootFolderUri, '.claude/skills/alpha/SKILL.md');
+			const betaUri = URI.joinPath(rootFolderUri, '.claude/skills/beta/SKILL.md');
+			const gammaUri = URI.joinPath(rootFolderUri, '.claude/skills/gamma/SKILL.md');
+			promptsService.setSkills([
+				{ uri: alphaUri, name: 'alpha', source: 'local', description: 'Alpha', disableModelInvocation: false } as ChatSkill,
+				{ uri: betaUri, name: 'beta', source: 'local', description: 'Beta', disableModelInvocation: false } as ChatSkill,
+				{ uri: gammaUri, name: 'gamma', source: 'local', description: 'Gamma', disableModelInvocation: true } as ChatSkill,
+			]);
+
+			const names = async (allowedSkills: readonly string[] | undefined) => {
+				const result = await callCollect({ tools: [tool(ToolName.ReadFile)], allowedSkills });
+				const indexEntry = result.find(isCustomizationsIndex);
+				if (!indexEntry) {
+					return [];
+				}
+				const skillsBlocks = xmlContents(indexEntry.value, 'skills');
+				if (skillsBlocks.length === 0) {
+					return [];
+				}
+				return xmlContents(skillsBlocks[0], 'skill').map(s => xmlContents(s, 'name')[0]);
+			};
+
+			expect(await names(undefined)).toEqual(['alpha', 'beta']);
+			expect(await names(['*'])).toEqual(['alpha', 'beta']);
+			expect(await names([])).toEqual([]);
+			expect(await names(['alpha', 'gamma'])).toEqual(['alpha']);
 		});
 
 		test('excludes skills without a description', async () => {

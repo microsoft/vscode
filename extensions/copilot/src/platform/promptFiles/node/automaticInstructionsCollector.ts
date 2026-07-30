@@ -181,7 +181,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		}
 
 		// Step 4: customizations index text variable.
-		const indexEntry = await this._buildCustomizationsIndex(instructionFiles, tools, modeInstructions2?.allowedSubagents, sessionType, telemetry, token);
+		const indexEntry = await this._buildCustomizationsIndex(instructionFiles, tools, modeInstructions2?.allowedSubagents, modeInstructions2?.allowedSkills, sessionType, telemetry, token);
 		if (indexEntry) {
 			newEntries.push(indexEntry);
 			telemetry.listedInstructionsCount++;
@@ -367,6 +367,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		instructionFiles: readonly vscode.ChatInstruction[],
 		tools: Map<vscode.LanguageModelToolInformation, boolean>,
 		enabledSubagents: readonly string[] | undefined,
+		enabledSkills: readonly string[] | undefined,
 		sessionType: string,
 		telemetry: InstructionsCollectionEvent,
 		token: CancellationToken,
@@ -452,6 +453,14 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				}
 				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
 					return false;
+				}
+				if (enabledSkills !== undefined) {
+					if (enabledSkills.length === 0) {
+						return false;
+					}
+					if (!enabledSkills.includes('*') && !enabledSkills.includes(skill.name)) {
+						return false;
+					}
 				}
 				return true;
 			});

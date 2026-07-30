@@ -237,6 +237,21 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				});
 			}
 		}
+		if (attribute.key === PromptHeaderAttributes.skills) {
+			let value = attribute.value;
+			if (value.type === 'scalar') {
+				value = parseCommaSeparatedList(value);
+			}
+			if (value.type === 'sequence') {
+				return this.provideArrayCompletions(model, position, value, async () => {
+					const skills = await this.promptsService.findAgentSkills(CancellationToken.None) ?? [];
+					return [
+						{ name: '*', description: localize('promptHeaderAutocompletion.allSkills', 'All available skills') },
+						...skills.map(skill => ({ name: skill.name, description: skill.description })),
+					];
+				});
+			}
+		}
 		if (attribute.key === PromptHeaderAttributes.hooks) {
 			if (attribute.value.type === 'map') {
 				// Inside the hooks map — suggest hook event type names as sub-keys

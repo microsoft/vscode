@@ -3717,6 +3717,7 @@ export namespace ChatRequestModeInstructions {
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(revive(mode.toolReferences)),
 				allowedSubagents: mode.allowedSubagents,
+				allowedSkills: mode.allowedSkills,
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};
@@ -3738,6 +3739,7 @@ export namespace ChatRequestModeInstructions {
 					range: ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined,
 				})) ?? [],
 				allowedSubagents: mode.allowedSubagents,
+				allowedSkills: mode.allowedSkills,
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};

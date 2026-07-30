@@ -1503,7 +1503,7 @@ export class ChatService extends Disposable implements IChatService {
 					// resolution can see them. We filter them back out below
 					// to return only the entries that were newly added.
 					const variableSet = new ChatRequestVariableSet(options?.attachedContext);
-					const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ctx.modeKind, ctx.enabledTools, ctx.enabledSubAgents, getChatSessionType(sessionResource));
+					const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ctx.modeKind, ctx.enabledTools, ctx.enabledSubAgents, ctx.enabledSkills, getChatSessionType(sessionResource));
 					await computer.collect(variableSet, token);
 					// Return only the entries that were added by instruction collection
 					const originalIds = new Set((options?.attachedContext ?? []).map(v => v.id));

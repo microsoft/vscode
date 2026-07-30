@@ -302,7 +302,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const variableSet = new ChatRequestVariableSet();
 			// When the extension is responsible for instruction collection, skip the core path entirely.
 			if (this.configurationService.getValue<boolean>(ChatConfiguration.CollectInstructionsInExtension) !== true) {
-				const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, getChatSessionType(invocation.context.sessionResource));
+				const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, undefined, getChatSessionType(invocation.context.sessionResource));
 				await computer.collect(variableSet, token);
 			}
 

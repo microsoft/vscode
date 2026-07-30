@@ -506,6 +506,75 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.agents, undefined);
 	});
 
+	test('agent with skills', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with skill restrictions"`,
+			'skills: ["security-review", "owasp-checklist"]',
+			'---',
+			'This is an agent with restricted skills.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.skills, ['security-review', 'owasp-checklist']);
+	});
+
+	test('agent with empty skills array', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with no skills"`,
+			'skills: []',
+			'---',
+			'This agent has no skills.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.skills, []);
+	});
+
+	test('agent with wildcard skills', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with all skills"`,
+			'skills: ["*"]',
+			'---',
+			'This agent has access to all skills.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.skills, ['*']);
+	});
+
+	test('agent with scalar skills list', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with scalar skills"`,
+			'skills: security-review, owasp-checklist',
+			'---',
+			'This agent uses comma-separated skills.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.skills, ['security-review', 'owasp-checklist']);
+	});
+
+	test('agent without skills (undefined)', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent without skill restrictions"`,
+			'---',
+			'This agent has default access to all skills.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.skills, undefined);
+	});
+
 	suite('parseCommaSeparatedList', () => {
 
 		function assertCommaSeparatedList(input: string, expected: IScalarValue[]): void {

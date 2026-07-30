@@ -19,6 +19,7 @@ tools: [search, web]         # Optional: aliases, MCP (<server>/*), extension to
 model: "Claude Sonnet 4"     # Optional, uses picker default; supports array for fallback
 argument-hint: "Task..."     # Optional, input guidance
 agents: [agent1, agent2]     # Optional, restrict allowed subagents by name (omit = all, [] = none)
+skills: [skill1, skill2]     # Optional, restrict advertised skills by name (omit = all, [] = none, ['*'] = all)
 user-invocable: true         # Optional, show in agent picker (default: true)
 disable-model-invocation: false  # Optional, prevent subagent invocation (default: false)
 handoffs: [...]              # Optional, transitions to other agents
@@ -73,6 +74,23 @@ tools: []                         # Conversational only
 ```
 
 To discover available tools, check your current tool list or use `#tool:` syntax in the body to reference specific tools.
+
+## Skills
+
+Restrict which skills appear in this agent's skill catalog (progressive disclosure listing). Existing per-skill filters (`disable-model-invocation`, session type, required description) still apply after the whitelist.
+
+| Value | Behavior |
+|-------|----------|
+| omit `skills` | All model-invocable skills (default) |
+| `skills: []` | No skills in the catalog |
+| `skills: [a, b]` | Only skills named `a` and `b` |
+| `skills: ['*']` | Explicit all (same as omit) |
+
+```yaml
+skills: [docs-writing, api-review]   # Docs-focused agent
+skills: []                          # No skills advertised
+skills: ['*']                       # All skills (explicit)
+```
 
 ## Template
 

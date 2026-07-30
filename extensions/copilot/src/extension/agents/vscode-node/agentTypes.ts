@@ -29,6 +29,7 @@ export interface AgentConfig {
 	readonly disableModelInvocation?: boolean;
 	readonly userInvocable?: boolean;
 	readonly agents?: string[];
+	readonly skills?: string[];
 	readonly handoffs?: AgentHandoff[];
 	readonly body: string;
 }
@@ -91,6 +92,12 @@ export function buildAgentMarkdown(config: AgentConfig): string {
 	if (config.agents) {
 		const quotedAgents = config.agents.map(a => `'${a.replace(/'/g, '\'\'')}'`).join(', ');
 		lines.push(`agents: [${quotedAgents}]`);
+	}
+
+	// Skills array - omit = all; [] = none; ['*'] = all
+	if (config.skills) {
+		const quotedSkills = config.skills.map(s => `'${s.replace(/'/g, '\'\'')}'`).join(', ');
+		lines.push(`skills: [${quotedSkills}]`);
 	}
 
 	// Handoffs - block style for complex nested objects
