@@ -927,7 +927,27 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		});
 
-		const tabActionBarDisposable = combinedDisposable(tabActionRunner, tabActionBar, tabActionListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
+		// Alt+Click to close other tabs
+		// Closes every other non-sticky tab, leaving the current tab open
+		const tabActionsAltClickListener = addDisposableListener(tabActionsContainer, EventType.MOUSE_DOWN, e => {
+			if (!isMouseEvent(e) || e.button !== 0 || !e.altKey) {
+				return;
+			}
+
+			EventHelper.stop(e, true);
+
+			const editor = this.tabsModel.getEditorByIndex(tabIndex);
+			if (!editor) {
+				return;
+			}
+
+			this.blockRevealActiveTabOnce();
+
+			const editorsToClose = this.groupView.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(other => !other.matches(editor));
+			this.groupView.closeEditors(editorsToClose);
+		}, true /* capture */);
+
+		const tabActionBarDisposable = combinedDisposable(tabActionRunner, tabActionBar, tabActionListener, tabActionsAltClickListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
 
 		// Tab Fade Hider
 		// Hides the tab fade to the right when tab action left and sizing shrink/fixed, ::after, ::before are already used
