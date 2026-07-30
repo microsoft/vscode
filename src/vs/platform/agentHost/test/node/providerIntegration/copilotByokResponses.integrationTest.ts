@@ -14,7 +14,9 @@ import type { IByokLmChatRequest, IByokLmModelInfo } from '../../../common/agent
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 
-suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
+const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
+
+(REAL_SDK_ENABLED ? suite : suite.skip)('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
