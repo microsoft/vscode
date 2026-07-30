@@ -114,6 +114,7 @@ import { IWSLRemoteAgentHostService } from '../platform/agentHost/common/wslRemo
 import { NullWSLRemoteAgentHostService } from '../platform/agentHost/browser/nullWslRemoteAgentHostService.js';
 import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
 import { EditorRemoteAgentHostServiceClient } from '../workbench/services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
+import '../workbench/services/agentHost/browser/webAgentHostEnablementService.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from '../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);

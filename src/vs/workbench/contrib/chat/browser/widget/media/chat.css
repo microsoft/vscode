@@ -462,7 +462,7 @@
 		margin-inline-start: var(--vscode-spacing-size60);
 		padding-inline-start: var(--vscode-spacing-size120);
 		border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
-		border-image: linear-gradient(to bottom, var(--vscode-chat-requestBorder) 0 95%, transparent 95%) 1;
+		border-image: linear-gradient(to bottom, var(--vscode-chat-requestBorder) 0 calc(100% - var(--vscode-spacing-size80)), transparent calc(100% - var(--vscode-spacing-size80))) 1;
 		transition:
 			block-size 180ms cubic-bezier(0.2, 0, 0, 1),
 			opacity 140ms cubic-bezier(0.2, 0, 0, 1),
