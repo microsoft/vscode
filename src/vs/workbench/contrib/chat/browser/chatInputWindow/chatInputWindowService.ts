@@ -138,7 +138,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private async _doOpenWindow(): Promise<void> {
-		const bounds = this._defaultBounds();
+		const bounds = this._restoredBounds() ?? this._defaultBounds();
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
 			bounds,
@@ -237,6 +237,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			auxiliaryWindow.container.setAttribute('data-voice', engaged ? 'active' : 'idle');
 		}));
 
+		// Dragging a frameless window is an OS-level gesture the renderer never
+		// sees, so capture the position when you click away instead — by then you
+		// have finished placing it.
+		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'blur', () => this._rememberPosition()));
+
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
 		Event.once(auxiliaryWindow.onUnload)(() => {
@@ -257,6 +262,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	closeWindow(): void {
 		if (!this._window) { return; }
+
+		this._rememberPosition();
 
 		this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
@@ -537,6 +544,46 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._trail = undefined;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;
+	}
+
+	/**
+	 * Remembers where the bar was left. It is a thing you place, so putting it
+	 * back where you last had it is the whole point of being able to move it.
+	 * Height is not stored: the bar sizes itself to what it is holding.
+	 */
+	private _rememberPosition(): void {
+		const win = this._window?.window;
+		if (!win) {
+			return;
+		}
+		this.storageService.store(
+			ChatInputWindowStorageKeys.WindowPosition,
+			JSON.stringify({ x: win.screenX, y: win.screenY, width: win.outerWidth }),
+			StorageScope.PROFILE,
+			StorageTarget.MACHINE,
+		);
+	}
+
+	private _restoredBounds(): IRectangle | undefined {
+		const raw = this.storageService.get(ChatInputWindowStorageKeys.WindowPosition, StorageScope.PROFILE);
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			const saved = JSON.parse(raw) as { x: number; y: number; width: number };
+			if (![saved.x, saved.y, saved.width].every(n => typeof n === 'number' && isFinite(n))) {
+				return undefined;
+			}
+			// A display may have been unplugged since; drop a position that would
+			// put the bar somewhere you cannot see it.
+			const screen = mainWindow.screen;
+			if (saved.x < -saved.width || saved.x > screen.width || saved.y < 0 || saved.y > screen.height) {
+				return undefined;
+			}
+			return { x: saved.x, y: saved.y, width: saved.width, height: CHAT_INPUT_WINDOW_DEFAULT_HEIGHT };
+		} catch {
+			return undefined;
+		}
 	}
 
 	private _defaultBounds(): IRectangle {

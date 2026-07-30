@@ -17,6 +17,8 @@ export const CHAT_INPUT_WINDOW_DEFAULT_HEIGHT = 110;
  */
 export const enum ChatInputWindowStorageKeys {
 	WindowOpen = 'chatInputWindow.windowOpen',
+	/** Where you last left the bar, so reopening does not move it back. */
+	WindowPosition = 'chatInputWindow.windowPosition',
 }
 
 export const IChatInputWindowService = createDecorator<IChatInputWindowService>('chatInputWindowService');
