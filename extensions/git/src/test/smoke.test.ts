@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
+import { Git } from '../git';
 import { eventToPromise } from '../util';
 
 suite('git smoke test', function () {
@@ -43,10 +44,12 @@ suite('git smoke test', function () {
 	suiteSetup(async function () {
 		fs.writeFileSync(file('app.js'), 'hello', 'utf8');
 		fs.writeFileSync(file('index.pug'), 'hello', 'utf8');
+		fs.writeFileSync(file('crlf.txt'), 'first\r\nsecond\r\nthird\r\n', 'utf8');
 		cp.execSync('git init -b main', { cwd });
 		cp.execSync('git config user.name testuser', { cwd });
 		cp.execSync('git config user.email monacotools@example.com', { cwd });
 		cp.execSync('git config commit.gpgsign false', { cwd });
+		cp.execSync('git config core.autocrlf false', { cwd });
 		cp.execSync('git add .', { cwd });
 		cp.execSync('git commit -m "initial commit"', { cwd });
 
@@ -65,6 +68,26 @@ suite('git smoke test', function () {
 		assert.strictEqual(git.repositories[0].rootUri.fsPath, cwd);
 
 		repository = git.repositories[0];
+	});
+
+	test('preserves CRLF when staging partial contents', async function () {
+		const version = cp.execFileSync('git', ['--version'], { encoding: 'utf8' }).trim().replace(/^git version /, '');
+		const logger = window.createOutputChannel('Git Test', { log: true });
+		const gitClient = new Git({ gitPath: 'git', userAgent: 'git-test', version });
+		const gitRepository = gitClient.open(cwd, undefined, { path: path.join(cwd, '.git'), isBare: false }, logger);
+		const contents = Buffer.from('first\r\nchanged\r\nthird\r\n');
+
+		try {
+			cp.execSync('git config core.autocrlf true', { cwd });
+			await gitRepository.stage(file('crlf.txt'), contents);
+
+			const stagedContents = cp.execFileSync('git', ['show', ':crlf.txt'], { cwd });
+			assert.deepStrictEqual(stagedContents, contents);
+		} finally {
+			cp.execFileSync('git', ['reset', '--quiet', 'HEAD', '--', 'crlf.txt'], { cwd });
+			cp.execSync('git config core.autocrlf false', { cwd });
+			logger.dispose();
+		}
 	});
 
 	test('reflects working tree changes', async function () {

@@ -1989,7 +1989,16 @@ export class Repository {
 
 	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = this.sanitizeRelativePath(path);
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
+		const args = ['hash-object', '--stdin', '-w', '--path', relativePath];
+
+		if (this._git.compareGitVersionTo('2.10.0') >= 0) {
+			const { stdout } = await this.exec(['ls-files', '--eol', '--', relativePath]);
+			if (stdout.startsWith('i/crlf')) {
+				args.unshift('-c', 'core.autocrlf=false');
+			}
+		}
+
+		const child = this.stream(args, { stdio: [null, null, null] });
 
 		if (!child.stdin) {
 			throw new GitError({
