@@ -2,7 +2,11 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
+<<<<<<< HEAD
   "version": "0.60.0",
+=======
+  "version": "0.59.0",
+>>>>>>> 3a92c591363 (Revert Kimi-K3 system prompt changes (#328257))
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
