@@ -22,7 +22,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
@@ -31,12 +31,11 @@ import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ChatSendResult, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -2958,7 +2957,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private async _sendVoiceRequest(sessionResource: URI, text: string): Promise<ChatSendResult | undefined> {
-		const result = await this.chatService.sendRequest(sessionResource, text, { isVoiceModeInput: true }).catch(err => {
+		const result = await this.chatService.sendRequest(sessionResource, text, { isVoiceModeInput: this._isVoiceProgressEnabled() }).catch(err => {
 			this.logService.warn('[voice] Error sending transcription:', err);
 			return undefined;
 		});
@@ -2979,6 +2978,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _watchVoiceProgress(sessionResource: URI, response: IChatResponseModel): void {
+		if (!this._isVoiceProgressEnabled()) {
+			return;
+		}
 		const disposables = new DisposableStore();
 		const timer = disposables.add(new MutableDisposable());
 		const seen = new Set<string>();
@@ -3004,6 +3006,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		};
 		const flush = () => {
 			timer.clear();
+			if (!this._isVoiceProgressEnabled()) {
+				dispose();
+				return;
+			}
 			if (response.isComplete || response.isCanceled) {
 				dispose();
 				return;
@@ -3050,6 +3056,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		};
 		const update = () => {
+			if (!this._isVoiceProgressEnabled()) {
+				dispose();
+				return;
+			}
 			if (response.isComplete || response.isCanceled) {
 				this._preemptCheckpointPlayback(sessionId);
 				dispose();
@@ -3083,6 +3093,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceProgressListeners.set(response.id, disposables);
 		this._voiceProgressSessionByResponse.set(response.id, sessionKey);
 		update();
+	}
+
+	private _isVoiceProgressEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(VOICE_AGENT_PROGRESS_SETTING) === true;
 	}
 
 	private _cancelVoiceProgress(sessionId?: string): void {
@@ -4227,7 +4241,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * debounce window before the backend's mirror catches up, which is by
 	 * definition first sighting.
 	 */
-	private _questionNarratable(model: IChatModel | undefined | null): { kind: VoiceNarrationKind; text: string; pending: { pendingId: string } } | undefined {
+	private _questionNarratable(model: IChatModel | undefined | null): { kind: 'question'; text: string; pending: { pendingId: string } } | undefined {
 		const pending = model ? this._buildPendingPayload(model) : undefined;
 		const question = pending?.type === 'questions' ? pending.questions?.[0] : undefined;
 		if (!pending || !question) {
@@ -5380,9 +5394,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// surfaced only by the latter are covered too.
 		const shownNow = this._shownSessionId();
 		for (const { change } of netChanges) {
-			this._handleNarratableStateChange(change.sessionId, change.currentState, change.detail, change.lastResponseSummary, shownNow);
-		}
-		for (const { change } of netChanges) {
 			this._handleNarratableStateChange(change.sessionId, change.currentState, change.detail, change.lastResponseSummary, shownNow, change.confirmationType);
 		}
 		this.logService.trace(`[voice] emitting ${netChanges.length} settled stateChange(s): ${netChanges.map(({ change, detailOnly }) => `${change.label}:${change.currentState}${detailOnly ? ' (detail-only)' : ''}`).join(', ')}`);
@@ -6157,7 +6168,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _formatToolNarration(toolInvocation: IChatToolInvocation): string {
 		const fallback = localize('voice.toolConfirmation.fallback', "GitHub Copilot needs your approval to continue.");
 		const state = toolInvocation.state.get();
-		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation && state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
 			return fallback;
 		}
 		const messages = state.confirmationMessages;
@@ -6191,6 +6202,35 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		], fallback);
 	}
 
+	private _selectedVoiceConfirmationPart(parts: readonly IChatProgressResponseContent[]): { type: VoiceConfirmationType; part?: IChatProgressResponseContent } | undefined {
+		const type = getVoiceConfirmationType(parts);
+		if (!type) {
+			return undefined;
+		}
+		for (let index = parts.length - 1; index >= 0; index--) {
+			const part = parts[index];
+			if (type === 'questionnaire') {
+				if ((part.kind === 'questionCarousel' && !part.isUsed) || isPendingVoiceQuestionnaireInvocation(part)) {
+					return { type, part };
+				}
+			} else if (type === 'elicitation' && part.kind === 'elicitation2' && part.state.get() === 'pending') {
+				return { type, part };
+			} else if (type === 'plan' && part.kind === 'planReview' && !part.isUsed) {
+				return { type, part };
+			} else if (type === 'tool' && part.kind === 'toolInvocation') {
+				const state = part.state.get();
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					return { type, part };
+				}
+			} else if (type === 'generic') {
+				if ((part.kind === 'confirmation' && !part.isUsed) || (part.kind === 'toolInvocation' && part.state.get().type === IChatToolInvocation.StateKind.WaitingForAuthentication)) {
+					return { type, part };
+				}
+			}
+		}
+		return { type };
+	}
+
 	private _getPendingConfirmationInfo(model: IChatModel): { type: VoiceConfirmationType; detail?: string } | undefined {
 		const lastResponse = model.getRequests().at(-1)?.response;
 		if (!lastResponse) {
@@ -6198,47 +6238,39 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const parts = lastResponse.response.value;
-		const type = getVoiceConfirmationType(parts);
-		if (!type) {
+		const selected = this._selectedVoiceConfirmationPart(parts);
+		if (!selected) {
 			return undefined;
 		}
+		const { type, part } = selected;
 
 		const askQuestionsCallIds = new Set(parts
 			.filter(isVoiceQuestionnaireInvocation)
 			.map(part => part.toolCallId));
-		for (let index = parts.length - 1; index >= 0; index--) {
-			const part = parts[index];
-			if (type === 'questionnaire' && part.kind === 'questionCarousel' && !part.isUsed) {
-				const includeDetails = !part.resolveId || !askQuestionsCallIds.has(part.resolveId);
-				return { type, detail: this._formatQuestionnaireNarration(this._visibleQuestionnaireFromCarousel(part, includeDetails)) };
+		if (type === 'questionnaire' && part?.kind === 'questionCarousel') {
+			const includeDetails = !part.resolveId || !askQuestionsCallIds.has(part.resolveId);
+			return { type, detail: this._formatQuestionnaireNarration(this._visibleQuestionnaireFromCarousel(part, includeDetails)) };
+		}
+		if (type === 'questionnaire' && part?.kind === 'toolInvocation') {
+			const questionnaire = this._visibleQuestionnaireFromToolInvocation(part);
+			if (questionnaire) {
+				return { type, detail: this._formatQuestionnaireNarration(questionnaire) };
 			}
-			if (type === 'questionnaire' && part.kind === 'toolInvocation') {
-				const questionnaire = this._visibleQuestionnaireFromToolInvocation(part);
-				if (questionnaire) {
-					return { type, detail: this._formatQuestionnaireNarration(questionnaire) };
-				}
-			}
-			if (type === 'elicitation' && part.kind === 'elicitation2' && part.state.get() === 'pending') {
-				return { type, detail: this._formatElicitationNarration(part) };
-			}
-			if (type === 'plan' && part.kind === 'planReview' && !part.isUsed) {
-				return { type, detail: this._formatPlanNarration(part) };
-			}
-			if (type === 'tool' && part.kind === 'toolInvocation') {
-				const state = part.state.get();
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					return { type, detail: this._formatToolNarration(part) };
-				}
-			}
-			if (type === 'generic' && part.kind === 'confirmation' && !part.isUsed) {
-				return { type, detail: this._formatConfirmationNarration(part) };
-			}
-			if (type === 'generic' && part.kind === 'toolInvocation') {
-				const detail = this._formatToolAuthenticationNarration(part);
-				if (detail) {
-					return { type, detail };
-				}
-			}
+		}
+		if (type === 'elicitation' && part?.kind === 'elicitation2') {
+			return { type, detail: this._formatElicitationNarration(part) };
+		}
+		if (type === 'plan' && part?.kind === 'planReview') {
+			return { type, detail: this._formatPlanNarration(part) };
+		}
+		if (type === 'tool' && part?.kind === 'toolInvocation') {
+			return { type, detail: this._formatToolNarration(part) };
+		}
+		if (type === 'generic' && part?.kind === 'confirmation') {
+			return { type, detail: this._formatConfirmationNarration(part) };
+		}
+		if (type === 'generic' && part?.kind === 'toolInvocation') {
+			return { type, detail: this._formatToolAuthenticationNarration(part) };
 		}
 		if (type === 'questionnaire') {
 			return { type };
@@ -6288,9 +6320,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * `questions: <titles>`, losing the options, their values and the ids. This
 	 * returns what the backend needs to route an answer back to the exact part.
 	 *
-	 * Scans newest-first and returns the first still-open part, so an
-	 * already-answered earlier form can't shadow the live one. Plan review is
-	 * deliberately not typed here; it stays on the legacy string path.
+	 * Uses the same typed pending selection as narration, so the backend never
+	 * receives an id for a different action than the one the user heard.
 	 */
 	private _buildPendingPayload(model: IChatModel | undefined | null): IVoiceSessionPending | undefined {
 		const lastRequest = model?.getRequests().at(-1);
@@ -6298,54 +6329,39 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!lastRequest || !parts) {
 			return undefined;
 		}
-
-		for (let index = parts.length - 1; index >= 0; index--) {
-			const part = parts[index];
-			// Minted lazily: an id is issued only once the part is confirmed to be
-			// a live pending request, so a part the backend can never answer never
-			// gets an identity that a stale id could collide with.
-			const routing = () => ({ pending_id: derivePendingId(lastRequest.id, part), request_id: lastRequest.id });
-
-			if (part.kind === 'questionCarousel') {
-				const carousel = part as IChatQuestionCarousel;
-				if (carousel.isUsed || carousel.answeredExternally || carousel.questions.length === 0) {
-					continue;
-				}
-				return {
-					type: 'questions',
-					...routing(),
-					allow_skip: carousel.allowSkip === true,
-					...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
-					questions: carousel.questions.map((question): IVoicePendingQuestion => ({
-						id: question.id,
-						type: question.type,
-						// The same text the widget shows, so voice reads the question
-						// rather than its header.
-						title: this._plainText(getDisplayedQuestionText(question)),
-						allow_freeform: question.allowFreeformInput !== false,
-						// The ordinal the user hears has to be the one they see, so the
-						// list is in the same order the widget renders, and both sides
-						// number it by position.
-						options: getOptionsWithDefaultsFirst(question).map(({ option }) => ({
-							label: option.label,
-							value: option.value,
-						})),
+		const selected = this._selectedVoiceConfirmationPart(parts);
+		if (!selected?.part || (selected.type !== 'questionnaire' && selected.type !== 'plan' && selected.type !== 'tool')) {
+			return undefined;
+		}
+		const { type, part } = selected;
+		const routing = () => ({ pending_id: derivePendingId(lastRequest.id, part), request_id: lastRequest.id });
+		if (type === 'questionnaire' && part.kind === 'questionCarousel') {
+			const carousel = part as IChatQuestionCarousel;
+			if (carousel.answeredExternally || carousel.questions.length === 0) {
+				return undefined;
+			}
+			return {
+				type: 'questions',
+				...routing(),
+				allow_skip: carousel.allowSkip === true,
+				...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
+				questions: carousel.questions.map((question): IVoicePendingQuestion => ({
+					id: question.id,
+					type: question.type,
+					title: this._plainText(getDisplayedQuestionText(question)),
+					allow_freeform: question.allowFreeformInput !== false,
+					options: getOptionsWithDefaultsFirst(question).map(({ option }) => ({
+						label: option.label,
+						value: option.value,
 					})),
-				};
-			}
-
-			if (part.kind === 'toolInvocation') {
-				const state = (part as IChatToolInvocation).state.get();
-				if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					continue;
-				}
-				const message = this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
-				return {
-					type: 'approval',
-					...routing(),
-					...(message ? { message } : {}),
-				};
-			}
+				})),
+			};
+		}
+		if (type === 'plan' && part.kind === 'planReview') {
+			return { type: 'approval', ...routing(), message: this._formatPlanNarration(part) };
+		}
+		if (type === 'tool' && part.kind === 'toolInvocation') {
+			return { type: 'approval', ...routing(), message: this._formatToolNarration(part) };
 		}
 
 		return undefined;

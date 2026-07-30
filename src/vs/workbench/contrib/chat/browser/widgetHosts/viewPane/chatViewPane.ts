@@ -80,6 +80,7 @@ import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity, Voi
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
@@ -423,7 +424,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						widget.input.setValue(text, false);
 					} else {
 						// Preserve any text the user already typed in the input.
-						return widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true, isVoiceModeInput: true });
+						return widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
+							preserveFocus: true,
+							isVoiceModeInput: this.configurationService.getValue<boolean>(VOICE_AGENT_PROGRESS_SETTING) === true,
+						});
 					}
 				}
 				return undefined;

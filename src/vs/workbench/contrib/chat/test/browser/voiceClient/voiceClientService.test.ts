@@ -393,6 +393,58 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('invalidated context preserves pending deletion tombstones', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const sessionId = 'chat-session:/one';
+
+		service.sendSessionContext({
+			sessions: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+				pending: {
+					type: 'questions',
+					pending_id: 'request-1#p1',
+					request_id: 'request-1',
+					questions: [],
+				},
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+		service.invalidateSessionCache(sessionId);
+		service.sendSessionContext({
+			sessions: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+
+		assert.deepStrictEqual(socket().sent.at(-1), {
+			type: 'session_context',
+			mode: 'delta',
+			upserts: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+				pending: null,
+			}],
+			removes: [],
+		});
+	});
+
 	test('normalizes legacy suppressed narration acknowledgements', async () => {
 		const { service } = createService();
 		const events: IVoiceNarrationAck[] = [];
@@ -436,7 +488,7 @@ suite('VoiceClientService', () => {
 
 		await service.connect(createTestWindow());
 		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const questionId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+		const questionId = service.requestNarration('cs1', 'question', 'Which region?', undefined, undefined, undefined, { pendingId: 'p1' });
 		const replyId = service.requestNarration('cs1', 'response', 'Done.');
 
 		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), [
@@ -449,7 +501,7 @@ suite('VoiceClientService', () => {
 		const { service } = createService();
 
 		await service.connect(createTestWindow());
-		const narrationId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+		const narrationId = service.requestNarration('cs1', 'question', 'Which region?', undefined, undefined, undefined, { pendingId: 'p1' });
 
 		assert.strictEqual(narrationId, undefined);
 		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), []);

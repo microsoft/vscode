@@ -33,9 +33,9 @@ import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureServi
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ElicitationState, IChatConfirmation, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceConfirmationType, VoiceNarrationKind } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -268,7 +268,12 @@ class TestAgentSessionsService extends mock<IAgentSessionsService>() {
 
 class TestChatService extends mock<IChatService>() {
 	override readonly chatModels = observableValue('chatModels', []);
+	readonly sendRequestOptions: (IChatSendRequestOptions | undefined)[] = [];
 	override getSession(): undefined { return undefined; }
+	override async sendRequest(_sessionResource: URI, _message: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
+		this.sendRequestOptions.push(options);
+		return { kind: 'rejected', reason: 'test' };
+	}
 }
 
 /**
@@ -394,7 +399,7 @@ suite('VoiceSessionController', () => {
 		commandService: ICommandService = new TestCommandService(),
 		telemetryService: NullTelemetryServiceShape = NullTelemetryService,
 		micCaptureService: IMicCaptureService = new TestMicCaptureService(),
-		configurationService: IConfigurationService = new TestConfigurationService({ 'agents.voice.handsFree': false }),
+		configurationService: IConfigurationService = new TestConfigurationService({ 'agents.voice.handsFree': false, [VOICE_AGENT_PROGRESS_SETTING]: true }),
 		chatService: IChatService = new TestChatService(),
 		promptsService: IPromptsService = new class extends mock<IPromptsService>() {
 			override async getVoiceInstructions(): Promise<undefined> { return undefined; }
@@ -701,7 +706,7 @@ suite('VoiceSessionController', () => {
 			isIncomplete: observableValue('incomplete', false),
 			response: { value: parts, getMarkdown: () => '' },
 		};
-		const lastRequest = { response };
+		const lastRequest = { id: 'request-runtime-questionnaire', response };
 		const model = {
 			sessionResource,
 			title: 'Chat',
@@ -728,6 +733,7 @@ suite('VoiceSessionController', () => {
 		const pendingInfo = getAgentStateInfo.call(controller, model);
 		checkSessionStateChanges.call(controller);
 		const requestsBeforeCarousel = voiceClientService.requests.length;
+		const narrationBeforeCarousel = voiceClientService.requests.at(-1);
 
 		const runtimeCarousel = new ChatQuestionCarouselData(rawQuestions.map((question, index) => ({
 			id: `toolu_runtime:${index}`,
@@ -745,7 +751,7 @@ suite('VoiceSessionController', () => {
 		parts.push(runtimeCarousel);
 		checkSessionStateChanges.call(controller);
 		const requestsAfterCarousel = voiceClientService.requests.length;
-		const narration = voiceClientService.requests.at(-1);
+		const narrationAfterCarousel = voiceClientService.requests.at(-1);
 
 		assert.deepStrictEqual({
 			pendingState: pendingInfo.state,
@@ -753,28 +759,30 @@ suite('VoiceSessionController', () => {
 			pendingHasVisibleDetail: pendingInfo.detail?.startsWith('questionnaire: 4 questions'),
 			requestsBeforeCarousel,
 			requestsAfterCarousel,
-			narrationKind: narration?.kind,
-			narrationType: narration?.confirmationType,
-			hasQuestionCount: narration?.text.startsWith('questionnaire: 4 questions'),
-			hasFirstPrompt: narration?.text.includes('1. What\'s the scope for Mars integration?'),
-			hasVisibleOptionDescription: narration?.text.includes('Full parallel system - Mars as a complete alternative view'),
-			hasLastPrompt: narration?.text.includes('4. Should Mars have historical/future data?'),
-			includesLateDetails: narration?.text.includes('This optional detail appears only after the carousel is appended.'),
-			usedFallback: narration?.text === 'I need your input in the open questionnaire.',
+			initialNarrationKind: narrationBeforeCarousel?.kind,
+			initialNarrationType: narrationBeforeCarousel?.confirmationType,
+			initialHasQuestionCount: narrationBeforeCarousel?.text.startsWith('questionnaire: 4 questions'),
+			initialHasFirstPrompt: narrationBeforeCarousel?.text.includes('1. What\'s the scope for Mars integration?'),
+			initialHasLastPrompt: narrationBeforeCarousel?.text.includes('4. Should Mars have historical/future data?'),
+			followupNarrationKind: narrationAfterCarousel?.kind,
+			followupHasVisibleOptionDescription: narrationAfterCarousel?.text.includes('Full parallel system - Mars as a complete alternative view'),
+			includesLateDetails: narrationAfterCarousel?.text.includes('This optional detail appears only after the carousel is appended.'),
+			usedFallback: narrationBeforeCarousel?.text === 'I need your input in the open questionnaire.',
 			containsHiddenIds: ['mars_scope', 'mars_data', 'mars_textures', 'mars_timeline', 'toolu_runtime']
-				.some(value => narration?.text.includes(value)),
+				.some(value => narrationBeforeCarousel?.text.includes(value) || narrationAfterCarousel?.text.includes(value)),
 		}, {
 			pendingState: 'waiting_for_confirmation',
 			pendingType: 'questionnaire',
 			pendingHasVisibleDetail: true,
 			requestsBeforeCarousel: 1,
-			requestsAfterCarousel: 1,
-			narrationKind: 'confirmation',
-			narrationType: 'questionnaire',
-			hasQuestionCount: true,
-			hasFirstPrompt: true,
-			hasVisibleOptionDescription: true,
-			hasLastPrompt: true,
+			requestsAfterCarousel: 2,
+			initialNarrationKind: 'confirmation',
+			initialNarrationType: 'questionnaire',
+			initialHasQuestionCount: true,
+			initialHasFirstPrompt: true,
+			initialHasLastPrompt: true,
+			followupNarrationKind: 'question',
+			followupHasVisibleOptionDescription: true,
 			includesLateDetails: false,
 			usedFallback: false,
 			containsHiddenIds: false,
@@ -804,7 +812,7 @@ suite('VoiceSessionController', () => {
 			isIncomplete: observableValue('incomplete', false),
 			response: { value: [backingTool], getMarkdown: () => '' },
 		};
-		const lastRequest = { response };
+		const lastRequest = { id: 'request-late-questionnaire', response };
 		const model = {
 			sessionResource,
 			title: 'Chat',
@@ -899,7 +907,7 @@ suite('VoiceSessionController', () => {
 			isIncomplete: observableValue('incomplete', false),
 			response: { value: [carousel], getMarkdown: () => '' },
 		};
-		const lastRequest = { response };
+		const lastRequest = { id: 'request-questionnaire', response };
 		const model = {
 			sessionResource,
 			title: 'Chat',
@@ -917,8 +925,22 @@ suite('VoiceSessionController', () => {
 		pendingConfirmation.set(undefined, undefined);
 		const resolvedContext = buildSessionContext.call(controller).sessions[0];
 
+		const pending = pendingContext?.['pending'] as Record<string, unknown> | undefined;
 		assert.deepStrictEqual({
-			pendingContext,
+			pendingContext: pendingContext ? {
+				id: pendingContext['id'],
+				is_active: pendingContext['is_active'],
+				agent_state: pendingContext['agent_state'],
+				agent_state_detail: pendingContext['agent_state_detail'],
+				confirmation_type: pendingContext['confirmation_type'],
+				pending: pending ? {
+					type: pending['type'],
+					request_id: pending['request_id'],
+					pendingIdMatchesRequest: typeof pending['pending_id'] === 'string' && pending['pending_id'].startsWith('request-questionnaire#'),
+					allow_skip: pending['allow_skip'],
+					questions: pending['questions'],
+				} : undefined,
+			} : undefined,
 			resolvedContext,
 		}, {
 			pendingContext: {
@@ -932,12 +954,115 @@ suite('VoiceSessionController', () => {
 					'The questionnaire is open in GitHub Copilot.',
 				].join('\n'),
 				confirmation_type: 'questionnaire',
+				pending: {
+					type: 'questions',
+					request_id: 'request-questionnaire',
+					pendingIdMatchesRequest: true,
+					allow_skip: true,
+					questions: [{
+						id: 'hidden-question-id',
+						type: 'singleSelect',
+						title: 'Which deployment should GitHub Copilot use?',
+						allow_freeform: true,
+						options: [{ label: 'Preview deployment', value: 'hidden-option-value' }],
+					}],
+				},
 			},
 			resolvedContext: {
 				id: sessionResource.toString(),
 				is_active: true,
 				agent_state: 'idle',
 			},
+		});
+	});
+
+	test('routes structured pending responses to the same action that is narrated', () => {
+		const chatService = new ControllableChatService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => { sessions: readonly { pending?: { type: string; pending_id: string; message?: string } }[] };
+		const waitingTool = (id: string, postApproval = false) => new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly toolId = id;
+			override readonly invocationMessage = `Run ${id}`;
+			override readonly state = observableValue<IChatToolInvocation.State>(`${id}State`, postApproval ? {
+				type: IChatToolInvocation.StateKind.WaitingForPostApproval,
+				parameters: {},
+				confirmationMessages: { title: `Approve ${id}?`, message: `Review ${id}.` },
+				confirmed: { type: ToolConfirmKind.UserAction },
+				resultDetails: undefined,
+				confirm: () => { },
+				contentForModel: [],
+			} : {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: {},
+				confirmationMessages: { title: `Approve ${id}?`, message: `Review ${id}.` },
+				confirm: () => { },
+			});
+		}();
+		const pendingFor = (resource: URI, requestId: string, parts: IChatProgressResponseContent[]) => {
+			const response = {
+				isPendingConfirmation: observableValue<{ detail?: string } | undefined>(`${requestId}Pending`, { detail: 'Needs input' }),
+				isIncomplete: observableValue(`${requestId}Incomplete`, false),
+				response: { value: parts, getMarkdown: () => '' },
+			};
+			const lastRequest = { id: requestId, response };
+			const model = {
+				sessionResource: resource,
+				title: 'Chat',
+				lastMessageDate: Date.now(),
+				getRequests: () => [lastRequest],
+				lastRequestObs: observableValue(`${requestId}LastRequest`, lastRequest),
+			} as unknown as IChatModel;
+			controller.setActiveSessionShown(resource);
+			chatService.setModels([model]);
+			return buildSessionContext.call(controller).sessions[0]?.pending;
+		};
+
+		const questionnaire = new ChatQuestionCarouselData([{
+			id: 'region',
+			type: 'singleSelect',
+			title: 'Region',
+			message: 'Which region?',
+			options: [{ id: 'west', label: 'West US', value: 'westus' }],
+		}], true);
+		const unrelatedTool = waitingTool('unrelated');
+		const questionnairePending = pendingFor(URI.parse('chat-session:/questionnaire-route'), 'request-questionnaire-route', [questionnaire, unrelatedTool]);
+
+		const plan = new ChatPlanReviewData('Review plan', 'Plan body', [{ id: 'implement', label: 'Implement Plan' }], true);
+		const planPending = pendingFor(URI.parse('chat-session:/plan-route'), 'request-plan-route', [waitingTool('older'), plan]);
+
+		const postApprovalTool = waitingTool('post-approval', true);
+		const postApprovalPending = pendingFor(URI.parse('chat-session:/post-route'), 'request-post-route', [postApprovalTool]);
+
+		const askQuestionsTool = waitingTool(AskQuestionsToolId);
+		const olderQuestionnaire = new ChatQuestionCarouselData([{
+			id: 'older-region',
+			type: 'singleSelect',
+			title: 'Older region',
+			message: 'Which older region?',
+			options: [{ id: 'east', label: 'East US', value: 'eastus' }],
+		}], true);
+		const askQuestionsPending = pendingFor(URI.parse('chat-session:/ask-route'), 'request-ask-route', [olderQuestionnaire, askQuestionsTool]);
+
+		assert.deepStrictEqual({
+			questionnaire: {
+				type: questionnairePending?.type,
+				idMatches: questionnairePending?.pending_id === peekPendingId('request-questionnaire-route', questionnaire),
+			},
+			plan: {
+				type: planPending?.type,
+				idMatches: planPending?.pending_id === peekPendingId('request-plan-route', plan),
+			},
+			postApproval: {
+				type: postApprovalPending?.type,
+				idMatches: postApprovalPending?.pending_id === peekPendingId('request-post-route', postApprovalTool),
+			},
+			askQuestionsBeforeCarousel: askQuestionsPending,
+		}, {
+			questionnaire: { type: 'questions', idMatches: true },
+			plan: { type: 'approval', idMatches: true },
+			postApproval: { type: 'approval', idMatches: true },
+			askQuestionsBeforeCarousel: undefined,
 		});
 	});
 
@@ -1034,8 +1159,11 @@ suite('VoiceSessionController', () => {
 				fromDetail: string;
 				fromConfirmationType?: VoiceConfirmationType;
 				fromResponseSummary: string;
+				pendingId: string;
+				fromPendingId: string;
 			}>;
 			const emitPendingStateChanges = Reflect.get(controller, '_emitPendingStateChanges') as () => void;
+			const pendingIdFor = Reflect.get(controller, '_pendingIdFor') as (sessionId: string) => string;
 
 			controller.setActiveSessionShown(sessionResource);
 			chatService.setModels([model]);
@@ -1051,6 +1179,8 @@ suite('VoiceSessionController', () => {
 				fromDetail: scenario.fromDetail,
 				fromConfirmationType: scenario.fromType,
 				fromResponseSummary: '',
+				pendingId: pendingIdFor.call(controller, sessionResource.toString()),
+				fromPendingId: '',
 			});
 			emitPendingStateChanges.call(controller);
 
@@ -1546,6 +1676,66 @@ suite('VoiceSessionController', () => {
 				].join('\n'),
 			},
 			containsHiddenMetadata: false,
+		});
+	});
+
+	test('does not watch progress when agent progress is not enabled', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }),
+		);
+		const sessionResource = URI.parse('chat-session:/disabled-progress');
+		const { changeEmitter, parts, response } = createVoiceProgressResponse('response-disabled');
+		const isConnected = Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void };
+		const watchVoiceProgress = Reflect.get(controller, '_watchVoiceProgress') as (resource: URI, response: IChatResponseModel) => void;
+
+		isConnected.set(true, undefined);
+		controller.setActiveSessionShown(sessionResource);
+		watchVoiceProgress.call(controller, sessionResource, response);
+		parts.push({ kind: 'voiceProgress', id: 'investigating', value: 'Investigating the relevant code.' });
+		changeEmitter.fire({ reason: 'other' });
+		clock.tick(10_000);
+
+		assert.deepStrictEqual(voiceClientService.requests, []);
+	});
+
+	test('marks voice requests only when agent progress is enabled', async () => {
+		const disabledChatService = new TestChatService();
+		const disabledController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }),
+			disabledChatService,
+		);
+		const enabledChatService = new TestChatService();
+		const enabledController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false, [VOICE_AGENT_PROGRESS_SETTING]: true }),
+			enabledChatService,
+		);
+		const sendVoiceRequest = Reflect.get(disabledController, '_sendVoiceRequest') as (resource: URI, text: string) => Promise<ChatSendResult | undefined>;
+
+		await sendVoiceRequest.call(disabledController, URI.parse('chat-session:/disabled'), 'Check the code.');
+		await sendVoiceRequest.call(enabledController, URI.parse('chat-session:/enabled'), 'Check the code.');
+
+		assert.deepStrictEqual({
+			disabled: disabledChatService.sendRequestOptions[0]?.isVoiceModeInput,
+			enabled: enabledChatService.sendRequestOptions[0]?.isVoiceModeInput,
+		}, {
+			disabled: false,
+			enabled: true,
 		});
 	});
 

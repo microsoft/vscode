@@ -95,6 +95,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	// state-change event needs to fire before the timer expires.
 	private _pendingContext: IVoiceSessionContext | undefined;
 	private _lastSentById = new Map<string, Record<string, unknown>>(); // session id → last-sent field values
+	private readonly _invalidatedSessionIds = new Set<string>();
 	private _lastSentActive = '';
 
 	// --- Events ---
@@ -565,6 +566,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._lastSessionId = undefined;
 		this._isResuming = false;
 		this._lastSentById.clear();
+		this._invalidatedSessionIds.clear();
 		this._lastSentActive = '';
 		this._setConnected(false);
 	}
@@ -661,7 +663,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	invalidateSessionCache(sessionId: string): void {
-		this._lastSentById.delete(sessionId);
+		this._invalidatedSessionIds.add(sessionId);
 	}
 
 	private _sendDelta(context: IVoiceSessionContext): void {
@@ -681,20 +683,35 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			} else {
 				const patch: Record<string, unknown> = { id: session.id };
 				let hasChanges = false;
-				// Fields that changed or were added
-				for (const key of Object.keys(current)) {
-					if (key === 'id') { continue; }
-					if (stableStringify(current[key]) !== stableStringify(prev[key])) {
-						patch[key] = current[key];
-						hasChanges = true;
+				if (this._invalidatedSessionIds.has(session.id)) {
+					for (const key of Object.keys(current)) {
+						if (key !== 'id') {
+							patch[key] = current[key] ?? null;
+							hasChanges = true;
+						}
 					}
-				}
-				// Fields that were removed (present in prev, absent in current) → null per RFC 7396
-				for (const key of Object.keys(prev)) {
-					if (key === 'id') { continue; }
-					if (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined) {
-						patch[key] = null;
-						hasChanges = true;
+					for (const key of Object.keys(prev)) {
+						if (key !== 'id' && (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined)) {
+							patch[key] = null;
+							hasChanges = true;
+						}
+					}
+				} else {
+					// Fields that changed or were added
+					for (const key of Object.keys(current)) {
+						if (key === 'id') { continue; }
+						if (stableStringify(current[key]) !== stableStringify(prev[key])) {
+							patch[key] = current[key];
+							hasChanges = true;
+						}
+					}
+					// Fields that were removed (present in prev, absent in current) → null per RFC 7396
+					for (const key of Object.keys(prev)) {
+						if (key === 'id') { continue; }
+						if (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined) {
+							patch[key] = null;
+							hasChanges = true;
+						}
 					}
 				}
 				// ``agent_state_detail`` (the confirmation prompt text) and
@@ -733,8 +750,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				if (v !== undefined) { obj[k] = v; }
 			}
 			this._lastSentById.set(session.id, obj);
+			this._invalidatedSessionIds.delete(session.id);
 		}
-		for (const id of removes) { this._lastSentById.delete(id); }
+		for (const id of removes) {
+			this._lastSentById.delete(id);
+			this._invalidatedSessionIds.delete(id);
+		}
 		this._lastSentActive = activeKey;
 
 		this._ws!.send(JSON.stringify({
@@ -749,6 +770,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private _seedTracking(context: IVoiceSessionContext): void {
 		this._lastSentById.clear();
+		this._invalidatedSessionIds.clear();
 		for (const session of context.sessions) {
 			const obj: Record<string, unknown> = {};
 			for (const [k, v] of Object.entries(session as unknown as Record<string, unknown>)) {

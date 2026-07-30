@@ -438,3 +438,4 @@ export interface IVoiceClientService {
 }
 
 export const IVoiceClientService = createDecorator<IVoiceClientService>('voiceClientService');
+export const VOICE_AGENT_PROGRESS_SETTING = 'agents.voice.agentProgress';

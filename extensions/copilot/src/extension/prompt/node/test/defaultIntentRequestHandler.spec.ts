@@ -135,6 +135,7 @@ suite('defaultIntentRequestHandler', () => {
 		attempt = 1;
 		enableCommandDetection = false;
 		isParticipantDetected = false;
+		isVoiceModeInput?: boolean;
 		location = ChatLocation.Panel;
 		location2 = undefined;
 		prompt = 'hello world!';
@@ -345,7 +346,7 @@ suite('defaultIntentRequestHandler', () => {
 		await handler.getResult();
 
 		expect({
-			availableTools: requestSpy.mock.calls[0][0].requestOptions.tools?.map(tool => tool.function.name),
+			availableTools: requestSpy.mock.calls.at(0)?.[0]?.requestOptions?.tools?.map(tool => tool.function.name),
 			voiceProgress: response
 				.filter(part => part instanceof ChatResponseVoiceProgressPart)
 				.map(part => ({ id: part.id, value: part.value })),
