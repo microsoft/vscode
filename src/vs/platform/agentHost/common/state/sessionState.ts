@@ -111,7 +111,15 @@ export interface UsageInfoMeta {
 	autoModeResolved?: IAutoModeResolvedInfo;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
+		/** This turn's nano-AIU cost. */
 		totalNanoAiu?: number;
+		/**
+		 * The whole session's accumulated nano-AIU cost, as reported by the
+		 * backend rather than summed from the turns. Clients SHOULD prefer this
+		 * over adding up per-turn totals: it is authoritative, and it also
+		 * covers work billed outside any turn (e.g. an out-of-turn compaction).
+		 */
+		sessionTotalNanoAiu?: number;
 		[key: string]: unknown;
 	};
 	/**
@@ -210,6 +218,7 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		const rawUsage = copilotUsage as Record<string, unknown>;
 		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
 		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
+		if (typeof rawUsage['sessionTotalNanoAiu'] === 'number') { usage.sessionTotalNanoAiu = rawUsage['sessionTotalNanoAiu']; }
 		result.copilotUsage = usage;
 	}
 	const quotaSnapshots = meta['quotaSnapshots'];

@@ -165,7 +165,21 @@ export interface IChatUsage {
 	completionTokens: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	/**
+	 * The Copilot credit cost of whatever this usage describes — a turn's own
+	 * cost on a response's usage, a sub-agent's component cost on a sub-agent's.
+	 * Scoped to its container, so summing it across responses is only ever a
+	 * lower bound on the session; prefer {@link sessionCopilotCredits} for that.
+	 */
 	copilotCredits?: number;
+	/**
+	 * The whole session's Copilot credit cost as reported by the backend, rather
+	 * than summed from the individual turns. Unlike {@link copilotCredits} this
+	 * deliberately describes more than its container: it is authoritative when
+	 * present, and covers work billed outside any turn (e.g. a compaction that
+	 * ran between turns). Not every backend reports it.
+	 */
+	sessionCopilotCredits?: number;
 	/**
 	 * The language-model ID that actually served the request. Set when a
 	 * meta-model (e.g. "auto") routes to a concrete model so consumers

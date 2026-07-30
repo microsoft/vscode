@@ -1539,12 +1539,23 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	private _setUsage(usage: IChatUsage, countCompletionTokens: boolean): void {
-		if (this.isSameUsage(usage)) {
+		const currentUsage = this._usageObs.get();
+		if (currentUsage && this.isSameUsage(currentUsage, usage)) {
 			return;
 		}
 
+		// Only a report describing a *different* model call adds to the running
+		// completion-token total. A backend can re-report one call several times as
+		// slower-arriving detail resolves — the agent host re-emits with the context
+		// attribution and the session cost once its RPCs return — and those
+		// refinements must update the stored usage without being counted again.
+		const isNewCall = !currentUsage
+			|| currentUsage.promptTokens !== usage.promptTokens
+			|| currentUsage.completionTokens !== usage.completionTokens
+			|| currentUsage.outputBuffer !== usage.outputBuffer;
+
 		this._usageObs.set(usage, undefined);
-		if (countCompletionTokens) {
+		if (countCompletionTokens && isNewCall) {
 			const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
 			this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
 		}
@@ -1555,13 +1566,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._elapsedMs = Math.max(0, elapsedMs);
 	}
 
-	private isSameUsage(usage: IChatUsage): boolean {
-		const currentUsage = this._usageObs.get();
-		return !!currentUsage
-			&& currentUsage.promptTokens === usage.promptTokens
+	private isSameUsage(currentUsage: IChatUsage, usage: IChatUsage): boolean {
+		return currentUsage.promptTokens === usage.promptTokens
 			&& currentUsage.completionTokens === usage.completionTokens
 			&& currentUsage.outputBuffer === usage.outputBuffer
 			&& currentUsage.copilotCredits === usage.copilotCredits
+			&& currentUsage.sessionCopilotCredits === usage.sessionCopilotCredits
 			&& equals(currentUsage.promptTokenDetails, usage.promptTokenDetails);
 	}
 
@@ -1680,6 +1690,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			outputBuffer: this.usage?.outputBuffer,
 			promptTokenDetails: this.usage?.promptTokenDetails,
 			copilotCredits: this.usage?.copilotCredits,
+			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
 			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp'>>;
 	}
@@ -1783,6 +1794,7 @@ interface ISerializableChatResponseData {
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	copilotCredits?: number;
+	sessionCopilotCredits?: number;
 	elapsedMs?: number;
 }
 
@@ -2488,14 +2500,23 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get sessionCost(): number {
-		let totalCredits = 0;
+		let summedCredits = 0;
+		let reportedSessionCredits = 0;
 		for (const request of this._requests) {
-			const credits = request.response?.usage?.copilotCredits;
-			if (typeof credits === 'number') {
-				totalCredits += credits;
+			const usage = request.response?.usage;
+			if (typeof usage?.copilotCredits === 'number') {
+				summedCredits += usage.copilotCredits;
+			}
+			if (typeof usage?.sessionCopilotCredits === 'number') {
+				reportedSessionCredits = Math.max(reportedSessionCredits, usage.sessionCopilotCredits);
 			}
 		}
-		return totalCredits;
+		// A backend that reports the session total covers work billed outside any
+		// turn, which summing the turns would miss. Summing covers turns whose
+		// backend reports no session total, and any billed after the most recent
+		// reported total. Neither is a superset, so take whichever is larger —
+		// which is also independent of the order the two kinds are interleaved in.
+		return Math.max(summedCredits, reportedSessionCredits);
 	}
 
 	private _timestamp: number;
@@ -2821,7 +2842,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number') {
+			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number' || typeof raw.sessionCopilotCredits === 'number') {
 				request.response.setUsage({
 					kind: 'usage',
 					promptTokens: raw.promptTokens ?? 0,
@@ -2829,6 +2850,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
 					copilotCredits: raw.copilotCredits,
+					sessionCopilotCredits: raw.sessionCopilotCredits,
 				});
 			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?

@@ -2367,6 +2367,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
 					&& lastUsage.copilotCredits === usage.copilotCredits
+					// The session total moves independently of this turn's own cost —
+					// it also covers work billed while no turn was active — so it has
+					// to be compared, or a session-cost update would be dropped here.
+					&& lastUsage.sessionCopilotCredits === usage.sessionCopilotCredits
 					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
 					return;
 				}

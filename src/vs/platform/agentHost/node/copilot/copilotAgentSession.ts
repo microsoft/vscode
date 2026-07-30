@@ -43,7 +43,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta, type IContextAttributionData } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -488,21 +488,33 @@ class CopilotTurn {
 	private readonly _stopWatch = StopWatch.create(false);
 
 	/**
-	 * Accumulated Copilot usage for this turn, in nano-AIU, keyed by scope.
-	 * Scope `''` is the parent turn aggregate (parent agent calls plus every
-	 * subagent call), so the parent turn's reported cost is the full turn
-	 * total. Each subagent additionally accumulates under its `parentToolCallId`
-	 * so its own component cost can be reported on the subagent's child session.
+	 * This turn's own Copilot cost in nano-AIU, summed from the `copilotUsage`
+	 * carried by the model calls the turn caused — its own, every subagent's,
+	 * and any compaction that ran mid-turn.
+	 *
+	 * Accumulated synchronously as each event arrives rather than derived from
+	 * the SDK's session-wide total: that total is read asynchronously, and the
+	 * terminal `session.idle` can close the turn while a read is in flight,
+	 * which would drop the turn's last model call from its reported cost.
 	 */
-	readonly copilotUsageTotalNanoAiuByScope = new Map<string, number>();
+	copilotNanoAiu = 0;
+
+	/**
+	 * Per-subagent component cost, in nano-AIU, keyed by `parentToolCallId`.
+	 * The SDK's session metrics are session-wide and carry no per-agent
+	 * breakdown, so a subagent's own running total is still accumulated from
+	 * its usage events in order to report it on the subagent's child session.
+	 */
+	readonly subagentNanoAiuByToolCallId = new Map<string, number>();
 
 	/**
 	 * The parent (main-agent) turn's own last context usage — model plus token
-	 * counts and per-event cost. Subagent usage events are folded into the
-	 * parent aggregate for credit purposes only, so they must not overwrite the
-	 * parent turn's model/context-token usage. Retaining the parent's own last
-	 * values lets each subagent usage event refresh the parent aggregate's
-	 * credit total while preserving the model that produced the parent response.
+	 * counts and per-event cost. A subagent's model call contributes to the
+	 * turn's credits (the SDK's session metrics already include it) but must not
+	 * overwrite the parent turn's model/context-token usage. Retaining the
+	 * parent's own last values lets each subagent usage event refresh the parent
+	 * aggregate's credit total while preserving the model that produced the
+	 * parent response.
 	 */
 	parentContextUsage: UsageContext | undefined;
 
@@ -679,15 +691,18 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _lastSeenModelId: string | undefined;
 	/**
-	 * Compaction credits (nano-AIU) billed while no turn was active, carried
-	 * forward onto the next turn. Automatic compaction can run outside a turn
-	 * (e.g. after an abort, or between turns); the `chat/usage` reducer only
-	 * applies usage to the *active* turn, so without this the cost — which is
-	 * at its highest exactly here, since an out-of-turn compaction usually
-	 * finds a cold prompt cache and pays the ~12x cache-write rate — would be
-	 * dropped entirely.
+	 * Latest session-wide nano-AIU total reported by the SDK's usage metrics
+	 * (`rpc.usage.getMetrics`), which is authoritative for what the session as a
+	 * whole has been billed: it folds in every model call plus compaction,
+	 * covers work billed while no turn was active, and survives resume.
+	 *
+	 * Deliberately *not* used to derive per-turn cost. It is session-scoped and
+	 * read asynchronously, so differencing it against a previous reading races
+	 * turn boundaries — the SDK's terminal `session.idle` can close a turn while
+	 * a read is still in flight. Per-turn cost comes from the synchronous
+	 * per-event `copilotUsage` instead (see {@link CopilotTurn.copilotNanoAiu}).
 	 */
-	private _carriedCompactionNanoAiu = 0;
+	private _sessionTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
@@ -1044,24 +1059,66 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
-		// Seed the parent scope with any compaction billed while no turn was active so the cost
-		// surfaces on this turn rather than being lost. The bank is deliberately NOT cleared here:
-		// a turn can end without ever reporting usage (it fails before the first SDK usage event,
-		// runs as a purely local slash command, or is replaced by another reset), and clearing on
-		// seed would drop the credits on the floor. It is cleared only once a report actually
-		// carries it — see {@link _onCarriedCompactionReported}.
-		if (this._carriedCompactionNanoAiu > 0) {
-			this._currentTurn.copilotUsageTotalNanoAiuByScope.set('', this._carriedCompactionNanoAiu);
-		}
 	}
 
 	/**
-	 * Clears the out-of-turn compaction bank once a parent-scope usage report has carried it, so
-	 * the credits are billed to exactly one turn. Called from every site that emits a parent-scope
-	 * running total, since any of them can be the one that first reports the carry.
+	 * Re-reads the SDK's session-wide nano-AIU total. Returns `true` when the
+	 * value changed, i.e. when a usage report is worth re-emitting.
+	 *
+	 * The latest reading always wins — the total is not assumed to only grow.
+	 * `history.truncate` (checkpoint restore, editing an earlier message) makes
+	 * the SDK re-fold usage from the surviving events, so the authoritative
+	 * total legitimately drops; treating a decrease as stale would freeze the
+	 * reported cost until billing climbed back past the pre-truncation figure.
 	 */
-	private _onCarriedCompactionReported(): void {
-		this._carriedCompactionNanoAiu = 0;
+	private async _refreshSessionTotalNanoAiu(): Promise<boolean> {
+		let total: number | undefined;
+		try {
+			total = (await this._wrapper.session.rpc.usage.getMetrics()).totalNanoAiu;
+		} catch (err) {
+			this._logService.trace(`[Copilot:${this.sessionId}] usage.getMetrics RPC failed: ${getErrorMessage(err)}`);
+			return false;
+		}
+		if (typeof total !== 'number' || !Number.isFinite(total) || total < 0 || total === this._sessionTotalNanoAiu) {
+			return false;
+		}
+		this._sessionTotalNanoAiu = total;
+		return true;
+	}
+
+	/**
+	 * The parent-scope Copilot billing metadata for the active turn: the turn's
+	 * own accumulated cost plus the SDK's session-wide total. Absent until
+	 * something has actually been billed.
+	 */
+	private _parentCopilotUsageMeta(): UsageInfoMeta['copilotUsage'] | undefined {
+		const turnNanoAiu = this._currentTurn?.copilotNanoAiu ?? 0;
+		if (!turnNanoAiu && !this._sessionTotalNanoAiu) {
+			return undefined;
+		}
+		return {
+			...(turnNanoAiu ? { totalNanoAiu: turnNanoAiu } : {}),
+			...(this._sessionTotalNanoAiu ? { sessionTotalNanoAiu: this._sessionTotalNanoAiu } : {}),
+		};
+	}
+
+	/** Reads the SDK's per-source context-window attribution, or `undefined` when unavailable. */
+	private async _readContextAttribution(): Promise<IContextAttributionData | undefined> {
+		let attribution: IContextAttributionData | undefined;
+		try {
+			attribution = (await this._wrapper.session.rpc.metadata.getContextAttribution())?.contextAttribution ?? undefined;
+		} catch (err) {
+			this._logService.trace(`[Copilot:${this.sessionId}] contextAttribution RPC failed: ${getErrorMessage(err)}`);
+			return undefined;
+		}
+		if (!attribution) {
+			this._logService.trace(`[Copilot:${this.sessionId}] contextAttribution: null/empty`);
+			return undefined;
+		}
+		if (this._logService.getLevel() <= LogLevel.Trace) {
+			this._logService.trace(`[Copilot:${this.sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
+		}
+		return attribution;
 	}
 
 	private _completeActiveTurn(): void {
@@ -1756,13 +1813,11 @@ export class CopilotAgentSession extends Disposable {
 				// `_completeActiveTurn` since the reducer drops usage for a non-active turn.
 				const usedTokens = result.contextWindow?.currentTokens;
 				if (typeof usedTokens === 'number') {
-					// `session.compaction_complete` accumulates the summarization call's credits onto the
-					// turn before this RPC resolves; carry that running total through so the response
-					// footer reports the compaction's cost instead of dropping it.
-					const totalNanoAiu = this._currentTurn?.copilotUsageTotalNanoAiuByScope.get('');
-					if (typeof totalNanoAiu === 'number') {
-						this._onCarriedCompactionReported();
-					}
+					// `session.compaction_complete` has already folded the summarization call's
+					// cost into the turn by the time this RPC resolves; refresh the session total
+					// so the report carries both.
+					await this._refreshSessionTotalNanoAiu();
+					const copilotUsage = this._parentCopilotUsageMeta();
 					this._emitAction({
 						type: ActionType.ChatUsage,
 						turnId: this._turnId,
@@ -1770,7 +1825,7 @@ export class CopilotAgentSession extends Disposable {
 							inputTokens: usedTokens,
 							outputTokens: 0,
 							model: this._lastSeenModelId,
-							...(typeof totalNanoAiu === 'number' ? { _meta: { copilotUsage: { totalNanoAiu } } } : {}),
+							...(copilotUsage ? { _meta: { copilotUsage } } : {}),
 						},
 					});
 				}
@@ -3977,15 +4032,11 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onUsage(e => {
 			this._resumeSubagentForEvent(e);
 			// Usage events for a subagent's model calls carry the subagent's
-			// `agentId`. Such an event is reported twice:
-			//  1. Folded into the parent turn (scope `''`) so the parent turn's
-			//     reported cost stays the full turn aggregate (parent + every
-			//     subagent), and
-			//  2. Emitted to the subagent's own child session (via
-			//     `parentToolCallId`) carrying just that subagent's running
-			//     component total, so the subagent tool can show its own cost.
-			// Main-agent (or unmapped subagent) events only contribute to the
-			// parent aggregate.
+			// `agentId`. The parent turn's cost comes from the SDK's session-wide
+			// usage metrics, which already include every subagent call, so such an
+			// event only needs the subagent's own running component total emitted
+			// to its child session (via `parentToolCallId`) for the subagent tool
+			// to show its own cost.
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (!parentToolCallId && !e.agentId && !e.data.parentToolCallId && e.data.model) {
 				this._setPromptCacheState(e.data.cacheExpiresAt ? { modelId: e.data.model, cacheExpiresAt: e.data.cacheExpiresAt } : undefined);
@@ -4018,27 +4069,19 @@ export class CopilotAgentSession extends Disposable {
 				turn.parentContextUsage = eventContext;
 			}
 
-			// Builds a usage object carrying the given context's tokens/model
-			// and the running credit total for the given scope.
-			const buildUsage = (scope: string, context: UsageContext): UsageInfo => {
+			// Builds a usage object carrying the given context's tokens/model plus
+			// the credit total for the given scope. `copilotUsage` is the scope's
+			// Copilot billing metadata, or `undefined` when nothing is billed yet.
+			const buildUsage = (context: UsageContext, scopedCopilotUsage: UsageInfoMeta['copilotUsage'], isParentScope: boolean): UsageInfo => {
 				const metadata: UsageInfoMeta = {};
 				if (typeof context.cost === 'number') {
 					metadata.cost = context.cost;
 				}
-				if (scope === '' && autoModeResolved?.turnId === this._turnId) {
+				if (isParentScope && autoModeResolved?.turnId === this._turnId) {
 					metadata.autoModeResolved = autoModeResolved.data;
 				}
-				if (turn && typeof copilotUsage?.totalNanoAiu === 'number') {
-					const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get(scope) ?? 0) + copilotUsage.totalNanoAiu;
-					turn.copilotUsageTotalNanoAiuByScope.set(scope, scopedTotal);
-					if (scope === '') {
-						// The parent-scope total includes any seeded out-of-turn compaction credits.
-						this._onCarriedCompactionReported();
-					}
-					metadata.copilotUsage = {
-						...copilotUsage,
-						totalNanoAiu: scopedTotal,
-					};
+				if (scopedCopilotUsage) {
+					metadata.copilotUsage = scopedCopilotUsage;
 				}
 				if (quotaSnapshots) {
 					metadata.quotaSnapshots = quotaSnapshots;
@@ -4052,12 +4095,23 @@ export class CopilotAgentSession extends Disposable {
 				};
 			};
 
-			// Parent turn aggregate (scope `''`): every model call contributes
-			// its credits, but a subagent event must not replace the parent
-			// turn's own model/context-token usage. Fold subagent credits into
-			// the parent aggregate while preserving the parent's context.
+			// Fold this call's cost into the turn before building any report, so the
+			// emission below already carries it. Every model call the turn caused
+			// counts toward it, subagents included. Done synchronously here rather
+			// than from the SDK's session total, which is read across an await that
+			// the terminal `session.idle` can beat.
+			if (turn && copilotUsage) {
+				turn.copilotNanoAiu += copilotUsage.totalNanoAiu;
+				if (parentToolCallId) {
+					const scopedTotal = (turn.subagentNanoAiuByToolCallId.get(parentToolCallId) ?? 0) + copilotUsage.totalNanoAiu;
+					turn.subagentNanoAiuByToolCallId.set(parentToolCallId, scopedTotal);
+				}
+			}
+
+			// Parent turn aggregate: a subagent event must not replace the parent
+			// turn's own model/context-token usage, so preserve the parent's context.
 			const parentContext = parentToolCallId ? (turn?.parentContextUsage ?? {}) : eventContext;
-			const parentUsage = buildUsage('', parentContext);
+			const parentUsage = buildUsage(parentContext, this._parentCopilotUsageMeta(), true);
 			lastParentUsage = parentUsage;
 			lastParentUsageTurnId = this._turnId;
 			this._emitAction({
@@ -4067,25 +4121,33 @@ export class CopilotAgentSession extends Disposable {
 			});
 
 			// Subagent component: additionally report the subagent's own running
-			// total to its child session.
+			// total to its child session. The SDK's session metrics carry no
+			// per-agent breakdown, so this is the only source for it.
 			if (parentToolCallId) {
+				const scopedTotal = turn?.subagentNanoAiuByToolCallId.get(parentToolCallId);
+				const subagentCopilotUsage = copilotUsage && scopedTotal !== undefined
+					? { ...copilotUsage, totalNanoAiu: scopedTotal }
+					: undefined;
 				this._emitAction({
 					type: ActionType.ChatUsage,
 					turnId: this._turnId,
-					usage: buildUsage(parentToolCallId, eventContext),
+					usage: buildUsage(eventContext, subagentCopilotUsage, false),
 				}, parentToolCallId);
 			}
 		}));
 
-		// After each usage event, asynchronously fetch the per-source context-
-		// window attribution from the SDK and re-emit the usage action enriched
-		// with the attribution data. The reducer replaces `activeTurn.usage` so
-		// the widget picks up the detailed breakdown on the next render cycle.
+		// After each usage event, asynchronously refresh the SDK's session-wide total
+		// (authoritative for the session, and the only source that sees work billed
+		// outside a turn) and re-emit the parent aggregate with it. For main-agent
+		// calls the per-source context-window attribution is fetched and merged in
+		// too — a subagent runs against its own context, so its events must not
+		// rewrite the parent's attribution. The reducer replaces `activeTurn.usage`,
+		// so the widget picks up the update on the next render cycle.
+		//
+		// Losing this re-emit to a turn that ended mid-flight costs only the session
+		// total's freshness; the turn's own cost was already reported synchronously.
 		this._register(wrapper.onUsage(async e => {
-			// Only enrich the parent-turn aggregate (not subagent scopes).
-			if (this._parentToolCallIdForSubagentEvent(e)) {
-				return;
-			}
+			const isSubagentEvent = !!this._parentToolCallIdForSubagentEvent(e);
 			const turnId = this._turnId;
 			// Capture the base usage before the await boundary so concurrent
 			// usage events don't overwrite what we merge into.
@@ -4096,71 +4158,63 @@ export class CopilotAgentSession extends Disposable {
 				model: e.data.model,
 				cacheReadTokens: e.data.cacheReadTokens,
 			};
-			try {
-				const result = await this._wrapper.session.rpc.metadata.getContextAttribution();
-				const attribution = result?.contextAttribution;
-				if (!attribution || !turnId) {
-					this._logService.trace(`[Copilot:${sessionId}] contextAttribution: null/empty (turnId=${turnId})`);
-					return;
-				}
-				// If the turn changed while we were awaiting, don't pollute the
-				// new turn's state with stale attribution data.
-				if (turnId !== this._turnId) {
-					return;
-				}
-				// Guard against a newer usage event having arrived while we
-				// were awaiting — only enrich if baseUsage is still current.
-				if (usage !== lastParentUsage || lastParentUsageTurnId !== turnId) {
-					return;
-				}
-				if (this._logService.getLevel() <= LogLevel.Trace) {
-					this._logService.trace(`[Copilot:${sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
-				}
-				// Re-emit the usage action preserving the captured parent-scope
-				// usage (with accumulated credits) but adding the attribution.
-				const enriched: UsageInfo = {
-					...usage,
-					_meta: {
-						...(usage._meta ?? {}),
-						contextAttribution: attribution,
-					},
-				};
-				lastParentUsage = enriched;
-				lastParentUsageTurnId = turnId;
-				this._emitAction({
-					type: ActionType.ChatUsage,
-					turnId,
-					usage: enriched,
-				});
-			} catch (err) {
-				this._logService.trace(`[Copilot:${sessionId}] contextAttribution RPC failed: ${(err as Error)?.message ?? err}`);
+			await this._refreshSessionTotalNanoAiu();
+			const attribution = isSubagentEvent ? undefined : await this._readContextAttribution();
+			if (!turnId) {
+				return;
 			}
+			// If the turn changed while we were awaiting, don't pollute the
+			// new turn's state with stale data. Likewise, guard against a newer
+			// usage event having arrived — only enrich if baseUsage is current.
+			if (turnId !== this._turnId || usage !== lastParentUsage || lastParentUsageTurnId !== turnId) {
+				return;
+			}
+			const copilotUsage = this._parentCopilotUsageMeta();
+			if (!attribution && !copilotUsage) {
+				return;
+			}
+			const enriched: UsageInfo = {
+				...usage,
+				_meta: {
+					...(usage._meta ?? {}),
+					...(copilotUsage ? { copilotUsage } : {}),
+					...(attribution ? { contextAttribution: attribution } : {}),
+				},
+			};
+			lastParentUsage = enriched;
+			lastParentUsageTurnId = turnId;
+			this._emitAction({
+				type: ActionType.ChatUsage,
+				turnId,
+				usage: enriched,
+			});
 		}));
 
-		// Compaction (manual `/compact` or automatic mid-turn) runs its own summarization model call.
-		// The SDK bills it separately and reports it on `session.compaction_complete` rather than as an
-		// `assistant.usage` event, so fold those credits into the turn's parent-scope running total the
-		// same way `buildUsage` does. This makes the turn's response footer include the compaction cost.
-		this._register(wrapper.onSessionCompactionComplete(e => {
+		// Compaction (manual `/compact` or automatic) runs its own summarization model call, which the
+		// SDK bills on `session.compaction_complete` rather than as an `assistant.usage` event.
+		//
+		// A compaction that runs *during* a turn is that turn's cost, so fold it in like any other
+		// call. One that runs between turns belongs to no turn: it is reflected in the session total
+		// only, rather than being carried onto whatever runs next and inflating an unrelated
+		// response footer by what is often the session's single most expensive call.
+		this._register(wrapper.onSessionCompactionComplete(async e => {
 			if (e.agentId || e.data.success === false) {
 				return;
 			}
 			const turn = this._currentTurn;
 			const turnId = this._turnId;
 			const copilotUsage = readCopilotUsage(e.data.compactionTokensUsed);
-			if (!copilotUsage) {
+			if (turn && copilotUsage) {
+				turn.copilotNanoAiu += copilotUsage.totalNanoAiu;
+			}
+			const changed = await this._refreshSessionTotalNanoAiu();
+			if ((!changed && !copilotUsage) || !turnId || turnId !== this._turnId) {
 				return;
 			}
-			if (!turn || !turnId) {
-				// Compaction outside a turn: the reducer would discard usage for a non-active
-				// turn, so bank the credits for the next one instead of losing them.
-				this._carriedCompactionNanoAiu += copilotUsage.totalNanoAiu;
+			const parentCopilotUsage = this._parentCopilotUsageMeta();
+			if (!parentCopilotUsage) {
 				return;
 			}
-			const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get('') ?? 0) + copilotUsage.totalNanoAiu;
-			turn.copilotUsageTotalNanoAiuByScope.set('', scopedTotal);
-			// This report carries any credits banked from an earlier out-of-turn compaction.
-			this._onCarriedCompactionReported();
 			// Preserve the parent turn's own model/context tokens: the compaction call's tokens describe
 			// the summarization request, not the conversation, so they must not replace what is shown.
 			const base = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
@@ -4169,7 +4223,7 @@ export class CopilotAgentSession extends Disposable {
 				model: base?.model ?? this._lastSeenModelId,
 				_meta: {
 					...(base?._meta ?? {}),
-					copilotUsage: { ...copilotUsage, totalNanoAiu: scopedTotal },
+					copilotUsage: parentCopilotUsage,
 				},
 			};
 			lastParentUsage = usage;
@@ -5012,10 +5066,11 @@ function countUnifiedDiffLines(diff: string): { added: number; removed: number }
 }
 
 /**
- * Reads the SDK's internal `copilotUsage` billing payload. It is marked `asInternal` in the SDK
- * schema, so it is absent from the generated event types (`AssistantUsageData`,
- * `CompactionCompleteCompactionTokensUsed`) even though it is present at runtime — hence the
- * dynamic read. Returns `undefined` when the payload carries no usable nano-AIU total.
+ * Reads the SDK's internal `copilotUsage` billing payload from an `assistant.usage` event. It is
+ * marked `asInternal` in the SDK schema, so it is absent from the generated `AssistantUsageData`
+ * type even though it is present at runtime — hence the dynamic read. Only a subagent's own
+ * component cost is read this way; the turn and session totals come from the SDK's usage metrics.
+ * Returns `undefined` when the payload carries no usable nano-AIU total.
  */
 function readCopilotUsage(raw: unknown): { totalNanoAiu: number } & Record<string, unknown> | undefined {
 	if (!raw || typeof raw !== 'object') {

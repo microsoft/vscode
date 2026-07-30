@@ -523,8 +523,16 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		promptTokens: usage?.inputTokens ?? 0,
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits: getCopilotCredits(usage),
+		sessionCopilotCredits: getSessionCopilotCredits(usage),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
 	};
+}
+
+function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefined {
+	const sessionTotalNanoAiu = readUsageInfoMeta(usage).copilotUsage?.sessionTotalNanoAiu;
+	return typeof sessionTotalNanoAiu === 'number' && sessionTotalNanoAiu >= 0
+		? sessionTotalNanoAiu / 1_000_000_000
+		: undefined;
 }
 
 function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
