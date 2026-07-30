@@ -32,7 +32,7 @@ import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureServi
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind, IVoiceDispatchResult } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
@@ -244,8 +244,18 @@ class ControllableChatService extends mock<IChatService>() {
 }
 
 /** Minimal chat model whose last request carries one unanswered question form. */
-function questionCarouselModel(part: object, requestId = 'req-1'): IChatModel {
-	const lastRequest = { id: requestId, response: { response: { value: [part] } } };
+function pendingPartsModel(parts: object | object[], requestId = 'req-1', pendingDetail?: string): IChatModel {
+	const value = Array.isArray(parts) ? parts : [parts];
+	const lastRequest = {
+		id: requestId,
+		response: {
+			response: { value },
+			isPendingConfirmation: observableValue<{ detail?: string } | undefined>(
+				'pending',
+				pendingDetail === undefined ? undefined : { detail: pendingDetail },
+			),
+		},
+	};
 	return {
 		getRequests: () => [lastRequest],
 	} as unknown as IChatModel;
@@ -500,7 +510,7 @@ suite('VoiceSessionController', () => {
 			}],
 		};
 
-		const payload = buildPendingPayload.call(controller, questionCarouselModel(part));
+		const payload = buildPendingPayload.call(controller, pendingPartsModel(part));
 
 		assert.deepStrictEqual(payload, {
 			type: 'questions',
@@ -527,9 +537,133 @@ suite('VoiceSessionController', () => {
 		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
 		const questions = [{ id: 'region', type: 'singleSelect', title: 'Which region?', options: [{ id: 'west', label: 'West US', value: 'westus' }] }];
 
-		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', isUsed: true, questions })), undefined);
-		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', answeredExternally: true, questions })), undefined);
-		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', questions: [] })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', isUsed: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', answeredExternally: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', questions: [] })), undefined);
+	});
+
+	test('selects the oldest still-open pending part, not the newest', () => {
+		// Voice is a serial channel: a second form arriving must not take the turn
+		// from the one the user was just read out and is part-way through
+		// answering. Oldest-first is also what the chat model itself does when it
+		// decides what a response is waiting on.
+		const controller = createController(new TestVoiceClientService());
+		const selectPendingPart = Reflect.get(controller, '_selectPendingPart') as (model: IChatModel) => { requestId: string; part: { kind: string } } | undefined;
+		const older = { kind: 'questionCarousel', questions: [{ id: 'a', type: 'singleSelect', title: 'A?', options: [] }] };
+		const newer = { kind: 'questionCarousel', questions: [{ id: 'b', type: 'singleSelect', title: 'B?', options: [] }] };
+
+		const selected = selectPendingPart.call(controller, pendingPartsModel([older, newer]));
+
+		assert.strictEqual(selected?.part, older);
+		assert.strictEqual(selected?.requestId, 'req-1');
+	});
+
+	test('moves on once the oldest pending part is resolved', () => {
+		const controller = createController(new TestVoiceClientService());
+		const selectPendingPart = Reflect.get(controller, '_selectPendingPart') as (model: IChatModel) => { part: { kind: string } } | undefined;
+		const answered = { kind: 'questionCarousel', isUsed: true, questions: [{ id: 'a', type: 'singleSelect', title: 'A?', options: [] }] };
+		const newer = { kind: 'questionCarousel', questions: [{ id: 'b', type: 'singleSelect', title: 'B?', options: [] }] };
+
+		assert.strictEqual(selectPendingPart.call(controller, pendingPartsModel([answered, newer]))?.part, newer);
+		assert.strictEqual(selectPendingPart.call(controller, pendingPartsModel([answered]))?.part, undefined);
+	});
+
+	test('an executing tool does not shadow the form it opened', () => {
+		// askQuestions appends its carousel from inside invoke(), so its own tool
+		// part is always earlier in the list. It declares no confirmationMessages
+		// and therefore sits in Executing, not WaitingForConfirmation - if that
+		// ever changed, oldest-first would publish an approval for a question form
+		// and the form would never reach voice.
+		const controller = createController(new TestVoiceClientService());
+		const selectPendingPart = Reflect.get(controller, '_selectPendingPart') as (model: IChatModel) => { part: { kind: string } } | undefined;
+		const executingTool = {
+			kind: 'toolInvocation',
+			state: observableValue('state', { type: IChatToolInvocation.StateKind.Executing }),
+		};
+		const carousel = { kind: 'questionCarousel', questions: [{ id: 'a', type: 'singleSelect', title: 'A?', options: [] }] };
+
+		assert.strictEqual(selectPendingPart.call(controller, pendingPartsModel([executingTool, carousel]))?.part, carousel);
+	});
+
+	test('keeps publishing the older form when a second one arrives', () => {
+		// Without this the payload flips to the newest form with no narration, so
+		// an answer meant for the first form is applied to the second.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => { pending_id?: string; questions?: { id: string }[] } | undefined;
+		const older = { kind: 'questionCarousel', questions: [{ id: 'region', type: 'singleSelect', title: 'Which region?', options: [{ id: 'w', label: 'West US', value: 'westus' }] }] };
+		const newer = { kind: 'questionCarousel', questions: [{ id: 'tier', type: 'singleSelect', title: 'Which tier?', options: [{ id: 'p', label: 'Premium', value: 'premium' }] }] };
+
+		const payload = buildPendingPayload.call(controller, pendingPartsModel([older, newer]));
+
+		assert.deepStrictEqual(payload?.questions?.map(question => question.id), ['region']);
+		assert.strictEqual(payload?.pending_id, derivePendingId('req-1', older));
+	});
+
+	test('payload and spoken detail name the same form when two are open', () => {
+		// If these two disagree, the newer form flips the detail, that counts as a
+		// transition, and the narration path then reads the OLDER form aloud again.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => { questions?: { title: string }[] } | undefined;
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; detail?: string };
+		const older = { kind: 'questionCarousel', questions: [{ id: 'region', type: 'singleSelect', title: 'Which region?', options: [] }] };
+		const newer = { kind: 'questionCarousel', questions: [{ id: 'tier', type: 'singleSelect', title: 'Which tier?', options: [] }] };
+		const model = pendingPartsModel([older, newer], 'req-1', 'Answer questions to continue...');
+
+		const info = getAgentStateInfo.call(controller, model);
+
+		assert.strictEqual(info.state, 'waiting_for_confirmation');
+		assert.strictEqual(info.detail, 'questions: Which region?');
+		assert.deepStrictEqual(buildPendingPayload.call(controller, model)?.questions?.map(question => question.title), ['Which region?']);
+	});
+
+	test('an older tool confirmation holds the turn ahead of a newer form', () => {
+		// Queue semantics applied uniformly: approve the command you were asked
+		// about, then answer the questions.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => { type?: string } | undefined;
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { detail?: string };
+		const approval = {
+			kind: 'toolInvocation',
+			invocationMessage: 'Run a command',
+			state: observableValue('state', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'docker push myapp:latest' },
+			}),
+		};
+		const form = { kind: 'questionCarousel', questions: [{ id: 'tier', type: 'singleSelect', title: 'Which tier?', options: [] }] };
+		const model = pendingPartsModel([approval, form], 'req-1', 'Run command?');
+
+		assert.strictEqual(buildPendingPayload.call(controller, model)?.type, 'approval');
+		assert.strictEqual(getAgentStateInfo.call(controller, model).detail, 'command: docker push myapp:latest');
+	});
+
+	test('an older confirmation suppresses a newer form payload but still speaks', () => {
+		// `confirmation` has no typed wire shape, so the queue costs the newer form
+		// its structured payload until the confirmation is resolved. Deliberate.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { detail?: string };
+		const confirmation = { kind: 'confirmation', title: 'Delete the branch?' };
+		const form = { kind: 'questionCarousel', questions: [{ id: 'tier', type: 'singleSelect', title: 'Which tier?', options: [] }] };
+		const model = pendingPartsModel([confirmation, form], 'req-1', 'Delete the branch?');
+
+		assert.strictEqual(buildPendingPayload.call(controller, model), undefined);
+		assert.strictEqual(getAgentStateInfo.call(controller, model).detail, 'Delete the branch?');
+	});
+
+	test('a newer form answered by mouse leaves the focused form untouched', () => {
+		// Resolving B out of order must not move the turn, and must not change the
+		// detail either - a detail change alone counts as a transition and would
+		// read A aloud a second time.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => { questions?: { id: string }[] } | undefined;
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { detail?: string };
+		const older = { kind: 'questionCarousel', questions: [{ id: 'region', type: 'singleSelect', title: 'Which region?', options: [] }] };
+		const newerAnswered = { kind: 'questionCarousel', isUsed: true, questions: [{ id: 'tier', type: 'singleSelect', title: 'Which tier?', options: [] }] };
+		const model = pendingPartsModel([older, newerAnswered], 'req-1', 'Answer questions to continue...');
+
+		assert.deepStrictEqual(buildPendingPayload.call(controller, model)?.questions?.map(question => question.id), ['region']);
+		assert.strictEqual(getAgentStateInfo.call(controller, model).detail, 'questions: Which region?');
 	});
 
 	test('fatal disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {

@@ -32,7 +32,7 @@ import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { IChatModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatProgressResponseContent } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -5550,6 +5550,94 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return stateInfo.state;
 	}
 
+	/**
+	 * The single pending part voice is currently on for a session.
+	 *
+	 * Scans OLDEST-first and returns the first still-open actionable part of the
+	 * last request, matching how the chat model itself decides what a response is
+	 * waiting on (`_pendingInfo` in `chatModel.ts`).
+	 *
+	 * Two callers share this: `_buildPendingPayload`, which decides what a spoken
+	 * answer routes to, and `_getAgentStateInfo`, which produces the prose the
+	 * model hears. They used to pick independently, so a second form arriving
+	 * flipped the prose to the new form while the payload stayed on the old one -
+	 * which reads the old form aloud again as a detail transition.
+	 *
+	 * Oldest-first also gives voice a queue with no stored state: resolved parts
+	 * are skipped, so the oldest still-open part is by construction the one
+	 * already published. A form arriving never takes the turn from the form the
+	 * user is part-way through answering.
+	 */
+	private _selectPendingPart(model: IChatModel | undefined | null): { requestId: string; part: IChatProgressResponseContent } | undefined {
+		const lastRequest = model?.getRequests().at(-1);
+		const parts = lastRequest?.response?.response.value;
+		if (!lastRequest || !parts) {
+			return undefined;
+		}
+		for (const part of parts) {
+			if (this._isOpenPendingPart(part)) {
+				return { requestId: lastRequest.id, part };
+			}
+		}
+		return undefined;
+	}
+
+	/** Whether a response part is still waiting on the user. */
+	private _isOpenPendingPart(part: IChatProgressResponseContent): boolean {
+		if (part.kind === 'questionCarousel') {
+			const carousel = part as IChatQuestionCarousel;
+			// A form with no questions can't be answered by voice or by mouse, so
+			// it must not hold the queue.
+			return !carousel.isUsed && !carousel.answeredExternally && carousel.questions.length > 0;
+		}
+		if (part.kind === 'planReview' || part.kind === 'confirmation') {
+			return !(part as { isUsed?: boolean }).isUsed;
+		}
+		if (part.kind === 'elicitation2') {
+			return (part as { state: IObservable<string> }).state.get() === 'pending';
+		}
+		if (part.kind === 'toolInvocation') {
+			return (part as IChatToolInvocation).state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation;
+		}
+		return false;
+	}
+
+	/** Prose for the selected pending part, for `agent_state_detail`. */
+	private _describePendingPart(part: IChatProgressResponseContent, fallbackDetail: string | undefined): string {
+		if (part.kind === 'questionCarousel') {
+			const carousel = part as IChatQuestionCarousel;
+			const titles = carousel.questions.map(question => question.title).filter(Boolean);
+			if (titles.length > 0) {
+				return `questions: ${titles.join(', ')}`;
+			}
+			return this._plainText(carousel.message) || 'asking clarifying questions';
+		}
+		if (part.kind === 'planReview') {
+			return 'review the plan to continue';
+		}
+		if (part.kind === 'elicitation2') {
+			return this._plainText((part as { title?: string | IMarkdownString }).title) || 'needs input';
+		}
+		if (part.kind === 'confirmation') {
+			return (part as { title?: string }).title ?? 'needs approval';
+		}
+		if (part.kind === 'toolInvocation') {
+			const state = (part as IChatToolInvocation).state.get();
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				return '';
+			}
+			const params = state.parameters as Record<string, unknown> | undefined;
+			const command = params?.['command'] ?? params?.['input'];
+			const explanation = params?.['explanation'] ?? params?.['goal'];
+			if (typeof command !== 'string' || !command) {
+				return fallbackDetail ?? '';
+			}
+			const reason = typeof explanation === 'string' && explanation ? `\nreason: ${explanation}` : '';
+			return `command: ${command}${reason}`;
+		}
+		return '';
+	}
+
 	private _getAgentStateInfo(model: IChatModel | undefined | null): { state: string; detail?: string; last_response_summary?: string } {
 		if (!model) {
 			return { state: 'unknown' };
@@ -5558,51 +5646,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const lastRequest = model.getRequests().at(-1);
 		const pendingConfirmation = lastRequest?.response?.isPendingConfirmation.get();
 		if (pendingConfirmation) {
-			// Scan ALL response parts to find the most recent pending item.
-			// We iterate the full list and keep overwriting `confirmDetail` so
-			// the LAST match wins — response parts are ordered chronologically,
-			// so earlier tools (already confirmed) will have left
-			// WaitingForConfirmation while the newest pending item is last.
-			let confirmDetail = '';
-			for (const part of lastRequest?.response?.response.value ?? []) {
-				if (part.kind === 'questionCarousel' && !(part as { isUsed?: boolean }).isUsed) {
-					const carousel = part as { questions?: { title?: string }[]; message?: string | { value: string } };
-					const titles = (carousel.questions ?? []).map(q => q.title).filter(Boolean);
-					if (titles.length > 0) {
-						confirmDetail = `questions: ${titles.join(', ')}`;
-					} else {
-						const msg = carousel.message;
-						confirmDetail = msg ? (typeof msg === 'string' ? msg : msg.value) : 'asking clarifying questions';
-					}
-				} else if (part.kind === 'planReview' && !(part as { isUsed?: boolean }).isUsed) {
-					confirmDetail = 'review the plan to continue';
-				} else if (part.kind === 'elicitation2') {
-					const elicitation = part as { state: IObservable<string>; title?: string | { value: string } };
-					if (elicitation.state.get() === 'pending') {
-						const title = elicitation.title;
-						confirmDetail = title ? (typeof title === 'string' ? title : title.value) : 'needs input';
-					}
-				} else if (part.kind === 'confirmation' && !(part as { isUsed?: boolean }).isUsed) {
-					const conf = part as { title?: string };
-					confirmDetail = conf.title ?? 'needs approval';
-				} else if (part.kind === 'toolInvocation') {
-					const state = part.state.get();
-					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-						const params = state.parameters as Record<string, unknown> | undefined;
-						const command = params?.['command'] ?? params?.['input'];
-						const explanation = params?.['explanation'] ?? params?.['goal'];
-						if (typeof command === 'string' && command) {
-							confirmDetail = `command: ${command}`;
-							if (typeof explanation === 'string' && explanation) {
-								confirmDetail += `\nreason: ${explanation}`;
-							}
-						} else {
-							confirmDetail = pendingConfirmation.detail ?? '';
-						}
-					}
-				}
-			}
-
+			// Same part `_buildPendingPayload` publishes, so the prose the model
+			// hears and the form an answer routes to can never name different
+			// forms. See `_selectPendingPart`.
+			const selected = this._selectPendingPart(model);
+			const confirmDetail = selected ? this._describePendingPart(selected.part, pendingConfirmation.detail) : '';
 			return {
 				state: 'waiting_for_confirmation',
 				detail: confirmDetail || pendingConfirmation.detail || '',
@@ -5664,64 +5712,55 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * `questions: <titles>`, losing the options, their values and the ids. This
 	 * returns what the backend needs to route an answer back to the exact part.
 	 *
-	 * Scans newest-first and returns the first still-open part, so an
-	 * already-answered earlier form can't shadow the live one. Plan review is
-	 * deliberately not typed here; it stays on the legacy string path.
+	 * The part is chosen by `_selectPendingPart`, shared with
+	 * `_getAgentStateInfo` so the routable payload and the spoken detail can
+	 * never name different forms. Only carousels and tool confirmations have a
+	 * typed shape; anything else the selector lands on publishes nothing, and the
+	 * session simply has no voice-answerable pending until it is resolved.
 	 */
 	private _buildPendingPayload(model: IChatModel | undefined | null): IVoiceSessionPending | undefined {
-		const lastRequest = model?.getRequests().at(-1);
-		const parts = lastRequest?.response?.response.value;
-		if (!lastRequest || !parts) {
+		const selected = this._selectPendingPart(model);
+		if (!selected) {
 			return undefined;
 		}
+		const { requestId, part } = selected;
+		// Minted lazily: an id is issued only once the part is confirmed to be
+		// a live pending request, so a part the backend can never answer never
+		// gets an identity that a stale id could collide with.
+		const routing = () => ({ pending_id: derivePendingId(requestId, part), request_id: requestId });
 
-		for (let index = parts.length - 1; index >= 0; index--) {
-			const part = parts[index];
-			// Minted lazily: an id is issued only once the part is confirmed to be
-			// a live pending request, so a part the backend can never answer never
-			// gets an identity that a stale id could collide with.
-			const routing = () => ({ pending_id: derivePendingId(lastRequest.id, part), request_id: lastRequest.id });
-
-			if (part.kind === 'questionCarousel') {
-				const carousel = part as IChatQuestionCarousel;
-				if (carousel.isUsed || carousel.answeredExternally || carousel.questions.length === 0) {
-					continue;
-				}
-				return {
-					type: 'questions',
-					...routing(),
-					allow_skip: carousel.allowSkip === true,
-					...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
-					questions: carousel.questions.map((question): IVoicePendingQuestion => ({
-						id: question.id,
-						type: question.type,
-						// The same text the widget shows, so voice reads the question
-						// rather than its header.
-						title: this._plainText(getDisplayedQuestionText(question)),
-						allow_freeform: question.allowFreeformInput !== false,
-						// The ordinal the user hears has to be the one they see, so the
-						// list is in the same order the widget renders, and both sides
-						// number it by position.
-						options: getOptionsWithDefaultsFirst(question).map(({ option }) => ({
-							label: option.label,
-							value: option.value,
-						})),
+		if (part.kind === 'questionCarousel') {
+			const carousel = part as IChatQuestionCarousel;
+			return {
+				type: 'questions',
+				...routing(),
+				allow_skip: carousel.allowSkip === true,
+				...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
+				questions: carousel.questions.map((question): IVoicePendingQuestion => ({
+					id: question.id,
+					type: question.type,
+					// The same text the widget shows, so voice reads the question
+					// rather than its header.
+					title: this._plainText(getDisplayedQuestionText(question)),
+					allow_freeform: question.allowFreeformInput !== false,
+					// The ordinal the user hears has to be the one they see, so the
+					// list is in the same order the widget renders, and both sides
+					// number it by position.
+					options: getOptionsWithDefaultsFirst(question).map(({ option }) => ({
+						label: option.label,
+						value: option.value,
 					})),
-				};
-			}
+				})),
+			};
+		}
 
-			if (part.kind === 'toolInvocation') {
-				const state = (part as IChatToolInvocation).state.get();
-				if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					continue;
-				}
-				const message = this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
-				return {
-					type: 'approval',
-					...routing(),
-					...(message ? { message } : {}),
-				};
-			}
+		if (part.kind === 'toolInvocation') {
+			const message = this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
+			return {
+				type: 'approval',
+				...routing(),
+				...(message ? { message } : {}),
+			};
 		}
 
 		return undefined;
