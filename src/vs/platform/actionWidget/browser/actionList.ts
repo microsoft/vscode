@@ -668,7 +668,6 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
-	private _imeSessionInProgress = false;
 	private _suppressHover = false;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
@@ -846,34 +845,10 @@ export class ActionListWidget<T> extends Disposable {
 					filterActionBar.push(filterActions, { icon: true, label: false });
 				}
 
-				// While an IME composition is running the input holds intermediate text (e.g. pinyin)
-				// which must not drive the filter: re-filtering splices the list, re-highlights a row and
-				// re-layouts the popup, all of which disrupt the composition and the IME candidate window.
-				// Filter once the composition commits instead.
-				const onFilterValueChanged = () => {
-					const value = this._filterInput!.value;
-					// `compositionend` and the `input` event that follows it both land here (and browsers
-					// disagree on their order), so only filter when the text actually changed.
-					if (this._imeSessionInProgress || value === this._filterText) {
-						return;
-					}
-					this._filterText = value;
+				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
+					this._filterText = this._filterInput!.value;
 					this._applyOrUpdateFilter();
-				};
-
-				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
-					this._imeSessionInProgress = true;
-					// A dynamic filter request issued for the previous value can still be in flight.
-					// Letting it resolve now would splice and re-layout the list underneath the IME
-					// candidate window - the very disruption this guard exists to prevent. The
-					// committed value starts a fresh request from `compositionend`.
-					this._filterCts.value?.cancel();
 				}));
-				this._register(dom.addDisposableListener(this._filterInput, 'compositionend', () => {
-					this._imeSessionInProgress = false;
-					onFilterValueChanged();
-				}));
-				this._register(dom.addDisposableListener(this._filterInput, 'input', onFilterValueChanged));
 			}
 
 			if (this._options?.secondaryHeading) {
@@ -949,7 +924,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		// ArrowRight opens submenu for the focused item and moves focus into it
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowRight' && !e.isComposing) {
+			if (e.key === 'ArrowRight') {
 				const focused = this._list.getFocus();
 				if (focused.length > 0) {
 					const element = this._list.element(focused[0]);
@@ -970,7 +945,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._filterInput) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
 				if (this._filterInput && !dom.isActiveElement(this._filterInput)
-					&& !e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+					&& e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
 					this._filterInput.focus();
 					this._filterInput.value = e.key;
 					this._filterText = e.key;

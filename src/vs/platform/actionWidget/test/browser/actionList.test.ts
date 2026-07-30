@@ -203,43 +203,6 @@ suite('ActionListWidget', () => {
 		assert.ok(widget.domNode.textContent?.includes('ma-fresh-result'));
 	});
 
-	test('does not filter while an IME composition is in progress', () => {
-		const filters: string[] = [];
-		const widget = createActionListWidget(disposables, {
-			onFilter: async filter => {
-				filters.push(filter);
-				return [action(`result-${filter}`)];
-			},
-		});
-
-		assert.ok(widget.filterInput);
-		widget.filterInput.dispatchEvent(new Event('compositionstart'));
-		typeFilter(widget, 'd');
-		typeFilter(widget, 'deepseek');
-		widget.filterInput.value = 'DeepSeek';
-		widget.filterInput.dispatchEvent(new Event('compositionend'));
-		// Chromium fires a trailing `input` for the committed text, which must not re-filter.
-		typeFilter(widget, 'DeepSeek');
-
-		assert.deepStrictEqual(filters, ['DeepSeek']);
-	});
-
-	test('cancels an in-flight dynamic filter when a composition starts', async () => {
-		const pending = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
-		const widget = createActionListWidget(disposables, {
-			onFilter: () => pending.p,
-		});
-
-		typeFilter(widget, 'd');
-		assert.ok(widget.filterInput);
-		widget.filterInput.dispatchEvent(new Event('compositionstart'));
-
-		// Resolving now must not splice/re-layout the list underneath the IME candidate window.
-		pending.complete([action('stale-result')]);
-		await timeout(0);
-		assert.ok(!widget.domNode.textContent?.includes('stale-result'));
-	});
-
 	test('batches row width writes before reading layout', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
