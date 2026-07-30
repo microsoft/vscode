@@ -14,9 +14,12 @@ import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger
 import { TestLogService } from '../../../testing/common/testLogService';
 import { RemoteContentExclusion } from '../remoteContentExclusion';
 import { MockAuthenticationService } from './mockAuthenticationService';
-import { MockCAPIClientService } from './mockCAPIClientService';
+import { MockCAPIClientService, failureResponse, rateLimitedResponse, rulesResponse, type MockExclusionRules } from './mockCAPIClientService';
 import { MockGitService } from './mockGitService';
 import { MockWorkspaceService } from './mockWorkspaceService';
+
+/** Key the implementation uses for global rules that apply outside any git repository. */
+const NON_GIT_FILE_KEY = 'non-git-file';
 
 suite('RemoteContentExclusion', () => {
 	let remoteContentExclusion: RemoteContentExclusion;
@@ -26,8 +29,29 @@ suite('RemoteContentExclusion', () => {
 	let mockCAPIClientService: MockCAPIClientService;
 	let mockFileSystemService: MockFileSystemService;
 	let mockWorkspaceService: MockWorkspaceService;
+	let now: number;
+
+	function remoteFor(repoRoot: string): string {
+		return `https://github.com/org/${repoRoot.split('/').pop()}.git`;
+	}
+
+	/** Routes each file to the repo whose root is the longest matching prefix of its path. */
+	function routeToRepos(repoRoots: string[]): void {
+		const byLongestRoot = [...repoRoots].sort((a, b) => b.length - a.length);
+		mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation((uri: URI) => {
+			mockGitService.getRepositoryFetchUrlsCallCount++;
+			const root = byLongestRoot.find(candidate => uri.path === candidate || uri.path.startsWith(candidate + '/'));
+			return Promise.resolve(root ? { rootUri: URI.file(root), remoteFetchUrls: [remoteFor(root)] } : undefined);
+		});
+	}
+
+	function respondWithRules(rules: Record<string, MockExclusionRules>): void {
+		const byRepo = new Map(Object.entries(rules).map(([repoRoot, value]) => [remoteFor(repoRoot), value]));
+		mockCAPIClientService.setResponder(repos => rulesResponse(byRepo, repos));
+	}
 
 	beforeEach(() => {
+		now = Date.UTC(2026, 0, 1);
 		mockGitService = new MockGitService();
 		mockLogService = new TestLogService();
 		mockAuthService = new MockAuthenticationService();
@@ -45,7 +69,8 @@ suite('RemoteContentExclusion', () => {
 			mockCAPIClientService as unknown as ICAPIClientService,
 			mockFileSystemService,
 			mockWorkspaceService,
-			new NullRequestLogger()
+			new NullRequestLogger(),
+			() => now
 		);
 	});
 
@@ -230,6 +255,142 @@ suite('RemoteContentExclusion', () => {
 
 			// Both should use the cache, so no additional calls
 			expect(mockGitService.getRepositoryFetchUrlsCallCount).toBe(0);
+		});
+	});
+
+	describe('request coalescing', () => {
+		test('batches concurrent lookups instead of refreshing every repo per caller', async () => {
+			const repoRoots = Array.from({ length: 25 }, (_, i) => `/workspace/repo${i}`);
+			routeToRepos(repoRoots);
+
+			await Promise.all(repoRoots.map(root => remoteContentExclusion.isIgnored(URI.file(`${root}/src/file.ts`), CancellationToken.None)));
+
+			// 25 repos plus the non-git pseudo repo, sent 10 per request, each asked for exactly once.
+			expect({
+				requests: mockCAPIClientService.requestCount,
+				reposSent: mockCAPIClientService.requestedRepos.length,
+				uniqueReposSent: new Set(mockCAPIClientService.requestedRepos).size
+			}).toEqual({ requests: 3, reposSent: 26, uniqueReposSent: 26 });
+		});
+
+		test('only fetches repos that are missing from the cache', async () => {
+			routeToRepos(['/workspace/repo-a', '/workspace/repo-b']);
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/one.ts'), CancellationToken.None);
+			mockCAPIClientService.reset();
+
+			// Same repo again: everything needed is already cached.
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/two.ts'), CancellationToken.None);
+			const afterCachedRepo = mockCAPIClientService.requestedRepos;
+
+			// New repo: only the new remote is requested, not the whole cache.
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-b/one.ts'), CancellationToken.None);
+
+			expect({ afterCachedRepo, afterNewRepo: mockCAPIClientService.requestedRepos }).toEqual({
+				afterCachedRepo: [],
+				afterNewRepo: [remoteFor('/workspace/repo-b')]
+			});
+		});
+
+		test('caches an empty ruleset so repos without rules are not refetched', async () => {
+			routeToRepos(['/workspace/repo-a']);
+
+			// The default responder reports no rules for the requested repos.
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/one.ts'), CancellationToken.None);
+			mockCAPIClientService.reset();
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/two.ts'), CancellationToken.None);
+
+			expect(mockCAPIClientService.requestCount).toBe(0);
+		});
+
+		test('refreshes rules once they expire', async () => {
+			routeToRepos(['/workspace/repo-a']);
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/one.ts'), CancellationToken.None);
+			mockCAPIClientService.reset();
+
+			now += 31 * 60 * 1000;
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/two.ts'), CancellationToken.None);
+
+			expect([...mockCAPIClientService.requestedRepos].sort()).toEqual([NON_GIT_FILE_KEY, remoteFor('/workspace/repo-a')].sort());
+		});
+	});
+
+	describe('failure handling', () => {
+		test('retries a repo whose fetch failed rather than treating it as unrestricted', async () => {
+			routeToRepos(['/workspace/repo-a']);
+
+			let attempts = 0;
+			mockCAPIClientService.setResponder(repos => {
+				attempts++;
+				return attempts === 1
+					? rateLimitedResponse(60)
+					: rulesResponse(new Map([[remoteFor('/workspace/repo-a'), { paths: ['**/secret.ts'] }]]), repos);
+			});
+
+			const secret = URI.file('/workspace/repo-a/secret.ts');
+			const whileFailing = await remoteContentExclusion.isIgnored(secret, CancellationToken.None);
+
+			// Past the backoff window the rules load and the same file is now correctly excluded.
+			now += 5 * 60 * 1000;
+			const afterRecovery = await remoteContentExclusion.isIgnored(secret, CancellationToken.None);
+
+			expect({ whileFailing, afterRecovery }).toEqual({ whileFailing: false, afterRecovery: true });
+		});
+
+		test('stops issuing requests while the backoff is in effect', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			mockCAPIClientService.setResponder(() => rateLimitedResponse(600));
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/one.ts'), CancellationToken.None);
+			const afterFirst = mockCAPIClientService.requestCount;
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/two.ts'), CancellationToken.None);
+
+			expect({ afterFirst, afterSecond: mockCAPIClientService.requestCount }).toEqual({ afterFirst: 1, afterSecond: 1 });
+		});
+
+		test('waits for the reported reset window when rate limited', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			const resetEpochSeconds = Math.floor((now + 10 * 60 * 1000) / 1000);
+			mockCAPIClientService.setResponder(() => failureResponse(403, {
+				'x-ratelimit-remaining': '0',
+				'x-ratelimit-reset': String(resetEpochSeconds)
+			}));
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/one.ts'), CancellationToken.None);
+
+			// Still inside the window the server reported, so no further calls are made.
+			now += 5 * 60 * 1000;
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/two.ts'), CancellationToken.None);
+			const duringWindow = mockCAPIClientService.requestCount;
+
+			// Retrying after the reset also proves the quota 403 was classified as a rate limit
+			// rather than an auth failure, which would have blocked the token for an hour.
+			now += 6 * 60 * 1000;
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/three.ts'), CancellationToken.None);
+
+			expect({ duringWindow, afterWindow: mockCAPIClientService.requestCount }).toEqual({ duringWindow: 1, afterWindow: 2 });
+		});
+	});
+
+	describe('rule matching', () => {
+		test('excludes files matching a fetched glob rule', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { paths: ['**/*.env'] } });
+
+			expect({
+				env: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/config.env'), CancellationToken.None),
+				source: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/index.ts'), CancellationToken.None)
+			}).toEqual({ env: true, source: false });
+		});
+
+		test('ignores malformed patterns rather than failing every lookup', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { paths: ['**/*.env'], ifAnyMatch: ['/(unclosed/'] } });
+
+			expect(await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/config.env'), CancellationToken.None)).toBe(true);
 		});
 	});
 });
