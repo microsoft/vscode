@@ -24,11 +24,11 @@ const FIXTURE = process.env.OMNIBAR_THEME === 'light'
 const URL = `http://localhost:5123/___explorer?fixture=${FIXTURE}&mode=embedded`;
 
 /** One full pass of the script, plus a little lead-in and tail. */
-const SCRIPT_MS = 30900;
+const SCRIPT_MS = 92000;
 const LEAD_IN_MS = 1200;
 const TAIL_MS = 600;
 
-const VIEWPORT = { width: 612, height: 340 };
+const VIEWPORT = { width: 640, height: 580 };
 
 async function main(): Promise<void> {
 	const outArg = process.argv.indexOf('--out');
