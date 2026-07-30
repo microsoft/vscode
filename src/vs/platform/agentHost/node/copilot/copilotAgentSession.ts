@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, CurrentToolMetadata, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, PermissionResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import { raceCancellation, Sequencer, Throttler } from '../../../../base/common/async.js';
 import { raceCancellation, RunOnceScheduler, Sequencer, Throttler } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
