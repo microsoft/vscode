@@ -28,7 +28,10 @@ import {
 	IVoiceNarrationAck,
 	IVoiceNarrationSignal,
 	IVoiceDispatchResult,
+	IVoiceCheckpointNarrationMetadata,
+	VoiceConfirmationType,
 	VoiceNarrationKind,
+	isVoiceCheckpointId,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -352,8 +355,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				turn_id?: unknown;
 				revision?: unknown;
 				narration_id?: string;
+				request_id?: string;
+				checkpoint_id?: string;
+				sequence?: number;
+				narration_kind?: string;
+				playback_id?: string;
 				interrupted_turn_id?: string;
 				disposition?: string;
+				retryable?: boolean;
 			};
 			try {
 				msg = JSON.parse(evt.data as string);
@@ -386,14 +395,20 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						interruptedTurnId: msg.interrupted_turn_id ?? '',
 					});
 					break;
-				case 'narration_ack':
+				case 'narration_ack': {
+					const disposition = msg.disposition === 'busy'
+						|| msg.disposition === 'invalid'
+						|| msg.disposition === 'suppressed'
+						? msg.disposition
+						: 'accepted';
 					this._onNarrationAck.fire({
 						narrationId: msg.narration_id ?? '',
 						codingSessionId: msg.coding_session_id ?? '',
-						disposition: (msg.disposition as 'accepted' | 'busy' | 'invalid') ?? 'accepted',
+						disposition,
 						reason: msg.reason,
 					});
 					break;
+				}
 				case 'narration_unblocked':
 					this._onNarrationUnblocked.fire({
 						narrationId: msg.narration_id ?? '',
@@ -404,6 +419,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onNarrationInterrupted.fire({
 						narrationId: msg.narration_id ?? '',
 						codingSessionId: msg.coding_session_id ?? '',
+						...(typeof msg.retryable === 'boolean' ? { retryable: msg.retryable } : {}),
+						...(msg.reason ? { reason: msg.reason } : {}),
 					});
 					break;
 				case 'transcription': {
@@ -422,11 +439,19 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					});
 					break;
 				}
-				case 'audio_response':
+				case 'audio_response': {
 					// Old pre-streaming server (pre PR #44076) doesn't send
 					// `is_first_chunk` at all. Treat missing field as TRUE so
 					// suppression-clearing in _enqueueAudio still works; new
 					// streaming server always emits true/false explicitly.
+					const requestId = asOptionalString(msg.request_id);
+					const checkpointId = isVoiceCheckpointId(msg.checkpoint_id) ? msg.checkpoint_id : undefined;
+					const sequence = typeof msg.sequence === 'number' && Number.isSafeInteger(msg.sequence) && msg.sequence > 0 ? msg.sequence : undefined;
+					const narrationKind = msg.narration_kind === 'response' || msg.narration_kind === 'confirmation' || msg.narration_kind === 'checkpoint' ? msg.narration_kind as VoiceNarrationKind : undefined;
+					const playbackId = asOptionalString(msg.playback_id);
+					if (narrationKind === 'checkpoint') {
+						this._logService.info(`[voice] checkpoint audio request=${requestId ?? 'none'} stage=${checkpointId ?? 'none'} sequence=${sequence ?? 'none'} first=${msg.is_first_chunk === undefined ? true : Boolean(msg.is_first_chunk)} final=${Boolean(msg.is_final)}`);
+					}
 					this._onAudioResponse.fire({
 						audio: msg.audio ?? '',
 						isFirstChunk: msg.is_first_chunk === undefined ? true : Boolean(msg.is_first_chunk),
@@ -435,8 +460,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						transcript: msg.transcript,
 						turnId: asOptionalString(msg.turn_id),
 						responseId: msg.narration_id ?? asOptionalString(msg.turn_id),
+						...(requestId ? { requestId } : {}),
+						...(checkpointId ? { checkpointId } : {}),
+						...(sequence !== undefined ? { sequence } : {}),
+						...(narrationKind ? { narrationKind } : {}),
+						...(playbackId ? { playbackId } : {}),
 					});
 					break;
+				}
 				case 'tool_call':
 					this._onToolCall.fire({
 						callId: msg.call_id ?? '',
@@ -734,7 +765,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
+	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			this._ws.send(JSON.stringify({
+				type: 'narration_playback_complete',
+				coding_session_id: codingSessionId,
+				narration_id: narrationId,
+				playback_id: playbackId,
+			}));
+		}
+	}
+
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -748,9 +790,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				kind,
 				text,
 				narration_id: id,
+				...(checkpoint ? {
+					request_id: checkpoint.requestId,
+					checkpoint_id: checkpoint.checkpointId,
+					sequence: checkpoint.sequence,
+				} : {}),
+				...(kind === 'confirmation' && confirmationType ? { confirmation_type: confirmationType } : {}),
 				...(pending ? { pending_id: pending.pendingId } : {}),
 			}));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
+			if (checkpoint) {
+				this._logService.info(`[voice] checkpoint sent request=${checkpoint.requestId} stage=${checkpoint.checkpointId} sequence=${checkpoint.sequence}`);
+			}
 			return id;
 		}
 		return undefined;

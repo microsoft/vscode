@@ -1609,6 +1609,7 @@ export class ChatService extends Disposable implements IChatService {
 							editedFileEvents: thisRequest.editedFileEvents,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
+							isVoiceModeInput: options?.isVoiceModeInput,
 							isSystemInitiated: options?.isSystemInitiated,
 							workingDirectory: model.workingDirectory,
 						};

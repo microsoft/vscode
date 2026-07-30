@@ -584,6 +584,14 @@ export interface IChatHookPart {
 	subAgentInvocationId?: string;
 }
 
+export type ChatVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export interface IChatVoiceProgressPart {
+	readonly kind: 'voiceProgress';
+	readonly id: ChatVoiceProgressStage;
+	readonly value: string;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	commandLine: {
@@ -1451,6 +1459,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatThinkingPart
+	| IChatVoiceProgressPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
@@ -1790,6 +1799,7 @@ export interface IRemotePendingRequest {
 
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
+	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
 	/**
 	 * The configuration (e.g. context size, thinking effort) for the selected

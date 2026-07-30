@@ -423,9 +423,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						widget.input.setValue(text, false);
 					} else {
 						// Preserve any text the user already typed in the input.
-						widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
+						return widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true, isVoiceModeInput: true });
 					}
 				}
+				return undefined;
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', async (_accessor, resourceStr: string): Promise<boolean> => {
 				if (!resourceStr) {
