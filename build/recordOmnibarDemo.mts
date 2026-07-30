@@ -24,7 +24,7 @@ const FIXTURE = process.env.OMNIBAR_THEME === 'light'
 const URL = `http://localhost:5123/___explorer?fixture=${FIXTURE}&mode=embedded`;
 
 /** One full pass of the script, plus a little lead-in and tail. */
-const SCRIPT_MS = 181000;
+const SCRIPT_MS = 182000;
 const LEAD_IN_MS = 1200;
 const TAIL_MS = 600;
 

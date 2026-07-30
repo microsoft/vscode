@@ -59,8 +59,12 @@ const STATE_COLORS = {
 	processing: { rgb: '235,235,235', hue: null },
 	/** Needs input — a session is blocked on you. */
 	needsInput: { rgb: '224,151,66', hue: 33 },
-	/** Resolved happily. */
-	done: { rgb: '87,182,116', hue: 143 },
+	/**
+	 * Finished. White rather than green: the other colours all say *who* or
+	 * *what is needed*, and green would add a sixth hue that only means "over".
+	 * Completion is the absence of state, so it returns to neutral.
+	 */
+	done: { rgb: '235,235,235', hue: null },
 } as const;
 
 type StateColor = keyof typeof STATE_COLORS;
@@ -141,7 +145,8 @@ const GLOWS = {
 	listening: { size: 'pulse-inner', state: 'listening', strength: 0.95, brightness: 1.35 },
 	speaking: { size: 'pulse-inner', state: 'speaking', strength: 0.95, brightness: 1.4 },
 	needsInput: { size: 'pulse-inner', state: 'needsInput', strength: 0.9, brightness: 1.35 },
-	done: { size: 'pulse-inner', state: 'done', strength: 0.85, brightness: 1.35 },
+	/** Neutral, so it needs mono's higher strength to read at all. */
+	done: { size: 'pulse-inner', state: 'done', strength: 0.95, brightness: 1.4 },
 	/** The bar is thinking — neutral traveling beam. */
 	processing: { size: 'md', state: 'processing', strength: 0.95, brightness: 1.5, duration: 2.2 },
 	/** The agent is working — same hue as when it speaks, because it is the
@@ -274,7 +279,7 @@ const SCRIPT: readonly Beat[] = [
 		text: THEME_CMD, type: true, caret: true,
 	},
 	{
-		note: 'It reads as a command, not a prompt \u2014 so it offers to run it.',
+		note: 'It reads as a command, not a prompt \u2014 so it just runs it.',
 		ms: 5200, home: 'floating', glow: 'rest', voice: 'off', text: THEME_CMD,
 		body: { kind: 'intent', picked: 'command' },
 	},
@@ -291,9 +296,14 @@ const SCRIPT: readonly Beat[] = [
 		text: FILE_QUERY, type: true, caret: true,
 	},
 	{
-		note: 'Short, and it matches a file \u2014 so opening it wins. The rest stay one key away.',
-		ms: 6600, home: 'floating', glow: 'rest', voice: 'off', dark: true,
+		note: 'Short, and it matches a file. No menu \u2014 it opens.',
+		ms: 4600, home: 'floating', glow: 'rest', voice: 'off', dark: true,
 		text: FILE_QUERY, body: { kind: 'intent', picked: 'file' },
+	},
+	{
+		note: 'Fire and forget. The bar is already out of the way.',
+		ms: 3200, home: 'floating', glow: 'done', voice: 'off', dark: true,
+		text: 'Opened Hero.tsx', icon: Codicon.check, iconColor: 'done',
 	},
 	{
 		note: 'Say more and the same box re-reads it as work for an agent.',
@@ -1055,7 +1065,7 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 		const glyphHolder = $('span');
 		glyphHolder.style.cssText = 'display:flex;align-items:center;justify-content:center;';
 		glyphHolder.appendChild(spinner);
-		const check = icon(Codicon.passFilled, 'var(--vscode-foreground)');
+		const check = icon(Codicon.passFilled, stateColor('done'));
 		check.style.display = 'none';
 		glyphHolder.appendChild(check);
 
@@ -1065,9 +1075,7 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 			const pct = Math.min(1, p * rate);
 			const complete = pct >= 1;
 			fill.style.width = `${Math.round(pct * 100)}%`;
-			// Completion is white: green would read as a status colour competing
-			// with the agent/you split, when it only means "finished".
-			fill.style.background = complete ? 'var(--vscode-foreground)' : stateColor('speaking');
+			fill.style.background = stateColor(complete ? 'done' : 'speaking');
 			pctLabel.textContent = complete ? 'Done' : `${Math.round(pct * 100)}%`;
 			spinner.style.display = complete ? 'none' : '';
 			check.style.display = complete ? '' : 'none';
@@ -1139,33 +1147,32 @@ function buildQueue(index: number, store: DisposableStore): HTMLElement {
  * one key away, so it is correctable rather than mysterious. That is the same
  * contract as the routing countdown.
  */
+/*
+ * Intent resolves to a single committed action, not a menu. The bar decides and
+ * goes; the alternatives are one quiet key away rather than three rows you have
+ * to read past. Choosing from a list is the thing typing a sentence was meant
+ * to replace.
+ */
 function buildIntent(picked: IntentKind): HTMLElement {
 	const inner = $('.omnibar-body-inner');
 
-	const head = $('.omnibar-group');
-	head.textContent = picked === 'file' ? 'Open file' : picked === 'command' ? 'Run' : 'Ask an agent';
-	const hint = $('span.omnibar-group-hint');
-	hint.textContent = '\u2325 to change';
-	head.appendChild(hint);
-	inner.appendChild(head);
+	const resolved: Record<IntentKind, readonly [ThemeIcon, string, string]> = {
+		file: [Codicon.file, 'Hero.tsx', 'src/components/'],
+		command: [Codicon.gear, 'Preferences: Color Theme \u2192 Dark Modern', ''],
+		agent: [Codicon.sparkle, SESSIONS.hero.title, 'New session'],
+	};
 
-	const options: readonly [IntentKind, ThemeIcon, string, string][] = [
-		['file', Codicon.file, 'Hero.tsx', 'src/components/'],
-		['command', Codicon.gear, 'Preferences: Color Theme \u2192 Dark Modern', 'Enter'],
-		['agent', Codicon.sparkle, SESSIONS.hero.title, 'New session'],
-	];
+	const [glyph, label, detail] = resolved[picked];
+	const hintEl = $('span.omnibar-row-hint');
+	hintEl.textContent = detail;
+	inner.appendChild(row(icon(glyph), label, detail ? hintEl : undefined, true));
 
-	// The chosen intent leads and is selected; the others stay visible beneath so
-	// you can see what it decided between.
-	for (const [kind, glyph, label, detail] of [...options].sort(a => a[0] === picked ? -1 : 1)) {
-		const hintEl = $('span.omnibar-row-hint');
-		hintEl.textContent = detail;
-		const el = row(icon(glyph), label, hintEl, kind === picked);
-		if (kind !== picked) {
-			el.setAttribute('data-dim', '');
-		}
-		inner.appendChild(el);
-	}
+	const foot = $('.omnibar-question-foot');
+	const change = $('span');
+	change.textContent = '\u2325 for other matches';
+	foot.appendChild(change);
+	inner.appendChild(foot);
+
 	return stagger(inner);
 }
 
@@ -1286,7 +1293,7 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 			group('Agent sessions'),
 			row(liveStatus(store, 'grid', stateColor('speaking')), SESSIONS.hero.title, sessionDetail(SESSIONS.hero.branch, SESSIONS.hero.added, SESSIONS.hero.removed)),
 			row(liveStatus(store, 'ring', stateColor('needsInput')), SESSIONS.docs.title, sessionDetail(SESSIONS.docs.branch, SESSIONS.docs.added, SESSIONS.docs.removed)),
-			row(icon(Codicon.passFilled, 'var(--vscode-foreground)'), SESSIONS.gallery.title, sessionDetail(SESSIONS.gallery.branch, SESSIONS.gallery.added, SESSIONS.gallery.removed)),
+			row(icon(Codicon.passFilled, stateColor('done')), SESSIONS.gallery.title, sessionDetail(SESSIONS.gallery.branch, SESSIONS.gallery.added, SESSIONS.gallery.removed)),
 		);
 		return stagger(inner);
 	}
