@@ -22,7 +22,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ARCHIVE_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -944,7 +944,7 @@ class RestoreArchivedSessionAction extends BaseUnarchiveSessionAction {
 registerAction2(class RenameSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.renameSession',
+			id: RENAME_SESSION_COMMAND_ID,
 			title: localize2('renameSession', "Rename..."),
 			menu: [{
 				id: SessionItemContextMenuId,
@@ -956,7 +956,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const session = Array.isArray(context) ? context[0] : context;
-		if (!session) {
+		if (!session || !session.capabilities.get().supportsRename) {
 			return;
 		}
 		const quickInputService = accessor.get(IQuickInputService);
@@ -973,7 +973,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		});
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
-			if (trimmedTitle) {
+			if (trimmedTitle && trimmedTitle !== session.title.get().trim()) {
 				await sessionsManagementService.renameSession(session, trimmedTitle);
 			}
 		}

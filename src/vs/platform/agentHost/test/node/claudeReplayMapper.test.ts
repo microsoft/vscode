@@ -523,13 +523,13 @@ suite('resolveForkAnchorUuid', () => {
 		assert.strictEqual(resolveForkAnchorUuid(messages, 'u1'), 'a1', 'system notification must not end the turn');
 	});
 
-	test('user-only target turn (no assistant) falls back to the user-text uuid', () => {
+	test('user-only target turn (no assistant) has no valid fork anchor', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'apple'),
 			makeAssistantText('a1', 'apple!'),
 			makeUser('u2', 'unanswered'),
 		];
-		assert.strictEqual(resolveForkAnchorUuid(messages, 'u2'), 'u2', 'fall back to the user-text envelope uuid');
+		assert.strictEqual(resolveForkAnchorUuid(messages, 'u2'), undefined);
 	});
 
 	test('turnId not found → undefined', () => {

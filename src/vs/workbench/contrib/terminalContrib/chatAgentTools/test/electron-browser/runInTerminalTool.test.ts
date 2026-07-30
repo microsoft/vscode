@@ -3407,14 +3407,14 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let registeredToolData: Map<string, IToolData>;
-	let toolDataRegistration: DeferredPromise<void>;
+	let pendingToolDataRegistration: DeferredPromise<void> | undefined;
 	let sandboxEnabled: boolean;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		registeredToolData = new Map();
-		toolDataRegistration = new DeferredPromise<void>();
+		pendingToolDataRegistration = undefined;
 		sandboxEnabled = false;
 
 		const logService = new NullLogService();
@@ -3489,7 +3489,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			onDidChangeTools: Event.None,
 			registerToolData(toolData: IToolData) {
 				registeredToolData.set(toolData.id, toolData);
-				toolDataRegistration.complete();
+				pendingToolDataRegistration?.complete();
 				return toDisposable(() => registeredToolData.delete(toolData.id));
 			},
 			registerToolImplementation(id: string, tool: IToolImpl) {
@@ -3523,14 +3523,23 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 	});
 
-	async function waitForToolDataRegistration(): Promise<void> {
-		await toolDataRegistration.p;
-		toolDataRegistration = new DeferredPromise<void>();
+	async function waitForToolDataRegistration(trigger: () => void): Promise<void> {
+		const registration = new DeferredPromise<void>();
+		pendingToolDataRegistration = registration;
+		try {
+			trigger();
+			await registration.p;
+		} finally {
+			pendingToolDataRegistration = undefined;
+		}
 	}
 
 	async function createContribution(): Promise<ChatAgentToolsContribution> {
-		const contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
-		await waitForToolDataRegistration();
+		let contribution: ChatAgentToolsContribution | undefined;
+		await waitForToolDataRegistration(() => {
+			contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
+		});
+		ok(contribution);
 		return contribution;
 	}
 
@@ -3547,17 +3556,17 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(!propertiesBefore?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution before enabling sandbox');
 
-		// Enable sandbox and fire config change
-		sandboxEnabled = true;
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Enable sandbox and fire config change
+			sandboxEnabled = true;
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		await waitForToolDataRegistration();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3574,15 +3583,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(propertiesBefore?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution before disabling unsandboxed commands');
 
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		await waitForToolDataRegistration();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3597,15 +3606,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const toolDataBefore = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataBefore, 'Expected run_in_terminal tool to be registered');
 
-		// Fire network config change
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
-			affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Fire network config change
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
+				affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		await waitForToolDataRegistration();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered after network setting change');

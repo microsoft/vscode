@@ -377,6 +377,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeBranchTrack]: false,
 				providerSetting: 'selected',
 			},
 		});
@@ -393,6 +394,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeBranchTrack]: false,
 				providerSetting: 'completion',
 			},
 			property: 'providerSetting',
@@ -412,6 +414,7 @@ suite('AgentService (node dispatcher)', () => {
 				branch: selected.values[SessionConfigKey.Branch],
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
+				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
 				providerSetting: selected.values.providerSetting,
 			},
 			folder: {
@@ -427,7 +430,7 @@ suite('AgentService (node dispatcher)', () => {
 			],
 			providerCompletionConfigs: [{ providerSetting: 'completion' }],
 			initial: { isolation: 'worktree', branchDefault: 'main', branch: 'main', providerSetting: 'initial' },
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
 		});
 	});
@@ -2231,6 +2234,50 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('accepts an already handled MCP token after retrying session handlers', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => ++handlerCalls === 1;
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['write', 'read'], token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-1' });
+			const replacement = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-2' });
+
+			assert.deepStrictEqual({ first, duplicate, replacement, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: true },
+				replacement: { authenticated: false },
+				handlerCalls: 3,
+			});
+		});
+
+		test('does not hide a session handler rejection with an accepted token', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => {
+				handlerCalls++;
+				if (handlerCalls === 1) {
+					return true;
+				}
+				throw new Error('failed');
+			};
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+
+			assert.deepStrictEqual({ first, duplicate, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: false },
+				handlerCalls: 2,
+			});
+		});
+
 		test('fans out to every provider that owns the resource', async () => {
 			// Two providers share the same protected resource (the real
 			// motivating example: both Copilot CLI and Claude consume the
@@ -2365,6 +2412,64 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
+		});
+
+		test('re-attaches persisted turn usage on restore', async () => {
+			// Providers don't durably record token/credit usage (the Copilot
+			// SDK's `assistant.usage` event is explicitly ephemeral), so without
+			// the host-side overlay a reloaded session comes back with no
+			// context-usage gauge and a session cost of 0.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi there!', toolRequests: [] },
+			];
+			await db.setTurnUsage('msg-1', JSON.stringify({ inputTokens: 100, outputTokens: 20, model: 'gpt-5' }));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(
+				localService.stateManager.getSessionState(sessionResource.toString())?.turns.map(t => t.usage),
+				[{ inputTokens: 100, outputTokens: 20, model: 'gpt-5' }],
+			);
+		});
+
+		test('re-attaches usage over an Auto-model stub, preserving the routing metadata', async () => {
+			// A turn that ran on Copilot Auto is restored with a token-less stub
+			// (`{ model, _meta: { autoModeResolved } }`, see mapSessionEvents)
+			// because the routing decision IS persisted while the usage event is
+			// not. Treating that stub as "already has usage" would skip exactly
+			// the turns needing re-attachment — and Auto is the default model.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const autoModeResolved = { chosenModel: 'claude-opus-4.8', predictedLabel: 'needs_reasoning', confidence: 0.93 };
+			const agent = disposables.add(new MockAgent('copilot'));
+			agent.turnUsageOverride = { model: 'claude-opus-4.8', _meta: { autoModeResolved } };
+			localService.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi there!', toolRequests: [] },
+			];
+			await db.setTurnUsage('msg-1', JSON.stringify({ inputTokens: 100, outputTokens: 20, model: 'claude-opus-4.8', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } }));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(
+				localService.stateManager.getSessionState(sessionResource.toString())?.turns.map(t => t.usage),
+				[{
+					inputTokens: 100,
+					outputTokens: 20,
+					model: 'claude-opus-4.8',
+					// The stub's routing metadata survives alongside the persisted usage.
+					_meta: { autoModeResolved, copilotUsage: { totalNanoAiu: 5_000_000_000 } },
+				}],
+			);
 		});
 
 		test('interleaves persisted host-injected local turns after their anchor on restore', async () => {

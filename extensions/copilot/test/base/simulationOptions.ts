@@ -24,7 +24,11 @@ export enum NesDatagenInputFormat {
 	AlternativeAction = 'alternative-action',
 	/** Continuous enhanced-telemetry slices with no request bookmark; a pivot is synthesized. */
 	Continuous = 'continuous',
+	/** A raw, stateful local workspaceRecording@1.0 JSONL timeline. */
+	WorkspaceRecording = 'workspace-recording',
 }
+
+export const DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP = 100;
 
 /**
  * How to choose the pivot in a continuous recording (only meaningful when
@@ -56,6 +60,10 @@ export type NesDatagen = {
 	readonly sameFileJumpMinAbove: number;
 	/** Minimum same-file lines below the request cursor for a move to count as a jump. */
 	readonly sameFileJumpMinBelow: number;
+	/** Maximum number of samples selected from one raw workspace recording. */
+	readonly maxSamplesPerRecording?: number;
+	/** Internal worker-only subset of selected workspace-recording operation indices. */
+	readonly workspacePivotOperationIndices?: readonly number[];
 };
 
 export class SimulationOptions {
@@ -230,6 +238,12 @@ export class SimulationOptions {
 				seed: SimulationOptions.resolveSeed(argv['seed']),
 				sameFileJumpMinAbove: typeof argv['same-file-jump-min-above'] === 'number' ? argv['same-file-jump-min-above'] : 2,
 				sameFileJumpMinBelow: typeof argv['same-file-jump-min-below'] === 'number' ? argv['same-file-jump-min-below'] : 5,
+				maxSamplesPerRecording: SimulationOptions.validatePositiveInteger(
+					argv['max-samples-per-recording'],
+					'--max-samples-per-recording',
+					DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP,
+				),
+				workspacePivotOperationIndices: SimulationOptions.parseWorkspacePivotOperationIndices(argv['workspace-pivot-operation-indices']),
 			}
 			: undefined;
 
@@ -291,7 +305,7 @@ export class SimulationOptions {
 			`  --model-config-file                Path to a JSON file containing model configuration options`,
 			``,
 			`Subcommands:`,
-			`  nes-datagen                        Generate training data from alternative action recordings`,
+			`  nes-datagen                        Generate NES training data from recorded editing sessions`,
 			`                                     Run 'npm run simulate -- nes-datagen --help' for options`,
 			``,
 		].join('\n'));
@@ -301,21 +315,24 @@ export class SimulationOptions {
 		console.log([
 			`Usage: npm run simulate -- --config-file=<path> [global options] nes-datagen --input=<path> [options]`,
 			``,
-			`Generate training data by replaying alternative action recordings through the NES prompt pipeline.`,
+			`Generate training data by replaying recorded editing sessions through the NES prompt pipeline.`,
 			`The prompting strategy is read from the model configuration in --config-file.`,
+			`Raw workspace recordings contain source code. Keep input and output files in approved secure storage.`,
 			``,
 			`Options:`,
 			`  --input                            Path to a JSON or JSON Lines file with training data recordings (required)`,
 			`                                     Format is inferred from the extension: .jsonl/.ndjson → JSON Lines, otherwise JSON array`,
 			`  --out                              Output path for the JSON Lines file. Default: <input-path>_output.jsonl`,
 			`  --input-format                     Shape of the input recordings (default: alternative-action)`,
-			`                                     Values: alternative-action, continuous`,
+			`                                     Values: alternative-action, continuous, workspace-recording`,
 			`                                       alternative-action → per-request recordings bookmarked at the NES request time`,
 			`                                       continuous         → continuous enhanced-telemetry slices; a pivot is synthesized`,
+			`                                       workspace-recording → raw stateful *.workspaceRecording.jsonl timeline`,
 			`  --pivot-strategy                   How to pick the pivot in a continuous recording (default: random; only for --input-format=continuous)`,
 			`                                     Values: random`,
 			`                                       random             → pick a single eligible pivot uniformly at random`,
 			`  --seed                             Integer seed for the continuous pivot RNG (default: random, logged for reproducibility)`,
+			`  --max-samples-per-recording        Maximum samples selected from a workspace recording (default: 100)`,
 			`  --sample-task                      Which target to generate (default: xtab)`,
 			`                                     Values: xtab, cursor-same-file, cursor-cross-file, cursor-both`,
 			`                                       xtab               → edit-prediction sample (assistant = an edit)`,
@@ -341,6 +358,7 @@ export class SimulationOptions {
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json --sample-task=cursor-both --same-file-jump-min-above=8 --same-file-jump-min-below=8`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous --pivot-strategy=random --seed=42`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording`,
 			``,
 		].join('\n'));
 	}
@@ -411,6 +429,7 @@ export class SimulationOptions {
 		if (value === undefined || value === null) {
 			return PivotStrategy.Random;
 		}
+
 		if (typeof value !== 'string') {
 			throw new Error(`--pivot-strategy must be a string, but got: ${typeof value}`);
 		}
@@ -419,6 +438,35 @@ export class SimulationOptions {
 			throw new Error(`--pivot-strategy must be one of [${allowed.join(', ')}], but got: ${value}`);
 		}
 		return value as PivotStrategy;
+	}
+
+	private static validatePositiveInteger(value: unknown, optionName: string, defaultValue: number): number {
+		if (value === undefined || value === null) {
+			return defaultValue;
+		}
+		if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+			throw new Error(`${optionName} must be a positive integer, but got: ${value}`);
+		}
+		return value;
+	}
+
+	private static parseWorkspacePivotOperationIndices(value: unknown): readonly number[] | undefined {
+		if (value === undefined || value === null) {
+			return undefined;
+		}
+		const serialized = typeof value === 'number' ? String(value) : value;
+		if (typeof serialized !== 'string' || serialized.length === 0) {
+			throw new Error(`--workspace-pivot-operation-indices must be a comma-separated list of non-negative integers`);
+		}
+
+		const indices = serialized.split(',').map(part => Number(part));
+		if (indices.some(index => !Number.isInteger(index) || index < 0)) {
+			throw new Error(`--workspace-pivot-operation-indices must be a comma-separated list of non-negative integers`);
+		}
+		if (new Set(indices).size !== indices.length) {
+			throw new Error(`--workspace-pivot-operation-indices must not contain duplicates`);
+		}
+		return indices;
 	}
 
 	/**

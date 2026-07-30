@@ -16,13 +16,14 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithSubagentContent, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { IChatMcpServersStartingSlow, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
-import { ChatViewModel, IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRendererContent, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -48,6 +49,59 @@ suite('ChatListRenderer', () => {
 				true,
 				true,
 			]);
+		});
+
+		suite('getFinalResponseStartIndex', () => {
+			test('finds the trailing markdown response while leaving trailing adjuncts in place', () => {
+				assert.deepStrictEqual([
+					getFinalResponseStartIndex([
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('Final response') },
+						{ kind: 'references', references: [] },
+					]),
+					getFinalResponseStartIndex([
+						{ kind: 'markdownContent', content: new MarkdownString('Earlier response') },
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('First segment') },
+						{ kind: 'markdownContent', content: new MarkdownString('Second segment') },
+					]),
+					getFinalResponseStartIndex([
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('') },
+					]),
+				], [
+					1,
+					2,
+					undefined,
+				]);
+			});
+
+			test('formats completed response disclosure step count and timing', () => {
+				assert.deepStrictEqual([
+					formatCompletedResponseDisclosureLabel(1, 83_000),
+					formatCompletedResponseDisclosureLabel(6, 83_000),
+					formatCompletedResponseDisclosureLabel(6, undefined),
+				], [
+					'Completed 1 step in 1m 23s',
+					'Completed 6 steps in 1m 23s',
+					'Completed 6 steps',
+				]);
+			});
+
+			test('counts visible completed response items', () => {
+				const hidden = document.createElement('div');
+				hidden.style.display = 'none';
+				const first = document.createElement('div');
+				const second = document.createElement('div');
+
+				assert.deepStrictEqual([
+					getVisibleCompletedResponseItemCount([hidden, first]),
+					getVisibleCompletedResponseItemCount([hidden, first, second]),
+				], [
+					1,
+					2,
+				]);
+			});
 		});
 	});
 
@@ -285,6 +339,107 @@ suite('ChatListRenderer', () => {
 				managedHoverText: undefined,
 			});
 		});
+	});
+
+	test('inline editing keeps a populated timestamp after the edit input with verbose timestamps disabled', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		configurationService.setUserConfiguration('chat.editRequests', 'hover');
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'test';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, Date.now());
+		const requestViewModel = viewModel.getItems().find(isRequestVM);
+		assert.ok(requestViewModel);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		renderer.renderElement({ element: requestViewModel, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined }, 0, template);
+
+		const widget = {
+			viewModel,
+			configurationService,
+			recentlyRestoredCheckpoint: false,
+			inputPart: {
+				currentModeObs: { get: () => ({ id: ChatModeKind.Agent }) },
+				currentModeInfo: {},
+				setEditing: () => { },
+				toggleChatInputOverlay: () => { },
+				dnd: { setDisabledOverlay: () => { } },
+				onDidClickOverlay: () => toDisposable(() => { }),
+			},
+			input: {
+				setChatMode: () => { },
+				setPermissionLevel: () => { },
+				setEditing: () => { },
+				renderAttachedContext: () => { },
+				setValue: () => { },
+				attachmentModel: { addContext: () => { } },
+				inputEditor: {
+					getModel: () => undefined,
+					focus: () => { },
+				},
+			},
+			inlineInputPart: {
+				inputEditor: {
+					onDidChangeModelContent: () => toDisposable(() => { }),
+					onDidChangeCursorSelection: () => toDisposable(() => { }),
+				},
+			},
+			listWidget: {
+				suppressAutoScroll: false,
+				scrollToCurrentItem: () => { },
+			},
+			createInput: () => { },
+			onDidChangeItems: () => { },
+			getContrib: () => undefined,
+			_onDidChangeActiveInputEditor: { fire: () => { } },
+			_register: <T extends { dispose(): void }>(disposable: T) => disposables.add(disposable),
+			telemetryService: { publicLog2: () => { } },
+		} as unknown as ChatWidget;
+		(ChatWidget.prototype as unknown as { clickedRequest(this: ChatWidget, item: IChatListItemTemplate): void }).clickedRequest.call(widget, template);
+
+		assert.deepStrictEqual({
+			editingRequestId: viewModel.editing?.id,
+			showsVerboseDetails: template.rowContainer.classList.contains('show-verbose-details'),
+			timestampPopulated: !!template.requestTimestampContainer.querySelector('time'),
+			previousSiblingClass: template.requestTimestampContainer.previousElementSibling?.className,
+		}, {
+			editingRequestId: request.id,
+			showsVerboseDetails: false,
+			timestampPopulated: true,
+			previousSiblingClass: 'chat-edit-input-container',
+		});
+
+		disposables.dispose();
 	});
 
 	suite('turn status pills setting', () => {
