@@ -76,6 +76,13 @@ export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilot
  */
 export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
 
+/**
+ * Configuration key gating multiple-working-directory support for the Codex
+ * agent-host provider. Hidden from the Settings UI and off by default while the
+ * feature is dogfooded.
+ */
+export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgent.multiRootEnabled';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.

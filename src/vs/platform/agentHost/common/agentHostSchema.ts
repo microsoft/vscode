@@ -482,6 +482,9 @@ export const AgentHostCopilotMultiRootEnabledConfigKey = 'copilotMultiRootEnable
  */
 export const AgentHostClaudeMultiRootEnabledConfigKey = 'claudeMultiRootEnabled';
 
+/** Root config key forwarded from the renderer that gates Codex multiple-working-directory support. */
+export const AgentHostCodexMultiRootEnabledConfigKey = 'codexMultiRootEnabled';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.terminal.autoApprove` setting changes. Holds the effective
@@ -754,6 +757,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.claudeMultiRootEnabled.title', "Claude Multiple Working Directories"),
 		description: localize('agentHost.config.claudeMultiRootEnabled.description', "Whether the Claude provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
+		default: false,
+	}),
+	[AgentHostCodexMultiRootEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.codexMultiRootEnabled.title', "Codex Multiple Working Directories"),
+		description: localize('agentHost.config.codexMultiRootEnabled.description', "Whether the Codex provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
 		default: false,
 	}),
 	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({

@@ -24,18 +24,21 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
  *   `codex.model`    — serialized {@link ModelSelection.id} string,
  *                      remembered for restore so resumed sessions reuse
  *                      the model picked during the prior process.
+ *   `codex.workingDirectories` — ordered URI strings for multi-root restore.
  */
 
 export interface ICodexSessionOverlay {
 	readonly threadId?: string;
 	readonly cwd?: URI;
 	readonly modelId?: string;
+	readonly workingDirectories?: readonly URI[];
 }
 
 export interface ICodexSessionOverlayUpdate {
 	readonly threadId?: string;
 	readonly cwd?: URI;
 	readonly modelId?: string;
+	readonly workingDirectories?: readonly URI[];
 }
 
 export class CodexSessionMetadataStore {
@@ -43,6 +46,7 @@ export class CodexSessionMetadataStore {
 	private static readonly KEY_THREAD_ID = 'codex.threadId';
 	private static readonly KEY_CWD = 'codex.cwd';
 	private static readonly KEY_MODEL = 'codex.model';
+	private static readonly KEY_WORKING_DIRECTORIES = 'codex.workingDirectories';
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -70,6 +74,12 @@ export class CodexSessionMetadataStore {
 				if (fields.modelId !== undefined) {
 					work.push(db.setMetadata(CodexSessionMetadataStore.KEY_MODEL, fields.modelId));
 				}
+				if (fields.workingDirectories !== undefined) {
+					work.push(db.setMetadata(
+						CodexSessionMetadataStore.KEY_WORKING_DIRECTORIES,
+						JSON.stringify(fields.workingDirectories.map(directory => directory.toString())),
+					));
+				}
 				await Promise.all(work);
 			} finally {
 				ref.dispose();
@@ -91,15 +101,17 @@ export class CodexSessionMetadataStore {
 				return {};
 			}
 			try {
-				const [threadId, cwdRaw, modelId] = await Promise.all([
+				const [threadId, cwdRaw, modelId, workingDirectoriesRaw] = await Promise.all([
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_THREAD_ID),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_CWD),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_MODEL),
+					ref.object.getMetadata(CodexSessionMetadataStore.KEY_WORKING_DIRECTORIES),
 				]);
 				return {
 					threadId: threadId ?? undefined,
 					cwd: cwdRaw ? URI.parse(cwdRaw) : undefined,
 					modelId: modelId ?? undefined,
+					workingDirectories: parseWorkingDirectories(workingDirectoriesRaw),
 				};
 			} finally {
 				ref.dispose();
@@ -109,4 +121,23 @@ export class CodexSessionMetadataStore {
 			return {};
 		}
 	}
+
+}
+
+function parseWorkingDirectories(raw: string | undefined): readonly URI[] | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const value: unknown = JSON.parse(raw);
+		if (Array.isArray(value)) {
+			const directories = value
+				.filter((directory): directory is string => typeof directory === 'string')
+				.map(directory => URI.parse(directory));
+			return directories.length > 0 ? directories : undefined;
+		}
+	} catch {
+		// Invalid optional metadata is ignored.
+	}
+	return undefined;
 }
