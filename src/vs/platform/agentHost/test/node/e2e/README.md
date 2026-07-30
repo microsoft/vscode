@@ -470,15 +470,17 @@ A one-off union measurement (protocol + E2E vs. E2E alone) put the protocol suit
 | Area | Only tested in | Uncovered protocol symbols |
 |---|---|---|
 | Client-hosted filesystem (reverse requests) | *migrated* — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` |
-| Turn history paging | `turnExecution` | `fetchTurns`, `chat/turnsLoaded` |
-| Reconnect and multi-client fan-out | `multiClient` | `reconnect` |
+| Turn history paging | *migrated* — `suites/protocolContractsSuite.ts` | `fetchTurns`, `chat/turnsLoaded` |
+| Reconnect and multi-client fan-out | *partly migrated* — `suites/protocolContractsSuite.ts` covers `reconnect`; fan-out across several live clients is still only in `multiClient` | `reconnect` |
 | Changeset lifecycle | `sessionDiffs` | all 8 `changeset/*` actions |
 | OTLP export | `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` |
-| Liveness | `handshake`, several others | `ping` |
+| Liveness | *migrated* — `suites/protocolContractsSuite.ts` | `ping` |
 
 The filesystem family was the largest of these and is now covered by `suites/clientFilesystemSuite.ts` in the conformance tier — both the `resource*` command surface the host executes against its own filesystem, and the reverse direction where the host asks the *client* for a file it cannot otherwise reach. See [The filesystem, in both directions](#the-filesystem-in-both-directions).
 
-Some contracts are covered by **neither** suite and need new tests outright: the entire `annotations/*` channel (5 actions), `invokeChangesetOperation`, `auth/required`, `root/progress`, and `chat/toolCallAuthRequired` / `chat/toolCallAuthResolved`.
+Some contracts are covered by **neither** suite and need new tests outright: `auth/required`, `root/progress`, and `chat/toolCallAuthRequired` / `chat/toolCallAuthResolved`. The `annotations/*` channel is now covered by `suites/annotationsSuite.ts`.
+
+`reconnect` is only answerable on a transport that has **not** completed the handshake — it is the alternative to `initialize`, not a command an established connection can issue. Testing it therefore needs a second connection that can be dropped and re-established, which is what `IAgentHostE2ETestContext.connectClient` exists for; the shared per-test client cannot express it.
 
 ---
 

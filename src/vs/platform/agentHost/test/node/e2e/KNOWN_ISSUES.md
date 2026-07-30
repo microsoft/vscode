@@ -301,6 +301,23 @@ These are opt-in live tests, not known failures.
 - Gate: `supportsPlanMode: false`.
 - Evaluation goal: make the test prompt provider-neutral or add an equivalent Claude-specific prompt without weakening the plan-mode assertions.
 
+### A test that only asserts its last dispatch cannot see a lost one
+
+Most state-operation tests dispatch two or three actions and then assert the
+result of the **last** one. That shape is blind to an action that is echoed but
+never applied, because the final read still shows the expected value.
+
+The first test written here that asserted a *cumulative* result across two
+dispatches immediately exposed behavior nobody had written down: a message
+queued onto an idle chat is not parked in `queuedMessages` at all, it is
+promoted straight into a turn (`_tryConsumeNextQueuedMessage`), so the queue is
+empty again by the time the next action is reduced. The envelope for the
+dispatch looked completely normal — correct `serverSeq`, no `rejectionReason` —
+so nothing short of asserting the accumulated state would have caught it.
+
+When adding state-operation tests, prefer at least one assertion over the state
+that several actions built up together, not only over the last write.
+
 ## Expected capability skips
 
 These pending tests do not currently indicate bugs. They are listed by capability rather than by test title: the titles change often, and the gate is what matters.
