@@ -36,6 +36,11 @@ export interface IKeyboardEvent {
 	readonly altGraphKey: boolean;
 	readonly keyCode: KeyCode;
 	readonly code: string;
+
+	/**
+	 * Whether this event is part of an in-flight IME composition session.
+	 */
+	readonly isComposing: boolean;
 }
 
 export interface KeybindingsSchemaContribution {

@@ -64,6 +64,13 @@ export interface IKeyboardEvent {
 	readonly code: string;
 
 	/**
+	 * Whether this event is part of an in-flight IME composition session. Such keystrokes belong to
+	 * the input method, so `keyCode` is reported as {@link KeyCode.KEY_IN_COMPOSITION} for them.
+	 * @internal
+	 */
+	readonly isComposing: boolean;
+
+	/**
 	 * @internal
 	 */
 	toKeyCodeChord(): KeyCodeChord;
@@ -135,6 +142,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly altGraphKey: boolean;
 	public readonly keyCode: KeyCode;
 	public readonly code: string;
+	public readonly isComposing: boolean;
 
 	private _asKeybinding: number;
 	private _asKeyCodeChord: KeyCodeChord;
@@ -150,8 +158,17 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
 		this.altGraphKey = e.getModifierState?.('AltGraph');
-		this.keyCode = extractKeyCode(e);
 		this.code = e.code;
+		this.isComposing = e.isComposing;
+
+		// Browsers are inconsistent while an IME composition is in flight: most keystrokes arrive as
+		// `keyCode: 229` (which maps to `KEY_IN_COMPOSITION`), but some platform/IME combinations
+		// report the real key code for keys the IME owns - notably the Enter that commits a
+		// composition, but also Space, Escape and the arrows used to pick candidates. Normalize to
+		// `KEY_IN_COMPOSITION` so that every consumer - `equals()`, direct `keyCode` readers and
+		// keybinding resolution alike - sees one consistent representation of "the IME owns this
+		// keystroke" instead of acting on a key the user never directed at the application.
+		this.keyCode = this.isComposing ? KeyCode.KEY_IN_COMPOSITION : extractKeyCode(e);
 
 		// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 

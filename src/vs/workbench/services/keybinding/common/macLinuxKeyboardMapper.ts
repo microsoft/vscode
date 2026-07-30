@@ -701,7 +701,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 					metaKey: false,
 					altGraphKey: false,
 					keyCode: KeyCode.DependsOnKbLayout,
-					code: ScanCodeUtils.toString(scanCode)
+					code: ScanCodeUtils.toString(scanCode),
+					isComposing: false
 				});
 
 				const outScanCodeCombo = scanCodeCombo.toString();

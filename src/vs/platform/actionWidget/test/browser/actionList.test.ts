@@ -203,6 +203,27 @@ suite('ActionListWidget', () => {
 		assert.ok(widget.domNode.textContent?.includes('ma-fresh-result'));
 	});
 
+	test('does not filter while an IME composition is in progress', () => {
+		const filters: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			onFilter: async filter => {
+				filters.push(filter);
+				return [action(`result-${filter}`)];
+			},
+		});
+
+		assert.ok(widget.filterInput);
+		widget.filterInput.dispatchEvent(new Event('compositionstart'));
+		typeFilter(widget, 'd');
+		typeFilter(widget, 'deepseek');
+		widget.filterInput.value = 'DeepSeek';
+		widget.filterInput.dispatchEvent(new Event('compositionend'));
+		// Chromium fires a trailing `input` for the committed text, which must not re-filter.
+		typeFilter(widget, 'DeepSeek');
+
+		assert.deepStrictEqual(filters, ['DeepSeek']);
+	});
+
 	test('batches row width writes before reading layout', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
