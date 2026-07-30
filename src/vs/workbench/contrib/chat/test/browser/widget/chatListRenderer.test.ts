@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, formatCompletedResponseTokenStats, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { IChatMcpServersStartingSlow, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -100,6 +100,28 @@ suite('ChatListRenderer', () => {
 				], [
 					1,
 					2,
+				]);
+			});
+
+			test('summarizes per-model token usage for the disclosure hover', () => {
+				const stats = formatCompletedResponseTokenStats([
+					{ model: 'claude-opus-4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
+					{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+				]);
+
+				assert.deepStrictEqual({ markdown: stats?.markdown.value, ariaLabel: stats?.ariaLabel }, {
+					markdown: '**Tokens used this turn**\n\nclaude-opus-4.8 — 12K in, 830 out, 9K cached\n\ngpt-5.5 — 40 in, 12 out\n\n',
+					ariaLabel: 'Tokens used this turn. claude-opus-4.8: 12400 input tokens, 830 output tokens, 9000 cached tokens. gpt-5.5: 40 input tokens, 12 output tokens',
+				});
+			});
+
+			test('reports no token usage summary when the provider reported none', () => {
+				assert.deepStrictEqual([
+					formatCompletedResponseTokenStats(undefined),
+					formatCompletedResponseTokenStats([]),
+				], [
+					undefined,
+					undefined,
 				]);
 			});
 		});

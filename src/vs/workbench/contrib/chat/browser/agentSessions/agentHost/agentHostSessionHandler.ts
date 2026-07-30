@@ -2367,7 +2367,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
 					&& lastUsage.copilotCredits === usage.copilotCredits
-					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
+					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)
+					// A subagent's call leaves the parent's own token counts unchanged, so
+					// without comparing the whole-turn totals its contribution never lands.
+					&& equals(lastUsage.modelTotals, usage.modelTotals)) {
 					return;
 				}
 				lastUsage = usage;

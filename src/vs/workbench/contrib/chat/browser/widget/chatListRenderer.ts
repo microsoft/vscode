@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -18,14 +19,14 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString, escapeMarkdownSyntaxTokens } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
-import { clamp } from '../../../../../base/common/numbers.js';
+import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -53,7 +54,7 @@ import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
@@ -153,8 +154,19 @@ export interface IChatListItemTemplate {
 	completedResponseDisclosure?: HTMLDetailsElement;
 	completedResponseStartIndex?: number;
 	completedResponseDisclosureOpen?: boolean;
+	/** Summary element of the current disclosure, target of the token-stats hover. */
+	completedResponseSummary?: HTMLElement;
+	/** Visible label of the current disclosure, reused as the summary's aria-label prefix. */
+	completedResponseLabel?: string;
 	wasResponseComplete?: boolean;
 	readonly completedResponseDisclosureDisposables: DisposableStore;
+	/**
+	 * Token-stats hover for the current disclosure. Held separately from
+	 * {@link completedResponseDisclosureDisposables} because usage can arrive
+	 * after the disclosure is built, so the hover is replaced independently of
+	 * the disclosure's own lifetime.
+	 */
+	readonly completedResponseTokenStatsHover: MutableDisposable<IManagedHover>;
 
 	/** Drag handle element for reordering pending requests, if currently rendered. */
 	dragHandle?: HTMLElement;
@@ -286,6 +298,48 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 		visibleItemCount++;
 	}
 	return visibleItemCount;
+}
+
+/**
+ * Token consumption summary shown when hovering a completed response's collapsed
+ * section. The counts cover the whole turn rather than only the collapsed steps —
+ * providers report usage per turn, not per rendered item — so the label says so.
+ *
+ * Returns `undefined` when the provider reported no totals, in which case no
+ * hover should be shown at all. The result doubles as managed-hover content and
+ * carries an `ariaLabel` with exact, unabbreviated counts.
+ */
+export function formatCompletedResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
+	if (!modelTotals?.length) {
+		return undefined;
+	}
+
+	const title = localize('chat.responseTokenStats.title', "Tokens used this turn");
+	const markdown = new MarkdownString();
+	markdown.appendMarkdown(`**${escapeMarkdownSyntaxTokens(title)}**\n\n`);
+
+	const ariaParts: string[] = [title];
+	for (const total of modelTotals) {
+		// Cached tokens are the portion of the input a provider served from cache; a
+		// zero is noise rather than information, so it gets its own shorter phrasing.
+		const line = total.cachedTokens > 0
+			? localize('chat.responseTokenStats.modelLineCached', "{0} — {1} in, {2} out, {3} cached",
+				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens), formatTokenCount(total.cachedTokens))
+			: localize('chat.responseTokenStats.modelLine', "{0} — {1} in, {2} out",
+				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens));
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(line)}\n\n`);
+
+		// Screen readers get exact counts and spelled-out units; the visible line
+		// abbreviates (e.g. "12K") to stay compact.
+		ariaParts.push(total.cachedTokens > 0
+			? localize('chat.responseTokenStats.modelAriaCached', "{0}: {1} input tokens, {2} output tokens, {3} cached tokens",
+				total.model, total.inputTokens, total.outputTokens, total.cachedTokens)
+			: localize('chat.responseTokenStats.modelAria', "{0}: {1} input tokens, {2} output tokens",
+				total.model, total.inputTokens, total.outputTokens));
+	}
+
+	const ariaLabel = ariaParts.join('. ');
+	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
 }
 
 /** How a freshly measured row height should be reconciled against the tree's known height. */
@@ -876,6 +930,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const requestTimestampContainer = dom.append(valueParent, $('.chat-request-timestamp-container'));
 		const elementDisposables = templateDisposables.add(new DisposableStore());
 		const completedResponseDisclosureDisposables = templateDisposables.add(new DisposableStore());
+		const completedResponseTokenStatsHover = templateDisposables.add(new MutableDisposable<IManagedHover>());
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		if (this.rendererOptions.noFooter) {
@@ -948,7 +1003,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, completedResponseTokenStatsHover };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -2312,6 +2367,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& existingDisclosure.nextSibling === finalResponseRoot
 			&& templateData.renderedParts?.slice(0, finalResponseStartIndex).every(part => !part?.domNode || existingDisclosure.contains(part.domNode))
 		) {
+			// Usage can land after the disclosure was built, so refresh the stats
+			// even when the disclosure itself is reused unchanged.
+			this.updateCompletedResponseTokenStats(element, templateData);
 			return;
 		}
 
@@ -2331,7 +2389,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const label = button.appendChild($('span.monaco-button-mdlabel'));
 		const chevron = button.appendChild($('span.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
-		label.textContent = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
+		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
+		label.textContent = disclosureLabel;
+		summary.ariaLabel = disclosureLabel;
 
 		const activeElement = dom.getActiveElement();
 		const keepOpenForFocus = nodesToCollapse.some(node => node.contains(activeElement));
@@ -2353,6 +2413,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		details.append(...nodesToCollapse);
 		templateData.completedResponseDisclosure = details;
 		templateData.completedResponseStartIndex = finalResponseStartIndex;
+		templateData.completedResponseSummary = summary;
+		templateData.completedResponseLabel = disclosureLabel;
+		this.updateCompletedResponseTokenStats(element, templateData);
 		templateData.completedResponseDisclosureDisposables.add(dom.addDisposableListener(details, 'toggle', () => {
 			templateData.completedResponseDisclosureOpen = details.open;
 			updateExpansionState();
@@ -2369,6 +2432,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Attaches (or refreshes) the token breakdown shown when hovering the collapsed
+	 * section's summary. Providers report usage asynchronously, so this runs both
+	 * when the disclosure is built and when an unchanged one is reused. Sessions
+	 * whose provider reports no totals get no hover at all rather than an empty one.
+	 */
+	private updateCompletedResponseTokenStats(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		const summary = templateData.completedResponseSummary;
+		if (!summary) {
+			templateData.completedResponseTokenStatsHover.clear();
+			return;
+		}
+
+		const tokenStats = formatCompletedResponseTokenStats(element.model.usage?.modelTotals);
+		const hover = templateData.completedResponseTokenStatsHover;
+		if (!tokenStats) {
+			hover.clear();
+			return;
+		}
+
+		summary.ariaLabel = templateData.completedResponseLabel
+			? `${templateData.completedResponseLabel}. ${tokenStats.ariaLabel}`
+			: tokenStats.ariaLabel;
+		if (hover.value) {
+			hover.value.update(tokenStats);
+		} else {
+			hover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), summary, tokenStats);
+		}
+	}
+
 	private removeCompletedResponseDisclosure(templateData: IChatListItemTemplate): void {
 		const details = templateData.completedResponseDisclosure;
 		if (!details) {
@@ -2376,12 +2469,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.completedResponseDisclosureDisposables.clear();
+		// The summary is destroyed along with the disclosure, so its hover must go
+		// with it rather than being carried over to the next one.
+		templateData.completedResponseTokenStatsHover.clear();
 		while (details.childNodes.length > 1) {
 			details.before(details.childNodes[1]);
 		}
 		details.remove();
 		templateData.completedResponseDisclosure = undefined;
 		templateData.completedResponseStartIndex = undefined;
+		templateData.completedResponseSummary = undefined;
+		templateData.completedResponseLabel = undefined;
 	}
 
 	/**

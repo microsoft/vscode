@@ -139,7 +139,23 @@ export interface UsageInfoMeta {
 	 * `promptTokenDetails`.
 	 */
 	contextAttribution?: IContextAttributionData;
+	/**
+	 * Per-model token totals accumulated across every model call in the turn,
+	 * including calls made by subagents and the summarization call a compaction
+	 * performs. Unlike {@link UsageInfo.inputTokens}, which describes only the
+	 * most recent model call, these are whole-turn sums, so clients can report
+	 * what a completed turn consumed in aggregate.
+	 */
+	turnTokenTotals?: readonly ITurnTokenTotal[];
 	[key: string]: unknown;
+}
+
+/** Whole-turn token consumption attributed to a single model. */
+export interface ITurnTokenTotal {
+	readonly model: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
 }
 
 export interface IAutoModeResolvedInfo {
@@ -224,7 +240,47 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (contextAttribution) {
 		result.contextAttribution = contextAttribution;
 	}
+	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
+	if (turnTokenTotals) {
+		result.turnTokenTotals = turnTokenTotals;
+	}
 	return result;
+}
+
+/**
+ * Reads whole-turn per-model token totals, dropping rows that are not fully
+ * formed. Returns `undefined` when no usable row survives, so callers can treat
+ * "absent" and "present but meaningless" identically.
+ */
+function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const totals: ITurnTokenTotal[] = [];
+	for (const item of value) {
+		if (!item || typeof item !== 'object' || Array.isArray(item)) {
+			continue;
+		}
+		const raw = item as Record<string, unknown>;
+		if (typeof raw['model'] !== 'string' || !raw['model']
+			|| !isTokenCount(raw['inputTokens'])
+			|| !isTokenCount(raw['cachedTokens'])
+			|| !isTokenCount(raw['outputTokens'])
+		) {
+			continue;
+		}
+		totals.push({
+			model: raw['model'],
+			inputTokens: raw['inputTokens'],
+			cachedTokens: raw['cachedTokens'],
+			outputTokens: raw['outputTokens'],
+		});
+	}
+	return totals.length > 0 ? totals : undefined;
+}
+
+function isTokenCount(value: unknown): value is number {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 /**

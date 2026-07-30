@@ -524,6 +524,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits: getCopilotCredits(usage),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
+		modelTotals: readUsageInfoMeta(usage).turnTokenTotals,
 	};
 }
 
