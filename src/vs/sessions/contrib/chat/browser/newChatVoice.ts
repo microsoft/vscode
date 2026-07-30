@@ -6,7 +6,8 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, autorun, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -21,6 +22,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
@@ -57,6 +59,8 @@ export interface INewChatVoiceTargetService {
 	readonly _serviceBrand: undefined;
 	/** The most recent focused/registered mounted composer. */
 	readonly activeComposer: IObservable<INewChatVoiceComposer | undefined>;
+	/** The input resource currently selected for voice decorations. */
+	readonly currentVoiceInputResource: IObservable<URI | undefined>;
 	/** Register a composer as a voice target; dispose to remove it. */
 	registerComposer(composer: INewChatVoiceComposer): IDisposable;
 	/** Promote `composer` to the active voice target. */
@@ -69,6 +73,37 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 	private readonly _composers = new Set<INewChatVoiceComposer>();
 	private readonly _activeComposer = observableValue<INewChatVoiceComposer | undefined>(this, undefined);
 	readonly activeComposer: IObservable<INewChatVoiceComposer | undefined> = this._activeComposer;
+
+	/** Session resource of the last-focused chat widget (the last-focused input). */
+	private readonly _focusedSessionResource: IObservable<URI | undefined>;
+
+	readonly currentVoiceInputResource: IObservable<URI | undefined>;
+
+	constructor(
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+	) {
+		super();
+
+		this._focusedSessionResource = observableFromEvent(this,
+			this.chatWidgetService.onDidChangeFocusedSession,
+			() => this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource);
+
+		this.currentVoiceInputResource = derivedOpts({ owner: this, equalsFn: isEqual }, reader => {
+			const composer = this._activeComposer.read(reader);
+			const active = this.sessionsService.activeSession.read(reader);
+			const created = active?.isCreated.read(reader) ? active.activeChat.read(reader)?.resource : undefined;
+			// The composer wins while it opts in (or before a session exists),
+			// matching `_chat.voice.getCurrentSession` routing.
+			if (composer && (composer.routesWhileSessionActive || !created)) {
+				return NEW_CHAT_VOICE_SENTINEL;
+			}
+			if (created) {
+				return created;
+			}
+			return this._focusedSessionResource.read(reader);
+		});
+	}
 
 	registerComposer(composer: INewChatVoiceComposer): IDisposable {
 		this._composers.add(composer);
@@ -230,6 +265,7 @@ export class NewChatVoiceController extends Disposable {
 			inputContainer: options.inputContainer,
 			isActive: isVoiceTarget,
 			getCurrentResource: () => NEW_CHAT_VOICE_SENTINEL,
+			currentVoiceInputResource: targetService.currentVoiceInputResource,
 		}));
 	}
 }

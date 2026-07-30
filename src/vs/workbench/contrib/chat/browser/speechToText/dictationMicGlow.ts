@@ -7,6 +7,7 @@ import './media/dictationMicGlow.css';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
@@ -50,6 +51,7 @@ export function setupDictationMicGlow(
 	target: HTMLElement,
 	service: IChatSpeechToTextService,
 	accessibilityService: IAccessibilityService,
+	isActive?: IObservable<boolean>,
 ): IDisposable {
 	const store = new DisposableStore();
 	const window = getWindow(target);
@@ -78,8 +80,8 @@ export function setupDictationMicGlow(
 		setLevel(easeDictationMicLevel(level, shapeDictationMicLevel(measured)));
 	};
 
-	const update = () => {
-		const phase = getDictationMicGlowPhase(service.state, service.isPreparingModel);
+	const update = (active = isActive?.get() !== false) => {
+		const phase = active ? getDictationMicGlowPhase(service.state, service.isPreparingModel) : 'off';
 		target.classList.toggle('dictation-mic-active', phase !== 'off');
 		target.classList.toggle('dictation-mic-settling', phase === 'settling');
 
@@ -94,8 +96,13 @@ export function setupDictationMicGlow(
 		}
 	};
 
-	store.add(Event.any<unknown>(service.onDidChangeState, service.onDidChangePreparingModel)(update));
-	store.add(accessibilityService.onDidChangeReducedMotion(update));
+	store.add(Event.any<unknown>(service.onDidChangeState, service.onDidChangePreparingModel)(() => update()));
+	store.add(accessibilityService.onDidChangeReducedMotion(() => update()));
+	if (isActive) {
+		store.add(autorun(reader => {
+			update(isActive.read(reader));
+		}));
+	}
 	store.add(toDisposable(() => {
 		stopAnimation();
 		target.classList.remove('dictation-mic-active', 'dictation-mic-settling');

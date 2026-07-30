@@ -26,8 +26,8 @@ for (const scenario of scenarios) {
 		await page.getByRole('button', { name: 'Run 20-turn burst' }).click();
 		await expect(page.getByRole('status')).toContainText(/Completed/, { timeout: 30_000 });
 		const warningText = await page.locator('.resize-observer-loop-warnings').textContent();
-		const lastAttribution = await page.locator('.resize-observer-loop-warnings').getAttribute('data-last-attribution');
-		console.log(`[chat-resize-harness:${scenario.name}] ${warningText}; page errors: ${resizeObserverErrors.length}; last attribution: ${lastAttribution}`);
+		const observerContext = await page.locator('.resize-observer-loop-warnings').getAttribute('data-observer-context');
+		console.log(`[chat-resize-harness:${scenario.name}] ${warningText}; page errors: ${resizeObserverErrors.length}; observer context: ${observerContext}`);
 		const warningCount = Number(warningText?.replace('Warnings: ', ''));
 		expect(warningCount).toBe(scenario.expectedWarnings);
 		if (scenario.name === 'stacked targeted layout') {

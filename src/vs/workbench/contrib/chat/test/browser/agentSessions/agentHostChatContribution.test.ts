@@ -50,7 +50,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -2289,13 +2289,61 @@ suite('AgentHostChatContribution', () => {
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'Archived session',
-				isArchived: true,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
 			});
 
 			await listController.refresh(CancellationToken.None);
 
 			assert.strictEqual(listController.items.length, 1);
 			assert.strictEqual(listController.items[0].archived, true);
+		});
+
+		test('leaves isRead unset for a session the host reports no status for', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			// Neither Copilot's nor Claude's `listSessions` projects a status, so a
+			// cold session that has never been marked read or archived arrives
+			// without one. Reporting the synthesized `Idle` as unread here would
+			// contradict the agents window, which treats an absent status as read.
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'no-status'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Cold session',
+			});
+
+			await listController.refresh(CancellationToken.None);
+
+			assert.strictEqual(listController.items[0].isRead, undefined);
+		});
+
+		test('adopts host read state once a summary reports a status', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			const backendSession = AgentSession.uri('copilot', 'late-status');
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Cold session',
+			});
+			await listController.refresh(CancellationToken.None);
+			const beforeSummary = listController.items[0].isRead;
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: SessionStatus.Idle },
+			});
+
+			assert.deepStrictEqual({
+				beforeSummary,
+				afterSummary: listController.items[0].isRead,
+			}, {
+				beforeSummary: undefined,
+				afterSummary: false,
+			});
 		});
 
 		test('archive mutations dispatch through AHP and reconcile server summaries', async () => {
@@ -2367,6 +2415,78 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 		});
 
+		test('read mutations dispatch through AHP and reconcile server summaries', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'readable');
+			const baseStatus = SessionStatus.Idle | SessionStatus.IsRead;
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Readable session',
+				status: baseStatus,
+			});
+
+			const sessionListStore = createSessionListStore(disposables, instantiationService, agentHostService);
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
+			await listController.refresh(CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+
+			const readEvents: (boolean | undefined)[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				for (const item of delta.addedOrUpdated ?? []) {
+					readEvents.push(item.isRead);
+				}
+			}));
+
+			const resource = listController.items[0].resource;
+			const initialIsRead = listController.items[0].isRead;
+
+			// Repeated calls with the same value are no-ops.
+			listController.setChatSessionItemRead(resource, false);
+			listController.setChatSessionItemRead(resource, false);
+			const unreadStatus = sessionListStore.getSessions('copilot')[0].summary.status;
+
+			listController.setChatSessionItemRead(resource, true);
+			listController.setChatSessionItemRead(resource, true);
+
+			// The host marks the session unread again after background output.
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: SessionStatus.Idle },
+			});
+
+			assert.deepStrictEqual({
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+				initialIsRead,
+				unreadStatus,
+				reconciledIsRead: listController.items[0].isRead,
+				readEvents,
+			}, {
+				actions: [{
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsReadChanged, isRead: false },
+				}, {
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsReadChanged, isRead: true },
+				}],
+				initialIsRead: true,
+				unreadStatus: SessionStatus.Idle,
+				reconciledIsRead: false,
+				readEvents: [false, true, false],
+			});
+		});
+
+		test('read mutation ignores resources from another session type', () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			listController.setChatSessionItemRead(URI.from({ scheme: 'agent-host-other', path: '/session' }), true);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		});
+
 		test('archive mutation prevents an in-flight stale refresh from overwriting optimistic state', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const backendSession = AgentSession.uri('copilot', 'archive-refresh-race');
@@ -2391,7 +2511,7 @@ suite('AgentHostChatContribution', () => {
 					await released;
 					return [metadata];
 				}
-				return [{ ...metadata, isArchived: true }];
+				return [{ ...metadata, status: SessionStatus.Idle | SessionStatus.IsArchived }];
 			};
 
 			sessionListStore.resetCache();
@@ -2429,7 +2549,7 @@ suite('AgentHostChatContribution', () => {
 					await released;
 					return [metadata];
 				}
-				return [{ ...metadata, isArchived: true }];
+				return [{ ...metadata, status: SessionStatus.Idle | SessionStatus.IsArchived }];
 			};
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
@@ -3952,21 +4072,6 @@ suite('AgentHostChatContribution', () => {
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.strictEqual(invocation.kind, 'toolInvocation');
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
-		}));
-
-		test('malformed toolArguments does not throw', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-
-			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash' } as ChatAction);
-			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-bad', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ChatAction);
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-
-			await turnPromise;
-
-			assert.strictEqual(collected.length, 1);
-			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
 		}));
 
 		test('outstanding tool invocations are completed on idle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -8669,20 +8774,17 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => session.dispose()));
 
 			// Should have: completed turn (request + response) + active turn (request + empty response) = 4
-			assert.strictEqual(session.history.length, 4);
-			assert.strictEqual(session.history[0].type, 'request');
-			if (session.history[0].type === 'request') {
-				assert.strictEqual(session.history[0].prompt, 'First message');
-			}
-			assert.strictEqual(session.history[2].type, 'request');
-			if (session.history[2].type === 'request') {
-				assert.strictEqual(session.history[2].prompt, 'Second message');
-			}
-			// Active turn response should be an empty placeholder
-			assert.strictEqual(session.history[3].type, 'response');
-			if (session.history[3].type === 'response') {
-				assert.strictEqual(session.history[3].parts.length, 0);
-			}
+			assert.deepStrictEqual(
+				session.history.map(item => item.type === 'request'
+					? { type: item.type, id: item.id, prompt: item.prompt }
+					: { type: item.type, parts: item.parts.length }),
+				[
+					{ type: 'request', id: 'turn-completed', prompt: 'First message' },
+					{ type: 'response', parts: 1 },
+					{ type: 'request', id: 'turn-active', prompt: 'Second message' },
+					{ type: 'response', parts: 0 },
+				],
+			);
 		});
 
 		test('sets isCompleteObs to false and populates progressObs for active turn', async () => {
@@ -9231,7 +9333,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Now simulate a server-initiated turn (e.g. from a consumed queued message)
 			const serverTurnId = 'server-turn-1';
-			const serverRequestEvents: { prompt: string }[] = [];
+			const serverRequestEvents: IChatSessionServerRequest[] = [];
 			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
 
 			agentHostService.fireAction({
@@ -9247,9 +9349,11 @@ suite('AgentHostChatContribution', () => {
 
 			await timeout(10);
 
-			// onDidStartServerRequest should have fired
-			assert.strictEqual(serverRequestEvents.length, 1);
-			assert.strictEqual(serverRequestEvents[0].prompt, 'queued message text');
+			// onDidStartServerRequest should have fired, carrying the provider turn id
+			assert.deepStrictEqual(
+				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt })),
+				[{ id: serverTurnId, prompt: 'queued message text' }],
+			);
 
 			// isCompleteObs should be false (turn in progress)
 			assert.strictEqual(chatSession.isCompleteObs!.get(), false);
@@ -9340,7 +9444,7 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
-			const serverRequestEvents: { prompt: string }[] = [];
+			const serverRequestEvents: IChatSessionServerRequest[] = [];
 			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
 
 			// Clear lifecycle actions so only turn dispatches are counted

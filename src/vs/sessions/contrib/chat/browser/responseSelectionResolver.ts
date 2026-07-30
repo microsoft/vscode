@@ -99,7 +99,8 @@ export function resolveResponseSelection(widget: IChatWidget): IResolvedResponse
 		return undefined;
 	}
 
-	// Trailing newlines are an artifact of how browsers extend line selections
-	// past the block they belong to; they add nothing to the quoted snippet.
-	return { response: firstItem, text: nativeSelection.toString().trim(), range: range.cloneRange() };
+	// Browsers extend a line selection past the block it belongs to, leaving a
+	// trailing newline that adds nothing to the quoted snippet. Only the end is
+	// trimmed: leading whitespace is part of what the user actually selected.
+	return { response: firstItem, text: nativeSelection.toString().trimEnd(), range: range.cloneRange() };
 }
