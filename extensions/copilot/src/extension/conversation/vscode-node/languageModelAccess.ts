@@ -837,15 +837,20 @@ export class CopilotLanguageModelWrapper extends Disposable {
 	}
 
 	async provideLanguageModelResponse(endpoint: IChatEndpoint, messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, progress: vscode.Progress<LMResponsePart>, token: vscode.CancellationToken): Promise<void> {
+		const preserveAgentHostByokReasoning = options.modelOptions?._vscodeAgentHostByokReasoningBridge === true;
 		let thinkingActive = false;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
 				if (isEncryptedThinkingDelta(delta.thinking)) {
-					progress.report(new vscode.LanguageModelThinkingPart(
-						delta.thinking.text ?? '',
-						delta.thinking.id,
-						{ encrypted_content: delta.thinking.encrypted }
-					));
+					if (preserveAgentHostByokReasoning) {
+						progress.report(new vscode.LanguageModelDataPart(
+							new TextEncoder().encode(JSON.stringify({
+								id: delta.thinking.id,
+								encryptedContent: delta.thinking.encrypted,
+							})),
+							'application/vnd.code.agent-host-byok-reasoning+json'
+						));
+					}
 				} else {
 					const text = delta.thinking.text ?? '';
 					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, delta.thinking.metadata));

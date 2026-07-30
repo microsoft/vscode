@@ -27,6 +27,8 @@ import {
 
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
+const AGENT_HOST_BYOK_REASONING_MIME_TYPE = 'application/vnd.code.agent-host-byok-reasoning+json';
+const AGENT_HOST_BYOK_REASONING_MODEL_OPTION = '_vscodeAgentHostByokReasoningBridge';
 
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
@@ -74,7 +76,10 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			}))
 			: undefined;
 		const options: ILanguageModelChatRequestOptions = {
-			modelOptions: request.modelOptions,
+			modelOptions: {
+				...request.modelOptions,
+				[AGENT_HOST_BYOK_REASONING_MODEL_OPTION]: true,
+			},
 			...(request.reasoningEffort ? { configuration: { reasoningEffort: request.reasoningEffort } } : {}),
 			...(tools ? { tools } : {}),
 		};
@@ -112,6 +117,8 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 							}
 						} else if (p.type === 'data' && p.mimeType === STATEFUL_MARKER_MIME_TYPE) {
 							responseId = this._decodeStatefulMarker(p.data, request.modelId);
+						} else if (p.type === 'data' && p.mimeType === AGENT_HOST_BYOK_REASONING_MIME_TYPE) {
+							this._appendEncryptedReasoningOutput(output, p.data);
 						} else if (p.type === 'data' && p.mimeType === USAGE_MIME_TYPE) {
 							usage = this._decodeUsage(p.data);
 						}
@@ -181,16 +188,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			});
 		}
 		for (const item of request.input) {
-			const message = this._toChatMessage(item);
-			const previous = messages.at(-1);
-			if (message.role === ChatMessageRole.Assistant && previous?.role === ChatMessageRole.Assistant) {
-				messages[messages.length - 1] = {
-					...previous,
-					content: [...previous.content, ...message.content],
-				};
-			} else {
-				messages.push(message);
-			}
+			messages.push(this._toChatMessage(item));
 		}
 		return messages;
 	}
@@ -202,19 +200,28 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					role: this._toChatRole(item.role),
 					content: item.content.map(part => ({ type: 'text', value: part.text })),
 				};
-			case 'reasoning':
+			case 'reasoning': {
+				const content: IChatMessagePart[] = [{
+					type: 'thinking',
+					value: item.summary,
+					id: item.id,
+					metadata: item.metadata,
+				}];
+				if (item.encryptedContent) {
+					content.push({
+						type: 'data',
+						mimeType: AGENT_HOST_BYOK_REASONING_MIME_TYPE,
+						data: VSBuffer.fromString(JSON.stringify({
+							id: item.id,
+							encryptedContent: item.encryptedContent,
+						})),
+					});
+				}
 				return {
 					role: ChatMessageRole.Assistant,
-					content: [{
-						type: 'thinking',
-						value: item.summary,
-						id: item.id,
-						metadata: {
-							...item.metadata,
-							...(item.encryptedContent ? { encrypted_content: item.encryptedContent } : {}),
-						},
-					}],
+					content,
 				};
+			}
 			case 'function_call':
 				return {
 					role: ChatMessageRole.Assistant,
@@ -279,10 +286,28 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 				...previous,
 				summary: [...previous.summary, ...reasoning.summary],
 				encryptedContent: reasoning.encryptedContent ?? previous.encryptedContent,
-				metadata: { ...previous.metadata, ...reasoning.metadata },
+				metadata: previous.metadata || reasoning.metadata ? { ...previous.metadata, ...reasoning.metadata } : undefined,
 			};
 		} else {
 			output.push(reasoning);
+		}
+	}
+
+	private _appendEncryptedReasoningOutput(output: IByokLmOutputItem[], data: VSBuffer): void {
+		const value = JSON.parse(data.toString()) as { id?: unknown; encryptedContent?: unknown };
+		if ((value.id !== undefined && typeof value.id !== 'string') || typeof value.encryptedContent !== 'string') {
+			throw new Error('Invalid Agent Host BYOK reasoning data');
+		}
+		const previous = output.at(-1);
+		if (previous?.type === 'reasoning' && previous.id === value.id) {
+			output[output.length - 1] = { ...previous, encryptedContent: value.encryptedContent };
+		} else {
+			output.push({
+				type: 'reasoning',
+				id: value.id,
+				summary: [],
+				encryptedContent: value.encryptedContent,
+			});
 		}
 	}
 

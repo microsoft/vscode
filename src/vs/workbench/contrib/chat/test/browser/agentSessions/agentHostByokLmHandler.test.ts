@@ -134,7 +134,8 @@ suite('AgentHostByokLmHandler', () => {
 			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
 			() => responseOf([
 				{ type: 'thinking', value: 'considered ', id: 'rs_1' },
-				{ type: 'thinking', value: ['options'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'thinking', value: ['options'], id: 'rs_1' },
+				{ type: 'data', mimeType: 'application/vnd.code.agent-host-byok-reasoning+json', data: VSBuffer.fromString('{"id":"rs_1","encryptedContent":"opaque"}') },
 				{ type: 'text', value: 'hello ' },
 				{ type: 'text', value: 'world' },
 				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
@@ -161,7 +162,7 @@ suite('AgentHostByokLmHandler', () => {
 		assert.strictEqual(service.captured?.modelId, 'id-acme-claude');
 		assert.deepStrictEqual(result, {
 			output: [
-				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: undefined },
 				{ type: 'message', content: [{ type: 'text', text: 'hello ' }, { type: 'text', text: 'world' }] },
 				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
 				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
@@ -217,18 +218,19 @@ suite('AgentHostByokLmHandler', () => {
 				{
 					role: ChatMessageRole.Assistant,
 					content: [
-						{ type: 'thinking', value: ['thought'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
-						{ type: 'text', value: 'checking' },
-						{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
-						{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
+						{ type: 'thinking', value: ['thought'], id: 'rs_1', metadata: undefined },
+						{ type: 'data', mimeType: 'application/vnd.code.agent-host-byok-reasoning+json', data: '{"id":"rs_1","encryptedContent":"opaque"}' },
 					],
 				},
+				{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: 'checking' }] },
+				{ role: ChatMessageRole.Assistant, content: [{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } }] },
+				{ role: ChatMessageRole.Assistant, content: [{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't2', value: [{ type: 'text', value: 'Done!' }] }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
 			],
 			options: {
-				modelOptions: { temperature: 0.5 },
+				modelOptions: { temperature: 0.5, _vscodeAgentHostByokReasoningBridge: true },
 				configuration: { reasoningEffort: 'high' },
 				tools: [
 					{ name: 'getWeather', description: '', inputSchema: { type: 'object' } },
