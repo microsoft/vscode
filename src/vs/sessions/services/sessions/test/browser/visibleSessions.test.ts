@@ -1167,6 +1167,16 @@ suite('VisibleSession - visibleChatTabs', () => {
 
 		assert.deepStrictEqual(visible.closedChats.get().map(c => c.title.get()), []);
 	});
+
+	test('shows side-chat (`/btw`) origin chats in the ordinary tab strip', () => {
+		const visible = createSession([
+			makeChat('main'),
+			makeChat('side', SessionStatus.Completed, ChatOriginKind.SideChat),
+			makeChat('second'),
+		]);
+
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'side', 'second']);
+	});
 });
 
 suite('VisibleSession - shouldShowChatTabs', () => {
@@ -1194,9 +1204,9 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
-	test('shown for a single chat whose title diverged from the session title', () => {
+	test('hidden for a single chat even when its title diverged from the session title', () => {
 		const visible = createSession('Session Title', [makeChat('main', 'Chat Title')]);
-		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
 	test('shown for more than one chat even if a chat title matches the session title', () => {
@@ -1204,13 +1214,30 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 
-	test('shown for a single non-tool chat matching the session title when it has a subagent', () => {
+	test('hidden for a single non-tool chat matching the session title even when it has a subagent', () => {
 		const visible = createSession('Title', [
 			makeChat('main', 'Title'),
 			makeChat('tool', 'tool', ChatOriginKind.Tool),
 		]);
-		// The strip is shown as soon as the session has any subagent, so the
-		// Conversations menu (which lists subagents) surfaces in the tab bar.
+		// Subagents on their own do not show the strip; the Conversations menu
+		// (which lists subagents) surfaces in the session header instead.
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('shown once a subagent tab is explicitly opened (multiple visible tabs)', () => {
+		const chats = [makeChat('main', 'Title'), makeChat('tool', 'tool', ChatOriginKind.Tool)];
+		const visible = createSession('Title', chats);
+		visible.openChat(chats[1]);
+		// Opening a subagent surfaces it as a second visible tab, so the strip is
+		// shown to display both tabs.
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+	});
+
+	test('shown when a side chat exists alongside the main chat', () => {
+		const visible = createSession('Title', [
+			makeChat('main', 'Title'),
+			makeChat('side', 'side', ChatOriginKind.SideChat),
+		]);
 		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 
@@ -1222,7 +1249,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
-	test('stays shown after a non-main chat is closed back down to a single open chat', () => {
+	test('hidden after a non-main chat is closed back down to a single visible tab', () => {
 		const main = makeChat('main', 'Title');
 		const second = makeChat('second', 'second');
 		const visible = createSession('Title', [main, second]);
@@ -1236,8 +1263,143 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 			shouldShowChatTabs: visible.shouldShowChatTabs.get(),
 			visibleChatTabs: visible.visibleChatTabs.get().map(c => c.title.get()),
 		}, {
-			shouldShowChatTabs: true,
+			shouldShowChatTabs: false,
 			visibleChatTabs: ['Title'],
+		});
+	});
+});
+
+suite('VisibleSession - side chat tabs', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, origin?: ChatOriginKind): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(id),
+			status: constObservable(SessionStatus.Completed),
+			origin: origin ? { kind: origin } : undefined,
+		};
+	}
+
+	function createSession(chats: IChat[]) {
+		const base = stubSession('S');
+		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
+		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
+		const visible = disposables.add(new VisibleSession(session, chats[0]));
+		return { visible, chatsObs };
+	}
+
+	test('openChat keeps a side-chat origin chat available as a normal tab', () => {
+		const chats = [makeChat('main'), makeChat('side', ChatOriginKind.SideChat)];
+		const { visible } = createSession(chats);
+
+		visible.openChat(chats[1]);
+
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'side']);
+	});
+
+	test('closeChat hides a side-chat origin chat into the reopenable closed set', () => {
+		const chats = [makeChat('main'), makeChat('side', ChatOriginKind.SideChat)];
+		const { visible } = createSession(chats);
+
+		visible.closeChat(chats[1]);
+
+		assert.deepStrictEqual({
+			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+			closed: visible.closedChats.get().map(c => c.title.get()),
+		}, {
+			visible: ['main'],
+			closed: ['side'],
+		});
+	});
+
+	test('the active-chat fallback can select a side chat like any other peer chat', () => {
+		const main = makeChat('main');
+		const second = makeChat('second');
+		const side = makeChat('side', ChatOriginKind.SideChat);
+		const { visible } = createSession([main, second, side]);
+
+		visible.setActiveChat(second);
+		visible.closeChat(second);
+
+		assert.strictEqual(visible.activeChat.get(), side);
+	});
+});
+
+suite('VisibleSessions - active chat removal fallback', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createModel() {
+		const uriIdentity = new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUriBiasedIgnorePathCase;
+		};
+		return disposables.add(new VisibleSessions(
+			session => session.mainChat.get(),
+			() => [],
+			uriIdentity,
+		));
+	}
+
+	function makeChat(id: string, origin?: ChatOriginKind): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(id),
+			status: constObservable(SessionStatus.Completed),
+			origin: origin ? { kind: origin } : undefined,
+		};
+	}
+
+	function createSession(chats: IChat[]) {
+		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
+		return { session, chatsObs };
+	}
+
+	test('removing an active side chat falls back to the last visible tab, not an unopened tool chat', () => {
+		const main = makeChat('main');
+		const side = makeChat('side', ChatOriginKind.SideChat);
+		const tool = makeChat('tool', ChatOriginKind.Tool);
+		const { session, chatsObs } = createSession([main, side, tool]);
+		const model = createModel();
+		const visible = model.setActive(session)!;
+
+		visible.setActiveChat(side);
+		chatsObs.set([main, tool], undefined);
+
+		assert.deepStrictEqual({
+			active: visible.activeChat.get().title.get(),
+			open: visible.openChats.get().map(c => c.title.get()),
+			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+		}, {
+			active: 'main',
+			open: ['main', 'tool'],
+			visible: ['main'],
+		});
+	});
+
+	test('removing an active side chat can fall back to an explicitly opened tool tab', () => {
+		const main = makeChat('main');
+		const side = makeChat('side', ChatOriginKind.SideChat);
+		const tool = makeChat('tool', ChatOriginKind.Tool);
+		const { session, chatsObs } = createSession([main, side, tool]);
+		const model = createModel();
+		const visible = model.setActive(session)!;
+
+		visible.openChat(tool);
+		visible.setActiveChat(side);
+		chatsObs.set([main, tool], undefined);
+
+		assert.deepStrictEqual({
+			active: visible.activeChat.get().title.get(),
+			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+		}, {
+			active: 'tool',
+			visible: ['main', 'tool'],
 		});
 	});
 });

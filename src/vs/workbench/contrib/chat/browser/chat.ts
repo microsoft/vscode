@@ -359,6 +359,8 @@ export interface IChatAcceptInputOptions {
 	 */
 	cancelCurrentRequest?: boolean;
 	preserveFocus?: boolean;
+	/** Keeps the input box contents and attachments after submitting a programmatic query, and omits them from it. The query itself is sent as-is: prompt slash commands in it are not resolved. */
+	preserveInput?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -383,6 +385,8 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
+	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
 	readonly parsedInput: IParsedChatRequest;
 	readonly lockedAgentId: string | undefined;
@@ -466,6 +470,10 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
+	/**
+	 * Returns the currently rendered chat item containing the node, if any.
+	 */
+	getElementFromNode(node: HTMLElement): ChatTreeItem | undefined;
 	clear(targetSessionType?: string): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;

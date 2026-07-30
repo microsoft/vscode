@@ -20,6 +20,7 @@ import {
 	isActionNotification,
 	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient,
 } from '../serverIntegrationTestHelpers.js';
 
@@ -38,8 +39,9 @@ const hasGit = (() => {
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -81,7 +83,7 @@ const hasGit = (() => {
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-git-diffs' });
 
 		const workingDirectory = URI.file(tmpRoot).toString();
-		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectories: [workingDirectory] });
 
 		const addedNotif = await client.waitForNotification(n =>
 			n.method === 'root/sessionAdded'

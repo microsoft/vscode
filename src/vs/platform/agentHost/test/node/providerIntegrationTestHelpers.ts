@@ -32,7 +32,7 @@ export async function createProviderSession(
 	await client.call('createSession', {
 		channel: sessionUri,
 		provider: config.provider,
-		workingDirectory: workingDirectory.toString(),
+		workingDirectories: [workingDirectory.toString()],
 		config: { isolation: 'folder' },
 	}, 30_000);
 	trackingList.push(sessionUri);

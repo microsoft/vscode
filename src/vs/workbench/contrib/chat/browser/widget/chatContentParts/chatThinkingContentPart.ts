@@ -14,7 +14,6 @@ import { ChatConfiguration, ThinkingDisplayMode } from '../../../common/constant
 import { ChatTreeItem } from '../../chat.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -349,7 +348,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private isUpdatingDimensions: boolean = false;
 	private lastKnownContentHeight: number = 0;
 	private lastKnownScrollTop: number = 0;
-	private readonly showProgressDetails: boolean;
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private collapsedTitleBeforeExpansion: string | undefined;
@@ -406,7 +404,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const initialText = extractTextFromPart(content);
@@ -421,8 +418,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.id = content.id;
 		this.content = content;
 		this.allThinkingParts.push(content);
-		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
-			&& (this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || accessibilityService.isMotionReduced());
 		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
 		this.thinkingDisplayMode = configuredMode;
 
@@ -478,9 +473,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
-			if (!this.streamingCompleted && !this.element.isComplete && this.showProgressDetails) {
-				node.classList.add('chat-thinking-persistent-streaming');
-			}
 			this.currentTitle = this.defaultTitle;
 		}
 
@@ -619,13 +611,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.renderMarkdown(this.currentThinkingValue);
 		}
 
-		// Show the in-thinking spinner while streaming. When collapsed, the CSS
-		// clipping hides it (the title shimmer is the visible indicator). When
-		// expanded, the title shimmer is less prominent so this spinner at the
-		// bottom of the section serves as the active indicator. In fixed-scrolling
-		// mode with progress details enabled, the working-progress row owns the
-		// active indicator instead, so skip creating the in-thinking spinner.
-		if (!this.streamingCompleted && !this.element.isComplete && !(this.fixedScrollingMode && this.showProgressDetails)) {
+		if (!this.streamingCompleted && !this.element.isComplete) {
 			this.workingSpinnerElement = $('.chat-thinking-item.chat-thinking-spinner-item');
 			const spinnerIcon = createThinkingIcon(Codicon.circleFilled);
 			this.workingSpinnerElement.appendChild(spinnerIcon);
@@ -1135,10 +1121,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		return this.isActive;
 	}
 
-	public get isFixedScrollingMode(): boolean {
-		return this.fixedScrollingMode;
-	}
-
 	/**
 	 * Returns true when this thinking part has no meaningful content to display:
 	 * no tool invocations, no lazy items, no hooks, and no thinking text.
@@ -1181,7 +1163,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.classList.remove('chat-thinking-streaming');
 		}
 		this.domNode.classList.remove('chat-thinking-active');
-		this.domNode.classList.remove('chat-thinking-persistent-streaming');
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.streamingCompleted = true;
 		this.setContentAnimationEnabled(!this.fixedScrollingMode);
@@ -1608,7 +1589,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.wrapper.classList.remove('chat-thinking-streaming');
 		}
 		this.domNode.classList.remove('chat-thinking-active');
-		this.domNode.classList.remove('chat-thinking-persistent-streaming');
 		this.streamingCompleted = true;
 
 		// Render any aggregated images that were deferred during fixed scrolling streaming.

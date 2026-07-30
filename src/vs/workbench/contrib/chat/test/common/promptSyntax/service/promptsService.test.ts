@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
@@ -54,6 +56,7 @@ import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
@@ -234,6 +237,90 @@ suite('PromptsService', () => {
 			const right: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-b') };
 
 			assert.strictEqual(IAgentSource.isEquals(left, right), false);
+		});
+	});
+
+	suite('voice instructions', () => {
+		test('combines user and trusted workspace voice.md files', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/voice.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/voice.md', contents: ['Spell the product name as Contoso DB.'] },
+			]);
+
+			const instructions = await service.getVoiceInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.\n\nSpell the product name as Contoso DB.');
+		});
+
+		test('excludes workspace voice.md when the workspace is untrusted', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await workspaceTrustService.setWorkspaceTrust(false);
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/voice.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/voice.md', contents: ['Untrusted workspace guidance.'] },
+			]);
+
+			const instructions = await service.getVoiceInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.');
+		});
+
+		test('cancels in-flight voice instruction reads', async () => {
+			const cts = new CancellationTokenSource();
+			const readStarted = new DeferredPromise<void>();
+			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (_resource, _options, token) => {
+				readStarted.complete();
+				await new Promise<void>(resolve => {
+					const listener = token!.onCancellationRequested(() => {
+						listener.dispose();
+						resolve();
+					});
+				});
+				throw new CancellationError();
+			});
+
+			try {
+				const instructions = service.getVoiceInstructions(cts.token);
+				await readStarted.p;
+				cts.cancel();
+				assert.strictEqual(await instructions, undefined);
+			} finally {
+				readFileStub.restore();
+				cts.dispose();
+			}
+		});
+	});
+
+	suite('dictation instructions', () => {
+		test('combines user and trusted workspace dictation.md files separately from voice.md', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/dictation.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/dictation.md', contents: ['Spell the product name as Contoso DB.'] },
+				{ path: '/home/user/.copilot/voice.md', contents: ['Keep spoken responses concise.'] },
+			]);
+
+			const instructions = await service.getDictationInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.\n\nSpell the product name as Contoso DB.');
+		});
+
+		test('excludes workspace dictation.md when the workspace is untrusted', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await workspaceTrustService.setWorkspaceTrust(false);
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/dictation.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/dictation.md', contents: ['Untrusted workspace guidance.'] },
+			]);
+
+			const instructions = await service.getDictationInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.');
 		});
 	});
 
@@ -2123,6 +2210,46 @@ suite('PromptsService', () => {
 
 			assert.strictEqual(result.length, 1, 'Should find 1 skill from tilde-expanded path');
 			assert.ok(result[0].uri.path.includes('/home/user/my-custom-skills'), 'Path should be expanded from tilde');
+		});
+	});
+
+	suite('getSourceFolders - skills', () => {
+		test('includes user-level skill source folders', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderUri = URI.file('/skills-source-folders');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const folders = await service.getSourceFolders(PromptsType.skill);
+
+			const userFolders = folders.filter(f => f.storage === PromptsStorage.user);
+			const localFolders = folders.filter(f => f.storage === PromptsStorage.local);
+
+			assert.ok(userFolders.length > 0, 'Should include user-level skill source folders');
+			assert.ok(localFolders.length > 0, 'Should include workspace-level skill source folders');
+			assert.ok(
+				userFolders.some(f => f.uri.path === '/home/user/.copilot/skills'),
+				'Should include ~/.copilot/skills as a user source folder'
+			);
+		});
+
+		test('excludes defaults explicitly disabled via configuration', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {
+				'.github/skills': false,
+				'~/.copilot/skills': false,
+			});
+
+			const rootFolderUri = URI.file('/skills-disabled-defaults');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const folders = await service.getSourceFolders(PromptsType.skill);
+			const paths = folders.map(f => f.uri.path);
+
+			assert.ok(!paths.some(p => p.endsWith('/.github/skills')), 'Disabled .github/skills must not appear');
+			assert.ok(!paths.includes('/home/user/.copilot/skills'), 'Disabled ~/.copilot/skills must not appear');
+			assert.ok(paths.includes('/home/user/.agents/skills'), 'Non-disabled ~/.agents/skills must still appear');
 		});
 	});
 
@@ -4405,6 +4532,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/my-plugin'),
+				format: PluginFormat.Copilot,
 				label: 'my-plugin',
 				enablement,
 				remove: () => { },
@@ -4450,6 +4578,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/devtools'),
+				format: PluginFormat.Copilot,
 				label: 'devtools',
 				enablement,
 				remove: () => { },
@@ -4502,6 +4631,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
+				format: PluginFormat.Copilot,
 				label: 'datadog',
 				enablement,
 				remove: () => { },
@@ -4543,6 +4673,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },
@@ -4791,6 +4922,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },

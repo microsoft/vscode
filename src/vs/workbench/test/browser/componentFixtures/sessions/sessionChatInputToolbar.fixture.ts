@@ -131,7 +131,9 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 				}());
 				reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 					override readonly onDidChangeFeedback = Event.None;
+					override readonly onDidChangeFeedbackScope = Event.None;
 					override getFeedback() { return []; }
+					override getFeedbackSessionResource() { return undefined; }
 				}());
 			}
 		},
@@ -157,7 +159,8 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 	await renderChatWidget(ctx, {
 		messages,
 		decorateInputPart: (inputPart, instantiationService) => {
-			// All pills are off by default; enable them so the fixture renders.
+			// The fixture's test configuration has no product defaults, so opt in
+			// explicitly to make sure the pills render.
 			instantiationService.invokeFunction(accessor => {
 				(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
 			});

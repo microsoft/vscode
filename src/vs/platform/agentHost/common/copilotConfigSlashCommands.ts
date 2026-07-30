@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesFuzzy2 } from '../../../base/common/filters.js';
 import { localize } from '../../../nls.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 
@@ -171,7 +172,7 @@ function shouldOfferOption(option: IConfigSlashOption, state: ICopilotConfigSlas
 
 /**
  * Returns the flattened completion items (one per command form) whose command
- * name matches `typed` (the text after the leading `/`, case-insensitive prefix).
+ * name fuzzy matches `typed` (the text after the leading `/`, case-insensitive).
  * When `typed` is empty, all items are returned.
  *
  * When `state` (the session's current config values) is provided, pure toggle
@@ -182,7 +183,10 @@ export function getCopilotConfigSlashCommandItems(typed: string, state?: ICopilo
 	const typedLower = typed.trim().toLowerCase();
 	const items: ICopilotConfigSlashCommandItem[] = [];
 	for (const command of getConfigSlashCommands()) {
-		if (typedLower && !command.command.toLowerCase().startsWith(typedLower)) {
+		if (typedLower
+			&& !command.command.toLowerCase().startsWith(typedLower)
+			&& (typedLower.length === 1 || matchesFuzzy2(typedLower, command.command) === null)
+		) {
 			continue;
 		}
 		for (const option of command.options) {
@@ -239,6 +243,7 @@ export function resolveCopilotConfigSlashCommandOnSend(command: string, rest: st
 	}
 	const trimmedRest = rest.trim();
 	const namedOptions = descriptor.options.filter(o => o.arg !== undefined);
+	const baseOption = descriptor.options.find(o => o.arg === undefined);
 	if (namedOptions.length > 0 && trimmedRest.length > 0) {
 		const match = /^(\S+)(?:\s+([\s\S]*))?$/.exec(trimmedRest);
 		const firstToken = match?.[1]?.toLowerCase();
@@ -246,8 +251,11 @@ export function resolveCopilotConfigSlashCommandOnSend(command: string, rest: st
 		if (matched) {
 			return { applyConfig: matched.config, strippedPrompt: (match?.[2] ?? '').trim() };
 		}
+		if (!baseOption) {
+			return undefined;
+		}
 	}
 	// Fall back to the bare command form (the base/prompt option or the sole option).
-	const baseOption = descriptor.options.find(o => o.arg === undefined) ?? descriptor.options[0];
-	return { applyConfig: baseOption.config, strippedPrompt: trimmedRest };
+	const fallback = baseOption ?? descriptor.options[0];
+	return { applyConfig: fallback.config, strippedPrompt: trimmedRest };
 }

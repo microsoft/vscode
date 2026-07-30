@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../../../../base/common/htmlContent.
 import { ActionListItemKind, IActionListItem } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider, getModelPickerControlModels } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
 import { filterModelsForSession } from '../../../../../browser/widget/input/chatInputModelUtils.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
@@ -142,38 +142,45 @@ function callBuild(
 		onRequestTrust?: () => void;
 		setupRequired?: boolean;
 		onRequestSetup?: () => void;
+		onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
+		entitlementService?: IChatEntitlementService;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
-	const onSelect = () => { };
-	const entitlementService = createStubEntitlementService({
+	const onSelect = opts.onSelect ?? (() => { });
+	const entitlementService = opts.entitlementService ?? createStubEntitlementService({
 		entitlement: opts.entitlement ?? ChatEntitlement.Pro,
 		anonymous: opts.anonymous ?? false,
 	});
-	return buildModelPickerItems(
+	return buildModelPickerItems({
 		models,
-		opts.selectedModelId,
-		opts.recentModelIds ?? [],
-		opts.pinnedModelIds ?? [],
-		opts.controlModels ?? {},
-		opts.currentVSCodeVersion ?? '1.100.0',
-		opts.updateStateType ?? StateType.Idle,
-		onSelect,
-		undefined,
-		opts.manageSettingsUrl,
-		true,
-		stubManageModelsAction,
-		entitlementService,
-		opts.showUnavailableFeatured ?? true,
-		opts.showFeatured ?? true,
-		opts.languageModelsService ?? stubLanguageModelsService,
-		undefined,
-		opts.showAutoModel ?? true,
-		undefined,
-		opts.restrictedMode ?? false,
-		opts.onRequestTrust,
-		opts.setupRequired ?? false,
-		opts.onRequestSetup,
-	);
+		selectedModelId: opts.selectedModelId,
+		recentModelIds: opts.recentModelIds ?? [],
+		pinnedModelIds: opts.pinnedModelIds ?? [],
+		controlModels: opts.controlModels ?? {},
+		currentVSCodeVersion: opts.currentVSCodeVersion ?? '1.100.0',
+		updateStateType: opts.updateStateType ?? StateType.Idle,
+		manageSettingsUrl: opts.manageSettingsUrl,
+		manageModelsAction: stubManageModelsAction,
+		chatEntitlementService: entitlementService,
+		languageModelsService: opts.languageModelsService ?? stubLanguageModelsService,
+		openerService: undefined,
+		presentation: {
+			useGroupedModelPicker: true,
+			showUnavailableFeatured: opts.showUnavailableFeatured ?? true,
+			showFeatured: opts.showFeatured ?? true,
+			showAutoModel: opts.showAutoModel ?? true,
+			restrictedMode: opts.restrictedMode ?? false,
+			setupRequired: opts.setupRequired ?? false,
+			isUBB: false,
+		},
+		actions: {
+			onSelect,
+			onTogglePin: undefined,
+			onConfigure: undefined,
+			onRequestTrust: opts.onRequestTrust,
+			onRequestSetup: opts.onRequestSetup,
+		},
+	});
 }
 
 function createControlManifest(): IModelsControlManifest {
@@ -426,6 +433,39 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[1].label, 'Claude');
 	});
 
+	test('model variants sharing metadata ids remain visible across promoted and other sections', () => {
+		const auto = createAutoModel();
+		const copilotSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol');
+		const copilotTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
+		const byokSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol', 'openai');
+		const byokTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra', 'openai');
+		const copilotOther = createModel('gpt-5.5', 'GPT-5.5');
+		const byokOther = createModel('gpt-5.5', 'GPT-5.5', 'openai');
+		const languageModelsService = createLanguageModelsServiceStub([
+			{ vendor: 'copilot', displayName: 'Copilot', groups: [] },
+			{
+				vendor: 'openai',
+				displayName: 'OpenAI',
+				groups: [{ name: 'OpenAI (Work)', modelIdentifiers: [byokSol.identifier, byokTerra.identifier, byokOther.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, copilotSol, copilotTerra, copilotOther, byokSol, byokTerra, byokOther], {
+			recentModelIds: [copilotSol.identifier, byokSol.identifier, copilotTerra.identifier, byokTerra.identifier],
+			languageModelsService,
+		});
+
+		assert.deepStrictEqual(getActionItems(items)
+			.filter(item => !item.isSectionToggle && item.label !== 'Auto' && item.item?.id !== 'manageModels')
+			.map(item => ({ id: item.item?.id, section: item.section, provider: item.badge })), [
+			{ id: copilotSol.identifier, section: undefined, provider: 'Copilot' },
+			{ id: byokSol.identifier, section: undefined, provider: 'OpenAI (Work)' },
+			{ id: copilotTerra.identifier, section: undefined, provider: 'Copilot' },
+			{ id: copilotOther.identifier, section: 'other', provider: undefined },
+			{ id: byokOther.identifier, section: 'other', provider: undefined },
+			{ id: byokTerra.identifier, section: 'other', provider: undefined },
+		]);
+	});
+
 	test('recently used model not in models list but in controlModels shows as unavailable (upgrade for free user)', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {
@@ -488,6 +528,50 @@ suite('buildModelPickerItems', () => {
 	test('edu entitlement uses free featured control manifest', () => {
 		const manifest = createControlManifest();
 		assert.strictEqual(getControlModelsForEntitlement(manifest, ChatEntitlement.EDU), manifest.free);
+	});
+
+	test('available targeted models remain featured while entitlement is signed out', () => {
+		const auto = createAgentHostModel('auto', 'Auto', { id: 'copilotcli' });
+		const freeFeatured = createAgentHostModel('free-model', 'Free Model', { id: 'copilotcli' });
+		const paidFeatured = createAgentHostModel('paid-model', 'Paid Model', { id: 'copilotcli' });
+		const other = createAgentHostModel('other-model', 'Other Model', { id: 'copilotcli' });
+		const models = [auto, freeFeatured, paidFeatured, other];
+		const controlModels = getModelPickerControlModels(createControlManifest(), ChatEntitlement.Unknown, models);
+		const actions = getActionItems(callBuild(models, {
+			selectedModelId: auto.identifier,
+			controlModels,
+			entitlement: ChatEntitlement.Unknown,
+		}));
+
+		assert.deepStrictEqual(actions.map(action => ({
+			label: action.label,
+			section: action.section,
+			isSectionToggle: action.isSectionToggle,
+		})), [
+			{ label: 'Auto', section: undefined, isSectionToggle: undefined },
+			{ label: 'Free Model', section: undefined, isSectionToggle: undefined },
+			{ label: 'Paid Model', section: undefined, isSectionToggle: undefined },
+			{ label: 'Other Models', section: 'other', isSectionToggle: true },
+			{ label: 'Other Model', section: 'other', isSectionToggle: undefined },
+		]);
+	});
+
+	test('signed-out control models exclude unavailable and BYOK models', () => {
+		const manifest: IModelsControlManifest = {
+			free: {
+				'available-targeted': { label: 'Available Targeted', featured: true, exists: false },
+				'unavailable-targeted': { label: 'Unavailable Targeted', featured: true, exists: false },
+				'byok-model': { label: 'BYOK Model', featured: true, exists: true },
+			},
+			paid: {},
+		};
+		const availableTargeted = createAgentHostModel('available-targeted', 'Available Targeted', { id: 'copilotcli' });
+		const baseByokModel = createAgentHostModel('byok-model', 'BYOK Model', { id: 'custom' });
+		const byokModel = { ...baseByokModel, metadata: { ...baseByokModel.metadata, byokModelIdentifier: 'custom/byok-model' } };
+
+		assert.deepStrictEqual(getModelPickerControlModels(manifest, ChatEntitlement.Unknown, [availableTargeted, byokModel]), {
+			'available-targeted': { label: 'Available Targeted', featured: true, exists: true },
+		});
 	});
 
 	test('featured model not in models list shows as unavailable for free users (upgrade)', () => {
@@ -890,24 +974,7 @@ suite('buildModelPickerItems', () => {
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		let selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 		const onSelect = (m: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = m; };
-		const items = buildModelPickerItems(
-			[auto, modelA],
-			undefined,
-			[],
-			[],
-			{},
-			'1.100.0',
-			StateType.Idle,
-			onSelect,
-			undefined,
-			undefined,
-			true,
-			undefined,
-			stubChatEntitlementService,
-			true,
-			true,
-			stubLanguageModelsService,
-		);
+		const items = callBuild([auto, modelA], { onSelect, entitlementService: stubChatEntitlementService });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
 		gptItem.item.run();
@@ -978,24 +1045,12 @@ suite('buildModelPickerItems', () => {
 	test('admin unavailable model shows manage settings link in description', () => {
 		const auto = createAutoModel();
 		const businessEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Business });
-		const items = buildModelPickerItems(
-			[auto],
-			undefined,
-			['missing-model'],
-			[],
-			{ 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
-			'1.100.0',
-			StateType.Idle,
-			() => { },
-			undefined,
-			'https://aka.ms/github-copilot-settings',
-			true,
-			undefined,
-			businessEntitlementService,
-			true,
-			true,
-			stubLanguageModelsService,
-		);
+		const items = callBuild([auto], {
+			recentModelIds: ['missing-model'],
+			controlModels: { 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
+			manageSettingsUrl: 'https://aka.ms/github-copilot-settings',
+			entitlementService: businessEntitlementService,
+		});
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
 		assert.ok(adminItem);
@@ -1066,24 +1121,7 @@ suite('buildModelPickerItems', () => {
 		let selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 		const onSelect = (m: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = m; };
 		const anonymousEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Unknown, anonymous: true });
-		const items = buildModelPickerItems(
-			[auto, modelA],
-			undefined,
-			[],
-			[],
-			{},
-			'1.100.0',
-			StateType.Idle,
-			onSelect,
-			undefined,
-			undefined,
-			true,
-			undefined,
-			anonymousEntitlementService,
-			true,
-			true,
-			stubLanguageModelsService,
-		);
+		const items = callBuild([auto, modelA], { onSelect, entitlementService: anonymousEntitlementService });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
 		gptItem.item.run();

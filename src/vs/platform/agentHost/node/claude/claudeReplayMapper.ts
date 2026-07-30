@@ -5,6 +5,7 @@
 
 import type { SessionMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import type { ILogService } from '../../../log/common/log.js';
 import {
 	ResponsePartKind,
@@ -62,12 +63,13 @@ export function mapSessionMessagesToTurns(
  * Phase 6.5 — translate a protocol `turnId` (the last KEPT turn N) into the
  * SDK envelope `uuid` that `forkSession({ upToMessageId })` accepts
  * (INCLUSIVE). Returns the `uuid` of turn N's last `'assistant'` envelope,
- * or `turnId` itself when turn N has no assistant reply (still a valid
- * inclusive anchor), or `undefined` when `turnId` is not in the transcript.
+ * or `undefined` when `turnId` is not in the transcript or the turn has no
+ * assistant envelope yet. Agent Host Protocol request turn IDs are not valid SDK fork UUIDs.
  * Reuses {@link parseSessionMessage} so the turn-boundary rule matches
  * {@link ReplayBuilder}; always returns an envelope `uuid`, never a `msg_…` id.
  */
 export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnId: string): string | undefined {
+	let turnOpen = false;
 	let seenTarget = false;
 	let lastAssistantUuid: string | undefined;
 	for (const msg of messages) {
@@ -80,18 +82,32 @@ export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnI
 				// First genuine user-text after turn N started → turn N is over.
 				break;
 			}
+			turnOpen = true;
 			if (parsed.uuid === turnId) {
 				seenTarget = true;
 			}
-		} else if (parsed.kind === 'assistant' && seenTarget) {
-			lastAssistantUuid = parsed.uuid;
+		} else if (parsed.kind === 'assistant') {
+			if (!turnOpen) {
+				// Mirrors {@link ReplayBuilder._consumeAssistant}: an assistant
+				// envelope with no turn open starts one keyed on its own uuid
+				// (subagent transcript, or a truncated slice that lost its
+				// prompt). Without this the resolver can't anchor a fork on
+				// such a turn.
+				turnOpen = true;
+				if (parsed.uuid === turnId) {
+					seenTarget = true;
+				}
+			}
+			if (seenTarget) {
+				lastAssistantUuid = parsed.uuid;
+			}
 		}
 		// 'user-tool-results' / 'system-notification' never flip the turn.
 	}
 	if (!seenTarget) {
 		return undefined;
 	}
-	return lastAssistantUuid ?? turnId;
+	return lastAssistantUuid;
 }
 
 // #region Parsed message union — narrow-at-the-seam adapter
@@ -204,6 +220,18 @@ const ALLOWED_SYSTEM_SUBTYPES: ReadonlySet<string> = new Set([
  */
 const CLI_ECHO_MARKER_PATTERN = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/;
 
+/**
+ * Stand-in prompt for a turn whose user message is not present in the
+ * transcript slice we were handed. This happens when the SDK truncates a
+ * large transcript (it returns only the bytes after the last compact
+ * boundary), which cuts the opening prompt off mid-turn. Showing the
+ * recovered assistant content under a placeholder prompt is strictly better
+ * than dropping the turn — dropping can silently empty an entire session.
+ */
+export function missingPromptPlaceholder(): string {
+	return localize('claude.replay.missingPrompt', "Message content could not be retrieved");
+}
+
 interface InProgressTurn {
 	readonly id: string;
 	readonly userText: string;
@@ -239,6 +267,12 @@ class ReplayBuilder {
 	 *   the `tool_use` block).
 	 */
 	private readonly _toolUses = new Map<string, { readonly turnId: string; readonly parsedInput: Record<string, unknown> | undefined }>();
+
+	/** Turns opened from a leading assistant envelope because the prompt was missing. Reported once by {@link finish}. */
+	private _recoveredPromptlessTurns = 0;
+
+	/** `tool_result` blocks whose announcing `tool_use` was not in the slice. Reported once by {@link finish}. */
+	private _orphanToolResults = 0;
 
 	constructor(private readonly _session: URI, private readonly _logService: ILogService) { }
 
@@ -286,26 +320,36 @@ class ReplayBuilder {
 
 	finish(): readonly Turn[] {
 		this._closeActive();
+		// One summary line per replay instead of one warn per envelope: a
+		// truncated transcript produces these by the hundred, and the
+		// per-envelope form drowned out the fact that the whole session had
+		// been reduced to nothing.
+		if (this._recoveredPromptlessTurns > 0 || this._orphanToolResults > 0) {
+			this._logService.warn(`[claudeReplayMapper] incomplete transcript for ${this._session.toString()}: ${this._recoveredPromptlessTurns} turn(s) recovered without their prompt, ${this._orphanToolResults} orphaned tool_result(s)`);
+		}
 		return this._turns;
 	}
 
 	private _consumeAssistant(msg: ParsedSessionMessage & { kind: 'assistant' }): void {
 		if (this._active === undefined) {
+			// Two ways a transcript legitimately opens with an assistant
+			// envelope:
+			// - Subagent transcript (`isInner`): every envelope carries
+			//   `parent_tool_use_id` and the SDK omits the synthetic spawning
+			//   prompt, so there is genuinely no prompt to show.
+			// - Truncated parent transcript: the SDK drops everything before
+			//   the last compact boundary for transcripts over its size
+			//   threshold, which can cut the prompt off mid-turn.
+			// Either way, synthesize a turn to hold the reply. Dropping would
+			// discard the assistant content — and when the truncated slice
+			// contains no user message at all (one long agentic turn), that
+			// means discarding the entire session.
 			if (!msg.isInner) {
-				// Top-level assistant envelope without a preceding user message —
-				// anomalous; synthesizing an empty user turn would be wrong, so
-				// drop with a warn.
-				this._logService.warn(`[claudeReplayMapper] assistant envelope ${msg.uuid} arrived before any user message; dropping`);
-				return;
+				this._recoveredPromptlessTurns++;
 			}
-			// Subagent transcript: every envelope carries `parent_tool_use_id`
-			// and the SDK omits the synthetic spawning prompt, so the transcript
-			// legitimately opens with an assistant message. Synthesize an
-			// empty-prompt turn to hold the subagent's reply instead of dropping
-			// it (which would lose the entire subagent transcript on replay).
 			this._active = {
 				id: msg.uuid,
-				userText: '',
+				userText: msg.isInner ? '' : missingPromptPlaceholder(),
 				startedAt: msg.timestamp,
 				responseParts: [],
 				pendingToolUseIds: new Set(),
@@ -372,7 +416,7 @@ class ReplayBuilder {
 	private _attachToolResult(block: UserToolResultBlock): string | undefined {
 		const entry = this._toolUses.get(block.tool_use_id);
 		if (entry === undefined) {
-			this._logService.warn(`[claudeReplayMapper] tool_result for unknown tool_use_id ${block.tool_use_id}`);
+			this._orphanToolResults++;
 			return undefined;
 		}
 		const announcingTurnId = entry.turnId;

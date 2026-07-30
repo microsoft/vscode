@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -67,13 +68,6 @@ type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']
 type CopilotSessionLaunchConfig = ResumeSessionConfig & {
 	readonly pluginDirectories?: string[];
 	readonly remoteSession?: 'export';
-	/**
-	 * Opt the runtime into self-fetching enterprise managed settings at session
-	 * bootstrap. Declared locally until the published `@github/copilot-sdk` carries
-	 * it on `SessionConfigBase`; it is forwarded to `createSession` and read by the
-	 * runtime at runtime regardless of the published SDK's static type.
-	 */
-	readonly enableManagedSettings?: boolean;
 };
 
 /**
@@ -130,6 +124,16 @@ interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
 	readonly workingDirectory: URI | undefined;
+	/**
+	 * The additional working directories beyond the primary process root
+	 * ({@link workingDirectory} = index 0). These are the peer roots of a
+	 * multi-root session's ordered set — the directories the agent should be
+	 * granted tool access to in addition to its process cwd. Empty (or absent)
+	 * for a single-root session. Passed through so the SDK can register them as
+	 * extra accessible roots once that surface is available; the process still
+	 * launches in {@link workingDirectory}.
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/**
@@ -555,20 +559,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
-		// Client tools (browser tools, tasks, etc.) are addressed by the name the
-		// agent sees them under; used to gate tool-specific prompt sections.
 		const clientToolNames = clientToolNamesFromSnapshot(plan.snapshot);
-		const promptContext: IAgentHostPromptContext = {
-			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
-			hasClientTool: name => clientToolNames.has(name),
-			workspaceless: plan.workspaceless === true,
-		};
-		// Prompt routing uses the family-aliased selection; the wire model id in
-		// _createSession comes from plan.model and is unaffected.
+		// Prompt routing and capability decisions use the family-aliased
+		// selection; the wire model id in _createSession comes from plan.model
+		// and is unaffected.
 		const effectiveModel = applyModelFamilyAlias(model, this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides));
 		if (model && effectiveModel !== model) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${model.id}' as family '${effectiveModel?.id}'`);
 		}
+		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
+			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
+			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
+		const promptContext: IAgentHostPromptContext = {
+			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
+			hasClientTool: name => clientToolNames.has(name),
+			workspaceless: plan.workspaceless === true,
+			toolSearchActive,
+		};
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
@@ -602,6 +609,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			skillDirectories,
 			instructionDirectories,
 			systemMessage,
+			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: 1 } : { enabled: false },
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],
@@ -624,11 +632,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// session must opt in via `remoteSession` to actually export
 			// events. Without this, sessions default to "off".
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
-			// Opt the runtime into self-fetching enterprise managed settings
-			// (bypass-permissions policy) at session bootstrap. The runtime uses
-			// the session's gitHubToken to call /copilot_internal/managed_settings
-			// and enforces the result fail-closed before the first turn.
-			// Typed locally on CopilotSessionLaunchConfig pending the SDK type update.
 			enableManagedSettings: true,
 		};
 	}
