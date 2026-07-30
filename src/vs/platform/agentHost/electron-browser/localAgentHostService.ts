@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -59,6 +59,49 @@ import type { ComponentToState, RootState, StateComponents } from '../common/sta
 
 const LOG_PREFIX = '[AgentHost:renderer]';
 
+class DelayedAgentSubscription<T> extends Disposable implements IAgentSubscription<T> {
+
+	private delegate: IAgentSubscription<T> | undefined;
+	private readonly delegateListeners = this._register(new DisposableStore());
+
+	private readonly _onDidChange = this._register(new Emitter<T>());
+	readonly onDidChange = this._onDidChange.event;
+
+	private readonly _onDidError = this._register(new Emitter<Error>());
+	readonly onDidError = this._onDidError.event;
+
+	private readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onWillApplyAction = this._onWillApplyAction.event;
+
+	private readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidApplyAction = this._onDidApplyAction.event;
+
+	get value(): T | Error | undefined {
+		return this.delegate?.value;
+	}
+
+	get verifiedValue(): T | undefined {
+		return this.delegate?.verifiedValue;
+	}
+
+	setDelegate(delegate: IAgentSubscription<T>): void {
+		this.delegate = delegate;
+		this.delegateListeners.add(delegate.onDidChange(value => this._onDidChange.fire(value)));
+		if (delegate.onDidError) {
+			this.delegateListeners.add(delegate.onDidError(error => this._onDidError.fire(error)));
+		}
+		this.delegateListeners.add(delegate.onWillApplyAction(action => this._onWillApplyAction.fire(action)));
+		this.delegateListeners.add(delegate.onDidApplyAction(action => this._onDidApplyAction.fire(action)));
+
+		const value = delegate.value;
+		if (value instanceof Error) {
+			this._onDidError.fire(value);
+		} else if (value !== undefined) {
+			this._onDidChange.fire(value);
+		}
+	}
+}
+
 /**
  * Renderer-side implementation of {@link IAgentHostService} for the local
  * agent host. State and request traffic use AHP over the Protocol channel;
@@ -85,13 +128,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
-	private readonly _noopRootState: IAgentSubscription<RootState> = {
-		value: undefined,
-		verifiedValue: undefined,
-		onDidChange: Event.None,
-		onWillApplyAction: Event.None,
-		onDidApplyAction: Event.None,
-	};
+	private readonly _initializeResult = observableValue<InitializeResult | undefined>(this, undefined);
+	private readonly _rootState = this._register(new DelayedAgentSubscription<RootState>());
+	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
+	private readonly _onDidNotification = this._register(new Emitter<INotification>());
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 
 	constructor(
 		private readonly _clientInfo: Implementation,
@@ -126,7 +167,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
 				this._ahpLogger,
 			);
-			this._protocolClient = this._register(this._instantiationService.createInstance(
+			const protocolClient = this._protocolClient = this._register(this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				transport,
@@ -134,7 +175,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				this.clientId,
 				this._clientInfo,
 			));
-			this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
+			this._register(protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
+			this._rootState.setDelegate(protocolClient.rootState);
+			this._register(protocolClient.onDidAction(action => this._onDidAction.fire(action)));
+			this._register(protocolClient.onDidNotification(notification => this._onDidNotification.fire(notification)));
+			this._register(protocolClient.onMcpNotification(notification => this._onMcpNotification.fire(notification)));
+			this._register(autorun(reader => this._initializeResult.set(protocolClient.initializeResult.read(reader), undefined)));
 		}
 
 		void this._connect().catch(error => {
@@ -191,23 +237,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	get initializeResult(): IObservable<InitializeResult | undefined> {
-		return this._protocolClient?.initializeResult ?? constObservable(undefined);
+		return this._initializeResult;
 	}
 
 	get rootState(): IAgentSubscription<RootState> {
-		return this._protocolClient?.rootState ?? this._noopRootState;
+		return this._rootState;
 	}
 
 	get onDidAction(): Event<ActionEnvelope> {
-		return this._protocolClient?.onDidAction ?? Event.None;
+		return this._onDidAction.event;
 	}
 
 	get onDidNotification(): Event<INotification> {
-		return this._protocolClient?.onDidNotification ?? Event.None;
+		return this._onDidNotification.event;
 	}
 
 	get onMcpNotification(): Event<IMcpNotification> {
-		return this._protocolClient?.onMcpNotification ?? Event.None;
+		return this._onMcpNotification.event;
 	}
 
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
