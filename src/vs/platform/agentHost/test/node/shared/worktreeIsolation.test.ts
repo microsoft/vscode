@@ -240,7 +240,7 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('resolveWorkingDirectory names each creation phase, rounding percentages down and skipping repeats', async () => {
+	test('resolveWorkingDirectory names each creation phase, rounding percentages down and debouncing updates', async () => {
 		const gitService = createGitService();
 		gitService.addWorktree = async (_root, worktree, branch, startPoint, track, onProgress) => {
 			addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
@@ -248,6 +248,7 @@ suite('WorktreeIsolation', () => {
 			onProgress?.({ filesDone: 7, filesTotal: 800 });
 			onProgress?.({ filesDone: 96, filesTotal: 800 });
 			onProgress?.({ filesDone: 100, filesTotal: 800 });
+			await timeout(50);
 			onProgress?.({ filesDone: 800, filesTotal: 800 });
 		};
 		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
@@ -274,11 +275,9 @@ suite('WorktreeIsolation', () => {
 			'Creating isolated worktree',
 			'Creating isolated worktree (naming branch)',
 			'Creating isolated worktree (checking out files)',
-			'Creating isolated worktree (checking out files, 0%)',
 			'Creating isolated worktree (checking out files, 12%)',
 			'Creating isolated worktree (checking out files, 100%)',
 			'Creating isolated worktree (copying additional files)',
-			'Creating isolated worktree (copying additional files, 25%)',
 			'Creating isolated worktree (copying additional files, 100%)',
 		]);
 	});

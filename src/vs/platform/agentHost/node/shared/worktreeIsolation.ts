@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
-import { SequencerByKey } from '../../../../base/common/async.js';
+import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -47,6 +47,7 @@ export class SessionWorkingDirectoryMissingError extends Error {
 
 /** Default upper bound on branch names returned for the branch picker. */
 const BRANCH_COMPLETION_LIMIT = 25;
+const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -133,21 +134,32 @@ export function buildWorktreeProgressText(phase: WorktreeCreationPhase, percent?
 	}
 }
 
+/** Debounced percentage progress for one worktree-creation phase. */
+interface IPercentProgressReporter extends IDisposable {
+	readonly report: (progress: IWorktreeFileProgress) => void;
+	flush(): void;
+}
+
 /**
  * Adapts the raw file counts the git service reports into progress labels for
- * a phase. Samples can arrive several times a second, so this rounds down to
- * whole percent and drops anything that doesn't advance it — a consumer never
- * sees two updates that read the same, and never more than 101 per phase.
+ * a phase. Rounds down to whole percentages, drops non-advancing samples, and
+ * debounces updates to avoid overwhelming consumers. Callers flush the latest
+ * percentage when the phase completes.
  */
-function createPercentProgressReporter(phase: WorktreeCreationPhase, onProgress: (activity: string) => void): (progress: IWorktreeFileProgress) => void {
+function createPercentProgressReporter(phase: WorktreeCreationPhase, onProgress: (activity: string) => void): IPercentProgressReporter {
 	let lastPercent = -1;
-	return ({ filesDone, filesTotal }) => {
-		const percent = Math.min(100, Math.floor(filesDone * 100 / filesTotal));
-		if (percent <= lastPercent) {
-			return;
-		}
-		lastPercent = percent;
-		onProgress(buildWorktreeProgressText(phase, percent));
+	const scheduler = new RunOnceScheduler(() => onProgress(buildWorktreeProgressText(phase, lastPercent)), WORKTREE_PROGRESS_DEBOUNCE_MS);
+	return {
+		report: ({ filesDone, filesTotal }) => {
+			const percent = Math.min(100, Math.floor(filesDone * 100 / filesTotal));
+			if (percent <= lastPercent) {
+				return;
+			}
+			lastPercent = percent;
+			scheduler.schedule();
+		},
+		flush: () => scheduler.flush(),
+		dispose: () => scheduler.dispose(),
 	};
 }
 
@@ -538,7 +550,16 @@ export class WorktreeIsolation extends Disposable {
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
 
 			const worktreeBranchTrack = config[SessionConfigKey.WorktreeBranchTrack] === true;
-			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, worktreeBranchTrack, onProgress && createPercentProgressReporter(WorktreeCreationPhase.CheckingOut, onProgress));
+			const checkoutProgress = onProgress && createPercentProgressReporter(WorktreeCreationPhase.CheckingOut, onProgress);
+			try {
+				await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, worktreeBranchTrack, checkoutProgress?.report);
+			} finally {
+				try {
+					checkoutProgress?.flush();
+				} finally {
+					checkoutProgress?.dispose();
+				}
+			}
 			return { branchName, worktree, baseBranch };
 		});
 		const worktreeIncludeFiles = Array.isArray(config[SessionConfigKey.WorktreeIncludeFiles])
@@ -548,7 +569,16 @@ export class WorktreeIsolation extends Disposable {
 		if (worktreeIncludeFiles?.length) {
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
-				await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles, onProgress && createPercentProgressReporter(WorktreeCreationPhase.CopyingIncludeFiles, onProgress));
+				const copyProgress = onProgress && createPercentProgressReporter(WorktreeCreationPhase.CopyingIncludeFiles, onProgress);
+				try {
+					await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles, copyProgress?.report);
+				} finally {
+					try {
+						copyProgress?.flush();
+					} finally {
+						copyProgress?.dispose();
+					}
+				}
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
