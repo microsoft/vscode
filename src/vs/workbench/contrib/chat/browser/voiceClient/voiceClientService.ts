@@ -140,6 +140,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		return this._isResuming;
 	}
 
+	get willReconnect(): boolean {
+		return this._reconnectTimer !== undefined;
+	}
+
 	get currentSessionId(): string | undefined {
 		return this._lastSessionId;
 	}
@@ -376,7 +380,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'speech_started':
-					this._onSpeechStarted.fire({});
+					this._onSpeechStarted.fire({ turnId: asOptionalString(msg.turn_id) });
 					break;
 				case 'barge_in':
 					this._onBargeIn.fire({
@@ -494,7 +498,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				}
 
 				this._reconnectAttempts++;
-				this._setConnected(false);
 				this._stopPing();
 				this._ws = undefined;
 
@@ -502,7 +505,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					? FAST_RETRY_DELAY_MS
 					: SLOW_RETRY_DELAY_MS;
 				this._logService.warn(`[voice] ws closed abnormally (code=${evt.code} reason=${evt.reason || 'none'} wasClean=${evt.wasClean}); reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
-				this._reconnectTimer = setTimeout(() => this._connectWebSocket(), delay);
+				this._reconnectTimer = setTimeout(() => {
+					this._reconnectTimer = undefined;
+					this._connectWebSocket();
+				}, delay);
+				this._setConnected(false);
 			}
 		};
 	}

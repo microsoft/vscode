@@ -90,7 +90,9 @@ export interface IVoiceToolCall {
 	readonly args: Record<string, unknown>;
 }
 
-export interface IVoiceSpeechStarted { }
+export interface IVoiceSpeechStarted {
+	readonly turnId?: string;
+}
 
 export interface IVoiceSessionInit {
 	readonly sessionId: string;
@@ -290,6 +292,8 @@ export interface IVoiceClientService {
 	// --- State ---
 	readonly isConnected: boolean;
 	readonly isResuming: boolean;
+	/** Whether the current socket close has an automatic retry scheduled. */
+	readonly willReconnect: boolean;
 	/** Backend session id assigned by the realtime server, or ``undefined`` when not yet established. */
 	readonly currentSessionId: string | undefined;
 }
