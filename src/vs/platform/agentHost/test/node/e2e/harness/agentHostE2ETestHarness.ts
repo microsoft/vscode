@@ -792,6 +792,23 @@ export class AgentHostE2EServerLease {
 		return { server: this._server, client: this._client };
 	}
 
+	/**
+	 * Open an additional connection to the current server.
+	 *
+	 * `reconnect` is only answerable on a transport that has not completed the
+	 * handshake, so a test that exercises connection recovery needs a second
+	 * socket it can close and re-establish without disturbing the shared
+	 * client. The caller owns the returned client and must close it.
+	 */
+	async connectClient(): Promise<TestProtocolClient> {
+		if (!this._server) {
+			throw new Error('[agent-host-e2e] no server acquired yet');
+		}
+		const client = new TestProtocolClient(this._server.port);
+		await client.connect();
+		return client;
+	}
+
 	/** Stop the current shared server so the next {@link acquire} starts a fresh one. */
 	private async _recycleSharedServer(): Promise<void> {
 		try {
