@@ -5541,23 +5541,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return stateInfo.state;
 	}
 
-	/**
-	 * The single pending part voice is currently on for a session.
-	 *
-	 * Scans OLDEST-first and returns the first still-open actionable part of the
-	 * last request, matching how the chat model itself decides what a response is
-	 * waiting on (`_pendingInfo` in `chatModel.ts`).
-	 *
-	 * Two callers share this: `_buildPendingPayload`, which decides what a spoken
-	 * answer routes to, and `_getAgentStateInfo`, which produces the prose the
-	 * model hears. They used to pick independently, so a second form arriving
-	 * flipped the prose to the new form while the payload stayed on the old one -
-	 * which reads the old form aloud again as a detail transition.
-	 *
-	 * Oldest-first also gives voice a queue with no stored state: resolved parts
-	 * are skipped, so the oldest still-open part is by construction the one
-	 * already published. A form arriving never takes the turn from the form the
-	 * user is part-way through answering.
+/**
+	 * Returns the oldest open pending part from the last request so narration and answer routing use the same item.
 	 */
 	private _selectPendingPart(model: IChatModel | undefined | null): { requestId: string; part: IChatProgressResponseContent } | undefined {
 		const lastRequest = model?.getRequests().at(-1);
