@@ -11,6 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IFileService } from '../../../../files/common/files.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { discoverClaudeMultiRootCustomizations } from '../../../node/claude/customizations/claudeMultiRootCustomizationDiscovery.js';
+import { scanClaudeDiskCustomizations } from '../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
+import { scanClaudeNativePlugins } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
 
 suite('claudeMultiRootCustomizationDiscovery', () => {
@@ -27,6 +29,33 @@ suite('claudeMultiRootCustomizationDiscovery', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the existing single-root discovery path without changing output order', async () => {
+		await Promise.all([
+			seed('/a/.claude/agents/project.md', '---\nname: project\ndescription: project agent\n---'),
+			seed('/home/.claude/agents/user.md', '---\nname: user\ndescription: user agent\n---'),
+			seed('/a/.claude/skills/project-skill/SKILL.md', '---\nname: project-skill\ndescription: project skill\n---'),
+			seed('/home/.claude/skills/user-skill/SKILL.md', '---\nname: user-skill\ndescription: user skill\n---'),
+			seed('/home/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'user-plugin@m': true } })),
+			seed('/a/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'project-plugin@m': true } })),
+			seed('/home/.claude/plugins/cache/m/user-plugin/1.0.0/.claude-plugin/plugin.json', JSON.stringify({ name: 'user-plugin' })),
+			seed('/home/.claude/plugins/cache/m/project-plugin/1.0.0/.claude-plugin/plugin.json', JSON.stringify({ name: 'project-plugin' })),
+		]);
+		const logService = new NullLogService();
+		const [expectedDiscovered, expectedPlugins, actual] = await Promise.all([
+			scanClaudeDiskCustomizations(rootA, userHome, fileService),
+			scanClaudeNativePlugins(rootA, userHome, fileService, logService),
+			discoverClaudeMultiRootCustomizations([rootA], userHome, fileService, logService),
+		]);
+
+		assert.deepStrictEqual({
+			discovered: actual.discovered,
+			plugins: actual.nativePlugins,
+		}, {
+			discovered: expectedDiscovered,
+			plugins: expectedPlugins,
+		});
+	});
 
 	test('combines roots in order and applies first-name-wins precedence', async () => {
 		await Promise.all([

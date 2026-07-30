@@ -96,6 +96,16 @@ function resolveCurrentPermissionMode(
 	return readClaudePermissionMode(configurationService, sessionUri) ?? permissionModeFallback;
 }
 
+function sameWorkingDirectories(a: readonly URI[] | undefined, b: readonly URI[] | undefined): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
+	if (a.length !== b.length) {
+		return false;
+	}
+	return a.every((directory, index) => isEqual(directory, b[index]));
+}
+
 /**
  * Per-session coordinator. Owns:
  *   • Per-session identity (sessionId / sessionUri / workspace /
@@ -470,6 +480,7 @@ export class ClaudeAgentSession extends Disposable {
 		// roots) takes precedence and also refreshes the additional-directory
 		// tail; the singular `workingDirectory` stays supported for single-root
 		// callers that only resolve the primary.
+		const previousWorkingDirectories = this.workingDirectories;
 		const resolvedPrimary = ctx.workingDirectories?.[0] ?? ctx.workingDirectory;
 		if (resolvedPrimary && !isEqual(resolvedPrimary, this.workingDirectory)) {
 			this._workingDirectory = resolvedPrimary;
@@ -477,7 +488,10 @@ export class ClaudeAgentSession extends Disposable {
 		if (ctx.workingDirectories && ctx.workingDirectories.length > 0) {
 			this._additionalDirectories = ctx.workingDirectories.slice(1);
 		}
-		this._watchCustomizations(this.workingDirectories);
+		const currentWorkingDirectories = this.workingDirectories;
+		if (!sameWorkingDirectories(previousWorkingDirectories, currentWorkingDirectories)) {
+			this._watchCustomizations(currentWorkingDirectories);
+		}
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
 		}

@@ -104,8 +104,8 @@ export async function scanClaudeDiskCustomizations(
 	const agents = new Map<string, IParsedAgent>();
 	const skills = new Map<string, IParsedSkill>();
 
-	const discoveredScopes = await Promise.all(scopes.map(scope => scanClaudeCustomizationScope(scope, fileService)));
-	for (const discovered of discoveredScopes) {
+	for (const scope of scopes) {
+		const discovered = await scanClaudeCustomizationScope(scope, fileService);
 		collectByName(agents, discovered.filter((item): item is IParsedAgent => item.customization.type === CustomizationType.Agent));
 		collectByName(skills, discovered.filter((item): item is IParsedSkill => item.customization.type === CustomizationType.Skill));
 	}

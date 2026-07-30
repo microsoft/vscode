@@ -72,17 +72,21 @@ async function readEnabledPlugins(uri: URI, fileService: IFileService): Promise<
 async function resolveEnabledPluginIds(workingDirectory: URI | undefined, userHome: URI, fileService: IFileService): Promise<string[]> {
 	const effective = new Map<string, boolean>();
 	const seenFiles = new ResourceSet();
-	const settingsFiles = claudeSettingsFilesByPrecedence(workingDirectory, userHome).filter(uri => {
+	for (const uri of claudeSettingsFilesByPrecedence(workingDirectory, userHome)) {
 		if (seenFiles.has(uri)) {
-			return false;
+			continue;
 		}
 		seenFiles.add(uri);
-		return true;
-	});
-	const settings = await Promise.all(settingsFiles.map(uri => readEnabledPlugins(uri, fileService)));
-	for (const enabledPlugins of settings) {
-		for (const [id, enabled] of enabledPlugins) {
-			effective.set(id, enabled);
+		const raw = await readJsonFile(uri, fileService);
+		if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+			continue;
+		}
+		const enabledPlugins = (raw as Record<string, unknown>)['enabledPlugins'];
+		if (!enabledPlugins || typeof enabledPlugins !== 'object' || Array.isArray(enabledPlugins)) {
+			continue;
+		}
+		for (const [id, value] of Object.entries(enabledPlugins as Record<string, unknown>)) {
+			effective.set(id, value !== false);
 		}
 	}
 	return [...effective].filter(([, enabled]) => enabled).map(([id]) => id);

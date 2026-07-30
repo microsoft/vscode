@@ -106,7 +106,7 @@ function createBucket(base: URI): ICustomizationBucket {
 
 function findCustomizationBucket(uri: URI, workspaceBuckets: readonly ICustomizationBucket[], userBucket: ICustomizationBucket): ICustomizationBucket {
 	const root = findMostSpecificClaudeWorkspaceRoot(uri, workspaceBuckets.map(bucket => bucket.base));
-	if (uri.scheme === userBucket.base.scheme && isEqualOrParent(uri, userBucket.base) && (!root || userBucket.base.path.length > root.path.length)) {
+	if (workspaceBuckets.length > 1 && uri.scheme === userBucket.base.scheme && isEqualOrParent(uri, userBucket.base) && (!root || userBucket.base.path.length > root.path.length)) {
 		return userBucket;
 	}
 	return workspaceBuckets.find(bucket => bucket.base === root) ?? userBucket;

@@ -9,8 +9,8 @@ import { IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
 import type { IParsedAgent, IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
-import { scanClaudeCustomizationScope } from './scan/claudeAgentSkillScan.js';
-import { scanClaudeNativePluginsForRoots, type IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
+import { scanClaudeCustomizationScope, scanClaudeDiskCustomizations } from './scan/claudeAgentSkillScan.js';
+import { scanClaudeNativePlugins, scanClaudeNativePluginsForRoots, type IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
 import { selectFirstClaudeCustomizationByKey } from './claudeCustomizationPolicy.js';
 
 export interface IClaudeMultiRootCustomizations {
@@ -46,6 +46,13 @@ export async function discoverClaudeMultiRootCustomizations(
 	logService: ILogService,
 ): Promise<IClaudeMultiRootCustomizations> {
 	const roots = distinctClaudeWorkingDirectories(workingDirectories);
+	if (roots.length <= 1) {
+		const [discovered, nativePlugins] = await Promise.all([
+			scanClaudeDiskCustomizations(roots[0], userHome, fileService),
+			scanClaudeNativePlugins(roots[0], userHome, fileService, logService),
+		]);
+		return { workingDirectories: roots, discovered, nativePlugins };
+	}
 	const [scopes, nativePlugins] = await Promise.all([
 		Promise.all([
 			...roots.map((root, index) => scanClaudeCustomizationScope(root, fileService, index === 0)),
