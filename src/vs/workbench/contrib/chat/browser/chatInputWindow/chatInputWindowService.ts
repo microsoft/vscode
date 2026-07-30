@@ -377,13 +377,19 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			// Focus the input only after the window has been positioned: the
 			// `moveTo`/`resizeTo` above blur the editor, so focusing in a
 			// follow-up frame (after the OS window is settled and keyed) is what
-			// makes the caret actually render. Focus the OS window first so
-			// macOS treats it as key and shows a live (not dimmed) caret.
+			// makes the caret actually render.
 			this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
-				auxiliaryWindow.window.focus();
 				widget.focusInput();
 			}));
 		}));
+		// Monaco's edit-context focus tracker only re-checks its focus state on
+		// DOM focus/blur events. When this frameless window is created it may not
+		// be the OS key window yet, so the initial `focusInput()` runs while
+		// `document.hasFocus()` is false and the tracker latches `_isFocused =
+		// false` — leaving the caret hidden even though the edit context holds DOM
+		// focus. Re-focus the input whenever the window becomes key so the tracker
+		// re-evaluates and renders a live caret.
+		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => widget.focusInput()));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
 
