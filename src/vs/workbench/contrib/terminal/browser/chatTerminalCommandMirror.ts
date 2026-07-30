@@ -129,14 +129,16 @@ const enum ChatTerminalMirrorMetrics {
  * @param availableWidthPx The container width in CSS pixels.
  * @param font The terminal font with measured char metrics.
  * @param devicePixelRatio The window's device pixel ratio.
+ * @param horizontalChromePx Horizontal space the DOM chrome takes from the container width,
+ * measured from computed styles when available; defaults to the static estimate.
  * @returns The column count, or the default fallback when the width or font is unmeasurable.
  */
-export function computeChatTerminalMirrorCols(availableWidthPx: number, font: ITerminalFont, devicePixelRatio: number): number {
+export function computeChatTerminalMirrorCols(availableWidthPx: number, font: ITerminalFont, devicePixelRatio: number, horizontalChromePx: number = ChatTerminalMirrorMetrics.MirrorHorizontalPaddingPx): number {
 	if (!isFinite(availableWidthPx) || availableWidthPx <= 0 || !font.charWidth) {
 		return ChatTerminalMirrorMetrics.MirrorColCountFallback;
 	}
 	const dpr = isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
-	const scaledWidthAvailable = (availableWidthPx - ChatTerminalMirrorMetrics.MirrorHorizontalPaddingPx) * dpr;
+	const scaledWidthAvailable = (availableWidthPx - horizontalChromePx) * dpr;
 	const scaledCharWidth = font.charWidth * dpr + font.letterSpacing;
 	return Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 }
@@ -160,6 +162,22 @@ function enableCursorLineReflow(detached: IDetachedTerminalInstance): void {
  */
 function getMirrorDevicePixelRatio(detached: IDetachedTerminalInstance): number {
 	return getWindow(getMirrorRaw(detached).element).devicePixelRatio;
+}
+
+/**
+ * Measures the horizontal space the mirror's DOM chrome takes from the container width by
+ * reading the xterm element's computed padding, the same way the panel terminal does. xterm's
+ * own scrollbar is hidden in the chat preview, so unlike the panel terminal it takes no
+ * space. Returns undefined before the terminal is attached.
+ */
+function measureMirrorHorizontalChrome(detached: IDetachedTerminalInstance): number | undefined {
+	const element = getMirrorRaw(detached).element;
+	if (!element) {
+		return undefined;
+	}
+	const style = getWindow(element).getComputedStyle(element);
+	const chrome = parseInt(style.paddingLeft) + parseInt(style.paddingRight);
+	return isNaN(chrome) ? undefined : Math.max(chrome, 0);
 }
 
 /**
@@ -437,7 +455,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._store.isDisposed) {
 			return undefined;
 		}
-		const cols = computeChatTerminalMirrorCols(widthPx, detached.xterm.getFont(), getMirrorDevicePixelRatio(detached));
+		const cols = computeChatTerminalMirrorCols(widthPx, detached.xterm.getFont(), getMirrorDevicePixelRatio(detached), measureMirrorHorizontalChrome(detached));
 		if (detached.xterm.cols === cols) {
 			return undefined;
 		}
@@ -803,7 +821,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			if (this._store.isDisposed) {
 				return undefined;
 			}
-			const cols = computeChatTerminalMirrorCols(widthPx, terminal.xterm.getFont(), getMirrorDevicePixelRatio(terminal));
+			const cols = computeChatTerminalMirrorCols(widthPx, terminal.xterm.getFont(), getMirrorDevicePixelRatio(terminal), measureMirrorHorizontalChrome(terminal));
 			if (terminal.xterm.cols === cols) {
 				return undefined;
 			}
@@ -859,7 +877,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		if (this._store.isDisposed) {
 			return undefined;
 		}
-		const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, output.lineCount);
+		// A persisted lineCount reflects the wrap width of the source terminal, which can differ
+		// from this mirror's cols after a width layout. Only trust it for truncated output,
+		// where the text under-represents the real row count.
+		const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, output.truncated ? output.lineCount : undefined);
 		this._renderedVersion = outputVersion;
 		this._lastRenderedText = text;
 		this._lastRenderedLineCount = lineCount;

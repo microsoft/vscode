@@ -699,6 +699,16 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			strictEqual(computeChatTerminalMirrorCols(1224, makeFont(10), 0), 120);
 		});
 
+		test('uses an explicitly measured horizontal chrome over the default', () => {
+			deepStrictEqual({
+				none: computeChatTerminalMirrorCols(1200, makeFont(10), 1, 0),
+				measured: computeChatTerminalMirrorCols(1224, makeFont(10), 1, 24),
+			}, {
+				none: 120,
+				measured: 120,
+			});
+		});
+
 		test('narrow widths wrap to the fitting column count, minimum one column', () => {
 			deepStrictEqual({
 				narrow: computeChatTerminalMirrorCols(100, makeFont(10), 1), // floor((100 - 24) / 10)
@@ -728,7 +738,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			} as Partial<ITerminalService>);
 		});
 
-		function createSnapshotMirror(output: { text: string; lineCount?: number } | undefined): DetachedTerminalSnapshotMirror {
+		function createSnapshotMirror(output: { text: string; truncated?: boolean; lineCount?: number } | undefined): DetachedTerminalSnapshotMirror {
 			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
 		}
 
@@ -789,6 +799,22 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			await mirror.layout(0);
 			await mirror.layout(-10);
 			strictEqual(fakes[0].raw.cols, 80);
+		});
+
+		test('drops a persisted lineCount that reflects the old wrap width', async () => {
+			// Producers persist lineCount wrapped at the source terminal's cols; after a
+			// width layout the rendered row count is the ground truth for the box height
+			const mirror = createSnapshotMirror({ text: 'x'.repeat(100), lineCount: 2 });
+			await mirror.layout(1224);
+			const result = await mirror.render();
+			strictEqual(result?.lineCount, 1);
+		});
+
+		test('keeps an explicit lineCount for truncated output', async () => {
+			// Truncated snapshots under-represent the real output, so the persisted count wins
+			const mirror = createSnapshotMirror({ text: 'short', truncated: true, lineCount: 42 });
+			const result = await mirror.render();
+			strictEqual(result?.lineCount, 42);
 		});
 	});
 
