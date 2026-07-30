@@ -619,10 +619,7 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 ];
 
 async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
-	const targetWindow = context.container.ownerDocument.defaultView;
-	if (!targetWindow) {
-		throw new Error('ResizeObserver harness requires a window');
-	}
+	const targetWindow = dom.getWindow(context.container);
 
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
@@ -676,7 +673,7 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
 			warningCount++;
 			warnings.textContent = `Warnings: ${warningCount}`;
-			warnings.dataset['lastAttribution'] = dom.getRecentDisposableResizeObserverAttributionForLoopError(event.message) ?? event.message;
+			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 			status.textContent = 'Captured ResizeObserver warning';
 		}
 	}));

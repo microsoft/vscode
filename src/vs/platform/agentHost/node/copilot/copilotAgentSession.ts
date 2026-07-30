@@ -2032,12 +2032,13 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
+			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 			await this._wrapper.session.send({
 				prompt: steeringMessage.message.text,
 				mode: 'immediate',
 			});
-			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 		} catch (err) {
+			this._pendingSteeringFlips.delete(steeringMessage.id);
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
@@ -3568,9 +3569,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (subagentMeta?.agentName) {
 				meta.subagentAgentName = subagentMeta.agentName;
-			}
-			if (toolArgs !== undefined) {
-				meta.toolArguments = toolArgs;
 			}
 			if (e.data.mcpServerName) {
 				meta.mcpServerName = e.data.mcpServerName;
