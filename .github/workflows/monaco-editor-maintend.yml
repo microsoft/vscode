@@ -3,11 +3,11 @@ name: Monaco Editor checks
 on:
   push:
     branches:
-      - main
+      - maintend
       - release/*
   pull_request:
     branches:
-      - main
+      - maintend
       - release/*
 permissions: {}
 
@@ -21,8 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          lfs: true
-          persist-credentials: false
+          lfs: false
+          persist-credentials: true
 
       - uses: actions/setup-node@v6
         with:
