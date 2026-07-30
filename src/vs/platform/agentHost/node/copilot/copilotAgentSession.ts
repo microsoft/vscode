@@ -43,7 +43,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta, type IContextAttributionData } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -703,8 +703,10 @@ export class CopilotAgentSession extends Disposable {
 	 * per-event `copilotUsage` instead (see {@link CopilotTurn.copilotNanoAiu}).
 	 */
 	private _sessionTotalNanoAiu = 0;
+	private _promptCacheState: ISessionPromptCacheState | undefined;
+	private _promptCacheRefreshGeneration = 0;
 	/**
-	 * Serializes the metrics reads behind {@link _refreshSessionTotalNanoAiu}. Several
+	 * Serializes the metrics reads behind {@link _refreshSessionUsageMetrics}. Several
 	 * handlers refresh the total, so without this their RPCs overlap and an older
 	 * one resolving last would publish a session cost that visibly regresses. A
 	 * high-water mark cannot be used to reject stale reads instead, because the
@@ -712,7 +714,7 @@ export class CopilotAgentSession extends Disposable {
 	 * one read in flight makes out-of-order resolution impossible, and coalesces
 	 * the redundant reads that a burst of usage events would otherwise issue.
 	 */
-	private readonly _sessionTotalRefreshThrottler = this._register(new Throttler());
+	private readonly _sessionUsageMetricsRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
@@ -1071,20 +1073,19 @@ export class CopilotAgentSession extends Disposable {
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
 	}
 
-	/**
-	 * Re-reads the SDK's session-wide nano-AIU total. Returns `true` when the
-	 * value changed, i.e. when a usage report is worth re-emitting.
-	 *
-	 * Reads are serialized by {@link _sessionTotalRefreshThrottler}, so the value
-	 * always reflects the most recent one. The total is not monotonic —
-	 * `history.truncate` (checkpoint restore, editing an earlier message) makes
-	 * the SDK re-fold usage from the surviving events, so it legitimately drops —
-	 * which is why a decrease is adopted rather than rejected as stale.
-	 */
-	private async _refreshSessionTotalNanoAiu(): Promise<boolean> {
+	/** Refreshes prompt-cache state and the session-wide nano-AIU total from the SDK's authoritative usage metrics. */
+	private async _refreshSessionUsageMetrics(): Promise<boolean> {
 		try {
-			return await this._sessionTotalRefreshThrottler.queue(async () => {
-				const total = (await this._wrapper.session.rpc.usage.getMetrics()).totalNanoAiu;
+			return await this._sessionUsageMetricsRefreshThrottler.queue(async () => {
+				const promptCacheRefreshGeneration = this._promptCacheRefreshGeneration;
+				const metrics = await this._wrapper.session.rpc.usage.getMetrics();
+				const modelId = metrics.currentModel;
+				if (!this._store.isDisposed && modelId && promptCacheRefreshGeneration === this._promptCacheRefreshGeneration) {
+					const cacheExpiresAt = metrics.modelMetrics[modelId]?.cacheExpiresAt;
+					this._setPromptCacheState(cacheExpiresAt ? { modelId, cacheExpiresAt } : undefined);
+				}
+
+				const total = metrics.totalNanoAiu;
 				if (typeof total !== 'number' || !Number.isFinite(total) || total < 0 || total === this._sessionTotalNanoAiu) {
 					return false;
 				}
@@ -1594,6 +1595,13 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
+		this._promptCacheState = readSessionPromptCacheState(this._stateManager.getSessionSummary(this.sessionUri.toString())?._meta);
+		if (this._launchPlan.kind === 'resume') {
+			await this._refreshSessionUsageMetrics();
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+		}
 
 		// Advertise the agent host's server tools for this session so clients
 		// see them as server-provided. Execution happens in-process via the SDK
@@ -1601,8 +1609,14 @@ export class CopilotAgentSession extends Disposable {
 		this._serverToolHost?.advertise(this._storageUri.toString());
 	}
 
-	private _setPromptCacheState(promptCache: { readonly modelId: string; readonly cacheExpiresAt: string } | undefined): void {
+	private _setPromptCacheState(promptCache: ISessionPromptCacheState | undefined): void {
 		const currentMeta = this._stateManager.getSessionSummary(this.sessionUri.toString())?._meta;
+		const currentPromptCache = this._promptCacheState ?? readSessionPromptCacheState(currentMeta);
+		this._promptCacheState = currentPromptCache;
+		if (currentPromptCache?.modelId === promptCache?.modelId && currentPromptCache?.cacheExpiresAt === promptCache?.cacheExpiresAt) {
+			return;
+		}
+		this._promptCacheState = promptCache;
 		this._stateManager.setSessionMeta(this.sessionUri.toString(), withSessionPromptCacheState(currentMeta, promptCache));
 	}
 
@@ -1828,7 +1842,7 @@ export class CopilotAgentSession extends Disposable {
 					// `session.compaction_complete` has already folded the summarization call's
 					// cost into the turn by the time this RPC resolves; refresh the session total
 					// so the report carries both.
-					await this._refreshSessionTotalNanoAiu();
+					await this._refreshSessionUsageMetrics();
 					const copilotUsage = this._parentCopilotUsageMeta();
 					this._emitAction({
 						type: ActionType.ChatUsage,
@@ -4067,8 +4081,13 @@ export class CopilotAgentSession extends Disposable {
 			// child session (via `parentToolCallId`) for the subagent tool to show
 			// its own cost.
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			if (!parentToolCallId && !e.agentId && !e.data.parentToolCallId && e.data.model) {
-				this._setPromptCacheState(e.data.cacheExpiresAt ? { modelId: e.data.model, cacheExpiresAt: e.data.cacheExpiresAt } : undefined);
+			if (!parentToolCallId && !e.agentId && !e.data.parentToolCallId) {
+				this._promptCacheRefreshGeneration++;
+				if (e.data.model && e.data.cacheExpiresAt) {
+					this._setPromptCacheState({ modelId: e.data.model, cacheExpiresAt: e.data.cacheExpiresAt });
+				} else if (e.data.model && this._promptCacheState?.modelId !== e.data.model) {
+					this._setPromptCacheState(undefined);
+				}
 			}
 			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
 			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
@@ -4187,7 +4206,7 @@ export class CopilotAgentSession extends Disposable {
 				model: e.data.model,
 				cacheReadTokens: e.data.cacheReadTokens,
 			};
-			await this._refreshSessionTotalNanoAiu();
+			await this._refreshSessionUsageMetrics();
 			const attribution = isSubagentEvent ? undefined : await this._readContextAttribution();
 			if (!turnId) {
 				return;
@@ -4271,7 +4290,7 @@ export class CopilotAgentSession extends Disposable {
 			// Then pick up the session-wide total, which also covers a compaction billed
 			// while no turn was active, and re-emit so the widget reflects it.
 			const turnIdBeforeRefresh = this._turnId;
-			if (await this._refreshSessionTotalNanoAiu() && turnIdBeforeRefresh === this._turnId) {
+			if (await this._refreshSessionUsageMetrics() && turnIdBeforeRefresh === this._turnId) {
 				emitParentUsage();
 			}
 		}));
@@ -4788,6 +4807,13 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionModelChange(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Model changed: ${e.data.previousModel ?? '(none)'} -> ${e.data.newModel}`);
+			if (!e.agentId) {
+				this._promptCacheRefreshGeneration++;
+				if (e.data.previousModel !== e.data.newModel) {
+					this._setPromptCacheState(undefined);
+				}
+				void this._refreshSessionUsageMetrics();
+			}
 		}));
 
 		this._register(wrapper.onManagedSettingsResolved(e => {
