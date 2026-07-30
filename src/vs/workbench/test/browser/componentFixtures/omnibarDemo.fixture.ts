@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IBorderBeamOptions } from '../../../contrib/chat/browser/voiceClient/borderBeam/borderBeamElement.js';
 import { enableAnimations, replaceBeam } from './beamFixtureUtils.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import { ComponentFixtureContext, darkTheme, defineComponentFixture, defineThemedFixtureGroup, lightTheme, setupTheme } from './fixtureUtils.js';
 
 /**
  * Omnibar — a self-running demo of the natural-language command center.
@@ -71,10 +71,44 @@ function stateColor(state: StateColor): string {
 	return `rgb(${STATE_COLORS[state].rgb})`;
 }
 
-const WORKSPACE_NAME = 'portfolio-site';
+const WORKSPACE_NAME = 'vscode-website';
+
+/** What the bar decided a piece of text means. */
+type IntentKind = 'file' | 'command' | 'agent';
+
+/**
+ * The sessions in play. Task-named rather than repo-named: they are pieces of
+ * work, and "vscode-website" is the workspace they all live in.
+ */
+const SESSIONS = {
+	hero: { title: 'Bigger hero on the download page', branch: 'main', added: 42, removed: 12 },
+	docs: { title: 'Fix docs search redirect', branch: 'fix/docs-search', added: 8, removed: 3 },
+	gallery: { title: 'Update extension gallery cards', branch: 'feat/gallery', added: 5, removed: 0 },
+} as const;
 
 function isDark(ctx: ComponentFixtureContext): boolean {
 	return ctx.theme.type === ColorScheme.DARK || ctx.theme.type === ColorScheme.HIGH_CONTRAST_DARK;
+}
+
+/**
+ * Live theme switching.
+ *
+ * `setupTheme` ends with `container.classList.add(...theme.classNames)`, and the
+ * installed stylesheets are scoped to those names — so once both themes are
+ * installed, the live theme is simply *which class is on the container*.
+ * Swapping it re-themes everything with no re-render.
+ */
+async function installBothThemes(container: HTMLElement): Promise<void> {
+	// `setupTheme` also re-adds `disable-animations`, so callers re-assert
+	// `enableAnimations` afterwards.
+	await setupTheme(container, lightTheme);
+	await setupTheme(container, darkTheme);
+}
+
+function applyTheme(container: HTMLElement, dark: boolean): void {
+	const [on, off] = dark ? [darkTheme, lightTheme] : [lightTheme, darkTheme];
+	container.classList.remove(...off.classNames);
+	container.classList.add(...on.classNames);
 }
 
 
@@ -100,7 +134,10 @@ interface GlowTone {
 }
 
 const GLOWS = {
-	rest: { size: 'pulse-inner', state: 'rest', strength: 0.75, brightness: 1.3 },
+	/** Nothing is happening. A long cycle so the bar breathes rather than nags. */
+	rest: { size: 'pulse-inner', state: 'rest', strength: 0.75, brightness: 1.3, duration: 6.5 },
+	/** Same white, a shorter cycle: the surface reads awake while you type. */
+	typing: { size: 'pulse-inner', state: 'rest', strength: 0.85, brightness: 1.35, duration: 4.2 },
 	listening: { size: 'pulse-inner', state: 'listening', strength: 0.95, brightness: 1.35 },
 	speaking: { size: 'pulse-inner', state: 'speaking', strength: 0.95, brightness: 1.4 },
 	needsInput: { size: 'pulse-inner', state: 'needsInput', strength: 0.9, brightness: 1.35 },
@@ -114,7 +151,12 @@ const GLOWS = {
 
 type Glow = keyof typeof GLOWS;
 
-function beamFor(glow: Glow, ctx: ComponentFixtureContext, interactive: boolean): IBorderBeamOptions {
+/** A resting bar that is being typed into is awake, not idle. */
+function beatGlow(beat: Beat): Glow {
+	return beat.glow === 'rest' && beat.type ? 'typing' : beat.glow;
+}
+
+function beamFor(glow: Glow, dark: boolean, interactive: boolean): IBorderBeamOptions {
 	const tone: GlowTone = GLOWS[glow];
 	const color = tone.state === 'rest' ? undefined : STATE_COLORS[tone.state];
 	// `mono` is attenuated ~4x internally, hence the higher strength on neutrals.
@@ -129,7 +171,7 @@ function beamFor(glow: Glow, ctx: ComponentFixtureContext, interactive: boolean)
 		duration: tone.duration,
 		// Colour carries the state's meaning, so it must not drift off its hue.
 		hueRange: 0,
-		theme: isDark(ctx) ? 'dark' : 'light',
+		theme: dark ? 'dark' : 'light',
 		borderRadius: SURFACE_RADIUS,
 		startVisible: !interactive,
 		staticPreview: !interactive,
@@ -144,15 +186,22 @@ function beamFor(glow: Glow, ctx: ComponentFixtureContext, interactive: boolean)
 type Body =
 	| { readonly kind: 'none' }
 	| { readonly kind: 'commandCenter' }
-	| { readonly kind: 'resolved'; readonly label: string }
+	/** Intent resolution — what the bar decided this text means. */
+	| { readonly kind: 'intent'; readonly picked: IntentKind }
 	| { readonly kind: 'sessions' }
 	| { readonly kind: 'session'; readonly confirm?: boolean }
-	/** Scenario 1 — the bar scans open sessions to disambiguate a request. */
-	| { readonly kind: 'routing'; readonly settled?: boolean }
-	/** Scenario 2 — one instruction fanned out across several sessions. */
+	/** Ranked candidates with a countdown to the preselected one. */
+	| { readonly kind: 'routing' }
+	/** Confirmation after the countdown fired, still undoable. */
+	| { readonly kind: 'sent' }
+	/** One instruction fanned out across several sessions. */
 	| { readonly kind: 'fanout' }
-	/** Scenario 3 — the queue of sessions waiting on a decision. */
-	| { readonly kind: 'queue'; readonly index: number };
+	/** The queue of sessions waiting on a decision. */
+	| { readonly kind: 'queue'; readonly index: number }
+	/** An answer about the bar itself — account, sessions, credits. */
+	| { readonly kind: 'account' }
+	/** Clarifying questions with selectable options. */
+	| { readonly kind: 'questions'; readonly step: number; readonly answered?: boolean };
 
 /** Where the component lives during a beat. */
 type Home = 'docked' | 'dragging' | 'floating';
@@ -176,161 +225,198 @@ interface Beat {
 	readonly badge?: string;
 	readonly body?: Body;
 	readonly caret?: boolean;
+	/** Flips the whole surface to dark, as running the command would. */
+	readonly dark?: boolean;
 }
 
-const TYPED = 'change the theme to red velvet';
-const SPOKEN = 'make the hero bigger on the website I\u2019ve been working on';
+const THEME_CMD = 'change the theme to dark';
+const FILE_QUERY = 'hero';
+const AGENT_QUERY = 'make the hero headings bigger on the download page';
+const DICTATED = 'add a changelog entry for the download page';
+const AMBIGUOUS = 'make the headings bigger on the page I was working on';
+const META_Q = 'how many credits do I have left this month?';
+const PLAN_Q = 'add search to the docs';
 
+/**
+ * Everything happens in one workspace so the demo reads as one afternoon.
+ * Timings are ~0.75x speed: there is a lot to take in, and the previous cut
+ * moved faster than it could be read.
+ */
 const SCRIPT: readonly Beat[] = [
-	// --- Act 1: docked in the title bar --------------------------------------
+	// --- Act 1: docked in the title bar, in the light theme -------------------
 	{
 		note: 'It starts docked in the title bar \u2014 the command center, scoped to your workspace.',
-		ms: 4200, home: 'docked', glow: 'rest', voice: 'off',
+		ms: 5000, home: 'docked', glow: 'rest', voice: 'off',
 	},
 	{
-		note: 'Focus it and it grows in place: recents, and every agent session you have running.',
-		ms: 5400, home: 'docked', glow: 'rest', voice: 'off', body: { kind: 'commandCenter' },
+		note: 'Focus it and it grows in place: recents, and every session you have running.',
+		ms: 6400, home: 'docked', glow: 'rest', voice: 'off', body: { kind: 'commandCenter' },
 	},
 
 	// --- Act 2: pull it out of the window -------------------------------------
 	{
 		note: 'Drag it out of the window\u2026',
-		ms: 2800, home: 'dragging', glow: 'rest', voice: 'off',
+		ms: 3400, home: 'dragging', glow: 'rest', voice: 'off',
 	},
 	{
 		note: '\u2026and it becomes a floating omnibar that stays above everything.',
-		ms: 4200, home: 'floating', glow: 'rest', voice: 'off',
+		ms: 4600, home: 'floating', glow: 'rest', voice: 'off',
 	},
 	{
 		note: 'At rest it stays small \u2014 only as wide as it needs to be, with a way out.',
-		ms: 4200, home: 'floating', glow: 'rest', voice: 'off',
+		ms: 4600, home: 'floating', glow: 'rest', voice: 'off',
 	},
 
-	// --- Act 3: natural language ----------------------------------------------
+	// --- Act 3: a command that visibly does something --------------------------
 	{
 		note: 'Type in plain language instead of hunting through the palette.',
-		ms: 4200, home: 'floating', glow: 'rest', voice: 'off', text: TYPED, type: true, caret: true,
+		ms: 5000, home: 'floating', glow: 'rest', voice: 'off',
+		text: THEME_CMD, type: true, caret: true,
 	},
 	{
-		note: 'The beam travels while it works \u2014 pink, because this is the agent acting.',
-		ms: 3200, home: 'floating', glow: 'working', voice: 'off', text: TYPED,
+		note: 'It reads as a command, not a prompt \u2014 so it offers to run it.',
+		ms: 5200, home: 'floating', glow: 'rest', voice: 'off', text: THEME_CMD,
+		body: { kind: 'intent', picked: 'command' },
 	},
 	{
-		note: 'Resolved to a real command \u2014 safe and reversible, so it just runs.',
-		ms: 4200, home: 'floating', glow: 'rest', voice: 'off', text: TYPED,
-		body: { kind: 'resolved', label: 'Preferences: Color Theme \u2192 Red Velvet' },
-	},
-	{
-		note: 'Done.',
-		ms: 2600, home: 'floating', glow: 'done', voice: 'off',
-		text: 'Theme changed to Red Velvet', icon: Codicon.check, iconColor: 'done',
+		note: 'And it actually runs. The theme changes underneath you.',
+		ms: 5600, home: 'floating', glow: 'done', voice: 'off', dark: true,
+		text: 'Theme changed to Dark Modern', icon: Codicon.check, iconColor: 'done',
 	},
 
-	// --- Act 4: dictation, then voice --------------------------------------------
+	// --- Act 4: intent ---------------------------------------------------------
 	{
-		note: 'The mic is dictation \u2014 speak and it lands as text you can still edit.',
-		ms: 5000, home: 'floating', glow: 'listening', voice: 'dictating',
-		text: 'add a changelog entry for the hero work', type: true, caret: true,
+		note: 'One box, many intents. Type a word and it has to decide what you meant.',
+		ms: 4400, home: 'floating', glow: 'rest', voice: 'off', dark: true,
+		text: FILE_QUERY, type: true, caret: true,
 	},
 	{
-		note: 'The arrow fills in once the phrase is complete. Press it to send.',
-		ms: 2600, home: 'floating', glow: 'rest', voice: 'dictating',
-		text: 'add a changelog entry for the hero work', type: true,
+		note: 'Short, and it matches a file \u2014 so opening it wins. The rest stay one key away.',
+		ms: 6600, home: 'floating', glow: 'rest', voice: 'off', dark: true,
+		text: FILE_QUERY, body: { kind: 'intent', picked: 'file' },
+	},
+	{
+		note: 'Say more and the same box re-reads it as work for an agent.',
+		ms: 6400, home: 'floating', glow: 'rest', voice: 'off', dark: true,
+		text: AGENT_QUERY, type: true, caret: true,
+		body: { kind: 'intent', picked: 'agent' },
+	},
+
+	// --- Act 5: dictation ------------------------------------------------------
+	{
+		note: 'The mic is dictation \u2014 speak, and it lands as text you can still edit.',
+		ms: 6400, home: 'floating', glow: 'listening', voice: 'dictating', dark: true,
+		text: DICTATED, type: true, caret: true,
 	},
 	{
 		note: 'Sent.',
-		ms: 2400, home: 'floating', glow: 'done', voice: 'idle',
-		text: 'Sent to portfolio-site', icon: Codicon.check, iconColor: 'done',
+		ms: 3400, home: 'floating', glow: 'done', voice: 'idle', dark: true,
+		text: 'Sent to Bigger hero on the download page', icon: Codicon.check, iconColor: 'done',
 	},
+
+	// --- Act 6: voice ----------------------------------------------------------
 	{
 		note: 'Voice mode is the other half of the pill \u2014 the waveform, not the mic.',
-		ms: 3600, home: 'floating', glow: 'rest', voice: 'idle',
+		ms: 4400, home: 'floating', glow: 'rest', voice: 'idle', dark: true,
 	},
 	{
-		note: 'Listening: blue, and the bars ride your voice.',
-		ms: 5200, home: 'floating', glow: 'listening', voice: 'listening', text: SPOKEN, type: true,
+		note: 'Blue is you. The bars ride your voice while it listens.',
+		ms: 6400, home: 'floating', glow: 'listening', voice: 'listening', dark: true,
+		text: META_Q, type: true,
 	},
 	{
-		note: 'Thinking \u2014 no spinner, just the beam.',
-		ms: 3000, home: 'floating', glow: 'working', voice: 'idle', text: SPOKEN,
-	},
-	{
-		note: 'Speaking: pink, same bars driven by the reply instead.',
-		ms: 4600, home: 'floating', glow: 'speaking', voice: 'speaking',
-		text: 'Sending that to portfolio-site \u2014 the site you were just editing.',
+		note: 'Pink is the agent. Some questions are just answered \u2014 no session, no routing.',
+		ms: 7000, home: 'floating', glow: 'speaking', voice: 'speaking', dark: true,
+		text: 'You have used 340 of 500 credits. They reset on the 1st.',
+		body: { kind: 'account' },
 	},
 
-	// --- Act 5: orchestrating many sessions ------------------------------------
-	// Three patterns, because "orchestration" is really three different jobs:
-	// aiming one request, fanning one out, and clearing what is blocked.
+	// --- Act 7: routing --------------------------------------------------------
 	{
-		note: 'Orchestration lives here too \u2014 live sessions animate, as they do in the list.',
-		ms: 5000, home: 'floating', glow: 'rest', voice: 'idle', body: { kind: 'sessions' },
-	},
-
-	// Scenario 1 — aim one request at the right session.
-	{
-		note: '1 \u2014 Routing. \u201Cthe website\u201D is ambiguous, so it ranks your open sessions.',
-		ms: 4600, home: 'floating', glow: 'working', voice: 'idle',
-		text: SPOKEN, body: { kind: 'routing' },
+		note: 'Ask for something ambiguous and it has to pick a session.',
+		ms: 6000, home: 'floating', glow: 'listening', voice: 'listening', dark: true,
+		text: AMBIGUOUS, type: true,
 	},
 	{
-		note: 'It commits to the best match and shows what it chose between.',
-		ms: 4400, home: 'floating', glow: 'rest', voice: 'idle',
-		text: SPOKEN, body: { kind: 'routing', settled: true },
+		note: 'It ranks them, preselects its best guess, and counts down.',
+		ms: 7000, home: 'floating', glow: 'rest', voice: 'idle', dark: true,
+		text: AMBIGUOUS, body: { kind: 'routing' },
+	},
+	{
+		note: 'Sent \u2014 and still undoable, because it was a guess.',
+		ms: 4600, home: 'floating', glow: 'done', voice: 'idle', dark: true,
+		body: { kind: 'sent' },
 	},
 	{
 		note: 'Follow it in place \u2014 a viewport into the conversation as it works.',
-		ms: 6000, home: 'floating', glow: 'working', voice: 'idle', body: { kind: 'session' },
+		ms: 7400, home: 'floating', glow: 'working', voice: 'idle', dark: true,
+		body: { kind: 'session' },
 	},
 
-	// Scenario 2 — one instruction, many sessions.
+	// --- Act 8: planning -------------------------------------------------------
 	{
-		note: '2 \u2014 Fan-out. One instruction to every session at once.',
-		ms: 3200, home: 'floating', glow: 'rest', voice: 'idle',
-		text: 'bump the copyright year everywhere', type: true, caret: true,
+		note: 'Ask for something under-specified\u2026',
+		ms: 5000, home: 'floating', glow: 'listening', voice: 'listening', dark: true,
+		text: PLAN_Q, type: true,
+	},
+	{
+		note: '\u2026and it asks back. It speaks the question while showing the options.',
+		ms: 7400, home: 'floating', glow: 'speaking', voice: 'speaking', dark: true,
+		text: 'Which search would you like?', body: { kind: 'questions', step: 0 },
+	},
+	{
+		note: 'Answer by clicking, or just say it out loud.',
+		ms: 6600, home: 'floating', glow: 'rest', voice: 'idle', dark: true,
+		body: { kind: 'questions', step: 1, answered: true },
+	},
+
+	// --- Act 9: fan-out --------------------------------------------------------
+	{
+		note: 'One instruction can go to every session at once.',
+		ms: 4400, home: 'floating', glow: 'rest', voice: 'idle', dark: true,
+		text: 'update the footer copyright to 2026', type: true, caret: true,
 	},
 	{
 		note: 'Each runs on its own, and the bar becomes a small dashboard.',
-		ms: 6400, home: 'floating', glow: 'working', voice: 'idle', body: { kind: 'fanout' },
+		ms: 8400, home: 'floating', glow: 'working', voice: 'idle', dark: true,
+		body: { kind: 'fanout' },
 	},
 
-	// Scenario 3 — an interruption you choose not to take.
+	// --- Act 10: an interruption you choose not to take ------------------------
 	{
-		note: '3 \u2014 You are mid-thought when a session gets blocked.',
-		ms: 3400, home: 'floating', glow: 'rest', voice: 'idle',
+		note: 'You are mid-thought when a session gets blocked.',
+		ms: 4400, home: 'floating', glow: 'rest', voice: 'idle', dark: true,
 		text: 'and tighten the nav spacing', type: true, caret: true,
 	},
 	{
 		note: 'It surfaces once, in orange \u2014 but it does not take the surface from you.',
-		ms: 4200, home: 'floating', glow: 'needsInput', voice: 'idle',
-		text: 'and tighten the nav spacing', caret: true,
-		body: { kind: 'queue', index: 0 },
+		ms: 5600, home: 'floating', glow: 'needsInput', voice: 'idle', dark: true,
+		text: 'and tighten the nav spacing', caret: true, body: { kind: 'queue', index: 0 },
 	},
 	{
 		note: 'You keep typing. It folds itself away rather than nagging.',
-		ms: 4200, home: 'floating', glow: 'rest', voice: 'idle',
+		ms: 5600, home: 'floating', glow: 'rest', voice: 'idle', dark: true,
 		text: 'and tighten the nav spacing to 12px', type: true, caret: true, badge: '1',
 	},
 	{
 		note: 'All that is left is a quiet count \u2014 there when you are ready.',
-		ms: 4000, home: 'floating', glow: 'rest', voice: 'idle', badge: '2',
+		ms: 5000, home: 'floating', glow: 'rest', voice: 'idle', dark: true, badge: '2',
 	},
 
-	// Scenario 4 — clear what is blocked, when you are ready.
+	// --- Act 11: triage --------------------------------------------------------
 	{
-		note: '4 \u2014 Triage. Open the count and it walks you through them.',
-		ms: 5600, home: 'floating', glow: 'needsInput', voice: 'idle',
+		note: 'Open the count and it walks you through what is waiting.',
+		ms: 7000, home: 'floating', glow: 'needsInput', voice: 'idle', dark: true,
 		body: { kind: 'queue', index: 0 },
 	},
 	{
 		note: 'Answer one and the next slides in \u2014 no hunting for what is stuck.',
-		ms: 5600, home: 'floating', glow: 'needsInput', voice: 'idle',
+		ms: 7000, home: 'floating', glow: 'needsInput', voice: 'idle', dark: true,
 		body: { kind: 'queue', index: 1 },
 	},
 	{
 		note: 'Queue clear \u2014 and it settles back to rest.',
-		ms: 3600, home: 'floating', glow: 'done', voice: 'idle',
+		ms: 4600, home: 'floating', glow: 'done', voice: 'idle', dark: true,
 		text: 'All caught up \u00B7 3 sessions running', icon: Codicon.check, iconColor: 'done',
 	},
 ];
@@ -411,8 +497,14 @@ const CSS = `
 	position: absolute; top: 11px; left: 50%; margin-left: -${DOCKED_WIDTH / 2}px; z-index: 5;
 	background: var(--vscode-commandCenter-background, var(--vscode-input-background));
 	border-color: var(--vscode-commandCenter-border, var(--vscode-input-border, transparent));
+	/* commandCenter.background is white at 5% alpha - right for a pill sitting on
+		the title bar, wrong the moment it becomes a dropdown over the editor. */
 	border-radius: var(--vscode-cornerRadius-medium, 6px);
 	color: var(--vscode-commandCenter-foreground, var(--vscode-foreground));
+}
+.omnibar-surface[data-home="docked"]:not([data-compact]) {
+	background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+	border-color: var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
 }
 .omnibar-surface[data-home="docked"] .omnibar-input { min-height: 20px; padding: 0 6px; gap: 4px; }
 .omnibar-surface[data-home="docked"] .omnibar-text { font-size: 12px; justify-content: center; }
@@ -438,7 +530,7 @@ const CSS = `
 .omnibar-grip { flex: 0 0 auto; display: none; align-items: center; color: var(--vscode-foreground); opacity: .26; }
 .omnibar-surface[data-home="dragging"] .omnibar-grip,
 .omnibar-surface[data-home="floating"] .omnibar-grip { display: flex; }
-.omnibar-grip .codicon { font-size: 13px; }
+.omnibar-grip .codicon[class*='codicon-'] { font-size: 13px; }
 
 .omnibar-glyph {
 	flex: 0 0 auto; display: flex; align-items: center;
@@ -462,35 +554,39 @@ const CSS = `
 .omnibar-scope { flex: 0 0 auto; font-weight: 500; opacity: .9; }
 .omnibar-sep { flex: 0 0 auto; width: 1px; height: 13px; margin: 0 9px; background: currentColor; opacity: .16; }
 .omnibar-prompt { flex: 1; min-width: 0; color: var(--vscode-input-placeholderForeground); overflow: hidden; text-overflow: ellipsis; }
+/* Hidden with visibility, not opacity: the paused blink keyframe still applies
+	its computed opacity:1 and would win, leaving a stray bar on the idle row. */
 .omnibar-caret {
 	flex: 0 0 auto; width: 1px; height: 14px; margin-left: 1px;
-	background: currentColor; opacity: 0;
+	background: currentColor; visibility: hidden;
 	animation: omnibar-blink 1.06s steps(1, end) infinite;
 	animation-play-state: paused;
 }
-.omnibar-caret.shown { opacity: 1; animation-play-state: running; }
+.omnibar-caret.shown { visibility: visible; animation-play-state: running; }
 @keyframes omnibar-blink { 0%,55% { opacity: 1; } 56%,100% { opacity: 0; } }
 
 /*
- * Send — 22x22 at the control tier, matching the chat input. Outlined rather
- * than filled: a solid accent block next to the glow reads as two competing
- * accents on one surface.
+ * Send — 22x22 at the control tier, matching the chat input. The arrow is
+ * always present so the way to submit never moves; only its emphasis changes.
+ * No border or fill: a block next to the glow reads as two competing accents on
+ * one surface, and the arrow alone is legible enough.
  */
 .omnibar-send {
 	flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
 	box-sizing: border-box;
-	width: 0; height: 22px; opacity: 0; overflow: hidden;
-	transition: width 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease, border-color 200ms ease;
+	width: 22px; height: 22px;
+	opacity: .35;
+	transition: opacity 200ms ease, color 200ms ease;
 	border-radius: var(--vscode-cornerRadius-circle, 999px);
-	border: 1px solid transparent;
+	background: none; border: none;
 	color: var(--vscode-icon-foreground);
 }
-.omnibar-send.shown { width: 22px; opacity: 1; border-color: var(--vscode-input-border, rgba(127,127,127,.35)); }
-/* Armed just brightens the arrow. A filled block here competes with the glow,
-	which is the thing actually carrying state. */
-.omnibar-send.armed { color: var(--vscode-foreground); }
+/* Armed: something of yours is waiting to be sent. Full opacity plus a heavier
+	glyph, so “you can press this now” reads without adding a second accent. */
+.omnibar-send.armed { opacity: 1; color: var(--vscode-foreground); }
+.omnibar-send.armed .codicon[class*='codicon-'] { font-weight: 700; transform: translateY(.5px) scale(1.08); }
 /* Optical nudge, as chat.css does for this glyph. */
-.omnibar-send .codicon { font-size: var(--vscode-codiconFontSize-compact, 12px); transform: translateY(.5px); }
+.omnibar-send .codicon[class*='codicon-'] { font-size: var(--vscode-codiconFontSize-compact, 12px); transform: translateY(.5px); }
 
 /*
  * Segmented voice / dictation pill.
@@ -510,7 +606,7 @@ const CSS = `
 }
 .omnibar-surface[data-home="dragging"] .omnibar-close,
 .omnibar-surface[data-home="floating"] .omnibar-close { width: 22px; opacity: .75; margin-left: 2px; }
-.omnibar-close .codicon { font-size: var(--vscode-codiconFontSize-compact, 12px); }
+.omnibar-close .codicon[class*='codicon-'] { font-size: var(--vscode-codiconFontSize-compact, 12px); }
 
 /* A quiet count of what is waiting, for when you did not act on it. */
 .omnibar-badge {
@@ -541,13 +637,22 @@ const CSS = `
 	max-width: 60px; opacity: 1; margin-left: 2px;
 	border-color: var(--vscode-input-border, var(--vscode-editorWidget-border, rgba(127,127,127,.35)));
 }
+/*
+ * Cells collapse to zero and the survivor expands to fill the pill, as
+ * .monaco-segmented-icon-toggle-cell.collapsed + .container.single do. You
+ * cannot dictate and hold a voice conversation at once, so whichever mode is
+ * active is the only thing left in the pill.
+ */
 .omnibar-voice-cell {
 	display: flex; align-items: center; justify-content: center;
 	width: 27px; height: 100%;
 	color: var(--vscode-icon-foreground);
-	transition: color .2s ease;
+	overflow: hidden;
+	transition: width .3s cubic-bezier(.2,.9,.2,1), opacity .22s ease, color .2s ease;
 }
-.omnibar-voice-cell .codicon { font-size: var(--vscode-codiconFontSize-compact, 12px); }
+.omnibar-voice-cell.collapsed { width: 0; opacity: 0; }
+.omnibar-voice.single .omnibar-voice-cell:not(.collapsed) { width: 54px; }
+.omnibar-voice-cell .codicon[class*='codicon-'] { font-size: var(--vscode-codiconFontSize-compact, 12px); }
 .omnibar-voice-cell.dictation.active { color: var(--vscode-foreground); }
 /* Voice cell tints by who is talking. */
 .omnibar-voice-cell.voice.listening { color: var(--voice-color-listening); }
@@ -710,6 +815,23 @@ const CSS = `
 .omnibar-queue-dots i[data-on] { opacity: .75; }
 .omnibar-queue-dots i[data-done] { opacity: .4; }
 
+/* Group header can carry a trailing hint (the intent override key). */
+.omnibar-group { display: flex; align-items: baseline; }
+.omnibar-group-hint { margin-left: auto; text-transform: none; letter-spacing: 0; opacity: .8; }
+
+/* Account read-out */
+.omnibar-meter { display: flex; align-items: center; gap: 9px; margin: 2px 14px 6px; font-size: 11px; }
+.omnibar-meter-track { flex: 0 0 96px; height: 3px; border-radius: 999px; background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent); overflow: hidden; }
+.omnibar-meter-fill { height: 100%; border-radius: 999px; background: var(--voice-color-speaking); }
+.omnibar-meter-label { opacity: .65; font-variant-numeric: tabular-nums; }
+
+/* Clarifying questions */
+.omnibar-question-head { display: flex; align-items: baseline; gap: 9px; padding: 3px 14px 6px; }
+.omnibar-question-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; }
+.omnibar-question-step { flex: 0 0 auto; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .45; }
+.omnibar-question-foot { display: flex; align-items: center; padding: 6px 14px 2px; font-size: 11px; opacity: .5; }
+.omnibar-question-hint { margin-left: auto; }
+
 /* Progress through the script */
 .omnibar-timeline { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 3px; }
 .omnibar-tick { flex: 1; height: 2px; border-radius: 999px; background: currentColor; opacity: .1; transition: opacity 260ms ease; }
@@ -850,33 +972,50 @@ function progressBar(pct: number, color: string): HTMLElement {
  * bar ranks the open sessions and shows its working, rather than guessing
  * silently. Mid-beat it is still scanning; by the end it has settled on one.
  */
-function buildRouting(settled: boolean | undefined, store: DisposableStore): HTMLElement {
+function buildRouting(store: DisposableStore, updaters: BeatUpdater[]): HTMLElement {
 	const inner = $('.omnibar-body-inner');
-	inner.append(group(settled ? 'Sending to' : 'Matching sessions'));
 
-	const candidates: readonly [string, string, number][] = [
-		['portfolio-site', 'main', 87],
-		['docs-site', 'main', 41],
-		['api-gateway', 'fix/login', 12],
+	const head = group('Send to');
+	const countdown = $('span.omnibar-group-hint');
+	head.appendChild(countdown);
+	inner.appendChild(head);
+
+	const candidates: readonly [{ title: string; branch: string }, number][] = [
+		[SESSIONS.hero, 87],
+		[SESSIONS.docs, 41],
+		[SESSIONS.gallery, 12],
 	];
 
-	for (const [name, branch, pct] of candidates) {
-		const isPick = name === 'portfolio-site';
+	// The best match is preselected, so the default is one keypress away and the
+	// alternatives stay visible rather than being decided for you silently.
+	candidates.forEach(([session, pct], i) => {
+		const picked = i === 0;
 		const el = row(
-			isPick && settled
-				? icon(Codicon.arrowRight, stateColor('speaking'))
+			picked
+				? icon(Codicon.pass, stateColor('done'))
 				: liveStatus(store, 'grid', stateColor('speaking')),
-			name,
-			settled ? sessionDetail(branch) : score(pct),
-			settled && isPick,
+			session.title,
+			score(pct),
+			picked,
 		);
-		// Once it has settled, the also-rans recede rather than disappearing —
-		// you can still see what it chose between.
-		if (settled && !isPick) {
+		if (!picked) {
 			el.setAttribute('data-dim', '');
 		}
 		inner.appendChild(el);
-	}
+	});
+
+	const foot = $('.omnibar-question-foot');
+	const change = $('span');
+	change.textContent = '\u2325 to change';
+	const confirm = $('span.omnibar-question-hint');
+	confirm.textContent = 'Enter to send now';
+	foot.append(change, confirm);
+	inner.appendChild(foot);
+
+	updaters.push(p => {
+		countdown.textContent = `sending in ${Math.max(1, Math.ceil((1 - p) * 5))}s`;
+	});
+
 	return stagger(inner);
 }
 
@@ -895,10 +1034,12 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 	inner.appendChild(head);
 
 	// Staggered so they finish at different times, the way real work does.
+	// Staggered so they finish at different times, the way real work does, but
+	// all three land inside the beat.
 	const lanes: readonly [string, string, number][] = [
-		['portfolio-site', 'main', 1.35],
-		['docs-site', 'main', 1.0],
-		['api-gateway', 'fix/login', 0.72],
+		[SESSIONS.hero.title, SESSIONS.hero.branch, 1.9],
+		[SESSIONS.docs.title, SESSIONS.docs.branch, 1.5],
+		[SESSIONS.gallery.title, SESSIONS.gallery.branch, 1.2],
 	];
 
 	for (const [name, , rate] of lanes) {
@@ -914,7 +1055,7 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 		const glyphHolder = $('span');
 		glyphHolder.style.cssText = 'display:flex;align-items:center;justify-content:center;';
 		glyphHolder.appendChild(spinner);
-		const check = icon(Codicon.passFilled, stateColor('done'));
+		const check = icon(Codicon.passFilled, 'var(--vscode-foreground)');
 		check.style.display = 'none';
 		glyphHolder.appendChild(check);
 
@@ -924,7 +1065,9 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 			const pct = Math.min(1, p * rate);
 			const complete = pct >= 1;
 			fill.style.width = `${Math.round(pct * 100)}%`;
-			fill.style.background = stateColor(complete ? 'done' : 'speaking');
+			// Completion is white: green would read as a status colour competing
+			// with the agent/you split, when it only means "finished".
+			fill.style.background = complete ? 'var(--vscode-foreground)' : stateColor('speaking');
 			pctLabel.textContent = complete ? 'Done' : `${Math.round(pct * 100)}%`;
 			spinner.style.display = complete ? 'none' : '';
 			check.style.display = complete ? '' : 'none';
@@ -941,8 +1084,8 @@ function buildQueue(index: number, store: DisposableStore): HTMLElement {
 	const inner = $('.omnibar-body-inner');
 
 	const pending: readonly [string, string, string, ThemeIcon][] = [
-		['api-gateway', 'Run command', 'rm -rf build/', Codicon.terminal],
-		['docs-site', 'Edit file', 'docs/CHANGELOG.md', Codicon.edit],
+		[SESSIONS.docs.title, 'Run command', 'rm -rf .docs-cache/', Codicon.terminal],
+		[SESSIONS.gallery.title, 'Edit file', 'netlify.toml', Codicon.edit],
 	];
 	const [name, title, detail, glyph] = pending[Math.min(index, pending.length - 1)];
 
@@ -988,6 +1131,126 @@ function buildQueue(index: number, store: DisposableStore): HTMLElement {
 }
 
 
+/**
+ * Intent resolution.
+ *
+ * One box has to decide whether text is a file, a command, or work for an
+ * agent. The bar guesses — but it names the guess and keeps the alternatives
+ * one key away, so it is correctable rather than mysterious. That is the same
+ * contract as the routing countdown.
+ */
+function buildIntent(picked: IntentKind): HTMLElement {
+	const inner = $('.omnibar-body-inner');
+
+	const head = $('.omnibar-group');
+	head.textContent = picked === 'file' ? 'Open file' : picked === 'command' ? 'Run' : 'Ask an agent';
+	const hint = $('span.omnibar-group-hint');
+	hint.textContent = '\u2325 to change';
+	head.appendChild(hint);
+	inner.appendChild(head);
+
+	const options: readonly [IntentKind, ThemeIcon, string, string][] = [
+		['file', Codicon.file, 'Hero.tsx', 'src/components/'],
+		['command', Codicon.gear, 'Preferences: Color Theme \u2192 Dark Modern', 'Enter'],
+		['agent', Codicon.sparkle, SESSIONS.hero.title, 'New session'],
+	];
+
+	// The chosen intent leads and is selected; the others stay visible beneath so
+	// you can see what it decided between.
+	for (const [kind, glyph, label, detail] of [...options].sort(a => a[0] === picked ? -1 : 1)) {
+		const hintEl = $('span.omnibar-row-hint');
+		hintEl.textContent = detail;
+		const el = row(icon(glyph), label, hintEl, kind === picked);
+		if (kind !== picked) {
+			el.setAttribute('data-dim', '');
+		}
+		inner.appendChild(el);
+	}
+	return stagger(inner);
+}
+
+/**
+ * An answer about the bar itself — no new session, no routing. Uses the
+ * product's own quota vocabulary (`percentRemaining`, "credits reset on").
+ */
+function buildAccount(store: DisposableStore): HTMLElement {
+	const inner = $('.omnibar-body-inner');
+	inner.appendChild(group('This month'));
+
+	const meter = $('.omnibar-meter');
+	const track = $('.omnibar-meter-track');
+	const fill = $('.omnibar-meter-fill');
+	fill.style.width = '68%';
+	track.appendChild(fill);
+	const label = $('span.omnibar-meter-label');
+	label.textContent = '340 of 500 credits \u00B7 resets on the 1st';
+	meter.append(track, label);
+	inner.appendChild(meter);
+
+	inner.appendChild(group('Right now'));
+	inner.append(
+		row(liveStatus(store, 'grid', stateColor('speaking')), '2 sessions working'),
+		row(icon(Codicon.circleFilled, stateColor('needsInput')), '1 needs your input'),
+	);
+	return stagger(inner);
+}
+
+/** Confirmation after the routing countdown fired — still reversible. */
+function buildSent(): HTMLElement {
+	const inner = $('.omnibar-body-inner');
+	const hint = $('span.omnibar-row-hint');
+	hint.textContent = 'Undo';
+	inner.appendChild(row(icon(Codicon.check, stateColor('done')), `Sent to ${SESSIONS.hero.title}`, hint));
+	return stagger(inner);
+}
+
+/**
+ * Clarifying questions, reproducing `chatQuestionCarouselPart`: a title, a step
+ * indicator, selectable options, and a way to skip. The agent speaks the
+ * question while this is on screen, so you can answer by voice or by clicking.
+ */
+function buildQuestions(step: number, answered: boolean | undefined): HTMLElement {
+	const inner = $('.omnibar-body-inner');
+
+	const steps: readonly { readonly title: string; readonly options: readonly string[] }[] = [
+		{ title: 'Which search would you like?', options: ['Algolia DocSearch', 'Local index', 'Pagefind'] },
+		{ title: 'What should it cover?', options: ['Docs only', 'The whole site'] },
+	];
+	const current = steps[Math.min(step, steps.length - 1)];
+
+	const head = $('.omnibar-question-head');
+	const title = $('span.omnibar-question-title');
+	title.textContent = current.title;
+	const indicator = $('span.omnibar-question-step');
+	indicator.textContent = `Question ${Math.min(step, steps.length - 1) + 1} of ${steps.length}`;
+	head.append(title, indicator);
+	inner.appendChild(head);
+
+	current.options.forEach((label, i) => {
+		// On the answered beat the first option reads as chosen, so the demo shows
+		// the selection landing rather than only the ask.
+		const chosen = answered && i === 0;
+		const el = row(
+			icon(chosen ? Codicon.pass : Codicon.circleOutline, chosen ? stateColor('done') : undefined),
+			label,
+			undefined,
+			chosen,
+		);
+		inner.appendChild(el);
+	});
+
+	const foot = $('.omnibar-question-foot');
+	const skip = $('span');
+	skip.textContent = 'Skip all questions';
+	const submit = $('span.omnibar-question-hint');
+	submit.textContent = answered ? 'Next \u00B7 Enter' : 'Say it or click';
+	foot.append(skip, submit);
+	inner.appendChild(foot);
+
+	return stagger(inner);
+}
+
+
 // ============================================================================
 // Body
 // ============================================================================
@@ -1009,11 +1272,11 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 	if (body.kind === 'commandCenter') {
 		inner.append(
 			group('Recently used'),
-			row(icon(Codicon.history), 'Change the theme to Red Velvet'),
-			row(icon(Codicon.history), 'Run the build task'),
+			row(icon(Codicon.history), 'Preferences: Color Theme'),
+			row(icon(Codicon.history), 'Tasks: Run Build Task'),
 			group('Agent sessions'),
-			row(liveStatus(store, 'grid', stateColor('speaking')), 'portfolio-site', sessionDetail('main', 42, 12)),
-			row(liveStatus(store, 'ring', stateColor('needsInput')), 'api-gateway', sessionDetail('fix/login', 8, 3)),
+			row(liveStatus(store, 'grid', stateColor('speaking')), SESSIONS.hero.title, sessionDetail(SESSIONS.hero.branch, SESSIONS.hero.added, SESSIONS.hero.removed)),
+			row(liveStatus(store, 'ring', stateColor('needsInput')), SESSIONS.docs.title, sessionDetail(SESSIONS.docs.branch, SESSIONS.docs.added, SESSIONS.docs.removed)),
 		);
 		return stagger(inner);
 	}
@@ -1021,15 +1284,31 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 	if (body.kind === 'sessions') {
 		inner.append(
 			group('Agent sessions'),
-			row(liveStatus(store, 'grid', stateColor('speaking')), 'portfolio-site', sessionDetail('main', 42, 12)),
-			row(liveStatus(store, 'ring', stateColor('needsInput')), 'api-gateway', sessionDetail('fix/login', 8, 3)),
-			row(icon(Codicon.passFilled, stateColor('done')), 'docs-site', sessionDetail('main', 5, 0)),
+			row(liveStatus(store, 'grid', stateColor('speaking')), SESSIONS.hero.title, sessionDetail(SESSIONS.hero.branch, SESSIONS.hero.added, SESSIONS.hero.removed)),
+			row(liveStatus(store, 'ring', stateColor('needsInput')), SESSIONS.docs.title, sessionDetail(SESSIONS.docs.branch, SESSIONS.docs.added, SESSIONS.docs.removed)),
+			row(icon(Codicon.passFilled, 'var(--vscode-foreground)'), SESSIONS.gallery.title, sessionDetail(SESSIONS.gallery.branch, SESSIONS.gallery.added, SESSIONS.gallery.removed)),
 		);
 		return stagger(inner);
 	}
 
+	if (body.kind === 'intent') {
+		return buildIntent(body.picked);
+	}
+
+	if (body.kind === 'account') {
+		return buildAccount(store);
+	}
+
+	if (body.kind === 'sent') {
+		return buildSent();
+	}
+
+	if (body.kind === 'questions') {
+		return buildQuestions(body.step, body.answered);
+	}
+
 	if (body.kind === 'routing') {
-		return buildRouting(body.settled, store);
+		return buildRouting(store, updaters);
 	}
 
 	if (body.kind === 'fanout') {
@@ -1040,20 +1319,16 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 		return buildQueue(body.index, store);
 	}
 
-	if (body.kind === 'resolved') {
-		inner.append(group('Run'), row(icon(Codicon.gear), body.label, undefined, true));
-		return stagger(inner);
-	}
-
 	// A viewport onto a running session.
 	const viewport = $('.omnibar-viewport');
 	const head = $('.omnibar-viewport-head');
 	const name = $('span.omnibar-viewport-name');
-	name.textContent = body.confirm ? 'api-gateway' : 'portfolio-site';
+	const shown = body.confirm ? SESSIONS.docs : SESSIONS.hero;
+	name.textContent = shown.title;
 	head.append(
 		liveStatus(store, body.confirm ? 'ring' : 'grid', stateColor(body.confirm ? 'needsInput' : 'speaking')),
 		name,
-		sessionDetail(body.confirm ? 'fix/login' : 'main', body.confirm ? 8 : 42, body.confirm ? 3 : 12),
+		sessionDetail(shown.branch, shown.added, shown.removed),
 	);
 
 	const scroll = $('.omnibar-scroll');
@@ -1112,6 +1387,19 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		enableAnimations(container);
 	}
 
+	// The demo opens in the opposite theme and switches to its own when the
+	// first command runs, so the command visibly does something. Both themes are
+	// installed up front; from then on the live theme is just a class swap.
+	const endDark = isDark(ctx);
+	let liveDark = !endDark;
+	void installBothThemes(container).then(() => {
+		applyTheme(container, liveDark);
+		if (isInteractive) {
+			// `setupTheme` re-adds `disable-animations`.
+			enableAnimations(container);
+		}
+	});
+
 	const style = $('style');
 	style.textContent = CSS;
 	container.appendChild(style);
@@ -1165,7 +1453,10 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 	 * unreachable, so state changes would snap instead of easing.
 	 */
 	const grip = $('span.omnibar-grip');
-	grip.appendChild(renderIcon(Codicon.gripper));
+	// Not `gripper`: that is 6 dots in a 2x3 grid in a 16px box, which is the
+	// pixel spinner's exact geometry, so a static handle reads as a stopped
+	// in-progress session. `grabber` is two short horizontal lines.
+	grip.appendChild(renderIcon(Codicon.grabber));
 
 	const glyph = $('span.omnibar-glyph');
 	const textEl = $('span.omnibar-text');
@@ -1257,11 +1548,20 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		voiceCell.classList.toggle('listening', voice === 'listening');
 		voiceCell.classList.toggle('speaking', voice === 'speaking');
 
-		// The arrow follows the person: it appears the moment there is a character
-		// to send — typed or dictated — and brightens once the phrase is done.
+		// Dictation and voice are mutually exclusive, so the inactive cell
+		// collapses away and the active one takes the whole pill.
+		const inVoice = voice === 'idle' || voice === 'listening' || voice === 'speaking';
+		const dictating = voice === 'dictating';
+		dictationCell.classList.toggle('collapsed', inVoice);
+		voiceCell.classList.toggle('collapsed', dictating);
+		voicePill.classList.toggle('single', inVoice || dictating);
+
+		// The arrow never leaves — it only changes emphasis. It arms the moment
+		// there is a character of yours to send, typed or dictated, and stays dim
+		// while you are speaking or the agent is: neither is a turn you submit.
 		const hasUserInput = !!(beat.text && beat.type && typed.textContent);
-		send.classList.toggle('shown', hasUserInput);
-		send.classList.toggle('armed', hasUserInput && progress >= 0.7);
+		const yourTurn = voice !== 'listening' && voice !== 'speaking';
+		send.classList.toggle('armed', hasUserInput && yourTurn);
 	};
 
 	let updaters: BeatUpdater[] = [];
@@ -1311,6 +1611,15 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		// Compact whenever it is holding nothing — no text, no body, no badge.
 		surface.toggleAttribute('data-compact', !beat.text && !beat.badge && (beat.body?.kind ?? 'none') === 'none');
 
+		// `dark` on a beat means "the theme command has run by now".
+		const wantDark = beat.dark ? endDark : !endDark;
+		if (wantDark !== liveDark) {
+			liveDark = wantDark;
+			applyTheme(container, liveDark);
+			// The beam bakes light/dark tuning in at apply time, so rebuild it.
+			replaceBeam(beam, surface, beamFor(beatGlow(beat), liveDark, isInteractive));
+		}
+
 		if (beat.home !== currentHome) {
 			currentHome = beat.home;
 			surface.setAttribute('data-home', beat.home);
@@ -1323,7 +1632,7 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		if (index !== currentIndex) {
 			currentIndex = index;
 			note.textContent = beat.note;
-			replaceBeam(beam, surface, beamFor(beat.glow, ctx, isInteractive));
+			replaceBeam(beam, surface, beamFor(beatGlow(beat), liveDark, isInteractive));
 			ticks.forEach((tick, i) => tick.toggleAttribute('data-on', i <= index));
 			paintBody(beat);
 		}

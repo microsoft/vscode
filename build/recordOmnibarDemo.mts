@@ -24,7 +24,7 @@ const FIXTURE = process.env.OMNIBAR_THEME === 'light'
 const URL = `http://localhost:5123/___explorer?fixture=${FIXTURE}&mode=embedded`;
 
 /** One full pass of the script, plus a little lead-in and tail. */
-const SCRIPT_MS = 122000;
+const SCRIPT_MS = 181000;
 const LEAD_IN_MS = 1200;
 const TAIL_MS = 600;
 
@@ -32,7 +32,7 @@ const VIEWPORT = { width: 640, height: 600 };
 
 async function main(): Promise<void> {
 	const outArg = process.argv.indexOf('--out');
-	const out = path.resolve(outArg > -1 ? process.argv[outArg + 1] : 'omnibar-demo.webm');
+	const out = path.resolve(outArg > -1 ? process.argv[outArg + 1] : 'omnibar-demo-v4.webm');
 	const tmpDir = path.join(path.dirname(out), '.omnibar-recording');
 
 	await rm(tmpDir, { recursive: true, force: true });
