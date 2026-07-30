@@ -32,7 +32,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from 
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
@@ -2493,8 +2493,28 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'approve-once' };
 			}
 
-			const isShellRequest = request.kind === 'shell'
-				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
+			// The SDK's built-in terminal reports `kind: 'shell'`. The Agent Host's
+			// terminal override is registered as an SDK custom tool named `bash` or
+			// `powershell`, so it reports `kind: 'custom-tool'` instead.
+			const customShellToolName = request.kind === 'custom-tool'
+				&& typeof request.toolName === 'string'
+				&& isShellTool(request.toolName)
+				? request.toolName
+				: undefined;
+			const isShellRequest = request.kind === 'shell' || customShellToolName !== undefined;
+			const trackedToolName = this._activeToolCalls.get(toolCallId)?.toolName;
+			const shellToolName = request.kind === 'shell'
+				? trackedToolName
+				: customShellToolName;
+			// Only emit a language when the executing shell tool is known.
+			// Missing language fails closed in SessionPermissionManager.
+			const shellLanguage: IAgentToolPendingConfirmationSignal['shellLanguage'] =
+				isShellRequest && (shellToolName === 'bash' || shellToolName === 'powershell')
+					? shellToolName
+					: undefined;
+			if (isShellRequest && shellLanguage === undefined) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Shell permission request has no recognized shell tool name; requiring confirmation: toolCallId=${toolCallId}, toolName=${shellToolName ?? '(missing)'}`);
+			}
 
 			if (!managedApprovalRequired && request.kind === 'custom-tool'
 				&& typeof request.toolName === 'string'
@@ -2577,6 +2597,7 @@ export class CopilotAgentSession extends Disposable {
 				permissionPath,
 				managedApprovalRequired,
 				requestSandboxBypass: request.requestSandboxBypass,
+				shellLanguage,
 				parentToolCallId,
 			});
 
