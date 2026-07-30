@@ -33,8 +33,9 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
  */
 
 const TICK_MS = 60;
-const DOCKED_WIDTH = 440;
+const DOCKED_WIDTH = 430;
 const FLOATING_WIDTH = 580;
+const FLOATING_IDLE_WIDTH = 400;
 const SURFACE_RADIUS = 14;
 
 
@@ -50,9 +51,9 @@ const SURFACE_RADIUS = 14;
  * null hue means neutral, which renders through the mono palette.
  */
 const STATE_COLORS = {
-	/** Listening — the user is talking. */
+	/** You — listening to you, your dictation, your typing. */
 	listening: { rgb: '88,166,255', hue: 212 },
-	/** Speaking — the agent is talking back. */
+	/** The agent — speaking, working, acting on your behalf. */
 	speaking: { rgb: '236,124,196', hue: 322 },
 	/** Processing — the bar itself is thinking. Neutral by design. */
 	processing: { rgb: '235,235,235', hue: null },
@@ -106,8 +107,9 @@ const GLOWS = {
 	done: { size: 'pulse-inner', state: 'done', strength: 0.85, brightness: 1.35 },
 	/** The bar is thinking — neutral traveling beam. */
 	processing: { size: 'md', state: 'processing', strength: 0.95, brightness: 1.5, duration: 2.2 },
-	/** A session is running — the blue comet. */
-	working: { size: 'md', state: 'listening', strength: 0.95, brightness: 1.5, duration: 2.0 },
+	/** The agent is working — same hue as when it speaks, because it is the
+	 *  agent acting either way. */
+	working: { size: 'md', state: 'speaking', strength: 0.95, brightness: 1.5, duration: 2.0 },
 } as const satisfies Record<string, GlowTone>;
 
 type Glow = keyof typeof GLOWS;
@@ -170,6 +172,8 @@ interface Beat {
 	readonly icon?: ThemeIcon;
 	readonly iconColor?: StateColor;
 	readonly voice?: VoiceState;
+	/** A quiet count of what is waiting, shown when you did not act. */
+	readonly badge?: string;
 	readonly body?: Body;
 	readonly caret?: boolean;
 }
@@ -195,7 +199,11 @@ const SCRIPT: readonly Beat[] = [
 	},
 	{
 		note: '\u2026and it becomes a floating omnibar that stays above everything.',
-		ms: 4000, home: 'floating', glow: 'rest', voice: 'off',
+		ms: 4200, home: 'floating', glow: 'rest', voice: 'off',
+	},
+	{
+		note: 'At rest it stays small \u2014 only as wide as it needs to be, with a way out.',
+		ms: 4200, home: 'floating', glow: 'rest', voice: 'off',
 	},
 
 	// --- Act 3: natural language ----------------------------------------------
@@ -204,8 +212,8 @@ const SCRIPT: readonly Beat[] = [
 		ms: 4200, home: 'floating', glow: 'rest', voice: 'off', text: TYPED, type: true, caret: true,
 	},
 	{
-		note: 'The beam travels while it resolves. That motion is the only loading state.',
-		ms: 3200, home: 'floating', glow: 'processing', voice: 'off', text: TYPED,
+		note: 'The beam travels while it works \u2014 pink, because this is the agent acting.',
+		ms: 3200, home: 'floating', glow: 'working', voice: 'off', text: TYPED,
 	},
 	{
 		note: 'Resolved to a real command \u2014 safe and reversible, so it just runs.',
@@ -218,9 +226,24 @@ const SCRIPT: readonly Beat[] = [
 		text: 'Theme changed to Red Velvet', icon: Codicon.check, iconColor: 'done',
 	},
 
-	// --- Act 4: voice -----------------------------------------------------------
+	// --- Act 4: dictation, then voice --------------------------------------------
 	{
-		note: 'Turn voice on and the pill switches to the waveform \u2014 the mic stays dictation.',
+		note: 'The mic is dictation \u2014 speak and it lands as text you can still edit.',
+		ms: 5000, home: 'floating', glow: 'listening', voice: 'dictating',
+		text: 'add a changelog entry for the hero work', type: true, caret: true,
+	},
+	{
+		note: 'The arrow fills in once the phrase is complete. Press it to send.',
+		ms: 2600, home: 'floating', glow: 'rest', voice: 'dictating',
+		text: 'add a changelog entry for the hero work', type: true,
+	},
+	{
+		note: 'Sent.',
+		ms: 2400, home: 'floating', glow: 'done', voice: 'idle',
+		text: 'Sent to portfolio-site', icon: Codicon.check, iconColor: 'done',
+	},
+	{
+		note: 'Voice mode is the other half of the pill \u2014 the waveform, not the mic.',
 		ms: 3600, home: 'floating', glow: 'rest', voice: 'idle',
 	},
 	{
@@ -229,7 +252,7 @@ const SCRIPT: readonly Beat[] = [
 	},
 	{
 		note: 'Thinking \u2014 no spinner, just the beam.',
-		ms: 3000, home: 'floating', glow: 'processing', voice: 'idle', text: SPOKEN,
+		ms: 3000, home: 'floating', glow: 'working', voice: 'idle', text: SPOKEN,
 	},
 	{
 		note: 'Speaking: pink, same bars driven by the reply instead.',
@@ -248,7 +271,7 @@ const SCRIPT: readonly Beat[] = [
 	// Scenario 1 — aim one request at the right session.
 	{
 		note: '1 \u2014 Routing. \u201Cthe website\u201D is ambiguous, so it ranks your open sessions.',
-		ms: 4600, home: 'floating', glow: 'processing', voice: 'idle',
+		ms: 4600, home: 'floating', glow: 'working', voice: 'idle',
 		text: SPOKEN, body: { kind: 'routing' },
 	},
 	{
@@ -272,9 +295,31 @@ const SCRIPT: readonly Beat[] = [
 		ms: 6400, home: 'floating', glow: 'working', voice: 'idle', body: { kind: 'fanout' },
 	},
 
-	// Scenario 3 — clear what is blocked.
+	// Scenario 3 — an interruption you choose not to take.
 	{
-		note: '3 \u2014 Triage. Two sessions are blocked; it walks you through them.',
+		note: '3 \u2014 You are mid-thought when a session gets blocked.',
+		ms: 3400, home: 'floating', glow: 'rest', voice: 'idle',
+		text: 'and tighten the nav spacing', type: true, caret: true,
+	},
+	{
+		note: 'It surfaces once, in orange \u2014 but it does not take the surface from you.',
+		ms: 4200, home: 'floating', glow: 'needsInput', voice: 'idle',
+		text: 'and tighten the nav spacing', caret: true,
+		body: { kind: 'queue', index: 0 },
+	},
+	{
+		note: 'You keep typing. It folds itself away rather than nagging.',
+		ms: 4200, home: 'floating', glow: 'rest', voice: 'idle',
+		text: 'and tighten the nav spacing to 12px', type: true, caret: true, badge: '1',
+	},
+	{
+		note: 'All that is left is a quiet count \u2014 there when you are ready.',
+		ms: 4000, home: 'floating', glow: 'rest', voice: 'idle', badge: '2',
+	},
+
+	// Scenario 4 — clear what is blocked, when you are ready.
+	{
+		note: '4 \u2014 Triage. Open the count and it walks you through them.',
 		ms: 5600, home: 'floating', glow: 'needsInput', voice: 'idle',
 		body: { kind: 'queue', index: 0 },
 	},
@@ -299,10 +344,13 @@ const TOTAL_MS = SCRIPT.reduce((sum, beat) => sum + beat.ms, 0);
 
 const CSS = `
 .omnibar-demo {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 14px;
+	width: 100%;
+	min-height: 500px;
 	font-family: var(--vscode-font-family);
 	color: var(--vscode-foreground);
 }
@@ -354,14 +402,32 @@ const CSS = `
 	color: var(--vscode-input-foreground);
 	transition: width 440ms cubic-bezier(.2,.8,.2,1), box-shadow 440ms ease, transform 440ms cubic-bezier(.2,.8,.2,1);
 }
+/*
+ * Docked, this is the command center as it actually ships: a slim 22px pill on
+ * the commandCenter tokens, medium radius, search glyph then the workspace.
+ * Pulling it out is what grows it into the omnibar.
+ */
 .omnibar-surface[data-home="docked"] {
-	position: absolute; top: 6px; left: 50%; margin-left: -${DOCKED_WIDTH / 2}px; z-index: 5;
+	position: absolute; top: 11px; left: 50%; margin-left: -${DOCKED_WIDTH / 2}px; z-index: 5;
+	background: var(--vscode-commandCenter-background, var(--vscode-input-background));
+	border-color: var(--vscode-commandCenter-border, var(--vscode-input-border, transparent));
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	color: var(--vscode-commandCenter-foreground, var(--vscode-foreground));
 }
+.omnibar-surface[data-home="docked"] .omnibar-input { min-height: 20px; padding: 0 6px; gap: 4px; }
+.omnibar-surface[data-home="docked"] .omnibar-text { font-size: 12px; justify-content: center; }
+.omnibar-surface[data-home="docked"] .omnibar-rest { flex: 0 1 auto; }
+/* Centred label, the way the title bar renders it. */
+.omnibar-surface[data-home="docked"] .omnibar-sep { display: none; }
+.omnibar-surface[data-home="docked"] .omnibar-prompt { flex: 0 1 auto; }
 .omnibar-surface[data-home="dragging"] {
 	width: ${FLOATING_WIDTH}px;
 	transform: translateY(24px) scale(1.02);
 	box-shadow: 0 18px 40px -14px rgba(0,0,0,.6);
 }
+/* At rest the floating bar is only as wide as it needs to be; it widens when
+	there is something to say. */
+.omnibar-surface[data-home="floating"][data-compact] { width: ${FLOATING_IDLE_WIDTH}px; }
 .omnibar-surface[data-home="floating"] {
 	width: ${FLOATING_WIDTH}px;
 	box-shadow: 0 2px 5px rgba(0,0,0,.22), 0 22px 52px -18px rgba(0,0,0,.66);
@@ -374,15 +440,35 @@ const CSS = `
 .omnibar-surface[data-home="floating"] .omnibar-grip { display: flex; }
 .omnibar-grip .codicon { font-size: 13px; }
 
-.omnibar-glyph { flex: 0 0 auto; display: flex; align-items: center; }
+.omnibar-glyph {
+	flex: 0 0 auto; display: flex; align-items: center;
+	width: 0; opacity: 0; overflow: hidden;
+	transition: width 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease, margin 260ms cubic-bezier(.2,.8,.2,1);
+}
+.omnibar-glyph.shown { width: 15px; opacity: 1; }
 .omnibar-glyph .codicon { font-size: 14px; }
+
+/* Everything that comes and goes shares one reveal, so the row settles as a
+	single motion rather than several competing ones. */
+.omnibar-rest, .omnibar-typed { opacity: 0; transition: opacity 200ms ease; }
+.omnibar-rest.shown, .omnibar-typed.shown { opacity: 1; }
+.omnibar-rest { display: none; align-items: center; min-width: 0; flex: 1; }
+.omnibar-rest.shown { display: flex; }
+.omnibar-typed { display: none; }
+.omnibar-typed.shown { display: block; }
 
 .omnibar-text { flex: 1; min-width: 0; display: flex; align-items: center; font-size: 13px; white-space: nowrap; overflow: hidden; }
 .omnibar-typed { overflow: hidden; text-overflow: ellipsis; }
 .omnibar-scope { flex: 0 0 auto; font-weight: 500; opacity: .9; }
 .omnibar-sep { flex: 0 0 auto; width: 1px; height: 13px; margin: 0 9px; background: currentColor; opacity: .16; }
 .omnibar-prompt { flex: 1; min-width: 0; color: var(--vscode-input-placeholderForeground); overflow: hidden; text-overflow: ellipsis; }
-.omnibar-caret { flex: 0 0 auto; width: 1px; height: 14px; margin-left: 1px; background: currentColor; animation: omnibar-blink 1.06s steps(1, end) infinite; }
+.omnibar-caret {
+	flex: 0 0 auto; width: 1px; height: 14px; margin-left: 1px;
+	background: currentColor; opacity: 0;
+	animation: omnibar-blink 1.06s steps(1, end) infinite;
+	animation-play-state: paused;
+}
+.omnibar-caret.shown { opacity: 1; animation-play-state: running; }
 @keyframes omnibar-blink { 0%,55% { opacity: 1; } 56%,100% { opacity: 0; } }
 
 /*
@@ -393,11 +479,16 @@ const CSS = `
 .omnibar-send {
 	flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
 	box-sizing: border-box;
-	width: 22px; height: 22px;
+	width: 0; height: 22px; opacity: 0; overflow: hidden;
+	transition: width 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease, border-color 200ms ease;
 	border-radius: var(--vscode-cornerRadius-circle, 999px);
-	border: 1px solid var(--vscode-input-border, rgba(127,127,127,.35));
+	border: 1px solid transparent;
 	color: var(--vscode-icon-foreground);
 }
+.omnibar-send.shown { width: 22px; opacity: 1; border-color: var(--vscode-input-border, rgba(127,127,127,.35)); }
+/* Armed just brightens the arrow. A filled block here competes with the glow,
+	which is the thing actually carrying state. */
+.omnibar-send.armed { color: var(--vscode-foreground); }
 /* Optical nudge, as chat.css does for this glyph. */
 .omnibar-send .codicon { font-size: var(--vscode-codiconFontSize-compact, 12px); transform: translateY(.5px); }
 
@@ -407,15 +498,48 @@ const CSS = `
  * 22px tall, fully rounded, 27px cells, no dividers. Purely iconographic —
  * there are no "Listening"/"Speaking" labels in the product.
  */
+/* Close — only once it has been pulled out of the window, since docked it is
+	part of the title bar and there is nothing to dismiss. */
+.omnibar-close {
+	flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+	box-sizing: border-box;
+	width: 0; height: 22px; opacity: 0; overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-circle, 999px);
+	color: var(--vscode-icon-foreground);
+	transition: width 300ms cubic-bezier(.2,.8,.2,1), opacity 240ms ease, margin 300ms cubic-bezier(.2,.8,.2,1);
+}
+.omnibar-surface[data-home="dragging"] .omnibar-close,
+.omnibar-surface[data-home="floating"] .omnibar-close { width: 22px; opacity: .75; margin-left: 2px; }
+.omnibar-close .codicon { font-size: var(--vscode-codiconFontSize-compact, 12px); }
+
+/* A quiet count of what is waiting, for when you did not act on it. */
+.omnibar-badge {
+	flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+	box-sizing: border-box;
+	height: 22px; padding: 0; max-width: 0;
+	border-radius: var(--vscode-cornerRadius-circle, 999px);
+	font-size: 11px; white-space: nowrap; opacity: 0; overflow: hidden;
+	color: var(--voice-color-needsInput);
+	background: color-mix(in srgb, var(--voice-color-needsInput) 18%, transparent);
+	transition: max-width 340ms cubic-bezier(.2,.8,.2,1), opacity 260ms ease, padding 340ms cubic-bezier(.2,.8,.2,1), margin 340ms cubic-bezier(.2,.8,.2,1);
+}
+.omnibar-badge.shown { max-width: 160px; padding: 0 10px 0 8px; opacity: 1; margin-right: 2px; }
+.omnibar-badge i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: omnibar-breathe 1.9s ease-in-out infinite; }
+
 .omnibar-voice {
 	flex: 0 0 auto;
 	display: flex;
 	align-items: center;
 	box-sizing: border-box;
 	height: 22px;
+	max-width: 0; opacity: 0; overflow: hidden;
+	transition: max-width 320ms cubic-bezier(.2,.8,.2,1), opacity 240ms ease, margin 320ms cubic-bezier(.2,.8,.2,1);
 	border-radius: var(--vscode-cornerRadius-circle, 999px);
-	border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border, rgba(127,127,127,.35)));
-	overflow: hidden;
+	border: 1px solid transparent;
+}
+.omnibar-voice.shown {
+	max-width: 60px; opacity: 1; margin-left: 2px;
+	border-color: var(--vscode-input-border, var(--vscode-editorWidget-border, rgba(127,127,127,.35)));
 }
 .omnibar-voice-cell {
 	display: flex; align-items: center; justify-content: center;
@@ -569,7 +693,7 @@ const CSS = `
 /* Candidate rows while routing: a confidence bar reads at a glance. */
 .omnibar-score { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; font-size: 11px; opacity: .6; font-variant-numeric: tabular-nums; }
 .omnibar-score-track { width: 42px; height: 3px; border-radius: 999px; background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent); overflow: hidden; }
-.omnibar-score-fill { height: 100%; border-radius: 999px; background: var(--voice-color-listening); }
+.omnibar-score-fill { height: 100%; border-radius: 999px; background: var(--voice-color-speaking); }
 .omnibar-row[data-dim] { opacity: .45; }
 
 /* Fan-out: one instruction, several sessions, each with its own progress. */
@@ -587,7 +711,7 @@ const CSS = `
 .omnibar-queue-dots i[data-done] { opacity: .4; }
 
 /* Progress through the script */
-.omnibar-timeline { display: flex; gap: 3px; width: 100%; }
+.omnibar-timeline { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 3px; }
 .omnibar-tick { flex: 1; height: 2px; border-radius: 999px; background: currentColor; opacity: .1; transition: opacity 260ms ease; }
 .omnibar-tick[data-on] { opacity: .4; }
 `;
@@ -740,8 +864,8 @@ function buildRouting(settled: boolean | undefined, store: DisposableStore): HTM
 		const isPick = name === 'portfolio-site';
 		const el = row(
 			isPick && settled
-				? icon(Codicon.arrowRight, stateColor('listening'))
-				: liveStatus(store, 'grid', stateColor('listening')),
+				? icon(Codicon.arrowRight, stateColor('speaking'))
+				: liveStatus(store, 'grid', stateColor('speaking')),
 			name,
 			settled ? sessionDetail(branch) : score(pct),
 			settled && isPick,
@@ -779,14 +903,14 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 
 	for (const [name, , rate] of lanes) {
 		const detail = $('.omnibar-row-detail');
-		const track = progressBar(0, stateColor('listening'));
+		const track = progressBar(0, stateColor('speaking'));
 		const fill = track.firstElementChild as HTMLElement;
 		const pctLabel = $('span');
 		detail.append(track, pctLabel);
 
 		// The spinner is created once and left alone; only the bar and the label
 		// change per frame, so its animation is never restarted.
-		const spinner = liveStatus(store, 'grid', stateColor('listening'));
+		const spinner = liveStatus(store, 'grid', stateColor('speaking'));
 		const glyphHolder = $('span');
 		glyphHolder.style.cssText = 'display:flex;align-items:center;justify-content:center;';
 		glyphHolder.appendChild(spinner);
@@ -800,7 +924,7 @@ function buildFanout(store: DisposableStore, updaters: BeatUpdater[]): HTMLEleme
 			const pct = Math.min(1, p * rate);
 			const complete = pct >= 1;
 			fill.style.width = `${Math.round(pct * 100)}%`;
-			fill.style.background = stateColor(complete ? 'done' : 'listening');
+			fill.style.background = stateColor(complete ? 'done' : 'speaking');
 			pctLabel.textContent = complete ? 'Done' : `${Math.round(pct * 100)}%`;
 			spinner.style.display = complete ? 'none' : '';
 			check.style.display = complete ? '' : 'none';
@@ -888,7 +1012,7 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 			row(icon(Codicon.history), 'Change the theme to Red Velvet'),
 			row(icon(Codicon.history), 'Run the build task'),
 			group('Agent sessions'),
-			row(liveStatus(store, 'grid', stateColor('listening')), 'portfolio-site', sessionDetail('main', 42, 12)),
+			row(liveStatus(store, 'grid', stateColor('speaking')), 'portfolio-site', sessionDetail('main', 42, 12)),
 			row(liveStatus(store, 'ring', stateColor('needsInput')), 'api-gateway', sessionDetail('fix/login', 8, 3)),
 		);
 		return stagger(inner);
@@ -897,7 +1021,7 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 	if (body.kind === 'sessions') {
 		inner.append(
 			group('Agent sessions'),
-			row(liveStatus(store, 'grid', stateColor('listening')), 'portfolio-site', sessionDetail('main', 42, 12)),
+			row(liveStatus(store, 'grid', stateColor('speaking')), 'portfolio-site', sessionDetail('main', 42, 12)),
 			row(liveStatus(store, 'ring', stateColor('needsInput')), 'api-gateway', sessionDetail('fix/login', 8, 3)),
 			row(icon(Codicon.passFilled, stateColor('done')), 'docs-site', sessionDetail('main', 5, 0)),
 		);
@@ -927,7 +1051,7 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 	const name = $('span.omnibar-viewport-name');
 	name.textContent = body.confirm ? 'api-gateway' : 'portfolio-site';
 	head.append(
-		liveStatus(store, body.confirm ? 'ring' : 'grid', stateColor(body.confirm ? 'needsInput' : 'listening')),
+		liveStatus(store, body.confirm ? 'ring' : 'grid', stateColor(body.confirm ? 'needsInput' : 'speaking')),
 		name,
 		sessionDetail(body.confirm ? 'fix/login' : 'main', body.confirm ? 8 : 42, body.confirm ? 3 : 12),
 	);
@@ -936,10 +1060,13 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 	const scrollInner = $('.omnibar-scroll-inner');
 	scrollInner.append(...buildTranscript());
 	scroll.appendChild(scrollInner);
-	// Drift upward across the beat, easing out so it settles rather than stopping.
+	// A transcript follows its newest message, so scroll to the bottom and stop
+	// there rather than drifting past it. The distance is measured from the
+	// content, so it lands exactly on the last turn whatever the beat contains.
 	updaters.push(p => {
-		const eased = 1 - Math.pow(1 - p, 2);
-		scrollInner.style.transform = `translateY(${(-eased * 66).toFixed(1)}px)`;
+		const distance = Math.max(0, scrollInner.scrollHeight - scroll.clientHeight);
+		const eased = 1 - Math.pow(1 - p, 3);
+		scrollInner.style.transform = `translateY(${(-eased * distance).toFixed(1)}px)`;
 	});
 
 	viewport.append(head, scroll);
@@ -978,7 +1105,7 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 function renderDemo(ctx: ComponentFixtureContext): void {
 	const { container, disposableStore, isInteractive } = ctx;
 	container.style.cssText = [
-		'padding:26px 24px', 'box-sizing:border-box', 'width:640px', 'min-height:580px',
+		'padding:26px 24px', 'box-sizing:border-box', 'width:640px', 'min-height:600px',
 		'background:var(--vscode-editor-background)',
 	].join(';');
 	if (isInteractive) {
@@ -1008,6 +1135,7 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 	// The voice cell reads these, as `_updateVoiceStateColors` sets them.
 	surface.style.setProperty('--voice-color-listening', stateColor('listening'));
 	surface.style.setProperty('--voice-color-speaking', stateColor('speaking'));
+	surface.style.setProperty('--voice-color-needsInput', stateColor('needsInput'));
 	const inputRow = $('.omnibar-input');
 	const bodyWrap = $('.omnibar-body');
 	surface.append(inputRow, bodyWrap);
@@ -1031,77 +1159,109 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 	// Spinners are created per body render, so they need disposing on each swap.
 	const bodyStore = disposableStore.add(new MutableDisposable<DisposableStore>());
 
-	/** The segmented voice/dictation pill. */
-	const buildVoicePill = (state: VoiceState): HTMLElement => {
-		const pill = $('.omnibar-voice');
+	/*
+	 * The input row is built once and then mutated. Rebuilding it per frame
+	 * would restart the waveform animation and make every CSS transition
+	 * unreachable, so state changes would snap instead of easing.
+	 */
+	const grip = $('span.omnibar-grip');
+	grip.appendChild(renderIcon(Codicon.gripper));
 
-		const dictation = $('.omnibar-voice-cell.dictation');
-		if (state === 'dictating') {
-			dictation.classList.add('active');
-		}
-		dictation.appendChild(renderIcon(state === 'dictating' ? Codicon.micFilled : Codicon.mic));
+	const glyph = $('span.omnibar-glyph');
+	const textEl = $('span.omnibar-text');
+	const typed = $('span.omnibar-typed');
+	const caret = $('span.omnibar-caret');
+	const scope = $('span.omnibar-scope');
+	scope.textContent = WORKSPACE_NAME;
+	const sep = $('span.omnibar-sep');
+	const prompt = $('span.omnibar-prompt');
+	prompt.textContent = 'Ask anything\u2026';
+	const rest = $('span.omnibar-rest');
+	rest.append(scope, sep, prompt);
+	textEl.append(rest, typed, caret);
 
-		const voice = $('.omnibar-voice-cell.voice');
-		if (state === 'listening' || state === 'speaking') {
-			voice.classList.add(state);
-		} else if (state === 'idle') {
-			voice.classList.add('idle');
-		}
-		const bars = $('span.omnibar-bars');
-		for (let i = 0; i < 5; i++) {
-			bars.appendChild($('span.omnibar-bar'));
-		}
-		voice.appendChild(bars);
+	/** A quiet count of what is waiting, for when you did not act on it. */
+	const badge = $('span.omnibar-badge');
+	const badgeCount = $('span');
+	badge.append($('i'), badgeCount);
 
-		pill.append(dictation, voice);
-		return pill;
-	};
+	// The segmented voice/dictation pill: dictation cell (mic) + voice cell
+	// (waveform). Built once so the bars never restart mid-state.
+	const voicePill = $('.omnibar-voice');
+	const dictationCell = $('.omnibar-voice-cell.dictation');
+	const dictationIcon = $('span');
+	dictationCell.appendChild(dictationIcon);
+	const voiceCell = $('.omnibar-voice-cell.voice');
+	const bars = $('span.omnibar-bars');
+	for (let i = 0; i < 5; i++) {
+		bars.appendChild($('span.omnibar-bar'));
+	}
+	voiceCell.appendChild(bars);
+	voicePill.append(dictationCell, voiceCell);
+
+	const send = $('span.omnibar-send');
+	// The chat input uses `arrowUpCompact`, but this checkout's codicon font
+	// predates that glyph (@vscode/codicons 0.0.46-21 renders it blank), so fall
+	// back to the plain arrow rather than shipping an empty circle.
+	send.appendChild(renderIcon(Codicon.arrowUp));
+
+	// Only present once it has been pulled out of the window.
+	const close = $('span.omnibar-close');
+	close.appendChild(renderIcon(Codicon.close));
+
+	inputRow.append(grip, glyph, textEl, badge, voicePill, send, close);
+
+	let currentGlyph: string | undefined;
+	let currentDictation: string | undefined;
 
 	const paintInput = (beat: Beat, progress: number) => {
-		inputRow.textContent = '';
-
-		const grip = $('span.omnibar-grip');
-		grip.appendChild(renderIcon(Codicon.gripper));
-		inputRow.appendChild(grip);
-
-		if (beat.icon) {
-			const glyph = $('span.omnibar-glyph');
-			glyph.appendChild(icon(beat.icon, beat.iconColor ? stateColor(beat.iconColor) : undefined));
-			inputRow.appendChild(glyph);
+		// Leading status icon — swapped only when the icon itself changes, so the
+		// element (and any transition on it) survives.
+		const glyphKey = beat.icon ? ThemeIcon.asClassName(beat.icon) : undefined;
+		if (glyphKey !== currentGlyph) {
+			currentGlyph = glyphKey;
+			glyph.textContent = '';
+			if (beat.icon) {
+				glyph.appendChild(renderIcon(beat.icon));
+			}
 		}
+		glyph.style.color = beat.iconColor ? stateColor(beat.iconColor) : '';
+		glyph.classList.toggle('shown', !!beat.icon);
 
-		const text = $('span.omnibar-text');
 		if (beat.text) {
 			// Typed beats reveal over the first ~70% of the beat, so the finished
 			// phrase is readable before it moves on.
-			const shown = beat.type
+			typed.textContent = beat.type
 				? beat.text.slice(0, Math.ceil(Math.min(1, progress / 0.7) * beat.text.length))
 				: beat.text;
-			const typed = $('span.omnibar-typed');
-			typed.textContent = shown;
-			text.appendChild(typed);
-			if (beat.caret) {
-				text.appendChild($('span.omnibar-caret'));
-			}
-		} else {
-			const scope = $('span.omnibar-scope');
-			scope.textContent = WORKSPACE_NAME;
-			const prompt = $('span.omnibar-prompt');
-			prompt.textContent = 'Ask anything\u2026';
-			text.append(scope, $('span.omnibar-sep'), prompt);
 		}
-		inputRow.appendChild(text);
+		rest.classList.toggle('shown', !beat.text);
+		typed.classList.toggle('shown', !!beat.text);
+		caret.classList.toggle('shown', !!beat.caret);
 
-		if (beat.voice && beat.voice !== 'off') {
-			inputRow.appendChild(buildVoicePill(beat.voice));
+		if (beat.badge) {
+			badgeCount.textContent = beat.badge;
 		}
+		badge.classList.toggle('shown', !!beat.badge);
 
-		// Send only when there is something to submit.
-		if (beat.text && beat.type) {
-			const send = $('span.omnibar-send');
-			send.appendChild(renderIcon(Codicon.arrowUpCompact));
-			inputRow.appendChild(send);
+		const voice = beat.voice ?? 'off';
+		voicePill.classList.toggle('shown', voice !== 'off');
+		const dictationKey = voice === 'dictating' ? 'filled' : 'plain';
+		if (dictationKey !== currentDictation) {
+			currentDictation = dictationKey;
+			dictationIcon.textContent = '';
+			dictationIcon.appendChild(renderIcon(voice === 'dictating' ? Codicon.micFilled : Codicon.mic));
 		}
+		dictationCell.classList.toggle('active', voice === 'dictating');
+		voiceCell.classList.toggle('idle', voice === 'idle');
+		voiceCell.classList.toggle('listening', voice === 'listening');
+		voiceCell.classList.toggle('speaking', voice === 'speaking');
+
+		// The arrow follows the person: it appears the moment there is a character
+		// to send — typed or dictated — and brightens once the phrase is done.
+		const hasUserInput = !!(beat.text && beat.type && typed.textContent);
+		send.classList.toggle('shown', hasUserInput);
+		send.classList.toggle('armed', hasUserInput && progress >= 0.7);
 	};
 
 	let updaters: BeatUpdater[] = [];
@@ -1147,6 +1307,9 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		}
 		const beat = SCRIPT[index];
 		const progress = Math.min(1, (elapsed - acc) / beat.ms);
+
+		// Compact whenever it is holding nothing — no text, no body, no badge.
+		surface.toggleAttribute('data-compact', !beat.text && !beat.badge && (beat.body?.kind ?? 'none') === 'none');
 
 		if (beat.home !== currentHome) {
 			currentHome = beat.home;
