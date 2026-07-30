@@ -45,6 +45,7 @@
 	max-width: 800px;
 	padding: 0;
 	box-sizing: border-box;
+	margin-bottom: var(--vscode-spacing-size20);
 }
 
 .new-chat-widget-container.revealed .new-session-workspace-picker-container {

@@ -10,7 +10,7 @@ import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -115,15 +115,15 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 
-		const rootStateValue = this._agentHostService.rootState.value;
-		if (rootStateValue && !(rootStateValue instanceof Error)) {
-			this._syncSessionTypesFromRootState(rootStateValue);
-			this._syncRootConfigFromRootState(rootStateValue);
-		}
-		this._register(this._agentHostService.rootState.onDidChange(rootState => {
-			this._syncSessionTypesFromRootState(rootState);
-			this._syncRootConfigFromRootState(rootState);
+		this._syncRootState(this._agentHostService.rootState.value);
+		this._register(this._agentHostService.rootState.onDidChange(() => {
+			this._syncRootState(this._agentHostService.rootState.value);
 		}));
+		if (this._agentHostService.rootState.onDidError) {
+			this._register(this._agentHostService.rootState.onDidError(error => {
+				this._syncRootState(error);
+			}));
+		}
 
 		// Eagerly populate the session cache once authentication has settled.
 		// Without this, the sidebar would only call `getSessions()` after some
@@ -147,10 +147,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				this._onDidChangeSessionTypes.fire();
 			}
 			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
-				const current = this._agentHostService.rootState.value;
-				if (current && !(current instanceof Error)) {
-					this._syncSessionTypesFromRootState(current);
-				}
+				this._syncRootState(this._agentHostService.rootState.value);
 				// `getSessions()` filters by the same gate, so the set of visible
 				// sessions just changed too. Fire an empty-payload change so the
 				// open list re-queries and re-filters. The payload is deliberately
@@ -200,7 +197,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	}
 
 	protected override _diffUriMapper(): (uri: URI) => URI {
-		return uri => toAgentHostUri(uri, 'local');
+		return uri => toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
 	}
 
 	// -- Workspaces ----------------------------------------------------------

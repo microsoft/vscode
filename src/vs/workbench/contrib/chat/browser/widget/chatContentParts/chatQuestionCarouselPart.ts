@@ -22,6 +22,7 @@ import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
+import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -45,11 +46,6 @@ export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
 	shouldAutoFocus?: boolean;
 }
-
-type IOrderedQuestionOption = {
-	option: NonNullable<IChatQuestion['options']>[number];
-	originalIndex: number;
-};
 
 export class ChatQuestionCarouselPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -391,7 +387,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.focus();
 		const question = this.carousel.questions[this._currentIndex];
 		if (question) {
-			const questionText = question.message ?? question.title;
+			const questionText = getDisplayedQuestionText(question);
 			const messageContent = this.getQuestionText(questionText);
 			const questionCount = this.carousel.questions.length;
 			const alertMessage = questionCount === 1
@@ -506,9 +502,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Skips the carousel with default values - called when user wants to proceed quickly.
 	 * Returns defaults for all questions.
+	 *
+	 * `carousel.isUsed` covers resolution that did not come from this part: a
+	 * voice answer dismisses the carousel directly, and a later auto-skip on
+	 * request submit would otherwise overwrite the answer that actually landed
+	 * with defaults.
 	 */
 	public skip(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 
@@ -527,9 +528,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Ignores the carousel completely - called when user wants to dismiss without data.
 	 * Returns undefined to signal the carousel was ignored.
+	 *
+	 * Guarded on `carousel.isUsed` for the same reason as {@link skip}.
 	 */
 	public ignore(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 		this._isSkipped = true;
@@ -618,7 +621,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		const questionText = question.message ?? question.title;
+		const questionText = getDisplayedQuestionText(question);
 		const messageContent = this.getQuestionText(questionText);
 		const questionCount = this.carousel.questions.length;
 
@@ -706,7 +709,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		// Render unified question title (message ?? title)
 		const headerRow = dom.$('.chat-question-header-row');
 		const titleRow = dom.$('.chat-question-title-row');
 
@@ -719,7 +721,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			headerRow.appendChild(carouselMessage);
 		}
 
-		const questionText = question.message ?? question.title;
+		const questionText = getDisplayedQuestionText(question);
 		if (questionText) {
 			const title = dom.$('.chat-question-title');
 			const messageContent = this.getQuestionText(questionText);
@@ -1053,7 +1055,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
-		const orderedOptions = this.getOptionsWithDefaultsFirst(question);
+		const orderedOptions = getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-label', question.title);
@@ -1276,7 +1278,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderMultiSelect(container: HTMLElement, question: IChatQuestion): void {
-		const orderedOptions = this.getOptionsWithDefaultsFirst(question);
+		const orderedOptions = getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-multiselectable', 'true');
@@ -1541,31 +1543,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 	}
 
-	private getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQuestionOption[] {
-		const options = question.options ?? [];
-		const orderedOptions = options.map((option, index) => ({ option, originalIndex: index }));
-		const defaultOptionIds = Array.isArray(question.defaultValue)
-			? question.defaultValue
-			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
-
-		if (defaultOptionIds.length === 0) {
-			return orderedOptions;
-		}
-
-		const defaultIds = new Set(defaultOptionIds);
-		const defaults: IOrderedQuestionOption[] = [];
-		const nonDefaults: IOrderedQuestionOption[] = [];
-		for (const item of orderedOptions) {
-			if (defaultIds.has(item.option.id)) {
-				defaults.push(item);
-			} else {
-				nonDefaults.push(item);
-			}
-		}
-
-		return [...defaults, ...nonDefaults];
-	}
-
 	/**
 	 * Renders a terminal-state message (Skipped/Answered) when the carousel is
 	 * dismissed without structured answers.
@@ -1607,7 +1584,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const summaryItem = dom.$('.chat-question-summary-item');
 
 			const questionRow = dom.$('div.chat-question-summary-label');
-			const questionText = question.message ?? question.title;
+			const questionText = getDisplayedQuestionText(question);
 			let labelText = typeof questionText === 'string' ? questionText : questionText.value;
 			labelText = labelText.replace(/[:\s]+$/, '');
 			questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', labelText);
@@ -1735,54 +1712,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns a validation error message for the given value, or undefined if valid.
 	 */
 	private getValidationError(value: string, validation: IChatQuestionValidation): string | undefined {
-		if (validation.minLength !== undefined && value.length < validation.minLength) {
-			return localize('chat.questionCarousel.validation.minLength', 'Minimum length is {0}', validation.minLength);
-		}
-		if (validation.maxLength !== undefined && value.length > validation.maxLength) {
-			return localize('chat.questionCarousel.validation.maxLength', 'Maximum length is {0}', validation.maxLength);
-		}
-		if (validation.format) {
-			switch (validation.format) {
-				case 'email':
-					if (!value.includes('@')) {
-						return localize('chat.questionCarousel.validation.email', 'Please enter a valid email address');
-					}
-					break;
-				case 'uri':
-					if (!URL.canParse(value)) {
-						return localize('chat.questionCarousel.validation.uri', 'Please enter a valid URI');
-					}
-					break;
-				case 'date': {
-					const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-					if (!dateRegex.test(value) || isNaN(new Date(value).getTime())) {
-						return localize('chat.questionCarousel.validation.date', 'Please enter a valid date (YYYY-MM-DD)');
-					}
-					break;
-				}
-				case 'date-time':
-					if (isNaN(new Date(value).getTime())) {
-						return localize('chat.questionCarousel.validation.dateTime', 'Please enter a valid date-time');
-					}
-					break;
-			}
-		}
-		if (validation.isInteger !== undefined || validation.minimum !== undefined || validation.maximum !== undefined) {
-			const num = Number(value);
-			if (isNaN(num)) {
+		const failure = findQuestionValidationFailure(value, validation);
+		switch (failure?.kind) {
+			case undefined:
+				return undefined;
+			case 'minLength':
+				return localize('chat.questionCarousel.validation.minLength', 'Minimum length is {0}', failure.limit);
+			case 'maxLength':
+				return localize('chat.questionCarousel.validation.maxLength', 'Maximum length is {0}', failure.limit);
+			case 'email':
+				return localize('chat.questionCarousel.validation.email', 'Please enter a valid email address');
+			case 'uri':
+				return localize('chat.questionCarousel.validation.uri', 'Please enter a valid URI');
+			case 'date':
+				return localize('chat.questionCarousel.validation.date', 'Please enter a valid date (YYYY-MM-DD)');
+			case 'dateTime':
+				return localize('chat.questionCarousel.validation.dateTime', 'Please enter a valid date-time');
+			case 'number':
 				return localize('chat.questionCarousel.validation.number', 'Please enter a valid number');
-			}
-			if (validation.isInteger && !Number.isInteger(num)) {
+			case 'integer':
 				return localize('chat.questionCarousel.validation.integer', 'Please enter a valid integer');
-			}
-			if (validation.minimum !== undefined && num < validation.minimum) {
-				return localize('chat.questionCarousel.validation.minimum', 'Minimum value is {0}', validation.minimum);
-			}
-			if (validation.maximum !== undefined && num > validation.maximum) {
-				return localize('chat.questionCarousel.validation.maximum', 'Maximum value is {0}', validation.maximum);
-			}
+			case 'minimum':
+				return localize('chat.questionCarousel.validation.minimum', 'Minimum value is {0}', failure.limit);
+			case 'maximum':
+				return localize('chat.questionCarousel.validation.maximum', 'Maximum value is {0}', failure.limit);
 		}
-		return undefined;
 	}
 
 	private showValidationError(message: string): void {

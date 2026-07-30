@@ -22,7 +22,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, buildSideChatSourceContext, decodeProviderData, encodeProviderData, prepareSideChatPrompt, stripSideChatContext, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -518,8 +518,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('claudeAgent.displayName', "Claude"),
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
-			capabilities: { multipleChats: { fork: true, sideChat: true } },
+			capabilities: {
+				multipleChats: { fork: true, sideChat: true },
+				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+			},
 		};
+	}
+
+	private _isMultiRootEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostClaudeMultiRootEnabledConfigKey) === true;
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -755,6 +762,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		const permissionMode = this._resolvePermissionMode(config.config);
 
+		// The additional (non-primary) roots of a multi-root session. Stable from
+		// creation — a worktree remap only affects index 0 — so they are captured
+		// here and preserved across every materialization. Empty for single-root.
+		const additionalDirectories = config.workingDirectories?.slice(1) ?? [];
+
 		const session = ClaudeAgentSession.createProvisional(
 			sessionId,
 			sessionUri,
@@ -768,6 +780,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
+			additionalDirectories,
 		);
 		this._seedSessionEntry(sessionId, sessionUri, session);
 		await this._seedEagerActiveClient(sessionUri, config.activeClient);
@@ -868,6 +881,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude:${sessionId}] overlay read failed during remove-all; continuing with defaults`, err);
 		}
 
+		// Reconstruct the full ordered set so a multi-root session keeps every
+		// granted root after the recreate. Prefer the live session's set; else
+		// combine the resolved primary with the persisted overlay tail.
+		const workingDirectories = existing?.workingDirectories
+			?? (overlay.workingDirectories && overlay.workingDirectories.length > 1
+				? [workingDirectory, ...overlay.workingDirectories.slice(1)]
+				: [workingDirectory]);
+
 		// `shutdownLiveQuery` awaits the subprocess's actual exit (and its final
 		// transcript flush), so the on-disk `<id>.jsonl` is now stable and safe
 		// to delete: no live writer can recreate it before the next turn
@@ -878,7 +899,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		await this.createSession({
 			session,
-			workingDirectories: [workingDirectory],
+			workingDirectories,
 			...(overlay.model ? { model: overlay.model } : {}),
 			...(overlay.agent ? { agent: overlay.agent } : {}),
 			...(overlay.permissionMode ? { config: { [ClaudeSessionConfigKey.PermissionMode]: overlay.permissionMode } } : {}),
@@ -983,20 +1004,30 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const model = config.model ?? sourceOverlay.model;
 			const agent = config.agent ?? sourceOverlay.agent;
 			const permissionMode = narrowClaudePermissionMode(config.config?.[ClaudeSessionConfigKey.PermissionMode]) ?? sourceOverlay.permissionMode;
-			await this._metadataStore.write(newSessionUri, {
-				...(model ? { model } : {}),
-				...(permissionMode ? { permissionMode } : {}),
-				...(agent ? { agent } : {}),
-			});
 
 			// Resolve the forked session's working directory now so we can fail
 			// fast (rather than at the first `sendMessage` when `_resumeSession`
 			// requires a cwd). The Query itself starts lazily — see the JSDoc.
 			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
-			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectories?.[0];
+			const workingDirectory = sdkInfo?.cwd
+				? URI.file(sdkInfo.cwd)
+				: existingSource?.workingDirectory ?? sourceOverlay.workingDirectories?.[0];
 			if (!workingDirectory) {
-				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd missing and none supplied)`);
+				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd and source working directory missing)`);
 			}
+
+			// The protocol ignores request-time workingDirectories for forks:
+			// inherit the live source set, or its persisted overlay when unloaded.
+			const additionalDirectories = existingSource?.workingDirectories?.slice(1)
+				?? sourceOverlay.workingDirectories?.slice(1)
+				?? [];
+			await this._metadataStore.write(newSessionUri, {
+				...(model ? { model } : {}),
+				...(permissionMode ? { permissionMode } : {}),
+				...(agent ? { agent } : {}),
+				...(additionalDirectories.length > 0 ? { workingDirectories: [workingDirectory, ...additionalDirectories] } : {}),
+			});
+
 			let project: IAgentSessionProjectInfo | undefined;
 			try {
 				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
@@ -1066,18 +1097,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const canUseTool = this._makeCanUseTool(sessionId);
 		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory: workingDirectories?.[0], serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory: workingDirectories?.[0], workingDirectories, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
 		}
 
-		// Emit the resolved set (index 0 = process root); the host preserves the
-		// session set's tail via an index-0 replacement.
+		// Emit the full resolved set (index 0 = process root, 1..N = additional
+		// roots). Falls back to the session's own ordered set when the host
+		// didn't hand us one (e.g. workspace-less single-root).
 		this._onDidMaterializeSession.fire({
 			session: session.sessionUri,
 			project: session.project,
-			workingDirectories: workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined),
+			workingDirectories: workingDirectories ?? session.workingDirectories,
 		});
 
 		return session;
@@ -1097,7 +1129,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * `sendMessage` calls for a freshly-resumed session collapse into
 	 * one resume + two ordered sends.
 	 */
-	private async _resumeSession(sessionId: string, sessionUri: URI): Promise<ClaudeAgentSession> {
+	private async _resumeSession(sessionId: string, sessionUri: URI, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		this._logService.info(`[Claude:${sessionId}] _resumeSession — no in-memory state, rebuilding from disk`);
 		const transport = this._ensureAuthenticated();
 		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
@@ -1114,6 +1146,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Claude:${sessionId}] overlay read failed during resume; continuing with defaults`, err);
 		}
+		// The additional roots come from the send-time set when the host supplied
+		// one (the caller carries it from `sendMessage`); otherwise from the
+		// persisted overlay so a cold resume from disk still reaches every root.
+		// The SDK's `cwd` stays authoritative for the primary (index 0).
+		const additionalDirectories = (workingDirectories && workingDirectories.length > 1)
+			? workingDirectories.slice(1)
+			: overlay.workingDirectories?.slice(1) ?? [];
 		const permissionMode = readClaudePermissionMode(this._configurationService, sessionUri)
 			?? overlay.permissionMode
 			?? 'default';
@@ -1137,6 +1176,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
+			additionalDirectories,
 		);
 		this._seedSessionEntry(sessionId, sessionUri, session);
 
@@ -1152,7 +1192,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._onDidMaterializeSession.fire({
 			session: sessionUri,
 			project,
-			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			workingDirectories: session.workingDirectories,
 		});
 
 		return session;
@@ -1384,7 +1424,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * session. Prefers the live in-memory parent; falls back to the SDK's
 	 * on-disk session record + metadata overlay for an unloaded parent.
 	 */
-	private async _resolveParentSession(session: URI, parentSessionId: string): Promise<{ workingDirectory: URI; project: IAgentSessionProjectInfo | undefined; model: ModelSelection | undefined; agent: AgentSelection | undefined; permissionMode: ClaudePermissionMode }> {
+	private async _resolveParentSession(session: URI, parentSessionId: string): Promise<{ workingDirectory: URI; additionalDirectories: readonly URI[]; project: IAgentSessionProjectInfo | undefined; model: ModelSelection | undefined; agent: AgentSelection | undefined; permissionMode: ClaudePermissionMode }> {
 		const parent = this._findAnySession(parentSessionId);
 		let workingDirectory = parent?.workingDirectory;
 		let project = parent?.project;
@@ -1409,7 +1449,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude] createChat: parent overlay read failed for ${session.toString()}; continuing with defaults`, err);
 		}
 		const permissionMode = readClaudePermissionMode(this._configurationService, session) ?? overlay.permissionMode ?? 'default';
-		return { workingDirectory, project, model: overlay.model, agent: overlay.agent, permissionMode };
+		// Peer chats span the same directories as their parent: prefer the live
+		// parent's tail, else the persisted overlay's.
+		const additionalDirectories = parent?.workingDirectories?.slice(1) ?? overlay.workingDirectories?.slice(1) ?? [];
+		return { workingDirectory, additionalDirectories, project, model: overlay.model, agent: overlay.agent, permissionMode };
 	}
 
 	/**
@@ -1509,6 +1552,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				parentSession.permissionMode,
 				this._metadataStore,
 				this._instantiationService,
+				parentSession.additionalDirectories,
 			);
 			return this._seedSessionEntry(sessionId, session, mainSession);
 		});
@@ -1584,6 +1628,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
+			parentSession.additionalDirectories,
 		);
 		entry.registerPeerChat(chat.toString(), this._wireEntry(chatSession));
 		return chatSession;
@@ -1761,8 +1806,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// Plan section 3.3.2: SDK is the source of truth; we deliberately do
 		// NOT filter entries that lack a per-session DB — external Claude Code
 		// CLI sessions have no DB and must still surface (Phase-5 exit
-		// criterion). The projected metadata is derived purely from the SDK
-		// entry, so no per-session overlay read is needed here.
+		// criterion). The SDK entry supplies the authoritative primary directory;
+		// an optional per-session overlay hydrates the additional-directory tail.
+		// External sessions without an overlay remain valid single-root entries.
 		//
 		// `AgentService.listSessions` fans out across all providers via
 		// `Promise.all` (agentService.ts:202-204). If our SDK dynamic
@@ -1785,7 +1831,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn('[Claude] SDK listSessions failed; surfacing empty list', err);
 			return [];
 		}
-		return sdkEntries.map(entry => this._metadataStore.project(entry));
+		return Promise.all(sdkEntries.map(entry => {
+			const meta = this._metadataStore.project(entry);
+			return this._withPersistedWorkingDirectories(meta.session, meta);
+		}));
 	}
 
 	/**
@@ -1796,10 +1845,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * sidecar (the way Copilot's variant does). The SDK is the source
 	 * of truth for existence.
 	 *
-	 * The projected metadata is derived purely from the SDK entry, so no
-	 * per-session overlay read is needed. Failures in the SDK lookup
-	 * propagate (the caller is doing a single targeted fetch and should
-	 * learn that the SDK module is broken).
+	 * The SDK entry supplies the authoritative primary directory; an optional
+	 * per-session overlay hydrates the additional-directory tail. External
+	 * sessions without an overlay remain valid single-root entries. Failures in
+	 * the SDK lookup propagate (the caller is doing a single targeted fetch and
+	 * should learn that the SDK module is broken).
 	 */
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		// Don't trigger a cold SDK download just to hydrate session metadata
@@ -1817,7 +1867,32 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!sdkInfo) {
 			return undefined;
 		}
-		return this._metadataStore.project(sdkInfo);
+		return this._withPersistedWorkingDirectories(session, this._metadataStore.project(sdkInfo));
+	}
+
+	/**
+	 * Merge the persisted additional working directories (index 1..N) onto a
+	 * projected metadata's `workingDirectories`, keeping the SDK-derived `cwd`
+	 * as the authoritative primary. The SDK catalog only stores `cwd`, so the
+	 * tail of a multi-root session lives in the per-session overlay. Sessions
+	 * without an overlay (external Claude CLI, single-root) are returned as-is.
+	 */
+	private async _withPersistedWorkingDirectories(session: URI, meta: IAgentSessionMetadata): Promise<IAgentSessionMetadata> {
+		const primary = meta.workingDirectories?.[0];
+		if (!primary) {
+			return meta;
+		}
+		let overlay: IClaudeSessionOverlay = {};
+		try {
+			overlay = await this._metadataStore.read(session);
+		} catch (err) {
+			this._logService.warn(`[Claude] overlay read failed while hydrating working directories for ${session.toString()}; using SDK cwd only`, err);
+		}
+		const tail = overlay.workingDirectories?.slice(1) ?? [];
+		if (tail.length === 0) {
+			return meta;
+		}
+		return { ...meta, workingDirectories: [primary, ...tail] };
 	}
 
 	resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -1959,7 +2034,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			} else if (existing) {
 				session = await this._materializeProvisional(context.sessionId, workingDirectories);
 			} else {
-				session = await this._resumeSession(context.sessionId, context.session);
+				session = await this._resumeSession(context.sessionId, context.session, workingDirectories);
 			}
 
 			await session.send(this._buildSdkPrompt(context.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId);

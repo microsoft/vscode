@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { CommandAutoApprover } from '../../node/commandAutoApprover.js';
+import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
 
 suite('CommandAutoApprover', () => {
 
@@ -245,6 +245,193 @@ suite('CommandAutoApprover', () => {
 			seen.length = 0;
 			assert.strictEqual(approver.shouldAutoApprove('echo hi > /dev/null 2>&1', opts), 'approved');
 			assert.deepStrictEqual(seen, []);
+		});
+	});
+
+	suite('evaluate', () => {
+
+		test('reports whether a persistent rule could resolve the outcome', () => {
+			const cases: [commandLine: string, expected: ICommandApprovalEvaluation][] = [
+				// Approved and denied outcomes leave nothing for a rule to resolve.
+				['ls', { result: 'approved', autoApproveRuleResolvable: false }],
+				['rm file.txt', { result: 'denied', autoApproveRuleResolvable: false }],
+				// Unknown command blocked only by a missing allow rule.
+				['my-custom-script', { result: 'noMatch', autoApproveRuleResolvable: true }],
+				// Transient env-var assignments are denied outright.
+				['FOO=bar my-custom-script', { result: 'denied', autoApproveRuleResolvable: false }],
+				// Unapproved write redirects block regardless of rules, whether
+				// the command itself is approved or unmatched.
+				['echo hi > /etc/passwd', { result: 'noMatch', autoApproveRuleResolvable: false }],
+				['my-custom-script > /etc/passwd', { result: 'noMatch', autoApproveRuleResolvable: false }],
+				// Safe sinks do not block.
+				['echo hi > /dev/null', { result: 'approved', autoApproveRuleResolvable: false }],
+			];
+			assert.deepStrictEqual(cases.map(([commandLine]) => approver.evaluate(commandLine)), cases.map(([, expected]) => expected));
+		});
+
+		test('is not rule-resolvable while the parser is unavailable', () => {
+			const uninitialized = disposables.add(new CommandAutoApprover(new NullLogService()));
+			assert.deepStrictEqual(uninitialized.evaluate('ls'), { result: 'noMatch', autoApproveRuleResolvable: false });
+		});
+	});
+
+	suite('PowerShell grammar', () => {
+
+		const pwsh = { language: 'powershell' } as const;
+
+		test('parses PowerShell-specific syntax that the bash grammar mangles', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-ChildItem -Recurse', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem | Select-Object Name', pwsh),
+				// Backtick line continuations are valid PowerShell and parse as a single command.
+				approver.shouldAutoApprove('Get-ChildItem `\n  -Path .', pwsh),
+				// Expression-style invocations capture the inner command without the parentheses.
+				approver.shouldAutoApprove('(Get-Content README.md).Length', pwsh),
+				// Subexpressions are traversed so their nested commands are checked.
+				approver.shouldAutoApprove('Write-Host $(Get-Date)', pwsh),
+				approver.shouldAutoApprove('Write-Host $(Remove-Item x)', pwsh),
+			], ['approved', 'approved', 'approved', 'approved', 'approved', 'denied']);
+		});
+
+		test('matches rules case-insensitively like PowerShell itself', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('get-childitem', pwsh),
+				approver.shouldAutoApprove('IEX "bad"', pwsh),
+				// bash rule matching stays case-sensitive.
+				approver.shouldAutoApprove('get-childitem'),
+			], ['approved', 'denied', 'noMatch']);
+		});
+
+		// The PowerShell grammar descends into script blocks, so commands nested
+		// inside `{ ... }` are checked individually. The bash grammar keeps the
+		// block opaque, which would let an allow rule on the outer cmdlet
+		// blanket-approve arbitrary nested commands. Nested content that is not
+		// a command (e.g. a .NET invocation) is handled by the fail-closed check
+		// below, not by this traversal.
+		test('denies commands nested inside script blocks', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Remove-Item $_ }', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem | ForEach-Object { Invoke-Expression $_ }', pwsh),
+			], ['denied', 'denied']);
+		});
+
+		// An unquoted `$null` discards PowerShell output; both the spaced form (a
+		// `redirection` node) and the no-space form (a `generic_token`) must be
+		// recognized. POSIX sinks and real file targets still require confirmation.
+		test('treats unquoted $null redirects as safe sinks but blocks file writes', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-Content file.txt 2>$null', pwsh),
+				approver.shouldAutoApprove('Get-Content file.txt 2> $null', pwsh),
+				approver.shouldAutoApprove('Write-Host hi >$null', pwsh),
+				approver.shouldAutoApprove('Write-Host hi 2>&1', pwsh),
+				approver.shouldAutoApprove('Write-Host hi > /dev/null', pwsh),
+				approver.shouldAutoApprove('Write-Host hi >/dev/null', pwsh),
+				approver.shouldAutoApprove(`Write-Host hi > '$null'`, pwsh),
+				approver.shouldAutoApprove('Write-Host hi > out.txt', pwsh),
+				approver.shouldAutoApprove('Write-Host hi >out.txt', pwsh),
+			], ['approved', 'approved', 'approved', 'approved', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch']);
+		});
+
+		test('distinguishes embedded greater-than text from a redirect operator', () => {
+			const seen: string[] = [];
+			const options = {
+				...pwsh,
+				isWriteDestApproved: (dest: string) => {
+					seen.push(dest);
+					return false;
+				},
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Write-Host hi>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host hi >../../outside.txt', options),
+			], ['approved', 'noMatch']);
+			assert.deepStrictEqual(seen, ['../../outside.txt']);
+		});
+
+		// The grammar parses `--flag=value` as an assignment expression that
+		// truncates the command (microsoft/vscode#294010). Without masking, the
+		// truncated capture could match an allow rule while the real command
+		// line runs.
+		test('masks --flag=value arguments before parsing', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('git log --format="%h|%s" -5', pwsh),
+				approver.shouldAutoApprove('git log --format="a|b"; Remove-Item x', pwsh),
+			], ['approved', 'denied']);
+		});
+
+		test('PowerShell matchCommandLine allow rules stay case-sensitive', () => {
+			const autoApproveRules = { '/^Get-ChildItem$/': { approve: true, matchCommandLine: true } };
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-ChildItem', { language: 'powershell', autoApproveRules }),
+				approver.shouldAutoApprove('get-childitem', { language: 'powershell', autoApproveRules }),
+			], ['approved', 'noMatch']);
+		});
+
+		test('PowerShell matchCommandLine deny rules retain configured casing', () => {
+			const caseSensitiveRules = {
+				'Get-ChildItem': true,
+				'/^Get-ChildItem -Force$/': { approve: false, matchCommandLine: true },
+			};
+			const caseInsensitiveRules = {
+				'Get-ChildItem': true,
+				'/^Get-ChildItem -Force$/i': { approve: false, matchCommandLine: true },
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'powershell', autoApproveRules: caseSensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules: caseSensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules: caseInsensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'bash', autoApproveRules: caseSensitiveRules }),
+			], ['denied', 'approved', 'denied', 'noMatch']);
+		});
+
+		test('reports rule resolvability', () => {
+			const cases: [commandLine: string, expected: ICommandApprovalEvaluation][] = [
+				['My-CustomCmdlet', { result: 'noMatch', autoApproveRuleResolvable: true }],
+				// Unapproved write redirects block regardless of rules.
+				['Write-Host hi > out.txt', { result: 'noMatch', autoApproveRuleResolvable: false }],
+				// Commands the grammar cannot parse are never rule-resolvable.
+				['if ($x -eq', { result: 'noMatch', autoApproveRuleResolvable: false }],
+			];
+			assert.deepStrictEqual(cases.map(([commandLine]) => approver.evaluate(commandLine, pwsh)), cases.map(([, expected]) => expected));
+		});
+
+		test('fails closed on PowerShell assignments and invocations', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('$env:GIT_SSH_COMMAND="evil"; git status', pwsh),
+				approver.shouldAutoApprove('Write-Output ($env:FOO="evil"); Get-ChildItem', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { $env:FOO="evil"; $true }', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem; [System.IO.File]::Delete("x")', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { [System.IO.File]::Delete($_.FullName) }', pwsh),
+				approver.shouldAutoApprove('Get-ChildItem; $obj.Delete()', pwsh),
+				// Deliberate over-block: an invocation in an argument is usually
+				// harmless, but the rules cannot tell `[math]::Round` from
+				// `[System.IO.File]::Delete`, so both require confirmation.
+				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', pwsh),
+				// Property access executes no method, so it stays approved.
+				approver.shouldAutoApprove('(Get-Content README.md).Length', pwsh),
+			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved']);
+		});
+
+		test('exact allow rules require a safely analyzable command line', () => {
+			const parseErrorAllow = { '/^if \\(\\$x -eq$/': { approve: true, matchCommandLine: true } };
+			const parseErrorDeny = { '/^if \\(\\$x -eq$/': { approve: false, matchCommandLine: true } };
+			const invocationAllow = { '/^Write-Output \\(\\[math\\]::Round\\(1\\.5\\)\\)$/': { approve: true, matchCommandLine: true } };
+			const redirectAllow = {
+				Write: true,
+				'/^Write-Host hi >out\\.txt$/': { approve: true, matchCommandLine: true },
+			};
+			const deniedSubCommand = {
+				Get: true,
+				Remove: false,
+				'/^Get-ChildItem; Remove-Item x$/': { approve: true, matchCommandLine: true },
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', autoApproveRules: parseErrorAllow }),
+				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', autoApproveRules: parseErrorDeny }),
+				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', { language: 'powershell', autoApproveRules: invocationAllow }),
+				approver.shouldAutoApprove('Write-Host hi >out.txt', { language: 'powershell', autoApproveRules: redirectAllow }),
+				approver.shouldAutoApprove('Get-ChildItem; Remove-Item x', { language: 'powershell', autoApproveRules: deniedSubCommand }),
+			], ['noMatch', 'denied', 'noMatch', 'noMatch', 'denied']);
 		});
 	});
 });

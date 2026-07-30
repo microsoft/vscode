@@ -407,6 +407,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!this._isPickable(schema)) {
 				continue;
 			}
+			// A hidden carrier property (see `worktreeBranchTrackProperty` in
+			// `worktreeIsolation.ts`) consumed only by the host for worktree
+			// isolation, never edited by the user. Its boolean type otherwise
+			// passes `_isPickable` unlike its string/array carrier siblings
+			// (`worktreeBranchPrefix`/`worktreeIncludeFiles`), which are
+			// filtered out because they lack an `enum`.
+			if (property === SessionConfigKey.WorktreeBranchTrack) {
+				continue;
+			}
 			if (property === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {
 				continue;
 			}

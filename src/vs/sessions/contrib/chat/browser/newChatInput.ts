@@ -45,7 +45,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { NewChatVoiceController } from './newChatVoice.js';
+import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
@@ -74,6 +74,7 @@ import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -358,6 +359,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
 			supportsBackground?: boolean;
+			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
+			onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 			/**
 			 * Keep this composer a valid voice target even while a created session
 			 * is active. Used by the in-session "new chat" composer so dictation
@@ -386,6 +389,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
+		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -463,12 +467,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// First-run Voice Mode introduction, docked above the input area
 		const voiceOnboardingContainer = dom.append(chatInputContainer, dom.$('.voice-mode-onboarding-container'));
-		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus()));
+		const onDidChangeInputOnboardingVisible = () => this.options.onDidChangeInputOnboardingVisible?.(
+			this.voiceModeOnboardingService.isVisible || this.dictationOnboardingService.isVisible
+		);
+		const tipContainer = this.options.getInputOnboardingTipContainer?.();
+		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus(), tipContainer, onDidChangeInputOnboardingVisible));
 
 		// First-run dictation introduction, docked directly above the input area
 		// so it reads as one stack with it - the same slot the chat view uses.
 		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
-		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer));
+		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, tipContainer, onDidChangeInputOnboardingVisible));
 
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));
@@ -609,6 +617,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				showWords: true,
 				showStatusBar: false,
 				insertMode: 'insert',
+				fitWidthToDetails: true,
 			},
 		};
 
@@ -846,6 +855,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
 		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
+		const isVoiceInputActive = derived(this, reader => isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
 
 		const action = toAction({
 			id: ChatVoiceInputModeAction.ID,
@@ -856,6 +866,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Dictation must target this composer's editor, not the last focused
 			// chat widget (this composer isn't an `IChatWidget`).
 			toggleDictation: () => { void this.toggleDictation(); },
+			isActive: isVoiceInputActive,
 		}));
 		pill.render(pillContainer);
 
@@ -914,16 +925,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
-				// First-use only. The on-device backend downloads a model, so
-				// render a download icon wrapped by a progress ring; the cloud
-				// backend just connects, so render a plain spinner instead.
+				// First-use only. Show a download icon wrapped by a progress
+				// ring only during an actual model download (a confirmed cache
+				// miss); otherwise (loading an already-cached model, or the cloud
+				// backend connecting) render a plain spinner instead.
 				// Glyphs render at the compact 12px size, so use the `*Compact`
 				// variants where one exists.
-				if (sttService.currentBackend === 'mai') {
-					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
-				} else {
+				if (sttService.isDownloadingModel) {
 					dom.append(button, renderIcon(Codicon.micDownloadCompact));
 					downloadRing.value = new DictationDownloadRing(button, sttService);
+				} else {
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 				}
 			} else {
 				// `mic` / `micFilled` have no compact variant, so they stay as-is.
@@ -938,6 +950,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
+		this._register(sttService.onDidChangeDownloadingModel(renderState));
 		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
 
 		const updateVisibility = () => {

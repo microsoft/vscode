@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorCode } from '../../../base/common/errors.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
@@ -22,7 +22,7 @@ import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal 
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
@@ -30,12 +30,14 @@ import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type 
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
+	chatStorageUri,
 	getToolFileEdits,
 	isAhpChatChannel,
 	isDefaultChatUri,
 	isSubagentChatUri,
 	isChatReadOnly,
 	AH_META_IS_ARCHIVED_DB_KEY,
+	AH_META_IS_READ_DB_KEY,
 	MessageAttachmentKind,
 	MessageKind,
 	parseChatUri,
@@ -222,6 +224,7 @@ export class AgentSideEffects extends Disposable {
 					turnIds.add(envelope.action.turnId);
 				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
+				this._trackTurnUsage(envelope.channel, envelope.action);
 			}
 			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
 				const action = envelope.action;
@@ -242,6 +245,16 @@ export class AgentSideEffects extends Disposable {
 				const values = this._stateManager.getSessionState(envelope.channel)?.config?.values;
 				if (values) {
 					this._persistSessionFlag(envelope.channel, 'configValues', JSON.stringify(values));
+				}
+			}
+			// Persisting here rather than in `handleAction` covers client- and
+			// server-dispatched changes alike, so no dispatch path can skip it.
+			// Rejected actions never reached state and must not be written.
+			if (!envelope.rejectionReason) {
+				if (envelope.action.type === ActionType.SessionIsReadChanged) {
+					this._persistSessionFlag(envelope.channel, AH_META_IS_READ_DB_KEY, envelope.action.isRead ? 'true' : '');
+				} else if (envelope.action.type === ActionType.SessionIsArchivedChanged) {
+					this._persistSessionFlag(envelope.channel, AH_META_IS_ARCHIVED_DB_KEY, envelope.action.isArchived ? 'true' : '');
 				}
 			}
 		}));
@@ -835,8 +848,8 @@ export class AgentSideEffects extends Disposable {
 		if (!(status & SessionStatus.IsRead)) {
 			return;
 		}
+		// Persistence rides the envelope observer set up in the constructor.
 		this._stateManager.dispatchServerAction(session, { type: ActionType.SessionIsReadChanged, isRead: false });
-		this._persistSessionFlag(session, 'isRead', '');
 	}
 
 	private _describeSignal(signal: AgentSignal): string {
@@ -1111,6 +1124,7 @@ export class AgentSideEffects extends Disposable {
 			permissionPath: e.permissionPath,
 			toolInput: e.state.toolInput,
 			requestSandboxBypass: e.requestSandboxBypass,
+			shellLanguage: e.shellLanguage,
 		};
 		const autoApproval = e.managedApprovalRequired
 			? undefined
@@ -1150,6 +1164,10 @@ export class AgentSideEffects extends Disposable {
 		} else if (effective.state.confirmationTitle) {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
 			this._toolCallAgents.set(toolCallKey, agent.id);
+		}
+		if (autoApproval === undefined && !e.managedApprovalRequired && this._permissionManager.isAutoApproveRuleResolvable(approvalEvent, sessionKey)) {
+			// Mark confirmations where a persistent allow rule can suppress the next equivalent prompt.
+			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRuleResolvable: true }) } } };
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,
@@ -1373,12 +1391,8 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
-			case ActionType.SessionIsReadChanged: {
-				this._persistSessionFlag(channel, 'isRead', action.isRead ? 'true' : '');
-				break;
-			}
 			case ActionType.SessionIsArchivedChanged: {
-				this._persistSessionFlag(channel, AH_META_IS_ARCHIVED_DB_KEY, action.isArchived ? 'true' : '');
+				// Persistence rides the envelope observer set up in the constructor.
 				// Host-owned worktree lifecycle (agents stay unaware): remove the
 				// clean, branch-preserved worktree on archive and recreate it on
 				// unarchive. Serialized per session inside the controller so it can't
@@ -1459,6 +1473,53 @@ export class AgentSideEffects extends Disposable {
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
+	/**
+	 * Persists the usage reported for a chat's turn.
+	 *
+	 * Agent backends do not durably record token/credit usage themselves (the
+	 * Copilot SDK's `assistant.usage` event is explicitly ephemeral, and the
+	 * Claude transcript replay produces none), so a restored session would
+	 * otherwise come back with no context-usage gauge and a session cost of 0.
+	 * See `AgentService._applyPersistedTurnUsage` for which providers can
+	 * currently match these rows back on restore.
+	 *
+	 * Written on every report rather than buffered until the turn ends: the row
+	 * is keyed by turn id and written with `INSERT OR REPLACE` through a
+	 * sequencer, so "last report wins" is already a property of the storage
+	 * layer, and persisting eagerly means a turn cut short by a crash or
+	 * disconnect keeps the usage it had already accrued.
+	 *
+	 * Subagent chats are skipped: their cost is already folded into the parent
+	 * turn's aggregate, so recording it again would double-count.
+	 */
+	private _trackTurnUsage(channel: ProtocolURI, action: ChatAction): void {
+		if (action.type !== ActionType.ChatUsage || isSubagentChatUri(channel)) {
+			return;
+		}
+		// Usage reported with no active turn carries an empty turn id (see
+		// `CopilotAgentSession._turnId`). No turn can ever match it, and no
+		// prune path can remove it, so it would be a permanent orphan row.
+		if (!action.turnId) {
+			return;
+		}
+		// Agents key their storage by the chat's own URI, which is where the
+		// `turns` rows that `getTurnUsages` joins against live.
+		const storage = chatStorageUri(channel);
+		if (!storage) {
+			return;
+		}
+		let ref: IReference<ISessionDatabase>;
+		try {
+			ref = this._options.sessionDataService.openDatabase(storage);
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] Failed to open database to persist turn usage for ${channel}`, err);
+			return;
+		}
+		ref.object.setTurnUsage(action.turnId, JSON.stringify(action.usage)).catch(err => {
+			this._logService.warn(`[AgentSideEffects] Failed to persist turn usage for ${channel}/${action.turnId}`, err);
+		}).finally(() => ref.dispose());
+	}
+
 	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {
 		if (!isAhpChatChannel(channel)) {
 			return;
@@ -1518,7 +1579,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const state = this._stateManager.getSessionState(session);
-		if (!state?.queuedMessages?.length) {
+		if (!state?.queuedMessages?.length || state.steeringMessage) {
 			return;
 		}
 
