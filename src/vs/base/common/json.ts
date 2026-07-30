@@ -851,7 +851,7 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 	function onValue(value: unknown) {
 		if (Array.isArray(currentParent)) {
 			currentParent.push(value);
-		} else if (currentProperty !== null) {
+		} else if (currentProperty !== null && currentProperty !== '__proto__') {
 			currentParent[currentProperty] = value;
 		}
 	}

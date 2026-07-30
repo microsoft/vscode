@@ -195,6 +195,14 @@ suite('JSON', () => {
 		assertValidParse('{ "foo": /*hello*/true }', { foo: true });
 	});
 
+	test('parse: __proto__ property is skipped', () => {
+		const errors: ParseError[] = [];
+		const actual = parse('{ "__proto__": { "polluted": true } }', errors);
+
+		assert.deepStrictEqual({ hasOwn: Object.hasOwn(actual, '__proto__'), prototype: Object.getPrototypeOf(actual), errors },
+			{ hasOwn: false, prototype: Object.prototype, errors: [] });
+	});
+
 	test('parse: arrays', () => {
 		assertValidParse('[]', []);
 		assertValidParse('[ [],  [ [] ]]', [[], [[]]]);
