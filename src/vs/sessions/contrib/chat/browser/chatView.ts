@@ -198,7 +198,6 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
-		this._widget.setVisible(true);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget));
 
@@ -353,6 +352,10 @@ export class ChatView extends AbstractChatView {
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
 		this._ensureBannersMounted();
 		this._widget.layout(height, width);
+	}
+
+	override setVisible(visible: boolean): void {
+		this._widget.setVisible(visible);
 	}
 
 	/**

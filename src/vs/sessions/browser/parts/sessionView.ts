@@ -84,6 +84,9 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
+	private _gridVisible = true;
+	private _partVisible = true;
+	private _effectiveVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
@@ -211,9 +214,7 @@ export class SessionView extends Disposable implements ISerializableView {
 				view = desiredKind === 'chat'
 					? this.chatViewFactory.createChatView()
 					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', options);
-				this._contentContainer.replaceChildren(view.element);
-				this._currentView.value = view;
-				view.setActive(this._isActive);
+				this._replaceCurrentView(view);
 			}
 
 			if (session) {
@@ -240,6 +241,38 @@ export class SessionView extends Disposable implements ISerializableView {
 		size(this.element, width, height);
 		this._lastLayout = { width, height, top, left };
 		this._layoutChildren();
+	}
+
+	setVisible(visible: boolean): void {
+		if (this._gridVisible === visible) {
+			return;
+		}
+		this._gridVisible = visible;
+		this._updateVisibility();
+	}
+
+	setPartVisible(visible: boolean): void {
+		if (this._partVisible === visible) {
+			return;
+		}
+		this._partVisible = visible;
+		this._updateVisibility();
+	}
+
+	private _updateVisibility(): void {
+		const visible = this._gridVisible && this._partVisible;
+		if (this._effectiveVisible === visible) {
+			return;
+		}
+		this._effectiveVisible = visible;
+		this._currentView.value?.setVisible(visible);
+	}
+
+	private _replaceCurrentView(view: AbstractChatView): void {
+		this._contentContainer.replaceChildren(view.element);
+		this._currentView.value = view;
+		view.setActive(this._isActive);
+		view.setVisible(this._effectiveVisible);
 	}
 
 	private _layoutChildren(): void {

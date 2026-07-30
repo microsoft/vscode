@@ -129,6 +129,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	/** Notifies the view whether its grid leaf and containing part are visible. */
+	setVisible(_visible: boolean): void {
+		// no-op by default
+	}
+
 	/**
 	 * Shows an indeterminate progress bar at the top of this leaf while the
 	 * given promise is pending, mirroring how each editor group surfaces

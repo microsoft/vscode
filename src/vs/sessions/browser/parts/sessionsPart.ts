@@ -91,6 +91,7 @@ export class SessionsPart extends Part {
 
 	private readonly _multipleSessionsVisibleKey: IContextKey<boolean>;
 	private readonly _sessionsFocusKey: IContextKey<boolean>;
+	private _partVisible = true;
 
 	/**
 	 * Whether the session type ("harness") picker should be rendered below the
@@ -167,6 +168,7 @@ export class SessionsPart extends Part {
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
+		this._partVisible = this.layoutService.isVisible(Parts.SESSIONS_PART);
 
 		// Track keyboard focus within the sessions content so the `sessionsFocus`
 		// context key reflects whether a session (its chat view) currently has focus.
@@ -381,6 +383,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		view.setPartVisible(this._partVisible);
 		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
@@ -439,6 +442,16 @@ export class SessionsPart extends Part {
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);
+	}
+
+	override setVisible(visible: boolean): void {
+		if (this._partVisible !== visible) {
+			this._partVisible = visible;
+			for (const slot of this._slots) {
+				slot.view.setPartVisible(visible);
+			}
+		}
+		super.setVisible(visible);
 	}
 
 	override dispose(): void {
