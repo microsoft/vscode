@@ -115,6 +115,32 @@ describe('rateLimitBackoffMiddleware', () => {
 		expect(await expectBlocked(fetchFn)).toBe(600_000);
 	});
 
+	it('keeps a newer block when an older successful response lands afterwards', async () => {
+		let releaseSlowResponse = () => { };
+		const slowResponse = new Promise<void>(resolve => { releaseSlowResponse = resolve; });
+		let isFirstCall = true;
+		const fetchFn = rateLimitBackoffMiddleware({ now: () => now })(async () => {
+			calls++;
+			if (isFirstCall) {
+				isFirstCall = false;
+				await slowResponse;
+				return makeResponse(200);
+			}
+			return makeResponse(429, { 'retry-after': '120' });
+		});
+
+		// A slow success is still in flight when a second request is rate limited.
+		const inFlight = fetchFn(request);
+		await expectBlocked(fetchFn);
+		releaseSlowResponse();
+		await inFlight;
+
+		// The block established by the newer 429 must survive the older success.
+		const delayAfterSuccess = await expectBlocked(fetchFn);
+
+		expect({ delayAfterSuccess, calls }).toEqual({ delayAfterSuccess: 120_000, calls: 2 });
+	});
+
 	it('resets the backoff once a request succeeds', async () => {
 		let status = 429;
 		const fetchFn = rateLimitBackoffMiddleware({ now: () => now })(async () => {

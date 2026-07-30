@@ -50,6 +50,19 @@ suite('RemoteContentExclusion', () => {
 		mockCAPIClientService.setResponder(repos => rulesResponse(byRepo, repos));
 	}
 
+	/** Waits until the mock has recorded at least `count` requests, or gives up. */
+	async function waitForRequests(count: number): Promise<void> {
+		const deadline = Date.now() + 2000;
+		while (mockCAPIClientService.requestCount < count && Date.now() < deadline) {
+			await new Promise(resolve => setTimeout(resolve, 5));
+		}
+	}
+
+	/** Gives any scheduled batching window time to elapse and dispatch. */
+	function settleBatchWindow(): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, 250));
+	}
+
 	beforeEach(() => {
 		now = Date.UTC(2026, 0, 1);
 		mockGitService = new MockGitService();
@@ -391,6 +404,93 @@ suite('RemoteContentExclusion', () => {
 			respondWithRules({ '/workspace/repo-a': { paths: ['**/*.env'], ifAnyMatch: ['/(unclosed/'] } });
 
 			expect(await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/config.env'), CancellationToken.None)).toBe(true);
+		});
+	});
+
+	describe('picking up rule changes', () => {
+		test('re-evaluates a file once its rules expire', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({});
+
+			const file = URI.file('/workspace/repo-a/secret.ts');
+			const beforeRuleAdded = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			// The server starts excluding the file after the first verdict was memoised.
+			respondWithRules({ '/workspace/repo-a': { paths: ['**/secret.ts'] } });
+			now += 31 * 60 * 1000;
+			const afterRuleAdded = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			expect({ beforeRuleAdded, afterRuleAdded }).toEqual({ beforeRuleAdded: false, afterRuleAdded: true });
+		});
+
+		test('stops excluding a file once the server removes the last rule', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { paths: ['**/secret.ts'] } });
+
+			const file = URI.file('/workspace/repo-a/secret.ts');
+			const whileExcluded = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			// Replacing the rules with an empty set must retire the memoised exclusion.
+			respondWithRules({});
+			now += 31 * 60 * 1000;
+			const afterRuleRemoved = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			expect({ whileExcluded, afterRuleRemoved }).toEqual({ whileExcluded: true, afterRuleRemoved: false });
+		});
+
+		test('keeps memoised verdicts when a refresh returns identical rules', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { paths: ['**/secret.ts'] } });
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/secret.ts'), CancellationToken.None);
+			const other = URI.file('/workspace/repo-a/index.ts');
+			await remoteContentExclusion.isIgnored(other, CancellationToken.None);
+
+			// An unchanged refresh should not force previously computed verdicts to be recomputed.
+			now += 31 * 60 * 1000;
+			await remoteContentExclusion.isIgnored(other, CancellationToken.None);
+			mockGitService.getRepositoryFetchUrlsCallCount = 0;
+			const afterUnchangedRefresh = await remoteContentExclusion.isIgnored(other, CancellationToken.None);
+
+			expect({ afterUnchangedRefresh, gitLookups: mockGitService.getRepositoryFetchUrlsCallCount }).toEqual({ afterUnchangedRefresh: false, gitLookups: 0 });
+		});
+	});
+
+	describe('in-flight requests', () => {
+		test('joins a slow in-flight request instead of issuing a duplicate', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			mockCAPIClientService.blockRequests();
+
+			const first = remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/one.ts'), CancellationToken.None);
+			await waitForRequests(1);
+			const whileDispatched = mockCAPIClientService.requestCount;
+
+			// A second lookup for the same repo arrives while the request is still open.
+			const second = remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/two.ts'), CancellationToken.None);
+			await settleBatchWindow();
+			const afterSecondLookup = mockCAPIClientService.requestCount;
+
+			mockCAPIClientService.releaseRequests();
+			await Promise.all([first, second]);
+
+			expect({ whileDispatched, afterSecondLookup }).toEqual({ whileDispatched: 1, afterSecondLookup: 1 });
+		});
+
+		test('releases callers waiting on queued batches when disposed', async () => {
+			// More batches than the limiter runs concurrently, so some are still queued on dispose.
+			const repoRoots = Array.from({ length: 80 }, (_, i) => `/workspace/repo${i}`);
+			routeToRepos(repoRoots);
+			mockCAPIClientService.blockRequests();
+
+			const lookups = Promise.all(repoRoots.map(root => remoteContentExclusion.isIgnored(URI.file(`${root}/file.ts`), CancellationToken.None)));
+			await waitForRequests(1);
+
+			remoteContentExclusion.dispose();
+
+			// The limiter drops queued batches without running them, so their waiters must be
+			// settled by dispose or these lookups would never resolve.
+			await expect(lookups).resolves.toHaveLength(80);
+			mockCAPIClientService.releaseRequests();
 		});
 	});
 });

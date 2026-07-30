@@ -54,6 +54,8 @@ export class MockCAPIClientService {
 	readonly requestedBatches: string[][] = [];
 
 	private _responder: (repos: string[]) => Partial<Response> = () => ({});
+	private _gate: Promise<void> | undefined;
+	private _openGate: (() => void) | undefined;
 
 	private readonly _defaultResponse: Response = {
 		ok: true,
@@ -92,10 +94,26 @@ export class MockCAPIClientService {
 		this._responder = responder;
 	}
 
+	/** Holds every subsequent request open until {@link releaseRequests}, to model a slow endpoint. */
+	blockRequests(): void {
+		this._gate = new Promise<void>(resolve => { this._openGate = resolve; });
+	}
+
+	releaseRequests(): void {
+		this._openGate?.();
+		this._gate = undefined;
+		this._openGate = undefined;
+	}
+
 	makeRequest<T>(_request: FetchOptions, requestMetadata: RequestMetadata): Promise<T> {
 		const repos = 'repos' in requestMetadata ? requestMetadata.repos : [];
+		// Recorded before awaiting the gate so tests can observe requests while they are in flight.
 		this.requestedBatches.push([...repos]);
-		return Promise.resolve({ ...this._defaultResponse, ...this._responder(repos) } as unknown as T);
+		const gate = this._gate;
+		if (!gate) {
+			return Promise.resolve({ ...this._defaultResponse, ...this._responder(repos) } as unknown as T);
+		}
+		return gate.then(() => ({ ...this._defaultResponse, ...this._responder(repos) }) as unknown as T);
 	}
 }
 

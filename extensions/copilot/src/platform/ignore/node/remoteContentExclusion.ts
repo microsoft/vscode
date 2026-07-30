@@ -48,6 +48,15 @@ type CachedRules = {
 	fetchedAt: number;
 };
 
+/**
+ * A memoised {@link RemoteContentExclusion.isIgnored} result, tagged with the rule generation it
+ * was computed against so it can be discarded when the rules behind it change.
+ */
+type CachedVerdict = { verdict: boolean; generation: number };
+
+/** A repo awaiting rules, shared by every caller that asks for it while the fetch is outstanding. */
+type PendingFetch = { readonly deferred: DeferredPromise<void>; dispatched: boolean };
+
 const NON_GIT_FILE_KEY = 'non-git-file';
 
 const MINIMATCH_OPTIONS = {
@@ -76,17 +85,23 @@ export class RemoteContentExclusion implements IDisposable {
 	// Rules keyed by remote fetch url. Only ever holds successfully fetched rules, so a failed
 	// request can never be mistaken for "this repo has no exclusions".
 	private readonly _contentExclusionCache: Map<string, CachedRules> = new Map();
-	// Repos waiting to be fetched, along with the promise every caller for that repo shares.
-	private readonly _pendingRepos: Map<string, DeferredPromise<void>> = new Map();
+	// Repos waiting to be fetched, along with the promise every caller for that repo shares. Entries
+	// stay registered until their request settles, so a lookup arriving mid-flight joins it.
+	private readonly _pendingRepos: Map<string, PendingFetch> = new Map();
 	private readonly _batchLimiter: Limiter<void>;
 	private _scheduledDrain: Promise<void> | undefined;
+	private _disposed = false;
 	// Flattened, precompiled view of every glob rule so isIgnored does not recompile per call.
 	private _compiledGlobs: Minimatch[] = [];
 	private _regexRuleCount = 0;
+	// Bumped whenever the rules change, which retires every verdict memoised against them.
+	private _rulesGeneration = 0;
+	// When the soonest expiring rule set goes stale. Memoised verdicts are only trusted before this.
+	private _earliestRuleExpiry = 0;
 	// This caches the ignore results as they can be expensive to compute and a single render can request results 100s of times
-	private _ignoreGlobResultCache: ResourceMap<boolean> = new ResourceMap();
+	private _ignoreGlobResultCache: ResourceMap<CachedVerdict> = new ResourceMap();
 	// Map of the hash of file contents to the result of the regex check
-	private _ignoreRegexResultCache: Map<string, boolean> = new Map();
+	private _ignoreRegexResultCache: Map<string, CachedVerdict> = new Map();
 	// Requests go through the shared middleware stack so rate limit and server error backoff are
 	// handled the same way as every other cached CAPI-client value.
 	private readonly _fetchExclusionRules: HttpFetchFn;
@@ -118,6 +133,8 @@ export class RemoteContentExclusion implements IDisposable {
 				this._contentExclusionCache.delete(url);
 			}
 			this.rebuildCompiledRules();
+			// Dropping a repo's rules can flip verdicts that were memoised while they applied.
+			this.invalidateVerdicts();
 		}));
 
 		this._fileReadLimiter = new Limiter<string | Uint8Array>(10);
@@ -139,11 +156,9 @@ export class RemoteContentExclusion implements IDisposable {
 	}
 
 	public async isIgnored(file: URI, token: CancellationToken = CancellationToken.None): Promise<boolean> {
-		// 1. If glob is not ignored, but there is no regex we can return false as the URI will not change
-		// 2. If glob is not ignored, but there are regex we need to read file content which will happen lower in the regex code.
-		// 3. If glob is ignored, it will return true despite regex since the most restrictive exclusion takes the cake
-		if ((this._ignoreGlobResultCache.has(file) && !this.isRegexContextExclusionsEnabled) || this._ignoreGlobResultCache.get(file)) {
-			return this._ignoreGlobResultCache.get(file) ?? false;
+		const memoised = this.memoisedVerdict(file);
+		if (memoised !== undefined) {
+			return memoised;
 		}
 
 		// Try to find the repository from the cache first to avoid expensive git extension calls
@@ -171,11 +186,14 @@ export class RemoteContentExclusion implements IDisposable {
 		// Only waits on the repos this file actually belongs to, so an unrelated in-flight batch
 		// cannot block this lookup.
 		const rulesLoaded = await raceCancellationError(this.ensureRulesLoaded(repoMetadata.fetchUrls), token);
+		// Captured up front so that a refresh landing while this verdict is being computed retires
+		// it, rather than it being stored as if it reflected the newer rules.
+		const generation = this._rulesGeneration;
 
 		for (const glob of this._compiledGlobs) {
 			if (glob.match(fileName) || glob.match(file.path)) {
 				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ${glob.pattern}`);
-				this._ignoreGlobResultCache.set(file, true);
+				this._ignoreGlobResultCache.set(file, { verdict: true, generation });
 				return true;
 			}
 		}
@@ -193,8 +211,9 @@ export class RemoteContentExclusion implements IDisposable {
 						fileContents = typeof fileContentOrBuffer === 'string' ? fileContentOrBuffer : new TextDecoder().decode(fileContentOrBuffer);
 						fileContentHash = await createSha256Hash(fileContents);
 						// Cache hit for these file contents, no need to run the regex patterns
-						if (this._ignoreRegexResultCache.has(fileContentHash)) {
-							return this._ignoreRegexResultCache.get(fileContentHash) ?? false;
+						const cachedRegexVerdict = this._ignoreRegexResultCache.get(fileContentHash);
+						if (cachedRegexVerdict && cachedRegexVerdict.generation === generation) {
+							return cachedRegexVerdict.verdict;
 						}
 					} catch {
 						// We failed to read the file, so it should just be ignored as we have no idea what the contents are or if it exists
@@ -204,12 +223,12 @@ export class RemoteContentExclusion implements IDisposable {
 			}
 			if (ifAnyMatch.length > 0 && fileContents && ifAnyMatch.some(pattern => pattern.test(fileContents))) {
 				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ifAnyMatch`);
-				this._ignoreRegexResultCache.set(fileContentHash, true);
+				this._ignoreRegexResultCache.set(fileContentHash, { verdict: true, generation });
 				return true;
 			}
 			if (ifNoneMatch.length > 0 && fileContents && !ifNoneMatch.some(pattern => pattern.test(fileContents))) {
 				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ifNoneMatch`);
-				this._ignoreRegexResultCache.set(fileContentHash, true);
+				this._ignoreRegexResultCache.set(fileContentHash, { verdict: true, generation });
 				return true;
 			}
 		}
@@ -217,13 +236,31 @@ export class RemoteContentExclusion implements IDisposable {
 		// Only memoise a negative verdict once every relevant rule set has actually loaded. Caching it
 		// after a failed fetch would leave the file permanently allowed.
 		if (rulesLoaded) {
-			this._ignoreGlobResultCache.set(file, false);
+			this._ignoreGlobResultCache.set(file, { verdict: false, generation });
 			// Only meaningful when regex rules forced us to read (and hash) the file.
 			if (fileContentHash) {
-				this._ignoreRegexResultCache.set(fileContentHash, false);
+				this._ignoreRegexResultCache.set(fileContentHash, { verdict: false, generation });
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns a memoised verdict when it can still be trusted.
+	 *
+	 * A verdict is only reusable while the rules behind it are both unchanged and unexpired,
+	 * otherwise the file has to be re-evaluated so that policy changes are picked up. Skipping the
+	 * expiry check here would pin a file to its first answer forever, since a cached verdict
+	 * short-circuits the refresh that would notice new rules.
+	 */
+	private memoisedVerdict(file: URI): boolean | undefined {
+		const cached = this._ignoreGlobResultCache.get(file);
+		if (!cached || cached.generation !== this._rulesGeneration || this._now() >= this._earliestRuleExpiry) {
+			return undefined;
+		}
+		// An exclusion is the most restrictive answer, so a positive verdict stands on its own. A
+		// negative one is only final when no regex rule could still exclude the file on content.
+		return cached.verdict || !this.isRegexContextExclusionsEnabled ? cached.verdict : undefined;
 	}
 
 	/**
@@ -253,21 +290,22 @@ export class RemoteContentExclusion implements IDisposable {
 
 	public async asMinimatchPatterns() {
 		// Anything already queued must land first so callers see a complete pattern set.
-		await Promise.all([...this._pendingRepos.values()].map(deferred => deferred.p));
+		await Promise.all([...this._pendingRepos.values()].map(pending => pending.deferred.p));
 		return Array.from(this._contentExclusionCache.values()).flatMap(({ patterns }) => patterns);
 	}
 
 	public dispose() {
+		this._disposed = true;
+		// Released before the limiter is disposed: it drops queued work without ever running it, so
+		// anything still registered here would otherwise leave its callers waiting forever.
+		this.settlePending([...this._pendingRepos]);
+		this._pendingRepos.clear();
 		this._disposables.forEach(d => d.dispose());
 		this._disposables = [];
-		// Release anyone still waiting on a batch that will now never run.
-		for (const deferred of this._pendingRepos.values()) {
-			deferred.complete(undefined);
-		}
-		this._pendingRepos.clear();
 		this._contentExclusionCache.clear();
 		this._compiledGlobs = [];
 		this._regexRuleCount = 0;
+		this._earliestRuleExpiry = 0;
 	}
 
 	/**
@@ -306,15 +344,22 @@ export class RemoteContentExclusion implements IDisposable {
 		return true;
 	}
 
-	/** Registers a repo for the next batch, reusing the promise when it is already queued. */
+	/** Registers a repo for the next batch, joining an existing fetch when one is outstanding. */
 	private enqueueRepo(url: string): Promise<void> {
-		let pending = this._pendingRepos.get(url);
-		if (!pending) {
-			pending = new DeferredPromise<void>();
-			this._pendingRepos.set(url, pending);
+		const existing = this._pendingRepos.get(url);
+		if (existing) {
+			// Queued or already in flight; share that result rather than issuing a duplicate request.
+			return existing.deferred.p;
 		}
+		const pending: PendingFetch = { deferred: new DeferredPromise<void>(), dispatched: false };
+		if (this._disposed) {
+			// Nothing will ever run, so release the caller instead of leaving it waiting.
+			pending.deferred.complete(undefined);
+			return pending.deferred.p;
+		}
+		this._pendingRepos.set(url, pending);
 		this.scheduleDrain();
-		return pending.p;
+		return pending.deferred.p;
 	}
 
 	/**
@@ -332,16 +377,21 @@ export class RemoteContentExclusion implements IDisposable {
 		})();
 	}
 
-	/** Dispatches everything currently queued as batched, concurrency limited requests. */
+	/** Dispatches everything queued but not yet sent as batched, concurrency limited requests. */
 	private drainPendingRepos(): void {
-		const pending = Array.from(this._pendingRepos);
-		if (pending.length === 0) {
+		if (this._disposed) {
 			return;
 		}
-		this._pendingRepos.clear();
+		const batchable = [...this._pendingRepos].filter(([, pending]) => !pending.dispatched);
+		if (batchable.length === 0) {
+			return;
+		}
+		// Entries deliberately stay in the map until their request settles, so a lookup arriving
+		// while the request is slow joins it instead of queueing the same repo again.
+		batchable.forEach(([, pending]) => { pending.dispatched = true; });
 
-		for (let i = 0; i < pending.length; i += REPOS_PER_REQUEST) {
-			const batch = pending.slice(i, i + REPOS_PER_REQUEST);
+		for (let i = 0; i < batchable.length; i += REPOS_PER_REQUEST) {
+			const batch = batchable.slice(i, i + REPOS_PER_REQUEST);
 			this._batchLimiter.queue(() => this.fetchRulesForBatch(batch));
 		}
 	}
@@ -350,7 +400,7 @@ export class RemoteContentExclusion implements IDisposable {
 	 * Fetches one batch of repos. Rules are only cached on success, so a transient failure is retried
 	 * later rather than being remembered as "this repo has no exclusions".
 	 */
-	private async fetchRulesForBatch(batch: [string, DeferredPromise<void>][]): Promise<void> {
+	private async fetchRulesForBatch(batch: [string, PendingFetch][]): Promise<void> {
 		const repos = batch.map(([repo]) => repo);
 		const startTime = this._now();
 		try {
@@ -378,14 +428,24 @@ export class RemoteContentExclusion implements IDisposable {
 			}
 		} finally {
 			// Waiters always resume. On failure the repo stays uncached so it is fetched again later.
-			batch.forEach(([, deferred]) => deferred.complete(undefined));
+			this.settlePending(batch);
+		}
+	}
+
+	/** Releases a batch's waiters, deregistering entries that still belong to this attempt. */
+	private settlePending(batch: readonly [string, PendingFetch][]): void {
+		for (const [url, pending] of batch) {
+			if (this._pendingRepos.get(url) === pending) {
+				this._pendingRepos.delete(url);
+			}
+			pending.deferred.complete(undefined);
 		}
 	}
 
 	private applyRules(repos: string[], data: ContentExclusionResponse[], startTime: number): void {
 		const fetchedAt = this._now();
 		const loggedRules: { patterns: string[]; ifAnyMatch: string[]; ifNoneMatch: string[] }[] = [];
-		let hasNewRules = false;
+		let rulesChanged = false;
 
 		for (let i = 0; i < repos.length; i++) {
 			// A missing entry means the server reported no rules for that repo. That is still a
@@ -394,7 +454,10 @@ export class RemoteContentExclusion implements IDisposable {
 			const patterns = rules.flatMap(rule => rule.paths);
 			const ifAnyMatch = this.toRegexes(rules.flatMap(rule => rule.ifAnyMatch));
 			const ifNoneMatch = this.toRegexes(rules.flatMap(rule => rule.ifNoneMatch));
-			hasNewRules ||= patterns.length > 0 || ifAnyMatch.length > 0 || ifNoneMatch.length > 0;
+			const previous = this._contentExclusionCache.get(repos[i]);
+			// Compared against what was there before, because rules being *removed* changes verdicts
+			// just as much as rules being added.
+			rulesChanged ||= !previous || !isSameRuleSet(previous, { patterns, ifAnyMatch, ifNoneMatch });
 			this._contentExclusionCache.set(repos[i], { patterns, ifAnyMatch, ifNoneMatch, fetchedAt });
 			loggedRules.push({
 				patterns,
@@ -405,10 +468,8 @@ export class RemoteContentExclusion implements IDisposable {
 
 		this.rebuildCompiledRules();
 
-		// Memoised verdicts only need discarding when rules that could change an outcome arrived.
-		if (hasNewRules) {
-			this._ignoreGlobResultCache.clear();
-			this._ignoreRegexResultCache.clear();
+		if (rulesChanged) {
+			this.invalidateVerdicts();
 		}
 
 		const duration = this._now() - startTime;
@@ -416,11 +477,19 @@ export class RemoteContentExclusion implements IDisposable {
 		this._requestLogger.logContentExclusionRules(repos, loggedRules, duration);
 	}
 
+	/** Retires every memoised verdict, since the rules they were computed against no longer hold. */
+	private invalidateVerdicts(): void {
+		this._rulesGeneration++;
+		this._ignoreGlobResultCache.clear();
+		this._ignoreRegexResultCache.clear();
+	}
+
 	/** Rebuilds the flattened matcher list that {@link isIgnored} walks. */
 	private rebuildCompiledRules(): void {
 		const globs: Minimatch[] = [];
 		let regexRuleCount = 0;
-		for (const { patterns, ifAnyMatch, ifNoneMatch } of this._contentExclusionCache.values()) {
+		let earliestExpiry = Number.POSITIVE_INFINITY;
+		for (const { patterns, ifAnyMatch, ifNoneMatch, fetchedAt } of this._contentExclusionCache.values()) {
 			for (const pattern of patterns) {
 				try {
 					globs.push(new Minimatch(pattern, MINIMATCH_OPTIONS));
@@ -429,9 +498,13 @@ export class RemoteContentExclusion implements IDisposable {
 				}
 			}
 			regexRuleCount += ifAnyMatch.length + ifNoneMatch.length;
+			earliestExpiry = Math.min(earliestExpiry, fetchedAt + RULE_TTL_MS);
 		}
 		this._compiledGlobs = globs;
 		this._regexRuleCount = regexRuleCount;
+		// Zero while nothing is cached, which keeps memoised verdicts from being trusted before any
+		// rules have been loaded.
+		this._earliestRuleExpiry = this._contentExclusionCache.size > 0 ? earliestExpiry : 0;
 	}
 
 	/** Compiles regex rules, skipping any the server sent that cannot be parsed. */
@@ -489,10 +562,20 @@ export class RemoteContentExclusion implements IDisposable {
 	}
 }
 
+/** Compares two rule sets by content, so an unchanged refresh does not retire memoised verdicts. */
+function isSameRuleSet(a: Omit<CachedRules, 'fetchedAt'>, b: Omit<CachedRules, 'fetchedAt'>): boolean {
+	return equalStrings(a.patterns, b.patterns)
+		&& equalStrings(a.ifAnyMatch.map(String), b.ifAnyMatch.map(String))
+		&& equalStrings(a.ifNoneMatch.map(String), b.ifNoneMatch.map(String));
+}
+
+function equalStrings(a: readonly string[], b: readonly string[]): boolean {
+	return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
 /**
  * Convert a given string /pattern/flags to a RegExp object
- */
-function stringToRegex(str: string): RegExp {
+ */function stringToRegex(str: string): RegExp {
 	// Handle Regex format of `pattern` vs /pattern/
 	if (!str.startsWith('/') && !str.endsWith('/')) {
 		return new RegExp(str);

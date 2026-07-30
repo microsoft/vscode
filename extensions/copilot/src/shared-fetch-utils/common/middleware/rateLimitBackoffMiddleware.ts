@@ -49,8 +49,13 @@ export function rateLimitBackoffMiddleware(options?: RateLimitBackoffOptions): F
 		const response = await next(request);
 
 		if (!isRateLimited(response.status, response.headers)) {
-			consecutiveRateLimits = 0;
-			blockedUntil = 0;
+			// A response that was already in flight when a concurrent request hit a rate limit must
+			// not clear that newer block, otherwise later calls reach the server during the window
+			// the server asked us to wait out.
+			if (now() >= blockedUntil) {
+				consecutiveRateLimits = 0;
+				blockedUntil = 0;
+			}
 			return response;
 		}
 
