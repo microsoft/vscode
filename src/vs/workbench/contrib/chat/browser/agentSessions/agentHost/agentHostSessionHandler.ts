@@ -99,7 +99,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -678,6 +678,17 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 export interface IAgentHostSessionHandlerConfig {
 	readonly provider: AgentProvider;
+	/**
+	 * The URI scheme the host addresses sessions under, when it differs from
+	 * {@link provider}. Defaults to {@link provider}.
+	 *
+	 * Session URIs are client-chosen. For agents core spawns, core picks the URI and
+	 * uses the provider as the scheme. For sessions core *joins* rather than creates
+	 * (cloud sandbox, where Mission Control created the session as `ahp-session:/<id>`),
+	 * the creator's scheme must be used because the host's registry is keyed by the
+	 * exact URI — while the UI still routes the session to the `copilot` provider.
+	 */
+	readonly backendSessionScheme?: string;
 	readonly agentId: string;
 	readonly sessionType: string;
 	readonly fullName: string;
@@ -2356,6 +2367,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
 					&& lastUsage.copilotCredits === usage.copilotCredits
+					// The session total moves independently of this turn's own cost —
+					// it also covers work billed while no turn was active — so it has
+					// to be compared, or a session-cost update would be dropped here.
+					&& lastUsage.sessionCopilotCredits === usage.sessionCopilotCredits
 					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
 					return;
 				}
@@ -3284,6 +3299,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			carousel.data = carouselAnswers ?? {};
 			carousel.isUsed = true;
 			carousel.answeredExternally = part.response === ChatInputResponseKind.Accept && !carouselAnswers;
+			carousel.autoReply = containsAutomaticReplyAnswer(protocolAnswers);
+			carousel.answeredExternally ||= carousel.autoReply;
 			carousel.draftAnswers = undefined;
 			carousel.draftCurrentIndex = undefined;
 			carousel.draftCollapsed = undefined;
@@ -3997,7 +4014,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Maps a UI session resource to a backend provider URI. */
 	private _resolveSessionUri(sessionResource: URI): URI {
 		const rawId = sessionResource.path.substring(1);
-		return AgentSession.uri(this._config.provider, rawId);
+		return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {

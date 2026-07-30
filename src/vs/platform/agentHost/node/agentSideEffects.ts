@@ -1128,6 +1128,7 @@ export class AgentSideEffects extends Disposable {
 			permissionPath: e.permissionPath,
 			toolInput: e.state.toolInput,
 			requestSandboxBypass: e.requestSandboxBypass,
+			shellLanguage: e.shellLanguage,
 		};
 		const autoApproval = e.managedApprovalRequired
 			? undefined
@@ -1587,7 +1588,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const state = this._stateManager.getSessionState(session);
-		if (!state?.queuedMessages?.length) {
+		if (!state?.queuedMessages?.length || state.steeringMessage) {
 			return;
 		}
 

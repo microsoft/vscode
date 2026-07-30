@@ -171,15 +171,7 @@
 	outline: none;
 }
 
-/* A lone microphone is stated rather than offered. */
-.dictation-onboarding-picker-label {
-	overflow: hidden;
-	min-width: 0;
-	font-size: var(--vscode-fontSize-label2);
-	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
+
 
 /* --- Waveform --- */
 

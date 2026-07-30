@@ -264,13 +264,13 @@ class Editor extends Disposable {
 		// Forward user edits to the extension. Edits are ignored by the model while
 		// read-only, so this is a no-op in that mode; keeping it always registered
 		// means unlocking a read-only editor immediately resumes edit forwarding.
-		let firstTime = true;
+		let previousText = this.model.sourceText.get().value;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
-			if (!this.isUpdatingFromExtension && !firstTime) {
-				this.#vscode.postMessage({ type: 'edit', content: text });
+			if (!this.isUpdatingFromExtension && text !== previousText) {
+				this.#vscode.postMessage({ type: 'edit', ...computeTextEdit(previousText, text) });
 			}
-			firstTime = false;
+			previousText = text;
 		}));
 
 		// Restore scroll last: content height settles over a few frames (async parse,
@@ -300,6 +300,26 @@ class Editor extends Disposable {
 		};
 		requestAnimationFrame(apply);
 	}
+}
+
+function computeTextEdit(previousText: string, text: string): { start: number; endExclusive: number; text: string } {
+	let start = 0;
+	while (start < previousText.length && start < text.length && previousText.charCodeAt(start) === text.charCodeAt(start)) {
+		start++;
+	}
+
+	let previousEnd = previousText.length;
+	let end = text.length;
+	while (previousEnd > start && end > start && previousText.charCodeAt(previousEnd - 1) === text.charCodeAt(end - 1)) {
+		previousEnd--;
+		end--;
+	}
+
+	return {
+		start,
+		endExclusive: previousEnd,
+		text: text.slice(start, end),
+	};
 }
 
 new Editor(document.getElementById('editor')!);

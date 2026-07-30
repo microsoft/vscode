@@ -166,7 +166,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		try {
-			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, globs);
+			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, worktree, globs);
 			if (worktreeIncludePaths.length === 0) {
 				return;
 			}
@@ -417,7 +417,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	/**
 	 * Resolves the git-ignored paths to copy into a worktree.
 	 */
-	private async _getWorktreeIncludePaths(repositoryRoot: URI, globs: readonly string[]): Promise<IWorktreeIncludeEntry[]> {
+	private async _getWorktreeIncludePaths(repositoryRoot: URI, worktreeRoot: URI, globs: readonly string[]): Promise<IWorktreeIncludeEntry[]> {
 		if (globs.length === 0) {
 			return [];
 		}
@@ -433,9 +433,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// entry. It is enumerated in parallel and used below to copy such
 		// directories as one recursive unit rather than file-by-file.
 		const baseArgs = ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'];
-		const [filesOutput, directoryOutput] = await Promise.all([
-			this._runGit(repositoryRoot, baseArgs, { timeout: 30_000 }),
-			this._runGit(repositoryRoot, [...baseArgs, '--directory', '--no-empty-directory'], { timeout: 30_000 }),
+		const [filesOutput, directoryOutput, worktreeOutput] = await Promise.all([
+			this._runGit(repositoryRoot, baseArgs, { timeout: 60_000 }),
+			this._runGit(repositoryRoot, [...baseArgs, '--directory', '--no-empty-directory'], { timeout: 60_000 }),
+			this._runGit(worktreeRoot, ['ls-files', '-z'], { timeout: 60_000 }),
 		]);
 		if (!filesOutput) {
 			return [];
@@ -450,7 +451,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// Keep only the ignored files that match one of the configured
 		// `git.worktreeIncludeFiles` glob patterns (VS Code glob semantics),
 		// and — in the same pass — tally which wholly-ignored directories
-		// contain an *unmatched* ignored file (and therefore cannot be
+		// contain an ignored file that cannot be copied (and therefore cannot be
 		// collapsed). `git ls-files --directory` reports a wholly-ignored
 		// directory as a single `dir/` entry and never nests these entries
 		// (it stops descending once a directory is wholly ignored), so each
@@ -459,11 +460,28 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const matchers = globs.map(pattern => parse(pattern));
 		const wholeDirectories = new Set((directoryOutput ?? '')
 			.split('\x00').filter(entry => entry.endsWith('/')));
+		const worktreeFiles = new Set((worktreeOutput ?? '')
+			.split('\x00').filter(entry => entry.length > 0));
+
+		// Every ancestor directory of a tracked path, with the trailing `/` used
+		// by `git ls-files --directory`, so a source path can be checked against
+		// the shape (file vs directory) of its destination.
+		const worktreeDirectories = new Set<string>();
+		for (const file of worktreeFiles) {
+			let index = file.indexOf('/');
+			while (index !== -1) {
+				worktreeDirectories.add(file.slice(0, index + 1));
+				index = file.indexOf('/', index + 1);
+			}
+		}
 
 		const matchedFiles: string[] = [];
 		const nonCollapsibleDirectories = new Set<string>();
 		for (const file of ignoredFiles) {
-			if (matchers.some(matcher => matcher(file))) {
+			if (
+				matchers.some(matcher => matcher(file)) &&
+				!hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)
+			) {
 				matchedFiles.push(file);
 			} else if (wholeDirectories.size > 0) {
 				const containingDirectory = findContainingDirectory(file, wholeDirectories);
@@ -472,6 +490,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 			}
 		}
+
 		if (matchedFiles.length === 0) {
 			return [];
 		}
@@ -926,6 +945,31 @@ function findContainingDirectory(file: string, directories: ReadonlySet<string>)
 		index = file.indexOf('/', index + 1);
 	}
 	return undefined;
+}
+
+/**
+ * Returns whether copying a source path would overwrite a tracked worktree path
+ * or conflict with the file/directory shape of its destination. `file` and both
+ * sets use repository-relative, forward-slash paths, with `worktreeDirectories`
+ * entries carrying a trailing `/`.
+ */
+function hasWorktreePathCollision(file: string, worktreeFiles: ReadonlySet<string>, worktreeDirectories: ReadonlySet<string>): boolean {
+	// The destination is a tracked file, which the copy would overwrite, or a
+	// tracked directory, which a file cannot take the place of.
+	if (worktreeFiles.has(file) || worktreeDirectories.has(`${file}/`)) {
+		return true;
+	}
+
+	// An ancestor of the destination is a tracked file, so the directories
+	// leading up to it cannot be created.
+	let index = file.indexOf('/');
+	while (index !== -1) {
+		if (worktreeFiles.has(file.slice(0, index))) {
+			return true;
+		}
+		index = file.indexOf('/', index + 1);
+	}
+	return false;
 }
 
 /**

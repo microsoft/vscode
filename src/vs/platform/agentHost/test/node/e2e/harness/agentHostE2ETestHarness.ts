@@ -180,12 +180,12 @@ const POSIX_COMMAND_EXCEPTIONS = new Set<string>([]);
  * `harness/modelRequestProjection.ts`.
  */
 const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
-	// Re-recording drives a real provider-context fork, which Claude rejects
-	// with "Invalid upToMessageId: turn-source" — the same defect that gates
-	// `supportsChatForkE2E`. The capture predates the host's
-	// `<side-chat-context>` preamble and cannot be refreshed until that is
-	// fixed. Claude only: the other providers fork fine and their captures are
-	// current.
+	// Re-recording anchors a side chat on a source turn, which hits the same
+	// anchor-resolution defect that gates `supportsChatForkE2E`: Claude cannot
+	// resolve a client-assigned turn id, so the fork silently degrades to an
+	// injected context preamble. The capture predates that preamble and cannot
+	// be refreshed until the defect is fixed. Claude only: the other providers
+	// fork fine and their captures are current.
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
@@ -315,20 +315,27 @@ export interface IAgentHostE2EProviderConfig {
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
 	/**
-	 * Gates the whole "new scenario" family of model-backed tests — the file,
-	 * shell, and multi-turn scenarios added after the original suite.
+	 * Whether this provider offers file-reading/writing tools of its own.
 	 *
-	 * Set this to `false` only while a provider genuinely cannot run them. Note
-	 * that it currently conflates two different states, and a provider that
-	 * needs it should say which one applies:
+	 * Scenarios whose prompt steers the agent to its file tools ("Use your file
+	 * tools; do not run a shell command.") cannot be satisfied by a provider
+	 * that only has a shell: it refuses the operation rather than falling back.
+	 * Codex is the current example — its captures contain only `exec_command`.
 	 *
-	 * - a fixture exists but the provider replays it unstably, and
-	 * - no fixture was ever recorded, in which case the test cannot be re-enabled
-	 *   by flipping this flag alone — recording has to succeed first.
-	 *
-	 * See `KNOWN_ISSUES.md` for the current per-test state.
+	 * Scenarios that pin a portable shell command instead are unaffected.
 	 */
-	readonly stableNewScenarioResponse: boolean;
+	readonly supportsFileTools: boolean;
+	/**
+	 * Whether this provider's file-manipulation scenarios replay stably when the
+	 * whole suite shares one server.
+	 *
+	 * A provider without file tools performs each of them through its shell, and
+	 * several such turns on one long-lived server hit the shared-server load
+	 * ceiling: the tool-call completion is reported inconsistently and the
+	 * failing scenario moves between runs. Individually they replay fine, so
+	 * this gates the family rather than any single test.
+	 */
+	readonly stableSharedServerFileScenarios?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -785,6 +792,23 @@ export class AgentHostE2EServerLease {
 		);
 		await this._client.connect();
 		return { server: this._server, client: this._client };
+	}
+
+	/**
+	 * Open an additional connection to the current server.
+	 *
+	 * `reconnect` is only answerable on a transport that has not completed the
+	 * handshake, so a test that exercises connection recovery needs a second
+	 * socket it can close and re-establish without disturbing the shared
+	 * client. The caller owns the returned client and must close it.
+	 */
+	async connectClient(): Promise<TestProtocolClient> {
+		if (!this._server) {
+			throw new Error('[agent-host-e2e] no server acquired yet');
+		}
+		const client = new TestProtocolClient(this._server.port);
+		await client.connect();
+		return client;
 	}
 
 	/** Stop the current shared server so the next {@link acquire} starts a fresh one. */
