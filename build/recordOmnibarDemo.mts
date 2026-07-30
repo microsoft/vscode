@@ -18,7 +18,9 @@ import { chromium } from 'playwright';
 import { mkdir, readdir, rename, rm } from 'fs/promises';
 import path from 'path';
 
-const FIXTURE = 'voice%2FomnibarDemo%2FomnibarDemo%2FDemo%2FDark';
+const FIXTURE = process.env.OMNIBAR_THEME === 'light'
+	? 'voice%2FomnibarDemo%2FomnibarDemo%2FDemo%2FLight'
+	: 'voice%2FomnibarDemo%2FomnibarDemo%2FDemo%2FDark';
 const URL = `http://localhost:5123/___explorer?fixture=${FIXTURE}&mode=embedded`;
 
 /** One full pass of the script, plus a little lead-in and tail. */

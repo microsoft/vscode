@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, disposableWindowInterval, getWindow } from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import '../../../../base/browser/ui/codicons/codiconStyles.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IBorderBeamOptions } from '../../../contrib/chat/browser/voiceClient/borderBeam/borderBeamElement.js';
 import { enableAnimations, replaceBeam } from './beamFixtureUtils.js';
@@ -30,6 +35,23 @@ const OCEAN_BASE_HUE = 250;
 const LISTENING_HUE = 212;
 /** Speaking / assistant — purple, rgb(163,113,247). */
 const SPEAKING_HUE = 262;
+
+/**
+ * Session status, mirroring `SessionStatus` and the icons/colours
+ * `SessionsListModelService.getStatusIcon` resolves for each one, so the demo
+ * reads exactly like the sessions list does.
+ */
+const SESSION_STATUS = {
+	inProgress: { icon: Codicon.sessionInProgress, color: 'textLink.foreground', label: 'Working' },
+	needsInput: { icon: Codicon.circleFilled, color: 'list.warningForeground', label: 'Needs input' },
+	completed: { icon: Codicon.passFilled, color: 'agentSessionReadIndicator.foreground', label: 'Done' },
+	error: { icon: Codicon.error, color: 'errorForeground', label: 'Failed' },
+} as const;
+
+type SessionStatusKey = keyof typeof SESSION_STATUS;
+
+/** The workspace the command center is scoped to, as the real one shows it. */
+const WORKSPACE_NAME = 'portfolio-site';
 
 const SURFACE_WIDTH = 560;
 const SURFACE_RADIUS = 14;
@@ -96,10 +118,11 @@ interface Beat {
 	/** Text in the input row. `type: true` reveals it a character at a time. */
 	readonly text?: string;
 	readonly type?: boolean;
-	readonly placeholder?: string;
-	/** Leading status glyph — only when there is something to say. */
-	readonly glyph?: string;
-	/** Leading glyph spins, for processing states. */
+	/** Leading status icon — only when there is something to say. */
+	readonly icon?: ThemeIcon;
+	/** Theme colour id for the leading icon. */
+	readonly iconColor?: string;
+	/** Leading icon spins, for processing states. */
 	readonly spin?: boolean;
 	readonly pill?: { readonly label: string; readonly tone: 'listening' | 'speaking' | 'alert' | 'busy' };
 	readonly body?: Body;
@@ -120,7 +143,7 @@ const SCRIPT: readonly Beat[] = [
 	},
 	{
 		note: 'The beam travels while it parses \u2014 motion with direction reads as work.',
-		ms: 1800, glow: 'thinking', text: TYPED, glyph: '\u25CC', spin: true,
+		ms: 1800, glow: 'thinking', text: TYPED, icon: Codicon.loading, spin: true,
 		pill: { label: 'Thinking', tone: 'busy' },
 	},
 	{
@@ -129,11 +152,11 @@ const SCRIPT: readonly Beat[] = [
 	},
 	{
 		note: 'Safe and reversible, so it just runs \u2014 the beam turns accent while it acts.',
-		ms: 1500, glow: 'working', text: 'Applying Red Velvet\u2026', glyph: '\u25CC', spin: true,
+		ms: 1500, glow: 'working', text: 'Applying Red Velvet\u2026', icon: Codicon.loading, spin: true,
 	},
 	{
 		note: 'Done.',
-		ms: 1500, glow: 'rest', text: 'Theme changed to Red Velvet', glyph: '\u2713',
+		ms: 1500, glow: 'rest', text: 'Theme changed to Red Velvet', icon: Codicon.check, iconColor: 'notificationsInfoIcon.foreground',
 	},
 	{
 		note: 'The same surface takes voice \u2014 the glow turns blue while it listens.',
@@ -142,7 +165,7 @@ const SCRIPT: readonly Beat[] = [
 	},
 	{
 		note: '\u201Cthe website\u201D is ambiguous, so it scans your sessions for a match.',
-		ms: 1900, glow: 'matching', text: SPOKEN, glyph: '\u25CC', spin: true,
+		ms: 1900, glow: 'matching', text: SPOKEN, icon: Codicon.loading, spin: true,
 		pill: { label: 'Matching', tone: 'busy' }, body: { kind: 'scanning' },
 	},
 	{
@@ -151,12 +174,12 @@ const SCRIPT: readonly Beat[] = [
 	},
 	{
 		note: 'Confirmed \u2014 the request goes to that session.',
-		ms: 1600, glow: 'rest', text: 'Sent to portfolio-site', glyph: '\u2713',
+		ms: 1600, glow: 'rest', text: `Sent to ${WORKSPACE_NAME}`, icon: Codicon.check, iconColor: 'notificationsInfoIcon.foreground',
 	},
 	{
 		note: 'Meanwhile another session gets blocked and says so.',
-		ms: 3000, glow: 'alert', placeholder: 'Ask anything, or start a new session\u2026',
-		pill: { label: 'Fix login bug needs input', tone: 'alert' },
+		ms: 3000, glow: 'alert',
+		pill: { label: 'api-gateway needs input', tone: 'alert' },
 	},
 	{
 		note: 'It reads the question aloud and opens the mic for your answer.',
@@ -231,7 +254,8 @@ const CSS = `
 	font-size: 12px;
 	opacity: .75;
 }
-.omnibar-glyph[data-spin] { animation: omnibar-spin 1.1s linear infinite; }
+.omnibar-glyph .codicon { font-size: 14px; }
+.omnibar-glyph[data-spin] .codicon { animation: omnibar-spin 1.1s linear infinite; }
 @keyframes omnibar-spin { to { transform: rotate(360deg); } }
 
 .omnibar-text {
@@ -244,6 +268,10 @@ const CSS = `
 	text-overflow: ellipsis;
 }
 .omnibar-text[data-placeholder] { color: var(--vscode-input-placeholderForeground); }
+/* At rest: workspace name, dot separator, prompt — as the real command center reads. */
+.omnibar-scope { color: var(--vscode-foreground); opacity: .85; }
+.omnibar-sep { display: inline-flex; align-items: center; padding: 0 7px; opacity: .35; font-size: 10px; }
+.omnibar-prompt { opacity: .85; }
 .omnibar-caret {
 	display: inline-block;
 	width: 1px;
@@ -264,9 +292,9 @@ const CSS = `
 	height: 26px;
 	border-radius: 8px;
 	color: var(--vscode-icon-foreground);
-	font-size: 13px;
 	opacity: .85;
 }
+.omnibar-mic .codicon { font-size: 15px; }
 .omnibar-pill {
 	flex: 0 0 auto;
 	display: flex;
@@ -340,18 +368,9 @@ const CSS = `
 .omnibar-row[data-selected] .omnibar-row-hint,
 .omnibar-row[data-selected] .omnibar-row-glyph { opacity: .8; }
 
-/* Session status dots */
-.omnibar-status {
-	display: block;
-	width: 7px;
-	height: 7px;
-	margin: 0 auto;
-	border-radius: 50%;
-	background: currentColor;
-	opacity: .45;
-}
-.omnibar-status[data-state="blocked"] { background: var(--vscode-notificationsWarningIcon-foreground); opacity: 1; }
-.omnibar-status[data-state="running"] { background: rgb(88, 166, 255); opacity: 1; animation: omnibar-breathe 1.9s ease-in-out infinite; }
+/* Session status icons carry their own theme colour, so they stay full strength. */
+.omnibar-row-glyph .codicon { font-size: 14px; }
+.omnibar-row-glyph[data-pulse] { animation: omnibar-breathe 1.9s ease-in-out infinite; }
 
 /* Scanning — sessions being considered for a match */
 .omnibar-scan-bar {
@@ -417,20 +436,25 @@ const CSS = `
 // Body content
 // ============================================================================
 
-function row(glyph: HTMLElement | string, label: string, hint?: string, selected?: boolean): HTMLElement {
+/** A themed codicon, coloured from a theme token the way the product does. */
+function icon(themeIcon: ThemeIcon, colorId?: string): HTMLElement {
+	const el = renderIcon(themeIcon);
+	if (colorId) {
+		el.style.color = asCssVariable(colorId);
+	}
+	return el;
+}
+
+function row(glyph: HTMLElement, label: string, hint?: string, selected?: boolean): HTMLElement {
 	const el = $('.omnibar-row');
 	if (selected) {
 		el.setAttribute('data-selected', '');
 	}
 	const holder = $('span.omnibar-row-glyph');
-	if (typeof glyph === 'string') {
-		holder.textContent = glyph;
-	} else {
-		holder.appendChild(glyph);
-	}
-	const label_ = $('span.omnibar-row-label');
-	label_.textContent = label;
-	el.append(holder, label_);
+	holder.appendChild(glyph);
+	const labelEl = $('span.omnibar-row-label');
+	labelEl.textContent = label;
+	el.append(holder, labelEl);
 	if (hint) {
 		const h = $('span.omnibar-row-hint');
 		h.textContent = hint;
@@ -439,10 +463,16 @@ function row(glyph: HTMLElement | string, label: string, hint?: string, selected
 	return el;
 }
 
-function statusDot(state: 'blocked' | 'running'): HTMLElement {
-	const dot = $('span.omnibar-status');
-	dot.setAttribute('data-state', state);
-	return dot;
+/** A session row, using the same icon + colour the sessions list resolves. */
+function sessionRow(name: string, status: SessionStatusKey, hint?: string): HTMLElement {
+	const { icon: themeIcon, color, label } = SESSION_STATUS[status];
+	const el = row(icon(themeIcon, color), name, hint ?? label);
+	if (status === 'needsInput') {
+		// The sessions list pulses needs-input so a blocked session is findable
+		// without reading every row.
+		el.querySelector('.omnibar-row-glyph')?.setAttribute('data-pulse', '');
+	}
+	return el;
 }
 
 function group(label: string): HTMLElement {
@@ -468,12 +498,13 @@ function buildBody(body: Body, beatProgress: number): HTMLElement | undefined {
 
 	if (body.kind === 'commandCenter') {
 		inner.append(
-			group('Recent'),
-			row('\u21BB', 'Change the theme to Red Velvet', 'Preferences: Color Theme'),
-			row('\u21BB', 'Run the build task', 'Tasks: Run Build Task'),
-			group('Sessions'),
-			row(statusDot('blocked'), 'portfolio-site', 'needs input'),
-			row(statusDot('running'), 'api-gateway', 'running'),
+			group('Recently used'),
+			row(icon(Codicon.history), 'Change the theme to Red Velvet', 'Preferences: Color Theme'),
+			row(icon(Codicon.history), 'Run the build task', 'Tasks: Run Build Task'),
+			group('Agent sessions'),
+			sessionRow('portfolio-site', 'inProgress'),
+			sessionRow('api-gateway', 'needsInput'),
+			sessionRow('docs-site', 'completed'),
 		);
 		return stagger(inner);
 	}
@@ -482,14 +513,14 @@ function buildBody(body: Body, beatProgress: number): HTMLElement | undefined {
 		inner.append(
 			group('Matching sessions'),
 			$('.omnibar-scan-bar'),
-			row(statusDot('running'), 'portfolio-site', 'eli/portfolio'),
-			row(statusDot('running'), 'api-gateway', 'eli/api'),
+			sessionRow('portfolio-site', 'inProgress', 'eli/portfolio'),
+			sessionRow('api-gateway', 'needsInput', 'eli/api'),
 		);
 		return stagger(inner);
 	}
 
 	if (body.kind === 'resolved') {
-		inner.append(group('Run'), row('\u2318', body.label, 'Enter', true));
+		inner.append(group('Run'), row(icon(Codicon.gear), body.label, 'Enter', true));
 		return stagger(inner);
 	}
 
@@ -603,9 +634,9 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 	const paintInput = (beat: Beat, progress: number) => {
 		inputRow.textContent = '';
 
-		if (beat.glyph) {
+		if (beat.icon) {
 			const glyph = $('span.omnibar-glyph');
-			glyph.textContent = beat.glyph;
+			glyph.appendChild(icon(beat.icon, beat.iconColor));
 			if (beat.spin) {
 				glyph.setAttribute('data-spin', '');
 			}
@@ -620,7 +651,15 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 			const shown = beat.type ? full.slice(0, Math.ceil(Math.min(1, progress / 0.7) * full.length)) : full;
 			text.textContent = shown;
 		} else {
-			text.textContent = beat.placeholder ?? 'Ask anything, or start a new session\u2026';
+			// Empty, like the real command center: the workspace it is scoped to,
+			// a dot separator, then the prompt.
+			const scope = $('span.omnibar-scope');
+			scope.textContent = WORKSPACE_NAME;
+			const sep = $('span.omnibar-sep');
+			sep.appendChild(renderIcon(Codicon.circleSmallFilled));
+			const prompt = $('span.omnibar-prompt');
+			prompt.textContent = 'Ask anything, or run a command\u2026';
+			text.append(scope, sep, prompt);
 			text.setAttribute('data-placeholder', '');
 		}
 		if (beat.caret) {
@@ -638,9 +677,13 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 			inputRow.appendChild(pill);
 		}
 
-		const mic = $('span.omnibar-mic');
-		mic.textContent = '\u25CF';
-		inputRow.appendChild(mic);
+		// Mic while idle/listening; send once there is something to submit.
+		const trailing = $('span.omnibar-mic');
+		const isVoice = beat.pill?.tone === 'listening' || beat.pill?.tone === 'speaking';
+		trailing.appendChild(renderIcon(
+			beat.type && !isVoice ? Codicon.send : isVoice ? Codicon.micFilled : Codicon.mic
+		));
+		inputRow.appendChild(trailing);
 	};
 
 	/** Swaps the lower half and animates the surface to its new height. */
