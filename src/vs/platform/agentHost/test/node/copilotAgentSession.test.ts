@@ -23,6 +23,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -7751,7 +7752,7 @@ suite('CopilotAgentSession', () => {
 					telemetryEndpoint: 'https://telemetry.example',
 				},
 			});
-			session.resetTurnState('turn-auto');
+			session.resetTurnState('turn-auto', undefined, AgentHostClientType.AgentsWindow);
 
 			mockSession.fire('session.auto_mode_resolved', {
 				chosenModel: 'subagent-model',
@@ -7771,6 +7772,7 @@ suite('CopilotAgentSession', () => {
 					properties: {
 						conversationId: 'test-session-1',
 						vscodeRequestId: 'turn-auto',
+						initiatorClientType: 'agents_window',
 						predictedLabel: 'needs_reasoning',
 						candidateModel: 'gpt-5',
 						chosenModel: 'gpt-5',
@@ -7813,7 +7815,7 @@ suite('CopilotAgentSession', () => {
 
 			mockSession.fire('assistant.turn_start', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
 			mockSession.fire('assistant.turn_end', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
-			session.resetTurnState('request-1');
+			session.resetTurnState('request-1', undefined, AgentHostClientType.EditorWindow);
 			mockSession.fire('assistant.turn_start', { turnId: 'root-round-1' });
 			await timeout(0);
 			mockSession.fire('assistant.turn_end', { turnId: 'root-round-1' });
@@ -7824,11 +7826,11 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(telemetryService.events
 				.filter(event => event.eventName === 'request.repoInfo')
-				.map(event => ({ destination: event.destination, location: event.properties?.location, telemetryMessageId: event.properties?.telemetryMessageId, result: event.properties?.result })), [
-				{ destination: 'enhanced', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'internal', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'enhanced', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'internal', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+				.map(event => ({ destination: event.destination, initiatorClientType: event.properties?.initiatorClientType, location: event.properties?.location, telemetryMessageId: event.properties?.telemetryMessageId, result: event.properties?.result })), [
+				{ destination: 'enhanced', initiatorClientType: 'editor_window', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', initiatorClientType: 'editor_window', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'enhanced', initiatorClientType: 'editor_window', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', initiatorClientType: 'editor_window', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
 			]);
 		});
 
