@@ -156,6 +156,16 @@ export namespace ChatContextKeys {
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', undefined, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
+	/**
+	 * Whether the agent session item has an associated pull request.
+	 *
+	 * Deliberately tri-state rather than boolean: the key is left unset when the session's pull
+	 * request state is unknown (including on VS Code versions that predate this key), so `when`
+	 * clauses should gate with `chatSessionPullRequest != 'none'` — "show unless we positively
+	 * know there is no pull request" — instead of a truthiness check that would also hide the
+	 * contribution wherever the state is simply unknown.
+	 */
+	export const agentSessionPullRequest = new RawContextKey<string>('chatSessionPullRequest', '', { type: 'string', description: localize('agentSessionPullRequest', "Whether the current agent session item has an associated pull request: 'available' or 'none'. Unset when the pull request state is unknown.") });
 	export const chatSessionSupportsDelegation = new RawContextKey<boolean>('chatSessionSupportsDelegation', true, { type: 'boolean', description: localize('chatSessionSupportsDelegation', "True when the current session type supports delegation.") });
 	export const hasPendingDelegationTarget = new RawContextKey<boolean>('chatHasPendingDelegationTarget', false, { type: 'boolean', description: localize('chatHasPendingDelegationTarget', "True when a delegation (continue in) target is selected but the request has not been submitted yet.") });
 	export const chatSessionSupportsFork = new RawContextKey<boolean>('chatSessionSupportsFork', false, { type: 'boolean', description: localize('chatSessionSupportsFork', "True when the current chat session provider supports forking conversations.") });

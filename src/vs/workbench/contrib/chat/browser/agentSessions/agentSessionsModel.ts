@@ -152,6 +152,44 @@ export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === AgentSessionProviders.Local;
 }
 
+/**
+ * Resolves the pull request associated with an agent session from its provider metadata,
+ * preferring an explicit `pullRequestUrl` and falling back to `pullRequestNumber` combined
+ * with `owner`/`name`. Returns `undefined` when the session has no associated pull request.
+ */
+export function getAgentSessionPullRequestUri(session: Pick<IAgentSession, 'metadata'>): URI | undefined {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return undefined;
+	}
+
+	const url = metadata.pullRequestUrl;
+	if (typeof url === 'string' && url) {
+		try {
+			return URI.parse(url);
+		} catch {
+			// Fall through to the number based lookup below.
+		}
+	}
+
+	const prNumber = metadata.pullRequestNumber;
+	const owner = metadata.owner;
+	const name = metadata.name;
+	if (typeof prNumber === 'number' && typeof owner === 'string' && typeof name === 'string') {
+		return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
+	}
+
+	return undefined;
+}
+
+/**
+ * The value for the `chatSessionPullRequest` context key for a session. Never returns an
+ * "unknown" value: callers here always have the session's metadata in hand.
+ */
+export function getAgentSessionPullRequestContextValue(session: Pick<IAgentSession, 'metadata'>): 'available' | 'none' {
+	return getAgentSessionPullRequestUri(session) ? 'available' : 'none';
+}
+
 export function isAgentHostAgentSessionItem(session: IAgentSession): boolean {
 	return isAgentHostTarget(session.providerType);
 }
