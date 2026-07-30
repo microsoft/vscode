@@ -19,6 +19,8 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatMode } from '../../common/chatModes.js';
@@ -80,6 +82,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -203,6 +206,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		}));
 		this._trail = trail;
+
+		// While either party is speaking there is no turn for you to submit, so
+		// the arrow recedes rather than inviting a press it would not honour.
+		this._windowDisposables.add(autorun(reader => {
+			const state = this.voiceSessionController.voiceState.read(reader);
+			const engaged = state === 'listening' || state === 'speaking';
+			auxiliaryWindow.container.setAttribute('data-voice', engaged ? 'active' : 'idle');
+		}));
 
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
