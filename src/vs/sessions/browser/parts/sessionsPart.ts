@@ -93,6 +93,12 @@ export class SessionsPart extends Part {
 	private readonly _sessionsFocusKey: IContextKey<boolean>;
 
 	/**
+	 * Whether the part itself is visible in the workbench grid. Starts `true`
+	 * because the workbench grid only calls {@link setVisible} on change.
+	 */
+	private _isPartVisible = true;
+
+	/**
 	 * Whether the session type ("harness") picker should be rendered below the
 	 * input (in the controls) instead of next to the workspace picker. Backed
 	 * by the {@link HARNESS_PICKER_IN_CONTROLS_TREATMENT} A/B experiment, which
@@ -381,6 +387,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		view.setPartVisible(this._isPartVisible);
 		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
@@ -413,6 +420,18 @@ export class SessionsPart extends Part {
 		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
 
 		this._gridWidget?.style({ separatorBorder: this._gridSeparatorBorder });
+	}
+
+	override setVisible(visible: boolean): void {
+		if (this._isPartVisible !== visible) {
+			// Update before `super`, whose event re-enters this method.
+			this._isPartVisible = visible;
+			for (const slot of this._slots) {
+				slot.view.setPartVisible(visible);
+			}
+		}
+
+		super.setVisible(visible);
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
