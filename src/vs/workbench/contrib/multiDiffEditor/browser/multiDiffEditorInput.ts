@@ -191,17 +191,31 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 			const multiDiffItemStore = new DisposableStore();
 
-			try {
-				[original, modified] = await Promise.all([
-					r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
-					r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
-				]);
+			const [originalResult, modifiedResult] = await Promise.allSettled([
+				r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
+				r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
+			]);
+
+			if (originalResult.status === 'fulfilled') {
+				original = originalResult.value;
 				if (original) { multiDiffItemStore.add(original); }
+			}
+			if (modifiedResult.status === 'fulfilled') {
+				modified = modifiedResult.value;
 				if (modified) { multiDiffItemStore.add(modified); }
-			} catch (e) {
+			}
+
+			if (store.isDisposed) {
+				multiDiffItemStore.dispose();
+				return undefined;
+			}
+
+			const errorResult = originalResult.status === 'rejected' ? originalResult : modifiedResult.status === 'rejected' ? modifiedResult : undefined;
+			if (errorResult) {
+				multiDiffItemStore.dispose();
 				// e.g. "File seems to be binary and cannot be opened as text"
-				console.error(e);
-				onUnexpectedError(e);
+				console.error(errorResult.reason);
+				onUnexpectedError(errorResult.reason);
 				return undefined;
 			}
 
