@@ -190,10 +190,11 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
 
 			const multiDiffItemStore = new DisposableStore();
+			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
 
 			const [originalResult, modifiedResult] = await Promise.allSettled([
-				r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
-				r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
+				createModelReference(r.originalUri),
+				createModelReference(r.modifiedUri),
 			]);
 
 			if (originalResult.status === 'fulfilled') {
@@ -210,7 +211,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				return undefined;
 			}
 
-			const errorResult = originalResult.status === 'rejected' ? originalResult : modifiedResult.status === 'rejected' ? modifiedResult : undefined;
+			let errorResult: PromiseRejectedResult | undefined;
+			if (originalResult.status === 'rejected') {
+				errorResult = originalResult;
+			} else if (modifiedResult.status === 'rejected') {
+				errorResult = modifiedResult;
+			}
 			if (errorResult) {
 				multiDiffItemStore.dispose();
 				// e.g. "File seems to be binary and cannot be opened as text"
