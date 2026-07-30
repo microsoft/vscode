@@ -125,7 +125,7 @@
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool {
 	display: flex;
 	align-items: flex-start;
-	width: 100%;
+	width: calc(100% - var(--vscode-spacing-size80));
 	max-width: 560px;
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
