@@ -224,6 +224,22 @@ suite('ActionListWidget', () => {
 		assert.deepStrictEqual(filters, ['DeepSeek']);
 	});
 
+	test('cancels an in-flight dynamic filter when a composition starts', async () => {
+		const pending = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const widget = createActionListWidget(disposables, {
+			onFilter: () => pending.p,
+		});
+
+		typeFilter(widget, 'd');
+		assert.ok(widget.filterInput);
+		widget.filterInput.dispatchEvent(new Event('compositionstart'));
+
+		// Resolving now must not splice/re-layout the list underneath the IME candidate window.
+		pending.complete([action('stale-result')]);
+		await timeout(0);
+		assert.ok(!widget.domNode.textContent?.includes('stale-result'));
+	});
+
 	test('batches row width writes before reading layout', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [

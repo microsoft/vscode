@@ -863,6 +863,11 @@ export class ActionListWidget<T> extends Disposable {
 
 				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
 					this._imeSessionInProgress = true;
+					// A dynamic filter request issued for the previous value can still be in flight.
+					// Letting it resolve now would splice and re-layout the list underneath the IME
+					// candidate window - the very disruption this guard exists to prevent. The
+					// committed value starts a fresh request from `compositionend`.
+					this._filterCts.value?.cancel();
 				}));
 				this._register(dom.addDisposableListener(this._filterInput, 'compositionend', () => {
 					this._imeSessionInProgress = false;

@@ -117,7 +117,6 @@ suite('keyboardMapper - MAC de_ch', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'KeyY'
 			},
@@ -160,7 +159,6 @@ suite('keyboardMapper - MAC de_ch', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'BracketRight'
 			},
@@ -315,7 +313,6 @@ suite('keyboardMapper - MAC de_ch', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'Home'
 			},
@@ -362,7 +359,6 @@ suite('keyboardMapper - MAC de_ch', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'MetaLeft'
 			},
@@ -389,7 +385,6 @@ suite('keyboardMapper - MAC de_ch', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'MetaRight'
 			},
@@ -452,7 +447,6 @@ suite('keyboardMapper - MAC en_us', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'MetaLeft'
 			},
@@ -479,7 +473,6 @@ suite('keyboardMapper - MAC en_us', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'MetaRight'
 			},
@@ -508,7 +501,6 @@ suite('keyboardMapper - MAC en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: true,
-				isComposing: false,
 				keyCode: -1,
 				code: 'KeyZ'
 			},
@@ -606,7 +598,6 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'KeyY'
 			},
@@ -640,7 +631,6 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'BracketRight'
 			},
@@ -795,7 +785,6 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'Home'
 			},
@@ -822,7 +811,6 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'KeyX'
 			},
@@ -868,7 +856,6 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'ControlLeft'
 			},
@@ -895,7 +882,6 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'ControlRight'
 			},
@@ -974,7 +960,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'KeyZ'
 			},
@@ -1017,7 +1002,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'BracketRight'
 			},
@@ -1172,7 +1156,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'Home'
 			},
@@ -1240,7 +1223,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'NumpadEnter'
 			},
@@ -1304,7 +1286,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'ControlLeft'
 			},
@@ -1331,7 +1312,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'ControlRight'
 			},
@@ -1358,7 +1338,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'ShiftLeft'
 			},
@@ -1385,7 +1364,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'ShiftRight'
 			},
@@ -1412,7 +1390,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: true,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'AltLeft'
 			},
@@ -1439,7 +1416,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: true,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'AltRight'
 			},
@@ -1466,7 +1442,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'MetaLeft'
 			},
@@ -1493,7 +1468,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'MetaRight'
 			},
@@ -1520,7 +1494,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'ShiftLeft'
 			},
@@ -1549,7 +1522,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: true,
-				isComposing: false,
 				keyCode: -1,
 				code: 'KeyZ'
 			},
@@ -1590,7 +1562,6 @@ suite('keyboardMapper', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'Backquote'
 			},
@@ -1620,7 +1591,6 @@ suite('keyboardMapper', () => {
 					altKey: false,
 					metaKey: false,
 					altGraphKey: false,
-					isComposing: false,
 					keyCode: keyCode,
 					code: code
 				},
@@ -1663,7 +1633,6 @@ suite('keyboardMapper', () => {
 					altKey: false,
 					metaKey: false,
 					altGraphKey: false,
-					isComposing: false,
 					keyCode: keyCode,
 					code: code
 				},
@@ -1767,7 +1736,6 @@ suite('keyboardMapper - LINUX en_uk', () => {
 				altKey: true,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: -1,
 				code: 'Minus'
 			},

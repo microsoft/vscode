@@ -88,9 +88,9 @@ suite('AbstractKeybindingService', () => {
 				altKey: keybinding.altKey,
 				metaKey: keybinding.metaKey,
 				altGraphKey: false,
-				keyCode: keybinding.keyCode,
-				code: null!,
-				isComposing
+				// `StandardKeyboardEvent` normalizes composing keystrokes to KEY_IN_COMPOSITION.
+				keyCode: isComposing ? KeyCode.KEY_IN_COMPOSITION : keybinding.keyCode,
+				code: null!
 			};
 		}
 

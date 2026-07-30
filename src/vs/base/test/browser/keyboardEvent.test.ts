@@ -22,8 +22,8 @@ suite('StandardKeyboardEvent', () => {
 	test('reports the pressed key when no composition is in progress', () => {
 		const event = keydown({ keyCode: 13, isComposing: false });
 		assert.deepStrictEqual(
-			[event.isComposing, event.keyCode === KeyCode.Enter, event.equals(KeyCode.Enter)],
-			[false, true, true]
+			[event.keyCode === KeyCode.Enter, event.equals(KeyCode.Enter)],
+			[true, true]
 		);
 	});
 
@@ -33,8 +33,8 @@ suite('StandardKeyboardEvent', () => {
 		// handlers that compare `keyCode` directly stop seeing a key the user never aimed at them.
 		const event = keydown({ keyCode: 13, isComposing: true });
 		assert.deepStrictEqual(
-			[event.isComposing, event.keyCode === KeyCode.KEY_IN_COMPOSITION, event.equals(KeyCode.Enter)],
-			[true, true, false]
+			[event.keyCode === KeyCode.KEY_IN_COMPOSITION, event.equals(KeyCode.Enter)],
+			[true, false]
 		);
 	});
 

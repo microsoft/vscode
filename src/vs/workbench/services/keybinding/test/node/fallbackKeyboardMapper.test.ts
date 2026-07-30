@@ -62,7 +62,6 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -108,7 +107,6 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: false,
 				metaKey: true,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: KeyCode.Meta,
 				code: null!
 			},
@@ -135,7 +133,6 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -162,7 +159,6 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: true,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: KeyCode.Alt,
 				code: null!
 			},
@@ -189,7 +185,6 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -218,7 +213,6 @@ suite('keyboardMapper - MAC fallback', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: true,
-				isComposing: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -288,7 +282,6 @@ suite('keyboardMapper - LINUX fallback', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -352,7 +345,6 @@ suite('keyboardMapper - LINUX fallback', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: false,
-				isComposing: false,
 				keyCode: KeyCode.Ctrl,
 				code: null!
 			},
@@ -381,7 +373,6 @@ suite('keyboardMapper - LINUX fallback', () => {
 				altKey: false,
 				metaKey: false,
 				altGraphKey: true,
-				isComposing: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
