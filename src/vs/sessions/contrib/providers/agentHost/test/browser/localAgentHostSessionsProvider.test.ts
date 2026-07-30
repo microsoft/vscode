@@ -59,18 +59,21 @@ type SubscriptionState = SessionState | ChangesetState | ChatState;
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAction = new Emitter<ActionEnvelope>();
-	override readonly onDidAction = this._onDidAction.event;
-	private readonly _onDidNotification = new Emitter<INotification>();
-	override readonly onDidNotification = this._onDidNotification.event;
+	private _onDidAction = new Emitter<ActionEnvelope>();
+	override get onDidAction(): Event<ActionEnvelope> { return this._onDidAction.event; }
+	private _onDidNotification = new Emitter<INotification>();
+	override get onDidNotification(): Event<INotification> { return this._onDidNotification.event; }
 	private _rootStateListenerCount = 0;
-	private readonly _onDidRootStateChange = new Emitter<RootState>({
+	private _onDidRootStateChange = new Emitter<RootState>({
 		onDidAddListener: () => this._rootStateListenerCount++,
 		onWillRemoveListener: () => this._rootStateListenerCount--,
 	});
 	private readonly _onDidRootStateError = new Emitter<Error>();
 	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo] };
-	override readonly rootState: IAgentSubscription<RootState>;
+	private _rootStateSubscription: IAgentSubscription<RootState>;
+	override get rootState(): IAgentSubscription<RootState> { return this._rootStateSubscription; }
+	private readonly _onAgentHostStart = new Emitter<void>();
+	override readonly onAgentHostStart = this._onAgentHostStart.event;
 
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -93,7 +96,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	constructor() {
 		super();
 		const self = this;
-		this.rootState = {
+		this._rootStateSubscription = {
 			get value() { return self._rootStateValue; },
 			get verifiedValue() { return self._rootStateValue instanceof Error ? undefined : self._rootStateValue; },
 			onDidChange: self._onDidRootStateChange.event,
@@ -275,6 +278,38 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._rootStateValue = undefined;
 	}
 
+	replaceRootStateOnStart(agents: AgentInfo[]): void {
+		const self = this;
+		const previousEmitter = this._onDidRootStateChange;
+		const previousActionEmitter = this._onDidAction;
+		const previousNotificationEmitter = this._onDidNotification;
+		const onDidChange = new Emitter<RootState>({
+			onDidAddListener: () => this._rootStateListenerCount++,
+			onWillRemoveListener: () => this._rootStateListenerCount--,
+		});
+		const value: RootState = { agents };
+		this._onDidRootStateChange = onDidChange;
+		this._onDidAction = new Emitter<ActionEnvelope>();
+		this._onDidNotification = new Emitter<INotification>();
+		this._rootStateValue = value;
+		this._rootStateSubscription = {
+			get value() { return self._rootStateValue; },
+			get verifiedValue() { return self._rootStateValue instanceof Error ? undefined : self._rootStateValue; },
+			onDidChange: onDidChange.event,
+			onDidError: this._onDidRootStateError.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		this._onAgentHostStart.fire();
+		previousEmitter.dispose();
+		previousActionEmitter.dispose();
+		previousNotificationEmitter.dispose();
+	}
+
+	fireAgentHostStart(): void {
+		this._onAgentHostStart.fire();
+	}
+
 	setRootStateError(): void {
 		const error = new Error('root state failed');
 		this._rootStateValue = error;
@@ -293,6 +328,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
 		this._onDidRootStateChange.dispose();
+		this._onDidRootStateError.dispose();
+		this._onAgentHostStart.dispose();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
 		}
@@ -588,6 +625,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 
 		assert.deepStrictEqual(provider.sessionTypes, []);
+	});
+
+	test('rebinds session types when Agent Host starts with a new root subscription', () => {
+		agentHost.clearRootState();
+		const provider = createProvider(disposables, agentHost);
+		let addedSessions = 0;
+		disposables.add(provider.onDidChangeSessions(event => addedSessions += event.added.length));
+
+		agentHost.replaceRootStateOnStart([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+		]);
+		fireSessionAdded(agentHost, 'after-rebind');
+
+		assert.deepStrictEqual({
+			sessionTypes: provider.sessionTypes.map(type => ({ id: type.id, label: type.label })),
+			rootStateListenerCount: agentHost.rootStateListenerCount,
+			addedSessions,
+		}, {
+			sessionTypes: [{ id: 'copilotcli', label: 'Copilot' }],
+			rootStateListenerCount: 1,
+			addedSessions: 1,
+		});
+	});
+
+	test('does not duplicate listeners when Agent Host starts after listeners bind', () => {
+		const provider = createProvider(disposables, agentHost);
+		let addedSessions = 0;
+		disposables.add(provider.onDidChangeSessions(event => addedSessions += event.added.length));
+
+		agentHost.fireAgentHostStart();
+		fireSessionAdded(agentHost, 'after-start');
+
+		assert.deepStrictEqual({
+			rootStateListenerCount: agentHost.rootStateListenerCount,
+			addedSessions,
+		}, {
+			rootStateListenerCount: 1,
+			addedSessions: 1,
+		});
 	});
 
 	test('reports no session types when rootState advertises no agents', () => {
