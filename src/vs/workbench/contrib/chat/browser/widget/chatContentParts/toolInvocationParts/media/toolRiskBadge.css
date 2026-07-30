@@ -26,17 +26,21 @@
 	align-items: center;
 	justify-content: center;
 	min-width: 12px;
-	font-size: 12px;
 	line-height: 1;
 	color: var(--tool-risk-accent, var(--vscode-descriptionForeground));
+}
+
+/* Outrank `.monaco-workbench .codicon[class*='codicon-']` so these compact
+ * badge icons are not promoted to the workbench's base codicon size. */
+.chat-confirmation-widget2 > .tool-risk-badge .tool-risk-icon.codicon,
+.chat-confirmation-widget2 > .tool-risk-badge .tool-risk-details-icon.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-confirmation-widget2 > .tool-risk-badge .tool-risk-text {
 	min-width: 0;
 	flex: 1 1 auto;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
 }
 
 .chat-confirmation-widget2 > .tool-risk-badge .tool-risk-details-icon {
@@ -44,7 +48,6 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
 	line-height: 1;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
