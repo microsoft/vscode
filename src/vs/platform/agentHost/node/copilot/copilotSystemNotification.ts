@@ -55,6 +55,11 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 				messageText: localize('agentHost.copilot.systemNotification.instructionDiscovered', "Instruction discovered: {0}", kind.description ?? kind.sourcePath),
 				startsTurn: false,
 			};
+		case 'unclassified':
+			return {
+				messageText: content,
+				startsTurn: false,
+			};
 		default:
 			softAssertNever(kind);
 			return undefined;

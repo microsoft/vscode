@@ -3466,6 +3466,17 @@ suite('CopilotAgentSession', () => {
 				startsTurn: false,
 			});
 
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: '<system_notification>Something happened</system_notification>',
+					kind: { type: 'unclassified', metadata: { source: 'external-host' } },
+				},
+			}), {
+				messageText: 'Something happened',
+				startsTurn: false,
+			});
+
 			assert.strictEqual(buildCopilotSystemNotification({
 				...base,
 				data: {
