@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -26,7 +26,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -89,7 +89,11 @@ interface ISerializedSessionMetadata {
 	readonly modifiedTime: number;
 	readonly summary?: string;
 	readonly workingDirectory?: string;
+	/** Session-scoped flag bits only — see {@link SESSION_STATUS_FLAG_MASK}. */
+	readonly status?: ProtocolSessionStatus;
+	/** @deprecated Superseded by the `IsRead` bit on {@link status}. */
 	readonly isRead?: boolean;
+	/** @deprecated Superseded by the `IsArchived` bit on {@link status}. */
 	readonly isArchived?: boolean;
 	/** @deprecated Legacy name for `isArchived`. */
 	readonly isDone?: boolean;
@@ -103,6 +107,13 @@ interface ISerializedSessionMetadata {
 	readonly workspaceless?: boolean;
 }
 
+/**
+ * Only these bits are cached. The activity bits are live state, and restoring them
+ * would show a stale spinner until the next `listSessions()` lands — indefinitely
+ * for an unreachable remote host, which keeps republishing its cached snapshot.
+ */
+const SESSION_STATUS_FLAG_MASK = ProtocolSessionStatus.IsRead | ProtocolSessionStatus.IsArchived;
+
 function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetadata {
 	return {
 		session: meta.session.toString(),
@@ -110,8 +121,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
-		isRead: meta.isRead,
-		isArchived: meta.isArchived,
+		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 	};
@@ -125,14 +135,29 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			modifiedTime: raw.modifiedTime,
 			summary: raw.summary,
 			workingDirectories: raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined,
-			isRead: raw.isRead,
-			isArchived: raw.isArchived ?? raw.isDone,
+			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 			...(raw.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		};
 	} catch {
 		return undefined;
 	}
+}
+
+/** Reads the cached flag bits, folding in the legacy standalone booleans. */
+function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStatus | undefined {
+	const legacyArchived = raw.isArchived ?? raw.isDone;
+	if (raw.isRead === undefined && legacyArchived === undefined) {
+		return raw.status !== undefined ? raw.status & SESSION_STATUS_FLAG_MASK : undefined;
+	}
+	let status = (raw.status ?? ProtocolSessionStatus.Idle) & SESSION_STATUS_FLAG_MASK;
+	if (raw.isRead !== undefined) {
+		status = withSessionStatusFlag(status, ProtocolSessionStatus.IsRead, raw.isRead);
+	}
+	if (legacyArchived !== undefined) {
+		status = withSessionStatusFlag(status, ProtocolSessionStatus.IsArchived, legacyArchived);
+	}
+	return status;
 }
 
 function isRememberedSessionConfigKey(property: string): boolean {
@@ -220,20 +245,6 @@ function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
 }
 
 /**
- * Resolves the {@link AgentCapabilities} an agent provider advertises in a root
- * state. Returns `undefined` when the root state is unavailable/errored or the
- * agent is not advertised — callers treat every absent flag as unsupported.
- * This replaces the previous provider-id allow-list so feature gating follows
- * the capabilities each agent declares for itself.
- */
-function agentCapabilitiesForProvider(rootState: RootState | Error | undefined, agentProvider: string): AgentCapabilities | undefined {
-	if (!rootState || rootState instanceof Error) {
-		return undefined;
-	}
-	return rootState.agents.find(agent => agent.provider === agentProvider)?.capabilities;
-}
-
-/**
  * Variation points the host provider supplies when building an adapter.
  * Differences between local and remote sessions (icon, description text,
  * workspace builder, optional URI mapping) flow through this options bag so
@@ -264,6 +275,13 @@ export interface IAgentHostAdapterOptions {
 	 * Returns the agent connection for the session, if it exists.
 	 */
 	readonly getConnection: () => IAgentConnection | undefined;
+	/** Agent capability lookup shared by every adapter owned by this provider. */
+	readonly agentCapabilities: IObservable<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>;
+	/**
+	 * The scheme the host addresses this session under, when it differs from the agent provider
+	 * (cloud sandbox: provider `copilot`, sessions `ahp-session:/<id>`). Defaults to the provider.
+	 */
+	readonly backendSessionScheme?: string;
 }
 
 /**
@@ -500,6 +518,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _resourceScheme: string;
 
 	readonly agentProvider: string;
+	/**
+	 * This session's URI as the host's registry is keyed by it, which may use a different scheme
+	 * than {@link agentProvider} (cloud sandbox: provider `copilot`, backend `ahp-session:/<id>`).
+	 * Every backend call must address the session by this URI.
+	 */
+	readonly backendUri: URI;
 
 	// Retained so we can rebuild `workspace` when only `_meta` changes via
 	// a `SessionMetaChanged` action dispatched on session open (without a full
@@ -582,6 +606,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			throw new Error(`Agent session URI has no provider scheme: ${metadata.session.toString()}`);
 		}
 		this.agentProvider = agentProvider;
+		this.backendUri = AgentSession.uri(_options.backendSessionScheme ?? agentProvider, rawId);
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
 		this._rawId = rawId;
 		this._resourceScheme = resourceScheme;
@@ -677,12 +702,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return undefined;
 		});
 
-		if (metadata.isArchived) {
+		if (isSessionStatusArchived(metadata.status)) {
 			this.isArchived.set(true, undefined);
 		}
 
-		if (metadata.isRead !== undefined) {
-			this.isRead.set(metadata.isRead, undefined);
+		if (metadata.status !== undefined) {
+			this.isRead.set(isSessionStatusRead(metadata.status), undefined);
 		}
 
 		this.isActiveSessionObs = derived(this, reader => {
@@ -710,8 +735,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Files created/edited/deleted outside the workspace, plus the last turn's
 		// changes, parsed from the chat-state turns. Computed lazily from the same
 		// active-session subscriptions used for changes.
-		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const sessionOutput = createSessionOutputObs(sessionUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
+		const sessionOutput = createSessionOutputObs(this.backendUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
 		this._sessionOutput = sessionOutput;
 		this.externalChanges = sessionOutput.externalFiles;
 
@@ -722,7 +746,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			updatedAt: this.updatedAt,
 			status: derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader)),
 			changes: this.changes,
-			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(sessionUri))),
+			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
 			mode: this.mode,
@@ -741,12 +765,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.mainChat = this._mainChatObs;
 		this.chats = this._chatsObs;
 
-		const connection = this._options.getConnection();
-		const rootStateObs: IObservable<RootState | Error | undefined> = connection
-			? observableFromEvent(this, connection.rootState.onDidChange, () => connection.rootState.value)
-			: constObservable(undefined);
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const agentCapabilities = agentCapabilitiesForProvider(rootStateObs.read(reader), this.agentProvider);
+			const agentCapabilities = this._options.agentCapabilities.read(reader)?.get(this.agentProvider);
 			return {
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
@@ -1156,14 +1176,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			}
 
-			if (metadata.isArchived !== undefined && metadata.isArchived !== this.isArchived.get()) {
-				this.isArchived.set(metadata.isArchived, tx);
-				didChange = true;
-			}
+			if (metadata.status !== undefined) {
+				const isArchived = isSessionStatusArchived(metadata.status);
+				if (isArchived !== this.isArchived.get()) {
+					this.isArchived.set(isArchived, tx);
+					didChange = true;
+				}
 
-			if (metadata.isRead !== undefined && metadata.isRead !== this.isRead.get()) {
-				this.isRead.set(metadata.isRead, tx);
-				didChange = true;
+				const isRead = isSessionStatusRead(metadata.status);
+				if (isRead !== this.isRead.get()) {
+					this.isRead.set(isRead, tx);
+					didChange = true;
+				}
 			}
 
 			// `metadata.changes` (aggregate) drives the chip aggregate.
@@ -1257,9 +1281,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		const rawId = AgentSession.id(this.resource);
-		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const changesets = createChangesets(sessionUri, this._options, this.isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata);
 
 		this.changesets.set(changesets, undefined);
 	}
@@ -1321,6 +1343,14 @@ interface INewSessionConstructionContext {
 	readonly providerId: string;
 	readonly icon: ThemeIcon;
 	readonly resourceScheme: string;
+	/**
+	 * The URI scheme used to reconstruct this draft's backend (wire) session URI,
+	 * when it differs from the agent provider ({@link sessionType}.id). Defaults to
+	 * the agent provider. Cloud sandbox creates sessions under `ahp-session:/<id>`
+	 * while the agent provider is `copilot`; the eager backend `createSession`/
+	 * subscribe must use this scheme so it matches the handler's create path.
+	 */
+	readonly backendSessionScheme?: string;
 	readonly authenticationPending: IObservable<boolean>;
 	readonly logService: ILogService;
 	/**
@@ -1384,6 +1414,8 @@ class NewSession extends Disposable {
 	readonly session: ISession;
 	readonly sessionId: string;
 	readonly agentProvider: string;
+	/** This draft's URI as the host's registry would key it. See {@link AgentHostSessionAdapter.backendUri}. */
+	private readonly _backendSessionUri: URI;
 	readonly workspaceUri: URI | undefined;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
@@ -1471,6 +1503,9 @@ class NewSession extends Disposable {
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
+		// Defaults to scheme == provider; only hosts that address sessions under a different
+		// scheme (cloud sandbox: provider `copilot`, scheme `ahp-session`) override it.
+		this._backendSessionUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		this._title = observableValue<string>(this, '');
 		const title = this._title;
@@ -1689,7 +1724,7 @@ class NewSession extends Disposable {
 	 * no session state exists at send time.
 	 */
 	eagerCreate(connection: IAgentConnection): void {
-		const backendUri = AgentSession.uri(this.agentProvider, this.session.resource.path.substring(1));
+		const backendUri = this._backendSessionUri;
 		if (this._backendUri?.toString() === backendUri.toString() || this._subscription) {
 			return;
 		}
@@ -1764,9 +1799,7 @@ class NewSession extends Disposable {
 			return;
 		}
 
-		const rawId = AgentSession.id(this.session.resource);
-		const sessionUri = AgentSession.uri(this.session.sessionType, rawId);
-		const changesets = createChangesets(sessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this._backendSessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
 
 		this._changesets.set(changesets, undefined);
 	}
@@ -1854,7 +1887,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 	protected _sessionTypes: ISessionType[] = [];
 
-	private _lastAgents: AgentInfo[] | undefined;
+	private _lastAgents: readonly AgentInfo[] | undefined;
+	private readonly _agentCapabilities = observableValue<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>(this, undefined);
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -2126,6 +2160,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace'>;
 
+	/**
+	 * Hook to normalize a session's metadata before it is cached, keyed, or
+	 * persisted. The default is identity. Subclasses override this when the host
+	 * addresses sessions under a scheme that differs from the agent provider
+	 * (e.g. a cloud sandbox host that lists sessions as `ahp-session:/<id>` while
+	 * its agent provider is `copilot`), so that routing, persistence, and content
+	 * resolution all agree on a single scheme. Must preserve the raw session id
+	 * (URI path) so cache keys remain stable.
+	 */
+	protected _adoptSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+		return meta;
+	}
+
+	/**
+	 * The backend (wire) session URI scheme for a given agent provider. Default is
+	 * identity (scheme == provider), which holds for every host except the Copilot
+	 * host used by cloud sandbox, whose sessions are addressed under
+	 * `ahp-session:/<id>` while the agent provider is `copilot`. Subclasses
+	 * override this so all backend `AgentSession.uri(...)` reconstructions on the
+	 * adapter and provider use the host's real scheme. Must be a stable per-provider
+	 * mapping.
+	 */
+	protected _backendSessionScheme(agentProvider: string): string {
+		return agentProvider;
+	}
+
 	/** Build an adapter for the given metadata. */
 	protected createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
 		const provider = AgentSession.provider(meta.session);
@@ -2141,6 +2201,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
+			agentCapabilities: this._agentCapabilities,
+			backendSessionScheme: this._backendSessionScheme(provider),
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
@@ -2181,17 +2243,42 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return true;
 	}
 
+	protected _syncRootState(rootState: RootState | Error | undefined): void {
+		if (rootState && !(rootState instanceof Error)) {
+			this._syncSessionTypesFromRootState(rootState);
+			this._syncRootConfigFromRootState(rootState);
+			return;
+		}
+
+		this._syncAgentCapabilities(undefined);
+		if (this._sessionTypes.length > 0) {
+			this._sessionTypes = [];
+			this._onDidChangeSessionTypes.fire();
+		}
+		if (this._rootConfig) {
+			this._rootConfig = undefined;
+			this._onDidChangeRootConfig.fire();
+		}
+	}
+
+	private _syncAgentCapabilities(agents: readonly AgentInfo[] | undefined): void {
+		if (this._lastAgents === agents) {
+			return;
+		}
+
+		this._lastAgents = agents;
+		this._agentCapabilities.set(agents ? new Map(agents.map(agent => [agent.provider, agent.capabilities])) : undefined, undefined);
+		this._onDidChangeCustomAgents.fire();
+		this._onDidChangeCustomizations.fire();
+	}
+
 	/**
 	 * Reconcile {@link _sessionTypes} against the agents advertised by the
 	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
 	 * id/label set actually changed.
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
-		if (this._lastAgents !== rootState.agents) {
-			this._lastAgents = rootState.agents;
-			this._onDidChangeCustomAgents.fire();
-			this._onDidChangeCustomizations.fire();
-		}
+		this._syncAgentCapabilities(rootState.agents);
 		const next = rootState.agents
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
@@ -2413,6 +2500,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			providerId: this.id,
 			icon: sessionType.icon,
 			resourceScheme,
+			backendSessionScheme: this._backendSessionScheme(sessionType.id),
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
 			initialConfigValues: this._initialNewSessionConfig(workspace),
@@ -2431,6 +2519,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
+			agentCapabilities: this._agentCapabilities,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions);
 		this._newSessions.set(newSession.sessionId, newSession);
@@ -2759,7 +2848,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
-			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const sessionUri = cached.backendUri;
 			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: normalizedValue } };
 			connection.dispatch(sessionUri.toString(), action);
 			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
@@ -2806,7 +2895,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
-			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const sessionUri = cached.backendUri;
 			const action = {
 				type: ActionType.SessionConfigChanged as const,
 				config: nextValues,
@@ -2862,6 +2951,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			policyRestricted,
 		);
 		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.Isolation, value);
+	}
+
+	async setWorktreeBranchTrack(sessionId: string, enabled: boolean): Promise<void> {
+		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeBranchTrack, enabled);
 	}
 
 	async setBranch(sessionId: string, branch: string): Promise<void> {
@@ -3159,7 +3252,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId) {
 			return [];
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		return (sessionState.customizations ?? [])
 			.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
@@ -3216,7 +3309,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId) {
 			return undefined;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
 		return { connection, annotationsUri };
 	}
@@ -3231,7 +3324,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const sessionUri = cached.backendUri;
 				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: true };
 				connection.dispatch(sessionUri.toString(), action);
 			}
@@ -3246,7 +3339,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const sessionUri = cached.backendUri;
 				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: false };
 				connection.dispatch(sessionUri.toString(), action);
 			}
@@ -3261,7 +3354,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const sessionUri = cached.backendUri;
 				const action = { type: ActionType.SessionIsReadChanged as const, isRead };
 				connection.dispatch(sessionUri.toString(), action);
 			}
@@ -3289,7 +3382,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		for (const { rawId, sessionId, cached } of targets) {
-			await connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
+			await connection.disposeSession(cached.backendUri);
 			this._sessionCache.delete(rawId);
 			this._runningSessionConfigs.delete(sessionId);
 			this._runningSessionConfigResolveSeq.delete(sessionId);
@@ -3308,7 +3401,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId || !connection) {
 			return;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const chatId = chatUri.fragment;
 		const action = { type: ActionType.SessionTitleChanged as const, title };
 		if (chatId) {
@@ -3332,7 +3425,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached && rawId && connection) {
 			cached.title.set(title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+			const sessionUri = cached.backendUri;
 			const action = { type: ActionType.SessionTitleChanged as const, title };
 			connection.dispatch(sessionUri.toString(), action);
 		}
@@ -3351,7 +3444,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached || !connection) {
 			return false;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const ahpChatUri = URI.parse(buildChatUri(sessionUri, chatId));
 
 		if (!options?.skipConfirmation) {
@@ -3402,7 +3495,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Session '${chatId}' does not support multiple chats`);
 		}
 
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const newChatId = generateUuid();
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
 		const selectedModelId = cached.modelId.get() ?? (cached.modelSelection ? `${cached.resource.scheme}:${cached.modelSelection.id}` : undefined);
@@ -3445,7 +3538,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Session '${sessionId}' does not support multiple chats`);
 		}
 
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const newChatId = generateUuid();
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
 		const sourceBackendUri = this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, sourceChat);
@@ -3930,7 +4023,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
 		const store = new DisposableStore();
 		store.add(ref);
@@ -4228,10 +4321,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
-			const meta = deserializeMetadata(entry);
-			if (!meta) {
+			const deserialized = deserializeMetadata(entry);
+			if (!deserialized) {
 				continue;
 			}
+			const meta = this._adoptSessionMeta(deserialized);
 			const rawId = AgentSession.id(meta.session);
 			if (this._sessionCache.has(rawId)) {
 				continue;
@@ -4261,8 +4355,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...base,
 				summary: adapter.title.get() || base.summary,
 				modifiedTime: adapter.updatedAt.get().getTime(),
-				isRead: adapter.isRead.get(),
-				isArchived: adapter.isArchived.get(),
+				status: withSessionStatusFlag(
+					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
+					ProtocolSessionStatus.IsArchived,
+					adapter.isArchived.get()),
 				// The adapter's live kind wins over the snapshot: several metadata
 				// sources omit `_meta`, and persisting a stale one would resurrect
 				// the session as a workspace rooted at the host's scratch cwd.
@@ -4314,7 +4410,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const added: ISession[] = [];
 			const changed: ISession[] = [];
 
-			for (const meta of sessions) {
+			for (const rawMeta of sessions) {
+				const meta = this._adoptSessionMeta(rawMeta);
 				const rawId = AgentSession.id(meta.session);
 				currentKeys.add(rawId);
 
@@ -4507,11 +4604,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionAdded(summary: SessionSummary): void {
-		const sessionUri = URI.parse(summary.resource);
-		const rawId = AgentSession.id(sessionUri);
 		const workingDirs = summary.workingDirectories?.map(d => this.mapWorkingDirectoryUri(URI.parse(d)));
-		const meta: IAgentSessionMetadata = {
-			session: sessionUri,
+		const rawMeta: IAgentSessionMetadata = {
+			session: URI.parse(summary.resource),
 			startTime: Date.parse(summary.createdAt),
 			modifiedTime: Date.parse(summary.modifiedAt),
 			summary: summary.title,
@@ -4525,12 +4620,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			} : {}),
 			workingDirectories: workingDirs,
 			changes: summary.changes,
-			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
-			isRead: !!(summary.status & ProtocolSessionStatus.IsRead),
 			// Carry `_meta` so a new adapter seeds its session-kind from it and an
 			// existing one can be promoted by it.
 			...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 		};
+
+		// Adopt before deriving the cache key so a host that addresses sessions under a different
+		// scheme routes to the agent provider, as the refresh and persistence paths do.
+		const meta = this._adoptSessionMeta(rawMeta);
+		const rawId = AgentSession.id(meta.session);
 
 		const existing = this._sessionCache.get(rawId);
 		if (existing) {

@@ -93,6 +93,21 @@ suite('ChatSpeechToTextService', () => {
 		);
 	});
 
+	test('final cleanup prompt guides list formatting with ordering cues; incremental does not', () => {
+		const finalPrompt = createDictationCleanupSystemPrompt('final', false);
+		const incrementalPrompt = createDictationCleanupSystemPrompt('incremental', false);
+
+		assert.deepStrictEqual({
+			finalMentionsList: finalPrompt.includes('format them as a Markdown list'),
+			finalMentionsNumbered: finalPrompt.includes('numbered list when the wording implies order'),
+			incrementalOmitsList: !incrementalPrompt.includes('Markdown list'),
+		}, {
+			finalMentionsList: true,
+			finalMentionsNumbered: true,
+			incrementalOmitsList: true,
+		});
+	});
+
 	test('appends dictation instructions without replacing dictation safeguards', () => {
 		const prompt = createDictationCleanupSystemPrompt('final', false, 'Spell the product name as "Contoso DB".\nUse short paragraphs.');
 
