@@ -14,7 +14,11 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export type PolicyValue = string | number | boolean;
 /** The source family that produced an effective policy value. */
 export const enum PolicyValueSource {
-	Admin = 'admin',
+	Device = 'device',
+	NativeMdm = 'nativeMdm',
+	ServerManagedSettings = 'serverManagedSettings',
+	FileManagedSettings = 'fileManagedSettings',
+	MixedManagedSettings = 'mixedManagedSettings',
 	Account = 'account',
 	AccountGate = 'accountGate',
 }
@@ -90,7 +94,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 	}
 
 	getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
-		return this.policies.has(name) ? PolicyValueSource.Admin : undefined;
+		return this.policies.has(name) ? PolicyValueSource.Device : undefined;
 	}
 
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> {

@@ -252,7 +252,7 @@ suite('MultiplexPolicyService', () => {
 			const D = policyService.getPolicyValue('PolicySettingD');
 
 			assert.strictEqual(A, 'policyValueA');
-			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Admin);
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Device);
 			assert.strictEqual(B, undefined);
 			assert.strictEqual(C, undefined);
 			assert.strictEqual(D, undefined);
@@ -340,7 +340,7 @@ suite('MultiplexPolicyService', () => {
 			assert.strictEqual(B, 'policyValueB');
 			assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
 			assert.strictEqual(D, false);
-			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Admin);
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Device);
 			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingD'), PolicyValueSource.Account);
 		}
 

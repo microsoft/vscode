@@ -23,7 +23,11 @@ const enum PolicyNames {
 }
 
 type PolicyAppliedEvent = {
-	adminPolicyCount: number;
+	devicePolicyCount: number;
+	nativeMdmPolicyCount: number;
+	serverManagedSettingsPolicyCount: number;
+	fileManagedSettingsPolicyCount: number;
+	mixedManagedSettingsPolicyCount: number;
 	accountPolicyCount: number;
 	accountGatePolicyCount: number;
 	defaultModelSet: boolean;
@@ -44,8 +48,12 @@ type PolicyAppliedEvent = {
 
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
-	comment: 'Reports effective policy values by privacy-safe source family and selected value buckets, to distinguish administrator policy adoption from account-driven restrictions. No raw policy values are collected.';
-	adminPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from direct administrator policy or managed-settings channels.' };
+	comment: 'Reports effective policy values by privacy-safe delivery source and selected value buckets, to distinguish device policy, managed-settings channels, and account-driven restrictions. No raw policy values are collected.';
+	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from OS or device policy.' };
+	nativeMdmPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered through native MDM.' };
+	serverManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered from GitHub services.' };
+	fileManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered through a policy file.' };
+	mixedManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings from more than one delivery channel.' };
 	accountPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values derived from GitHub account policy or entitlement data.' };
 	accountGatePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values forced by an unsatisfied approved-account gate.' };
 	defaultModelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the default chat model policy is applied.' };
@@ -92,14 +100,30 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 
 	private buildEvent(): PolicyAppliedEvent {
 		const value = (name: PolicyName): PolicyValue | undefined => this.policyService.getPolicyValue(name);
-		let adminPolicyCount = 0;
+		let devicePolicyCount = 0;
+		let nativeMdmPolicyCount = 0;
+		let serverManagedSettingsPolicyCount = 0;
+		let fileManagedSettingsPolicyCount = 0;
+		let mixedManagedSettingsPolicyCount = 0;
 		let accountPolicyCount = 0;
 		let accountGatePolicyCount = 0;
 		for (const name in this.policyService.policyDefinitions) {
 			if (value(name) !== undefined) {
 				switch (this.policyService.getPolicyValueSource(name)) {
-					case PolicyValueSource.Admin:
-						adminPolicyCount++;
+					case PolicyValueSource.Device:
+						devicePolicyCount++;
+						break;
+					case PolicyValueSource.NativeMdm:
+						nativeMdmPolicyCount++;
+						break;
+					case PolicyValueSource.ServerManagedSettings:
+						serverManagedSettingsPolicyCount++;
+						break;
+					case PolicyValueSource.FileManagedSettings:
+						fileManagedSettingsPolicyCount++;
+						break;
+					case PolicyValueSource.MixedManagedSettings:
+						mixedManagedSettingsPolicyCount++;
 						break;
 					case PolicyValueSource.Account:
 						accountPolicyCount++;
@@ -118,7 +142,11 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 		const telemetryLevel = value(PolicyNames.TelemetryLevel);
 
 		return {
-			adminPolicyCount,
+			devicePolicyCount,
+			nativeMdmPolicyCount,
+			serverManagedSettingsPolicyCount,
+			fileManagedSettingsPolicyCount,
+			mixedManagedSettingsPolicyCount,
 			accountPolicyCount,
 			accountGatePolicyCount,
 			defaultModelSet: defaultModel !== undefined,
