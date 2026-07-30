@@ -1981,7 +1981,7 @@ suite('AgentHostChatContribution', () => {
 
 		}));
 
-		test('flushes pending chat input draft when the session is disposed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('flushes pending chat input draft when the session is disposed', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'draft-sync-dispose');
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-sync-dispose' });
@@ -2002,10 +2002,9 @@ suite('AgentHostChatContribution', () => {
 			}));
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			agentHostService.dispatchedActions.length = 0;
-
 			inputModel.setState({ inputText: 'typed before switching away' });
 			chatSession.dispose();
-			await timeout(500);
+			chatSession.dispose();
 
 			assert.deepStrictEqual(agentHostService.dispatchedActions.map(d => ({ channel: d.channel, action: d.action })), [{
 				channel: buildDefaultChatUri(backendSession.toString()),
@@ -2017,7 +2016,7 @@ suite('AgentHostChatContribution', () => {
 					},
 				},
 			}]);
-		}));
+		});
 
 		test('applies a remote draft to a clean live input', async () => {
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });

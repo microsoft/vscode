@@ -4277,7 +4277,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return value && !(value instanceof Error) ? value.draft : undefined;
 		};
 		let syncedDraft = readRemoteDraft();
-		let latestInputState = inputModel.state.get();
 		// The last `draft` object seen on the chat channel. Protocol state is
 		// immutable, so an identical reference means the draft did not change —
 		// letting the listener bail on a reference check instead of a deep
@@ -4306,8 +4305,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			});
 		};
 		store.add(autorun(reader => {
-			latestInputState = inputModel.state.read(reader);
-			delayer.trigger(() => syncDraft(latestInputState)).catch(() => { /* delayer disposed */ });
+			const state = inputModel.state.read(reader);
+			delayer.trigger(() => syncDraft(state)).catch(() => { /* delayer disposed */ });
 		}));
 		store.add(chatSubscription.onDidChange(() => {
 			const remoteDraft = readRemoteDraft();
@@ -4329,7 +4328,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 		store.add(toDisposable(() => {
 			delayer.cancel();
-			syncDraft(latestInputState);
+			syncDraft(inputModel.state.get());
 		}));
 	}
 
