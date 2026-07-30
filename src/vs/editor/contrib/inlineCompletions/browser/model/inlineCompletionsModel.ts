@@ -112,6 +112,7 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _enabled: IObservable<boolean>,
+		private readonly _isSuppressed: () => boolean,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -370,7 +371,8 @@ export class InlineCompletionsModel extends Disposable {
 		this._onlyRequestInlineEditsSignal.read(reader);
 		this._forceUpdateExplicitlySignal.read(reader);
 		this._fetchSpecificProviderSignal.read(reader);
-		const shouldUpdate = ((this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader))
+		const shouldUpdate = !this._isSuppressed()
+			&& ((this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader))
 			&& (!this._inlineCompletionsService.isSnoozing() || changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit);
 		if (!shouldUpdate) {
 			this._source.cancelUpdate();

@@ -18,6 +18,7 @@ import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
@@ -136,7 +137,14 @@ async function renderNewChatWidget(context: ComponentFixtureContext, commentCoun
 				override readonly onDidChangeSlashCommands = Event.None;
 				override async getSlashCommands() { return []; }
 			}());
-			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService()));
+			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
+				new class extends mock<ISessionsService>() {
+					override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+				}(),
+				new class extends mock<IChatWidgetService>() {
+					override readonly onDidChangeFocusedSession = Event.None;
+				}(),
+			)));
 			reg.defineInstance(IVoiceInputModeService, new class extends mock<IVoiceInputModeService>() {
 				override readonly selectedMode = observableValue<VoiceInputMode>('selectedMode', 'voice');
 				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', false);
@@ -163,9 +171,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, commentCoun
 			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
 				override readonly onDidChangeState = Event.None;
 				override readonly onDidChangePreparingModel = Event.None;
+				override readonly onDidChangeDownloadingModel = Event.None;
 				override readonly state = ChatSpeechToTextState.Idle;
 				override readonly isConfigured = false;
 				override readonly isPreparingModel = false;
+				override readonly isDownloadingModel = false;
 			}());
 		},
 	});

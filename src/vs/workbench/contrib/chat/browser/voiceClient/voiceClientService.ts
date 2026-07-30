@@ -27,6 +27,8 @@ import {
 	IVoiceBargeIn,
 	IVoiceNarrationAck,
 	IVoiceNarrationSignal,
+	IVoiceDispatchResult,
+	VoiceNarrationKind,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -90,7 +92,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	// state-change event needs to fire before the timer expires.
 	private _pendingContext: IVoiceSessionContext | undefined;
 	private _lastSentById = new Map<string, Record<string, unknown>>(); // session id → last-sent field values
-	private _lastSentActive = '';
 
 	// --- Events ---
 	private readonly _onTranscription = this._register(new Emitter<IVoiceTranscription>());
@@ -532,7 +533,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._lastSessionId = undefined;
 		this._isResuming = false;
 		this._lastSentById.clear();
-		this._lastSentActive = '';
 		this._setConnected(false);
 	}
 
@@ -634,8 +634,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _sendDelta(context: IVoiceSessionContext): void {
 		const currentIds = new Set(context.sessions.map(s => s.id));
 		const removes = [...this._lastSentById.keys()].filter(id => !currentIds.has(id));
-		const activeKey = context.active_session ? stableStringify(context.active_session) : '';
-		const activeChanged = activeKey !== this._lastSentActive;
 
 		// Compute per-session field-level patches (JSON Merge Patch style)
 		const upserts: Record<string, unknown>[] = [];
@@ -689,7 +687,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 		}
 
-		if (upserts.length === 0 && removes.length === 0 && !activeChanged) {
+		if (upserts.length === 0 && removes.length === 0) {
 			return;
 		}
 
@@ -702,16 +700,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._lastSentById.set(session.id, obj);
 		}
 		for (const id of removes) { this._lastSentById.delete(id); }
-		this._lastSentActive = activeKey;
 
 		this._ws!.send(JSON.stringify({
 			type: 'session_context',
 			mode: 'delta',
 			upserts,
 			removes,
-			...(activeChanged && context.active_session ? { active_session: context.active_session } : {}),
 		}));
-		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length} activeChanged=${activeChanged}`);
+		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length}`);
 	}
 
 	private _seedTracking(context: IVoiceSessionContext): void {
@@ -723,16 +719,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			this._lastSentById.set(session.id, obj);
 		}
-		this._lastSentActive = context.active_session ? stableStringify(context.active_session) : '';
 	}
 
-	sendToolResult(callId: string, result: string): void {
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -740,7 +735,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
 			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
-			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: id }));
+			this._ws.send(JSON.stringify({
+				type: 'request_narration',
+				coding_session_id: codingSessionId,
+				kind,
+				text,
+				narration_id: id,
+				...(pending ? { pending_id: pending.pendingId } : {}),
+			}));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
 			return id;
 		}

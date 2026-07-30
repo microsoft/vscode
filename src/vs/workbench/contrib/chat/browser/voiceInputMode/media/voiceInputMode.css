@@ -57,6 +57,55 @@
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
+/* Determinate download ring drawn over the compact download glyph while the
+ * on-device model downloads (cache miss). Mirrors the standalone toolbar
+ * button's ring; reuses its shared `dictation-download-ring-spin` keyframe. */
+.chat-voice-input-mode-cell.dictation {
+	position: relative;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	/* Sized to hug the compact 12px download glyph rather than the full cell. */
+	width: 16px;
+	height: 16px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
+}
+
+.hc-black .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
+}
+
 /* The Device EQ waveform lives in the voice cell and transforms per state. Thin bars = default (disconnected); thick bars = filled (connected). Its box matches the compact glyph size of the neighbouring cells so every state of the pill reads at the same optical weight. */
 .chat-voice-input-mode-bars {
 	display: inline-flex;
