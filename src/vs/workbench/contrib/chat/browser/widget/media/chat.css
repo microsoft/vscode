@@ -4680,13 +4680,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	On their own they lose the segmented pill's enclosure, so each one carries a
 	circular outline of its own and reads as a single-cell version of it rather
-	than a bare glyph. The ring is drawn in `currentColor` so it always matches
-	the glyph it encircles: the resting icon foreground, and the same blue /
-	purple / green the glyph takes while Voice Mode is listening, speaking or
-	offering to disconnect. A border *token* can't track that — and the obvious
-	ones can't even be seen here, since `input.border` and `widget.border` are
-	both `null` outside high contrast and resolve to a 20%-alpha fallback that
-	all but disappears on a 1px circle. High-contrast themes still take
+	than a bare glyph. The ring uses the pill's exact border declaration so the
+	two enclosures are indistinguishable when the UI swaps between them —
+	`input.border` is `null` outside high contrast and resolves to a soft
+	20%-alpha `editorWidget.border`, and in high contrast it resolves to
 	`contrastBorder` so the ring stays fully opaque there. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
@@ -4698,7 +4695,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 22px;
 	height: 22px;
 	justify-content: center;
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, currentColor);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);
 }
