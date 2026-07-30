@@ -72,6 +72,7 @@ suite('KimiPrompts', () => {
 
 		expect(renderedPrompt).toContain(`Use ${ToolName.ReplaceString} for single string replacements`);
 		expect(renderedPrompt).toContain(`batch them into a single ${ToolName.MultiReplaceString} call`);
+		expect(renderedPrompt).toContain(`A single ${ToolName.MultiReplaceString} call is much faster and cheaper`);
 		expect(renderedPrompt).not.toContain(`Use ${ToolName.EditFile}`);
 		expect(renderedPrompt).not.toContain(`Use ${ToolName.ApplyPatch}`);
 	});

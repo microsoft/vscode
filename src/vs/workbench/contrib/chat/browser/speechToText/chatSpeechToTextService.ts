@@ -6,7 +6,6 @@
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
-import { safeIntl } from '../../../../../base/common/date.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -36,109 +35,6 @@ import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
-const dictationCleanupWordSegmenter = safeIntl.Segmenter(undefined, { granularity: 'word' });
-
-function getDictationCleanupWords(text: string): string[] {
-	return Array.from(dictationCleanupWordSegmenter.value.segment(text
-		.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
-		.toLocaleLowerCase()
-		.normalize('NFC')
-		.replace(/['\u2019]/gu, '')))
-		.filter(segment => segment.isWordLike)
-		.map(segment => segment.segment);
-}
-
-function getDictationTerminologyWords(dictationInstructions: string | undefined): Set<string> {
-	if (!dictationInstructions) {
-		return new Set();
-	}
-
-	const terms: string[] = [];
-	for (const line of dictationInstructions.split(/\r?\n/)) {
-		for (const match of line.matchAll(/["\u201c]([^"\u201d]+)["\u201d]|`([^`]+)`/g)) {
-			terms.push(match[1] ?? match[2]);
-		}
-		const mappedTerm = line.match(/(?:->|=>)\s*(.+)$/)?.[1];
-		const namedTerm = line.match(/\b(?:product name|proper noun|terminology|term)\b(?:\s+(?:is|as))?\s*:?\s*(.+)$/i)?.[1];
-		const spelledTerm = line.match(/\b(?:spell|write|refer to)\b.*?\bas\s+(.+)$/i)?.[1];
-		for (const term of [mappedTerm, namedTerm, spelledTerm]) {
-			if (term) {
-				terms.push(term.replace(/^\s*as\s+/i, '').replace(/^["\u201c`]|["\u201d`.,;:!?]+$/g, ''));
-			}
-		}
-	}
-	return new Set(getDictationCleanupWords(terms.join('\n')));
-}
-
-interface IFaithfulDictationCleanupValidation {
-	readonly isFaithful: boolean;
-	readonly rawWordCount: number;
-	readonly cleanedWordCount: number;
-	readonly minimumCleanedWords: number;
-	readonly terminologySubstitutionCount: number;
-	readonly firstUnmatchedCleanedWordIndex?: number;
-	readonly firstUnmatchedCleanedWord?: string;
-}
-
-function validateFaithfulDictationCleanup(raw: string, cleaned: string, dictationInstructions?: string): IFaithfulDictationCleanupValidation {
-	const rawWords = getDictationCleanupWords(raw);
-	const cleanedWords = getDictationCleanupWords(cleaned);
-	const terminologyWords = getDictationTerminologyWords(dictationInstructions);
-	const minimumCleanedWords = Math.ceil(rawWords.length * 0.6);
-	const maximumTerminologySubstitutions = dictationInstructions ? Math.max(1, Math.ceil(rawWords.length * 0.2)) : 0;
-	if (
-		rawWords.length === 0 ||
-		cleanedWords.length < minimumCleanedWords
-	) {
-		return {
-			isFaithful: false,
-			rawWordCount: rawWords.length,
-			cleanedWordCount: cleanedWords.length,
-			minimumCleanedWords,
-			terminologySubstitutionCount: 0,
-		};
-	}
-
-	let rawIndex = 0;
-	let terminologySubstitutionCount = 0;
-	for (let cleanedIndex = 0; cleanedIndex < cleanedWords.length; cleanedIndex++) {
-		const cleanedWord = cleanedWords[cleanedIndex];
-		let matchingRawIndex = rawIndex;
-		while (matchingRawIndex < rawWords.length && rawWords[matchingRawIndex] !== cleanedWord) {
-			matchingRawIndex++;
-		}
-		if (matchingRawIndex < rawWords.length) {
-			rawIndex = matchingRawIndex + 1;
-			continue;
-		}
-		if (terminologyWords.has(cleanedWord) && terminologySubstitutionCount < maximumTerminologySubstitutions) {
-			terminologySubstitutionCount++;
-			continue;
-		}
-		return {
-			isFaithful: false,
-			rawWordCount: rawWords.length,
-			cleanedWordCount: cleanedWords.length,
-			minimumCleanedWords,
-			terminologySubstitutionCount,
-			firstUnmatchedCleanedWordIndex: cleanedIndex,
-			firstUnmatchedCleanedWord: cleanedWord,
-		};
-	}
-
-	return {
-		isFaithful: true,
-		rawWordCount: rawWords.length,
-		cleanedWordCount: cleanedWords.length,
-		minimumCleanedWords,
-		terminologySubstitutionCount,
-	};
-}
-
-export function isFaithfulDictationCleanup(raw: string, cleaned: string, dictationInstructions?: string): boolean {
-	return validateFaithfulDictationCleanup(raw, cleaned, dictationInstructions).isFaithful;
-}
-
 function joinIncrementalDictationText(prefix: string, suffix: string): string {
 	if (!prefix || !suffix) {
 		return `${prefix}${suffix}`;
@@ -164,10 +60,16 @@ function joinIncrementalDictationText(prefix: string, suffix: string): string {
 	return `${prefix}${normalizedSuffix}`;
 }
 
-function stripDictationFillers(text: string): string {
+export function stripDictationFillers(text: string): string {
 	return text
 		.replace(/\b(?:um+|uh+|ums|uhs)\b/giu, '')
 		.replace(/[ \t]+([,.;!?])/g, '$1')
+		// Collapse punctuation artifacts produced when a cleaned prefix and the
+		// raw transcript tail are concatenated (e.g. ".," or ",,"): keep the
+		// stronger sentence terminator and drop redundant separators.
+		.replace(/[,;]+[ \t]*([.!?])/g, '$1')
+		.replace(/([.!?])[ \t]*[,;]+/g, '$1')
+		.replace(/([,;])[ \t]*[,;]+/g, '$1')
 		.replace(/[ \t]{2,}/g, ' ')
 		.replace(/^[ \t]+|[ \t]+$/g, '');
 }
@@ -221,7 +123,7 @@ export function createDictationCleanupSystemPrompt(source: 'final' | 'incrementa
 		: 'Add sentence punctuation, capitalization, and paragraph breaks so it reads naturally. Split run-on sentences and group related sentences into paragraphs separated by a blank line.';
 	const listInstruction = source === 'incremental'
 		? ''
-		: 'When the speaker dictates a sequence of items, format it as a Markdown bulleted or numbered list, choosing numbered only when order matters.';
+		: 'When the speaker enumerates two or more items, steps, or options, format them as a Markdown list with one item per line instead of a paragraph. Use a numbered list when the wording implies order or sequence (for example ordinals like "first", "second", "third", "next", "finally", counting like "one", "two", "three", or phrases like "step one" or "step two"); otherwise use a bulleted list with "-". Do not add items the speaker did not dictate.';
 	const continuationInstruction = isContinuation
 		? (source === 'incremental'
 			? 'This input continues earlier text. Do not capitalize its first word or add leading punctuation unless the wording itself clearly contains that punctuation.'
@@ -419,9 +321,10 @@ export interface IChatDictationTranscript {
 	/** Full cumulative transcript to display. */
 	readonly text: string;
 	/**
-	 * The leading portion of `text` that is finalized (committed): it should be
-	 * rendered without the shimmer. The remainder is the in-progress interim
-	 * tail that keeps shimmering until it is finalized.
+	 * The leading portion of `text` that is finalized (committed) by the
+	 * recognizer. Note that streaming backends endpoint segments almost as fast
+	 * as they are spoken, so this is not a good signal for how much of the
+	 * transcript has settled from the user's point of view.
 	 */
 	readonly finalizedText: string;
 }
@@ -436,7 +339,7 @@ export interface IChatSpeechToTextService {
 	 * Fires with the cumulative transcript while recording, so callers can
 	 * render dictation live as the user speaks. The value grows monotonically
 	 * (finalized utterances plus any in-progress delta), and carries the
-	 * finalized (non-shimmering) portion of that transcript.
+	 * finalized (committed) portion of that transcript.
 	 */
 	readonly onDidUpdateTranscript: Event<IChatDictationTranscript>;
 
@@ -460,6 +363,17 @@ export interface IChatSpeechToTextService {
 	readonly onDidChangePreparingModel: Event<boolean>;
 	/** Whether the on-device model is currently downloading/loading. */
 	readonly isPreparingModel: boolean;
+
+	/**
+	 * Fires when the model-download sub-state changes. `true` while the model is
+	 * actively downloading to disk (a confirmed cache miss), `false` while it is
+	 * merely loading an already-cached model into memory or once preparation
+	 * ends. Callers use this to show a download affordance only during a real
+	 * download, and a plain spinner while loading.
+	 */
+	readonly onDidChangeDownloadingModel: Event<boolean>;
+	/** Whether the on-device model is currently downloading to disk (cache miss). */
+	readonly isDownloadingModel: boolean;
 
 	/**
 	 * Fires whenever the on-device model download progress changes while the
@@ -521,6 +435,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		return this._isPreparingModel;
 	}
 
+	private readonly _onDidChangeDownloadingModel = this._register(new Emitter<boolean>());
+	readonly onDidChangeDownloadingModel = this._onDidChangeDownloadingModel.event;
+
+	private _isDownloadingModel = false;
+	get isDownloadingModel(): boolean {
+		return this._isDownloadingModel;
+	}
+
 	private readonly _onDidChangeModelDownloadProgress = this._register(new Emitter<void>());
 	readonly onDidChangeModelDownloadProgress = this._onDidChangeModelDownloadProgress.event;
 
@@ -554,6 +476,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _sourceNode: MediaStreamAudioSourceNode | undefined;
 	private _analyserNode: AnalyserNode | undefined;
 	private _workletNode: AudioWorkletNode | undefined;
+	/** Drains the capture worklet's trailing buffer; see {@link IPcmCaptureNode.flush}. */
+	private _flushCapture: (() => Promise<void>) | undefined;
 
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
 
@@ -599,7 +523,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _finalizedText = '';
 	/** In-progress text for the current utterance (from delta events). */
 	private _deltaText = '';
-	/** Normalized prefix the backend reports as finalized, used for shimmer rendering. */
+	/** Normalized prefix the backend reports as finalized, used to style the in-progress tail. */
 	private _backendFinalizedText = '';
 	/** Raw finalized prefix already represented by `_incrementalCleanedPrefix`. */
 	private _incrementalCleanedRawPrefix = '';
@@ -714,8 +638,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._preparingContextKey.set(preparing);
 		if (!preparing) {
 			this._setModelDownloadProgress(undefined);
+			// Preparation ended (ready, error, or teardown): the model is no
+			// longer downloading.
+			this._setDownloadingModel(false);
 		}
 		this._onDidChangePreparingModel.fire(preparing);
+	}
+
+	private _setDownloadingModel(downloading: boolean): void {
+		if (this._isDownloadingModel === downloading) {
+			return;
+		}
+		this._isDownloadingModel = downloading;
+		this._onDidChangeDownloadingModel.fire(downloading);
 	}
 
 	private _setModelDownloadProgress(progress: number | undefined): void {
@@ -887,8 +822,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	/**
 	 * Record a transcript update on the shared cumulative surface and accumulate
 	 * the latency/stability telemetry, regardless of backend. `text` is the full
-	 * cumulative transcript; `finalizedText` is its committed (non-shimmering)
-	 * prefix; `isFinal` marks the terminal update after the session stops.
+	 * cumulative transcript; `finalizedText` is its committed prefix; `isFinal`
+	 * marks the terminal update after the session stops.
 	 */
 	private _emitTranscript(text: string, finalizedText: string, isFinal: boolean): void {
 		this._finalizedText = text;
@@ -1258,6 +1193,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 */
 	private _handleModelStatus(status: ILocalTranscriptionModelStatus): void {
 		this._lastModelStatus = status;
+		// Track whether we are in an actual on-disk download (a confirmed cache
+		// miss) versus merely loading an already-cached model, so the UI can show
+		// a download affordance only during a real download.
+		this._setDownloadingModel(status.state === LocalTranscriptionModelState.Downloading);
 		this._updateModelDownloadProgress(status);
 		this._updateDownloadNotification(status);
 		if (status.state === LocalTranscriptionModelState.Ready) {
@@ -1384,6 +1323,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		this._setState(ChatSpeechToTextState.Transcribing);
 		this._resetIncrementalCleanup();
+		// Flush trailing audio before stopping the backend so transport ordering is preserved.
+		await this._flushCapture?.();
 		this._stopCapture();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 
@@ -1487,22 +1428,22 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			// text on a mid-stream failure, which could replace the complete raw
 			// transcript with a truncated one. Any error here falls through to the
 			// catch and yields `undefined` (raw-transcript fallback).
+			// Bound response consumption so cancellation can release a stalled stream or result wait.
 			let cleaned = '';
-			for await (const part of response.stream) {
-				if (cts.token.isCancellationRequested) {
-					this._logService.info(`[chat-stt] cancelled language model cleanup during stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
-					return undefined;
-				}
-				const parts = Array.isArray(part) ? part : [part];
-				for (const item of parts) {
-					if (item.type === 'text') {
-						cleaned += item.value;
+			const consumed = await raceCancellation((async () => {
+				for await (const part of response.stream) {
+					const parts = Array.isArray(part) ? part : [part];
+					for (const item of parts) {
+						if (item.type === 'text') {
+							cleaned += item.value;
+						}
 					}
 				}
-			}
-			await response.result;
-			if (cts.token.isCancellationRequested) {
-				this._logService.info(`[chat-stt] cancelled language model cleanup after stream (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
+				await response.result;
+				return true;
+			})(), cts.token);
+			if (consumed === undefined || cts.token.isCancellationRequested) {
+				this._logService.info(`[chat-stt] cancelled language model cleanup while consuming response (source=${source}, reason=${timedOut ? 'timeout' : 'cancelled'}); using raw transcript`);
 				return undefined;
 			}
 			cleaned = cleaned.trim();
@@ -1510,17 +1451,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.warn(`[chat-stt] language model cleanup returned empty output (source=${source}, rawChars=${text.length}); using raw transcript`);
 				return undefined;
 			}
-			const faithfulness = validateFaithfulDictationCleanup(text, cleaned, dictationInstructions);
-			if (!faithfulness.isFaithful) {
-				const refusalLikeOutput = isRefusalLikeCleanupOutput(cleaned);
-				if (refusalLikeOutput) {
-					const localFallback = stripDictationFillers(text);
-					if (localFallback && localFallback !== text) {
-						this._logService.info(`[chat-stt] language model cleanup returned refusal-like output; applying local filler cleanup (source=${source}, rawChars=${text.length}, cleanedChars=${localFallback.length})`);
-						return localFallback;
-					}
+			if (isRefusalLikeCleanupOutput(cleaned)) {
+				const localFallback = stripDictationFillers(text);
+				if (localFallback && localFallback !== text) {
+					this._logService.info(`[chat-stt] language model cleanup returned refusal-like output; applying local filler cleanup (source=${source}, rawChars=${text.length}, cleanedChars=${localFallback.length})`);
+					return localFallback;
 				}
-				this._logService.warn(`[chat-stt] language model transcript cleanup failed faithfulness validation (source=${source}, rawChars=${text.length}, cleanedChars=${cleaned.length}, rawWords=${faithfulness.rawWordCount}, cleanedWords=${faithfulness.cleanedWordCount}, minimumCleanedWords=${faithfulness.minimumCleanedWords}, terminologySubstitutions=${faithfulness.terminologySubstitutionCount}, refusalLikeOutput=${refusalLikeOutput}, firstUnmatchedCleanedWordIndex=${faithfulness.firstUnmatchedCleanedWordIndex ?? -1}, firstUnmatchedCleanedWord=${faithfulness.firstUnmatchedCleanedWord ?? ''}); using raw transcript`);
+				this._logService.warn(`[chat-stt] language model cleanup returned refusal-like output (source=${source}, rawChars=${text.length}, cleanedChars=${cleaned.length}); using raw transcript`);
 				return undefined;
 			}
 			this._logService.trace(`[chat-stt] applied language model cleanup (source=${source}, rawChars=${text.length}, cleanedChars=${cleaned.length})`);
@@ -1598,18 +1535,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		// The session may have been torn down while the module was loading.
 		if (this._audioContext !== ctx) {
-			try { node.disconnect(); } catch { /* ignore */ }
+			try { node.node.disconnect(); } catch { /* ignore */ }
 			return;
 		}
 
-		this._workletNode = node;
+		this._workletNode = node.node;
+		this._flushCapture = node.flush;
 		const analyser = ctx.createAnalyser();
 		analyser.fftSize = 256;
 		analyser.smoothingTimeConstant = 0.75;
 		this._analyserNode = analyser;
 		source.connect(analyser);
-		analyser.connect(node);
-		node.connect(ctx.destination);
+		analyser.connect(node.node);
+		node.node.connect(ctx.destination);
 	}
 
 	/**
@@ -1629,6 +1567,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private _stopCapture(): void {
+		this._flushCapture = undefined;
 		if (this._workletNode) {
 			this._workletNode.port.onmessage = null;
 			try { this._workletNode.disconnect(); } catch { /* ignore */ }

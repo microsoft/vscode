@@ -135,26 +135,124 @@ export interface IAgentHostToolInvokedReport {
 	invocationTimeMs: number;
 }
 
+type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
+
+export interface IAgentHostToolCallDetailsEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	conversationId: string;
+	requestId: string;
+	responseType: AgentHostToolCallResponseType;
+	toolCounts: string;
+	model: string | undefined;
+	numRequests: number;
+	turnIndex: number;
+	turnDuration: number;
+	messageCharLen: number | undefined;
+	availableToolCount: number;
+	totalToolCalls: number;
+	parallelToolCallRounds: number;
+	parallelToolCallsTotal: number;
+}
+
+export type IAgentHostToolCallDetailsClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool-call aggregate belongs to a subagent session.' };
+	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current chat conversation.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current turn request.' };
+	responseType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, was cancelled, or failed.' };
+	toolCounts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times each tool was requested during the turn.' };
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used for the final model call in the turn, when known.' };
+	numRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of model-call rounds in the turn.' };
+	turnIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based turn ordinal within the agent host session.' };
+	turnDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The elapsed time in milliseconds for the turn.' };
+	messageCharLen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters in the user message, when known.' };
+	availableToolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools offered to the model.' };
+	totalToolCalls: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of tool calls requested during the turn.' };
+	parallelToolCallRounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of model-call rounds containing multiple tool calls.' };
+	parallelToolCallsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tool calls belonging to parallel tool-call rounds.' };
+	owner: 'roblourens';
+	comment: 'Records aggregate information about tool calls during an agent host turn.';
+};
+
 export interface IAgentHostToolCallDetailsReport {
+	provider: string;
 	session: string;
 	turnId: string;
 	clientType: AgentHostClientType;
 	model: string | undefined;
-	responseType: string;
+	responseType: AgentHostToolCallResponseType;
 	/** Count of invocations keyed by tool name, across all rounds in the turn. */
 	toolCounts: Record<string, number>;
 	/** Names of the tools offered to the model for this turn. */
 	availableTools: readonly string[];
 	/** Number of model-call rounds in the turn, including the final tool-free response round (matches the extension's `toolCallRounds.length`). */
 	numRequests: number;
+	turnIndex: number;
+	turnDuration: number;
+	messageCharLen: number | undefined;
 	totalToolCalls: number;
 	parallelToolCallRounds: number;
 	parallelToolCallsTotal: number;
 }
 
+export interface IAgentHostToolApprovalReport {
+	provider: string;
+	session: string;
+	turnId: string;
+	toolId: string;
+	toolSourceKind: string;
+	confirmKind: AgentHostToolApprovalConfirmKind;
+	confirmationNotNeededReason: string | undefined;
+	requestUnsandboxedExecution: boolean | undefined;
+}
+
+type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied';
+
+export interface IAgentHostToolApprovalEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	chatSessionId: string;
+	requestId: string;
+	toolId: string;
+	toolExtensionId: string | undefined;
+	toolSourceKind: string;
+	confirmKind: AgentHostToolApprovalConfirmKind;
+	settingId: string | undefined;
+	lmServiceScope: string | undefined;
+	customButtonKind: string | undefined;
+	confirmationNotNeededReason: string | undefined;
+	sandboxWrapped: boolean | undefined;
+	requestUnsandboxedExecution: boolean | undefined;
+}
+
+export type IAgentHostToolApprovalClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool approval belongs to a subagent session.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request turn that this tool approval is associated with, if available.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
+	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source kind of the tool.' };
+	confirmKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the confirmation was resolved (userAction, setting, confirmationNotNeeded, denied).' };
+	settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is setting, the configuration id that auto-approved the tool.' };
+	lmServiceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is lmServicePerTool, the scope (session/workspace/profile).' };
+	customButtonKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the user clicked a custom button on the confirmation widget, whether the button represents approve or deny semantics.' };
+	confirmationNotNeededReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is confirmationNotNeeded, a stable identifier for why the tool did not require confirmation.' };
+	sandboxWrapped: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether this specific invocation runs inside the agent terminal sandbox.' };
+	requestUnsandboxedExecution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether the model requested to bypass the sandbox for this invocation.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval) in agent host sessions.';
+};
+
 export interface IAgentHostAutoModeRouterDecisionReport {
 	session: string;
 	turnId: string;
+	clientType: AgentHostClientType;
 	chosenModel: string;
 	predictedLabel: string | undefined;
 	confidence: number | undefined;
@@ -163,6 +261,7 @@ export interface IAgentHostAutoModeRouterDecisionReport {
 }
 
 export interface IAgentHostSkillContentReadReport {
+	clientType: AgentHostClientType;
 	/** The skill name. */
 	name: string;
 	/** Path to the SKILL.md file. */
@@ -181,6 +280,7 @@ export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge
 
 export interface IAgentHostRepoInfoReport {
 	telemetryMessageId: string;
+	clientType: AgentHostClientType;
 	location: 'begin' | 'end';
 	remoteUrl: string;
 	repoId: string;
@@ -379,36 +479,53 @@ export class AgentHostTelemetryReporter {
 	}
 
 	/**
-	 * Mirrors the Copilot extension's restricted `toolCallDetailsExternal` / `toolCallDetailsInternal`
-	 * events (`chatParticipantTelemetry.ts` -> `sendToolCallingTelemetry`) — the per-turn tool-call
-	 * aggregate. The extension emits it once at the end of a turn's tool-calling loop; the agent host
-	 * accumulates the same counts across the turn's `assistant.message` rounds and emits on turn
-	 * completion. The tool-definition token count, per-round token/char counts, invalid-round count,
-	 * and turn index (the extension emits it only as a non-landing measurement) are not surfaced at the
-	 * AH turn boundary and are omitted. Like the extension, this fires for every turn that had tools
-	 * available — even one that made no tool calls (empty `toolCounts`) — and no-ops only when no tools
-	 * were offered.
-	 *
-	 * @param report The per-turn tool-call aggregate.
+	 * Emits the local-compatible tool-call aggregate on standard and restricted telemetry channels.
 	 */
 	async toolCallDetails(report: IAgentHostToolCallDetailsReport): Promise<void> {
-		const restricted = this._restricted;
-		if (!restricted || report.availableTools.length === 0) {
+		if (report.availableTools.length === 0) {
 			return;
 		}
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const conversationId = AgentSession.id(session);
+		const toolCounts = JSON.stringify(report.toolCounts);
+		this._telemetryService.publicLog2<IAgentHostToolCallDetailsEvent, IAgentHostToolCallDetailsClassification>('toolCallDetails', {
+			provider: report.provider,
+			agentSessionId: conversationId,
+			isSubagentSession: isSubagentSession(session),
+			conversationId,
+			requestId: report.turnId,
+			responseType: report.responseType,
+			toolCounts,
+			model: report.model,
+			numRequests: report.numRequests,
+			turnIndex: report.turnIndex,
+			turnDuration: report.turnDuration,
+			messageCharLen: report.messageCharLen,
+			availableToolCount: report.availableTools.length,
+			totalToolCalls: report.totalToolCalls,
+			parallelToolCallRounds: report.parallelToolCallRounds,
+			parallelToolCallsTotal: report.parallelToolCallsTotal,
+		});
+
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
 		const properties = await multiplexProperties({
-			conversationId: AgentSession.id(session),
+			conversationId,
 			requestId: report.turnId,
 			messageId: report.turnId,
 			initiatorClientType: report.clientType,
 			responseType: report.responseType,
 			...(report.model ? { model: report.model } : {}),
-			toolCounts: JSON.stringify(report.toolCounts),
+			toolCounts,
 			availableTools: JSON.stringify(report.availableTools),
 		});
 		const measurements = {
 			numRequests: report.numRequests,
+			turnIndex: report.turnIndex,
+			turnDuration: report.turnDuration,
+			...(report.messageCharLen !== undefined ? { messageCharLen: report.messageCharLen } : {}),
 			availableToolCount: report.availableTools.length,
 			totalToolCalls: report.totalToolCalls,
 			parallelToolCallRounds: report.parallelToolCallRounds,
@@ -416,6 +533,29 @@ export class AgentHostTelemetryReporter {
 		};
 		restricted.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', properties, measurements);
 		restricted.sendInternalMSFTTelemetryEvent('toolCallDetailsInternal', properties, measurements);
+	}
+
+	/** Emits the workbench-compatible tool-approval telemetry from the agent host on the standard telemetry channel. */
+	toolApproval(report: IAgentHostToolApprovalReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const agentSessionId = AgentSession.id(session);
+		this._telemetryService.publicLog2<IAgentHostToolApprovalEvent, IAgentHostToolApprovalClassification>('chat.toolApproval', {
+			provider: report.provider,
+			agentSessionId,
+			isSubagentSession: isSubagentSession(session),
+			chatSessionId: agentSessionId,
+			requestId: report.turnId,
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			confirmKind: report.confirmKind,
+			settingId: undefined,
+			lmServiceScope: undefined,
+			customButtonKind: undefined,
+			confirmationNotNeededReason: report.confirmationNotNeededReason,
+			sandboxWrapped: undefined,
+			requestUnsandboxedExecution: report.requestUnsandboxedExecution,
+		});
 	}
 
 	/**
@@ -436,6 +576,7 @@ export class AgentHostTelemetryReporter {
 		const properties = {
 			conversationId: AgentSession.id(report.session),
 			vscodeRequestId: report.turnId,
+			initiatorClientType: report.clientType,
 			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
 			candidateModel: candidateModels[0] ?? '',
 			chosenModel: report.chosenModel,
@@ -475,6 +616,7 @@ export class AgentHostTelemetryReporter {
 		// never emit a `skillExtensionVersion` without a corresponding `skillExtensionId`.
 		const skillExtensionVersion = report.pluginName ? (report.pluginVersion ?? '') : '';
 		const plaintextProps = {
+			initiatorClientType: report.clientType,
 			skillName: report.name,
 			skillPath: report.path,
 			skillExtensionId: report.pluginName ?? '',
@@ -483,6 +625,7 @@ export class AgentHostTelemetryReporter {
 			skillContentHash: contentHash,
 		};
 		restricted.sendGHTelemetryEvent('skillContentRead', {
+			initiatorClientType: report.clientType,
 			skillNameHash: String(hash(report.name)),
 			skillExtensionIdHash: report.pluginName ? String(hash(report.pluginName)) : '',
 			skillExtensionVersion,
@@ -499,6 +642,7 @@ export class AgentHostTelemetryReporter {
 			return;
 		}
 		const properties = {
+			initiatorClientType: report.clientType,
 			remoteUrl: report.remoteUrl,
 			repoId: report.repoId,
 			repoType: report.repoType,
