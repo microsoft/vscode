@@ -135,6 +135,7 @@ suite('AgentHostByokLmHandler', () => {
 			() => responseOf([
 				{ type: 'thinking', value: 'considered ', id: 'rs_1' },
 				{ type: 'thinking', value: ['options'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'thinking', value: '', id: 'thinking_2', metadata: { signature: 'sig', _completeThinking: 'full thought' } },
 				{ type: 'text', value: 'hello ' },
 				{ type: 'text', value: 'world' },
 				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
@@ -162,7 +163,8 @@ suite('AgentHostByokLmHandler', () => {
 		assert.deepStrictEqual(result, {
 			output: [
 				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: { encrypted_content: 'opaque' } },
-				{ type: 'message', content: [{ type: 'text', text: 'hello ' }, { type: 'text', text: 'world' }] },
+				{ type: 'reasoning', id: 'thinking_2', summary: [''], encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig","_completeThinking":"full thought"}', metadata: { signature: 'sig', _completeThinking: 'full thought' } },
+				{ type: 'message', content: [{ type: 'text', text: 'hello world' }] },
 				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
 				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 			],
@@ -192,7 +194,8 @@ suite('AgentHostByokLmHandler', () => {
 				],
 				input: [
 					{ type: 'reasoning', id: 'rs_1', summary: ['thought'], encryptedContent: 'opaque' },
-					{ type: 'message', role: 'assistant', content: [{ type: 'text', text: 'checking' }] },
+					{ type: 'reasoning', id: 'rs_2', summary: ['other thought'], encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig-2","_completeThinking":"other complete thought"}' },
+					{ type: 'message', role: 'assistant', content: [{ type: 'text', text: 'check' }, { type: 'text', text: 'ing' }] },
 					{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
 					{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 					{ type: 'function_call_output', callId: 't1', output: 'sunny' },
@@ -218,11 +221,12 @@ suite('AgentHostByokLmHandler', () => {
 					role: ChatMessageRole.Assistant,
 					content: [
 						{ type: 'thinking', value: ['thought'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+						{ type: 'thinking', value: ['other thought'], id: 'rs_2', metadata: { signature: 'sig-2', _completeThinking: 'other complete thought' } },
+						{ type: 'text', value: 'checking' },
+						{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+						{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
 					],
 				},
-				{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: 'checking' }] },
-				{ role: ChatMessageRole.Assistant, content: [{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } }] },
-				{ role: ChatMessageRole.Assistant, content: [{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't2', value: [{ type: 'text', value: 'Done!' }] }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },

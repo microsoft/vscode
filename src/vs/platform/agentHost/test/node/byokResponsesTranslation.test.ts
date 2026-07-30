@@ -155,7 +155,7 @@ suite('byokResponsesTranslation', () => {
 		const body = JSON.parse(bridgeResultToResponsesBody({
 			responseId: 'resp_provider',
 			output: [
-				{ type: 'reasoning', id: 'rs_1', summary: ['thought'], encryptedContent: 'opaque' },
+				{ type: 'reasoning', id: 'thinking_1', summary: ['thought'], encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig"}' },
 				{ type: 'message', content: [{ type: 'text', text: 'answer' }] },
 			],
 			usage: { inputTokens: 3, outputTokens: 2, reasoningTokens: 1 },
@@ -163,7 +163,7 @@ suite('byokResponsesTranslation', () => {
 			id: string;
 			created_at: number;
 			status: string;
-			output: Array<{ type: string }>;
+			output: Array<{ id: string; type: string; encrypted_content?: string | null }>;
 			output_text: string;
 			usage: unknown;
 		};
@@ -193,5 +193,7 @@ suite('byokResponsesTranslation', () => {
 			},
 		});
 		assert.deepStrictEqual(body.output.map(item => item.type), ['reasoning', 'message']);
+		assert.match(body.output[0].id, /^rs_byok_/);
+		assert.strictEqual(body.output[0].encrypted_content, 'vscode-reasoning-metadata:{"signature":"sig"}');
 	});
 });

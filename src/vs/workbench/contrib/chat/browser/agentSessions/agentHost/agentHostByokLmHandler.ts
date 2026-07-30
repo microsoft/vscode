@@ -27,6 +27,7 @@ import {
 
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
+const REASONING_METADATA_PREFIX = 'vscode-reasoning-metadata:';
 
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
@@ -182,7 +183,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			});
 		}
 		for (const item of request.input) {
-			messages.push(this._toChatMessage(item));
+			const message = this._toChatMessage(item);
+			const previous = messages.at(-1);
+			if (message.role === ChatMessageRole.Assistant && previous?.role === ChatMessageRole.Assistant) {
+				messages[messages.length - 1] = {
+					...previous,
+					content: [...previous.content, ...message.content],
+				};
+			} else {
+				messages.push(message);
+			}
 		}
 		return messages;
 	}
@@ -192,7 +202,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			case 'message':
 				return {
 					role: this._toChatRole(item.role),
-					content: item.content.map(part => ({ type: 'text', value: part.text })),
+					content: [{ type: 'text', value: item.content.map(part => part.text).join('') }],
 				};
 			case 'reasoning': {
 				return {
@@ -203,7 +213,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 						id: item.id,
 						metadata: {
 							...item.metadata,
-							...(item.encryptedContent ? { encrypted_content: item.encryptedContent } : {}),
+							...(item.encryptedContent ? this._decodeReasoningMetadata(item.encryptedContent) : {}),
 						},
 					}],
 				};
@@ -246,7 +256,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (previous?.type === 'message') {
 			output[output.length - 1] = {
 				...previous,
-				content: [...previous.content, { type: 'text', text: value }],
+				content: [{ type: 'text', text: previous.content.map(part => part.text).join('') + value }],
 			};
 		} else {
 			output.push({ type: 'message', content: [{ type: 'text', text: value }] });
@@ -258,7 +268,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			return;
 		}
 		const summary = Array.isArray(part.value) ? part.value : [part.value];
-		const encryptedContent = this._stringMetadata(part.metadata, 'encrypted_content') ?? this._stringMetadata(part.metadata, 'encrypted');
+		const encryptedContent = this._encodeReasoningMetadata(part.metadata);
 		const reasoning: IByokLmReasoningItem = {
 			type: 'reasoning',
 			id: part.id,
@@ -277,6 +287,32 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		} else {
 			output.push(reasoning);
 		}
+	}
+
+	private _encodeReasoningMetadata(metadata: Readonly<Record<string, unknown>> | undefined): string | undefined {
+		const encryptedContent = this._stringMetadata(metadata, 'encrypted_content') ?? this._stringMetadata(metadata, 'encrypted');
+		if (encryptedContent) {
+			return encryptedContent;
+		}
+		const continuationMetadata = {
+			...(this._stringMetadata(metadata, 'signature') ? { signature: this._stringMetadata(metadata, 'signature') } : {}),
+			...(this._stringMetadata(metadata, '_completeThinking') ? { _completeThinking: this._stringMetadata(metadata, '_completeThinking') } : {}),
+			...(this._stringMetadata(metadata, 'redactedData') ? { redactedData: this._stringMetadata(metadata, 'redactedData') } : {}),
+		};
+		return Object.keys(continuationMetadata).length > 0
+			? `${REASONING_METADATA_PREFIX}${JSON.stringify(continuationMetadata)}`
+			: undefined;
+	}
+
+	private _decodeReasoningMetadata(value: string): Record<string, unknown> {
+		if (!value.startsWith(REASONING_METADATA_PREFIX)) {
+			return { encrypted_content: value };
+		}
+		const metadata = JSON.parse(value.slice(REASONING_METADATA_PREFIX.length));
+		if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+			throw new Error('Invalid Agent Host BYOK reasoning metadata');
+		}
+		return metadata as Record<string, unknown>;
 	}
 
 	private _customToolInput(parameters: unknown): string {

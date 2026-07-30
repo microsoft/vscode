@@ -249,7 +249,7 @@ function toResponsesOutputItem(item: IByokLmOutputItem): ResponsesOutputItem {
 				type: 'reasoning',
 				status: 'completed',
 				summary: item.summary.map(text => ({ type: 'summary_text', text })),
-				encrypted_content: item.id?.startsWith('rs') ? item.encryptedContent ?? null : null,
+				encrypted_content: item.encryptedContent ?? null,
 			};
 		case 'function_call':
 			return {
