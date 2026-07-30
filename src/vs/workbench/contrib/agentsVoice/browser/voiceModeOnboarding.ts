@@ -33,6 +33,9 @@ import './media/voiceModeOnboarding.css';
 /** Setting the banner writes when a voice chip is picked. */
 const VOICE_SETTING = 'agents.voice.voice';
 
+/** Setting that controls the language Voice Mode speaks. */
+const VOICE_LANGUAGE_SETTING = 'agents.voice.language';
+
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
@@ -121,6 +124,42 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 ];
+
+/**
+ * A language Voice Mode speaks natively, and the single voice its backend uses
+ * for that language. Choosing between voices is an English-only affordance, so
+ * for these languages the card previews this one voice rather than the four
+ * English options.
+ */
+interface ILocalizedVoice {
+	readonly id: string;
+	readonly label: string;
+}
+
+const LOCALIZED_VOICES: Readonly<Record<string, ILocalizedVoice>> = {
+	de: { id: 'de_marc_neutral', label: localize('voiceMode.onboarding.voice.marc', "Marc") },
+	es: { id: 'es-ES_maria_neutral', label: localize('voiceMode.onboarding.voice.maria', "Maria") },
+	fr: { id: 'fr_david_neutral', label: localize('voiceMode.onboarding.voice.david', "David") },
+	it: { id: 'it_eva_neutral', label: localize('voiceMode.onboarding.voice.eva', "Eva") },
+	ja: { id: 'ja_aruha_neutral', label: localize('voiceMode.onboarding.voice.aruha', "Aruha") },
+	ko: { id: 'ko_jiyon_neutral', label: localize('voiceMode.onboarding.voice.jiyon', "Jiyon") },
+	pt: { id: 'pt-BR_gil_neutral', label: localize('voiceMode.onboarding.voice.gil', "Gil") },
+	zh: { id: 'zh_wuzhi_neutral', label: localize('voiceMode.onboarding.voice.wuzhi', "Wuzhi") },
+};
+
+/**
+ * The native voice for a spoken language, or `undefined` when the language has
+ * no native voice and the card should fall back to the English voice chooser.
+ */
+function localizedVoiceForLanguage(language: string): ILocalizedVoice | undefined {
+	try {
+		const canonical = Intl.getCanonicalLocales(language.trim())[0];
+		const base = canonical?.split('-')[0].toLowerCase();
+		return base ? LOCALIZED_VOICES[base] : undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 /**
  * The trace before anyone has chosen: the four signatures averaged component by
@@ -447,11 +486,11 @@ class VoiceSamplePlayer extends Disposable {
 		return Math.min(1, Math.sqrt(sum / this.levels.length) * 3.2);
 	}
 
-	play(voiceId: string): void {
+	play(sampleId: string): void {
 		this.stop();
 		try {
 			const audio = this.ensureAudio();
-			audio.src = FileAccess.asBrowserUri(`vs/workbench/contrib/agentsVoice/browser/media/${voiceId}.mp3`).toString(true);
+			audio.src = FileAccess.asBrowserUri(`vs/workbench/contrib/agentsVoice/browser/media/${sampleId}.mp3`).toString(true);
 
 			const store = new DisposableStore();
 			store.add(dom.addDisposableListener(audio, 'ended', () => this.stop()));
@@ -459,7 +498,7 @@ class VoiceSamplePlayer extends Disposable {
 			store.add(toDisposable(() => audio.pause()));
 			this.playback.value = store;
 
-			this.setPlayingVoice(voiceId);
+			this.setPlayingVoice(sampleId);
 			audio.play().catch(error => {
 				this.logService.trace(`[voice] Voice Mode onboarding preview failed: ${error}`);
 				this.stop();
@@ -525,6 +564,15 @@ export interface IVoiceModeOnboardingBannerOptions {
 	readonly source: 'automatic' | 'manual';
 	/** Allows tests to provide a deterministic media element. */
 	readonly audioFactory?: () => HTMLAudioElement;
+	/** Allows tests to provide a deterministic spoken language. */
+	readonly voiceLanguage?: string;
+}
+
+/** A rendered voice option, with the strings its play state swaps between. */
+interface IVoiceElement {
+	readonly element: HTMLElement;
+	readonly label: string;
+	readonly restingAria: string;
 }
 
 /**
@@ -547,7 +595,10 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	private microphoneOptions: IMicrophoneOption[] = [];
 	private microphonePickerContainer: HTMLElement | undefined;
 
-	private readonly voiceElements = new Map<string, HTMLElement>();
+	private readonly voiceElements = new Map<string, IVoiceElement>();
+
+	/** The native voice for the spoken language, when one exists. */
+	private readonly localizedVoice: ILocalizedVoice | undefined;
 
 	/** The voice being auditioned, and the one that will be committed. */
 	private selectedVoice: IVoiceModeVoice | undefined;
@@ -577,6 +628,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			},
 		}));
 		this.domNode = this.card.domNode;
+		this.localizedVoice = localizedVoiceForLanguage(this.resolveSpokenLanguage());
 		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode, options.audioFactory));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
 
@@ -705,13 +757,20 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	/**
-	 * The four voices as real buttons - border, hover lift, pressed feedback -
-	 * because bare text gave no sign it could be clicked at all.
+	 * The voices as real buttons - border, hover lift, pressed feedback -
+	 * because bare text gave no sign it could be clicked at all. In a language
+	 * Voice Mode speaks natively there is only one voice, so the card previews
+	 * that voice instead of offering the English chooser.
 	 */
 	private renderVoices(container: HTMLElement): void {
 		const labelText = localize('voiceMode.onboarding.voices', "Agent Voice:");
 		const label = dom.append(container, dom.$('.voice-mode-onboarding-voices-label'));
 		label.textContent = labelText;
+
+		if (this.localizedVoice) {
+			this.renderLocalizedVoice(container, labelText, this.localizedVoice);
+			return;
+		}
 
 		const group = dom.append(container, dom.$('.voice-mode-onboarding-voices'));
 		group.setAttribute('role', 'radiogroup');
@@ -720,22 +779,14 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		for (const voice of VOICES) {
 			const option = dom.append(group, dom.$('.voice-mode-onboarding-voice'));
 			option.setAttribute('role', 'radio');
-			option.setAttribute('aria-label', this.voiceAriaLabel(voice, false));
+			const restingAria = localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label);
+			option.setAttribute('aria-label', restingAria);
 
-			// The icon is the affordance: it says "this will speak" before the
-			// click, and "this is yours" after it.
-			const icon = dom.append(option, dom.$('span.voice-mode-onboarding-voice-icon'));
-			dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.play.id}.voice-mode-onboarding-voice-idle`)).setAttribute('aria-hidden', 'true');
-			dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.checkCompact.id}.voice-mode-onboarding-voice-chosen`)).setAttribute('aria-hidden', 'true');
-			const bars = dom.append(icon, dom.$('span.voice-mode-onboarding-voice-bars'));
-			bars.setAttribute('aria-hidden', 'true');
-			for (let bar = 0; bar < 3; bar++) {
-				dom.append(bars, dom.$('span.voice-mode-onboarding-voice-bar'));
-			}
+			this.appendVoiceIcon(option);
 
 			const label = dom.append(option, dom.$('span.voice-mode-onboarding-voice-label'));
 			label.textContent = voice.label;
-			this.voiceElements.set(voice.id, option);
+			this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
 
 			this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.selectVoice(voice)));
 			this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => this.handleOptionKey(event, voice)));
@@ -744,13 +795,52 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.updateSelection();
 	}
 
-	// --- Shared behaviour ---
+	/**
+	 * The single native voice for the spoken language, as a preview button:
+	 * there is nothing to choose, so it only ever plays and stops.
+	 */
+	private renderLocalizedVoice(container: HTMLElement, ariaLabel: string, voice: ILocalizedVoice): void {
+		const group = dom.append(container, dom.$('.voice-mode-onboarding-voices'));
+		group.setAttribute('aria-label', ariaLabel);
 
-	private voiceAriaLabel(voice: IVoiceModeVoice, playing: boolean): string {
-		return playing
-			? localize('voiceMode.onboarding.voice.stopPreview', "Stop {0} preview.", voice.label)
-			: localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label);
+		const option = dom.append(group, dom.$('.voice-mode-onboarding-voice'));
+		option.setAttribute('role', 'button');
+		option.tabIndex = 0;
+		const restingAria = localize('voiceMode.onboarding.voice.previewAriaLabel', "{0}. Hear how your agent will sound.", voice.label);
+		option.setAttribute('aria-label', restingAria);
+
+		this.appendVoiceIcon(option);
+
+		const label = dom.append(option, dom.$('span.voice-mode-onboarding-voice-label'));
+		label.textContent = voice.label;
+		this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
+
+		this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.previewLocalizedVoice(voice)));
+		this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+				keyboardEvent.preventDefault();
+				this.previewLocalizedVoice(voice);
+			}
+		}));
 	}
+
+	/**
+	 * The icon is the affordance: it says "this will speak" before the click,
+	 * animating bars while it speaks, then a check once a voice is chosen.
+	 */
+	private appendVoiceIcon(option: HTMLElement): void {
+		const icon = dom.append(option, dom.$('span.voice-mode-onboarding-voice-icon'));
+		dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.play.id}.voice-mode-onboarding-voice-idle`)).setAttribute('aria-hidden', 'true');
+		dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.checkCompact.id}.voice-mode-onboarding-voice-chosen`)).setAttribute('aria-hidden', 'true');
+		const bars = dom.append(icon, dom.$('span.voice-mode-onboarding-voice-bars'));
+		bars.setAttribute('aria-hidden', 'true');
+		for (let bar = 0; bar < 3; bar++) {
+			dom.append(bars, dom.$('span.voice-mode-onboarding-voice-bar'));
+		}
+	}
+
+	// --- Shared behaviour ---
 
 	private handleOptionKey(event: KeyboardEvent, voice: IVoiceModeVoice): void {
 		const keyboardEvent = new StandardKeyboardEvent(event);
@@ -770,7 +860,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			const index = VOICES.indexOf(voice);
 			const next = VOICES[(index + (forward ? 1 : VOICES.length - 1)) % VOICES.length];
 			this.selectVoice(next);
-			this.voiceElements.get(next.id)?.focus();
+			this.voiceElements.get(next.id)?.element.focus();
 		}
 	}
 
@@ -857,11 +947,43 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			.catch(error => this.logService.error(`[voice] Failed to persist the Voice Mode voice: ${error}`));
 	}
 
+	/**
+	 * The localized voice is not a choice - it is the only voice for the
+	 * language - so previewing it just plays and stops, and never persists.
+	 */
+	private previewLocalizedVoice(voice: ILocalizedVoice): void {
+		if (this.player.playingVoice === voice.id) {
+			this.player.stop();
+			status(localize('voiceMode.onboarding.voice.localizedStopped', "{0} preview stopped.", voice.label));
+			return;
+		}
+		this.logAction('selectVoice');
+		this.player.play(voice.id);
+		status(localize('voiceMode.onboarding.voice.localizedPlaying', "Playing {0} preview.", voice.label));
+	}
+
+	/**
+	 * The spoken language, mirroring the resolution the voice client uses: an
+	 * explicit test override, then the configured language (unless `auto`), then
+	 * the window's language.
+	 */
+	private resolveSpokenLanguage(): string {
+		if (this.options.voiceLanguage) {
+			return this.options.voiceLanguage;
+		}
+
+		const configuredLanguage = this.configurationService.getValue<string>(VOICE_LANGUAGE_SETTING)?.trim();
+		if (configuredLanguage && configuredLanguage.toLowerCase() !== 'auto') {
+			return configuredLanguage;
+		}
+		return dom.getWindow(this.domNode).navigator.language;
+	}
+
 	private updateSelection(): void {
-		for (const [id, element] of this.voiceElements) {
+		for (const [id, entry] of this.voiceElements) {
 			const selected = id === this.selectedVoice?.id;
-			element.classList.toggle('selected', selected);
-			element.setAttribute('aria-checked', String(selected));
+			entry.element.classList.toggle('selected', selected);
+			entry.element.setAttribute('aria-checked', String(selected));
 		}
 		this.updateTabStop();
 	}
@@ -872,21 +994,20 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	 */
 	private updateTabStop(): void {
 		let first = true;
-		for (const [id, element] of this.voiceElements) {
+		for (const [id, entry] of this.voiceElements) {
 			const isTabStop = this.selectedVoice === undefined ? first : id === this.selectedVoice.id;
-			element.tabIndex = isTabStop ? 0 : -1;
+			entry.element.tabIndex = isTabStop ? 0 : -1;
 			first = false;
 		}
 	}
 
 	private updatePlaying(playingVoice: string | undefined): void {
-		for (const [id, element] of this.voiceElements) {
+		for (const [id, entry] of this.voiceElements) {
 			const playing = id === playingVoice;
-			element.classList.toggle('playing', playing);
-			const voice = VOICES.find(candidate => candidate.id === id);
-			if (voice) {
-				element.setAttribute('aria-label', this.voiceAriaLabel(voice, playing));
-			}
+			entry.element.classList.toggle('playing', playing);
+			entry.element.setAttribute('aria-label', playing
+				? localize('voiceMode.onboarding.voice.stopPreview', "Stop {0} preview.", entry.label)
+				: entry.restingAria);
 		}
 		this.domNode.classList.toggle('playing', playingVoice !== undefined);
 	}
