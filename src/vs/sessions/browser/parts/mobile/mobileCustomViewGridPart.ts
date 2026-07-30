@@ -5,25 +5,23 @@
 
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Part } from '../../../../workbench/browser/part.js';
-import { SessionsPart } from '../sessionsPart.js';
 import { clearAgentsPartCardStyles } from '../agentsPartCard.js';
+import { CustomViewGridPart } from '../customViewGridPart.js';
 import { isPhoneLayout } from './mobileLayout.js';
 
 /**
- * Mobile variant of SessionsPart.
+ * Mobile variant of {@link CustomViewGridPart}.
  *
- * On phone-sized viewports the sessions part fills the full grid cell without
- * card margins, border insets, or session-bar height adjustments. When
- * the viewport transitions to tablet/desktop (e.g., device rotation
- * crossing the phone breakpoint) this delegates to the desktop
- * implementation so layout math stays correct.
+ * On phone-sized viewports the part fills the full grid cell without card
+ * margins or border insets. When the viewport transitions to tablet/desktop
+ * (e.g. device rotation crossing the phone breakpoint) this delegates to the
+ * desktop implementation so layout math stays correct.
  */
-export class MobileSessionsPart extends SessionsPart {
+export class MobileCustomViewGridPart extends CustomViewGridPart {
 
 	override updateStyles(): void {
-		// Always run the desktop implementation first so inline styles are
-		// set on tablet/desktop transitions. In phone mode we then clear
-		// the card-specific inline styles so CSS can take over.
+		// Always run the desktop implementation first so inline styles are set on
+		// tablet/desktop transitions; clear them again in phone mode so CSS takes over.
 		super.updateStyles();
 
 		if (!isPhoneLayout(this.layoutService)) {
@@ -42,15 +40,12 @@ export class MobileSessionsPart extends SessionsPart {
 			return;
 		}
 
-		if (!this.layoutService.isVisible(Parts.SESSIONS_PART)) {
+		if (!this.layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
 			return;
 		}
 
-		this._lastLayout = { width, height, top, left };
-
-		// Full dimensions - no card margins or session-bar subtraction.
 		const { contentSize } = this.layoutContents(width, height);
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left);
+		this._layoutNode(contentSize.width, contentSize.height);
 		Part.prototype.layout.call(this, width, height, top, left);
 	}
 }
