@@ -1360,7 +1360,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * `sandbox.allowBypass`).
 	 */
 	readonly requestSandboxBypass?: boolean;
-	/** Host-only shell language for terminal auto-approval; `unknown` disables terminal rules. */
+	/**
+	 * Host-only shell language for terminal auto-approval.
+	 * Missing preserves the Bash fallback; `unknown` requires confirmation.
+	 */
 	readonly shellLanguage?: 'bash' | 'powershell' | 'unknown';
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
