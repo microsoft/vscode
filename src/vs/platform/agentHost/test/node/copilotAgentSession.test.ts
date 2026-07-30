@@ -5569,7 +5569,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
+		test('autopilot auto-answers a free-form question and records it in history', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
@@ -5584,7 +5584,18 @@ suite('CopilotAgentSession', () => {
 			// the user typed something custom.
 			assert.strictEqual(result.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
 			assert.strictEqual(result.wasFreeform, true);
-			assert.strictEqual(signals.length, 0);
+			assert.deepStrictEqual(getActions(signals).map(action => action.type), [
+				ActionType.ChatInputRequested,
+				ActionType.ChatInputCompleted,
+			]);
+			const completed = getActions(signals)[1];
+			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
+				state: ChatInputAnswerState.Submitted,
+				value: {
+					kind: ChatInputAnswerValueKind.Text,
+					value: result.answer,
+				},
+			}]);
 		});
 
 		test('autopilot does not auto-answer when mode is not "autopilot"', async () => {
@@ -5607,7 +5618,7 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatInputRequested));
 		});
 
-		test('auto-reply auto-answers a question without firing a progress event', async () => {
+		test('auto-reply auto-answers a question and records it in history', async () => {
 			// `chat.autoReply` is forwarded as the autoReplyEnabled root config.
 			// Even in interactive mode it must short-circuit like autopilot.
 			const { runtime, signals } = await createAgentSession(disposables, {
@@ -5622,7 +5633,18 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(result.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
 			assert.strictEqual(result.wasFreeform, true);
-			assert.strictEqual(signals.length, 0);
+			assert.deepStrictEqual(getActions(signals).map(action => action.type), [
+				ActionType.ChatInputRequested,
+				ActionType.ChatInputCompleted,
+			]);
+			const completed = getActions(signals)[1];
+			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
+				state: ChatInputAnswerState.Submitted,
+				value: {
+					kind: ChatInputAnswerValueKind.Text,
+					value: result.answer,
+				},
+			}]);
 		});
 	});
 

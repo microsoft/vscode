@@ -503,14 +503,18 @@ export interface IChatQuestionCarousel {
 	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
-	/** True when accepted/answered outside the carousel UI (e.g. via voice) without structured answers. */
+	/** True when accepted/answered outside the carousel UI, such as by voice or automatic reply. */
 	answeredExternally?: boolean;
+	/** True when Copilot supplied the answer through automatic reply. */
+	autoReply?: boolean;
 	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
 	source?: ToolDataSource;
 	/** Terminal ID when the carousel was triggered by a terminal needing input */
 	terminalId?: string;
+	/** Visual treatment for the answered state. */
+	answerPresentation?: 'conversation';
 	kind: 'questionCarousel';
 }
 
