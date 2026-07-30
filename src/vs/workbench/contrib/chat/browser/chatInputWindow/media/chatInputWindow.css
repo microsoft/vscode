@@ -114,9 +114,16 @@
 	display: none;
 }
 
-/* The input carries no chrome of its own; the window is the surface. */
-.chat-input-window .chat-input-container {
-	border: none !important;
+/*
+ * At rest the input carries no chrome of its own — the window is the surface.
+ * Only the colour is dropped, not the border: the box stays the same size, and
+ * while the agent is working the input restores that ring itself, deliberately,
+ * so the perimeter stays visible behind the travelling comet. Removing the
+ * border outright took that away, and with it the boundary the animation is
+ * drawn against.
+ */
+.chat-input-window .chat-input-container:not(.working) {
+	border-color: transparent !important;
 	background: transparent !important;
 }
 
