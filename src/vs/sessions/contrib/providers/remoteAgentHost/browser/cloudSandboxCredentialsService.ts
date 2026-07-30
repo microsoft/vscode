@@ -5,11 +5,13 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
+	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	ICloudSandboxConnectionRequest,
 	ICloudSandboxCredentialsService,
@@ -19,11 +21,13 @@ import {
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { CloudSandboxRequestVolumeReporter, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 
 /** The agent-environment endpoints Mission Control exposes. */
 type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
@@ -71,13 +75,17 @@ const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
 export class CloudSandboxCredentialsService extends Disposable implements ICloudSandboxCredentialsService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _volumeReporter: CloudSandboxRequestVolumeReporter;
+
 	constructor(
 		@IRequestService private readonly _requestService: IRequestService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IProductService private readonly _productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._volumeReporter = this._register(instantiationService.createInstance(CloudSandboxRequestVolumeReporter));
 	}
 
 	async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
@@ -198,14 +206,14 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 	): Promise<IRequestContext> {
 		const path = action === 'get' ? '' : `/${action}`;
 		const url = `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
-		return this._request(url, `mc.environmentClient.${action}`, {
+		return this._request(url, `mc.environmentClient.${action}`, action === 'get' ? 'getEnvironment' : action, {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token);
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
-	private async _sendTask(url: string, action: string, token: CancellationToken): Promise<IRequestContext> {
-		const context = await this._request(url, `mc.taskClient.${action}`, {
+	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken): Promise<IRequestContext> {
+		const context = await this._request(url, `mc.taskClient.${action}`, action === 'list' ? 'listTasks' : 'getTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, DISCOVERY_TIMEOUT_MS);
@@ -215,20 +223,27 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 		return context;
 	}
 
-	private async _request(url: string, callSite: string, headers: Record<string, string>, token: CancellationToken, timeout: number = REQUEST_TIMEOUT_MS): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeout: number = REQUEST_TIMEOUT_MS): Promise<IRequestContext> {
 		const accessToken = await this._resolveGitHubToken();
 		if (!accessToken) {
+			// No request is issued, so there is no request outcome to count.
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
 		try {
-			return await this._requestService.request({
+			const context = await this._requestService.request({
 				type: 'GET',
 				url,
 				headers: { ...headers, ['Authorization']: `Bearer ${accessToken}` },
 				timeout,
 				callSite,
 			}, token);
+			this._volumeReporter.record(action, requestOutcomeForStatus(context.res.statusCode));
+			return context;
 		} catch (error) {
+			// A cancelled request was never answered, so it is not a failure worth counting.
+			if (!isCancellationError(error) && !token.isCancellationRequested) {
+				this._volumeReporter.record(action, 'networkError');
+			}
 			this._logService.error(`${LOG_PREFIX} GET ${url} failed: ${toErrorMessage(error)}`);
 			throw error;
 		}
@@ -257,7 +272,11 @@ export class CloudSandboxCredentialsService extends Disposable implements ICloud
 	/** Throw a diagnosable error for a non-success response, including the body when readable. */
 	private async _throwForStatus(action: string, context: IRequestContext): Promise<never> {
 		const body = await asText(context).catch(() => '');
-		throw new Error(`Mission Control ${action} failed: HTTP ${context.res.statusCode ?? 'unknown'} - ${(body ?? '').slice(0, 200)}`);
+		const status = context.res.statusCode;
+		throw new CloudSandboxRequestError(
+			status,
+			`Mission Control ${action} failed: HTTP ${status ?? 'unknown'} - ${(body ?? '').slice(0, 200)}`,
+		);
 	}
 
 	/** A GitHub session carrying at least the configured chat provider scopes. */
