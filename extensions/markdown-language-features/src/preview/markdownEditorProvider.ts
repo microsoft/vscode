@@ -79,6 +79,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	#wireSingle(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): void {
 		const webview = webviewPanel.webview;
 		let isUpdatingFromWebview = false;
+		let editQueue = Promise.resolve();
 
 		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			switch (message.type) {
@@ -97,22 +98,24 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					break;
 				}
 				case 'edit': {
-					const content = message.content as string;
-					if (content === document.getText()) {
-						return;
-					}
-					isUpdatingFromWebview = true;
-					const edit = new vscode.WorkspaceEdit();
-					edit.replace(
-						document.uri,
-						new vscode.Range(0, 0, document.lineCount, 0),
-						content,
-					);
-					try {
-						await vscode.workspace.applyEdit(edit);
-					} finally {
-						isUpdatingFromWebview = false;
-					}
+					editQueue = editQueue.then(async () => {
+						const edit = new vscode.WorkspaceEdit();
+						edit.replace(
+							document.uri,
+							new vscode.Range(
+								document.positionAt(message.start),
+								document.positionAt(message.endExclusive),
+							),
+							message.text,
+						);
+						isUpdatingFromWebview = true;
+						try {
+							await vscode.workspace.applyEdit(edit);
+						} finally {
+							isUpdatingFromWebview = false;
+						}
+					});
+					await editQueue;
 					break;
 				}
 			}

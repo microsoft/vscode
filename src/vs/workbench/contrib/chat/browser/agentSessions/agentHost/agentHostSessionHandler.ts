@@ -99,7 +99,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -2367,6 +2367,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
 					&& lastUsage.copilotCredits === usage.copilotCredits
+					// The session total moves independently of this turn's own cost —
+					// it also covers work billed while no turn was active — so it has
+					// to be compared, or a session-cost update would be dropped here.
+					&& lastUsage.sessionCopilotCredits === usage.sessionCopilotCredits
 					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)) {
 					return;
 				}
@@ -3285,6 +3289,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			carousel.data = carouselAnswers ?? {};
 			carousel.isUsed = true;
 			carousel.answeredExternally = part.response === ChatInputResponseKind.Accept && !carouselAnswers;
+			carousel.autoReply = containsAutomaticReplyAnswer(protocolAnswers);
+			carousel.answeredExternally ||= carousel.autoReply;
 			carousel.draftAnswers = undefined;
 			carousel.draftCurrentIndex = undefined;
 			carousel.draftCollapsed = undefined;
@@ -4278,28 +4284,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// (each streaming delta), not just draft changes.
 		let lastRemoteDraft = syncedDraft;
 		let appliedRemoteDraft: Message | undefined;
+		const syncDraft = (state: IChatModelInputState | undefined): void => {
+			if (state?.origin === ChatInputStateOrigin.Remote) {
+				return;
+			}
+			const draft = this._inputStateToDraft(sessionResource, state);
+			if (equals(syncedDraft, draft)) {
+				return;
+			}
+			if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
+				syncedDraft = draft;
+				return;
+			}
+			appliedRemoteDraft = undefined;
+			syncedDraft = draft;
+
+			this._config.connection.dispatch(chatKey, {
+				type: ActionType.ChatDraftChanged,
+				draft,
+			});
+		};
 		store.add(autorun(reader => {
 			const state = inputModel.state.read(reader);
-			delayer.trigger(() => {
-				if (state?.origin === ChatInputStateOrigin.Remote) {
-					return;
-				}
-				const draft = this._inputStateToDraft(sessionResource, state);
-				if (equals(syncedDraft, draft)) {
-					return;
-				}
-				if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
-					syncedDraft = draft;
-					return;
-				}
-				appliedRemoteDraft = undefined;
-				syncedDraft = draft;
-
-				this._config.connection.dispatch(chatKey, {
-					type: ActionType.ChatDraftChanged,
-					draft,
-				});
-			}).catch(() => { /* delayer disposed */ });
+			delayer.trigger(() => syncDraft(state)).catch(() => { /* delayer disposed */ });
 		}));
 		store.add(chatSubscription.onDidChange(() => {
 			const remoteDraft = readRemoteDraft();
@@ -4318,6 +4325,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			syncedDraft = remoteDraft;
 			appliedRemoteDraft = remoteDraft;
 			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
+		}));
+		store.add(toDisposable(() => {
+			delayer.cancel();
+			syncDraft(inputModel.state.get());
 		}));
 	}
 

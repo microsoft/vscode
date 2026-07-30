@@ -23,6 +23,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -99,6 +100,7 @@ class MockCopilotSession {
 		totalPremiumRequestCost: 0,
 		totalUserRequests: 0,
 		totalApiDurationMs: 0,
+		totalNanoAiu: 0,
 		sessionStartTime: new Date().toISOString(),
 		codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0, filesModified: [] },
 		modelMetrics: {},
@@ -106,6 +108,16 @@ class MockCopilotSession {
 		lastCallInputTokens: 0,
 		lastCallOutputTokens: 0,
 	};
+	/** Rejects the next `usage.getMetrics` call, then clears itself. */
+	usageMetricsError: unknown = undefined;
+	usageMetricsCalls = 0;
+	/** Awaited inside `usage.getMetrics` so tests can hold a refresh in flight. */
+	usageMetricsGate: Promise<unknown> | undefined;
+	/**
+	 * Per-call gates, consumed in call order, for holding individual reads in flight.
+	 * Lets a test make an earlier-issued read resolve after a later one.
+	 */
+	readonly usageMetricsGates: Array<Promise<unknown>> = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
@@ -138,6 +150,7 @@ class MockCopilotSession {
 	/** Push an event through to all registered handlers of the given type. */
 	fire<K extends SessionEventType>(type: K, data: SessionEventPayload<K>['data'], overrides?: Partial<Omit<SessionEventPayload<K>, 'type' | 'data'>>): void {
 		const event = { type, data, id: 'evt-1', timestamp: new Date().toISOString(), parentId: null, ...overrides } as SessionEventPayload<K>;
+		this._accumulateUsageMetrics(type, data);
 		const set = this._handlers.get(type);
 		if (set) {
 			for (const handler of set) {
@@ -146,6 +159,23 @@ class MockCopilotSession {
 		}
 		for (const handler of this._allHandlers) {
 			handler(event);
+		}
+	}
+
+	/**
+	 * Mirrors the SDK's own usage tracker, which folds the `copilotUsage` billed on
+	 * `assistant.usage` (including sub-agent calls) and `session.compaction_complete`
+	 * into the session-wide total that `usage.getMetrics` reports.
+	 */
+	private _accumulateUsageMetrics(type: SessionEventType, data: unknown): void {
+		const billed = type === 'assistant.usage'
+			? data
+			: type === 'session.compaction_complete'
+				? (data as { compactionTokensUsed?: unknown } | undefined)?.compactionTokensUsed
+				: undefined;
+		const totalNanoAiu = (billed as { copilotUsage?: { totalNanoAiu?: number } } | undefined)?.copilotUsage?.totalNanoAiu;
+		if (typeof totalNanoAiu === 'number') {
+			this.usageMetricsResult.totalNanoAiu += totalNanoAiu;
 		}
 	}
 
@@ -251,7 +281,19 @@ class MockCopilotSession {
 			},
 		},
 		usage: {
-			getMetrics: async () => this.usageMetricsResult,
+			getMetrics: async () => {
+				this.usageMetricsCalls++;
+				if (this.usageMetricsError !== undefined) {
+					const err = this.usageMetricsError;
+					this.usageMetricsError = undefined;
+					throw err;
+				}
+				// Snapshot at call time, like a real RPC whose result reflects the state
+				// when the request was served rather than when the caller observes it.
+				const snapshot = { ...this.usageMetricsResult };
+				await (this.usageMetricsGates.shift() ?? this.usageMetricsGate);
+				return snapshot;
+			},
 		},
 	};
 
@@ -1162,6 +1204,175 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(usage?.usage, { inputTokens: 4500, outputTokens: 0, model: 'claude-sonnet-4.6' });
 	});
 
+	test('a resumed session does not bill its restored history to the first new turn', async () => {
+		// The SDK re-folds usage from its durable event log on resume, so `getMetrics`
+		// opens at the accumulated total of everything already billed.
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			configureMockSession: mock => { mock.usageMetricsResult.totalNanoAiu = 40_000_000_000; },
+		});
+
+		session.resetTurnState('turn-after-resume');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		// The new turn bills only its own call, while the session total carries the history.
+		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta?.copilotUsage, {
+			totalNanoAiu: 500_000_000,
+			sessionTotalNanoAiu: 40_500_000_000,
+		});
+	});
+
+	test('a failed usage read leaves the turn cost intact', async () => {
+		// The turn's own cost comes from the events, so a metrics outage costs only
+		// the session total's freshness rather than the turn's reported cost.
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.usageMetricsResult.totalNanoAiu = 40_000_000_000;
+				mock.usageMetricsError = new Error('rpc unavailable');
+			},
+		});
+
+		session.resetTurnState('turn-with-failed-read');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 250_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		// Both calls counted toward the turn even though the first metrics read failed.
+		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta?.copilotUsage, {
+			totalNanoAiu: 750_000_000,
+			sessionTotalNanoAiu: 40_750_000_000,
+		});
+	});
+
+	test('a session total that drops after truncation is adopted rather than treated as stale', async () => {
+		// `history.truncate` (checkpoint restore, editing an earlier message) makes the
+		// SDK re-fold usage from the surviving events, so its authoritative total
+		// legitimately decreases. Treating that as a stale read would freeze the
+		// reported cost until billing climbed back past the pre-truncation figure.
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-before-truncate');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 10_000_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
+
+		// Truncation rewinds the SDK's total from 10 down to 3; the next call brings it
+		// to 4. A high-water guard would reject everything below 10 and freeze the
+		// reported cost, so the drop must be adopted.
+		mockSession.usageMetricsResult.totalNanoAiu = 3_000_000_000;
+		session.resetTurnState('turn-after-truncate');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 1_000_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta?.copilotUsage, {
+			totalNanoAiu: 1_000_000_000,
+			sessionTotalNanoAiu: 4_000_000_000,
+		});
+	});
+
+	test('overlapping usage events issue one metrics read at a time and converge on the newest', async () => {
+		// `getMetrics` is a real RPC round trip. Letting several overlap means an older
+		// one can resolve last and publish a stale session cost, and a high-water guard
+		// can't reject it because the total legitimately drops after a truncation.
+		// Serializing the reads removes the interleaving entirely and coalesces the
+		// redundant reads a burst of usage events would otherwise issue.
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-overlapping');
+		const slowFirstRead = new DeferredPromise<void>();
+		mockSession.usageMetricsGates.push(slowFirstRead.p);
+
+		const fireUsage = (totalNanoAiu: number) => mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		fireUsage(500_000_000);
+		await timeout(0);
+		fireUsage(1_000_000_000);
+		await timeout(0);
+		fireUsage(500_000_000);
+		await timeout(0);
+		// The first read is still in flight, so the two later events have not started
+		// their own — they are waiting behind it and collapse into a single follow-up.
+		assert.strictEqual(mockSession.usageMetricsCalls, 1);
+
+		slowFirstRead.complete();
+		for (let i = 0; i < 5; i++) {
+			await timeout(0);
+		}
+
+		// One follow-up read for the three events that queued behind the first, and it
+		// observed the newest total rather than any earlier snapshot.
+		assert.strictEqual(mockSession.usageMetricsCalls, 2);
+		session.resetTurnState('turn-after-overlap');
+		fireUsage(250_000_000);
+		for (let i = 0; i < 5; i++) {
+			await timeout(0);
+		}
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		assert.strictEqual(
+			(usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.sessionTotalNanoAiu,
+			2_250_000_000,
+		);
+	});
+
+	test('a turn ending while its usage refresh is in flight still bills that turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-racing-idle');
+		const gate = new DeferredPromise<void>();
+		mockSession.usageMetricsGate = gate.p;
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000 },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		// The SDK's terminal `session.idle` lands before the metrics RPC resolves — the
+		// common case, since idle follows a turn's last usage event almost immediately.
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+		gate.complete();
+		await timeout(0);
+
+		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
+		// The cost belongs to the turn that incurred it, so it must survive the turn
+		// ending mid-refresh. The session total may lag here — the re-emit carrying it
+		// is dropped once the turn is no longer active — which `ChatModel.sessionCost`
+		// absorbs by taking the larger of the reported total and the summed turns.
+		assert.strictEqual((usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.totalNanoAiu, 500_000_000);
+	});
+
 	test('`/compact` reports the compaction call credits on the post-compaction usage', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.compactResult = { success: true, tokensRemoved: 1200, messagesRemoved: 3, contextWindow: { currentTokens: 4500, tokenLimit: 128000, messagesLength: 7 } };
@@ -1175,18 +1386,19 @@ suite('CopilotAgentSession', () => {
 		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
 
 		await session.send('/compact', undefined, 'turn-compact');
+		await timeout(0);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
-		assert.deepStrictEqual(usageActions.map(a => ({ turnId: a.turnId, usage: a.usage })), [
-			{
-				turnId: 'turn-compact',
-				usage: { model: undefined, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } },
+		assert.deepStrictEqual(usageActions.at(-1), {
+			type: ActionType.ChatUsage,
+			turnId: 'turn-compact',
+			usage: {
+				inputTokens: 4500,
+				outputTokens: 0,
+				model: undefined,
+				_meta: { copilotUsage: { totalNanoAiu: 250_000_000, sessionTotalNanoAiu: 250_000_000 } },
 			},
-			{
-				turnId: 'turn-compact',
-				usage: { inputTokens: 4500, outputTokens: 0, model: undefined, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } },
-			},
-		]);
+		});
 	});
 
 	test('automatic compaction folds its credits into the turn running total', async () => {
@@ -1204,6 +1416,7 @@ suite('CopilotAgentSession', () => {
 			tokensRemoved: 1200,
 			compactionTokensUsed: { model: 'claude-sonnet-4.6', copilotUsage: { totalNanoAiu: 250_000_000 } },
 		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+		await timeout(0);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
 		// The compaction credits add to the turn total while the parent turn's own model and
@@ -1213,7 +1426,7 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			model: 'claude-sonnet-4.6',
 			cacheReadTokens: undefined,
-			_meta: { copilotUsage: { totalNanoAiu: 750_000_000 } },
+			_meta: { copilotUsage: { totalNanoAiu: 750_000_000, sessionTotalNanoAiu: 750_000_000 } },
 		});
 	});
 
@@ -1226,19 +1439,23 @@ suite('CopilotAgentSession', () => {
 			error: 'boom',
 			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 250_000_000 } },
 		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+		await timeout(0);
 
 		assert.deepStrictEqual(getActions(signals).filter(a => a.type === ActionType.ChatUsage), []);
 	});
 
-	test('compaction billed outside a turn is carried onto the next turn', async () => {
+	test('compaction billed outside a turn shows in the session total, not on the next turn', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
-		// Automatic compaction can run with no turn active (e.g. after an abort). The reducer only
-		// applies usage to the active turn, so the credits must be banked rather than dropped.
+		// Automatic compaction can run with no turn active (e.g. after an abort). It is
+		// nobody's turn cost — and an out-of-turn compaction usually finds a cold prompt
+		// cache and pays the ~12x cache-write rate, so billing it to an unrelated next
+		// turn would dominate that turn's footer.
 		mockSession.fire('session.compaction_complete', {
 			success: true,
 			compactionTokensUsed: { model: 'claude-opus-4.6', copilotUsage: { totalNanoAiu: 133_468_375_000 } },
 		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+		await timeout(0);
 		assert.deepStrictEqual(getActions(signals).filter(a => a.type === ActionType.ChatUsage), []);
 
 		session.resetTurnState('turn-after-compact');
@@ -1248,6 +1465,7 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			copilotUsage: { totalNanoAiu: 500_000_000 },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
 		assert.deepStrictEqual(usageActions.at(-1)?.usage, {
@@ -1255,21 +1473,20 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			model: 'claude-opus-4.6',
 			cacheReadTokens: undefined,
-			_meta: { copilotUsage: { totalNanoAiu: 133_968_375_000 } },
+			// The turn bills only its own call; the compaction is visible in the session total.
+			_meta: { copilotUsage: { totalNanoAiu: 500_000_000, sessionTotalNanoAiu: 133_968_375_000 } },
 		});
 	});
 
-	test('carried compaction credits survive a turn that never reports usage', async () => {
+	test('a turn that never reports usage does not inherit out-of-turn compaction cost', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		mockSession.fire('session.compaction_complete', {
 			success: true,
 			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 2_000_000_000 } },
 		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+		await timeout(0);
 
-		// `turn-1` is started and then replaced without ever reporting usage — the same shape as a
-		// turn that fails before its first SDK usage event or runs as a purely local slash command.
-		// The credits must roll forward rather than dying with it.
 		session.resetTurnState('turn-1');
 		session.resetTurnState('turn-2');
 		mockSession.fire('assistant.usage', {
@@ -1278,18 +1495,22 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 1,
 			copilotUsage: { totalNanoAiu: 1_000_000_000 },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
-		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, { copilotUsage: { totalNanoAiu: 3_000_000_000 } });
+		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, {
+			copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 3_000_000_000 },
+		});
 	});
 
-	test('carried compaction credits are billed to only one turn once reported', async () => {
+	test('each turn bills only its own calls while the session total accumulates', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		mockSession.fire('session.compaction_complete', {
 			success: true,
 			compactionTokensUsed: { copilotUsage: { totalNanoAiu: 2_000_000_000 } },
 		} as unknown as SessionEventPayload<'session.compaction_complete'>['data']);
+		await timeout(0);
 
 		session.resetTurnState('turn-1');
 		mockSession.fire('assistant.usage', {
@@ -1298,6 +1519,7 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 1,
 			copilotUsage: { totalNanoAiu: 1_000_000_000 },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
 		session.resetTurnState('turn-2');
 		mockSession.fire('assistant.usage', {
 			model: 'claude-opus-4.6',
@@ -1305,10 +1527,17 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 1,
 			copilotUsage: { totalNanoAiu: 1_000_000_000 },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
-		// `turn-1` reported the carry, so `turn-2` bills only its own model call.
-		assert.deepStrictEqual(usageActions.map(a => a.usage._meta?.copilotUsage), [{ totalNanoAiu: 3_000_000_000 }, { totalNanoAiu: 1_000_000_000 }]);
+		// Each turn reports its own single call; the session total carries the
+		// out-of-turn compaction plus both turns.
+		assert.deepStrictEqual(usageActions.map(a => ({ turnId: a.turnId, copilotUsage: a.usage._meta?.copilotUsage })), [
+			{ turnId: 'turn-1', copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 2_000_000_000 } },
+			{ turnId: 'turn-1', copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 3_000_000_000 } },
+			{ turnId: 'turn-2', copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 3_000_000_000 } },
+			{ turnId: 'turn-2', copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 4_000_000_000 } },
+		]);
 	});
 
 	test('`/compact` completes the turn even when compaction reports failure', async () => {
@@ -1631,6 +1860,7 @@ suite('CopilotAgentSession', () => {
 			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
 			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
 		mockSession.fire('assistant.usage', {
 			model: 'claude-sonnet-4.6',
 			inputTokens: 30,
@@ -1638,34 +1868,25 @@ suite('CopilotAgentSession', () => {
 			cost: 2,
 			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
 
 		const usageActions = signals
 			.filter((s): s is IAgentActionSignal => s.kind === 'action')
 			.map(s => s.action)
 			.filter(a => a.type === ActionType.ChatUsage);
 
-		assert.deepStrictEqual(usageActions.map(a => a.usage), [
-			{
-				inputTokens: 10,
-				outputTokens: 20,
-				model: 'claude-sonnet-4.6',
-				cacheReadTokens: 5,
-				_meta: {
-					cost: 2,
-					copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
-				},
+		// The turn's running total and the session total both come from the SDK's usage
+		// metrics, so they are reported on the enrichment re-emit that follows each event.
+		assert.deepStrictEqual(usageActions.at(-1)?.usage, {
+			inputTokens: 30,
+			outputTokens: 40,
+			model: 'claude-sonnet-4.6',
+			cacheReadTokens: undefined,
+			_meta: {
+				cost: 2,
+				copilotUsage: { totalNanoAiu: 1_250_000_000, sessionTotalNanoAiu: 1_250_000_000 },
 			},
-			{
-				inputTokens: 30,
-				outputTokens: 40,
-				model: 'claude-sonnet-4.6',
-				cacheReadTokens: undefined,
-				_meta: {
-					cost: 2,
-					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
-				},
-			},
-		]);
+		});
 	});
 
 	test('updates prompt cache expiration from main-agent usage only', async () => {
@@ -1790,15 +2011,17 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		await timeout(0);
 
-		// Subagent usage (its agentId) is reported twice: folded into the parent
-		// aggregate AND emitted to the subagent's child session as its component.
+		// Subagent usage (its agentId) is emitted to the subagent's child session as
+		// its own component; the parent aggregate grows via the SDK's session metrics.
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 5,
 			outputTokens: 7,
 			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+		await timeout(0);
 
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
@@ -1806,6 +2029,7 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 8,
 			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+		await timeout(0);
 
 		const usageSignals = signals.flatMap(signal => {
 			if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage) {
@@ -1820,17 +2044,18 @@ suite('CopilotAgentSession', () => {
 			}];
 		});
 
+		// The parent aggregate always keeps the parent's own model/context tokens, and
+		// its credits cover every call the turn caused (its own plus every subagent's).
+		// They land on the synchronous emit, so a turn ending mid-refresh cannot lose them.
 		assert.deepStrictEqual(usageSignals, [
-			// Parent-only call → parent aggregate.
 			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000 },
-			// First subagent call → parent aggregate grows but keeps the parent
-			// model/context, plus the subagent component carries the child model.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000 },
 			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000 },
 			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 5, outputTokens: 7, totalNanoAiu: 200_000_000 },
-			// Second subagent call → parent aggregate grows but keeps the parent
-			// model/context, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000 },
 			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000 },
 			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 6, outputTokens: 8, totalNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000 },
 		]);
 	});
 
@@ -2318,6 +2543,83 @@ suite('CopilotAgentSession', () => {
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'denied-interactively-by-user');
+		});
+
+		test('shell permissions carry the tracked shell language when known', async () => {
+			const cases = [
+				{ toolCallId: 'tc-powershell-language', trackedToolName: 'powershell', requestToolName: undefined, expected: 'powershell' },
+				{ toolCallId: 'tc-bash-language', trackedToolName: 'bash', requestToolName: undefined, expected: 'bash' },
+				{ toolCallId: 'tc-unrecognized-language', trackedToolName: 'unexpected-shell-tool', requestToolName: undefined, expected: undefined },
+				{ toolCallId: 'tc-missing-language', trackedToolName: undefined, requestToolName: undefined, expected: undefined },
+				// `PermissionRequestShell` has no toolName. If a loose or synthetic
+				// request includes one anyway, the tracked runtime tool remains authoritative.
+				{ toolCallId: 'tc-conflicting-language', trackedToolName: 'powershell', requestToolName: 'bash', expected: 'powershell' },
+			] as const;
+			const actual: string[] = [];
+
+			for (const { toolCallId, trackedToolName, requestToolName } of cases) {
+				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+				if (trackedToolName) {
+					mockSession.fire('tool.execution_start', {
+						toolCallId,
+						toolName: trackedToolName,
+						arguments: { command: 'Get-ChildItem' },
+					} as SessionEventPayload<'tool.execution_start'>['data']);
+				}
+				const resultPromise = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId,
+					fullCommandText: 'Get-ChildItem',
+					toolName: requestToolName,
+				});
+				const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === toolCallId);
+				assert.strictEqual(signal.kind, 'pending_confirmation');
+				if (signal.kind !== 'pending_confirmation') {
+					throw new Error('Expected a pending confirmation');
+				}
+				actual.push(`${toolCallId}=${signal.shellLanguage}`);
+				assert.ok(session.respondToPermissionRequest(toolCallId, true));
+				assert.strictEqual((await resultPromise).kind, 'approve-once');
+			}
+
+			assert.deepStrictEqual(actual, cases.map(({ toolCallId, expected }) => `${toolCallId}=${expected}`));
+		});
+
+		test('custom terminal permissions are normalized for shell auto-approval', async () => {
+			const cases = [
+				{ toolCallId: 'tc-custom-bash', toolName: 'bash', command: 'git status' },
+				{ toolCallId: 'tc-custom-powershell', toolName: 'powershell', command: 'Get-ChildItem' },
+			] as const;
+			const actual: Array<{ permissionKind: string | undefined; toolInput: string | undefined; shellLanguage: string | undefined }> = [];
+
+			for (const { toolCallId, toolName, command } of cases) {
+				const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+				const resultPromise = runtime.handlePermissionRequest({
+					kind: 'custom-tool',
+					toolCallId,
+					toolName,
+					args: { command },
+				});
+				const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === toolCallId);
+				assert.strictEqual(signal.kind, 'pending_confirmation');
+				if (signal.kind !== 'pending_confirmation') {
+					throw new Error('Expected a pending confirmation');
+				}
+				actual.push({
+					permissionKind: signal.permissionKind,
+					toolInput: signal.state.toolInput,
+					shellLanguage: signal.shellLanguage,
+				});
+				assert.ok(session.respondToPermissionRequest(toolCallId, true));
+				assert.strictEqual((await resultPromise).kind, 'approve-once');
+				disposables.clear();
+			}
+
+			assert.deepStrictEqual(actual, cases.map(({ toolName, command }) => ({
+				permissionKind: 'shell',
+				toolInput: command,
+				shellLanguage: toolName,
+			})));
 		});
 
 		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
@@ -3386,6 +3688,17 @@ suite('CopilotAgentSession', () => {
 			}), {
 				messageText: 'Instruction discovered: AGENTS.md from packages/billing/',
 				startsTurn: false,
+			});
+
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: '<system_notification>\nExternal host ping\n</system_notification>',
+					kind: { type: 'unclassified', metadata: { source: 'host' } },
+				},
+			}), {
+				messageText: 'External host ping',
+				startsTurn: true,
 			});
 
 			assert.strictEqual(buildCopilotSystemNotification({
@@ -5267,7 +5580,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
+		test('autopilot auto-answers a free-form question and records it in history', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
@@ -5282,7 +5595,18 @@ suite('CopilotAgentSession', () => {
 			// the user typed something custom.
 			assert.strictEqual(result.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
 			assert.strictEqual(result.wasFreeform, true);
-			assert.strictEqual(signals.length, 0);
+			assert.deepStrictEqual(getActions(signals).map(action => action.type), [
+				ActionType.ChatInputRequested,
+				ActionType.ChatInputCompleted,
+			]);
+			const completed = getActions(signals)[1];
+			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
+				state: ChatInputAnswerState.Submitted,
+				value: {
+					kind: ChatInputAnswerValueKind.Text,
+					value: result.answer,
+				},
+			}]);
 		});
 
 		test('autopilot does not auto-answer when mode is not "autopilot"', async () => {
@@ -5305,7 +5629,7 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatInputRequested));
 		});
 
-		test('auto-reply auto-answers a question without firing a progress event', async () => {
+		test('auto-reply auto-answers a question and records it in history', async () => {
 			// `chat.autoReply` is forwarded as the autoReplyEnabled root config.
 			// Even in interactive mode it must short-circuit like autopilot.
 			const { runtime, signals } = await createAgentSession(disposables, {
@@ -5320,7 +5644,18 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(result.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
 			assert.strictEqual(result.wasFreeform, true);
-			assert.strictEqual(signals.length, 0);
+			assert.deepStrictEqual(getActions(signals).map(action => action.type), [
+				ActionType.ChatInputRequested,
+				ActionType.ChatInputCompleted,
+			]);
+			const completed = getActions(signals)[1];
+			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
+				state: ChatInputAnswerState.Submitted,
+				value: {
+					kind: ChatInputAnswerValueKind.Text,
+					value: result.answer,
+				},
+			}]);
 		});
 	});
 
@@ -7751,7 +8086,7 @@ suite('CopilotAgentSession', () => {
 					telemetryEndpoint: 'https://telemetry.example',
 				},
 			});
-			session.resetTurnState('turn-auto');
+			session.resetTurnState('turn-auto', undefined, AgentHostClientType.AgentsWindow);
 
 			mockSession.fire('session.auto_mode_resolved', {
 				chosenModel: 'subagent-model',
@@ -7771,6 +8106,7 @@ suite('CopilotAgentSession', () => {
 					properties: {
 						conversationId: 'test-session-1',
 						vscodeRequestId: 'turn-auto',
+						initiatorClientType: 'agents_window',
 						predictedLabel: 'needs_reasoning',
 						candidateModel: 'gpt-5',
 						chosenModel: 'gpt-5',
@@ -7813,7 +8149,7 @@ suite('CopilotAgentSession', () => {
 
 			mockSession.fire('assistant.turn_start', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
 			mockSession.fire('assistant.turn_end', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
-			session.resetTurnState('request-1');
+			session.resetTurnState('request-1', undefined, AgentHostClientType.EditorWindow);
 			mockSession.fire('assistant.turn_start', { turnId: 'root-round-1' });
 			await timeout(0);
 			mockSession.fire('assistant.turn_end', { turnId: 'root-round-1' });
@@ -7824,11 +8160,11 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(telemetryService.events
 				.filter(event => event.eventName === 'request.repoInfo')
-				.map(event => ({ destination: event.destination, location: event.properties?.location, telemetryMessageId: event.properties?.telemetryMessageId, result: event.properties?.result })), [
-				{ destination: 'enhanced', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'internal', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'enhanced', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
-				{ destination: 'internal', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+				.map(event => ({ destination: event.destination, initiatorClientType: event.properties?.initiatorClientType, location: event.properties?.location, telemetryMessageId: event.properties?.telemetryMessageId, result: event.properties?.result })), [
+				{ destination: 'enhanced', initiatorClientType: 'editor_window', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', initiatorClientType: 'editor_window', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'enhanced', initiatorClientType: 'editor_window', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', initiatorClientType: 'editor_window', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
 			]);
 		});
 
