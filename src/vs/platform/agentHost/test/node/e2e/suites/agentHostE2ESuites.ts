@@ -7,7 +7,10 @@ import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDi
 import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
+import { defineAnnotationsTests } from './annotationsSuite.js';
+import { defineChangesetTests } from './changesetSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
+import { defineProtocolContractTests } from './protocolContractsSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
@@ -50,6 +53,12 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
+			connectClient: () => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				return lease.connectClient();
+			},
 		};
 
 		suiteSetup(async function () {
@@ -101,6 +110,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineHostFeaturesTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
+			defineAnnotationsTests(context);
+			defineProtocolContractTests(context);
+			defineChangesetTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.
