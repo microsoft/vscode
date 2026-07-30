@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TerminalInputBuffer } from '../../node/terminalInputBuffer.js';
 
@@ -13,13 +13,19 @@ suite('TerminalInputBuffer', () => {
 
 	test('throttles multiline input while preserving bytes and order', async () => {
 		const writes: (string | Buffer)[] = [];
-		const inputBuffer = store.add(new TerminalInputBuffer(data => writes.push(data), true));
-		const multilineInput = `line\r${'x'.repeat(600)}`;
+		const allWritesComplete = new DeferredPromise<void>();
+		const inputBuffer = store.add(new TerminalInputBuffer(data => {
+			writes.push(data);
+			if (writes.length === 4) {
+				allWritesComplete.complete();
+			}
+		}, true));
+		const multilineInput = `line\r${'x'.repeat(250)}😀${'x'.repeat(350)}`;
 
 		inputBuffer.write(multilineInput);
 		const initialWriteCount = writes.length;
 		inputBuffer.write('after');
-		await timeout(50);
+		await allWritesComplete.p;
 
 		deepStrictEqual({
 			initialWriteCount,
@@ -27,7 +33,7 @@ suite('TerminalInputBuffer', () => {
 			data: Buffer.concat(writes.map(data => Buffer.from(data))).toString(),
 		}, {
 			initialWriteCount: 1,
-			writeSizes: [256, 256, 93, 5],
+			writeSizes: [256, 256, 97, 5],
 			data: `${multilineInput}after`,
 		});
 	});
