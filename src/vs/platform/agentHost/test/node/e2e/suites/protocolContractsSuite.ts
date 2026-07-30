@@ -42,7 +42,9 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		const seq = nextClientSeq();
 		context.client.dispatch({ channel, clientSeq: seq, action });
 		await context.client.waitForNotification(n =>
-			getActionEnvelope(n)?.channel === channel && getActionEnvelope(n)?.origin?.clientSeq === seq,
+			isActionNotification(n, action.type)
+			&& getActionEnvelope(n).channel === channel
+			&& getActionEnvelope(n).origin?.clientSeq === seq,
 			30_000,
 		);
 	}
@@ -71,6 +73,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		dispatchTurn(context.client, sessionUri, 'turn-fetch', '/rename Fetch Turns', 1);
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-fetch',
 			60_000,
 		);

@@ -258,12 +258,14 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 
 		const started = await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnStarted')
+			&& getActionEnvelope(n).channel === chatUri
 			&& (getActionEnvelope(n).action as { queuedMessageId?: string }).queuedMessageId === 'queued-1',
 			30_000,
 		);
 		const turnId = (getActionEnvelope(started).action as { turnId: string }).turnId;
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId,
 			60_000,
 		);
