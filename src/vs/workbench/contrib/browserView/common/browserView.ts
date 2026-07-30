@@ -44,6 +44,8 @@ import {
 	IBrowserViewVisibilityEvent,
 	IBrowserViewCertificateError,
 	IElementData,
+	IBrowserElementCommentsUpdate,
+	IBrowserElementSelectionOptions,
 	IBrowserViewOwner,
 	IBrowserViewOpenOptions,
 	IBrowserViewRect,
@@ -52,7 +54,7 @@ import {
 	IBrowserViewState,
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
-	IBrowserElementSelectionOptions,
+	IBrowserElementSelectionState,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -371,7 +373,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
-	readonly isElementSelectionActive: boolean;
+	readonly elementSelectionState: IBrowserElementSelectionState;
 	readonly isAreaSelectionActive: boolean;
 	readonly device: IBrowserDeviceProfile | undefined;
 
@@ -390,7 +392,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 	readonly onDidSelectElement: Event<IElementData>;
-	readonly onDidChangeElementSelectionActive: Event<boolean>;
+	readonly onDidRemoveElementComment: Event<string>;
+	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState>;
 	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
@@ -421,6 +424,7 @@ export interface IBrowserViewModel extends IDisposable {
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
 	toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
+	setElementComments(update: IBrowserElementCommentsUpdate): Promise<void>;
 	toggleAreaSelection(enabled?: boolean): Promise<void>;
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
@@ -444,7 +448,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
-	private _isElementSelectionActive: boolean = false;
+	private _elementSelectionState: IBrowserElementSelectionState = { active: false, options: {} };
 	private _isAreaSelectionActive: boolean = false;
 	private _device: IBrowserDeviceProfile | undefined;
 
@@ -498,7 +502,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._storageScope = initialState.storageScope;
 		this._isRemoteSession = initialState.isRemoteSession;
 		this._browserZoomIndex = initialState.browserZoomIndex;
-		this._isElementSelectionActive = initialState.isElementSelectionActive;
+		this._elementSelectionState = initialState.elementSelectionState;
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
@@ -601,11 +605,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			}
 		}));
 
-		this._register(this.onDidChangeElementSelectionActive(active => {
-			if (active) {
+		this._register(this.onDidChangeElementSelectionState(state => {
+			if (state.active && !this._elementSelectionState.active) {
 				this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
 			}
-			this._isElementSelectionActive = active;
+			this._elementSelectionState = state;
 		}));
 
 		this._register(this.onDidChangeAreaSelectionActive(active => {
@@ -648,7 +652,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
 	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
-	get isElementSelectionActive(): boolean { return this._isElementSelectionActive; }
+	get elementSelectionState(): IBrowserElementSelectionState { return this._elementSelectionState; }
 	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
 
@@ -855,6 +859,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.toggleElementSelection(this.id, enabled, options);
 	}
 
+	async setElementComments(update: IBrowserElementCommentsUpdate): Promise<void> {
+		return this.browserViewService.setElementComments(this.id, update);
+	}
+
 	async toggleAreaSelection(enabled?: boolean): Promise<void> {
 		return this.browserViewService.toggleAreaSelection(this.id, enabled);
 	}
@@ -863,8 +871,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.onDynamicDidSelectElement(this.id);
 	}
 
-	get onDidChangeElementSelectionActive(): Event<boolean> {
-		return this.browserViewService.onDynamicDidChangeElementSelectionActive(this.id);
+	get onDidRemoveElementComment(): Event<string> {
+		return this.browserViewService.onDynamicDidRemoveElementComment(this.id);
+	}
+
+	get onDidChangeElementSelectionState(): Event<IBrowserElementSelectionState> {
+		return this.browserViewService.onDynamicDidChangeElementSelectionState(this.id);
 	}
 
 	get onDidPickArea(): Event<IBrowserViewRect | undefined> {

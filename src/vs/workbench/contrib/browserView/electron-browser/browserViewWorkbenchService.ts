@@ -25,8 +25,9 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
-import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { contrastBorder, descriptionForeground, focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
+import { buttonForeground, buttonBackground, inputPlaceholderForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, toolbarHoverBackground, widgetShadow } from '../../../../platform/theme/common/colors/editorColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
@@ -38,6 +39,7 @@ import { getCopilotRootPaths } from '../../../../platform/agentHost/common/copil
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
+import { localize } from '../../../../nls.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
@@ -518,7 +520,25 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			focusBorder: theme.getColor(focusBorder)?.toString(),
 			buttonBackground: theme.getColor(buttonBackground)?.toString(),
 			buttonForeground: theme.getColor(buttonForeground)?.toString(),
+			widgetBackground: theme.getColor(editorWidgetBackground)?.toString(),
+			widgetForeground: theme.getColor(editorWidgetForeground)?.toString(),
+			widgetBorder: theme.getColor(editorWidgetBorder)?.toString(),
+			widgetShadow: theme.getColor(widgetShadow)?.toString(),
+			contrastBorder: theme.getColor(contrastBorder)?.toString(),
+			descriptionForeground: theme.getColor(descriptionForeground)?.toString(),
+			inputPlaceholderForeground: theme.getColor(inputPlaceholderForeground)?.toString(),
+			toolbarHoverBackground: theme.getColor(toolbarHoverBackground)?.toString(),
 			font: DEFAULT_FONT_FAMILY,
+			localizedStrings: {
+				addComment: localize('browserView.addComment', "Add Comment"),
+				addCommentPlaceholder: localize('browserView.addCommentPlaceholder', "Add a comment"),
+				commentOnSelectedElement: localize('browserView.commentOnSelectedElement', "Comment on selected element"),
+				elementComment: localize('browserView.elementComment', "Element comment {0}"),
+				elementCommentWithBody: localize('browserView.elementCommentWithBody', "Element comment {0}: {1}"),
+				emptyElementComment: localize('browserView.emptyElementComment', "Empty element comment {0}"),
+				removeComment: localize('browserView.removeComment', "Remove Comment"),
+				removeElementComment: localize('browserView.removeElementComment', "Remove element comment"),
+			},
 		};
 	}
 
