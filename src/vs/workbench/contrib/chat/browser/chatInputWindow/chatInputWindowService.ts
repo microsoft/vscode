@@ -20,9 +20,12 @@ import { editorBackground } from '../../../../../platform/theme/common/colorRegi
 import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
+import { OmniIntentResolver, OmniIntent } from './omniIntent.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatMode } from '../../common/chatModes.js';
 import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
 import { ChatWidget } from '../widget/chatWidget.js';
@@ -38,6 +41,9 @@ import './media/chatInputWindow.css';
 
 /** Floor for the fitted window, so a mid-layout measurement can't collapse it. */
 const CHAT_INPUT_WINDOW_MIN_HEIGHT = 44;
+
+/** How long the "Opened …" / "Ran …" row stays up before clearing itself. */
+const CHAT_INPUT_WINDOW_INTENT_BADGE_MS = 4000;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -65,6 +71,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _lead: HTMLElement | undefined;
 	/** Trailing chrome on the right, carrying the close control. */
 	private _trail: HTMLElement | undefined;
+	/** In-flight intent resolution, cancelled when a newer submission arrives. */
+	private readonly _intentCts = this._register(new MutableDisposable());
+	/** The "Opened …" / "Ran …" row, cleared on a timer or by the next one. */
+	private readonly _intentBadge = this._register(new MutableDisposable());
+	private readonly _intentResolver: OmniIntentResolver;
 	/** Shared routing + advisory-badge behaviour; recreated per widget, torn down on close. */
 	private _routingController: ChatSessionRoutingController | undefined;
 	/** In-flight `openWindow()` operation, so concurrent toggles stay idempotent. */
@@ -85,6 +96,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
+
+		this._intentResolver = instantiationService.createInstance(OmniIntentResolver);
 
 		const ownershipChannel = new BroadcastChannel('chat-input-window-ownership');
 		ownershipChannel.onmessage = (e) => {
@@ -293,7 +306,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// Routing seam: intercept submission before local execution and
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
-				submitHandler: (query, mode, attachedContext) => this._routingController?.handleSubmit(query, mode, attachedContext) ?? Promise.resolve(false),
+				submitHandler: (query, mode, attachedContext) => this._handleSubmit(query, mode, attachedContext),
 			},
 			{
 				inputEditorBackground: inputBackground,
@@ -372,6 +385,72 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(toDisposable(() => observer.disconnect()));
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 		this._windowDisposables.add(widget.onDidChangeHeight(() => layout()));
+	}
+
+	/**
+	 * One box has to serve every intent, and by voice there is no prefix to
+	 * type — so the bar reads the line first. A line that names a file or a
+	 * command is carried out here and now; everything else is work, and goes to
+	 * an agent through the router.
+	 */
+	private async _handleSubmit(query: string, mode: ChatModeKind, attachedContext: IChatRequestVariableEntry[] | undefined): Promise<boolean> {
+		const cts = new CancellationTokenSource();
+		this._intentCts.value = toDisposable(() => cts.dispose(true));
+		let intent: OmniIntent = { kind: 'agent' };
+		try {
+			intent = await this._intentResolver.resolve(query, cts.token);
+		} catch {
+			// A resolver failure must not swallow the request: fall through to the
+			// agent, which is what the line was probably for anyway.
+		}
+		if (cts.token.isCancellationRequested) {
+			return false;
+		}
+
+		if (intent.kind !== 'agent') {
+			const resolved = intent;
+			const ran = await this._intentResolver.execute(resolved).then(() => true, () => false);
+			if (ran) {
+				this._showIntentResult(resolved);
+				this._widget?.setInput('');
+				return true;
+			}
+		}
+
+		return this._routingController?.handleSubmit(query, mode, attachedContext) ?? false;
+	}
+
+	/**
+	 * Say what the line was taken to mean, and leave it up for a moment. The
+	 * action has already happened — the point of the row is that a guess you can
+	 * see is a guess you can correct.
+	 */
+	private _showIntentResult(intent: Exclude<OmniIntent, { kind: 'agent' }>): void {
+		const container = this._window?.container;
+		if (!container || !this._row) {
+			return;
+		}
+
+		const badge = dom.$('.chat-routing-badge.chat-intent-badge');
+		const mark = dom.append(badge, dom.$('span.chat-intent-badge-mark'));
+		mark.appendChild(renderIcon(intent.kind === 'file' ? Codicon.file : Codicon.gear));
+		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		label.textContent = intent.kind === 'file'
+			? localize('chatInputWindow.opened', "Opened {0}", intent.label)
+			: localize('chatInputWindow.ran', "Ran {0}", intent.label);
+
+		this._row.after(badge);
+		this._fitWindowToContent();
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => {
+			badge.remove();
+			this._fitWindowToContent();
+		}));
+		const targetWindow = dom.getWindow(badge);
+		const handle = targetWindow.setTimeout(() => this._intentBadge.clear(), CHAT_INPUT_WINDOW_INTENT_BADGE_MS);
+		store.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+		this._intentBadge.value = store;
 	}
 
 	/**

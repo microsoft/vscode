@@ -183,3 +183,23 @@
 	background-color: transparent;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, .25));
 }
+
+/*
+ * Intent result: what the line was taken to mean, after it has already been
+ * carried out. A guess you can see is a guess you can correct.
+ */
+.chat-input-window .chat-intent-badge {
+	gap: 8px;
+	padding: 5px 14px;
+}
+
+.chat-input-window .chat-intent-badge-mark {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-input-window .chat-intent-badge-mark .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
