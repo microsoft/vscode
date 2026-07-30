@@ -15,7 +15,7 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import Severity from '../../../../../../base/common/severity.js';
-import { basename } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -113,6 +113,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			const planUriString = planUri.toString();
 			const registrationStore = new DisposableStore();
 			registrationStore.add(this._planReviewFeedbackService.registerPlanReview(planUri, {
+				sessionResource: context.element.sessionResource,
 				actions: review.actions,
 				hasOverallFeedback: () => !!this._feedbackTextarea?.value.trim(),
 				submitFeedback: () => this.submitFeedback(),
@@ -392,7 +393,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			textEl.textContent = item.text;
 
 			this._commentRowDisposables.add(dom.addDisposableListener(revealButton, dom.EventType.CLICK, () => {
-				this.revealInlineComment(item.id, item.line, item.column);
+				this.revealInlineComment(item);
 			}));
 
 			const removeLabel = localize('chat.planReview.removeComment', "Remove comment on line {0}", item.line);
@@ -416,18 +417,18 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			: [];
 	}
 
-	private async revealInlineComment(itemId: string, line: number, column: number): Promise<void> {
-		const uri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
-		if (!uri) {
+	private async revealInlineComment(item: IPlanReviewFeedbackItem): Promise<void> {
+		const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
+		if (!planUri) {
 			return;
 		}
-		this._planReviewFeedbackService.setNavigationAnchor(uri, itemId);
+		this._planReviewFeedbackService.setNavigationAnchor(planUri, item.id);
 		await this._editorService.openEditor({
-			resource: uri,
+			resource: item.resource,
 			options: {
 				pinned: true,
-				override: MARKDOWN_EDITOR_ID,
-				selection: { startLineNumber: line, startColumn: column },
+				...(isEqual(item.resource, planUri) ? { override: MARKDOWN_EDITOR_ID } : {}),
+				selection: { startLineNumber: item.line, startColumn: item.column },
 			},
 		});
 	}
@@ -800,21 +801,21 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._feedbackTextarea?.focus();
 	}
 
-	private async submitFeedback(): Promise<void> {
+	private async submitFeedback(): Promise<boolean> {
 		if (this._isSubmitted || this._isSubmitting) {
-			return;
+			return false;
 		}
 		const textareaFeedback = this._feedbackTextarea?.value.trim();
 
 		const editorFeedbackItems = [...this.getInlineFeedbackItems()];
 
 		if (!textareaFeedback && editorFeedbackItems.length === 0) {
-			return;
+			return false;
 		}
 		this._isSubmitting = true;
 		try {
 			if (!await this.savePlanFile()) {
-				return;
+				return false;
 			}
 
 			// Keep overall and inline blocks separate so the transcript can render them distinctly.
@@ -863,6 +864,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				this._planReviewFeedbackService.markFeedbackSubmitted(planUri);
 			}
 			await this.markUsed();
+			return true;
 		} finally {
 			if (!this._isSubmitted) {
 				this._isSubmitting = false;

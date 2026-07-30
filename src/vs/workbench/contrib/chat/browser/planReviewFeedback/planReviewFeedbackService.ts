@@ -22,9 +22,10 @@ export interface IPlanReviewFeedbackItem {
 }
 
 export interface IPlanReviewFeedbackRegistration {
+	readonly sessionResource: URI;
 	readonly actions: readonly IChatPlanApprovalAction[];
 	readonly hasOverallFeedback: () => boolean;
-	readonly submitFeedback: () => Promise<void>;
+	readonly submitFeedback: () => Promise<boolean>;
 	readonly submitAction: (action: IChatPlanApprovalAction) => Promise<void>;
 	readonly reject: () => Promise<void>;
 }
@@ -37,7 +38,7 @@ export interface IPlanReviewFeedbackService {
 	readonly onDidChangeFeedback: Event<URI>;
 	readonly onDidChangeNavigation: Event<URI>;
 	readonly onDidChangeRegistrations: Event<void>;
-	readonly onDidChangePlanReviewScope: Event<{ readonly planUri: URI; readonly active: boolean }>;
+	readonly onDidChangePlanReviewScope: Event<{ readonly planUri: URI; readonly sessionResource: URI; readonly active: boolean }>;
 	readonly onDidSubmitFeedback: Event<URI>;
 
 	registerPlanReview(planUri: URI, registration: IPlanReviewFeedbackRegistration): IDisposable;
@@ -53,7 +54,7 @@ export interface IPlanReviewFeedbackService {
 	getNavigationBearing(planUri: URI): { activeIdx: number; totalCount: number };
 	setNavigationAnchor(planUri: URI, itemId: string | undefined): void;
 	markFeedbackSubmitted(planUri: URI): void;
-	submitAllFeedback(planUri: URI): Promise<void>;
+	submitAllFeedback(planUri: URI): Promise<boolean>;
 	submitPlanAction(planUri: URI, action: IChatPlanApprovalAction): Promise<void>;
 	rejectPlan(planUri: URI): Promise<void>;
 }
@@ -79,11 +80,11 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	private readonly _onDidChangeRegistrations = this._register(new Emitter<void>());
 	readonly onDidChangeRegistrations: Event<void> = this._onDidChangeRegistrations.event;
-	private readonly _onDidChangePlanReviewScope = this._register(new Emitter<{ readonly planUri: URI; readonly active: boolean }>());
+	private readonly _onDidChangePlanReviewScope = this._register(new Emitter<{ readonly planUri: URI; readonly sessionResource: URI; readonly active: boolean }>());
 	readonly onDidChangePlanReviewScope = this._onDidChangePlanReviewScope.event;
 	private readonly _onDidSubmitFeedback = this._register(new Emitter<URI>());
 	readonly onDidSubmitFeedback = this._onDidSubmitFeedback.event;
-	readonly onDidChangeComments = Event.signal(this.onDidChangeFeedback);
+	readonly onDidChangeComments = Event.signal(Event.any(this.onDidChangeFeedback, this.onDidChangeRegistrations));
 	readonly onDidRevealComment = Event.None;
 
 	constructor(
@@ -96,11 +97,11 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	registerPlanReview(planUri: URI, review: IPlanReviewFeedbackRegistration): IDisposable {
 		const key = planUri.toString();
 		this._registrations.set(key, { review, items: [], navigationAnchor: undefined });
-		this._onDidChangePlanReviewScope.fire({ planUri, active: true });
+		this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: true });
 		this._onDidChangeRegistrations.fire();
 		return toDisposable(() => {
 			this._registrations.delete(key);
-			this._onDidChangePlanReviewScope.fire({ planUri, active: false });
+			this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: false });
 			this._onDidChangeRegistrations.fire();
 		});
 	}
@@ -212,13 +213,12 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	getNextFeedback(planUri: URI, next: boolean): IPlanReviewFeedbackItem | undefined {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
-		if (!registration || registration.items.length === 0) {
+		const registration = this._registrations.get(planUri.toString());
+		const items = this.getFeedback(planUri);
+		if (!registration || items.length === 0) {
 			return undefined;
 		}
 
-		const items = registration.items;
 		const anchorIdx = registration.navigationAnchor
 			? items.findIndex(item => item.id === registration.navigationAnchor)
 			: -1;
@@ -238,18 +238,18 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	getNavigationBearing(planUri: URI): { activeIdx: number; totalCount: number } {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
+		const registration = this._registrations.get(planUri.toString());
 		if (!registration) {
 			return { activeIdx: -1, totalCount: 0 };
 		}
 
-		const totalCount = registration.items.length;
+		const items = this.getFeedback(planUri);
+		const totalCount = items.length;
 		if (!registration.navigationAnchor) {
 			return { activeIdx: -1, totalCount };
 		}
 
-		const activeIdx = registration.items.findIndex(item => item.id === registration.navigationAnchor);
+		const activeIdx = items.findIndex(item => item.id === registration.navigationAnchor);
 		return { activeIdx, totalCount };
 	}
 
@@ -266,15 +266,14 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		this._onDidSubmitFeedback.fire(planUri);
 	}
 
-	async submitAllFeedback(planUri: URI): Promise<void> {
+	async submitAllFeedback(planUri: URI): Promise<boolean> {
 		const key = planUri.toString();
 		const registration = this._registrations.get(key);
 		if (!registration || (this.getFeedback(planUri).length === 0 && !registration.review.hasOverallFeedback())) {
-			return;
+			return false;
 		}
 
-		await registration.review.submitFeedback();
-		this.markFeedbackSubmitted(planUri);
+		return registration.review.submitFeedback();
 	}
 
 	submitPlanAction(planUri: URI, action: IChatPlanApprovalAction): Promise<void> {

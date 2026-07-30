@@ -19,7 +19,7 @@ import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/c
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import sinon from 'sinon';
-import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
+import { IResourceEditorInput, ITextEditorOptions } from '../../../../../../../platform/editor/common/editor.js';
 import { ITextFileService } from '../../../../../../services/textfile/common/textfiles.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
@@ -45,7 +45,9 @@ function createMockReviewWithPlan(overrides?: Partial<IChatPlanReview>): IChatPl
 }
 
 function createMockContext(): IChatContentPartRenderContext {
-	return {} as IChatContentPartRenderContext;
+	return {
+		element: { sessionResource: URI.parse('test://session/1') },
+	} as IChatContentPartRenderContext;
 }
 
 /** Query all `.monaco-button` elements inside the footer `.chat-buttons` container. */
@@ -467,6 +469,49 @@ suite('ChatPlanReviewPart', () => {
 			});
 		});
 
+		test('reveals a related comment in its own resource', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const planUri = URI.revive(review.planUri!);
+			const relatedUri = URI.parse('file:///related.ts');
+			const changed = store.add(new Emitter<void>());
+			store.add(lastCommentsBridge!.registerProvider({
+				priority: 100,
+				onDidChangeComments: changed.event,
+				onDidRevealComment: VSCodeEvent.None,
+				acceptsComments: () => true,
+				getComments: () => [{
+					id: 'related-comment',
+					resource: relatedUri,
+					range: { startLineNumber: 7, startColumn: 3, endLineNumber: 7, endColumn: 8 },
+					body: 'Update this source',
+				}],
+				addComment: () => { },
+				deleteComment: () => { },
+			}));
+			changed.fire();
+			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
+
+			(widget.domNode.querySelector('.chat-plan-review-comment-reveal') as HTMLButtonElement).click();
+			await tick();
+
+			const editorInput = openEditorSpy.lastCall.args[0] as IResourceEditorInput;
+			assert.deepStrictEqual({
+				resource: editorInput.resource?.toString(),
+				override: editorInput.options?.override,
+				selection: (editorInput.options as ITextEditorOptions | undefined)?.selection,
+				planResource: planUri.toString(),
+			}, {
+				resource: relatedUri.toString(),
+				override: undefined,
+				selection: { startLineNumber: 7, startColumn: 3 },
+				planResource: planUri.toString(),
+			});
+		});
+
 		test('inline comments alone are enough to enable Submit Feedback', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
@@ -493,10 +538,11 @@ suite('ChatPlanReviewPart', () => {
 			let commentsChanged = 0;
 			store.add(lastCommentsBridge!.onDidChangeComments(() => commentsChanged++));
 
-			await service.submitAllFeedback(planUri);
+			const didSubmit = await service.submitAllFeedback(planUri);
 
 			assert.deepStrictEqual({
 				submitResult: lastSubmitResult,
+				didSubmit,
 				commentsChanged,
 				remainingComments: lastCommentsBridge!.getComments(planUri),
 			}, {
@@ -506,7 +552,8 @@ suite('ChatPlanReviewPart', () => {
 					feedbackOverall: undefined,
 					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Fix this step',
 				},
-				commentsChanged: 1,
+				didSubmit: true,
+				commentsChanged: 2,
 				remainingComments: [],
 			});
 			assert.ok(widget.domNode.classList.contains('chat-plan-review-used'));

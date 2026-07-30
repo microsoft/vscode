@@ -92,8 +92,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const planReviewFeedbackService = accessor.get(IPlanReviewFeedbackService);
 		if (planReviewFeedbackService.isActivePlanReview(resource)) {
-			await planReviewFeedbackService.submitAllFeedback(resource);
-			return true;
+			return planReviewFeedbackService.submitAllFeedback(resource);
 		}
 		return agentFeedbackService.submitFeedback(sessionResource);
 	}

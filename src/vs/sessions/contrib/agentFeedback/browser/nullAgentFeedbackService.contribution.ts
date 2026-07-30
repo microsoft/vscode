@@ -55,7 +55,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	hasLoadedFeedback(_sessionResource: URI): boolean { return true; }
 	getSessionForFile(_resourceUri: URI): undefined { return undefined; }
 	getFeedbackSessionResource(_resourceUri: URI): URI | undefined { return undefined; }
-	registerFeedbackResourceScope(): IDisposable { return Disposable.None; }
+	registerFeedbackResourceScope(_resourceUri: URI, _sessionResource: URI): IDisposable { return Disposable.None; }
 	getMostRecentSessionForResource(_resourceUri: URI): URI | undefined { return undefined; }
 	async revealFeedback(_sessionResource: URI, _feedbackId: string): Promise<void> { }
 	async revealSessionComment(): Promise<void> { }

@@ -39,9 +39,9 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		this.onDidChangeComments = Event.signal(Event.any(this._agentFeedbackService.onDidChangeFeedback, this._agentFeedbackService.onDidChangeFeedbackScope));
 		this.onDidRevealComment = Event.map(this._agentFeedbackService.onDidRevealSessionComment, event => ({ resource: event.resourceUri, id: event.commentId }));
 		this._register(bridge.registerProvider(this));
-		this._register(planReviewFeedbackService.onDidChangePlanReviewScope(({ planUri, active }) => {
+		this._register(planReviewFeedbackService.onDidChangePlanReviewScope(({ planUri, sessionResource, active }) => {
 			if (active) {
-				this._planScopes.set(planUri.toString(), this._agentFeedbackService.registerFeedbackResourceScope(planUri));
+				this._planScopes.set(planUri.toString(), this._agentFeedbackService.registerFeedbackResourceScope(planUri, sessionResource));
 			} else {
 				this._planScopes.deleteAndDispose(planUri.toString());
 			}

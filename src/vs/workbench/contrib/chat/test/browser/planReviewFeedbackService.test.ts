@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentEditorCommentsBridge } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
+import { Event } from '../../../../../base/common/event.js';
 
 function createService(store: DisposableStore): PlanReviewFeedbackService {
 	return store.add(new PlanReviewFeedbackService(store.add(new AgentEditorCommentsBridge())));
@@ -20,9 +21,10 @@ function feedbackSummary(items: readonly { line: number; column: number }[]): st
 
 function createRegistration(overrides?: Partial<IPlanReviewFeedbackRegistration>): IPlanReviewFeedbackRegistration {
 	return {
+		sessionResource: URI.parse('test://session/1'),
 		actions: [{ id: 'approve', label: 'Approve', default: true }],
 		hasOverallFeedback: () => false,
-		submitFeedback: async () => { },
+		submitFeedback: async () => true,
 		submitAction: async () => { },
 		reject: async () => { },
 		...overrides,
@@ -298,6 +300,18 @@ suite('PlanReviewFeedbackService - Registration', () => {
 		assert.strictEqual(fireCount, 2);
 	});
 
+	test('comment eligibility changes when a review is registered or disposed', () => {
+		const planUri = URI.parse('file:///plan.md');
+		const planService = createService(store);
+		let fireCount = 0;
+		store.add(planService.onDidChangeComments(() => fireCount++));
+
+		const registration = planService.registerPlanReview(planUri, createRegistration());
+		registration.dispose();
+
+		assert.strictEqual(fireCount, 2);
+	});
+
 	test('onDidChangeFeedback fires on add and remove', () => {
 		const planUri = URI.parse('file:///plan.md');
 		store.add(service.registerPlanReview(planUri, createRegistration()));
@@ -332,22 +346,22 @@ suite('PlanReviewFeedbackService - Submit', () => {
 		const planUri = URI.parse('file:///plan.md');
 		let submitCount = 0;
 		store.add(service.registerPlanReview(planUri, createRegistration({
-			submitFeedback: async () => { submitCount++; },
+			submitFeedback: async () => { submitCount++; return true; },
 		})));
 
 		service.addFeedback(planUri, 1, 1, 'fix this');
 		service.addFeedback(planUri, 45, 45, 'change that');
 
-		await service.submitAllFeedback(planUri);
+		const didSubmit = await service.submitAllFeedback(planUri);
 
-		assert.strictEqual(submitCount, 1);
+		assert.deepStrictEqual({ submitCount, didSubmit }, { submitCount: 1, didSubmit: true });
 	});
 
 	test('submitAllFeedback does nothing when no items', async () => {
 		const planUri = URI.parse('file:///plan.md');
 		let called = false;
 		store.add(service.registerPlanReview(planUri, createRegistration({
-			submitFeedback: async () => { called = true; },
+			submitFeedback: async () => { called = true; return true; },
 		})));
 
 		await service.submitAllFeedback(planUri);
@@ -359,12 +373,22 @@ suite('PlanReviewFeedbackService - Submit', () => {
 		let called = false;
 		store.add(service.registerPlanReview(planUri, createRegistration({
 			hasOverallFeedback: () => true,
-			submitFeedback: async () => { called = true; },
+			submitFeedback: async () => { called = true; return true; },
 		})));
 
 		await service.submitAllFeedback(planUri);
 
 		assert.strictEqual(called, true);
+	});
+
+	test('submitAllFeedback returns false when the registered review does not submit', async () => {
+		const planUri = URI.parse('file:///plan.md');
+		store.add(service.registerPlanReview(planUri, createRegistration({
+			submitFeedback: async () => false,
+		})));
+		service.addFeedback(planUri, 1, 1, 'fix this');
+
+		assert.strictEqual(await service.submitAllFeedback(planUri), false);
 	});
 
 	test('submitPlanAction delegates the selected action', async () => {
@@ -391,5 +415,48 @@ suite('PlanReviewFeedbackService - Submit', () => {
 		await service.rejectPlan(planUri);
 
 		assert.strictEqual(rejected, true);
+	});
+});
+
+suite('PlanReviewFeedbackService - Provider-backed navigation', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('navigation and bearings use comments from the selected provider', () => {
+		const planUri = URI.parse('file:///plan.md');
+		const relatedUri = URI.parse('file:///related.ts');
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		const service = store.add(new PlanReviewFeedbackService(bridge));
+		store.add(service.registerPlanReview(planUri, createRegistration()));
+		store.add(bridge.registerProvider({
+			priority: 100,
+			onDidChangeComments: Event.None,
+			onDidRevealComment: Event.None,
+			acceptsComments: resource => resource.toString() === planUri.toString(),
+			getComments: () => [
+				{ id: 'plan', resource: planUri, range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 2 }, body: 'Plan' },
+				{ id: 'related', resource: relatedUri, range: { startLineNumber: 7, startColumn: 1, endLineNumber: 7, endColumn: 2 }, body: 'Related' },
+			],
+			addComment: () => { },
+			deleteComment: () => { },
+		}));
+		const first = service.getNextFeedback(planUri, true);
+		const second = service.getNextFeedback(planUri, true);
+
+		assert.deepStrictEqual({
+			first: first?.id,
+			second: second?.id,
+			bearing: service.getNavigationBearing(planUri),
+		}, {
+			first: 'plan',
+			second: 'related',
+			bearing: { activeIdx: 1, totalCount: 2 },
+		});
 	});
 });

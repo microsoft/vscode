@@ -17,9 +17,11 @@ import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupVie
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IListService } from '../../../../../platform/list/browser/listService.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IPlanReviewFeedbackService } from './planReviewFeedbackService.js';
@@ -43,12 +45,14 @@ function getPlanReviewResource(input: Parameters<typeof EditorResourceAccessor.g
 	return [resources.secondary, resources.primary].find(resource => resource && feedbackService.isActivePlanReview(resource));
 }
 
-function getActivePlanReview(accessor: ServicesAccessor): { resource: URI; group: IEditorGroup } | undefined {
+function getPlanReviewFromContext(accessor: ServicesAccessor, args: unknown[]): { resource: URI; group: IEditorGroup } | undefined {
 	const editorService = accessor.get(IEditorService);
-	const groups = accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-	const group = groups.find(candidate => candidate.activeEditorPane === editorService.activeEditorPane)
-		?? groups.find(candidate => candidate.activeEditorPane);
-	const resource = getPlanReviewResource(group?.activeEditorPane?.input, accessor.get(IPlanReviewFeedbackService));
+	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, accessor.get(IListService));
+	const groupedEditor = resolvedContext.groupedEditors[0];
+	const group = groupedEditor?.group;
+	const input = groupedEditor?.editors[0] ?? group?.activeEditor;
+	const resource = getPlanReviewResource(input, accessor.get(IPlanReviewFeedbackService));
 	return group && resource ? { resource, group } : undefined;
 }
 
@@ -71,13 +75,12 @@ class SubmitPlanReviewFeedbackAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<boolean> {
-		const review = getActivePlanReview(accessor);
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<boolean> {
+		const review = getPlanReviewFromContext(accessor, args);
 		if (!review) {
 			return false;
 		}
-		await accessor.get(IPlanReviewFeedbackService).submitAllFeedback(review.resource);
-		return true;
+		return accessor.get(IPlanReviewFeedbackService).submitAllFeedback(review.resource);
 	}
 }
 
@@ -102,8 +105,8 @@ class NavigatePlanReviewFeedbackAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const review = getActivePlanReview(accessor);
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const review = getPlanReviewFromContext(accessor, args);
 		if (!review) {
 			return;
 		}
@@ -140,8 +143,8 @@ class ClearAllPlanReviewFeedbackAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
-		const review = getActivePlanReview(accessor);
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const review = getPlanReviewFromContext(accessor, args);
 		if (review) {
 			accessor.get(IPlanReviewFeedbackService).clearFeedback(review.resource);
 		}

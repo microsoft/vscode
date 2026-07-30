@@ -207,7 +207,7 @@ export interface IAgentFeedbackService {
 	 * `undefined` when the file is out of scope.
 	 */
 	getFeedbackSessionResource(resourceUri: URI): URI | undefined;
-	registerFeedbackResourceScope(resourceUri: URI): IDisposable;
+	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable;
 
 	/**
 	 * Resolve the most recently updated session that has feedback for a given resource.
@@ -479,13 +479,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this.getSessionForFile(resourceUri)?.resource;
 	}
 
-	registerFeedbackResourceScope(resourceUri: URI): IDisposable {
-		const sessionResource = this.activeFeedbackSessionResource.get();
+	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable {
 		this._explicitResourceScopes.set(resourceUri, sessionResource);
+		this._onDidChangeFeedbackScope.fire();
 		return {
 			dispose: () => {
 				if (isEqual(this._explicitResourceScopes.get(resourceUri), sessionResource)) {
 					this._explicitResourceScopes.delete(resourceUri);
+					this._onDidChangeFeedbackScope.fire();
 				}
 			},
 		};

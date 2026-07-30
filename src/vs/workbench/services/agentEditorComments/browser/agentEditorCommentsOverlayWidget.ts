@@ -118,7 +118,7 @@ export class AgentEditorCommentsOverlayWidget extends Disposable {
 		if (!this._domNode.contains(this._toolbarNode)) {
 			this._domNode.appendChild(this._toolbarNode);
 		}
-		this._showStore.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, this._options.menuId, {
+		const toolbar = this._showStore.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, this._options.menuId, {
 			telemetrySource: this._options.telemetrySource,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
@@ -151,6 +151,13 @@ export class AgentEditorCommentsOverlayWidget extends Disposable {
 				return new CommentsActionViewItem(action, options, this._options, this._keybindingService, this._commentCount, editorGroup);
 			},
 		}));
+		if (editorGroup) {
+			const activeEditor = editorGroup.activeEditor;
+			toolbar.context = {
+				groupId: editorGroup.id,
+				editorIndex: activeEditor ? editorGroup.getIndexOfEditor(activeEditor) : undefined,
+			};
+		}
 		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
 	}
 
