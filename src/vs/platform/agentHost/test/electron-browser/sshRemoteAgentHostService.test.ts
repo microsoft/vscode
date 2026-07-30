@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,13 +16,16 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
-import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
+import { IQuickInputService, type IQuickPickItem } from '../../../quickinput/common/quickInput.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
+	ISSHEndpointCandidate,
+	ISSHEndpointSelection,
+	ISSHEndpointSelectionRequest,
 	ISSHKeyboardInteractiveRequest,
 	ISSHResolvedConfig,
 	ISSHRemoteAgentHostMainService,
@@ -62,6 +66,37 @@ class MockSSHMainService {
 
 	async respondKeyboardInteractive(requestId: string, responses?: ReadonlyArray<string>): Promise<void> {
 		this.kbiResponses.push({ requestId, responses });
+	}
+
+	private readonly _onDidRequestEndpointSelection = new Emitter<ISSHEndpointSelectionRequest>();
+	readonly onDidRequestEndpointSelection = this._onDidRequestEndpointSelection.event;
+
+	private readonly _onDidCancelEndpointSelection = new Emitter<string>();
+	readonly onDidCancelEndpointSelection = this._onDidCancelEndpointSelection.event;
+
+	readonly endpointSelectionResponses: Array<{ requestId: string; selection: ISSHEndpointSelection | undefined }> = [];
+	private readonly _endpointSelectionResponseWaiters: DeferredPromise<void>[] = [];
+
+	/** Test helper: fire an endpoint-selection request as the main process would. */
+	fireEndpointSelectionRequest(request: ISSHEndpointSelectionRequest): void {
+		this._onDidRequestEndpointSelection.fire(request);
+	}
+
+	/** Test helper: fire an endpoint-selection cancellation as the main process would. */
+	fireEndpointSelectionCancel(requestId: string): void {
+		this._onDidCancelEndpointSelection.fire(requestId);
+	}
+
+	/** Test helper: resolves once {@link respondEndpointSelection} is next called. */
+	waitForEndpointSelectionResponse(): Promise<void> {
+		const deferred = new DeferredPromise<void>();
+		this._endpointSelectionResponseWaiters.push(deferred);
+		return deferred.p;
+	}
+
+	async respondEndpointSelection(requestId: string, selection: ISSHEndpointSelection | undefined): Promise<void> {
+		this.endpointSelectionResponses.push({ requestId, selection });
+		this._endpointSelectionResponseWaiters.splice(0).forEach(d => d.complete());
 	}
 
 	readonly disconnectCalls: string[] = [];
@@ -117,6 +152,8 @@ class MockSSHMainService {
 		this._onDidRelayClose.dispose();
 		this._onDidRequestKeyboardInteractive.dispose();
 		this._onDidCancelKeyboardInteractive.dispose();
+		this._onDidRequestEndpointSelection.dispose();
+		this._onDidCancelEndpointSelection.dispose();
 	}
 }
 
@@ -232,6 +269,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	let createdClients: MockProtocolClient[];
 	let waitForClient: (index: number) => Promise<MockProtocolClient>;
 	let service: SSHRemoteAgentHostService;
+	let quickInputServiceStub: Partial<IQuickInputService>;
 
 	setup(() => {
 		mainService = new MockSSHMainService();
@@ -247,7 +285,8 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
-		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
+		quickInputServiceStub = {};
+		instantiationService.stub(IQuickInputService, quickInputServiceStub as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
 
@@ -441,5 +480,154 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		// One disconnect from the transport disposable is fine; we just want to make
 		// sure we're not at risk of issuing a second one against a stale id.
 		assert.ok(mainService.disconnectCalls.length <= 1, 'no duplicate disconnect against a stale connectionId');
+	});
+});
+
+suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
+
+	const disposables = new DisposableStore();
+	let mainService: MockSSHMainService;
+	let quickInputServiceStub: Partial<IQuickInputService>;
+
+	setup(() => {
+		mainService = new MockSSHMainService();
+		disposables.add({ dispose: () => mainService.dispose() });
+
+		const sharedProcessService: Partial<ISharedProcessService> = {
+			getChannel: () => asChannel(mainService),
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		quickInputServiceStub = {};
+		instantiationService.stub(IQuickInputService, quickInputServiceStub as Partial<IQuickInputService>);
+		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
+		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
+		instantiationService.stub(ISSHRelayClientFactory, {
+			createClient: () => disposables.add(new MockProtocolClient()) as unknown as RemoteAgentHostProtocolClient,
+		});
+
+		// Instantiating the service is enough to register the
+		// onDidRequestEndpointSelection/onDidCancelEndpointSelection listeners;
+		// the resulting handle isn't otherwise used by these tests.
+		disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
+	});
+
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const editorCandidate: ISSHEndpointCandidate = {
+		type: 'editor',
+		pid: 111,
+		instanceId: 'editor-instance-1',
+		quality: 'stable',
+		endpoint: { type: 'socket', path: '/run/agent-host/editor-111.sock' },
+	};
+	const standaloneCandidate: ISSHEndpointCandidate = {
+		type: 'standalone',
+		pid: 222,
+		instanceId: 'standalone-instance-1',
+		endpoint: { type: 'tcp', host: '127.0.0.1', port: 43210 },
+	};
+
+	function makeRequest(candidates: readonly ISSHEndpointCandidate[]): ISSHEndpointSelectionRequest {
+		return { requestId: 'req-1', connectionKey: 'ssh:remote.example', displayHost: 'remote.example', candidates };
+	}
+
+	test('shows a picker with a localized item per candidate plus a spawn-new item, and responds with the chosen candidate', async () => {
+		let capturedItems: (IQuickPickItem & { selection: ISSHEndpointSelection })[] | undefined;
+		let capturedTitle: string | undefined;
+		let capturedPlaceholder: string | undefined;
+		quickInputServiceStub.pick = (async (items: unknown, options?: { title?: string; placeHolder?: string }) => {
+			capturedItems = items as (IQuickPickItem & { selection: ISSHEndpointSelection })[];
+			capturedTitle = options?.title;
+			capturedPlaceholder = options?.placeHolder;
+			return capturedItems[0];
+		}) as unknown as IQuickInputService['pick'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.strictEqual(capturedTitle, 'Select a Remote Agent Host on remote.example');
+		assert.strictEqual(capturedPlaceholder, 'Choose a running agent host to connect to, or start a new one');
+		assert.strictEqual(capturedItems?.length, 3, 'one item per candidate plus the spawn-new item');
+
+		const [editorItem, standaloneItem, spawnItem] = capturedItems!;
+		assert.strictEqual(editorItem.label, '$(window) Editor Instance');
+		assert.strictEqual(editorItem.description, 'PID 111');
+		assert.strictEqual(editorItem.detail, 'stable · socket /run/agent-host/editor-111.sock');
+		assert.deepStrictEqual(editorItem.selection, { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-1' });
+
+		assert.strictEqual(standaloneItem.label, '$(vm) Standalone Agent Host');
+		assert.strictEqual(standaloneItem.description, 'PID 222');
+		assert.strictEqual(standaloneItem.detail, '127.0.0.1:43210');
+		assert.deepStrictEqual(standaloneItem.selection, { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-1' });
+
+		assert.strictEqual(spawnItem.label, '$(add) Start New Dedicated Agent Host');
+		assert.deepStrictEqual(spawnItem.selection, { kind: 'spawn' });
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-1' } },
+		]);
+	});
+
+	test('responds with a spawn selection when the "start new" item is chosen', async () => {
+		quickInputServiceStub.pick = (async (items: unknown) =>
+			(items as (IQuickPickItem & { selection: ISSHEndpointSelection })[]).at(-1)) as unknown as IQuickInputService['pick'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: { kind: 'spawn' } },
+		]);
+	});
+
+	test('responds with undefined when the user dismisses the picker', async () => {
+		quickInputServiceStub.pick = (async () => undefined) as unknown as IQuickInputService['pick'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
+		await mainService.waitForEndpointSelectionResponse();
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: undefined },
+		]);
+	});
+
+	test('a main-process cancellation aborts the open picker cleanly and responds with undefined', async () => {
+		let capturedToken: CancellationToken | undefined;
+		quickInputServiceStub.pick = ((_items: unknown, _options: unknown, token: CancellationToken) => new Promise(resolve => {
+			capturedToken = token;
+			const listener = token.onCancellationRequested(() => {
+				listener.dispose();
+				resolve(undefined);
+			});
+		})) as unknown as IQuickInputService['pick'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
+		assert.ok(capturedToken, 'picker should have been opened synchronously with a cancellation token');
+
+		const responsePromise = mainService.waitForEndpointSelectionResponse();
+		mainService.fireEndpointSelectionCancel('req-1');
+		await responsePromise;
+
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: undefined },
+		]);
+	});
+
+	test('cancelling an unrelated requestId does not abort the current picker', async () => {
+		quickInputServiceStub.pick = (async () => undefined) as unknown as IQuickInputService['pick'];
+
+		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate]));
+		mainService.fireEndpointSelectionCancel('some-other-request');
+		await mainService.waitForEndpointSelectionResponse();
+
+		// The picker resolved on its own (user dismissed it); the unrelated
+		// cancel event must not have interfered with routing the response.
+		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
+			{ requestId: 'req-1', selection: undefined },
+		]);
 	});
 });

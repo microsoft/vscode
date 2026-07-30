@@ -234,7 +234,7 @@ pub struct ServeWebArgs {
 	pub commit_id: Option<String>,
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Default)]
 pub struct AgentHostArgs {
 	/// Host the agent host should bind on. Defaults to 'localhost'. Pass
 	/// `0.0.0.0` to expose the agent host on all interfaces (paired with
@@ -276,6 +276,17 @@ pub struct AgentHostArgs {
 	#[clap(long)]
 	pub replace: bool,
 
+	/// Always start a brand new standalone supervisor, even if one is
+	/// already registered and would normally be reused. Unlike
+	/// `--replace`, this never kills or removes any existing registry
+	/// entry (editor or standalone) — the new supervisor simply
+	/// publishes its own additional entry alongside whatever is already
+	/// there. Useful for remote scenarios (e.g. "Start New Dedicated
+	/// Agent Host") that must guarantee a fresh, independent instance
+	/// regardless of what else is running.
+	#[clap(long)]
+	pub new_instance: bool,
+
 	/// Expose the agent host over a dev tunnel.
 	#[clap(long)]
 	pub tunnel: bool,
@@ -285,6 +296,15 @@ pub struct AgentHostArgs {
 	/// Randomly name the machine for the tunnel.
 	#[clap(long)]
 	pub random_name: bool,
+
+	/// Automatically terminate this supervisor once no client has been
+	/// connected for this many seconds. The idle timer starts once the
+	/// supervisor is ready, is cancelled/paused for as long as at least
+	/// one client is connected, and restarts from the full duration each
+	/// time the last client disconnects. Unset (the default) means
+	/// unlimited: a manually started local host never self-terminates.
+	#[clap(long)]
+	pub idle_timeout: Option<u64>,
 
 	/// Optional details to connect to an existing tunnel.
 	#[clap(flatten, next_help_heading = Some("ADVANCED TUNNEL OPTIONS"))]
@@ -317,6 +337,40 @@ pub enum AgentSubcommand {
 
 	/// Stream live session events.
 	Logs(AgentLogsArgs),
+
+	/// Print every live agent host endpoint as a single JSON document.
+	/// Machine-readable: intended for consumption over an already
+	/// authenticated transport (e.g. SSH), since the output includes each
+	/// endpoint's connection token.
+	Endpoints(AgentEndpointsArgs),
+
+	/// Relay stdin/stdout to a single live agent host endpoint's raw
+	/// socket/pipe or TCP connection, with no WebSocket interpretation and
+	/// no banner output. Intended to be used as an SSH `ProxyCommand`-style
+	/// bridge to reach `editor`-owned (socket/pipe) endpoints remotely.
+	#[clap(hide = true)]
+	Relay(AgentRelayArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentEndpointsArgs {
+	/// Overrides the resolved user data directory used to locate the
+	/// shared agent host registry. Defaults to the platform user data
+	/// directory, matching every other `code agent` subcommand.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentRelayArgs {
+	/// The `instanceId` of the live registry endpoint to relay to, as
+	/// shown by `code agent endpoints` / `code agent ps`.
+	pub instance_id: String,
+
+	/// Overrides the resolved user data directory used to locate the
+	/// shared agent host registry.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
 }
 
 /// Discovery/connection target shared by every agent-host command that

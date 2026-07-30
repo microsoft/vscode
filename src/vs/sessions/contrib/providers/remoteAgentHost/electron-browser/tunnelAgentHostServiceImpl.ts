@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { localize } from '../../../../../nls.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -13,6 +14,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -22,6 +24,10 @@ import {
 	TunnelAgentHostsSettingId,
 	type ICachedTunnel,
 	type ITunnelAgentHostMainService,
+	type ITunnelConnectResult,
+	type ITunnelGatewayEndpoint,
+	type ITunnelGatewayInventory,
+	type ITunnelGatewaySelection,
 	type ITunnelInfo,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
@@ -36,6 +42,86 @@ const LOG_PREFIX = '[TunnelAgentHost]';
 const CACHED_TUNNELS_KEY = 'tunnelAgentHost.recentTunnels';
 /** Storage key for tunnels the user explicitly disconnected. */
 const AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY = 'tunnelAgentHost.autoConnectSuppressedTunnels';
+
+interface ITunnelGatewayPickItem extends IQuickPickItem {
+	readonly selection: ITunnelGatewaySelection;
+}
+
+function gatewayEndpointLabel(endpoint: ITunnelGatewayEndpoint): string {
+	return endpoint.type === 'editor'
+		? localize('gatewayEndpointEditor', "Editor (PID {0})", endpoint.pid)
+		: localize('gatewayEndpointStandalone', "Standalone Agent Host (PID {0})", endpoint.pid);
+}
+
+function gatewayEndpointDescription(endpoint: ITunnelGatewayEndpoint): string {
+	const parts: string[] = [];
+	if (endpoint.quality) {
+		parts.push(endpoint.quality);
+	}
+	if (endpoint.tunnelName) {
+		parts.push(endpoint.tunnelName);
+	}
+	parts.push(endpoint.endpointLabel);
+	return parts.join(' · ');
+}
+
+/**
+ * Build the quick pick items for every live endpoint in a gateway inventory,
+ * plus a trailing item to spawn a brand new dedicated standalone instance.
+ * Exported so the picker's exact content can be unit tested without driving
+ * a real {@link IQuickInputService}.
+ */
+export function buildGatewayPickItems(inventory: ITunnelGatewayInventory): ITunnelGatewayPickItem[] {
+	const items: ITunnelGatewayPickItem[] = inventory.endpoints.map(endpoint => ({
+		label: gatewayEndpointLabel(endpoint),
+		description: gatewayEndpointDescription(endpoint),
+		selection: { instanceId: endpoint.instanceId },
+	}));
+	items.push({
+		label: localize('gatewayNewDedicated', "Start New Dedicated Agent Host"),
+		selection: { newDedicated: true },
+	});
+	return items;
+}
+
+/**
+ * Deterministic selection used when an inventory has no `editor` entries to
+ * disambiguate interactively: reuse the first live standalone instance if
+ * one exists, otherwise request a new dedicated one.
+ */
+export function autoGatewaySelection(inventory: ITunnelGatewayInventory): ITunnelGatewaySelection {
+	const standalone = inventory.endpoints.find(endpoint => endpoint.type === 'standalone');
+	return standalone ? { instanceId: standalone.instanceId } : { newDedicated: true };
+}
+
+/**
+ * Resolve which agent host endpoint to select for a protocol-v6 gateway
+ * session: deterministically auto-selected when there is nothing to
+ * disambiguate (no `editor` entries) or the connection is not user-initiated,
+ * or via a standard, accessible {@link IQuickInputService.pick} otherwise.
+ * Returns `undefined` if the user cancels the picker.
+ *
+ * Background/auto-connect (`userInitiated: false`) must never prompt and
+ * must never choose an `editor` endpoint, so it always falls back to
+ * {@link autoGatewaySelection} regardless of what the inventory contains.
+ */
+export async function pickGatewaySelection(
+	quickInputService: IQuickInputService,
+	inventory: ITunnelGatewayInventory,
+	options?: { readonly userInitiated?: boolean },
+): Promise<ITunnelGatewaySelection | undefined> {
+	const userInitiated = options?.userInitiated ?? true;
+	const hasEditorEntry = inventory.endpoints.some(endpoint => endpoint.type === 'editor');
+	if (!userInitiated || !hasEditorEntry) {
+		return autoGatewaySelection(inventory);
+	}
+
+	const picked = await quickInputService.pick(buildGatewayPickItems(inventory), {
+		title: localize('gatewayPickTitle', "Select Agent Host"),
+		placeHolder: localize('gatewayPickPlaceholder', "Choose an agent host to connect to, or start a new one"),
+	});
+	return picked?.selection;
+}
 
 /**
  * Renderer-side implementation of {@link ITunnelAgentHostService} that
@@ -63,6 +149,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -91,7 +178,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		return this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined);
 	}
 
-	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
@@ -104,7 +191,26 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		}
 
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${tunnel.name}' (${tunnel.tunnelId})`);
-		const result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+
+		// Protocol-v6 tunnels expose a registry-based endpoint selection
+		// gateway: prepare it first and let the user (or a deterministic
+		// auto-selection) pick a target before completing the connection.
+		// Protocol-v5 tunnels have no gateway — `prepareSelection` returns
+		// `undefined` and we fall back to the legacy direct-connect path
+		// with no picker.
+		const session = await this._mainService.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		let result: ITunnelConnectResult;
+		if (session) {
+			const selection = await pickGatewaySelection(this._quickInputService, session.inventory, { userInitiated: options?.userInitiated });
+			if (!selection) {
+				this._logService.info(`${LOG_PREFIX} Agent host selection cancelled for tunnel '${tunnel.name}'`);
+				await this._mainService.cancelSelection(session.selectionId);
+				return;
+			}
+			result = await this._mainService.completeSelection(session.selectionId, selection);
+		} else {
+			result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		}
 		this._logService.info(`${LOG_PREFIX} Tunnel relay connected, connectionId=${result.connectionId}`);
 
 		// Build relay transport + protocol client. If construction itself

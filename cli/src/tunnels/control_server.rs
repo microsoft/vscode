@@ -43,7 +43,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
-use super::agent_host::forward_tunnel_connection_to_existing_ah;
+use super::agent_host::serve_agent_host_tunnel_connection;
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
@@ -200,17 +200,16 @@ pub async fn serve(
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
 
-	// Kick off the agent host supervisor in the background. The supervisor
-	// is the only process that binds the user-facing TCP listener and
-	// publishes the canonical registry entry; we never spawn an
-	// in-process sidecar here.
-	// We deliberately do NOT await this here — the tunnel needs to start
-	// accepting connections immediately. Consumers that need the
-	// supervisor's endpoint (currently `handle_serve` for the
-	// `agentHostProxy` bridge, and the `agent-host` port forwarder below)
-	// await this shared future when they actually need it. Driving a
-	// clone with `tokio::spawn` ensures the work makes progress even if no
-	// one is currently awaiting it.
+	// The supervisor is the only process that binds the user-facing TCP
+	// listener and publishes the canonical registry entry; we never spawn
+	// an in-process sidecar here. This future is genuinely lazy: nothing
+	// drives it until a consumer that actually needs the legacy (v5)
+	// single-supervisor endpoint awaits a clone of it — currently
+	// `handle_serve`'s `agentHostProxy` bridge, and the root/default route
+	// of the `agent-host` port forwarder below. A tunnel that nobody
+	// connects to must not spawn a standalone supervisor by itself; the
+	// protocol-v6 selection route (also below) consults the registry
+	// directly instead and never touches this future.
 	let active_agent_host: SharedActiveAgentHost = {
 		let launcher_paths = launcher_paths.clone();
 		let log = log.clone();
@@ -223,7 +222,6 @@ pub async fn serve(
 		.boxed()
 		.shared()
 	};
-	tokio::spawn(active_agent_host.clone());
 
 	let code_server_args = code_server_args.clone();
 
@@ -275,24 +273,13 @@ pub async fn serve(
 			Some(socket) = agent_host_port.recv() => {
 				let log = log.clone();
 				let active_agent_host = active_agent_host.clone();
+				let launcher_paths = launcher_paths.clone();
 				tokio::spawn(async move {
-					let active = match active_agent_host.await {
-						Ok(a) => a,
-						Err(e) => {
-							warning!(
-								log,
-								"Cannot forward agent-host tunnel connection; supervisor unavailable: {}",
-								e
-							);
-							return;
-						}
-					};
-					forward_tunnel_connection_to_existing_ah(
+					serve_agent_host_tunnel_connection(
 						log,
 						socket.into_rw(),
-						active.dial_host().to_string(),
-						active.port,
-						active.token.clone(),
+						active_agent_host,
+						launcher_paths,
 					)
 					.await;
 				});
@@ -791,9 +778,10 @@ async fn handle_serve(
 	csa.install_extensions.extend(params.extensions);
 
 	// Mix in the agent-host bridge info now that we actually need to spawn
-	// the VS Code server. The supervisor was started in the background by
-	// `serve()`, so this only blocks if it hasn't finished yet. If it
-	// failed we still serve — the renderer just won't see `agentHostProxy`.
+	// the VS Code server. `active_agent_host` is genuinely lazy (see the
+	// comment in `serve()`), so awaiting it here is what first drives the
+	// supervisor to start. If it failed we still serve — the renderer
+	// just won't see `agentHostProxy`.
 	if let Some(ah_fut) = c.active_agent_host.clone() {
 		match ah_fut.await {
 			Ok(a) => a.apply_to_bridge(&mut csa),

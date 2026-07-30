@@ -9,8 +9,8 @@ use std::process::Command;
 use clap::Parser;
 use cli::{
 	commands::{
-		agent_host, agent_kill, agent_logs, agent_ps, agent_stop, args, serve_web, tunnels, update,
-		version, CommandContext,
+		agent_endpoints, agent_host, agent_kill, agent_logs, agent_ps, agent_relay, agent_stop,
+		args, serve_web, tunnels, update, version, CommandContext,
 	},
 	constants::get_default_user_agent,
 	desktop, log,
@@ -119,6 +119,12 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				}
 				Some(args::AgentSubcommand::Logs(logs_args)) => {
 					agent_logs::agent_logs(context!(), logs_args).await
+				}
+				Some(args::AgentSubcommand::Endpoints(endpoints_args)) => {
+					agent_endpoints::agent_endpoints(context!(), endpoints_args).await
+				}
+				Some(args::AgentSubcommand::Relay(relay_args)) => {
+					agent_relay::agent_relay(context!(), relay_args).await
 				}
 				None => agent_host::agent_host(context!(), agent_args.host_args).await,
 			},

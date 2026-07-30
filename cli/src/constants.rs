@@ -22,7 +22,12 @@ pub const AGENT_HOST_PORT: u16 = 31546;
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
 ///  4 - The server's msgpack messages are no longer length-prefixed
 ///  5 - The server now exposes an agent host connection
-pub const PROTOCOL_VERSION: u32 = 5;
+///  6 - The forwarded agent host port additionally serves a registry-based
+///      endpoint selection WebSocket route (see
+///      `tunnels::agent_host::AGENT_HOST_GATEWAY_SELECT_PATH`); the root
+///      route keeps serving the unchanged v5 direct-reuse behavior, so
+///      older clients that only know the root route are unaffected.
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// Prefix for the tunnel tag that includes the version.
 pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";
@@ -156,3 +161,15 @@ pub static IS_INTERACTIVE_CLI: LazyLock<bool> =
 pub static WIN32_APP_IDS: LazyLock<Option<Vec<String>>> = LazyLock::new(|| {
 	option_env!("VSCODE_CLI_WIN32_APP_IDS").map(|s| s.split(',').map(|s| s.to_string()).collect())
 });
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn protocol_version_tag_matches_bumped_version() {
+		assert_eq!(PROTOCOL_VERSION, 6);
+		assert_eq!(PROTOCOL_VERSION_TAG, "protocolv6");
+		assert!(PROTOCOL_VERSION_TAG.starts_with(PROTOCOL_VERSION_TAG_PREFIX));
+	}
+}

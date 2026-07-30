@@ -533,6 +533,10 @@ pub enum CodeError {
 	AmbiguousAgentHostInstance(String),
 	#[error("no live standalone agent host with instance id \"{0}\" was found")]
 	UnknownAgentHostInstance(String),
+	#[error("no live agent host endpoint with instance id \"{0}\" was found (it may not be running, or may have just exited)")]
+	UnknownAgentHostRelayTarget(String),
+	#[error("multiple live agent host endpoints are registered with instance id \"{0}\"; this indicates registry corruption")]
+	AmbiguousAgentHostRelayTarget(String),
 }
 
 makeAnyError!(
