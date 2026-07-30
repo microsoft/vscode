@@ -6,10 +6,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
-import { resolveCopilotOverrides, type GitOverride } from './copilotOverride.ts';
+import { resolveCopilotOverrides, overrideBuildTags, isPinnedSourceRequested, RUNTIME_REPO, type GitOverride } from './copilotOverride.ts';
 import { buildSdkTarball } from './buildCopilotOverride.ts';
-import { clearRuntimeSourceMarker, writeRuntimeSourceMarker, writeRuntimeToken } from '../../lib/copilotRuntimeSource.ts';
-import { COPILOT_APP_ID, mintInstallationToken } from './mintGithubAppToken.ts';
+import { clearRuntimeSourceMarker, resolvePinnedRuntimeCommit, writeRuntimeSourceMarker, writeRuntimeToken } from '../../lib/copilotRuntimeSource.ts';
+import { mintCloneTokenFromEnv } from './mintGithubAppToken.ts';
+import { dirs } from '../../npm/dirs.ts';
 
 /**
  * Applies the `copilotOverride` overrides before `npm ci` in the product build.
@@ -31,8 +32,12 @@ const ROOT = path.join(import.meta.dirname, '../../../');
 const IS_WINDOWS = process.platform === 'win32';
 const NPM = IS_WINDOWS ? 'npm.cmd' : 'npm';
 
-/** Manifests that declare the Copilot dependencies. */
-const TARGET_DIRS = ['', 'remote'];
+/**
+ * Manifests whose installed `@github/copilot` a runtime source build replaces
+ * during gulp packaging — the agent host's own `node_modules`. See
+ * `gulpfile.vscode.ts` and `gulpfile.reh.ts`.
+ */
+const AGENT_HOST_DIRS = ['', 'remote'];
 
 interface ManifestPin {
 	readonly name: string;
@@ -40,6 +45,46 @@ interface ManifestPin {
 	readonly version?: string;
 	/** Absolute path to a locally built `.tgz`; pinned as `file:` per manifest. */
 	readonly tarball?: string;
+}
+
+/** The spec a manifest declares for `name`, or undefined if it declares none. */
+function declaredDependency(dir: string, name: string): string | undefined {
+	const packageJsonPath = path.join(ROOT, dir, 'package.json');
+	if (!fs.existsSync(packageJsonPath)) {
+		return undefined;
+	}
+	const dependencies = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).dependencies ?? {};
+	const spec = dependencies[name];
+	return typeof spec === 'string' ? spec : undefined;
+}
+
+/**
+ * The manifests to pin, derived from the repo's canonical npm directory list
+ * rather than a hardcoded pair. A manifest that declares an overridden
+ * dependency but is missed here keeps its published version, so the build would
+ * ship two differently versioned copies of the same package.
+ */
+function manifestsDeclaring(pins: ManifestPin[]): string[] {
+	return dirs.filter(dir => pins.some(pin => declaredDependency(dir, pin.name) !== undefined));
+}
+
+/**
+ * The built-in Copilot extension pins `@github/copilot` independently of the
+ * agent host and ships a native matched to that pin, so the two versions
+ * diverge by design (see `prepareBuiltInCopilotRipgrepShim`). A runtime source
+ * build only replaces the agent host's copy — worth stating plainly when the
+ * whole point of the build is to carry a fix.
+ */
+function reportIndependentRuntimePins(npmName: string): void {
+	for (const dir of dirs) {
+		if (AGENT_HOST_DIRS.includes(dir)) {
+			continue;
+		}
+		const spec = declaredDependency(dir, npmName);
+		if (spec) {
+			console.warn(`[copilot-override] ${path.join(dir, 'package.json')} pins ${npmName}@${spec} independently and keeps it: the extension host will NOT contain this source build. Pin it to a published version too if the fix is needed there.`);
+		}
+	}
 }
 
 function applyOverrides(dir: string, pins: ManifestPin[]): ManifestPin[] {
@@ -99,50 +144,63 @@ function verifyResolved(dir: string, pins: ManifestPin[]): void {
 
 /**
  * Handles a runtime `git:<ref>` override: records a marker so gulp packaging
- * builds the runtime from source per target. When the GitHub App key is present
- * (from Key Vault), mints a clone token for the private runtime repo and stashes
- * it for the gulp step. No-op (clears any stale marker) when absent.
+ * builds the runtime from source per target, and stashes the clone token for
+ * that later step. No-op (clears any stale marker) when absent.
  */
-async function handleRuntimeSource(runtimeGit: GitOverride | undefined): Promise<void> {
+async function handleRuntimeSource(runtimeGit: GitOverride | undefined, token: string | undefined): Promise<void> {
 	if (!runtimeGit) {
 		clearRuntimeSourceMarker();
 		return;
 	}
+	reportIndependentRuntimePins(runtimeGit.npmName);
 	writeRuntimeSourceMarker(runtimeGit.repo, runtimeGit.ref);
-
-	// Mint a clone token for the (private) runtime repo when the App key is
-	// available, and stash it for the later gulp packaging step. The key arrives
-	// as the literal $(...) macro when the gated Key Vault step didn't run — treat
-	// that (and empty) as "no key", leaving an explicit COPILOT_OVERRIDE_TOKEN or
-	// a public clone to cover local runs.
-	const privateKey = (process.env['GITHUB_APP_PRIVATE_KEY'] ?? '').trim();
-	if (privateKey && !privateKey.startsWith('$(')) {
-		const appId = (process.env['GITHUB_APP_ID'] ?? COPILOT_APP_ID).trim();
-		const [owner, repo] = runtimeGit.repo.split('/');
-		console.log(`[copilot-override] Minting GitHub App installation token (app ${appId}) for ${runtimeGit.repo}.`);
-		writeRuntimeToken(await mintInstallationToken(appId, privateKey, owner, repo));
+	if (token) {
+		writeRuntimeToken(token);
 	}
 	console.log(`[copilot-override] Runtime will be built from source: ${runtimeGit.repo}@${runtimeGit.ref} (gulp packaging builds per target).`);
 }
 
 async function main(): Promise<void> {
 	const detectOnly = process.argv.includes('--detect');
-	const overrides = resolveCopilotOverrides(ROOT);
-	const runtimeGit = overrides.find((o): o is GitOverride => o.pkg === 'runtime' && o.kind === 'git');
+	const env: NodeJS.ProcessEnv = { ...process.env };
+
+	// The sentinel is not a version, so keep it away from the pure resolver (which
+	// would read it as a dist-tag). It resolves to a commit below, once the gated
+	// Key Vault step has run — which is after `--detect`.
+	const pinnedSource = isPinnedSourceRequested(env);
+	if (pinnedSource) {
+		delete env['VSCODE_COPILOT_RUNTIME'];
+	}
+
+	let overrides = resolveCopilotOverrides(ROOT, env);
+	let runtimeGit = overrides.find((o): o is GitOverride => o.pkg === 'runtime' && o.kind === 'git');
 
 	// Signal the pipeline (gates the Key Vault + Rust toolchain steps) as early as
 	// possible so `--detect` can run before them.
-	console.log(`##vso[task.setvariable variable=VSCODE_COPILOT_RUNTIME_SOURCE]${runtimeGit ? 'true' : 'false'}`);
+	console.log(`##vso[task.setvariable variable=VSCODE_COPILOT_RUNTIME_SOURCE]${runtimeGit || pinnedSource ? 'true' : 'false'}`);
 	if (detectOnly) {
 		return;
 	}
 
-	await handleRuntimeSource(runtimeGit);
+	const cloneToken = await mintCloneTokenFromEnv(RUNTIME_REPO);
+	if (pinnedSource) {
+		env['VSCODE_COPILOT_RUNTIME'] = resolvePinnedRuntimeCommit(ROOT, cloneToken);
+		overrides = resolveCopilotOverrides(ROOT, env);
+		runtimeGit = overrides.find((o): o is GitOverride => o.pkg === 'runtime' && o.kind === 'git');
+	}
+
+	await handleRuntimeSource(runtimeGit, cloneToken);
 	if (overrides.length === 0) {
 		console.log('[copilot-override] No overrides in copilotOverride — nothing to do.');
 		return;
 	}
 	console.log(`[copilot-override] Overrides: ${overrides.map(o => `${o.pkg}=${o.kind === 'feed' ? o.spec : `${o.repo}@${o.ref}`}`).join(', ')}`);
+
+	// Tag the build with what it actually contains, so a released build stays
+	// traceable to these commits after the queue-time parameters are forgotten.
+	for (const tag of overrideBuildTags(overrides)) {
+		console.log(`##vso[build.addbuildtag]${tag}`);
+	}
 
 	// Manifest pins for feed + SDK-source overrides (runtime source is handled via
 	// the marker above and does not touch the manifests). Build source artifacts
@@ -157,7 +215,12 @@ async function main(): Promise<void> {
 		// runtime git: nothing to pin (built from source during packaging).
 	}
 
-	for (const dir of TARGET_DIRS) {
+	for (const dir of manifestsDeclaring(pins)) {
+		if (!AGENT_HOST_DIRS.includes(dir)) {
+			// This manifest pins the package independently of the agent host, so an
+			// override moving it is a deliberate change to a deliberate pin.
+			console.log(`[copilot-override] ${path.join(dir, 'package.json')} pins these packages independently; the override moves it too.`);
+		}
 		const applied = applyOverrides(dir, pins);
 		if (applied.length > 0) {
 			refreshLockfile(dir);

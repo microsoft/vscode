@@ -20,6 +20,23 @@ import * as https from 'https';
 /** Default App ID for the `copilot-agent-runtime` GitHub App. */
 export const COPILOT_APP_ID = '4297675';
 
+/**
+ * Mints a clone token from the App key in the environment, or returns undefined
+ * when there is none. The key arrives as the literal `$(...)` macro when the
+ * gated Key Vault step did not run — treat that (and empty) as "no key", leaving
+ * an explicit `COPILOT_OVERRIDE_TOKEN` or a public clone to cover local runs.
+ */
+export async function mintCloneTokenFromEnv(repo: string, env: NodeJS.ProcessEnv = process.env): Promise<string | undefined> {
+	const privateKey = (env['GITHUB_APP_PRIVATE_KEY'] ?? '').trim();
+	if (!privateKey || privateKey.startsWith('$(')) {
+		return undefined;
+	}
+	const appId = (env['GITHUB_APP_ID'] ?? COPILOT_APP_ID).trim();
+	const [owner, name] = repo.split('/');
+	console.log(`[copilot-override] Minting GitHub App installation token (app ${appId}) for ${repo}.`);
+	return mintInstallationToken(appId, privateKey, owner, name);
+}
+
 function createJwt(appId: string, privateKey: string): string {
 	const now = Math.floor(Date.now() / 1000);
 	const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');

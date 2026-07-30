@@ -46,7 +46,7 @@ import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../c
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotCliPathOverride } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
@@ -707,6 +707,20 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 	// Let that continuation run before the disposable leak tracker checks.
 	await Promise.resolve();
 }
+
+suite('resolveCopilotCliPathOverride', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('is unset for a normal build', () => {
+		assert.strictEqual(resolveCopilotCliPathOverride({}, {}), undefined);
+		assert.strictEqual(resolveCopilotCliPathOverride({ VSCODE_COPILOT_CLI_PATH: '   ' }, {}), undefined);
+	});
+
+	test('prefers the environment variable over the product override', () => {
+		assert.strictEqual(resolveCopilotCliPathOverride({ VSCODE_COPILOT_CLI_PATH: '/env/index.js' }, { copilotCliPath: '/product/index.js' }), '/env/index.js');
+		assert.strictEqual(resolveCopilotCliPathOverride({}, { copilotCliPath: '/product/index.js' }), '/product/index.js');
+	});
+});
 
 suite('CopilotAgent', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

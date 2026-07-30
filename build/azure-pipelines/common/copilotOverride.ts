@@ -30,6 +30,9 @@ import * as path from 'path';
 /** The two overridable packages, by short id (used for env vars and logging). */
 export type CopilotPackageId = 'sdk' | 'runtime';
 
+export const RUNTIME_NPM_NAME = '@github/copilot';
+export const RUNTIME_REPO = 'github/copilot-agent-runtime';
+
 interface CopilotPackage {
 	readonly pkg: CopilotPackageId;
 	/** npm package name — the `copilotOverride` key and the manifest dependency. */
@@ -44,7 +47,7 @@ interface CopilotPackage {
 
 const COPILOT_PACKAGES: readonly CopilotPackage[] = [
 	{ pkg: 'sdk', npmName: '@github/copilot-sdk', repo: 'github/copilot-sdk' },
-	{ pkg: 'runtime', npmName: '@github/copilot', repo: 'github/copilot-agent-runtime' },
+	{ pkg: 'runtime', npmName: RUNTIME_NPM_NAME, repo: RUNTIME_REPO },
 ];
 
 /**
@@ -76,12 +79,18 @@ export interface GitOverride {
 export type CopilotOverride = FeedOverride | GitOverride;
 
 /**
- * Allowlist for values interpolated into `npm view`/`git` argument strings and
- * (on Windows) run with `shell: true`. Restricts to characters that appear in
- * valid semver versions/ranges/dist-tags and git refs, rejecting anything a
- * shell could otherwise interpret. Mirrors the canary override's `SAFE_SPEC`.
+ * Allowlist for override values before they become manifest specs or reach
+ * `npm view`.
+ *
+ * Restricted to the characters that appear in semver versions, ranges and
+ * dist-tags. `/`, `@`, `#`, `:` and a leading `.` are excluded deliberately:
+ * npm resolves a spec containing them as a *different kind of dependency* —
+ * `owner/repo` and `owner/repo#sha` install from an arbitrary git repository
+ * and `../x` installs from a local directory. Without this, a value that merely
+ * looks like a version could point a signed release build at code of the
+ * caller's choosing.
  */
-const SAFE_SPEC = /^[\w./+~^><=|* @#-]+$/;
+const SAFE_SPEC = /^(?!\.)[\w.+~^><=|* -]+$/;
 
 function assertSafeSpec(label: string, value: string): void {
 	if (!SAFE_SPEC.test(value)) {
@@ -139,4 +148,84 @@ export function resolveCopilotOverrides(root: string, env: NodeJS.ProcessEnv = p
 		}
 	}
 	return overrides;
+}
+
+/**
+ * Version stamped on a package built from source, e.g. `0.0.0-src.gdeadbee`.
+ *
+ * Must be commit-unique. The packed SDK tarball is named after it, and the
+ * manifest pins that tarball by path — were the name stable across commits the
+ * pin would be byte-identical, colliding in the node_modules cache key and
+ * silently restoring a stale install. It also keeps a shipped source build
+ * traceable to its commit. The `0.0.0-` prefix sorts it below every release.
+ */
+export function sourceBuildVersion(ref: string): string {
+	return `0.0.0-src.g${ref.slice(0, 7)}`;
+}
+
+/**
+ * Build tags recording which Copilot packages a build actually contains.
+ *
+ * A source-built package carries a placeholder `0.0.0-src.*` version, so
+ * without this the only record of what a released build shipped is the
+ * queue-time pipeline parameters. `=` separates key from value because build
+ * tags land in the Add Build Tag REST URL path, which rejects `:`; the value is
+ * sanitized for the same reason (npm ranges contain `^`, `|`, `>`).
+ */
+export function overrideBuildTags(overrides: readonly CopilotOverride[]): string[] {
+	return overrides.map(override => {
+		const value = override.kind === 'feed' ? override.spec : `git.${override.ref}`;
+		return `copilot-${override.pkg}=${value.replace(/[^\w.-]/g, '_')}`;
+	});
+}
+
+/**
+ * `VSCODE_COPILOT_RUNTIME` sentinel: build the runtime from source at the commit
+ * its currently pinned version was released from.
+ *
+ * Exists so a schedule can exercise the source-build path continuously. Pinning
+ * a branch would not do: `main` can be broken, whereas the pinned version is
+ * known good and already shipping — which also makes the built package directly
+ * comparable to the published one.
+ */
+export const PINNED_SOURCE = 'pinned-source';
+
+export function isPinnedSourceRequested(env: NodeJS.ProcessEnv = process.env): boolean {
+	return (env['VSCODE_COPILOT_RUNTIME'] ?? '').trim() === PINNED_SOURCE;
+}
+
+/** The concrete `@github/copilot` version the lockfile installs. */
+export function pinnedRuntimeVersion(root: string): string {
+	const lockPath = path.join(root, 'package-lock.json');
+	const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+	const version = lock.packages?.[`node_modules/${RUNTIME_NPM_NAME}`]?.version;
+	if (typeof version !== 'string' || !version) {
+		throw new Error(`[copilot-override] ${lockPath} records no ${RUNTIME_NPM_NAME} version, so '${PINNED_SOURCE}' cannot be resolved.`);
+	}
+	return version;
+}
+
+/** Releases are tagged `cli-<version>` in the runtime repository. */
+export function runtimeSourceTag(version: string): string {
+	return `cli-${version}`;
+}
+
+/**
+ * The commit a `git ls-remote --tags` result points at, preferring the
+ * dereferenced `^{}` entry so an annotated tag yields the commit it tags rather
+ * than the tag object itself.
+ */
+export function parseLsRemoteTagSha(output: string, tag: string): string {
+	const refs = new Map<string, string>();
+	for (const line of output.split('\n')) {
+		const [sha, ref] = line.trim().split(/\s+/);
+		if (sha && ref) {
+			refs.set(ref, sha);
+		}
+	}
+	const sha = refs.get(`refs/tags/${tag}^{}`) ?? refs.get(`refs/tags/${tag}`);
+	if (!sha || !COMMIT_SHA.test(sha)) {
+		throw new Error(`[copilot-override] ${RUNTIME_REPO} has no tag ${tag}, so '${PINNED_SOURCE}' cannot be resolved to a commit.`);
+	}
+	return sha;
 }

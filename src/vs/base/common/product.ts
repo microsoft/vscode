@@ -102,6 +102,15 @@ export interface IProductConfiguration {
 	readonly quality?: string;
 	readonly commit?: string;
 
+	/**
+	 * Absolute path to a locally built Copilot CLI entry point (`dist-cli/index.js`)
+	 * to run instead of the bundled `@github/copilot-<os>-<arch>` package.
+	 *
+	 * Development only: it is set through the git-ignored `product.overrides.json`,
+	 * which `bootstrap-meta.ts` merges only when `VSCODE_DEV` is set.
+	 */
+	readonly copilotCliPath?: string;
+
 	readonly nameShort: string;
 	readonly nameLong: string;
 

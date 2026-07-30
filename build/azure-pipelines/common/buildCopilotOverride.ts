@@ -6,7 +6,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
-import type { GitOverride } from './copilotOverride.ts';
+import { sourceBuildVersion, type GitOverride } from './copilotOverride.ts';
+import { gitAuthArgs, gitEnv, redactedError, redactSecrets } from '../../lib/copilotRuntimeSource.ts';
 
 /**
  * Source build for the `copilotOverride` SDK `git:<commit>` override. The SDK is
@@ -28,14 +29,11 @@ function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEn
 	// Only `.cmd`/`.bat` shims need a shell; git/node must not use one, or spaced
 	// args (e.g. the http.extraheader auth header) get split on Windows.
 	const shell = IS_WINDOWS && /\.(cmd|bat)$/i.test(command);
-	execFileSync(command, args, { cwd, stdio: 'inherit', shell, env });
-}
-
-/** Masks credentials (tokens in URLs / auth headers) before logging a command. */
-function redactSecrets(text: string): string {
-	return text
-		.replace(/(extraheader=AUTHORIZATION: [^\s]+ )\S+/gi, '$1***')
-		.replace(/\/\/[^@\s/]+@/g, '//***@');
+	try {
+		execFileSync(command, args, { cwd, stdio: 'inherit', shell, env });
+	} catch (err) {
+		throw redactedError(err);
+	}
 }
 
 /**
@@ -49,7 +47,7 @@ function cloneRepo(repo: string, sha: string, dest: string): void {
 	fs.mkdirSync(dest, { recursive: true });
 
 	const token = (process.env['COPILOT_OVERRIDE_TOKEN'] ?? process.env['GITHUB_TOKEN'] ?? '').trim();
-	const authArgs = token ? ['-c', `http.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`] : [];
+	const authArgs = gitAuthArgs(token || undefined);
 	const url = `https://github.com/${repo}.git`;
 
 	// Fetch just the pinned commit (GitHub allows fetching a reachable SHA), then
@@ -57,10 +55,10 @@ function cloneRepo(repo: string, sha: string, dest: string): void {
 	run('git', ['init', '-q'], dest);
 	run('git', ['remote', 'add', 'origin', url], dest);
 	try {
-		run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', sha], dest);
+		run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', sha], dest, gitEnv());
 	} catch {
 		console.log(`[copilot-override] Shallow fetch of ${repo}@${sha} failed; retrying with a full fetch.`);
-		run('git', [...authArgs, 'fetch', 'origin'], dest);
+		run('git', [...authArgs, 'fetch', 'origin'], dest, gitEnv());
 	}
 	run('git', ['checkout', '-q', sha], dest);
 	console.log(`[copilot-override] Checked out ${repo}@${sha} -> ${dest}`);
@@ -84,6 +82,12 @@ export function buildSdkTarball(override: GitOverride): string {
 	run(NPM, ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], pkgDir);
 	run(NPM, ['run', 'build'], pkgDir);
 
+	// Stamp after building and before packing, mirroring the SDK's own `package`
+	// script. The in-repo manifest carries a fixed `0.0.0-dev`, so without this
+	// every commit packs to the same filename — see `sourceBuildVersion`.
+	const version = sourceBuildVersion(override.ref);
+	stampVersion(pkgDir, version);
+
 	const outDir = path.join(OVERRIDES_DIR, 'sdk-pack');
 	fs.rmSync(outDir, { recursive: true, force: true });
 	fs.mkdirSync(outDir, { recursive: true });
@@ -93,7 +97,18 @@ export function buildSdkTarball(override: GitOverride): string {
 	if (!tarball) {
 		throw new Error(`[copilot-override] npm pack produced no tarball for SDK in ${outDir}.`);
 	}
+	if (!tarball.includes(version)) {
+		throw new Error(`[copilot-override] Packed SDK tarball "${tarball}" does not carry the stamped version ${version}, so the node_modules cache key cannot distinguish SDK commits.`);
+	}
 	const tarballPath = path.join(outDir, tarball);
 	console.log(`[copilot-override] Built SDK tarball ${tarballPath} from ${override.repo}@${override.ref}`);
 	return tarballPath;
+}
+
+/** Rewrites the package version so the packed tarball name is commit-unique. */
+function stampVersion(pkgDir: string, version: string): void {
+	const manifestPath = path.join(pkgDir, 'package.json');
+	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+	manifest.version = version;
+	fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 }

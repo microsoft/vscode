@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { execFileSync } from 'child_process';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -50,15 +51,24 @@ function ensureRustup(): void {
 		return;
 	}
 	console.log('[runtime-toolchain] rustup not found — installing.');
+	const cargoBin = path.join(os.homedir(), '.cargo', 'bin');
 	if (IS_WINDOWS) {
 		// Download and run rustup-init non-interactively.
 		tryRun('powershell', ['-NoProfile', '-Command',
 			'Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain stable --profile minimal']);
-		console.log(`##vso[task.prependpath]${path.join(os.homedir(), '.cargo', 'bin')}`);
 	} else {
 		tryRun('sh', ['-c', 'curl --proto \'=https\' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal']);
-		console.log(`##vso[task.prependpath]${path.join(os.homedir(), '.cargo', 'bin')}`);
 	}
+
+	// Verify the binary on disk rather than via PATH: `prependpath` only affects
+	// later steps, not this process. Unlike the cross tooling below, a missing
+	// rustup is unrecoverable, and letting it slide turns into an opaque cargo
+	// failure deep inside gulp packaging instead of a clear error here.
+	const rustup = path.join(cargoBin, IS_WINDOWS ? 'rustup.exe' : 'rustup');
+	if (!fs.existsSync(rustup)) {
+		throw new Error(`[runtime-toolchain] rustup installation failed: ${rustup} not found. A runtime source build cannot proceed without it.`);
+	}
+	console.log(`##vso[task.prependpath]${cargoBin}`);
 }
 
 /**
