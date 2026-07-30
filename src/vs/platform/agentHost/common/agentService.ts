@@ -53,6 +53,29 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
+/**
+ * Configuration key gating multiple-working-directory support for the Copilot
+ * agent-host provider. When `true`, the Copilot provider advertises the
+ * `multipleWorkingDirectories` capability, so a session created in a multi-root
+ * workspace can span every workspace folder. Hidden from the Settings UI and
+ * off by default while the feature is dogfooded; the agent host re-advertises
+ * on change, so newly created sessions pick it up without a restart.
+ */
+export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilotAgent.multiRootEnabled';
+
+/**
+ * Configuration key gating multiple-working-directory support for the Claude
+ * agent-host provider. When `true`, the Claude provider advertises the
+ * `multipleWorkingDirectories` capability, so a session created in a multi-root
+ * workspace can span every workspace folder. Independent of
+ * {@link AgentHostCopilotMultiRootEnabledSettingId} because the Claude Agent SDK
+ * already supports additional directories while the Copilot SDK does not. Hidden
+ * from the Settings UI and off by default while the feature is dogfooded; the
+ * agent host re-advertises on change, so newly created sessions pick it up
+ * without a restart.
+ */
+export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.
@@ -178,15 +201,13 @@ export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.en
 /**
  * Selects which Claude integration fulfills Claude sessions opened from the
  * **Agents Window**:
- *  - `true` — Claude is provided by the agent host process.
- *  - `false` (default) — Claude is provided by the GitHub Copilot Chat extension.
+ *  - `true` (default) — Claude is provided by the agent host process.
+ *  - `false` — Claude is provided by the GitHub Copilot Chat extension.
  *
- * The agent host always registers Claude when its SDK is reachable; this
- * setting only controls whether the per-window bridge in
- * `AgentHostContribution` actually surfaces the AH provider in the Agents
- * Window. The extension's `chatSessions` contribution mirrors the rule
- * declaratively (its `when` clause hides the EH provider when this is `true`),
- * so flipping the setting takes effect live without a window reload.
+ * When Agent Host is enabled, this controls whether the per-window bridge in
+ * `AgentHostContribution` surfaces the AH provider in the Agents Window. The
+ * extension's `chatSessions` contribution mirrors the rule declaratively and
+ * remains visible when Agent Host is unavailable.
  *
  * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
  * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
@@ -726,13 +747,12 @@ export interface IAgentSessionMetadata {
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
+	/** Activity bits plus the session-scoped {@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived} flags. */
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
 	/** All working directories available to the session (index 0 = primary). */
 	readonly workingDirectories?: readonly URI[];
-	readonly isRead?: boolean;
-	readonly isArchived?: boolean;
 	/**
 	 * Aggregate counts (additions / deletions / files) describing the
 	 * `changeKind: 'session'` changeset for this session — the chip
@@ -1327,11 +1347,22 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
+	 * Host-only flag requiring the client to show a confirmation instead of applying host auto-approval.
+	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
+	 */
+	readonly managedApprovalRequired?: boolean;
+	/**
 	 * Host-only flag (not part of the dispatched action): the model requested
 	 * this shell command run OUTSIDE the sandbox (and the host opted in via
 	 * `sandbox.allowBypass`).
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only shell language for terminal auto-approval.
+	 * Only `bash` and `powershell` are eligible for terminal-rule analysis;
+	 * missing requires explicit confirmation.
+	 */
+	readonly shellLanguage?: 'bash' | 'powershell';
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting
@@ -2291,6 +2322,9 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
+
+	/** Start connecting to the agent host if it has not already started. */
+	startAgentHost(): void;
 
 	restartAgentHost(): Promise<void>;
 

@@ -35,6 +35,7 @@ export class NullAgentHostService implements IAgentHostService {
 
 	readonly authenticationPending: IObservable<boolean> = constObservable(false);
 	setAuthenticationPending(_pending: boolean): void { /* no-op */ }
+	startAgentHost(): void { /* no-op */ }
 
 	readonly initializeResult: IObservable<InitializeResult | undefined> = constObservable(undefined);
 

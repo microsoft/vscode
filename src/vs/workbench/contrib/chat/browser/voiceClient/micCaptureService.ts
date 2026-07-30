@@ -423,7 +423,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		source.connect(analyser);
 		this._analyserNode = analyser;
 
-		const node = await createPcmCaptureNode(window, ctx, MIC_CAPTURE_CHUNK_SIZE, samples => {
+		const { node } = await createPcmCaptureNode(window, ctx, MIC_CAPTURE_CHUNK_SIZE, samples => {
 			const nowTs = Date.now();
 			const ptUpTs = this._diagPttUpTs;
 			// A callback is a "drain" callback while we're still in the

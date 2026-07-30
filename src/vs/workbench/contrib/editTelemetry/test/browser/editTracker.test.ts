@@ -13,6 +13,8 @@ import { EditSources, TextModelEditSource } from '../../../../../editor/common/t
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditKeySourceData, EditSourceData, IDocumentWithAnnotatedEdits } from '../../browser/helpers/documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker } from '../../browser/telemetry/editTracker.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IExternalEditCorrelation } from '../../browser/telemetry/agentHostEditMarkerService.js';
 
 suite('DocumentEditSourceTracker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,6 +26,59 @@ suite('DocumentEditSourceTracker', () => {
 		document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'external'), EditSources.reloadFromDisk());
 
 		assert.deepStrictEqual(snapshot(tracker), []);
+	});
+
+	test('retains a matched initial external edit only for fallback', () => {
+		const document = disposables.add(new TestAnnotatedDocument('initial'));
+		const correlation = new TestExternalEditCorrelation();
+		const tracker = disposables.add(new DocumentEditSourceTracker(document, undefined, correlation));
+
+		document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'external'), EditSources.reloadFromDisk());
+		tracker.applyPendingExternalEdits();
+		const beforeSuppression = snapshot(tracker, true);
+		correlation.suppress(correlation.lastObservationId!);
+		const fallback = snapshot(tracker, true);
+		tracker.dispose();
+
+		assert.deepStrictEqual({
+			beforeSuppression,
+			fallback,
+			afterDisposeStandard: snapshot(tracker),
+			afterDisposeFallback: snapshot(tracker, true),
+		}, {
+			beforeSuppression: [],
+			fallback: [{
+				key: 'external-observation:observation-1',
+				delta: 8,
+				retained: 8,
+				requestId: undefined,
+			}],
+			afterDisposeStandard: [],
+			afterDisposeFallback: [{
+				key: 'external-observation:observation-1',
+				delta: 8,
+				retained: 8,
+				requestId: undefined,
+			}],
+		});
+	});
+
+	test('restores external attribution when Agent Host suppression is invalidated', () => {
+		const document = disposables.add(new TestAnnotatedDocument('initial'));
+		const correlation = new TestExternalEditCorrelation();
+		const tracker = disposables.add(new DocumentEditSourceTracker(document, undefined, correlation));
+
+		document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'external'), EditSources.reloadFromDisk());
+		tracker.applyPendingExternalEdits();
+		correlation.suppress(correlation.lastObservationId!);
+		correlation.invalidate(correlation.lastObservationId!);
+
+		assert.deepStrictEqual(snapshot(tracker), [{
+			key: 'external-observation:observation-1',
+			delta: 8,
+			retained: 8,
+			requestId: undefined,
+		}]);
 	});
 
 	test('applies queued external edits before the next attributed edit', () => {
@@ -93,6 +148,34 @@ suite('DocumentEditSourceTracker', () => {
 		]);
 		assert.strictEqual(gptFirst.toKey(1), gptSecond.toKey(1));
 	});
+
+	test('suppresses matched external attribution while preserving range transforms', () => {
+		const document = disposables.add(new TestAnnotatedDocument(''));
+		const correlation = new TestExternalEditCorrelation();
+		const tracker = disposables.add(new DocumentEditSourceTracker(document, undefined, correlation));
+		const ai = chatEditSource('gpt-5', 'request-1');
+		const user = EditSources.cursor({ kind: 'type' });
+
+		document.apply(StringEdit.insert(0, 'abcdef'), ai);
+		document.apply(StringEdit.delete(new OffsetRange(2, 4)), EditSources.reloadFromDisk());
+		correlation.suppress(correlation.lastObservationId!);
+		document.apply(StringEdit.insert(4, 'X'), user);
+
+		assert.deepStrictEqual(snapshot(tracker), [
+			{
+				key: ai.toKey(1),
+				delta: 6,
+				retained: 4,
+				requestId: 'request-1',
+			},
+			{
+				key: 'source:cursor-kind:type',
+				delta: 1,
+				retained: 1,
+				requestId: undefined,
+			},
+		]);
+	});
 });
 
 class TestAnnotatedDocument extends Disposable implements IDocumentWithAnnotatedEdits<EditKeySourceData> {
@@ -126,15 +209,47 @@ function chatEditSource(modelId: string, requestId: string): TextModelEditSource
 	});
 }
 
-function snapshot(tracker: DocumentEditSourceTracker): Array<{ key: string; delta: number; retained: number; requestId: string | undefined }> {
+function snapshot(tracker: DocumentEditSourceTracker, includeSuppressed = false): Array<{ key: string; delta: number; retained: number; requestId: string | undefined }> {
 	const retained = new Map<string, number>();
-	for (const range of tracker.getTrackedRanges()) {
+	for (const range of tracker.getTrackedRanges(undefined, includeSuppressed)) {
 		retained.set(range.sourceKey, (retained.get(range.sourceKey) ?? 0) + range.range.length);
 	}
-	return tracker.getAllKeys().map(key => ({
+	return tracker.getAllKeys(includeSuppressed).map(key => ({
 		key,
-		delta: tracker.getTotalInsertedCharactersCount(key),
+		delta: tracker.getTotalInsertedCharactersCount(key, includeSuppressed),
 		retained: retained.get(key) ?? 0,
 		requestId: tracker.getRepresentative(key)?.props.$$requestId,
 	})).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+class TestExternalEditCorrelation implements IExternalEditCorrelation {
+	private readonly _onDidSuppress = new Emitter<string>();
+	readonly onDidSuppress: Event<string> = this._onDidSuppress.event;
+	private readonly _onDidInvalidate = new Emitter<string>();
+	readonly onDidInvalidate: Event<string> = this._onDidInvalidate.event;
+	private readonly _suppressed = new Set<string>();
+	private _sequence = 0;
+	lastObservationId: string | undefined;
+
+	register(_before: string, _after: string): string {
+		return this.lastObservationId = `observation-${++this._sequence}`;
+	}
+
+	isSuppressed(id: string): boolean {
+		return this._suppressed.has(id);
+	}
+
+	release(id: string): void {
+		this._suppressed.delete(id);
+	}
+
+	suppress(id: string): void {
+		this._suppressed.add(id);
+		this._onDidSuppress.fire(id);
+	}
+
+	invalidate(id: string): void {
+		this._suppressed.delete(id);
+		this._onDidInvalidate.fire(id);
+	}
 }

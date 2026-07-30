@@ -617,6 +617,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidConvertFeedback: Event.None,
 		onDidAddReply: Event.None,
 		onDidSubmitFeedback: Event.None,
+		onDidRevealSessionComment: Event.None,
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },

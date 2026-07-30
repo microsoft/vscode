@@ -32,11 +32,11 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -877,6 +877,28 @@ suite('CopilotAgent', () => {
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
 				capabilities: { multipleChats: { fork: true, sideChat: true } },
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('advertises multipleWorkingDirectories only when the hidden setting is enabled', async () => {
+		const { agent, stateManager } = createTestAgentContext(disposables);
+		try {
+			const setMultiRoot = (enabled: boolean) => stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostCopilotMultiRootEnabledConfigKey]: enabled },
+			});
+			const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+			setMultiRoot(true);
+			const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+			setMultiRoot(false);
+			const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+			assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
+				disabledByDefault: undefined,
+				whenEnabled: { immutablePrimary: true },
+				afterDisabling: undefined,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -2802,6 +2824,44 @@ suite('CopilotAgent', () => {
 
 				assert.strictEqual(result.provisional, true);
 				assert.deepStrictEqual(pluginManager.calls, []);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('provisional session anchors customization discovery to the additional roots (gated)', async () => {
+			const { agent, stateManager } = createTestAgentContext(disposables);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const repoA = URI.file('/repo-a');
+				const repoB = URI.file('/repo-b');
+
+				const additionalDirsAfterCreate = async (enabled: boolean, workingDirectories: readonly URI[]): Promise<string[]> => {
+					stateManager.dispatchServerAction(ROOT_STATE_URI, {
+						type: ActionType.RootConfigChanged,
+						config: { [AgentHostCopilotMultiRootEnabledConfigKey]: enabled },
+					});
+					const uri = AgentSession.uri('copilotcli', `mrp-${enabled}-${workingDirectories.length}`);
+					await agent.createSession({
+						session: uri,
+						workingDirectories,
+						activeClient: { clientId: 'client-1', tools: [], customizations: [] },
+					});
+					const activeClients = (agent as unknown as { _activeClients: { get(u: URI): { pluginController: { additionalDirectories: readonly URI[] } } | undefined } })._activeClients;
+					return (activeClients.get(uri)?.pluginController.additionalDirectories ?? []).map(d => d.toString());
+				};
+
+				// A brand-new (pre-send) provisional chat must anchor discovery to every
+				// root when multi-root is on, so its custom-agent picker shows the union.
+				const multiRootOn = await additionalDirsAfterCreate(true, [repoA, repoB]);
+				const multiRootOff = await additionalDirsAfterCreate(false, [repoA, repoB]);
+				const singleRootOn = await additionalDirsAfterCreate(true, [repoA]);
+
+				assert.deepStrictEqual({ multiRootOn, multiRootOff, singleRootOn }, {
+					multiRootOn: [repoB.toString()],
+					multiRootOff: [],
+					singleRootOn: [],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

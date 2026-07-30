@@ -6,7 +6,7 @@
 import { FunctionDeclaration, Schema, Type } from '@google/genai';
 
 export type ToolJsonSchema = {
-	type?: string;
+	type?: string | string[];
 	description?: string;
 	properties?: Record<string, ToolJsonSchema>;
 	items?: ToolJsonSchema;
@@ -59,61 +59,104 @@ export function toGeminiFunction(name: string, description: string, schema: Tool
 	};
 }
 
-// Recursive transformation for nested properties
-function transformProperties(props: Record<string, ToolJsonSchema>): Record<string, any> {
-	const result: Record<string, any> = {};
+// Flatten a schema's unions and nullable type arrays into concrete, non-null
+// alternatives, tracking whether `null` appeared anywhere along the way.
+function collectAlternatives(schema: ToolJsonSchema): { alternatives: ToolJsonSchema[]; nullable: boolean } {
+	const union = schema.anyOf ?? schema.oneOf;
+	if (union) {
+		const alternatives: ToolJsonSchema[] = [];
+		let nullable = false;
+		for (const branch of union) {
+			const collected = collectAlternatives(branch);
+			nullable = nullable || collected.nullable;
+			alternatives.push(...collected.alternatives);
+		}
+		return { alternatives, nullable };
+	}
+
+	// Gemini has no allOf, so the intersection is approximated by the first subschema.
+	if (schema.allOf) {
+		return collectAlternatives(schema.allOf[0]);
+	}
+
+	if (Array.isArray(schema.type)) {
+		const nonNullTypes = [...new Set(schema.type.filter(type => type !== 'null'))];
+		const { description, ...rest } = schema;
+		return {
+			alternatives: nonNullTypes.map(type => ({ ...rest, type })),
+			nullable: schema.type.includes('null')
+		};
+	}
+
+	if (schema.type === 'null') {
+		return { alternatives: [], nullable: true };
+	}
+
+	return { alternatives: [schema], nullable: false };
+}
+
+// Transform a single alternative whose type is already flattened to one value.
+function transformConcrete(schema: ToolJsonSchema): Schema {
+	const type = typeof schema.type === 'string' ? schema.type : 'object';
+	const transformed: Schema = { type: mapType(type) };
+
+	if (schema.description) {
+		transformed.description = schema.description;
+	}
+
+	if (schema.enum) {
+		transformed.enum = schema.enum;
+	}
+
+	if (type === 'object' && schema.properties) {
+		transformed.properties = transformProperties(schema.properties);
+		if (schema.required) {
+			transformed.required = schema.required;
+		}
+	} else if (type === 'array' && schema.items) {
+		transformed.items = transformSchema(schema.items);
+	}
+
+	return transformed;
+}
+
+function transformSchema(schema: ToolJsonSchema): Schema {
+	const { alternatives, nullable } = collectAlternatives(schema);
+
+	if (alternatives.length === 0) {
+		const transformed: Schema = { type: Type.NULL };
+		if (schema.description) {
+			transformed.description = schema.description;
+		}
+		return transformed;
+	}
+
+	if (alternatives.length === 1) {
+		const transformed = transformConcrete(alternatives[0]);
+		if (nullable) {
+			transformed.nullable = true;
+		}
+		if (schema.description && !transformed.description) {
+			transformed.description = schema.description;
+		}
+		return transformed;
+	}
+
+	const transformed: Schema = { anyOf: alternatives.map(transformConcrete) };
+	if (nullable) {
+		transformed.nullable = true;
+	}
+	if (schema.description) {
+		transformed.description = schema.description;
+	}
+	return transformed;
+}
+
+function transformProperties(props: Record<string, ToolJsonSchema>): Record<string, Schema> {
+	const result: Record<string, Schema> = {};
 
 	for (const [key, value] of Object.entries(props)) {
-
-		// Handle anyOf, oneOf, allOf by picking the first valid entry
-		const effectiveValue =
-			(value.anyOf?.[0] || value.oneOf?.[0] || value.allOf?.[0] || value) as ToolJsonSchema;
-
-
-		const transformed: any = {
-			// If type is undefined, throw an error to avoid incorrect assumptions
-			type: effectiveValue.type
-				? mapType(effectiveValue.type)
-				: Type.OBJECT
-		};
-
-		if (effectiveValue.description) {
-			transformed.description = effectiveValue.description;
-		}
-
-		// Enum support
-		if (effectiveValue.enum) {
-			transformed.enum = effectiveValue.enum;
-		}
-
-		if (effectiveValue.type === 'object' && effectiveValue.properties) {
-			transformed.properties = transformProperties(effectiveValue.properties);
-			if (effectiveValue.required) {
-				transformed.required = effectiveValue.required;
-			}
-		} else if (effectiveValue.type === 'array' && effectiveValue.items) {
-			const itemType = effectiveValue.items.type === 'object' ? Type.OBJECT : mapType(effectiveValue.items.type ?? 'object');
-			const itemSchema: any = { type: itemType };
-
-			if (effectiveValue.items.description) {
-				itemSchema.description = effectiveValue.items.description;
-			}
-
-			if (effectiveValue.items.enum) {
-				itemSchema.enum = effectiveValue.items.enum;
-			}
-
-			if (effectiveValue.items.properties) {
-				itemSchema.properties = transformProperties(effectiveValue.items.properties);
-				if (effectiveValue.items.required) {
-					itemSchema.required = effectiveValue.items.required;
-				}
-			}
-
-			transformed.items = itemSchema;
-		}
-
-		result[key] = transformed;
+		result[key] = transformSchema(value);
 	}
 
 	return result;

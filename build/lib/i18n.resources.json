@@ -681,10 +681,6 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/promptTimeline",
-			"project": "vscode-sessions"
-		},
-		{
 			"name": "vs/sessions/contrib/providers/copilotChatSessions",
 			"project": "vscode-sessions"
 		},

@@ -26,7 +26,7 @@ export interface IByokLmToolCall {
 	readonly id: string;
 	/** Tool/function name. */
 	readonly name: string;
-	/** JSON-encoded arguments object. */
+	/** JSON-encoded tool input, which may be an object or a freeform string. */
 	readonly argumentsJson: string;
 }
 
