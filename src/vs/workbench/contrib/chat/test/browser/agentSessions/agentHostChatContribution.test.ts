@@ -1981,6 +1981,43 @@ suite('AgentHostChatContribution', () => {
 
 		}));
 
+		test('flushes pending chat input draft when the session is disposed', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'draft-sync-dispose');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-sync-dispose' });
+			seedDraftSession(agentHostService, backendSession, 'Draft Sync Dispose');
+			const { inputModel } = createDraftInputModel({
+				attachments: [],
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: undefined,
+				inputText: '',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+			inputModel.setState({ inputText: 'typed before switching away' });
+			chatSession.dispose();
+			chatSession.dispose();
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(d => ({ channel: d.channel, action: d.action })), [{
+				channel: buildDefaultChatUri(backendSession.toString()),
+				action: {
+					type: ActionType.ChatDraftChanged,
+					draft: {
+						text: 'typed before switching away',
+						origin: { kind: MessageKind.User },
+					},
+				},
+			}]);
+		});
+
 		test('applies a remote draft to a clean live input', async () => {
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
