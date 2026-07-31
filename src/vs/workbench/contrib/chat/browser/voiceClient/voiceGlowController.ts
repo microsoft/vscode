@@ -26,19 +26,21 @@ import { DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, voiceGlowStateColor, Voice
 
 /** Corner radius used when the target's own radius can't be read. */
 const RADIUS_FALLBACK = 6;
-/** Cross-fade timing shared by every state transition. */
-const FADE = 'opacity .6s cubic-bezier(.4,0,.2,1), transform .6s cubic-bezier(.4,0,.2,1)';
-/** Layer scale at the start (incoming) and end (outgoing) of a cross-fade. */
-const ENTER_SCALE = 0.94;
-const EXIT_SCALE = 1.04;
+/**
+ * Cross-fade timing shared by every state transition. Opacity only: the glow is
+ * light, and light dissolves — scaling it would read as the box "zooming", which
+ * pulls the eye to a size change that isn't happening.
+ */
+const FADE = 'opacity .6s cubic-bezier(.4,0,.2,1)';
 /** How long a faded-out slot is kept mounted before its layer is torn down. */
 const FADE_OUT_MS = 650;
 
 /** Saturation (%) bounds for an active (listening / speaking) glow. */
 const ACTIVE_SAT_MIN = 70;
 const ACTIVE_SAT_MAX = 96;
-/** Processing reads as white/gray, not as a color. */
-const NEUTRAL_SAT = 0;
+/** Saturation (%) bounds for the thinking swirl — quieter than the active states. */
+const SWIRL_SAT_MIN = 45;
+const SWIRL_SAT_MAX = 78;
 
 /**
  * The connected-idle rim. A pure gray reads as a muddy ring on a white input, so
@@ -78,22 +80,16 @@ const RIM_LAYER_OPACITY = {
 /** Seconds for one full breath cycle, per rim mood. */
 const RIM_DURATION = { active: 2.3, idle: 4.8 } as const;
 
-/** Seconds for one lap of the travelling border, at rest. */
-const BORDER_SPIN_ACTIVE = 7;
-const BORDER_SPIN_NEUTRAL = 9;
-
 export type GlowThemeKind = 'light' | 'dark';
 
 /** The visual treatment a state maps to. */
-type LayerKind = 'rim' | 'border';
+type LayerKind = 'rim' | 'swirl';
 
 /** What to render for a state; `undefined` means no glow. */
 interface ILayerDesc {
 	readonly kind: LayerKind;
 	/** Warm (agent speaking) instead of cool (user speaking). */
 	readonly warm: boolean;
-	/** Desaturated: the calm "thinking" border and the idle rim. */
-	readonly neutral: boolean;
 	/** The dimmer, slower connected-idle breath. */
 	readonly idle: boolean;
 }
@@ -217,6 +213,8 @@ function mountRimLayers(host: HTMLElement, options: {
 	readonly duration: number;
 	/** How strongly the audio level modulates the rim. */
 	readonly audioGain: number;
+	/** Extra, super-linear response so loud peaks bloom rather than just brighten. */
+	readonly peakGain: number;
 	/** How strongly the audio level speeds the breath up. */
 	readonly speedGain: number;
 }): IMountedLayer {
@@ -259,7 +257,14 @@ function mountRimLayers(host: HTMLElement, options: {
 			level = clamp01(input);
 		}
 		applyOscillators(host, oscillators, time, animate);
-		host.style.setProperty('--vg-strength', (options.strength * (0.55 + options.audioGain * level)).toFixed(3));
+		// Peaks read denser than a linear response would give: the extra curve on
+		// top of the linear term leaves quiet speech calm but lets a loud moment
+		// genuinely bloom, instead of the whole range sitting in a narrow band.
+		const peak = level * level;
+		host.style.setProperty('--vg-strength', (options.strength * (0.5 + options.audioGain * level + options.peakGain * peak)).toFixed(3));
+		// The bloom thickens with the peak too, so "louder" reads as more light
+		// rather than only as a brighter hairline.
+		host.style.setProperty('--vg-bloom-opacity', (layerOpacity.bloom * (1 + options.peakGain * peak)).toFixed(3));
 		// A slow hue wander keeps the light alive without ever leaving the accent.
 		const drift = animate ? 14 * Math.sin(time * 0.4) : 0;
 		host.style.setProperty('--vg-hue', (options.hue + drift).toFixed(1));
@@ -273,40 +278,34 @@ function mountRimLayers(host: HTMLElement, options: {
 	};
 }
 
-/** Mount the travelling border light on `host`. */
-function mountBorderLayer(host: HTMLElement, options: { readonly hue: number; readonly saturation: number; readonly neutral: boolean }): IMountedLayer {
+/**
+ * Mount the "thinking" swirl on `host`: a faint light sweeping between the
+ * listening and speaking hues, rotating inside the border.
+ */
+function mountSwirlLayer(host: HTMLElement, options: {
+	readonly listeningHue: number;
+	readonly midHue: number;
+	readonly speakingHue: number;
+	readonly saturation: number;
+}): IMountedLayer {
 	const store = new DisposableStore();
-	host.classList.add('voice-glow-border');
+	host.classList.add('voice-glow-swirl');
 	store.add(toDisposable(() => {
-		host.classList.remove('voice-glow-border');
-		host.style.removeProperty('--vg-hue');
-		host.style.removeProperty('--vg-sat');
-		host.style.removeProperty('--vg-level');
-		host.style.removeProperty('--vg-spin');
+		host.classList.remove('voice-glow-swirl');
+		for (const prop of ['--vg-hue-listen', '--vg-hue-mid', '--vg-hue-speak', '--vg-sat']) {
+			host.style.removeProperty(prop);
+		}
 	}));
 
-	host.style.setProperty('--vg-hue', String(Math.round(options.hue)));
+	host.style.setProperty('--vg-hue-listen', String(Math.round(options.listeningHue)));
+	host.style.setProperty('--vg-hue-mid', String(Math.round(options.midHue)));
+	host.style.setProperty('--vg-hue-speak', String(Math.round(options.speakingHue)));
 	host.style.setProperty('--vg-sat', `${options.saturation}%`);
-	host.style.setProperty('--vg-level', '0.3');
-	host.style.setProperty('--vg-spin', `${options.neutral ? BORDER_SPIN_NEUTRAL : BORDER_SPIN_ACTIVE}s`);
 
-	let level = 0.3;
-	const apply = (input: number, animate: boolean): void => {
-		const target = clamp01(input);
-		level += animate ? (target - level) * (target > level ? 0.3 : 0.08) : target - level;
-		host.style.setProperty('--vg-level', level.toFixed(3));
-		if (!options.neutral) {
-			// Spin a touch faster with volume.
-			host.style.setProperty('--vg-spin', `${(BORDER_SPIN_ACTIVE - 2.5 * level).toFixed(2)}s`);
-		}
-	};
-
-	return {
-		host,
-		drive: (input: number) => apply(input, true),
-		driveStatic: (input: number) => apply(input, false),
-		dispose: () => store.dispose(),
-	};
+	// Thinking has no audio to react to, and reacting would undercut the point:
+	// it should read as a steady, patient state. The CSS animation carries it.
+	const noop = (): void => { };
+	return { host, drive: noop, driveStatic: noop, dispose: () => store.dispose() };
 }
 
 /**
@@ -468,11 +467,9 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		const previous = this._front;
 		host.style.transition = 'none';
 		host.style.opacity = '0';
-		host.style.transform = `scale(${ENTER_SCALE})`;
 		void host.offsetWidth; // commit the start pose before transitioning from it
 		host.style.transition = FADE;
 		host.style.opacity = '1';
-		host.style.transform = 'scale(1)';
 		if (previous && previous.host !== host) {
 			this._fadeOut(previous.host);
 		}
@@ -482,24 +479,26 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 	private _fadeOut(host: HTMLElement): void {
 		host.style.transition = FADE;
 		host.style.opacity = '0';
-		host.style.transform = `scale(${EXIT_SCALE})`;
 	}
 
 	private _mount(host: HTMLElement, desc: ILayerDesc): IMountedLayer {
 		const theme = this._themeKind();
-		const accent = desc.kind === 'border' && desc.neutral
-			? this._colors.processing
-			: desc.warm ? this._colors.speaking : this._colors.listening;
-		const { h, s } = accent.hsla;
 
-		if (desc.kind === 'border') {
-			return mountBorderLayer(host, {
-				hue: h,
-				saturation: desc.neutral ? NEUTRAL_SAT : Math.round(Math.min(ACTIVE_SAT_MAX, Math.max(ACTIVE_SAT_MIN, s * 100))),
-				neutral: desc.neutral,
+		if (desc.kind === 'swirl') {
+			const { listening, processing, speaking } = this._colors;
+			// Saturation comes from the blended accent, held under the active
+			// states' floor so thinking stays the quieter of the three.
+			const saturation = Math.round(Math.min(SWIRL_SAT_MAX, Math.max(SWIRL_SAT_MIN, processing.hsla.s * 100)));
+			return mountSwirlLayer(host, {
+				listeningHue: listening.hsla.h,
+				midHue: processing.hsla.h,
+				speakingHue: speaking.hsla.h,
+				saturation,
 			});
 		}
 
+		const accent = desc.warm ? this._colors.speaking : this._colors.listening;
+		const { h, s } = accent.hsla;
 		const idle = IDLE_RIM[theme];
 		const mood = desc.warm ? 'warm' : 'cool';
 		return mountRimLayers(host, {
@@ -509,7 +508,10 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			lightness: desc.idle ? idle.lightness : ACTIVE_RIM_LIGHTNESS[theme][mood],
 			strength: desc.idle ? idle.strength : ACTIVE_RIM_STRENGTH,
 			duration: desc.idle ? RIM_DURATION.idle : RIM_DURATION.active,
-			audioGain: desc.idle ? 0.35 : 0.75,
+			audioGain: desc.idle ? 0.35 : 0.7,
+			// Idle has no audio to peak on; the active states lean on this to make
+			// the loudest moments visibly denser.
+			peakGain: desc.idle ? 0 : 0.85,
 			speedGain: desc.idle ? 0 : 0.9,
 		});
 	}
@@ -518,10 +520,10 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 /** Map a voice state to the layer that renders it, or `undefined` for no glow. */
 function resolveLayer(state: VoiceGlowState): ILayerDesc | undefined {
 	switch (state) {
-		case 'listening': return { kind: 'rim', warm: false, neutral: false, idle: false };
-		case 'speaking': return { kind: 'rim', warm: true, neutral: false, idle: false };
-		case 'processing': return { kind: 'border', warm: false, neutral: true, idle: false };
-		case 'idle': return { kind: 'rim', warm: false, neutral: true, idle: true };
+		case 'listening': return { kind: 'rim', warm: false, idle: false };
+		case 'speaking': return { kind: 'rim', warm: true, idle: false };
+		case 'processing': return { kind: 'swirl', warm: false, idle: false };
+		case 'idle': return { kind: 'rim', warm: false, idle: true };
 		default: return undefined;
 	}
 }

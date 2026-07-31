@@ -84,22 +84,10 @@ export interface IVoiceGlowColors {
  * states read as a related-but-distinct triad from whatever accent the theme
  * uses. Exported so they can be tuned in one place.
  */
-export const VOICE_GLOW_PROCESSING_HUE_SHIFT = -46;
 export const VOICE_GLOW_SPEAKING_HUE_SHIFT = 80;
 
 /** The historical hardcoded accent, used when no theme color resolves. */
 const VOICE_GLOW_FALLBACK = Color.fromHex('#58A6FF');
-
-/**
- * Fallback colors matching the historical hardcoded glow (blue listening /
- * purple speaking) plus a teal processing hue, used when no theme is available
- * (unit tests) or before colors are resolved.
- */
-export const DEFAULT_VOICE_GLOW_COLORS: IVoiceGlowColors = {
-	listening: VOICE_GLOW_FALLBACK,
-	processing: shiftHue(VOICE_GLOW_FALLBACK, VOICE_GLOW_PROCESSING_HUE_SHIFT, 0.85, 0.04),
-	speaking: shiftHue(VOICE_GLOW_FALLBACK, VOICE_GLOW_SPEAKING_HUE_SHIFT),
-};
 
 function clamp01(value: number): number {
 	return Math.max(0, Math.min(1, value));
@@ -111,17 +99,52 @@ function shiftHue(base: Color, degrees: number, saturationMul: number = 1, light
 }
 
 /**
- * Resolve the per-state glow colors from the active theme. Each state derives
- * from `chat.voiceGlowBaseColor` (default `focusBorder`) by hue-shifting, unless
- * the theme explicitly sets that state's token, so the glow always harmonizes
- * with the theme while staying overridable.
+ * The hue midway between two colors, taking the shorter way around the wheel, so
+ * blending (say) a blue and a violet never detours through green.
+ */
+function blendHues(a: Color, b: Color): number {
+	const { h: ha } = a.hsla;
+	const { h: hb } = b.hsla;
+	const delta = ((hb - ha + 540) % 360) - 180;
+	return (ha + delta / 2 + 360) % 360;
+}
+
+/**
+ * The "thinking" accent: the midpoint of the listening and speaking hues, so the
+ * state between the two reads as a mix of both rather than as its own color.
+ */
+function blendProcessing(listening: Color, speaking: Color): Color {
+	const l = listening.hsla;
+	const s = speaking.hsla;
+	return new Color(new HSLA(blendHues(listening, speaking), clamp01((l.s + s.s) / 2), clamp01((l.l + s.l) / 2), 1));
+}
+
+/**
+ * Fallback colors matching the historical hardcoded glow (blue listening /
+ * purple speaking), used when no theme is available (unit tests) or before
+ * colors are resolved.
+ */
+export const DEFAULT_VOICE_GLOW_COLORS: IVoiceGlowColors = (() => {
+	const listening = VOICE_GLOW_FALLBACK;
+	const speaking = shiftHue(VOICE_GLOW_FALLBACK, VOICE_GLOW_SPEAKING_HUE_SHIFT);
+	return { listening, processing: blendProcessing(listening, speaking), speaking };
+})();
+
+/**
+ * Resolve the per-state glow colors from the active theme. Listening derives from
+ * `chat.voiceGlowBaseColor` (default `focusBorder`), speaking is hue-shifted from
+ * it, and processing sits midway between the two — unless the theme explicitly
+ * sets that state's token, so the glow always harmonizes with the theme while
+ * staying overridable.
  */
 export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IVoiceGlowColors {
 	const base = theme.getColor(chatVoiceGlowBaseColor) ?? VOICE_GLOW_FALLBACK;
+	const listening = theme.getColor(chatVoiceListeningGlow) ?? base;
+	const speaking = theme.getColor(chatVoiceSpeakingGlow) ?? shiftHue(base, VOICE_GLOW_SPEAKING_HUE_SHIFT);
 	return {
-		listening: theme.getColor(chatVoiceListeningGlow) ?? base,
-		processing: theme.getColor(chatVoiceProcessingGlow) ?? shiftHue(base, VOICE_GLOW_PROCESSING_HUE_SHIFT, 0.85, 0.04),
-		speaking: theme.getColor(chatVoiceSpeakingGlow) ?? shiftHue(base, VOICE_GLOW_SPEAKING_HUE_SHIFT),
+		listening,
+		processing: theme.getColor(chatVoiceProcessingGlow) ?? blendProcessing(listening, speaking),
+		speaking,
 	};
 }
 

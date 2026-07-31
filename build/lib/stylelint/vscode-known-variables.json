@@ -1148,17 +1148,14 @@
 		"--vg-corner-alpha",
 		"--vg-level",
 		"--vg-spin",
-		"--vg-border-light",
-		"--vg-border-head-light",
-		"--vg-border-alpha-base",
-		"--vg-border-alpha-head",
-		"--vg-border-alpha-mid",
-		"--vg-border-glow-light",
-		"--vg-border-glow-alpha",
 		"--voice-accent",
 		"--voice-color-listening",
 		"--voice-color-speaking",
-		"--voice-color-processing"
+		"--voice-color-processing",
+		"--vg-hue-listen",
+		"--vg-hue-mid",
+		"--vg-hue-speak",
+		"--vg-swirl-alpha"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

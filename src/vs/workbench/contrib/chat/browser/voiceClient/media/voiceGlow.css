@@ -27,7 +27,7 @@
 	initial-value: 0deg;
 }
 
-@keyframes voice-glow-border-spin {
+@keyframes voice-glow-swirl-spin {
 	to {
 		--vg-angle: 360deg;
 	}
@@ -39,7 +39,20 @@
 	pointer-events: none;
 	opacity: 0;
 	border-radius: var(--vg-radius, 6px);
-	will-change: opacity, transform;
+	will-change: opacity;
+}
+
+/*
+ * The glow paints above the (opaque) voice transcript overlay, which would
+ * otherwise hide it. That also puts it above the input's own controls, whose
+ * send button sits right in the band the rim's inner wash and the border's inset
+ * glow bleed into — so lift the toolbars back on top. Their background is
+ * transparent, so the glow still reads through them.
+ */
+.voice-active .chat-input-toolbars,
+.voice-active .sessions-chat-toolbar {
+	position: relative;
+	z-index: 12;
 }
 
 /* --- Rim ------------------------------------------------------------------ */
@@ -183,68 +196,65 @@
 		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
 }
 
-/* --- Border --------------------------------------------------------------- */
-
-.voice-glow-border {
-	--vg-hue: 212;
-	--vg-sat: 90%;
-	--vg-level: 0.3;
-	--vg-spin: 7s;
-	/* Ring lightness / alpha, theme-tuned below. */
-	--vg-border-light: 72%;
-	--vg-border-head-light: 78%;
-	--vg-border-alpha-base: 0.32;
-	--vg-border-alpha-head: 0.98;
-	--vg-border-alpha-mid: 0.55;
-	--vg-border-glow-light: 66%;
-	--vg-border-glow-alpha: 0.2;
-}
-
-.vs .voice-glow-border,
-.hc-light .voice-glow-border {
-	--vg-border-light: 52%;
-	--vg-border-head-light: 56%;
-	--vg-border-alpha-base: 0.28;
-	--vg-border-alpha-head: 0.9;
-	--vg-border-alpha-mid: 0.45;
-	--vg-border-glow-light: 56%;
-	--vg-border-glow-alpha: 0.16;
-}
+/* --- Swirl (thinking) ------------------------------------------------------ */
 
 /*
- * A continuous lit ring with a brighter travelling head, rather than isolated
- * arcs — otherwise it reads as though only part of the box is glowing.
+ * The state between listening and speaking, so it reads as a slow transition
+ * between the two: a faint light sweeping listening -> speaking -> listening.
+ *
+ * It rotates strictly INSIDE the border. The in-flight "working" comet already
+ * travels along the border ring itself, and two lights racing the same track
+ * read as a glitch — keeping this one inset lets the pair compose instead.
  */
-.voice-glow-border::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	border-radius: inherit;
-	padding: 1.4px;
-	background: conic-gradient(from var(--vg-angle, 0deg),
-			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-base)) 0deg,
-			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-head-light) / var(--vg-border-alpha-head)) 45deg,
-			hsl(calc(var(--vg-hue) + 20) var(--vg-sat) var(--vg-border-head-light) / var(--vg-border-alpha-mid)) 110deg,
-			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-base)) 200deg,
-			hsl(calc(var(--vg-hue) - 16) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-mid)) 290deg,
-			hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-light) / var(--vg-border-alpha-base)) 360deg);
-	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-	-webkit-mask-composite: xor;
-	mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-	mask-composite: exclude;
-	animation: voice-glow-border-spin var(--vg-spin) linear infinite;
+.voice-glow-swirl {
+	--vg-hue-listen: 212;
+	--vg-hue-mid: 252;
+	--vg-hue-speak: 292;
+	--vg-sat: 72%;
+	--vg-light: 66%;
+	/* Deliberately faint: this is a background state, and it has to sit under
+		the comet without competing with it. */
+	--vg-swirl-alpha: 0.22;
+	--vg-spin: 14s;
+	--vg-inner-fade: 26px;
+	overflow: hidden;
 }
 
-.voice-glow-border::after {
+.vs .voice-glow-swirl,
+.hc-light .voice-glow-swirl {
+	--vg-light: 52%;
+	--vg-swirl-alpha: 0.26;
+}
+
+.voice-glow-swirl::before {
 	content: '';
 	position: absolute;
-	inset: 0;
+	/* Inside the border, so the comet keeps the ring to itself. */
+	inset: var(--vscode-strokeThickness, 1px);
 	border-radius: inherit;
-	box-shadow: inset 0 0 12px hsl(var(--vg-hue) var(--vg-sat) var(--vg-border-glow-light) / calc(var(--vg-border-glow-alpha) + 0.34 * var(--vg-level)));
+	background: conic-gradient(from var(--vg-angle, 0deg),
+			hsl(var(--vg-hue-listen) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 0deg,
+			hsl(var(--vg-hue-mid) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 90deg,
+			hsl(var(--vg-hue-speak) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 180deg,
+			hsl(var(--vg-hue-mid) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 270deg,
+			hsl(var(--vg-hue-listen) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 360deg);
+	/* Hug the perimeter and fade out towards the middle, so the sweep never
+		washes over the text being composed. */
+	-webkit-mask-image:
+		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
+		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
+	-webkit-mask-composite: source-over;
+	mask-image:
+		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
+		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
+	mask-composite: add;
+	filter: blur(6px);
+	pointer-events: none;
+	animation: voice-glow-swirl-spin var(--vg-spin) linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.voice-glow-border::before {
+	.voice-glow-swirl::before {
 		animation: none;
 	}
 }

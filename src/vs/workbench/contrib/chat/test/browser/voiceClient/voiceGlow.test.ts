@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Color } from '../../../../../../base/common/color.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
-import { isGlowingVoiceState, isIdleGlowVoiceState, resolveVoiceGlowColors, VOICE_GLOW_PROCESSING_HUE_SHIFT, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, isIdleGlowVoiceState, resolveVoiceGlowColors, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
 
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,7 +38,8 @@ suite('VoiceGlow', () => {
 			{
 				listening: base.toString(),
 				speakingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT + 360) % 360),
-				processingHue: Math.round((base.hsla.h + VOICE_GLOW_PROCESSING_HUE_SHIFT + 360) % 360),
+				// Thinking sits midway between the two, so it reads as a transition.
+				processingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT / 2 + 360) % 360),
 			}
 		);
 	});
