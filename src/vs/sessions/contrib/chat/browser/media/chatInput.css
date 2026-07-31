@@ -691,17 +691,17 @@
 /* Severity variants */
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-info {
 	border-color: var(--vscode-focusBorder);
-	background-color: color-mix(in srgb, var(--vscode-focusBorder) 10%, var(--vscode-editorWidget-background));
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 }
 
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-warning {
 	border-color: var(--vscode-editorWarning-foreground);
-	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, var(--vscode-editorWidget-background));
+	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 6%, var(--vscode-editorWidget-background));
 }
 
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-error {
 	border-color: var(--vscode-editorError-foreground);
-	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 10%, var(--vscode-editorWidget-background));
+	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 6%, var(--vscode-editorWidget-background));
 }
 
 /* Remove the top border-radius from the input area when a notification is visible */
