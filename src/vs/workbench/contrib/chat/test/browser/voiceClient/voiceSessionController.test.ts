@@ -34,6 +34,7 @@ import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureServi
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
+import { IChatInputWindowService } from '../../../common/chatInputWindow.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
@@ -511,6 +512,9 @@ suite('VoiceSessionController', () => {
 			new TestChatWidgetService(),
 			notificationService,
 			promptsService,
+			new class extends mock<IChatInputWindowService>() {
+				override readonly onDidResolveRoute = Event.None;
+			}(),
 		));
 	}
 
@@ -4529,6 +4533,9 @@ suite('VoiceSessionController live transcription', () => {
 			onDidAddWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
 			getAllWidgets: () => [],
+		});
+		instantiationService.stub(IChatInputWindowService, {
+			onDidResolveRoute: Event.None,
 		});
 
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));

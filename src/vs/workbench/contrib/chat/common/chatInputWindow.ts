@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleInputWindow';
 
@@ -34,6 +35,12 @@ export interface IChatInputWindowService {
 	 * Fires when the window opens or closes.
 	 */
 	readonly onDidChangeOpen: Event<boolean>;
+
+	/**
+	 * Fires when omni routing resolves to one session. Voice Mode uses this to
+	 * follow the selected session without being constructed just to open omni.
+	 */
+	readonly onDidResolveRoute: Event<{ resource: URI | undefined; kind?: 'existing_session' | 'new_session' }>;
 
 	/**
 	 * Opens the floating chat input window. No-op if already open.
