@@ -33,33 +33,11 @@ import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirm
 import { ActionType, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnWithAttachmentsToCompletion,
-	runAhpSnapshotTest, type IAgentHostE2EProviderConfig,
+	runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
-
-const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
-	suiteTitle: 'Agent Host E2E — Copilot',
-	provider: 'copilotcli',
-	scheme: 'copilotcli',
-	shellToolName: 'bash',
-	subagentToolNames: ['task'],
-	exitPlanModeToolName: 'exit_plan_mode',
-	streamingFileCreateToolName: 'create',
-	// The shared suite runs by default in deterministic replay mode (tokenless,
-	// against committed fixtures). Recording new fixtures is opt-in via
-	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).
-	enabled: true,
-	supportsWorktreeIsolation: true,
-	supportsHostTerminalTool: true,
-	supportsSubagents: true,
-	supportsSideChats: true,
-	supportsPlanMode: true,
-	supportsMultipleChats: true,
-	supportsChatFork: true,
-	supportsChatForkE2E: true,
-	supportsFileTools: true,
-};
+import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 

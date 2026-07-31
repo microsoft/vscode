@@ -189,7 +189,7 @@ export class AhpSnapshotRecorder {
 export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IAhpSnapshotClient, options?: IAhpSnapshotOptions): Promise<void> {
 	const actual = client.serializeAhpSnapshot(options);
 	if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
-		writeFileSync(snapshotPathForTest(test), actual);
+		writeFileSync(snapshotPathForTest(test, 'traffic', 'ahp.yaml'), actual);
 		return;
 	}
 	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
@@ -203,7 +203,7 @@ export class AhpSnapshotScenario {
 	) { }
 
 	static load(test: Mocha.Runnable): AhpSnapshotScenario {
-		const fixturePath = snapshotPathForTest(test);
+		const fixturePath = snapshotPathForTest(test, 'traffic', 'ahp.yaml');
 		return new AhpSnapshotScenario(fixturePath, parseFixture(yamlModule.load(readFileSync(fixturePath, 'utf8')), fixturePath));
 	}
 
@@ -609,14 +609,20 @@ function escapeRegExpCharacters(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function snapshotPathForTest(test: Mocha.Runnable): string {
+/**
+ * Resolves the file {@link assertSnapshot} would compare against, so an update
+ * run can write the same path the assert run reads. Mirrors `SnapshotContext`:
+ * the snapshot lives next to the *source* of the registering test file, keyed by
+ * its full title, even though the compiled test runs from `out/`.
+ */
+export function snapshotPathForTest(test: Mocha.Runnable, name: string, extension: string): string {
 	if (!test.file) {
 		throw new Error('[ahp-snapshot] current test file is not set');
 	}
 	const src = URI.joinPath(FileAccess.asFileUri(''), '../src');
 	const parts = test.file.split(/[/\\]/g);
 	const snapshotsDir = URI.joinPath(src, ...parts.slice(0, -1), '__snapshots__');
-	const fileName = `${sanitizeName(test.fullTitle())}.traffic.ahp.yaml`;
+	const fileName = `${sanitizeName(test.fullTitle())}.${sanitizeName(name)}.${extension}`;
 	return URI.joinPath(snapshotsDir, fileName).fsPath;
 }
 
