@@ -24,11 +24,12 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ChangesetOperationTargetKind } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import {
 	buildBranchChangesetUri,
@@ -52,7 +53,22 @@ interface IObservedChangesetFile {
 
 interface IContentChangedAction {
 	readonly files: readonly IObservedChangesetFile[];
-	readonly operations?: readonly { readonly id: string; readonly scopes: readonly string[] }[];
+	readonly operations?: readonly IObservedOperation[];
+}
+
+interface IOperationsChangedAction {
+	readonly operations?: readonly IObservedOperation[];
+}
+
+interface IObservedOperation {
+	readonly id: string;
+	readonly scopes: readonly string[];
+	readonly status: string;
+}
+
+interface IOperationStatusChangedAction {
+	readonly operationId: string;
+	readonly status: string;
 }
 
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
@@ -117,6 +133,80 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}, timeout);
 		const action = getActionEnvelope(notification).action as IContentChangedAction;
 		return action.files.find(file => fileUri(file).endsWith(`/${basename}`))!;
+	}
+
+	async function waitForIdleResourceOnlyOperation(
+		channel: string,
+		operationId: string,
+		initialOperations: readonly IObservedOperation[],
+	): Promise<void> {
+		const operations = new Map(initialOperations.map(operation => [operation.id, operation]));
+		const isReady = () => {
+			const operation = operations.get(operationId);
+			return operation?.status === 'idle'
+				&& operation.scopes.includes('resource')
+				&& !operation.scopes.includes('changeset');
+		};
+		const reduce = (n: Parameters<typeof isActionNotification>[0]): void => {
+			const isContentChanged = isActionNotification(n, 'changeset/contentChanged');
+			const isOperationsChanged = isActionNotification(n, 'changeset/operationsChanged');
+			const isStatusChanged = isActionNotification(n, 'changeset/operationStatusChanged');
+			if ((!isContentChanged && !isOperationsChanged && !isStatusChanged) || getActionEnvelope(n).channel !== channel) {
+				return;
+			}
+			if (isOperationsChanged) {
+				operations.clear();
+				for (const operation of (getActionEnvelope(n).action as IOperationsChangedAction).operations ?? []) {
+					operations.set(operation.id, operation);
+				}
+			} else if (isContentChanged) {
+				const replacement = (getActionEnvelope(n).action as IContentChangedAction).operations;
+				if (replacement) {
+					operations.clear();
+					for (const operation of replacement) {
+						operations.set(operation.id, operation);
+					}
+				}
+			} else {
+				const changed = getActionEnvelope(n).action as IOperationStatusChangedAction;
+				const operation = operations.get(changed.operationId);
+				if (operation) {
+					operations.set(changed.operationId, { ...operation, status: changed.status });
+				}
+			}
+		};
+		const processed = new Set(context.client.receivedNotifications());
+		for (const notification of processed) {
+			reduce(notification);
+		}
+		if (isReady()) {
+			return;
+		}
+		await context.client.waitForNotification(n => {
+			if (processed.has(n)) {
+				return false;
+			}
+			processed.add(n);
+			reduce(n);
+			return isReady();
+		}, 60_000);
+	}
+
+	async function createModifiedUncommittedChangeset(prefix: string): Promise<{
+		readonly workspace: string;
+		readonly changeset: string;
+		readonly file: IObservedChangesetFile;
+	}> {
+		const workspace = createGitWorkspace(`ahp-${prefix}-`);
+		const sessionUri = await createSessionIn(workspace, prefix);
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
+		context.client.clearReceived();
+		dispatchTurn(context.client, sessionUri, `turn-${prefix}`, writeFileCommand('seed.txt', 'edited'), 1);
+		const file = await waitForFileInChangeset(changeset, 'seed.txt');
+		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
+		return { workspace, changeset, file };
 	}
 
 
@@ -254,6 +344,58 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			{ id: 'commit', scopes: ['changeset'] },
 			{ id: 'discard-changes', scopes: ['resource'] },
 		]);
+	});
+
+	conformanceTest(context, 'discarding a tracked change restores the file and reports operation status', async function () {
+		const { workspace, changeset, file } = await createModifiedUncommittedChangeset('changeset-discard');
+		const resource = file.edit.after?.uri;
+		assert.ok(resource);
+		context.client.clearReceived();
+		const completed = context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === changeset
+			&& (getActionEnvelope(n).action as { operationId: string; status: string }).operationId === 'discard-changes'
+			&& (getActionEnvelope(n).action as { operationId: string; status: string }).status === 'idle',
+		);
+
+		await context.client.call('invokeChangesetOperation', {
+			channel: changeset,
+			operationId: 'discard-changes',
+			target: { kind: ChangesetOperationTargetKind.Resource, resource },
+		});
+		await completed;
+
+		const statuses = context.client.receivedNotifications(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === changeset,
+		).map(n => getActionEnvelope(n).action as { operationId: string; status: string })
+			.filter(action => action.operationId === 'discard-changes')
+			.map(action => action.status);
+		assert.deepStrictEqual({
+			contents: readFileSync(join(workspace, 'seed.txt'), 'utf8').replaceAll('\r\n', '\n'),
+			statuses,
+		}, {
+			contents: 'seed\n',
+			statuses: ['running', 'idle'],
+		});
+	});
+
+	conformanceTest(context, 'invoking an unknown changeset operation is rejected', async function () {
+		const { changeset } = await createModifiedUncommittedChangeset('changeset-unknown-operation');
+
+		await assert.rejects(context.client.call('invokeChangesetOperation', {
+			channel: changeset,
+			operationId: 'unknown-operation',
+		}));
+	});
+
+	conformanceTest(context, 'changeset operation rejects a target outside its advertised scopes', async function () {
+		const { changeset } = await createModifiedUncommittedChangeset('changeset-invalid-scope');
+
+		await assert.rejects(context.client.call('invokeChangesetOperation', {
+			channel: changeset,
+			operationId: 'discard-changes',
+		}));
 	});
 
 	conformanceTest(context, 'the session advertises its changeset catalog on separate channels', async function () {
