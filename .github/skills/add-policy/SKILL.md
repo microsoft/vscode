@@ -141,7 +141,16 @@ npm run export-policy-data
 
 This script handles transpilation, sets up `GITHUB_TOKEN` (via `gh` CLI or GitHub OAuth device flow), and runs `--export-policy-data`. The export command reads extension configuration policies from the distro's `product.json` via the GitHub API and merges them into the output.
 
-This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
+The command launches both the regular Workbench and the Agents window with isolated, empty
+profiles, then merges their policy catalogs into one deterministic union. It fails if both
+entrypoints register conflicting metadata for the same policy. This ensures policies and
+`policyReference` settings from either product surface are included.
+
+This updates `build/lib/policies/policyData.jsonc`. **Never edit or synthesize this file
+manually, including with an LLM. Do not invoke `--export-policy-data` directly.** The npm
+command is the only supported generator because a single product entrypoint produces an
+incomplete catalog. Verify your policy appears in the output and include the generated file
+in the same change. You will need code review from a codeowner to merge the change to main.
 
 
 ## Policy for extension-provided settings
@@ -327,6 +336,6 @@ Search the codebase for `policy:` to find all the examples of different policy c
 
 ## Learnings
 
-* Never hand-edit `build/lib/policies/policyData.jsonc` (its header explicitly forbids it). If `npm run export-policy-data` is failing, fix the script — don't patch the JSON. Common cause: running it in the wrong working directory (e.g. main repo instead of a worktree), which silently exports the wrong source tree.
-* **Regenerate `policyData.jsonc` in a clean environment, or the `PolicyExport` integration test will fail in CI.** `referencedSettings` is only captured for references **loaded at export time**. A plain `npm run export-policy-data` loads your **dev-profile extensions** (e.g. the Copilot extension), which injects `referencedSettings` onto core policies that the test's **fixture-based** export (clean profile, no user extensions) won't produce — so the checked-in file ends up with extra `referencedSettings` and CI fails. This is **not reproducible locally** because the test reuses your default extensions dir. Regenerate the way the test exports: `DISTRO_PRODUCT_JSON=<extensionPolicyFixture.json> ./scripts/code.sh --export-policy-data="$PWD/build/lib/policies/policyData.jsonc" --user-data-dir="$(mktemp -d)" --extensions-dir="$(mktemp -d)"` (with `VSCODE_SKIP_PRELAUNCH=1`).
+* Never hand-edit or LLM-generate `build/lib/policies/policyData.jsonc` (its header explicitly forbids it). If `npm run export-policy-data` fails, fix the command or its source policies instead of patching the JSON. Always run it from the worktree containing the policy source change.
+* A direct `scripts/code.{sh,bat} --export-policy-data` invocation exports only the selected product entrypoint and is necessarily incomplete. Always use `npm run export-policy-data`, which isolates profiles, exports both the Workbench and Agents window, and merges their catalogs. The blocking `PolicyExport` integration test runs this same canonical path in check mode.
 * Document **behavior and business-logic expectations**, not copy-pasted implementation. Reproducing internal code (e.g. the `getPolicyData()` merge body) in the skill rots the moment the source changes and adds no information beyond the source itself. State the contract in prose (e.g. "native MDM managed settings win over the server-delivered channel; the two layers are never merged") and point to the source for the implementation. Reserve code blocks for the **author-facing API contract** a contributor must follow — how to *declare* a `policy` / `managedSettings` / `value` callback — not for restating runtime plumbing.
