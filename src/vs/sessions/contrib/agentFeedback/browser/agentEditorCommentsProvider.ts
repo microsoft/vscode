@@ -13,6 +13,7 @@ import { IAgentEditorComment, IAgentEditorCommentRevealEvent, IAgentEditorCommen
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { getSessionEditorComments, fromSessionEditorCommentId, SessionEditorCommentSource } from './sessionEditorComments.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
+import { AgentFeedbackState } from './agentFeedbackModel.js';
 
 /**
  * Registers a provider with the workbench {@link IAgentEditorCommentsBridge}
@@ -46,12 +47,6 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 				this._planScopes.deleteAndDispose(planUri.toString());
 			}
 		}));
-		this._register(planReviewFeedbackService.onDidSubmitFeedback(planUri => {
-			const sessionResource = this._getSessionResource(planUri);
-			if (sessionResource) {
-				this._agentFeedbackService.markFeedbackSubmitted(sessionResource);
-			}
-		}));
 	}
 
 	acceptsComments(resource: URI): boolean {
@@ -66,7 +61,8 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		const comments: IAgentEditorComment[] = [];
 		const sessionComments = getSessionEditorComments(sessionResource, this._agentFeedbackService.getFeedback(sessionResource));
 		for (const comment of sessionComments) {
-			if (includeRelated || isEqual(comment.resourceUri, resource)) {
+			if ((includeRelated && comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted)
+				|| (!includeRelated && isEqual(comment.resourceUri, resource))) {
 				comments.push({ id: comment.id, resource: comment.resourceUri, range: comment.range, body: comment.text });
 			}
 		}

@@ -312,6 +312,56 @@ suite('PlanReviewFeedbackService - Registration', () => {
 		assert.strictEqual(fireCount, 2);
 	});
 
+	test('disposing a superseded registration leaves the active registration intact', () => {
+		const planUri = URI.parse('file:///plan.md');
+		const firstSession = URI.parse('test://session/first');
+		const secondSession = URI.parse('test://session/second');
+		const scopes: string[] = [];
+		store.add(service.onDidChangePlanReviewScope(event => scopes.push(`${event.active ? 'active' : 'inactive'}:${event.sessionResource.path.slice(1)}`)));
+
+		const first = service.registerPlanReview(planUri, createRegistration({ sessionResource: firstSession }));
+		store.add(service.registerPlanReview(planUri, createRegistration({ sessionResource: secondSession })));
+		first.dispose();
+
+		assert.deepStrictEqual({
+			activeSession: service.getPlanReview(planUri)?.sessionResource.toString(),
+			scopes,
+		}, {
+			activeSession: secondSession.toString(),
+			scopes: [
+				'active:first',
+				'inactive:first',
+				'active:second',
+			],
+		});
+	});
+
+	test('disposing the active registration restores the previous registration', () => {
+		const planUri = URI.parse('file:///plan.md');
+		const firstSession = URI.parse('test://session/first');
+		const secondSession = URI.parse('test://session/second');
+		const scopes: string[] = [];
+		store.add(service.onDidChangePlanReviewScope(event => scopes.push(`${event.active ? 'active' : 'inactive'}:${event.sessionResource.path.slice(1)}`)));
+
+		store.add(service.registerPlanReview(planUri, createRegistration({ sessionResource: firstSession })));
+		const second = service.registerPlanReview(planUri, createRegistration({ sessionResource: secondSession }));
+		second.dispose();
+
+		assert.deepStrictEqual({
+			activeSession: service.getPlanReview(planUri)?.sessionResource.toString(),
+			scopes,
+		}, {
+			activeSession: firstSession.toString(),
+			scopes: [
+				'active:first',
+				'inactive:first',
+				'active:second',
+				'inactive:second',
+				'active:first',
+			],
+		});
+	});
+
 	test('onDidChangeFeedback fires on add and remove', () => {
 		const planUri = URI.parse('file:///plan.md');
 		store.add(service.registerPlanReview(planUri, createRegistration()));
@@ -457,6 +507,55 @@ suite('PlanReviewFeedbackService - Provider-backed navigation', () => {
 			first: 'plan',
 			second: 'related',
 			bearing: { activeIdx: 1, totalCount: 2 },
+		});
+	});
+
+	test('submission feedback excludes and preserves comments that predate the review', () => {
+		const planUri = URI.parse('file:///plan.md');
+		const relatedUri = URI.parse('file:///related.ts');
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		const service = store.add(new PlanReviewFeedbackService(bridge));
+		const comments = [{
+			id: 'existing',
+			resource: relatedUri,
+			range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 2 },
+			body: 'Existing session feedback',
+		}];
+		const deleted: string[] = [];
+		store.add(bridge.registerProvider({
+			priority: 100,
+			onDidChangeComments: Event.None,
+			onDidRevealComment: Event.None,
+			acceptsComments: resource => resource.toString() === planUri.toString(),
+			getComments: () => comments,
+			addComment: () => { },
+			deleteComment: (_resource, id) => {
+				deleted.push(id);
+				const index = comments.findIndex(comment => comment.id === id);
+				if (index !== -1) {
+					comments.splice(index, 1);
+				}
+			},
+		}));
+		store.add(service.registerPlanReview(planUri, createRegistration()));
+		comments.push({
+			id: 'plan-review',
+			resource: planUri,
+			range: { startLineNumber: 7, startColumn: 1, endLineNumber: 7, endColumn: 2 },
+			body: 'Plan review feedback',
+		});
+
+		const feedback = service.getFeedback(planUri);
+		service.clearFeedback(planUri);
+
+		assert.deepStrictEqual({
+			feedback: feedback.map(item => item.id),
+			deleted,
+			remaining: comments.map(comment => comment.id),
+		}, {
+			feedback: ['plan-review'],
+			deleted: ['plan-review'],
+			remaining: ['existing'],
 		});
 	});
 });

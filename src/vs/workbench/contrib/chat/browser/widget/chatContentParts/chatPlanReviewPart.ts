@@ -860,9 +860,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				feedbackOverall: textareaFeedback || undefined,
 				feedbackInlineMarkdown,
 			});
-			if (planUri) {
-				this._planReviewFeedbackService.markFeedbackSubmitted(planUri);
-			}
 			await this.markUsed();
 			return true;
 		} finally {

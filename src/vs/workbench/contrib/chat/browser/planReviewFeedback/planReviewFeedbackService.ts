@@ -39,7 +39,6 @@ export interface IPlanReviewFeedbackService {
 	readonly onDidChangeNavigation: Event<URI>;
 	readonly onDidChangeRegistrations: Event<void>;
 	readonly onDidChangePlanReviewScope: Event<{ readonly planUri: URI; readonly sessionResource: URI; readonly active: boolean }>;
-	readonly onDidSubmitFeedback: Event<URI>;
 
 	registerPlanReview(planUri: URI, registration: IPlanReviewFeedbackRegistration): IDisposable;
 	isActivePlanReview(uri: URI): boolean;
@@ -53,7 +52,6 @@ export interface IPlanReviewFeedbackService {
 	getNextFeedback(planUri: URI, next: boolean): IPlanReviewFeedbackItem | undefined;
 	getNavigationBearing(planUri: URI): { activeIdx: number; totalCount: number };
 	setNavigationAnchor(planUri: URI, itemId: string | undefined): void;
-	markFeedbackSubmitted(planUri: URI): void;
 	submitAllFeedback(planUri: URI): Promise<boolean>;
 	submitPlanAction(planUri: URI, action: IChatPlanApprovalAction): Promise<void>;
 	rejectPlan(planUri: URI): Promise<void>;
@@ -62,6 +60,7 @@ export interface IPlanReviewFeedbackService {
 interface IPlanReviewRegistration {
 	readonly review: IPlanReviewFeedbackRegistration;
 	readonly items: IPlanReviewFeedbackItem[];
+	readonly existingCommentIds: Set<string>;
 	navigationAnchor: string | undefined;
 }
 
@@ -70,7 +69,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	declare readonly _serviceBrand: undefined;
 	readonly priority = 0;
 
-	private readonly _registrations = new Map<string, IPlanReviewRegistration>();
+	private readonly _registrations = new Map<string, IPlanReviewRegistration[]>();
 
 	private readonly _onDidChangeFeedback = this._register(new Emitter<URI>());
 	readonly onDidChangeFeedback: Event<URI> = this._onDidChangeFeedback.event;
@@ -82,8 +81,6 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	readonly onDidChangeRegistrations: Event<void> = this._onDidChangeRegistrations.event;
 	private readonly _onDidChangePlanReviewScope = this._register(new Emitter<{ readonly planUri: URI; readonly sessionResource: URI; readonly active: boolean }>());
 	readonly onDidChangePlanReviewScope = this._onDidChangePlanReviewScope.event;
-	private readonly _onDidSubmitFeedback = this._register(new Emitter<URI>());
-	readonly onDidSubmitFeedback = this._onDidSubmitFeedback.event;
 	readonly onDidChangeComments = Event.signal(Event.any(this.onDidChangeFeedback, this.onDidChangeRegistrations));
 	readonly onDidRevealComment = Event.None;
 
@@ -96,22 +93,51 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	registerPlanReview(planUri: URI, review: IPlanReviewFeedbackRegistration): IDisposable {
 		const key = planUri.toString();
-		this._registrations.set(key, { review, items: [], navigationAnchor: undefined });
+		const registrations = this._registrations.get(key) ?? [];
+		const previous = registrations.at(-1);
+		if (previous) {
+			this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: previous.review.sessionResource, active: false });
+		}
+		const registration: IPlanReviewRegistration = {
+			review,
+			items: [],
+			existingCommentIds: new Set(),
+			navigationAnchor: undefined,
+		};
+		registrations.push(registration);
+		this._registrations.set(key, registrations);
 		this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: true });
+		for (const comment of this._commentsBridge.getComments(planUri, true)) {
+			registration.existingCommentIds.add(comment.id);
+		}
 		this._onDidChangeRegistrations.fire();
 		return toDisposable(() => {
-			this._registrations.delete(key);
-			this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: false });
+			const index = registrations.indexOf(registration);
+			if (index === -1) {
+				return;
+			}
+			const wasActive = index === registrations.length - 1;
+			registrations.splice(index, 1);
+			if (registrations.length === 0) {
+				this._registrations.delete(key);
+			}
+			if (wasActive) {
+				this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: false });
+				const active = registrations.at(-1);
+				if (active) {
+					this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: active.review.sessionResource, active: true });
+				}
+			}
 			this._onDidChangeRegistrations.fire();
 		});
 	}
 
 	isActivePlanReview(uri: URI): boolean {
-		return this._registrations.has(uri.toString());
+		return this._getRegistration(uri) !== undefined;
 	}
 
 	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined {
-		return this._registrations.get(uri.toString())?.review;
+		return this._getRegistration(uri)?.review;
 	}
 
 	notifyFeedbackChanged(planUri: URI): void {
@@ -130,7 +156,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	private _addFeedback(planUri: URI, range: IRange, text: string): string {
-		const registration = this._registrations.get(planUri.toString());
+		const registration = this._getRegistration(planUri);
 		if (!registration) {
 			return '';
 		}
@@ -150,8 +176,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	removeFeedback(planUri: URI, feedbackId: string): void {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
+		const registration = this._getRegistration(planUri);
 		if (!registration) {
 			return;
 		}
@@ -164,13 +189,12 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		}
 		const item = this.getFeedback(planUri).find(candidate => candidate.id === feedbackId);
 		if (item) {
-			this._commentsBridge.deleteComment(item.resource, item.id);
+			this._commentsBridge.deleteComment(planUri, item.id);
 		}
 	}
 
 	updateFeedback(planUri: URI, feedbackId: string, newText: string): void {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
+		const registration = this._getRegistration(planUri);
 		if (!registration) {
 			return;
 		}
@@ -184,7 +208,12 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	getFeedback(planUri: URI): readonly IPlanReviewFeedbackItem[] {
+		const registration = this._getRegistration(planUri);
+		if (!registration) {
+			return [];
+		}
 		return this._commentsBridge.getComments(planUri, true)
+			.filter(comment => !registration.existingCommentIds.has(comment.id))
 			.map(comment => ({
 				id: comment.id,
 				resource: comment.resource,
@@ -196,24 +225,24 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	clearFeedback(planUri: URI): void {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
+		const registration = this._getRegistration(planUri);
 		if (!registration) {
 			return;
 		}
+		const feedback = this.getFeedback(planUri);
 		const localIds = new Set(registration.items.map(item => item.id));
 		registration.items.length = 0;
 		registration.navigationAnchor = undefined;
-		for (const item of [...this.getFeedback(planUri)]) {
+		for (const item of feedback) {
 			if (!localIds.has(item.id)) {
-				this._commentsBridge.deleteComment(item.resource, item.id);
+				this._commentsBridge.deleteComment(planUri, item.id);
 			}
 		}
 		this._onDidChangeFeedback.fire(planUri);
 	}
 
 	getNextFeedback(planUri: URI, next: boolean): IPlanReviewFeedbackItem | undefined {
-		const registration = this._registrations.get(planUri.toString());
+		const registration = this._getRegistration(planUri);
 		const items = this.getFeedback(planUri);
 		if (!registration || items.length === 0) {
 			return undefined;
@@ -238,7 +267,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	getNavigationBearing(planUri: URI): { activeIdx: number; totalCount: number } {
-		const registration = this._registrations.get(planUri.toString());
+		const registration = this._getRegistration(planUri);
 		if (!registration) {
 			return { activeIdx: -1, totalCount: 0 };
 		}
@@ -254,21 +283,15 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	setNavigationAnchor(planUri: URI, itemId: string | undefined): void {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
+		const registration = this._getRegistration(planUri);
 		if (registration) {
 			registration.navigationAnchor = itemId;
 			this._onDidChangeNavigation.fire(planUri);
 		}
 	}
 
-	markFeedbackSubmitted(planUri: URI): void {
-		this._onDidSubmitFeedback.fire(planUri);
-	}
-
 	async submitAllFeedback(planUri: URI): Promise<boolean> {
-		const key = planUri.toString();
-		const registration = this._registrations.get(key);
+		const registration = this._getRegistration(planUri);
 		if (!registration || (this.getFeedback(planUri).length === 0 && !registration.review.hasOverallFeedback())) {
 			return false;
 		}
@@ -277,11 +300,11 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	submitPlanAction(planUri: URI, action: IChatPlanApprovalAction): Promise<void> {
-		return this._registrations.get(planUri.toString())?.review.submitAction(action) ?? Promise.resolve();
+		return this._getRegistration(planUri)?.review.submitAction(action) ?? Promise.resolve();
 	}
 
 	rejectPlan(planUri: URI): Promise<void> {
-		return this._registrations.get(planUri.toString())?.review.reject() ?? Promise.resolve();
+		return this._getRegistration(planUri)?.review.reject() ?? Promise.resolve();
 	}
 
 	acceptsComments(resource: URI): boolean {
@@ -289,7 +312,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	getComments(resource: URI): readonly IAgentEditorComment[] {
-		return this._registrations.get(resource.toString())?.items.map(item => ({
+		return this._getRegistration(resource)?.items.map(item => ({
 			id: item.id,
 			resource,
 			range: item.range,
@@ -303,5 +326,9 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	deleteComment(resource: URI, id: string): void {
 		this.removeFeedback(resource, id);
+	}
+
+	private _getRegistration(planUri: URI): IPlanReviewRegistration | undefined {
+		return this._registrations.get(planUri.toString())?.at(-1);
 	}
 }
