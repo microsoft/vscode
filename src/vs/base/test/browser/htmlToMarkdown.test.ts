@@ -67,6 +67,16 @@ suite('htmlToMarkdown', () => {
 				['`a.ts`', '[Example](https://example.com)', '[docs](https://real.example)']);
 		});
 
+		test('uses the plain label when the target cannot be shared', () => {
+			// Emphasis markers would be read literally inside a code span.
+			assert.deepStrictEqual(
+				[
+					convertHtmlToMarkdown('<a href="file:///x"><strong>Foo</strong></a>'),
+					convertHtmlToMarkdown('<a href="https://example.com"><strong>Kept</strong></a>'),
+				],
+				['`Foo`', '[**Kept**](https://example.com)']);
+		});
+
 		test('keeps internal links inside surrounding markdown formatting', () => {
 			assert.strictEqual(
 				convertHtmlToMarkdown('<p>This is <strong>inherited</strong> from the <a href="vscode-file://vscode-app/resources/app/out/workbench.html">FooBar</a> class.</p>'),

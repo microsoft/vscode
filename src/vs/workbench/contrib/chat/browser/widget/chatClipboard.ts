@@ -63,72 +63,60 @@ export function sanitizeChatClipboardFragment(fragment: DocumentFragment): boole
 	return changed;
 }
 
-/**
- * Matches a link reference definition, including the indented continuation lines CommonMark
- * allows for its destination and title.
- */
-const referenceDefinition = /^ {0,3}\[([^\]]+)\]:[^\n]*(?:\n[ \t]+[^\n]*)*\n?/gm;
-
-/** Matches the URL-bearing attributes of raw HTML embedded in markdown. */
-const urlAttribute = /\b(href|src)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
-
-/** Normalizes a reference label the way the lexer keys its definition map. */
-function normalizeLabel(label: string): string {
-	return label.trim().toLowerCase().replace(/\s+/g, ' ');
+function overlapsCode(start: number, end: number, codeRanges: readonly { readonly start: number; readonly end: number }[]): boolean {
+	return codeRanges.some(range => start < range.end && end > range.start);
 }
 
 /**
  * Rewrites markdown so it can be shared outside this window. Chat responses address workspace
  * resources with targets that only mean something here — agent host sessions are even
- * instructed to emit absolute filesystem paths — so links, images, raw HTML attributes and
- * reference definitions that don't resolve elsewhere are reduced to the text the reader saw.
+ * instructed to emit absolute filesystem paths — so links and images that don't resolve
+ * elsewhere are reduced to the text the reader saw.
+ *
+ * Raw HTML is left verbatim. Chat markdown is rendered without `supportHtml`, so a tag the model
+ * wrote was never a live link, and rewriting its attributes would corrupt text the reader saw.
  */
 export function toPortableMarkdown(markdown: string): string {
 	return rewriteMarkdownLinks(markdown, {
 		rewriteLink(token) {
-			if (isPortableMarkdownTarget(token.href ?? '')) {
-				return undefined;
+			const target = token.href ?? '';
+			if (!isPortableMarkdownTarget(target)) {
+				const label = markdownTokensToPlainText((token as marked.Tokens.Link).tokens ?? []).trim() || (token.text ?? '').trim();
+				return label ? appendEscapedMarkdownInlineCode(label) : '';
 			}
-			const label = markdownTokensToPlainText((token as marked.Tokens.Link).tokens ?? []).trim() || (token.text ?? '').trim();
-			return label ? appendEscapedMarkdownInlineCode(label) : '';
+
+			// Every definition is dropped below, so a link that named one has to start carrying
+			// its own target. Spelling the target out is what tells the two apart.
+			if (!token.raw.includes(target)) {
+				const title = token.title ? ` "${token.title}"` : '';
+				return `${token.type === 'image' ? '!' : ''}[${token.text}](${target}${title})`;
+			}
+			return undefined;
 		},
 
-		rewriteHtml(raw) {
-			return raw.replace(urlAttribute, (match, _attribute, _quoted, doubleQuoted, singleQuoted, bare) => {
-				const target = doubleQuoted ?? singleQuoted ?? bare ?? '';
-				return isPortableMarkdownTarget(target) ? match : '';
-			});
-		},
-
-		additionalEdits(source, { codeRanges, definitions, unlocatable }) {
+		additionalEdits(source, { codeRanges, definitionRanges, unlocatable }) {
 			const edits: IMarkdownEdit[] = [];
 
 			// A label spanning lines inside a list or quote cannot be located, so scrub the
-			// target itself rather than let an absolute path reach the clipboard.
+			// target itself rather than let an absolute path reach the clipboard. Occurrences
+			// inside code are left alone: those are samples, not live links.
 			for (const token of unlocatable) {
 				const target = token.href ?? '';
 				if (isPortableMarkdownTarget(target)) {
 					continue;
 				}
-				for (let at = source.indexOf(`](${target})`); at >= 0; at = source.indexOf(`](${target})`, at + 1)) {
-					edits.push({ start: at, end: at + `](${target})`.length, replacement: ']()' });
-				}
-			}
-
-			// The lexer resolves references while parsing and emits no token for the definition
-			// itself, so rewriting the reference alone would strand its target further down.
-			const unshareable = new Set(Object.keys(definitions ?? {})
-				.filter(label => !isPortableMarkdownTarget(definitions[label]?.href ?? '')));
-			if (unshareable.size) {
-				referenceDefinition.lastIndex = 0;
-				for (let match = referenceDefinition.exec(source); match; match = referenceDefinition.exec(source)) {
-					const start = match.index;
-					const end = start + match[0].length;
-					if (unshareable.has(normalizeLabel(match[1])) && !codeRanges.some(range => start < range.end && end > range.start)) {
-						edits.push({ start, end, replacement: '' });
+				const needle = `](${target})`;
+				for (let at = source.indexOf(needle); at >= 0; at = source.indexOf(needle, at + 1)) {
+					if (!overlapsCode(at, at + needle.length, codeRanges)) {
+						edits.push({ start: at, end: at + needle.length, replacement: ']()' });
 					}
 				}
 			}
+
+			// A definition holds its target in source the reader never saw, so leaving one behind
+			// would publish the very path this strips. The links that leaned on them now spell
+			// their targets out, so the definitions have nothing left to say.
+			edits.push(...definitionRanges.map(range => ({ ...range, replacement: '' })));
 			return edits;
 		},
 	});

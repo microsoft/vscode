@@ -59,8 +59,8 @@ export function markdownTokensToPlainText(tokens: readonly marked.Token[]): stri
 export interface IMarkdownRewriteContext {
 	/** Source ranges of code spans and fenced blocks, whose contents were left untouched. */
 	readonly codeRanges: readonly { readonly start: number; readonly end: number }[];
-	/** Reference definitions the lexer resolved, keyed by normalized label. */
-	readonly definitions: marked.TokensList['links'];
+	/** Source ranges holding link reference definitions. See {@link findDefinitionRanges}. */
+	readonly definitionRanges: readonly { readonly start: number; readonly end: number }[];
 	/** Tokens whose source could not be located, so no edit could be produced for them. */
 	readonly unlocatable: readonly (marked.Tokens.Link | marked.Tokens.Image)[];
 }
@@ -68,8 +68,6 @@ export interface IMarkdownRewriteContext {
 export interface IMarkdownRewriter {
 	/** Returns replacement source for a link or image, or `undefined` to keep it verbatim. */
 	rewriteLink(token: marked.Tokens.Link | marked.Tokens.Image): string | undefined;
-	/** Returns replacement source for raw HTML, or `undefined` to keep it verbatim. */
-	rewriteHtml?(raw: string): string | undefined;
 	/** Produces additional edits once traversal has mapped the document. */
 	additionalEdits?(markdown: string, context: IMarkdownRewriteContext): readonly IMarkdownEdit[];
 }
@@ -110,20 +108,52 @@ function collectEdits(tokens: readonly marked.Token[], markdown: string, cursor:
 
 		if (token.type === 'code' || token.type === 'codespan') {
 			codeRanges.push({ start, end });
-		} else if (token.type === 'html') {
-			const replacement = rewriter.rewriteHtml?.(raw);
-			if (replacement !== undefined && replacement !== raw) {
-				edits.push({ start, end, replacement });
-			}
 		} else if (token.type === 'link' || token.type === 'image') {
 			const replacement = rewriter.rewriteLink(token as marked.Tokens.Link | marked.Tokens.Image);
 			if (replacement !== undefined) {
 				edits.push({ start, end, replacement });
+			} else {
+				// The token survives as written, so anything nested inside it — an image with
+				// its own target inside a link, say — still has to be visited.
+				collectEdits(childrenOf(token), markdown, start, rewriter, edits, codeRanges, unlocatable);
 			}
 		}
 	}
 
 	return cursor;
+}
+
+/**
+ * Finds the source the lexer consumed without emitting any token, which is precisely where the
+ * link reference definitions are: the lexer resolves them while parsing and reports them only
+ * through the resolved {@link marked.TokensList.links} map, never as a token.
+ *
+ * Deriving the ranges from what the parser did — rather than matching definition syntax against
+ * the whole document — takes each definition whole however its author wrapped the destination or
+ * title across lines, and cannot mistake a lookalike written in prose or inside a code fence for
+ * a definition, because the parser accounted for those.
+ */
+function findDefinitionRanges(tokens: readonly marked.Token[], markdown: string): { start: number; end: number }[] {
+	const ranges: { start: number; end: number }[] = [];
+	let cursor = 0;
+	for (const token of tokens) {
+		const raw = (token as { raw?: string }).raw ?? '';
+		const start = raw ? markdown.indexOf(raw, cursor) : -1;
+		if (start < 0) {
+			// A block that cannot be placed leaves everything after it unaccounted for, which
+			// would read as one enormous definition. Claim nothing rather than cut live text.
+			return [];
+		}
+		if (start > cursor && markdown.substring(cursor, start).trim()) {
+			ranges.push({ start: cursor, end: start });
+		}
+		cursor = start + raw.length;
+	}
+
+	if (markdown.substring(cursor).trim()) {
+		ranges.push({ start: cursor, end: markdown.length });
+	}
+	return ranges;
 }
 
 /**
@@ -146,7 +176,11 @@ export function rewriteMarkdownLinks(markdown: string, rewriter: IMarkdownRewrit
 	const codeRanges: { start: number; end: number }[] = [];
 	const unlocatable: (marked.Tokens.Link | marked.Tokens.Image)[] = [];
 	collectEdits(tokens, markdown, 0, rewriter, edits, codeRanges, unlocatable);
-	edits.push(...(rewriter.additionalEdits?.(markdown, { codeRanges, definitions: tokens.links, unlocatable }) ?? []));
+	edits.push(...(rewriter.additionalEdits?.(markdown, {
+		codeRanges,
+		definitionRanges: findDefinitionRanges(tokens, markdown),
+		unlocatable,
+	}) ?? []));
 	if (!edits.length) {
 		return markdown;
 	}

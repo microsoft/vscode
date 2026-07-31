@@ -113,6 +113,71 @@ suite('ChatClipboard', () => {
 				['> [foo\n> bar]()\n', '- [foo\n  bar]()\n']);
 		});
 
+		test('visits an image nested inside a link that is kept', () => {
+			assert.strictEqual(
+				toPortableMarkdown('[![diagram](/Users/me/private.png)](https://example.com)'),
+				'[`diagram`](https://example.com)');
+		});
+
+		test('removes a definition whose destination sits on the next line', () => {
+			assert.strictEqual(
+				toPortableMarkdown('See [d][r].\n\n[r]:\n  /Users/alice/a.ts\n'),
+				'See `d`.\n\n');
+		});
+
+		test('leaves content that merely follows a definition', () => {
+			assert.strictEqual(
+				toPortableMarkdown('See [d][r].\n\n[r]: /Users/alice/a.ts\n\n    indented code\n'),
+				'See `d`.\n\n    indented code\n');
+		});
+
+		test('takes a definition whole however it wraps', () => {
+			assert.deepStrictEqual(
+				[
+					toPortableMarkdown('See [d][r].\n\n[r]: /Users/alice/a.ts "Title"\n'),
+					toPortableMarkdown('See [d][r].\n\n[r]: /Users/alice/a.ts\n  "Title"\n'),
+				],
+				['See `d`.\n\n', 'See `d`.\n\n']);
+		});
+
+		test('keeps a reference working by giving it its own target', () => {
+			// Definitions are dropped wholesale, so a shareable reference has to carry its
+			// target inline or it would decay into literal text.
+			assert.deepStrictEqual(
+				[
+					toPortableMarkdown('A [x][1] B [y][2].\n\n[1]: /p/a.ts\n[2]: https://ok.com\n'),
+					toPortableMarkdown('See [r].\n\n[r]: https://ok.com\n'),
+					toPortableMarkdown('![alt][r]\n\n[r]: https://ok.com/x.png\n'),
+					toPortableMarkdown('See [d][r].\n\n[r]: https://ok.com "T"\n'),
+				],
+				[
+					'A `x` B [y](https://ok.com).\n\n',
+					'See [r](https://ok.com).\n\n',
+					'![alt](https://ok.com/x.png)\n\n',
+					'See [d](https://ok.com "T").\n\n',
+				]);
+		});
+
+		test('drops a definition nothing refers to', () => {
+			assert.strictEqual(toPortableMarkdown('Nothing here.\n\n[r]: /p/a.ts\n'), 'Nothing here.\n\n');
+		});
+
+		test('leaves a definition the parser accounted for as content', () => {
+			// Inside a fence it is a sample, and directly under a paragraph it is literal text.
+			assert.deepStrictEqual(
+				[
+					toPortableMarkdown('```\n[r]: /Users/alice/a.ts\n```\n'),
+					toPortableMarkdown('Text here.\n[r]: /Users/alice/a.ts\n'),
+				],
+				['```\n[r]: /Users/alice/a.ts\n```\n', 'Text here.\n[r]: /Users/alice/a.ts\n']);
+		});
+
+		test('scrubs an unlocatable target without touching a sample of it in code', () => {
+			assert.strictEqual(
+				toPortableMarkdown('Example: `[x](/Users/alice/a.ts)` and\n\n> [foo\n> bar](/Users/alice/a.ts)\n'),
+				'Example: `[x](/Users/alice/a.ts)` and\n\n> [foo\n> bar]()\n');
+		});
+
 		test('rewrites the real link rather than a lookalike inside code', () => {
 			// Searching for the link source would match the sample in the code span first,
 			// corrupting it and leaving the actual target behind.
@@ -149,19 +214,19 @@ suite('ChatClipboard', () => {
 				'See `docs`.\n\n```md\n[ref]: /repo/a.ts\n```\n\n');
 		});
 
-		test('keeps reference definitions that remain shareable', () => {
-			const markdown = 'See [docs][ref].\n\n[ref]: https://example.com/docs\n';
-			assert.strictEqual(toPortableMarkdown(markdown), markdown);
-		});
-
-		test('strips unshareable urls from raw html', () => {
+		test('leaves raw html verbatim', () => {
+			// Chat markdown renders without `supportHtml`, so a tag the model wrote was never a
+			// live link. Editing its attributes would only corrupt text the reader was shown —
+			// the same spelling appears in prose whenever a response explains the syntax.
 			assert.deepStrictEqual(
 				[
 					toPortableMarkdown('<a href="file:///Users/alice/private/a.ts">a.ts</a>'),
-					toPortableMarkdown('<img src="/Users/alice/private/a.png">'),
-					toPortableMarkdown('<a href="https://example.com/docs">docs</a>'),
+					toPortableMarkdown('<div>\nhref="/Users/alice/a.ts" is the syntax\n</div>\n'),
 				],
-				['<a >a.ts</a>', '<img >', '<a href="https://example.com/docs">docs</a>']);
+				[
+					'<a href="file:///Users/alice/private/a.ts">a.ts</a>',
+					'<div>\nhref="/Users/alice/a.ts" is the syntax\n</div>\n',
+				]);
 		});
 
 		test('reduces images addressed by local paths', () => {

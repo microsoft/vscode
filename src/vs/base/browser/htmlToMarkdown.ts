@@ -112,7 +112,7 @@ function convertNode(node: Node): string {
 			return '\n---\n';
 
 		case 'a': {
-			return sanitizeLink(linkTargetOf(el), convertChildren(el).trim());
+			return sanitizeLink(linkTargetOf(el), convertChildren(el).trim(), (el.textContent ?? '').trim());
 		}
 
 		case 'img': {
@@ -167,7 +167,7 @@ function linkTargetOf(el: HTMLElement): string {
  * Renders an anchor as markdown, keeping only targets that still mean something wherever the
  * markdown is pasted. Everything else falls back to the text the reader actually saw.
  */
-function sanitizeLink(href: string, text: string): string {
+function sanitizeLink(href: string, text: string, plainText: string): string {
 	const target = href.trim();
 
 	// An executable target carries no label worth marking up as code.
@@ -176,7 +176,8 @@ function sanitizeLink(href: string, text: string): string {
 	}
 
 	if (!target || !isPortableMarkdownTarget(target)) {
-		return text ? appendEscapedMarkdownInlineCode(text) : '';
+		// Emphasis markers around the label would be read literally inside a code span.
+		return plainText ? appendEscapedMarkdownInlineCode(plainText) : '';
 	}
 
 	return `[${text}](${target})`;
