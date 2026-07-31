@@ -203,16 +203,17 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 								owner: gitState.githubOwner,
 								repo: gitState.githubRepo
 							} satisfies ISessionGitHubState);
-						}
 
-						// The working copy switched to a different branch: look
-						// for a pull request that belongs to the new branch. The
-						// previously known pull request keeps being reported
-						// until a new one is found. Awaited so the refresh event
-						// below carries the pull request of the new branch
-						// rather than stale GitHub state.
-						if (previousGitState?.branchName !== gitState.branchName) {
-							await this._queuePullRequestLookup(sessionKey);
+							// The working copy switched to a different branch:
+							// look for a pull request that belongs to the new
+							// branch. The previously known pull request keeps
+							// being reported until a new one is found. Awaited
+							// so the refresh event below carries the pull
+							// request of the new branch rather than stale
+							// GitHub state.
+							if (previousGitState?.branchName !== gitState.branchName) {
+								await this._queuePullRequestLookup(sessionKey);
+							}
 						}
 					}
 				}
