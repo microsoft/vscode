@@ -34,6 +34,7 @@ jobs:
         parameters:
           VSCODE_ARCH: arm64
           VSCODE_CIBUILD: true
+          VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
 
       - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
         env:
@@ -46,6 +47,12 @@ jobs:
       # set; since we pass none, compile it explicitly here.
       - script: npm run compile --prefix test/smoke
         displayName: Compile smoke tests
+
+      # Guarantee the artifact directories exist so the 1ES output publishing
+      # never fails on a missing path. The smoke runner writes logs under
+      # .build/logs and crash dumps under .build/crashes (only on a crash).
+      - script: mkdir -p .build/crashes .build/logs
+        displayName: Ensure artifact directories exist
 
       # Run the Electron smoke test once per iteration. continueOnError lets every
       # iteration run even if some fail, and gives each run its own timeline record

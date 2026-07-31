@@ -51,6 +51,12 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
 	supportsCheckpoints?: boolean;
+	/**
+	 * The prefix (e.g. `!`) that marks a message in this
+	 * session type as a terminal command rather than a message to the agent.
+	 * Undefined when the session type has no terminal command support.
+	 */
+	terminalCommandPrefix?: string;
 }
 
 export interface IChatAgentData {

@@ -26,6 +26,13 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public dismissedByTerminalInput?: boolean;
 
 	/**
+	 * True when the input was accepted/answered outside the carousel UI, such
+	 * as by voice or automatic reply.
+	 */
+	public answeredExternally?: boolean;
+	public autoReply?: boolean;
+
+	/**
 	 * Marks the carousel as dismissed with the given answers and clears draft
 	 * state. Safe to call multiple times — subsequent calls are no-ops.
 	 */
@@ -50,6 +57,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 		public message?: string | IMarkdownString,
 		public source?: ToolDataSource,
 		public terminalId?: string,
+		public answerPresentation?: 'conversation',
 	) { }
 
 	toJSON(): IChatQuestionCarousel {
@@ -60,9 +68,12 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 			resolveId: this.resolveId,
 			data: this.data,
 			isUsed: this.isUsed,
+			answeredExternally: this.answeredExternally,
+			autoReply: this.autoReply,
 			message: this.message,
 			source: this.source,
 			terminalId: this.terminalId,
+			answerPresentation: this.answerPresentation,
 		};
 	}
 }

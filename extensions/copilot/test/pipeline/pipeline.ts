@@ -14,7 +14,9 @@ import { Limiter } from '../../src/util/vs/base/common/async';
 import { OffsetRange } from '../../src/util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { applyConfigFile, loadConfigFile } from '../base/simulationContext';
-import { NesDatagen, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
+import { DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP, NesDatagen, NesDatagenInputFormat, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
+import { loadAndParseContinuousInput } from './continuous/continuousRecord';
+import { processContinuousRecords } from './continuous/processContinuous';
 import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
 import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/cursorJumpPromptStep';
 import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/cursorJumpResponseStep';
@@ -25,6 +27,9 @@ import { IProcessedRow, parseSuggestedEdit, processAllRows } from './replayRecor
 import { generateAllResponses, generateResponse, IResponseGenerationInput, applyEditsToContent } from './responseStep';
 import { streamJsonRecords } from './streamJsonRecords';
 import { openWriteStream } from './writeStream';
+import type { WithRowIndex } from './withRowIndex';
+import { processWorkspaceRecordingSamples } from './workspaceRecording/processWorkspaceRecording';
+import { loadWorkspaceRecording, selectWorkspaceRecordingSamples } from './workspaceRecording/workspaceRecording';
 
 function logErrors(errors: readonly { error: string }[], verbose: boolean, log: (...ps: any[]) => void): void {
 	if (errors.length > 0 && verbose) {
@@ -37,6 +42,10 @@ function logErrors(errors: readonly { error: string }[], verbose: boolean, log: 
 function formatElapsed(startTime: number): string {
 	const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 	return `${elapsed}s`;
+}
+
+function getWorkspaceRecordingSampleCap(options: NesDatagen): number {
+	return options.maxSamplesPerRecording ?? DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP;
 }
 
 /**
@@ -62,6 +71,97 @@ export type RunPipelineOptions = {
 	readonly verbose: number | boolean | undefined;
 	readonly parallelism: number;
 };
+
+/**
+ * Result of the shared "parse input + replay into processed rows" front half of
+ * both pipelines. Abstracts over the input format so the xtab and cursor-jump
+ * pipelines don't need to know whether the rows came from alternative-action or
+ * continuous recordings.
+ */
+interface ILoadedProcessedRows {
+	/**
+	 * Number of input records that parsed successfully — the starting count for
+	 * the `[1/5]` progress line and the pipeline summary funnel. Parse failures
+	 * are excluded and counted separately in {@link parseErrors}.
+	 */
+	readonly recordCount: number;
+	/** Per-record parse failures. */
+	readonly parseErrors: readonly WithRowIndex<Error>[];
+	/** Successfully replayed rows. Each holds a live replayer the caller must dispose. */
+	readonly processed: IProcessedRow[];
+	/** Per-record replay/processing failures. */
+	readonly replayErrors: readonly WithRowIndex<Error>[];
+	/**
+	 * Resolve the language id for a record by its `originalRowIndex` (the record's
+	 * position in the input file), for error messages. Continuous records have no
+	 * language before replay, so this returns `'?'` for them.
+	 */
+	readonly languageForRow: (originalRowIndex: number) => string;
+}
+
+/**
+ * Parse the input and replay each recording into processed rows, dispatching on
+ * `--input-format`. This is the format-aware front half shared by both the xtab
+ * and cursor-jump pipelines.
+ *
+ * For continuous input the pivot RNG is seeded from `nesDatagenOpts.seed` and
+ * `nesDatagenOpts.rowOffset`, so output is reproducible and independent of how
+ * the input is sharded across workers.
+ */
+async function loadAndProduceProcessedRows(nesDatagenOpts: NesDatagen, verbose: boolean): Promise<ILoadedProcessedRows> {
+	const inputPath = nesDatagenOpts.input;
+
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.WorkspaceRecording) {
+		const recording = await loadWorkspaceRecording(inputPath);
+		const selected = selectWorkspaceRecordingSamples(recording, getWorkspaceRecordingSampleCap(nesDatagenOpts));
+		const selectedByOperationIndex = new Map(selected.map(descriptor => [descriptor.pivotOperationIndex, descriptor]));
+		const descriptors = nesDatagenOpts.workspacePivotOperationIndices === undefined
+			? selected
+			: nesDatagenOpts.workspacePivotOperationIndices.map(operationIndex => {
+				const descriptor = selectedByOperationIndex.get(operationIndex);
+				if (!descriptor) {
+					throw new Error(`Workspace recording pivot operation ${operationIndex} is not selected by the current policy`);
+				}
+				return descriptor;
+			});
+		const { processed, errors: replayErrors } = processWorkspaceRecordingSamples(recording, descriptors);
+		return {
+			recordCount: descriptors.length,
+			parseErrors: [],
+			processed,
+			replayErrors,
+			languageForRow: originalRowIndex => processed.find(row => row.originalRowIndex === originalRowIndex)?.row.activeDocumentLanguageId ?? '?',
+		};
+	}
+
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		const { records, errors: parseErrors } = await loadAndParseContinuousInput(inputPath, verbose);
+		const { processed, errors: replayErrors } = processContinuousRecords(
+			records,
+			nesDatagenOpts.pivotStrategy,
+			nesDatagenOpts.seed,
+			nesDatagenOpts.rowOffset,
+		);
+		return {
+			recordCount: records.length,
+			parseErrors,
+			processed,
+			replayErrors,
+			languageForRow: () => '?',
+		};
+	}
+
+	const { rows, errors: parseErrors } = await loadAndParseInput(inputPath, verbose);
+	const { processed, errors: replayErrors } = processAllRows(rows);
+	const languageByRowIndex = new Map(rows.map(row => [row.originalRowIndex, row.activeDocumentLanguageId]));
+	return {
+		recordCount: rows.length,
+		parseErrors,
+		processed,
+		replayErrors,
+		languageForRow: (originalRowIndex: number) => languageByRowIndex.get(originalRowIndex) ?? '?',
+	};
+}
 
 /**
  * Single-process pipeline entry point. Dispatches to the xtab or cursor-jump
@@ -99,17 +199,20 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 	log(`\n=== Pipeline ===`);
 	log(`  Input: ${inputPath}`);
 	log(`  Concurrency: ${concurrency}`);
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		log(`  Input format: continuous (pivot-strategy: ${nesDatagenOpts.pivotStrategy}, seed: ${nesDatagenOpts.seed})`);
+	} else if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.WorkspaceRecording) {
+		log(`  Input format: workspace-recording (max samples: ${getWorkspaceRecordingSampleCap(nesDatagenOpts)})`);
+	}
 
-	// Step 1: Parse input
-	const { rows, errors } = await loadAndParseInput(inputPath, verbose);
-	log(`  [1/5] Input parsed: ${rows.length} rows, ${errors.length} errors`);
-	logErrors(errors, verbose, log);
+	// Step 1+2: Parse input and replay recordings (format-aware)
+	const { recordCount, parseErrors, processed, replayErrors, languageForRow } = await loadAndProduceProcessedRows(nesDatagenOpts, verbose);
+	log(`  [1/5] Input parsed: ${recordCount} rows, ${parseErrors.length} errors`);
+	logErrors(parseErrors.map(e => ({ error: e.value.message })), verbose, log);
 
-	// Step 2: Replay recordings
-	const { processed, errors: replayErrors } = processAllRows(rows);
 	log(`  [2/5] Recordings replayed: ${processed.length} ok, ${replayErrors.length} errors`);
 	logErrors(replayErrors.map(e => ({
-		error: `[sample ${e.rowIndex + rowOffset}, ${rows[e.rowIndex]?.activeDocumentLanguageId ?? '?'}] ${e.error}`,
+		error: `[sample ${e.originalRowIndex + rowOffset}, ${languageForRow(e.originalRowIndex)}] ${e.value.message}`,
 	})), verbose, log);
 
 	// Step 3: Generate prompts
@@ -182,6 +285,7 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 		const responseByIndex = new Map(responses.map(r => [r.index, r.response]));
 		const outputPath = resolveOutputPath(inputPath, nesDatagenOpts.output);
 		const samples: ISample[] = [];
+		let workspaceRowsWithDroppedOracleEdits = 0;
 
 		for (const { originalRowIndex: index, prompt } of prompts) {
 			const response = responseByIndex.get(index);
@@ -192,11 +296,18 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 			if (!p) {
 				continue;
 			}
+			if (p.workspaceRecording && (response.droppedEditCount ?? 0) > 0) {
+				workspaceRowsWithDroppedOracleEdits++;
+				continue;
+			}
 			const suggestedEdit = parseSuggestedEdit(p.row.postProcessingOutcome.suggestedEdit);
 			const modelEdits = suggestedEdit ? [suggestedEdit] as const : undefined;
 			const modelResult = generateResponse(responseFormat, modelEdits, p.activeDocument.value.get().value, p.activeFilePath, prompt.user);
 			const formattedModelResponse = 'error' in modelResult ? '' : modelResult.assistant;
 			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse, { task: NesDatagenSampleTask.Xtab }));
+		}
+		if (workspaceRowsWithDroppedOracleEdits > 0) {
+			log(`    Workspace recording rows rejected for partial edit-window labels: ${workspaceRowsWithDroppedOracleEdits}`);
 		}
 
 		const writeResult = await writeSamples(outputPath, samples);
@@ -215,7 +326,7 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 		}
 
 		// Summary
-		log(`\n  Pipeline: Input(${rows.length}) → Replay(${processed.length}) → Prompt(${prompts.length}) → Response(${responses.length}) → Output(${writeResult.written})`);
+		log(`\n  Pipeline: Input(${recordCount}) → Replay(${processed.length}) → Prompt(${prompts.length}) → Response(${responses.length}) → Output(${writeResult.written})`);
 	} finally {
 		for (const p of processed) {
 			p.replayer.dispose();
@@ -241,15 +352,19 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 	log(`  Sample task: ${task}`);
 	log(`  Concurrency: ${concurrency}`);
 	log(`  Same-file jump thresholds: above=${nesDatagenOpts.sameFileJumpMinAbove}, below=${nesDatagenOpts.sameFileJumpMinBelow}`);
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		log(`  Input format: continuous (pivot-strategy: ${nesDatagenOpts.pivotStrategy}, seed: ${nesDatagenOpts.seed})`);
+	} else if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.WorkspaceRecording) {
+		log(`  Input format: workspace-recording (max samples: ${getWorkspaceRecordingSampleCap(nesDatagenOpts)})`);
+	}
 
-	const { rows, errors } = await loadAndParseInput(inputPath, verbose);
-	log(`  [1/5] Input parsed: ${rows.length} rows, ${errors.length} errors`);
-	logErrors(errors, verbose, log);
+	const { recordCount, parseErrors, processed, replayErrors, languageForRow } = await loadAndProduceProcessedRows(nesDatagenOpts, verbose);
+	log(`  [1/5] Input parsed: ${recordCount} rows, ${parseErrors.length} errors`);
+	logErrors(parseErrors.map(e => ({ error: e.value.message })), verbose, log);
 
-	const { processed, errors: replayErrors } = processAllRows(rows);
 	log(`  [2/5] Recordings replayed: ${processed.length} ok, ${replayErrors.length} errors`);
 	logErrors(replayErrors.map(e => ({
-		error: `[sample ${e.rowIndex + rowOffset}, ${rows[e.rowIndex]?.activeDocumentLanguageId ?? '?'}] ${e.error}`,
+		error: `[sample ${e.originalRowIndex + rowOffset}, ${languageForRow(e.originalRowIndex)}] ${e.value.message}`,
 	})), verbose, log);
 
 	// Detect jumps first — many rows will be skipped here, no point capturing
@@ -428,7 +543,7 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 		const writeResult = await writeSamples(outputPath, samples);
 		log(`  [5/5] Output written: ${writeResult.written} samples → ${writeResult.outputPath}`);
 
-		log(`\n  Pipeline: Input(${rows.length}) → Replay(${processed.length}) → Jumps(${jumps.size}) → Prompt(${prompts.length}) → Output(${writeResult.written})`);
+		log(`\n  Pipeline: Input(${recordCount}) → Replay(${processed.length}) → Jumps(${jumps.size}) → Prompt(${prompts.length}) → Output(${writeResult.written})`);
 	} finally {
 		for (const p of processed) {
 			p.replayer.dispose();
@@ -508,12 +623,80 @@ async function writeChunkFiles(inputPath: string, chunkPaths: string[], chunkSiz
 	}
 }
 
+interface IWorkerPartition {
+	readonly start: number;
+	readonly count: number;
+}
+
+interface IPipelineWorker extends IWorkerPartition {
+	readonly args: string[];
+	readonly resultPath: string;
+}
+
+function partitionWork(itemCount: number, parallelism: number): IWorkerPartition[] {
+	if (itemCount === 0) {
+		return [];
+	}
+
+	const workerCount = Math.max(1, Math.min(os.cpus().length, parallelism, Math.ceil(itemCount / 25)));
+	const chunkSize = Math.ceil(itemCount / workerCount);
+	const partitions: IWorkerPartition[] = [];
+	for (let start = 0; start < itemCount; start += chunkSize) {
+		partitions.push({ start, count: Math.min(chunkSize, itemCount - start) });
+	}
+	return partitions;
+}
+
+async function runPipelineWorkers(workers: readonly IPipelineWorker[], verbose: boolean, itemLabel: string): Promise<string> {
+	const startTime = Date.now();
+	await Promise.all(workers.map((worker, workerIndex) => new Promise<void>((resolve, reject) => {
+		const child = fork(process.argv[1], worker.args, { stdio: 'pipe' });
+		child.stdout?.on('data', verbose ? (data: Buffer) => {
+			for (const line of data.toString().split('\n').filter(line => line.trim())) {
+				console.log(`  [W${workerIndex}] ${line}`);
+			}
+		} : () => { });
+		child.stderr?.on('data', verbose ? (data: Buffer) => {
+			for (const line of data.toString().split('\n').filter(line => line.trim())) {
+				console.error(`  [W${workerIndex}] ${line}`);
+			}
+		} : () => { });
+		child.on('exit', code => {
+			if (code === 0) {
+				console.log(`  Worker ${workerIndex + 1}/${workers.length} completed (${worker.count} ${itemLabel})`);
+				resolve();
+			} else {
+				reject(new Error(`Worker ${workerIndex} exited with code ${code}`));
+			}
+		});
+		child.on('error', reject);
+	})));
+
+	const elapsed = formatElapsed(startTime);
+	console.log(`\n  All ${workers.length} workers completed in ${elapsed}`);
+	return elapsed;
+}
+
+async function mergeWorkerResults(workers: readonly IPipelineWorker[], outputPath: string) {
+	const allSamples: ISample[] = [];
+	for (const worker of workers) {
+		for await (const sample of streamJsonRecords<ISample>(worker.resultPath)) {
+			allSamples.push(sample);
+		}
+	}
+	return writeSamples(outputPath, allSamples);
+}
+
 /**
  * Run the pipeline in parallel by splitting input across N child processes.
  * Each child runs the single-process pipeline on its chunk independently.
  */
 export async function runInputPipelineParallel(opts: SimulationOptions): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.WorkspaceRecording) {
+		return runWorkspaceRecordingPipelineParallel(opts);
+	}
+
 	const inputPath = nesDatagenOpts.input;
 	const verbose = !!opts.verbose;
 
@@ -525,115 +708,127 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 		totalRecords++;
 	}
 
-	const numWorkers = Math.max(1, Math.min(os.cpus().length, opts.parallelism, Math.ceil(totalRecords / 25)));
+	const partitions = partitionWork(totalRecords, opts.parallelism);
+	const numWorkers = Math.max(1, partitions.length);
 
 	console.log(`\n=== Pipeline (parallel: ${numWorkers} workers) ===`);
-	console.log(`  Input: ${inputPath} (${totalRecords} rows)\n`);
+	console.log(`  Input: ${inputPath} (${totalRecords} rows)`);
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		console.log(`  Input format: continuous (pivot-strategy: ${nesDatagenOpts.pivotStrategy}, seed: ${nesDatagenOpts.seed})`);
+	}
+	console.log('');
 
 	if (totalRecords === 0) {
 		console.log(`  No records to process.`);
 		return;
 	}
 
-	const chunkSize = Math.ceil(totalRecords / numWorkers);
+	const chunkSize = partitions[0].count;
 	const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'nes-pipeline-'));
 
 	try {
-		const workers: { chunkPath: string; resultPath: string; start: number; count: number }[] = [];
-		for (let w = 0; w < numWorkers; w++) {
-			const start = w * chunkSize;
-			if (start >= totalRecords) {
-				break;
-			}
-			const end = Math.min(start + chunkSize, totalRecords);
-			workers.push({
-				chunkPath: path.join(tmpDir, `chunk_${w}.json`),
-				resultPath: path.join(tmpDir, `result_${w}.jsonl`),
-				start,
-				count: end - start,
-			});
-		}
+		const chunkWorkers = partitions.map((partition, workerIndex) => ({
+			...partition,
+			chunkPath: path.join(tmpDir, `chunk_${workerIndex}.json`),
+			resultPath: path.join(tmpDir, `result_${workerIndex}.jsonl`),
+		}));
 
 		// Distribute records into contiguous per-worker chunk files by streaming the
 		// input a second time, writing each chunk incrementally as a JSON array.
-		await writeChunkFiles(inputPath, workers.map(w => w.chunkPath), chunkSize);
+		await writeChunkFiles(inputPath, chunkWorkers.map(worker => worker.chunkPath), chunkSize);
 
-		const workerPromises: Promise<void>[] = [];
-		const resultPaths: string[] = [];
-
-		for (let w = 0; w < workers.length; w++) {
-			const { chunkPath, resultPath, start, count } = workers[w];
-			resultPaths.push(resultPath);
-
-			const args = [
+		const workers: IPipelineWorker[] = chunkWorkers.map(worker => ({
+			...worker,
+			args: [
 				'nes-datagen',
-				'--input', chunkPath,
+				'--input', worker.chunkPath,
 				'--config-file', opts.configFile!,
-				'--out', resultPath,
-				'--row-offset', String(start),
+				'--out', worker.resultPath,
+				'--row-offset', String(worker.start),
 				'--parallelism', String(opts.parallelism),
 				'--sample-task', nesDatagenOpts.sampleTask,
+				'--input-format', nesDatagenOpts.inputFormat,
+				'--pivot-strategy', nesDatagenOpts.pivotStrategy,
+				// Propagate the parent's resolved seed so every worker selects the
+				// same pivots it would in a single-process run (reproducibility).
+				'--seed', String(nesDatagenOpts.seed),
 				'--same-file-jump-min-above', String(nesDatagenOpts.sameFileJumpMinAbove),
 				'--same-file-jump-min-below', String(nesDatagenOpts.sameFileJumpMinBelow),
+				'--worker',
+			],
+		}));
+		if (verbose) {
+			for (const worker of workers) {
+				worker.args.push('--verbose');
+			}
+		}
+
+		const elapsed = await runPipelineWorkers(workers, verbose, 'rows');
+		const outputPath = resolveOutputPath(inputPath, nesDatagenOpts.output);
+		const writeResult = await mergeWorkerResults(workers, outputPath);
+		console.log(`  Output: ${writeResult.written} samples → ${writeResult.outputPath} (${elapsed})`);
+	} finally {
+		await fs.promises.rm(tmpDir, { recursive: true, force: true });
+	}
+}
+
+async function runWorkspaceRecordingPipelineParallel(opts: SimulationOptions): Promise<void> {
+	const nesDatagenOpts = opts.nesDatagen!;
+	const inputPath = nesDatagenOpts.input;
+	const verbose = !!opts.verbose;
+	const recording = await loadWorkspaceRecording(inputPath);
+	const maxSamples = getWorkspaceRecordingSampleCap(nesDatagenOpts);
+	const descriptors = selectWorkspaceRecordingSamples(recording, maxSamples);
+	const totalSamples = descriptors.length;
+	const partitions = partitionWork(totalSamples, opts.parallelism);
+	const numWorkers = Math.max(1, partitions.length);
+
+	console.log(`\n=== Pipeline (parallel: ${numWorkers} workers) ===`);
+	console.log(`  Input: ${inputPath} (${totalSamples} selected workspace-recording samples)`);
+	console.log(`  Input format: workspace-recording (max samples: ${maxSamples})`);
+	console.log('');
+
+	if (totalSamples === 0) {
+		console.log(`  No qualifying workspace-recording samples to process.`);
+		return;
+	}
+
+	const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'nes-workspace-recording-'));
+	await fs.promises.chmod(tmpDir, 0o700);
+
+	try {
+		const workers: IPipelineWorker[] = partitions.map((partition, workerIndex) => {
+			const pivotOperationIndices = descriptors
+				.slice(partition.start, partition.start + partition.count)
+				.map(descriptor => descriptor.pivotOperationIndex);
+			const args = [
+				'nes-datagen',
+				'--input', inputPath,
+				'--config-file', opts.configFile!,
+				'--out', path.join(tmpDir, `result_${workerIndex}.jsonl`),
+				'--row-offset', String(partition.start),
+				'--parallelism', String(Math.max(1, Math.floor(opts.parallelism / partitions.length))),
+				'--sample-task', nesDatagenOpts.sampleTask,
+				'--input-format', NesDatagenInputFormat.WorkspaceRecording,
+				'--same-file-jump-min-above', String(nesDatagenOpts.sameFileJumpMinAbove),
+				'--same-file-jump-min-below', String(nesDatagenOpts.sameFileJumpMinBelow),
+				'--max-samples-per-recording', String(maxSamples),
+				'--workspace-pivot-operation-indices', pivotOperationIndices.join(','),
 				'--worker',
 			];
 			if (verbose) {
 				args.push('--verbose');
 			}
+			return {
+				...partition,
+				resultPath: path.join(tmpDir, `result_${workerIndex}.jsonl`),
+				args,
+			};
+		});
 
-			const workerIdx = w;
-			workerPromises.push(new Promise<void>((resolve, reject) => {
-				const child = fork(process.argv[1], args, { stdio: 'pipe' });
-
-				// Always drain child output to prevent pipe buffer deadlocks
-				child.stdout?.on('data', verbose ? (data: Buffer) => {
-					const lines = data.toString().split('\n').filter(l => l.trim());
-					for (const line of lines) {
-						console.log(`  [W${workerIdx}] ${line}`);
-					}
-				} : () => { });
-				child.stderr?.on('data', verbose ? (data: Buffer) => {
-					const lines = data.toString().split('\n').filter(l => l.trim());
-					for (const line of lines) {
-						console.error(`  [W${workerIdx}] ${line}`);
-					}
-				} : () => { });
-
-				child.on('exit', (code) => {
-					if (code === 0) {
-						console.log(`  Worker ${workerIdx + 1}/${numWorkers} completed (${count} rows)`);
-						resolve();
-					} else {
-						reject(new Error(`Worker ${workerIdx} exited with code ${code}`));
-					}
-				});
-				child.on('error', reject);
-			}));
-		}
-
-		const startTime = Date.now();
-		await Promise.all(workerPromises);
-		const elapsed = formatElapsed(startTime);
-		console.log(`\n  All ${numWorkers} workers completed in ${elapsed}`);
-
-		// Merge results. Stream each worker's result file so a single large file
-		// (e.g. > 2 GiB / > V8 max-string-length) can be consumed without doing
-		// a whole-file readFile.
-		//
-		// A parse error mid-stream is fatal: by that point we have already
-		// pushed an unknown number of valid records from the failing file into
-		// `allSamples`, so swallowing the error would produce a silently
-		// truncated training-data file. Re-throw so the run exits non-zero and
-		// the user knows the output is incomplete.
-		const allSamples: ISample[] = [];
-		for (const resultPath of resultPaths) {
-			for await (const sample of streamJsonRecords<ISample>(resultPath)) {
-				allSamples.push(sample);
-			}
-		}
-
+		const elapsed = await runPipelineWorkers(workers, verbose, 'samples');
 		const outputPath = resolveOutputPath(inputPath, nesDatagenOpts.output);
-		const writeResult = await writeSamples(outputPath, allSamples);
+		const writeResult = await mergeWorkerResults(workers, outputPath);
 		console.log(`  Output: ${writeResult.written} samples → ${writeResult.outputPath} (${elapsed})`);
 	} finally {
 		await fs.promises.rm(tmpDir, { recursive: true, force: true });

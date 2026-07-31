@@ -36,18 +36,37 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		this._register(this._registerDynamicToolSet(toolsService, {
-			id: 'vscode-tasks',
-			referenceName: 'vscodeTasks',
-			icon: Codicon.tasklist,
-			description: localize('clientToolSet.tasks.description', "Tasks"),
-			detail: localize('clientToolSet.tasks.detail', "Create and run tasks defined in your workspace."),
-			members: [
-				'createAndRunTask',
-				'runTask',
-				'getTaskOutput',
-			],
-		}));
+		if (!workspaceService.isSessionsWindow) {
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-tasks',
+				referenceName: 'vscodeTasks',
+				icon: Codicon.tasklist,
+				description: localize('clientToolSet.tasks.description', "Tasks and Problems"),
+				detail: localize('clientToolSet.tasks.detail', "Create and run tasks and inspect workspace problems."),
+				members: [
+					'createAndRunTask',
+					'runTask',
+					'getTaskOutput',
+					'problems',
+				],
+			}));
+		}
+
+		if (workspaceService.isSessionsWindow) {
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-automations',
+				referenceName: 'vscodeAutomations',
+				icon: Codicon.watch,
+				description: localize('clientToolSet.automations.description', "Automations"),
+				detail: localize('clientToolSet.automations.detail', "List, configure, run, and delete scheduled agent automations."),
+				members: [
+					'listAutomations',
+					'configureAutomation',
+					'runAutomation',
+					'deleteAutomation',
+				],
+			}));
+		}
 
 		this._register(this._registerDynamicToolSet(toolsService, {
 			id: 'vscode-browser',
@@ -67,15 +86,9 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			members: [
 				'runTests',
 				'testFailure',
-				'problems',
 				'rename',
 				'usages',
-				'extensions',
-				'installExtension',
-				'newWorkspace',
-				'runCommand',
 				'toolSearch',
-				'vscodeAPI',
 			],
 		}));
 

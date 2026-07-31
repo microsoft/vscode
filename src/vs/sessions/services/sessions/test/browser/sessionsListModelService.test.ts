@@ -6,33 +6,27 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionsService } from '../../browser/sessionsService.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 
-// A date clearly after the UNREAD_DEFAULT_CUTOFF (2026-05-12) so sessions are
-// unread by default in tests, matching real post-launch behaviour.
-const AFTER_CUTOFF = new Date('2026-06-01T00:00:00.000Z');
-const BEFORE_CUTOFF = new Date('2026-05-01T00:00:00.000Z');
-
-function createSession(id: string, status: SessionStatus = SessionStatus.Completed, updatedAt: Date = AFTER_CUTOFF): ISession {
+function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date }): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
 		providerId: 'test',
 		sessionType: 'test',
 		icon: Codicon.account,
-		createdAt: new Date(),
+		createdAt: opts?.createdAt ?? new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
 		title: observableValue(`title-${id}`, id),
-		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
+		updatedAt: observableValue(`updatedAt-${id}`, opts?.updatedAt ?? new Date()),
 		status: observableValue(`status-${id}`, status),
 		changesets: observableValue(`changesets-${id}`, []),
 		changes: observableValue(`changes-${id}`, []),
@@ -45,7 +39,7 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: constObservable<IChat>(undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -54,18 +48,15 @@ suite('SessionsListModelService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
-	let activeSession: ISettableObservable<IActiveSession | undefined>;
 
 	setup(() => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
-		activeSession = observableValue('activeSession', undefined);
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
 			onDidChangeSessions: sessionsChangedEmitter.event,
 		});
-		instantiationService.stub(ISessionsService, { ...mock<ISessionsService>(), activeSession });
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
 
@@ -120,142 +111,32 @@ suite('SessionsListModelService', () => {
 		assert.strictEqual(service.isSessionPinned(s2), false);
 	});
 
-	// -- Read/Unread --
-
-	test('markRead marks session as read', () => {
-		const session = createSession('s1');
-		assert.strictEqual(service.isSessionRead(session), false);
-
-		service.markRead(session);
-
-		assert.strictEqual(service.isSessionRead(session), true);
-	});
-
-	test('markUnread marks session as unread', () => {
-		const session = createSession('s1');
-		service.markRead(session);
-
-		service.markUnread(session);
-
-		assert.strictEqual(service.isSessionRead(session), false);
-	});
-
-	test('markRead is idempotent', () => {
-		const session = createSession('s1');
-		let changeCount = 0;
-		disposables.add(service.onDidChange(() => changeCount++));
-
-		service.markRead(session);
-		service.markRead(session);
-
-		assert.strictEqual(changeCount, 1);
-	});
-
-	test('markUnread does not fire when already unread', () => {
-		const session = createSession('s1');
-		let changeCount = 0;
-		disposables.add(service.onDidChange(() => changeCount++));
-
-		service.markUnread(session);
-
-		assert.strictEqual(changeCount, 0);
-	});
-
-	// -- Cutoff date (pre-launch sessions default to read) --
-
-	test('session with updatedAt before cutoff is read by default without being in read set', () => {
-		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
-		assert.strictEqual(service.isSessionRead(session), true);
-	});
-
-	test('session with updatedAt after cutoff is unread by default', () => {
-		const session = createSession('s1', SessionStatus.Completed, AFTER_CUTOFF);
-		assert.strictEqual(service.isSessionRead(session), false);
-	});
-
-	test('markUnread on pre-cutoff session is a no-op', () => {
-		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
-		let changeCount = 0;
-		disposables.add(service.onDidChange(() => changeCount++));
-
-		service.markUnread(session);
-
-		assert.strictEqual(service.isSessionRead(session), true);
-		assert.strictEqual(changeCount, 0);
-	});
-
-	test('markRead on pre-cutoff session adds it to the read set and fires event', () => {
-		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
-		let changeCount = 0;
-		disposables.add(service.onDidChange(() => changeCount++));
-
-		service.markRead(session);
-
-		assert.strictEqual(service.isSessionRead(session), true);
-		assert.strictEqual(changeCount, 1);
-	});
-
-	test('pre-cutoff session becomes unread when updatedAt advances past cutoff', () => {
-		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
-		assert.strictEqual(service.isSessionRead(session), true);
-
-		(session.updatedAt as ISettableObservable<Date>).set(AFTER_CUTOFF, undefined);
-
-		assert.strictEqual(service.isSessionRead(session), false);
-	});
-
-	test('markAllRead marks multiple sessions as read', () => {
+	test('unpinSessions unpins multiple sessions and fires once', () => {
 		const s1 = createSession('s1');
 		const s2 = createSession('s2');
 		const s3 = createSession('s3');
-
-		service.markAllRead([s1, s2, s3]);
-
-		assert.strictEqual(service.isSessionRead(s1), true);
-		assert.strictEqual(service.isSessionRead(s2), true);
-		assert.strictEqual(service.isSessionRead(s3), true);
-	});
-
-	test('markAllRead does not fire when all already read', () => {
-		const s1 = createSession('s1');
-		service.markRead(s1);
-
+		service.pinSession(s1);
+		service.pinSession(s2);
 		let changeCount = 0;
 		disposables.add(service.onDidChange(() => changeCount++));
 
-		service.markAllRead([s1]);
+		service.unpinSessions([s1, s2, s3]);
 
-		assert.strictEqual(changeCount, 0);
+		assert.deepStrictEqual(
+			[service.isSessionPinned(s1), service.isSessionPinned(s2), changeCount],
+			[false, false, 1]
+		);
 	});
 
-	test('markAllRead fires once for multiple new reads', () => {
+	test('unpinSessions does not fire when none are pinned', () => {
 		const s1 = createSession('s1');
 		const s2 = createSession('s2');
-
 		let changeCount = 0;
 		disposables.add(service.onDidChange(() => changeCount++));
 
-		service.markAllRead([s1, s2]);
+		service.unpinSessions([s1, s2]);
 
-		assert.strictEqual(changeCount, 1);
-	});
-
-	// -- Independence --
-
-	test('read and pinned states are independent', () => {
-		const session = createSession('s1');
-
-		service.pinSession(session);
-		assert.strictEqual(service.isSessionPinned(session), true);
-		assert.strictEqual(service.isSessionRead(session), false);
-
-		service.markRead(session);
-		assert.strictEqual(service.isSessionPinned(session), true);
-		assert.strictEqual(service.isSessionRead(session), true);
-
-		service.unpinSession(session);
-		assert.strictEqual(service.isSessionPinned(session), false);
-		assert.strictEqual(service.isSessionRead(session), true);
+		assert.strictEqual(changeCount, 0);
 	});
 
 	// -- onDidChange --
@@ -267,32 +148,10 @@ suite('SessionsListModelService', () => {
 
 		service.pinSession(session);
 		service.unpinSession(session);
-		service.markRead(session);
-		service.markUnread(session);
 
 		assert.deepStrictEqual(events, [
 			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned }] },
 			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned }] },
-			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Read }] },
-			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Read }] },
-		]);
-	});
-
-	test('markAllRead fires single event with all sessions', () => {
-		const s1 = createSession('s1');
-		const s2 = createSession('s2');
-		const events: ISessionListModelChangeEvent[] = [];
-		disposables.add(service.onDidChange(e => events.push(e)));
-
-		service.markAllRead([s1, s2]);
-
-		assert.deepStrictEqual(events, [
-			{
-				changes: [
-					{ sessionId: 's1', kind: SessionListModelChangeKind.Read },
-					{ sessionId: 's2', kind: SessionListModelChangeKind.Read },
-				]
-			},
 		]);
 	});
 
@@ -301,7 +160,6 @@ suite('SessionsListModelService', () => {
 	test('cleans up state when session is removed', () => {
 		const session = createSession('s1');
 		service.pinSession(session);
-		service.markRead(session);
 
 		const events: ISessionListModelChangeEvent[] = [];
 		disposables.add(service.onDidChange(e => events.push(e)));
@@ -309,14 +167,8 @@ suite('SessionsListModelService', () => {
 		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
 
 		assert.strictEqual(service.isSessionPinned(session), false);
-		assert.strictEqual(service.isSessionRead(session), false);
 		assert.deepStrictEqual(events, [
-			{
-				changes: [
-					{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned },
-					{ sessionId: 's1', kind: SessionListModelChangeKind.Read },
-				]
-			},
+			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned }] },
 		]);
 	});
 
@@ -342,66 +194,6 @@ suite('SessionsListModelService', () => {
 		assert.strictEqual(service.isSessionPinned(s2), true);
 	});
 
-	test('marks session unread when it transitions from InProgress to Completed in background', () => {
-		const session = createSession('s1', SessionStatus.InProgress);
-		service.markRead(session);
-
-		// Seed the last-known status as InProgress
-		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
-		assert.strictEqual(service.isSessionRead(session), true);
-
-		// Turn completes while session is not active
-		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
-		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
-
-		assert.strictEqual(service.isSessionRead(session), false);
-	});
-
-	test('does not mark active session unread when it transitions from InProgress to Completed', () => {
-		const session = createSession('s1', SessionStatus.InProgress);
-		service.markRead(session);
-
-		// Make session the active one
-		activeSession.set({ ...session, activeChat: constObservable(session.mainChat.get()), isCreated: constObservable(true), sticky: constObservable(false), openChats: session.chats, closedChats: constObservable([]), visibleChatTabs: session.chats }, undefined);
-
-		// Seed the last-known status as InProgress
-		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
-
-		// Turn completes while session IS active
-		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
-		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
-
-		assert.strictEqual(service.isSessionRead(session), true);
-	});
-
-	test('marks session unread when it transitions from InProgress to NeedsInput in background', () => {
-		const session = createSession('s1', SessionStatus.InProgress);
-		service.markRead(session);
-
-		// Seed the last-known status as InProgress
-		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
-
-		// Session needs input while not active
-		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.NeedsInput, undefined);
-		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
-
-		assert.strictEqual(service.isSessionRead(session), false);
-	});
-
-	test('does not mark session unread when status does not change from InProgress', () => {
-		const session = createSession('s1');
-		service.markRead(session);
-
-		let changeCount = 0;
-		disposables.add(service.onDidChange(() => changeCount++));
-
-		// Session was Completed and stays Completed (e.g. title changed)
-		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
-
-		assert.strictEqual(service.isSessionRead(session), true);
-		assert.strictEqual(changeCount, 0);
-	});
-
 	// -- Storage persistence --
 
 	test('state is loaded from storage on construction', () => {
@@ -409,18 +201,14 @@ suite('SessionsListModelService', () => {
 
 		// Pre-populate storage
 		storageService.store('sessionsListControl.pinnedSessions', JSON.stringify(['s1']), StorageScope.PROFILE, StorageTarget.USER);
-		storageService.store('sessionsListControl.readSessions', JSON.stringify(['s2']), StorageScope.PROFILE, StorageTarget.USER);
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event });
-		instantiationService.stub(ISessionsService, { ...mock<ISessionsService>(), activeSession: constObservable(undefined) });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s2')), false);
-		assert.strictEqual(loadedService.isSessionRead(createSession('s2')), true);
-		assert.strictEqual(loadedService.isSessionRead(createSession('s1')), false);
 	});
 
 	test('corrupt storage data is handled gracefully', () => {
@@ -430,10 +218,101 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event });
-		instantiationService.stub(ISessionsService, { ...mock<ISessionsService>(), activeSession: constObservable(undefined) });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), false);
+	});
+
+	// -- Legacy read-state migration --
+
+	suite('migrateLegacyReadState', () => {
+
+		const LEGACY_KEY = 'sessionsListControl.readSessions';
+		// Fixed reference points relative to the migration's 2026-05-12 cutoff.
+		const PRE_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
+		const POST_CUTOFF = new Date('2026-06-01T00:00:00.000Z');
+
+		function createServiceWithLegacyRead(ids: string[] | undefined): { service: SessionsListModelService; storage: InMemoryStorageService; readMarks: string[]; unreadMarks: string[] } {
+			const storage = disposables.add(new InMemoryStorageService());
+			if (ids !== undefined) {
+				storage.store(LEGACY_KEY, JSON.stringify(ids), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const readMarks: string[] = [];
+			const unreadMarks: string[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, storage);
+			instantiationService.stub(ISessionsManagementService, {
+				...mock<ISessionsManagementService>(),
+				onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event,
+				markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
+				markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
+			});
+			const service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+			return { service, storage, readMarks, unreadMarks };
+		}
+
+		test('marks a session with a legacy read entry read', () => {
+			const { readMarks, unreadMarks, service } = createServiceWithLegacyRead(['s1']);
+			service.migrateLegacyReadState(createSession('s1', SessionStatus.Completed, { updatedAt: POST_CUTOFF }));
+
+			assert.deepStrictEqual({ readMarks, unreadMarks }, { readMarks: ['s1'], unreadMarks: [] });
+		});
+
+		test('marks a pre-cutoff session read even without a legacy read entry', () => {
+			const { readMarks, unreadMarks, service } = createServiceWithLegacyRead(undefined);
+			service.migrateLegacyReadState(createSession('old', SessionStatus.Completed, { updatedAt: PRE_CUTOFF }));
+
+			assert.deepStrictEqual({ readMarks, unreadMarks }, { readMarks: ['old'], unreadMarks: [] });
+		});
+
+		test('never marks a session unread (recent session without a legacy read entry is left alone)', () => {
+			const { readMarks, unreadMarks, service } = createServiceWithLegacyRead(['other']);
+			service.migrateLegacyReadState(createSession('s1', SessionStatus.Completed, { updatedAt: POST_CUTOFF }));
+
+			assert.deepStrictEqual({ readMarks, unreadMarks }, { readMarks: [], unreadMarks: [] });
+		});
+
+		test('is a no-op when there is no legacy read state and the session is recent', () => {
+			const { readMarks, unreadMarks, service } = createServiceWithLegacyRead(undefined);
+			service.migrateLegacyReadState(createSession('s1', SessionStatus.Completed, { updatedAt: POST_CUTOFF }));
+
+			assert.deepStrictEqual({ readMarks, unreadMarks }, { readMarks: [], unreadMarks: [] });
+		});
+
+		test('migrating the same read session twice marks it once', () => {
+			const { readMarks, unreadMarks, service } = createServiceWithLegacyRead(['s1']);
+			const session = createSession('s1', SessionStatus.Completed, { updatedAt: POST_CUTOFF });
+			service.migrateLegacyReadState(session);
+			service.migrateLegacyReadState(session);
+
+			assert.deepStrictEqual({ readMarks, unreadMarks }, { readMarks: ['s1'], unreadMarks: [] });
+		});
+
+		test('persists migrated read sessions so a fresh service does not re-mark them', () => {
+			const storage = disposables.add(new InMemoryStorageService());
+			storage.store(LEGACY_KEY, JSON.stringify(['s1']), StorageScope.PROFILE, StorageTarget.USER);
+			const readMarks: string[] = [];
+			const unreadMarks: string[] = [];
+			const makeService = () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ISessionsManagementService, {
+					...mock<ISessionsManagementService>(),
+					onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event,
+					markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
+					markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
+				});
+				return disposables.add(instantiationService.createInstance(SessionsListModelService));
+			};
+			const session = createSession('s1', SessionStatus.Completed, { updatedAt: POST_CUTOFF });
+
+			makeService().migrateLegacyReadState(session);
+			// A later launch reloads the persisted "done" set and must skip it,
+			// so a subsequent unread (e.g. a new turn) is not re-flipped to read.
+			makeService().migrateLegacyReadState(session);
+
+			assert.deepStrictEqual({ readMarks, unreadMarks }, { readMarks: ['s1'], unreadMarks: [] });
+		});
 	});
 });

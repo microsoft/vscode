@@ -27,7 +27,7 @@ import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServe
 import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions, WORKSPACE_FOLDER_CONFIG_ID_PREFIX } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
@@ -36,6 +36,23 @@ import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from '../../../../base/common/uriTemplate.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
+
+/**
+ * Prefix of the collection id used for MCP servers configured via the various
+ * `mcp.json`-style config files (user, remote user, workspace, and
+ * `.vscode/mcp.json` workspace-folder configs). The suffix is the
+ * {@link IMcpConfigPath.id} of the originating config path.
+ */
+export const MCP_CONFIGURATION_COLLECTION_ID_PREFIX = 'mcp.config.';
+
+/**
+ * Prefix of the collection id used for MCP servers discovered from folder-root
+ * `.mcp.json` files (Claude-style `{ "mcpServers": { ... } }`). The suffix is
+ * the workspace folder index. Kept here so the id built by
+ * `WorkspaceDotMcpDiscovery` and {@link McpCollectionDefinition.isWorkspaceDotMcpJson}
+ * stay in lockstep.
+ */
+export const WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX = 'workspace-dot-mcp.';
 
 export function extensionPrefixedIdentifier(identifier: ExtensionIdentifier, id: string): string {
 	return ExtensionIdentifier.toKey(identifier) + '/' + id;
@@ -118,6 +135,38 @@ export namespace McpCollectionDefinition {
 			&& a.label === b.label
 			&& a.trustBehavior === b.trustBehavior
 			&& objectsEqual(a.sandbox, b.sandbox);
+	}
+
+	/**
+	 * Returns `true` when the collection was discovered from the workspace (its
+	 * config target is the workspace or a workspace folder). This is
+	 * intentionally based on the config target and not the storage scope:
+	 * extension-contributed collections use a workspace storage scope but are
+	 * configured at the user level, so they are not workspace-discovered.
+	 */
+	export function isWorkspaceDiscovered(collection: McpCollectionDefinition): boolean {
+		return collection.configTarget === ConfigurationTarget.WORKSPACE
+			|| collection.configTarget === ConfigurationTarget.WORKSPACE_FOLDER;
+	}
+
+	/**
+	 * Returns `true` when the collection originates from a `.vscode/mcp.json`
+	 * workspace-folder config, identified by its collection id prefix (the
+	 * shared `mcp.config.` prefix plus the workspace-folder config id).
+	 */
+	export function isVscodeMcpJson(collection: McpCollectionDefinition): boolean {
+		return collection.id.startsWith(`${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}`);
+	}
+
+	/**
+	 * Returns `true` when the collection originates from a folder-root
+	 * `.mcp.json` file (Claude-style), identified by its collection id prefix.
+	 * Distinct from {@link isVscodeMcpJson} (`.vscode/mcp.json`) and from other
+	 * workspace-discovered sources such as `.cursor/mcp.json` or the
+	 * `.code-workspace` workspace-level config.
+	 */
+	export function isWorkspaceDotMcpJson(collection: McpCollectionDefinition): boolean {
+		return collection.id.startsWith(WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX);
 	}
 }
 

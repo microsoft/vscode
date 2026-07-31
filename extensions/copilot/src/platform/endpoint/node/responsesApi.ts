@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isGpt54, isGpt55, isHiddenModelM } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -45,14 +45,18 @@ export function getResponsesApiCompactionThreshold(configService: IConfiguration
 		: 50000;
 }
 
+export function getVerbosityForModelSyncBasedOnExp(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
+	return getVerbosityForModelSync(endpoint, configService.getExperimentBasedConfig(ConfigKey.EnableGpt56Verbosity, expService));
+}
+
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
-	const verbosity = getVerbosityForModelSync(endpoint);
+	const verbosity = getVerbosityForModelSyncBasedOnExp(configService, expService, endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
-	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options, model);
 	// When WebSocket is in use, always defer to the WebSocket marker (which may be
 	// undefined if the connection is new or the summary state changed). Never fall
 	// back to the HTTP marker lookup in that case.
@@ -123,13 +127,16 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
-
+	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
+	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
+	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
 		model,
 		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
+			supportsCacheBreakpoints,
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -142,6 +149,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		top_logprobs: options.postOptions.logprobs ? 3 : undefined,
 		store: false,
 		text: verbosity ? { verbosity } : undefined,
+		prompt_cache_options: modelSupportsCacheBreakpoints ? { mode: supportsCacheBreakpoints ? 'explicit' : 'implicit' } : undefined,
 	};
 
 	if (compactThreshold !== undefined) {
@@ -159,14 +167,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
-	const summary = 'off';
-	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
-		&& (isGpt54(endpoint) || isGpt55(endpoint) || isHiddenModelM(endpoint));
-	if (effort || summary || persistentCoTEnabled) {
+	const summary: string | undefined = undefined;
+	if (effort || summary) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
-			...(summary ? { summary } : {}),
-			...(persistentCoTEnabled ? { context: 'all_turns' } : {})
+			...(summary ? { summary } : {})
 		};
 	}
 
@@ -282,29 +287,31 @@ interface ResponseStreamEventWithResponseOutput {
 	};
 }
 
-function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, modelId: string): string | undefined {
 	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
 		return undefined;
 	}
 	const wsManager = accessor.get(IChatWebSocketManager);
+	const connectionKey = { conversationId: options.conversationId, modelId, connectionId: options.webSocketConnectionId };
 	// If client-side summarization state changed since the stateful marker
 	// was stored (new summary, or rollback removing a summary), the server's
 	// state no longer matches. Skip the marker so the full history is sent.
-	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(connectionKey);
 	if (options.summarizedAtRoundId !== connSummarizedAt) {
 		return undefined;
 	}
-	return wsManager.getStatefulMarker(options.conversationId);
+	return wsManager.getStatefulMarker(connectionKey);
 }
 
 interface RawMessagesToResponseAPIOptions {
 	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
 	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
 	readonly modeChanged?: boolean;
+	readonly supportsCacheBreakpoints?: boolean;
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
-	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -450,23 +457,24 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							.filter((c): c is RawDocumentContentPart => c.type === Raw.ChatCompletionContentPartKind.Document)
 							.map(rawDocumentToResponsesInputFile)
 							.filter(isDefined);
+						applyPromptCacheBreakpointsToToolMedia(message.content, asImages, asFiles, supportsCacheBreakpoints);
 
 						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
 						}
 						if (asFiles.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
 		}
 	}
@@ -567,6 +575,69 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 	}
 }
 
+interface ResponsesPromptCacheBreakpoint {
+	readonly mode: 'explicit';
+}
+
+type ResponsesCacheableContent = OpenAI.Responses.ResponseInputContent & {
+	prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint;
+};
+
+const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
+
+function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionContentPart[], supportsCacheBreakpoints: boolean): OpenAI.Responses.ResponseInputContent[] {
+	const content: ResponsesCacheableContent[] = [];
+	let target: ResponsesCacheableContent | undefined;
+	for (const part of parts) {
+		if (part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
+			if (supportsCacheBreakpoints && target) {
+				target.prompt_cache_breakpoint = promptCacheBreakpoint;
+			}
+			continue;
+		}
+
+		const converted = rawContentToResponsesContent(part);
+		if (converted) {
+			target = converted;
+			content.push(target);
+		} else {
+			target = undefined;
+		}
+	}
+	return content;
+}
+
+function applyPromptCacheBreakpointsToToolMedia(
+	parts: readonly Raw.ChatCompletionContentPart[],
+	images: OpenAI.Responses.ResponseInputImage[],
+	files: OpenAI.Responses.ResponseInputFile[],
+	supportsCacheBreakpoints: boolean,
+): void {
+	if (!supportsCacheBreakpoints) {
+		return;
+	}
+
+	let imageIndex = 0;
+	let fileIndex = 0;
+	let target: ResponsesCacheableContent | undefined;
+	for (const part of parts) {
+		switch (part.type) {
+			case Raw.ChatCompletionContentPartKind.Image:
+				target = images[imageIndex++];
+				break;
+			case Raw.ChatCompletionContentPartKind.Document:
+				target = part.documentData.mediaType === 'application/pdf' ? files[fileIndex++] : undefined;
+				break;
+			case Raw.ChatCompletionContentPartKind.CacheBreakpoint:
+				if (target) {
+					target.prompt_cache_breakpoint = promptCacheBreakpoint;
+				}
+				break;
+			default:
+				target = undefined;
+		}
+	}
+}
 /**
  * The Responses API rejects the entire request with
  * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
@@ -1113,7 +1184,16 @@ export class OpenAIResponsesProcessor {
 
 		switch (chunk.type) {
 			case 'error':
-				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				// Surface the error as a progress delta, but also produce a terminal
+				// completion so the request resolves to a meaningful server error
+				// instead of collapsing into the generic "Response contained no
+				// choices" fallback when the stream ends without a terminal event.
+				onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				return this.buildTerminalCompletion(
+					{ output: [] } as unknown as CapiResponseTerminalEvent['response'],
+					FinishedCompletionReason.ServerError,
+					{ error: mapResponsesApiError({ code: chunk.code, message: chunk.message } as OpenAI.Responses.ResponseError) }
+				);
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
 				// When text arrives from a new output item, emit a paragraph

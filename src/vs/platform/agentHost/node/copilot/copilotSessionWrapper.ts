@@ -43,6 +43,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMessage ??= this._sdkEvent('assistant.message');
 	}
 
+	private _onToolCallDelta: Event<SessionEventPayload<'assistant.tool_call_delta'>> | undefined;
+	get onToolCallDelta(): Event<SessionEventPayload<'assistant.tool_call_delta'>> {
+		return this._onToolCallDelta ??= this._sdkEvent('assistant.tool_call_delta');
+	}
+
 	private _onToolStart: Event<SessionEventPayload<'tool.execution_start'>> | undefined;
 	get onToolStart(): Event<SessionEventPayload<'tool.execution_start'>> {
 		return this._onToolStart ??= this._sdkEvent('tool.execution_start');
@@ -51,6 +56,16 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onToolComplete: Event<SessionEventPayload<'tool.execution_complete'>> | undefined;
 	get onToolComplete(): Event<SessionEventPayload<'tool.execution_complete'>> {
 		return this._onToolComplete ??= this._sdkEvent('tool.execution_complete');
+	}
+
+	private _onPermissionRequested: Event<SessionEventPayload<'permission.requested'>> | undefined;
+	get onPermissionRequested(): Event<SessionEventPayload<'permission.requested'>> {
+		return this._onPermissionRequested ??= this._sdkEvent('permission.requested');
+	}
+
+	private _onPermissionCompleted: Event<SessionEventPayload<'permission.completed'>> | undefined;
+	get onPermissionCompleted(): Event<SessionEventPayload<'permission.completed'>> {
+		return this._onPermissionCompleted ??= this._sdkEvent('permission.completed');
 	}
 
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
@@ -86,6 +101,21 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onSessionModelChange: Event<SessionEventPayload<'session.model_change'>> | undefined;
 	get onSessionModelChange(): Event<SessionEventPayload<'session.model_change'>> {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');
+	}
+
+	private _onAutoModeResolved: Event<SessionEventPayload<'session.auto_mode_resolved'>> | undefined;
+	get onAutoModeResolved(): Event<SessionEventPayload<'session.auto_mode_resolved'>> {
+		return this._onAutoModeResolved ??= this._sdkEvent('session.auto_mode_resolved');
+	}
+
+	private _onManagedSettingsResolved: Event<SessionEventPayload<'session.managed_settings_resolved'>> | undefined;
+	get onManagedSettingsResolved(): Event<SessionEventPayload<'session.managed_settings_resolved'>> {
+		return this._onManagedSettingsResolved ??= this._sdkEvent('session.managed_settings_resolved');
+	}
+
+	private _onManagedSettingsEnforced: Event<SessionEventPayload<'session.managed_settings_enforced'>> | undefined;
+	get onManagedSettingsEnforced(): Event<SessionEventPayload<'session.managed_settings_enforced'>> {
+		return this._onManagedSettingsEnforced ??= this._sdkEvent('session.managed_settings_enforced');
 	}
 
 	private _onSessionHandoff: Event<SessionEventPayload<'session.handoff'>> | undefined;

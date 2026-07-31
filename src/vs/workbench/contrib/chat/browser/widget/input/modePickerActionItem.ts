@@ -40,6 +40,8 @@ export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
 	readonly currentChatModes: IObservable<IChatModes>;
 	readonly sessionResource: () => URI | undefined;
+	/** Direct mode-change callback for hosts without a registered IChatWidget (bypasses ToggleAgentModeActionId). */
+	readonly setMode?: (mode: IChatMode) => void;
 	/**
 	 * When set, the mode picker will show custom agents whose target matches this value.
 	 * Custom agents without a target are always shown in all session types. If no agents match the target, shows a default "Agent" option.
@@ -135,6 +137,20 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				run: async () => {
 					if (isDisabledViaPolicy) {
 						return; // Block interaction if disabled by policy
+					}
+					// Session-less hosts (e.g. the automations dialog) provide
+					// `setMode` and a `sessionResource` that returns undefined.
+					// Skip the command path because it requires a registered
+					// `IChatWidget`. Route the change to the host directly so the
+					// input's mode observable is actually updated. Real chat
+					// widgets always have a session URI. They always take the
+					// command path (telemetry, confirmation, new-chat-on-clear).
+					if (this.delegate.setMode && !this.delegate.sessionResource()) {
+						this.delegate.setMode(mode);
+						if (this.element) {
+							this.renderLabel(this.element);
+						}
+						return;
 					}
 					const result = await commandService.executeCommand(
 						ToggleAgentModeActionId,
@@ -302,7 +318,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 }
 
-function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
+export function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
 	if (mode.isBuiltin) {
 		return true;
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SessionEvent } from '@github/copilot-sdk';
+import type { Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent } from '@github/copilot-sdk';
 
 // =============================================================================
 // Minimal session-event shapes for tests
@@ -19,12 +19,15 @@ export interface ISessionEventToolStart {
 	type: 'tool.execution_start';
 	/** Envelope-level sub-agent instance id; resolved to the parent tool call id via `subagent.started`. */
 	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
 	data: {
 		toolCallId: string;
 		toolName: string;
 		arguments?: unknown;
 		mcpServerName?: string;
 		mcpToolName?: string;
+		toolDescription?: unknown;
 		/** @deprecated Use the envelope-level {@link ISessionEventToolStart.agentId} instead. */
 		parentToolCallId?: string;
 	};
@@ -34,13 +37,22 @@ export interface ISessionEventToolComplete {
 	type: 'tool.execution_complete';
 	/** Envelope-level sub-agent instance id. See {@link ISessionEventToolStart.agentId}. */
 	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
 	data: {
 		toolCallId: string;
 		success: boolean;
-		result?: { content?: string };
+		result?: {
+			/** `content` is result text; `contents` are typed SDK result blocks such as `shell_exit`. */
+			content?: string;
+			contents?: ToolExecutionCompleteContent[];
+		};
 		error?: { message: string; code?: string };
 		isUserRequested?: boolean;
 		toolTelemetry?: unknown;
+		mcpServerName?: string;
+		mcpToolName?: string;
+		toolDescription?: unknown;
 		/** @deprecated Use the envelope-level {@link ISessionEventToolComplete.agentId} instead. */
 		parentToolCallId?: string;
 	};
@@ -52,11 +64,13 @@ export interface ISessionEventMessage {
 	id?: string;
 	/** Envelope-level sub-agent instance id. See {@link ISessionEventToolStart.agentId}. */
 	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
 	data: {
 		messageId?: string;
 		interactionId?: string;
 		content?: string;
-		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom' }[];
+		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolDescription?: unknown }[];
 		reasoningOpaque?: string;
 		reasoningText?: string;
 		encryptedContent?: string;
@@ -102,6 +116,25 @@ export interface ISessionEventAbort {
 	};
 }
 
+export interface ISessionEventAssistantTurn {
+	type: 'assistant.turn_start' | 'assistant.turn_end';
+	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
+	data: {
+		turnId: string;
+		interactionId?: string;
+	};
+}
+
+export interface ISessionEventSystemNotification {
+	type: 'system.notification';
+	id?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
+	data: SessionEventPayload<'system.notification'>['data'];
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -110,14 +143,16 @@ export type ISessionEvent =
 	| ISessionEventSubagentStarted
 	| ISessionEventSkillInvoked
 	| ISessionEventAbort
-	| { type: string; data?: unknown };
+	| ISessionEventAssistantTurn
+	| ISessionEventSystemNotification
+	| { type: string; timestamp?: string; data?: unknown };
 
 /**
  * Widens ergonomic {@link ISessionEvent} test fixtures to the real SDK
  * {@link SessionEvent} union so they can be fed to the production
  * `mapSessionEvents`. The test shapes deliberately omit envelope fields the
- * mapper ignores (`parentId`, `timestamp`, …), so this is a safe deliberate
- * widening rather than a representation of real SDK events.
+ * mapper ignores (`parentId`, …), so this is a safe deliberate widening
+ * rather than a representation of real SDK events.
  */
 export function toSessionEvents(events: readonly ISessionEvent[]): SessionEvent[] {
 	return events as unknown as SessionEvent[];

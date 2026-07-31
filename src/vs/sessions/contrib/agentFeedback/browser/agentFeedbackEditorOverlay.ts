@@ -35,7 +35,7 @@ class SubmitFeedbackActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 		const editorToClose = action.id === submitFeedbackActionId ? this._editorGroup.activeEditor : undefined;
 		const didSubmit = await action.run(context);
-		if (didSubmit === true && editorToClose && this._editorGroup.contains(editorToClose)) {
+		if (didSubmit === true && editorToClose) {
 			await this._editorGroup.closeEditor(editorToClose);
 		}
 	}
@@ -225,6 +225,7 @@ class AgentFeedbackOverlayController {
 			group.onDidModelChange,
 			agentFeedbackService.onDidChangeFeedback,
 			agentFeedbackService.onDidChangeNavigation,
+			agentFeedbackService.onDidChangeFeedbackScope,
 		));
 
 		this._store.add(autorun(r => {
@@ -234,7 +235,7 @@ class AgentFeedbackOverlayController {
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
 			for (const candidate of candidates) {
-				const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
+				const sessionResource = agentFeedbackService.getFeedbackSessionResource(candidate);
 				if (!sessionResource) {
 					continue;
 				}

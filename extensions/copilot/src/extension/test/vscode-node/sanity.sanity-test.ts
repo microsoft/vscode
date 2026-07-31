@@ -89,7 +89,7 @@ suite('Copilot Chat Sanity Test', function () {
 		});
 	});
 
-	test.skip('E2E Production Panel Chat Test', async function () {
+	test('E2E Production Panel Chat Test', async function () {
 		assert.ok(realInstaAccessor, 'Instantiation service accessor is not available');
 
 		await realInstaAccessor.invokeFunction(async (accessor) => {
@@ -120,7 +120,7 @@ suite('Copilot Chat Sanity Test', function () {
 	 * Runs tools outside of a real chat session which is unusual but lets us spy more
 	 * Uses an empty window with no folder open
 	 */
-	test.skip('E2E Production agent mode', async function () {
+	test('E2E Production agent mode', async function () {
 		assert.ok(realInstaAccessor, 'Instantiation service accessor is not available');
 
 		await realInstaAccessor.invokeFunction(async (accessor) => {
@@ -187,7 +187,7 @@ suite('Copilot Chat Sanity Test', function () {
 		});
 	});
 
-	test.skip('Slash Commands work properly', async function () {
+	test('Slash Commands work properly', async function () {
 		assert.ok(realInstaAccessor);
 
 		await realInstaAccessor.invokeFunction(async (accessor) => {

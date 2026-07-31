@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAlternativeAction } from '../../../src/extension/inlineEdits/node/nextEditProviderTelemetry';
 import { Edits } from '../../../src/platform/inlineEdits/common/dataTypes/edit';
 import { LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
 import { StringEdit, StringReplacement } from '../../../src/util/vs/editor/common/core/edits/stringEdit';
@@ -22,21 +21,53 @@ export namespace Processor {
 	}
 
 	/**
-	 * Split a recording at its NES request bookmark and resolve the active
-	 * document at that moment. Exposed so callers (in particular nes-datagen
-	 * cursor-jump detectors) can reason about what the user did *after* the request
-	 * without re-implementing the same splitting logic that
-	 * {@link createScoringForAlternativeAction} performs internally.
+	 * Split a recording at a pivot time (the NES request bookmark for
+	 * per-request recordings, or a synthesized pivot for continuous ones) and
+	 * resolve the active document at that moment. Exposed so callers (in
+	 * particular nes-datagen cursor-jump detectors and the continuous-recording
+	 * path) can reason about what the user did *after* the pivot without
+	 * re-implementing the same splitting logic that {@link createScoring}
+	 * performs internally.
 	 *
-	 * Returns `undefined` if the recording cannot be split (missing
-	 * `requestTime`, empty entries, no resolvable active document, etc.).
+	 * `requestTime` is the pivot: entries with `time <= requestTime` form the
+	 * prior portion, the rest form the post-request portion.
+	 *
+	 * Returns `undefined` if the recording cannot be split (empty entries, pivot
+	 * before all entries, no resolvable active document, etc.).
 	 */
-	export function splitRecording(altAction: IAlternativeAction): ISplitRecording | undefined {
-		const processedRecording = splitRecordingAtRequestTime(altAction);
+	export function splitRecording(entries: LogEntry[], requestTime: number): ISplitRecording | undefined {
+		const processedRecording = splitRecordingAtRequestTime(entries, requestTime);
 		if (!processedRecording) {
 			return undefined;
 		}
 
+		return resolveSplitRecording(processedRecording);
+	}
+
+	/**
+	 * Split a recording after the entry at `pivotEntryIndex`.
+	 *
+	 * Unlike {@link splitRecording}, this does not rely on timestamps being
+	 * monotonic or unique. Raw workspace recordings use this path because their
+	 * stateful log order is authoritative while framing timestamps can regress.
+	 */
+	export function splitRecordingAtIndex(entries: LogEntry[], pivotEntryIndex: number): ISplitRecording | undefined {
+		if (pivotEntryIndex < 0 || pivotEntryIndex >= entries.length) {
+			return undefined;
+		}
+
+		return resolveSplitRecording({
+			wholeRecording: entries,
+			recordingPriorToRequest: entries.slice(0, pivotEntryIndex + 1),
+			recordingAfterRequest: entries.slice(pivotEntryIndex + 1),
+		});
+	}
+
+	function resolveSplitRecording(processedRecording: {
+		wholeRecording: LogEntry[];
+		recordingPriorToRequest: LogEntry[];
+		recordingAfterRequest: LogEntry[];
+	}): ISplitRecording | undefined {
 		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
 		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
 		if (currentFileId === undefined) {
@@ -61,46 +92,42 @@ export namespace Processor {
 		};
 	}
 
-	export function createScoringForAlternativeAction(
-		altAction: IAlternativeAction,
+	export function createScoring(
+		entries: LogEntry[],
+		requestTime: number,
 		proposedEdits: IStringReplacement[],
 		isAccepted: boolean,
 	): Scoring.t | undefined {
 
-		const processedRecording = splitRecordingAtRequestTime(altAction);
+		const processedRecording = splitRecordingAtRequestTime(entries, requestTime);
 		if (!processedRecording) {
 			log('Could not split recording at request time');
 			return undefined;
 		}
 
-		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
-
-		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
-		if (currentFileId === undefined) {
-			log('Could not determine current file ID from recording prior to request');
+		const split = resolveSplitRecording(processedRecording);
+		if (!split) {
+			log('Could not resolve recording split');
 			return undefined;
 		}
 
-		const idToFileMap = documentIndexMapping(wholeRecording);
+		return createScoringFromSplit(split, proposedEdits, isAccepted);
+	}
 
-		const currentFilePath = idToFileMap.get(currentFileId);
-
-		if (!currentFilePath) {
-			log('Could not find current file path from ID mapping');
-			return undefined;
-		}
-
-		const currentFile = { id: currentFileId, relativePath: currentFilePath };
-
-		const nextUserEdit = getNextUserEdit(currentFile, recordingPriorToRequest, recordingAfterRequest);
+	export function createScoringFromSplit(
+		split: ISplitRecording,
+		proposedEdits: IStringReplacement[],
+		isAccepted: boolean,
+	): Scoring.t {
+		const nextUserEdit = getNextUserEdit(split.currentFile, split.recordingPriorToRequest, split.recordingAfterRequest);
 
 		const reconstructedRecording: Recording.t = {
-			log: recordingPriorToRequest,
+			log: split.recordingPriorToRequest,
 			nextUserEdit,
 		};
 
 		const nesEdits = proposedEdits.map((se): SuggestedEdit.t => ({
-			documentUri: currentFile.relativePath,
+			documentUri: split.currentFile.relativePath,
 			edit: [se],
 			score: isAccepted ? 1 : 0,
 			scoreCategory: 'nextEdit',
@@ -111,24 +138,17 @@ export namespace Processor {
 		return scoring;
 	}
 
-	function splitRecordingAtRequestTime(altAction: IAlternativeAction): {
+	function splitRecordingAtRequestTime(entries: LogEntry[], requestTime: number): {
 		wholeRecording: LogEntry[];
 		recordingPriorToRequest: LogEntry[];
 		recordingAfterRequest: LogEntry[];
 	} | undefined {
 
-		if (!altAction.recording) {
+		if (!entries || entries.length === 0) {
 			return undefined;
 		}
 
-		const recording = altAction.recording.entries;
-		if (!recording || recording.length === 0) {
-			return undefined;
-		}
-
-		const requestTime = altAction.recording.requestTime;
-
-		const recordingIdxOfRequestTime = binarySearch(recording, (entry: LogEntry) => {
+		const recordingIdxOfRequestTime = binarySearch(entries, (entry: LogEntry) => {
 			if (entry.kind === 'meta') {
 				return -1;
 			} else {
@@ -141,11 +161,11 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const recordingPriorToRequest = recording.slice(0, recordingIdxOfRequestTime + 1);
-		const recordingAfterRequest = recording.slice(recordingIdxOfRequestTime + 1);
+		const recordingPriorToRequest = entries.slice(0, recordingIdxOfRequestTime + 1);
+		const recordingAfterRequest = entries.slice(recordingIdxOfRequestTime + 1);
 
 		return {
-			wholeRecording: recording,
+			wholeRecording: entries,
 			recordingPriorToRequest,
 			recordingAfterRequest
 		};

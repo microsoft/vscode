@@ -8,6 +8,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -19,6 +20,7 @@ import { AICustomizationSource, AICustomizationSources } from '../../../common/a
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
 import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { localize } from '../../../../../../nls.js';
@@ -42,6 +44,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	constructor(
 		private readonly _connectionAuthority: string,
 		private readonly _getItemActions: ((customization: PluginCustomization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
+		private readonly _resolveSyncedOrigin: ((syncedUri: URI) => ISyncedCustomizationOrigin | undefined) | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
@@ -159,7 +162,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
-		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		const folders: ICustomizationSourceFolder[] = [];
 		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
@@ -169,7 +172,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (toPromptsType(customization.contents) !== type) {
 				continue;
 			}
-			const source = workingDirectory && customization.uri.startsWith(workingDirectory + '/') ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = isUnderAnyRoot(workingDirectories, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			folders.push({
 				uri: this.toRemoteUri(customization.uri),
 				label: customization.name,
@@ -268,9 +271,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		for (let i = 0; i < plugins.length; i++) {
 			const p = plugins[i];
 			for (const child of expansions[i]) {
+				// Files flattened into the synthetic bundle lost their original
+				// provenance; recover it (extension/plugin/built-in and source
+				// location) so the item reflects where it actually came from.
+				const enriched = p.isBundleItem ? this._applySyncedOrigin(child) : child;
 				// Children inherit the parent plugin's status/enabled state.
-				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${child.type}::${child.name}`, {
-					...child,
+				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${enriched.type}::${enriched.name}`, {
+					...enriched,
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
@@ -278,10 +285,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
-		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = workingDirectory && isParentOrEqual(workingDirectory, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			const isRemote = sessionCustomization.clientId !== undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
@@ -293,6 +300,28 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 		return [...items.values()];
+	}
+
+	/**
+	 * Rewrites a bundle child item to reflect the original source location of
+	 * the flattened file, when it can be recovered from the synthetic bundle's
+	 * reverse map. The synced (in-memory) URI is replaced with the real local
+	 * URI so the item points at its true origin, and the source/extension/plugin
+	 * metadata is restored. Returns the item unchanged when no origin is known.
+	 */
+	private _applySyncedOrigin(child: ICustomizationItem): ICustomizationItem {
+		const origin = this._resolveSyncedOrigin?.(child.uri);
+		if (!origin) {
+			return child;
+		}
+		return {
+			...child,
+			uri: origin.uri,
+			source: origin.source,
+			extensionId: origin.extensionId,
+			pluginUri: origin.pluginUri,
+			groupKey: origin.source === AICustomizationSources.user ? child.groupKey : undefined,
+		};
 	}
 
 	/**
@@ -311,7 +340,16 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 }
 function isParentOrEqual(folderURI: string, childURI: string): boolean {
-	return childURI === folderURI || childURI.startsWith(folderURI + '/');
+	try {
+		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(childURI), URI.parse(folderURI));
+	} catch {
+		return childURI === folderURI || childURI.startsWith(folderURI + '/');
+	}
+}
+
+/** True when `childURI` is contained by (or equal to) any of the workspace roots. */
+function isUnderAnyRoot(roots: readonly string[], childURI: string): boolean {
+	return roots.some(root => isParentOrEqual(root, childURI));
 }
 
 function toStatusString(load: CustomizationLoadState | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {

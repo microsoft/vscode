@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, shouldAnimateArchiveAction, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -34,6 +35,7 @@ function createSession(id: string, opts: {
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		} : undefined),
+		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
@@ -48,13 +50,27 @@ function createSession(id: string, opts: {
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: observableValue<IChat>(`mainChat-${id}`, undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
 suite('Sessions - SessionsList Helpers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('animates only a single-session inline archive action with motion enabled', () => {
+		assert.deepStrictEqual({
+			singleArchive: shouldAnimateArchiveAction(ARCHIVE_SESSION_COMMAND_ID, 1, false),
+			multiArchive: shouldAnimateArchiveAction(ARCHIVE_SESSION_COMMAND_ID, 2, false),
+			reducedMotion: shouldAnimateArchiveAction(ARCHIVE_SESSION_COMMAND_ID, 1, true),
+			otherAction: shouldAnimateArchiveAction('sessionsViewPane.pinSession', 1, false),
+		}, {
+			singleArchive: true,
+			multiArchive: false,
+			reducedMotion: false,
+			otherAction: false,
+		});
+	});
 
 	suite('groupByWorkspace', () => {
 
@@ -324,6 +340,54 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) })), [
 				{ id: 'pinned', sessions: ['first', 'second'] },
 			]);
+		});
+
+		test('workspace-less sessions form a Chats section directly below Pinned (above groups)', () => {
+			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-03') });
+			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
+			const archived = createSession('archived', { workspaceLabel: 'Gamma', isArchived: true, createdAt: new Date('2024-05-01') });
+			const sections = groupSessionsForList(
+				[pinned, quick, regular, archived],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
+				{ id: 'pinned', sessions: ['pinned'] },
+				{ id: 'quickchats', sessions: ['quick'] },
+				{ id: 'workspace:Beta', sessions: ['regular'] },
+				{ id: 'archived', sessions: ['archived'] },
+			]);
+		});
+
+		test('pinned quick chat stays in Pinned, not Quick Chats', () => {
+			const quick = createSession('quick', { createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[quick],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+			);
+
+			assert.deepStrictEqual(sections.map(section => section.id), ['pinned']);
+		});
+
+		test('Chats section sits directly below Pinned when grouping by date', () => {
+			const pinned = createSession('pinned', { createdAt: new Date('2024-06-03') });
+			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[pinned, quick, regular],
+				SessionsGrouping.Date,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.strictEqual(sections[0].id, 'pinned');
+			assert.strictEqual(sections[1].id, 'quickchats');
+			assert.deepStrictEqual(sections[1].sessions.map(s => s.sessionId), ['quick']);
 		});
 	});
 

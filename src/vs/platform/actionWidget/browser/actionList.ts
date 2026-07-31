@@ -27,6 +27,7 @@ import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
+import { Link } from '../../opener/browser/link.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
@@ -492,6 +493,22 @@ function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undef
 }
 
 /**
+ * A "Learn more" style link rendered inline in the action list header banner.
+ */
+export interface IActionListHeaderLink {
+	/** Visible link text (e.g. "Learn more"). Should be localized. */
+	readonly label: string;
+	/** Target opened via the opener service when the link is activated. */
+	readonly uri: URI;
+}
+
+export interface IActionListCloseAnimation {
+	readonly className: string;
+	readonly duration: number;
+	readonly requiredAncestorClasses?: readonly string[];
+}
+
+/**
  * Options for configuring the action list.
  */
 export interface IActionListOptions {
@@ -600,10 +617,27 @@ export interface IActionListOptions {
 	 */
 	readonly headerIcon?: ThemeIcon;
 
+	/** Optional "Learn more" link rendered inline after {@link headerText}, opened via the opener service. */
+	readonly headerLink?: IActionListHeaderLink;
+
+	/** Optional dismiss ("x") button on the header banner; invoked on click, and the banner is removed. */
+	readonly headerDismiss?: () => void;
+
 	/**
 	 * Optional CSS class name added to the action list container, for scoped styling.
 	 */
 	readonly className?: string;
+
+	/**
+	 * Optional CSS class and duration used to animate the containing action widget
+	 * before the context view is hidden.
+	 */
+	readonly closeAnimation?: IActionListCloseAnimation;
+
+	/**
+	 * Optional fixed side of the anchor where the action list should render.
+	 */
+	readonly anchorPosition?: AnchorPosition;
 }
 
 /**
@@ -634,12 +668,13 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
+	private _imeSessionInProgress = false;
 	private _suppressHover = false;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private readonly _footerContainer: HTMLElement | undefined;
-	private readonly _headerContainer: HTMLElement | undefined;
+	private _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -691,6 +726,10 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseleave', () => {
 			this._scheduleSubmenuHide();
+		}));
+		// A panel scheduled while crossing a row must not pop up after the pointer has left.
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, () => {
+			this._cancelSubmenuShow();
 		}));
 		this._register(toDisposable(() => {
 			this._cancelSubmenuHide();
@@ -807,10 +846,34 @@ export class ActionListWidget<T> extends Disposable {
 					filterActionBar.push(filterActions, { icon: true, label: false });
 				}
 
-				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
-					this._filterText = this._filterInput!.value;
+				// While an IME composition is running the input holds intermediate text (e.g. pinyin)
+				// which must not drive the filter: re-filtering splices the list, re-highlights a row and
+				// re-layouts the popup, all of which disrupt the composition and the IME candidate window.
+				// Filter once the composition commits instead.
+				const onFilterValueChanged = () => {
+					const value = this._filterInput!.value;
+					// `compositionend` and the `input` event that follows it both land here (and browsers
+					// disagree on their order), so only filter when the text actually changed.
+					if (this._imeSessionInProgress || value === this._filterText) {
+						return;
+					}
+					this._filterText = value;
 					this._applyOrUpdateFilter();
+				};
+
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
+					this._imeSessionInProgress = true;
+					// A dynamic filter request issued for the previous value can still be in flight.
+					// Letting it resolve now would splice and re-layout the list underneath the IME
+					// candidate window - the very disruption this guard exists to prevent. The
+					// committed value starts a fresh request from `compositionend`.
+					this._filterCts.value?.cancel();
 				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionend', () => {
+					this._imeSessionInProgress = false;
+					onFilterValueChanged();
+				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'input', onFilterValueChanged));
 			}
 
 			if (this._options?.secondaryHeading) {
@@ -838,6 +901,44 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
 			text.textContent = this._options.headerText;
+
+			// The banner is chrome, not an item: pointing at it dismisses a row's hover panel.
+			this._register(dom.addDisposableListener(this._headerContainer, dom.EventType.MOUSE_ENTER, () => this._hideSubmenu()));
+
+			if (this._options.headerLink) {
+				const { label, uri } = this._options.headerLink;
+				// Trailing space so the link reads as a continuation of the banner text.
+				text.textContent += ' ';
+				this._register(this._instantiationService.createInstance(Link, text, { label, href: uri.toString(true) }, {}));
+			}
+
+			if (this._options.headerDismiss) {
+				const onDismiss = this._options.headerDismiss;
+				const dismissButton = dom.append(this._headerContainer, dom.$('span.action-list-header-dismiss'));
+				dismissButton.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.close)));
+				dismissButton.tabIndex = 0;
+				dismissButton.setAttribute('role', 'button');
+				dismissButton.setAttribute('aria-label', localize('actionList.header.dismiss', "Dismiss"));
+				const dismiss = () => {
+					onDismiss();
+					// Refocus the widget first so removing the focused button doesn't trip close-on-blur.
+					this.focus();
+					this._headerContainer?.remove();
+					// Drop the reference so the banner no longer reserves header height, then
+					// request a re-layout so the popup shrinks to fit the remaining content.
+					this._headerContainer = undefined;
+					this._onDidRequestLayout.fire();
+				};
+				// Generic mouse-up maps to pointer events on iOS, so tap/pen activation
+				// works without extra gesture plumbing (raw 'click' is unreliable there).
+				this._register(dom.addDisposableGenericMouseUpListener(dismissButton, () => dismiss()));
+				this._register(dom.addDisposableListener(dismissButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						dismiss();
+					}
+				}));
+			}
 		}
 
 		this._applyFilter();
@@ -848,7 +949,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		// ArrowRight opens submenu for the focused item and moves focus into it
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowRight') {
+			if (e.key === 'ArrowRight' && !e.isComposing) {
 				const focused = this._list.getFocus();
 				if (focused.length > 0) {
 					const element = this._list.element(focused[0]);
@@ -869,7 +970,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._filterInput) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
 				if (this._filterInput && !dom.isActiveElement(this._filterInput)
-					&& e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+					&& !e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
 					this._filterInput.focus();
 					this._filterInput.value = e.key;
 					this._filterText = e.key;
@@ -1103,6 +1204,10 @@ export class ActionListWidget<T> extends Disposable {
 		return this._filterInput;
 	}
 
+	get closeAnimation(): IActionListCloseAnimation | undefined {
+		return this._options?.closeAnimation;
+	}
+
 	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
@@ -1318,16 +1423,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			this._list.layout(allItemsHeight);
 
-			const itemWidths: number[] = [];
-			for (let i = 0; i < allItems.length; i++) {
-				const element = this._getRowElement(i);
-				if (element) {
-					element.style.width = 'auto';
-					const width = element.getBoundingClientRect().width;
-					element.style.width = '';
-					itemWidths.push(width + this._computeToolbarWidth(allItems[i]));
-				}
-			}
+			const itemWidths = this._measureItemWidths(allItems);
 
 			maxWidth = clamp(Math.max(...itemWidths));
 
@@ -1337,16 +1433,11 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		// All items are visible, measure them directly
-		const itemWidths: number[] = [];
+		const visibleItems: IActionListItem<T>[] = [];
 		for (let i = 0; i < visibleCount; i++) {
-			const element = this._getRowElement(i);
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
-			}
+			visibleItems.push(this._list.element(i));
 		}
+		const itemWidths = this._measureItemWidths(visibleItems);
 		return clamp(Math.max(...itemWidths));
 	}
 
@@ -1537,6 +1628,25 @@ export class ActionListWidget<T> extends Disposable {
 			if (item.kind === ActionListItemKind.Action && item.group?.title && !seenTitles.has(item.group.title)) {
 				seenTitles.add(item.group.title);
 				this._groupTitleByIndex.set(i, item.group.title);
+			}
+		}
+	}
+
+	private _measureItemWidths(items: readonly IActionListItem<T>[]): number[] {
+		const rows: { element: HTMLElement; item: IActionListItem<T> }[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const element = this._getRowElement(i);
+			if (element) {
+				element.style.width = 'auto';
+				rows.push({ element, item: items[i] });
+			}
+		}
+
+		try {
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+		} finally {
+			for (const { element } of rows) {
+				element.style.width = '';
 			}
 		}
 	}
@@ -1939,6 +2049,7 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
+	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -1960,11 +2071,18 @@ export class ActionList<T> extends Disposable {
 		return this._widget.filterInput;
 	}
 
+	get closeAnimation(): IActionListCloseAnimation | undefined {
+		return this._widget.closeAnimation;
+	}
+
 	/**
 	 * Returns the resolved anchor position after the first layout.
 	 * Used by the context view delegate to lock the dropdown direction.
 	 */
 	get anchorPosition(): AnchorPosition | undefined {
+		if (this._preferredAnchorPosition !== undefined) {
+			return this._preferredAnchorPosition;
+		}
 		if (this._showAbove === undefined) {
 			return undefined;
 		}
@@ -1985,6 +2103,7 @@ export class ActionList<T> extends Disposable {
 	) {
 		super();
 		this._anchor = anchor;
+		this._preferredAnchorPosition = options?.anchorPosition;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,
@@ -2008,9 +2127,11 @@ export class ActionList<T> extends Disposable {
 		this._widget.focus();
 	}
 
-	hide(didCancel?: boolean): void {
+	hide(didCancel?: boolean, hideContextView = true): void {
 		this._widget.hide(didCancel);
-		this._contextViewService.hideContextView();
+		if (hideContextView) {
+			this._contextViewService.hideContextView();
+		}
 	}
 
 	clearFilter(): boolean {
@@ -2074,7 +2195,7 @@ export class ActionList<T> extends Disposable {
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
-		if (this.hasDynamicHeight()) {
+		if (this.hasDynamicHeight() || this._preferredAnchorPosition !== undefined) {
 			const viewportHeight = targetWindow.innerHeight;
 			const anchorRect = getAnchorRect(this._anchor);
 			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
@@ -2086,8 +2207,9 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
-				const fullHeight = chromeHeight + this._widget.computeFullHeight();
-				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
+				this._showAbove = this._preferredAnchorPosition !== undefined
+					? this._preferredAnchorPosition === AnchorPosition.ABOVE
+					: (chromeHeight + this._widget.computeFullHeight() > spaceBelow && spaceAbove > spaceBelow);
 			}
 			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
@@ -2099,6 +2221,11 @@ export class ActionList<T> extends Disposable {
 
 		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
+		if (this._preferredAnchorPosition !== undefined) {
+			const maxHeight = Math.min(availableHeight, viewportMaxHeight);
+			const height = Math.min(listHeight + chromeHeight, Math.max(0, maxHeight));
+			return Math.max(0, height - chromeHeight);
+		}
 		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + chromeHeight), viewportMaxHeight);
 		const height = Math.min(listHeight + chromeHeight, maxHeight);
 		return height - chromeHeight;

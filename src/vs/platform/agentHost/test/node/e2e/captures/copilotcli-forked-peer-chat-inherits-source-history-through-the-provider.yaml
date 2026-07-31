@@ -1,0 +1,25 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word FORKCODE. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word FORKCODE. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: What code word did I ask you to remember? Reply with only the code word.
+    response:
+      content: FORKCODE
+      stopReason: end_turn

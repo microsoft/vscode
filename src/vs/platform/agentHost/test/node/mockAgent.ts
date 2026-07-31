@@ -9,12 +9,13 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -38,6 +39,7 @@ interface IMockSendMessageCall {
 	readonly attachments?: readonly MessageAttachment[];
 	readonly chat?: URI;
 	readonly senderClientId?: string;
+	readonly clientType?: AgentHostClientType;
 }
 
 /**
@@ -59,8 +61,9 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
-	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
+	readonly setPendingMessagesCalls: { chat: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
+	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
@@ -70,7 +73,7 @@ export class MockAgent implements IAgent {
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
 	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
-	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
+	readonly truncateSessionCalls: { session: URI; turnId: string | undefined; chat: URI | undefined }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
@@ -84,6 +87,8 @@ export class MockAgent implements IAgent {
 	 * subagent turns via {@link buildSubagentTurnsFromHistory}.
 	 */
 	sessionMessages: IHistoryRecord[] = [];
+	/** Usage stamped onto every reconstructed turn (e.g. an Auto-model stub). */
+	turnUsageOverride: UsageInfo | undefined = undefined;
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -119,11 +124,17 @@ export class MockAgent implements IAgent {
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
+	/**
+	 * When set, {@link sendMessage} rejects with this error after recording the
+	 * call — used to simulate a failed first-turn materialization (e.g. worktree
+	 * or branch setup throwing).
+	 */
+	sendMessageError: Error | undefined;
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
-		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
+		return { session, project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -134,17 +145,32 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
-		const call = { session, prompt, attachments, chat, ...(senderClientId ? { senderClientId } : {}) };
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		const call = {
+			session,
+			prompt,
+			attachments,
+			chat,
+			...(senderClientId ? { senderClientId } : {}),
+			...(clientType !== AgentHostClientType.Unknown ? { clientType } : {}),
+		};
 		this.sendMessageCalls.push(call);
 		this._onDidSendMessage.fire(call);
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
+		if (this.sendMessageError) {
+			throw this.sendMessageError;
+		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
-		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
+		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages });
+	}
+
+	readonly onSessionConfigChangedCalls: { session: URI; values: Record<string, unknown> }[] = [];
+	onSessionConfigChanged(session: URI, values: Record<string, unknown>): void {
+		this.onSessionConfigChangedCalls.push({ session, values });
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -152,7 +178,11 @@ export class MockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this.sessionMessages, subagentInfo.toolCallId, session.toString());
 		}
-		return buildTurnsFromHistory(this.sessionMessages);
+		const turns = buildTurnsFromHistory(this.sessionMessages);
+		if (this.turnUsageOverride) {
+			return turns.map(turn => ({ ...turn, usage: this.turnUsageOverride }));
+		}
+		return turns;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -160,8 +190,18 @@ export class MockAgent implements IAgent {
 		this._sessions.delete(AgentSession.id(session));
 	}
 
+	async releaseSession(session: URI): Promise<void> {
+		// Non-destructive: record the call but keep the session in the catalog
+		// so a later restore/resume still finds its durable data.
+		this.releaseSessionCalls.push(session);
+	}
+
 	async abortSession(session: URI): Promise<void> {
 		this.abortSessionCalls.push(session);
+	}
+
+	async truncateSession(session: URI, turnId?: string, chat?: URI): Promise<void> {
+		this.truncateSessionCalls.push({ session, turnId, chat });
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
@@ -179,6 +219,63 @@ export class MockAgent implements IAgent {
 	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
 		this.changeAgentCalls.push({ session, agent, chat });
 	}
+
+	/**
+	 * Create an additional (peer) chat. The base mock is single-chat and
+	 * rejects; multi-chat test subclasses override this.
+	 */
+	async createChat(_session: URI, _chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+		throw new Error(`Agent ${this.id} does not support multiple chats`);
+	}
+
+	/** Dispose an additional (peer) chat. Overridden by multi-chat subclasses. */
+	async disposeChat(_session: URI, _chat: URI): Promise<void> { }
+
+	/**
+	 * Map an already-resolved chat URI to the `(session, chat)` pair the
+	 * mock records calls against (mirroring the real agents).
+	 */
+	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`Mock agent chat operation requires an AHP chat URI: ${chat.toString()}`);
+		}
+		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+	}
+
+	readonly chats: IAgentChats = {
+		createChat: (chatUri: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.createChat(session, chat, options);
+		},
+		fork: (chatUri: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.createChat(session, chat, { ...options, fork: source });
+		},
+		disposeChat: (chatUri: URI): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.disposeChat(session, chat);
+		},
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
+		},
+		abort: (chat: URI): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
+			return this.abortSession(session);
+		},
+		changeModel: (chatUri: URI, model: ModelSelection): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.changeModel(session, model, chat);
+		},
+		changeAgent: (chatUri: URI, agent: AgentSelection | undefined): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.changeAgent(session, agent, chat);
+		},
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
+		},
+	};
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
 		this.authenticateCalls.push({ resource, token });
@@ -206,10 +303,6 @@ export class MockAgent implements IAgent {
 			},
 		});
 		return results;
-	}
-
-	setCustomizationEnabled(id: string, enabled: boolean): void {
-		this.setCustomizationEnabledCalls.push({ id, enabled });
 	}
 
 	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
@@ -743,11 +836,11 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
 			timeout(20).then(() => {
-				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(session.toString()) ? session : URI.parse(buildDefaultChatUri(session)), id: steeringMessage.id });
+				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(chat.toString()) ? chat : URI.parse(buildDefaultChatUri(chat)), id: steeringMessage.id });
 			});
 		}
 	}
@@ -766,10 +859,6 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	removeActiveClient(): void { }
-
-	setCustomizationEnabled() {
-
-	}
 
 	private didCompleteToolCalls = new Set<string>();
 
@@ -798,7 +887,11 @@ export class ScriptedMockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this._preExistingMessages, subagentInfo.toolCallId, session.toString());
 		}
-		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
+		// Restore addresses the default chat by its channel URI; normalize it
+		// back to the session URI (mirroring the real agents' getSessionMessages).
+		const parsed = parseChatUri(session);
+		const normalized = parsed && buildDefaultChatUri(parsed.session) === session.toString() ? URI.parse(parsed.session) : session;
+		if (normalized.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
 		return [];
@@ -819,6 +912,49 @@ export class ScriptedMockAgent implements IAgent {
 	async changeModel(_session: URI, _model: ModelSelection): Promise<void> {
 		// Mock agent doesn't track model state
 	}
+
+	/**
+	 * Map an already-resolved chat URI to the `(session, chat)` pair the
+	 * scripted mock's per-chat context is keyed by.
+	 */
+	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`Scripted mock chat operation requires an AHP chat URI: ${chat.toString()}`);
+		}
+		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+	}
+
+	readonly chats: IAgentChats = {
+		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Scripted mock agent does not support multiple chats');
+		},
+		fork: (_chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Scripted mock agent does not support chat forking');
+		},
+		disposeChat: (_chat: URI): Promise<void> => {
+			return Promise.resolve();
+		},
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.sendMessage(session, chat, prompt, attachments, turnId);
+		},
+		abort: (chat: URI): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
+			return this.abortSession(session);
+		},
+		changeModel: (chat: URI, model: ModelSelection): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
+			return this.changeModel(session, model);
+		},
+		changeAgent: (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => {
+			// Scripted mock does not track agent selection.
+			return Promise.resolve();
+		},
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
+		},
+	};
 
 	async truncateSession(_session: URI, _turnId?: string): Promise<void> {
 		// Mock agent accepts truncation without side effects
@@ -902,12 +1038,12 @@ function _reasoning(session: URI, sessionStr: string, turnId: string, content: s
 
 /** Creates a {@link ActionType.ChatTurnComplete} signal. */
 function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatTurnComplete, turnId });
+	return _action(session, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
 }
 
 /** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatError, turnId, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, error: { errorType, message, stack } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */

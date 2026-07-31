@@ -9,6 +9,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /**
@@ -23,7 +24,7 @@ export interface ISessionGroup {
 	readonly id: string;
 	/** User-provided display name. */
 	readonly name: string;
-	/** Creation timestamp (ms). Used to evict the oldest empty group and as the default order (newest first). */
+	/** Creation timestamp (ms). Used as the default order (newest first). */
 	readonly createdAt: number;
 }
 
@@ -39,10 +40,8 @@ export interface ISessionGroupsChangeEvent {
  * groups. State is purely local (persisted to profile storage) and not synced
  * to providers.
  *
- * A session belongs to at most one group. Group membership is independent of
- * where the session renders: a grouped session that becomes pinned or archived
- * is rendered in the Pinned/Done section but retains its membership, so it
- * returns to the group once unpinned/restored.
+ * A session belongs to at most one group. Pinned sessions retain their
+ * membership, while archiving a session removes it from its group.
  */
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;
@@ -51,8 +50,7 @@ export interface ISessionGroupsService {
 	readonly onDidChange: Event<ISessionGroupsChangeEvent>;
 
 	/**
-	 * All groups in display order (including currently-empty ones). The list
-	 * view omits groups with no visible members when rendering.
+	 * All groups in display order, including currently-empty ones.
 	 */
 	getGroups(): ISessionGroup[];
 
@@ -73,6 +71,12 @@ export interface ISessionGroupsService {
 
 	/** Add a session to a group (removing it from any previous group). */
 	addToGroup(sessionId: string, groupId: string): void;
+
+	/**
+	 * Add multiple sessions to a group at once (removing them from any previous
+	 * group), firing a single change event.
+	 */
+	addToGroup(sessionIds: Iterable<string>, groupId: string): void;
 
 	/** Remove a session from its group, if any. */
 	removeFromGroup(sessionId: string): void;
@@ -106,12 +110,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 	private static readonly STORAGE_KEY = 'sessionsListControl.groups';
 
-	/**
-	 * Maximum number of empty groups (no members) retained in storage. When a
-	 * new empty group would exceed this, the oldest empty group is evicted.
-	 */
-	private static readonly MAX_EMPTY_GROUPS = 3;
-
 	private readonly _onDidChange = this._register(new Emitter<ISessionGroupsChangeEvent>());
 	readonly onDidChange: Event<ISessionGroupsChangeEvent> = this._onDidChange.event;
 
@@ -143,11 +141,13 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		super();
 
 		this.load();
+		const archivedMembershipChanged = new Set<string>();
+		this.removeArchivedMembership(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
+		if (archivedMembershipChanged.size > 0) {
+			this.save();
+		}
 
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
-			if (e.removed.length === 0) {
-				return;
-			}
 			const changed = new Set<string>();
 			for (const session of e.removed) {
 				this._inFlightSessionGroups.delete(session.sessionId);
@@ -155,11 +155,16 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 					changed.add(session.sessionId);
 				}
 			}
+			this.removeArchivedMembership(e.added, changed);
+			this.removeArchivedMembership(e.changed, changed);
 			if (changed.size > 0) {
-				const evicted = this.evictExcessEmptyGroups();
 				this.save();
-				this._onDidChange.fire({ groupsChanged: evicted, membershipChanged: changed });
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 			}
+		}));
+
+		this._register(this.sessionsManagementService.onDidArchiveSession(session => {
+			this.removeFromGroup(session.sessionId);
 		}));
 
 		// Lock the pending group onto the specific draft at send-dispatch, before
@@ -224,7 +229,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			}
 		}
 
-		this.evictExcessEmptyGroups();
 		this.save();
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged });
 		return group;
@@ -263,24 +267,28 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged });
 	}
 
-	addToGroup(sessionId: string, groupId: string): void {
-		if (!this._groups.has(groupId) || this._membership.get(sessionId) === groupId) {
+	addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string): void {
+		if (!this._groups.has(groupId)) {
 			return;
 		}
+		const sessionIds = typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds;
 		const membershipChanged = new Set<string>();
-		this.setMembership(sessionId, groupId, membershipChanged);
-		const evicted = this.evictExcessEmptyGroups();
+		for (const sessionId of sessionIds) {
+			this.setMembership(sessionId, groupId, membershipChanged);
+		}
+		if (membershipChanged.size === 0) {
+			return;
+		}
 		this.save();
-		this._onDidChange.fire({ groupsChanged: evicted, membershipChanged });
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged });
 	}
 
 	removeFromGroup(sessionId: string): void {
 		if (!this._membership.delete(sessionId)) {
 			return;
 		}
-		const evicted = this.evictExcessEmptyGroups();
 		this.save();
-		this._onDidChange.fire({ groupsChanged: evicted, membershipChanged: new Set([sessionId]) });
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
 	}
 
 	getGroupOfSession(sessionId: string): string | undefined {
@@ -310,30 +318,12 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 	}
 
-	private hasMembers(groupId: string): boolean {
-		for (const gid of this._membership.values()) {
-			if (gid === groupId) {
-				return true;
+	private removeArchivedMembership(sessions: readonly ISession[], changed: Set<string>): void {
+		for (const session of sessions) {
+			if (session.isArchived.get() && this._membership.delete(session.sessionId)) {
+				changed.add(session.sessionId);
 			}
 		}
-		return false;
-	}
-
-	/**
-	 * Keep at most {@link MAX_EMPTY_GROUPS} groups with no members, evicting the
-	 * oldest empty groups (by `createdAt`) beyond that cap. Returns whether any
-	 * group was deleted.
-	 */
-	private evictExcessEmptyGroups(): boolean {
-		const empty = [...this._groups.values()]
-			.filter(group => !this.hasMembers(group.id))
-			.sort((a, b) => a.createdAt - b.createdAt);
-		let deleted = false;
-		for (let i = 0; i < empty.length - SessionGroupsService.MAX_EMPTY_GROUPS; i++) {
-			this._groups.delete(empty[i].id);
-			deleted = true;
-		}
-		return deleted;
 	}
 
 	/**

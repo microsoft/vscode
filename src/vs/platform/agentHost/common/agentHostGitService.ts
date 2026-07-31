@@ -17,6 +17,19 @@ import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
 
 /**
+ * Resolves the Branch Changes base-branch **name** from its two sources, in
+ * precedence order: the agent-persisted {@link META_DIFF_BASE_BRANCH} metadata
+ * value, then the session git state's detected base branch. Returns `undefined`
+ * when neither is available (callers then anchor the diff at `HEAD`).
+ *
+ * Shared by {@link IAgentHostChangesetService} and the review service so both
+ * pick the same base branch.
+ */
+export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
+	return persistedBaseBranch ?? sessionGitStateBaseBranch;
+}
+
+/**
  * The well-known SHA-1 of git's empty tree, used as a fallback when a
  * repository has no commits (no `HEAD` to read into the temp index).
  */
@@ -37,6 +50,20 @@ export interface IComputeSessionFileDiffsOptions {
 	 * which surfaces uncommitted work but no committed-on-branch work.
 	 */
 	readonly baseBranch?: string;
+}
+
+/** Cheap repository facts used to decide whether a branch diff is safe to compute. */
+export interface IBranchDiffSafetyInfo {
+	readonly hasVirtualFileSystem: boolean;
+	readonly baselineCommitTimestamp: number | undefined;
+	readonly commitCount: number | undefined;
+	readonly workspaceFileCount: number;
+}
+
+/** A bounded unified-diff result. */
+export interface IDiffPatchResult {
+	readonly patch: string | undefined;
+	readonly tooLarge: boolean;
 }
 
 /** Options for {@link IAgentHostGitService.push}. */
@@ -64,14 +91,87 @@ export interface IPullOptions {
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
+export interface IRefQuery {
+	readonly count?: number;
+	readonly pattern?: string | string[];
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
+}
+
+export type Branch = IBranch | IRemoteBranch;
+export type GitRef = IBranch | IRemoteBranch | ITag;
+
+export const enum GitRefType {
+	Head,
+	RemoteHead,
+	DetachedHead,
+	Tag
+}
+
+export interface IBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly upstream?: {
+		readonly ref: string;
+		readonly name: string;
+		readonly remote: string;
+	};
+	readonly kind: GitRefType.Head;
+}
+
+export interface IRemoteBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly remote: string;
+	readonly kind: GitRefType.RemoteHead;
+}
+
+export interface ITag {
+	readonly ref: string;
+	readonly name: string;
+	readonly kind: GitRefType.Tag;
+}
+
+export interface IDetachedHead {
+	readonly name: string;
+	readonly kind: GitRefType.DetachedHead;
+}
+
+export interface IDefaultBranch {
+	readonly name: string;
+	readonly startPoint: string;
+}
+
+/** How far along a worktree file operation is, in files. */
+export interface IWorktreeFileProgress {
+	readonly filesDone: number;
+	readonly filesTotal: number;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
-	getDefaultBranch(workingDirectory: URI): Promise<string | undefined>;
-	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;
+	getCurrentBranchName?(workingDirectory: URI): Promise<string | undefined>;
+	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
+	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
+	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
+	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
-	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
+	/**
+	 * Creates a worktree for a new branch. `onProgress` receives every checkout
+	 * sample git reports, which can be several per second, so consumers are
+	 * expected to round and rate limit for their own presentation. It may also
+	 * never be called (fast checkouts and git versions that stay silent), so it
+	 * MUST be treated as best-effort.
+	 */
+	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track: boolean, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	/**
+	 * Copies the git-ignored files matching `globs` into the worktree.
+	 * `onProgress` counts the individual files covered, but only fires as whole
+	 * entries finish — a wholly-ignored directory such as `node_modules` is
+	 * copied as one recursive unit, so its files all land in a single step.
+	 */
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
@@ -142,6 +242,10 @@ export interface IAgentHostGitService {
 	 * so the UI always reflects current branch/remote/change state.
 	 */
 	getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined>;
+	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
+	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns repo-relative untracked file paths. */
+	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 
 	/**
 	 * Computes per-file diffs for the session by shelling out to `git
@@ -162,11 +266,23 @@ export interface IAgentHostGitService {
 	computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined>;
 
 	/**
-	 * Reads a single git blob via `git show <sha>:<repoRelativePath>` from
+	 * Resolves the commit-ish the **Branch Changes** baseline is measured from:
+	 * the merge-base of `HEAD` and `baseBranch` (preferring the
+	 * `origin/<baseBranch>` remote-tracking ref when it exists), falling back to
+	 * `HEAD`, then to the empty-tree object for a repo with no commits. Returns
+	 * `undefined` only when {@link workingDirectory} is not a git work tree.
+	 *
+	 * Shared by {@link computeSessionFileDiffs} (which anchors the Branch Changes
+	 * diff here) and the review service, so both agree on the exact baseline.
+	 */
+	resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined>;
+
+	/**
+	 * Reads a single git blob via `git show <ref>:<repoRelativePath>` from
 	 * the given working directory. Returns `undefined` when the blob does
 	 * not exist or the directory is not a git work tree.
 	 */
-	showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
+	showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
 
 	// ---- Checkpoint plumbing (used by IAgentHostCheckpointService) -------
 
@@ -203,6 +319,28 @@ export interface IAgentHostGitService {
 	revParse(repositoryRoot: URI, expression: string): Promise<string | undefined>;
 
 	/**
+	 * Builds a new tree from `baseTreeOid` in which the single repo-relative
+	 * `path` is replaced by its content (blob + mode) from `sourceTreeOid`, or
+	 * removed when the path is absent in `sourceTreeOid`. All other paths are
+	 * copied verbatim from `baseTreeOid`. Uses a throwaway `GIT_INDEX_FILE` so
+	 * the user's real index is untouched. Returns the new tree OID, or
+	 * `undefined` on git failure.
+	 *
+	 * File-level building block for review (see `IAgentHostReviewService`): to
+	 * mark a file reviewed, overlay it from the working-tree snapshot tree; to
+	 * unmark, overlay it from the baseline tree.
+	 */
+	overlayPathIntoTree(repositoryRoot: URI, baseTreeOid: string, path: string, sourceTreeOid: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the repo-relative paths that differ between two tree-ish (commit
+	 * or tree) objects via `git diff --name-only --no-renames -z`. Rename
+	 * detection is off so a rename shows as delete(old) + add(new). Returns
+	 * `undefined` on git failure (e.g. not a git work tree).
+	 */
+	diffTreePaths(repositoryRoot: URI, fromTreeish: string, toTreeish: string): Promise<string[] | undefined>;
+
+	/**
 	 * Computes per-file diffs between two refs (typically two consecutive
 	 * checkpoint refs) by shelling out to
 	 * `git diff --raw --numstat --diff-filter=ADMR -z <fromRef> <toRef>`.
@@ -216,24 +354,28 @@ export interface IAgentHostGitService {
 	 * terminal-tool edits the FileEditTracker pipeline misses.
 	 */
 	computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined>;
+	/** Reads bounded facts needed before computing an expensive branch diff. */
+	getBranchDiffSafetyInfo(workingDirectory: URI, baselineCommit: string): Promise<IBranchDiffSafetyInfo | undefined>;
+	/** Computes a unified patch for paths between immutable tree-ish values. */
+	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<IDiffPatchResult | undefined>;
 }
 
-function getCommonBranchPriority(branch: string): number {
-	if (branch === 'main') {
+function getBranchPriority(branch: string, currentBranch: string | undefined, defaultBranch: string | undefined): number {
+	if (branch === currentBranch) {
 		return 0;
 	}
-	if (branch === 'master') {
+	if (branch === defaultBranch) {
 		return 1;
 	}
 	return 2;
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly query?: string; readonly limit?: number }): string[] {
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
 	const normalizedQuery = options?.query?.toLowerCase();
 	const filtered = normalizedQuery
 		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
 		: [...branches];
 
-	filtered.sort((a, b) => getCommonBranchPriority(a) - getCommonBranchPriority(b));
+	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 	return options?.limit ? filtered.slice(0, options.limit) : filtered;
 }

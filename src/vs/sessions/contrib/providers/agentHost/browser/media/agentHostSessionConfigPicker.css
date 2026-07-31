@@ -16,3 +16,21 @@
 .sessions-chat-agent-host-config a.action-label {
 	touch-action: manipulation;
 }
+
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox .action-label {
+	cursor: pointer;
+}
+
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox .monaco-checkbox {
+	margin-right: 6px;
+}
+
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox .sessions-chat-dropdown-label {
+	margin-left: 0;
+	cursor: pointer;
+}
+
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox.disabled .action-label,
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox.disabled .sessions-chat-dropdown-label {
+	cursor: default;
+}

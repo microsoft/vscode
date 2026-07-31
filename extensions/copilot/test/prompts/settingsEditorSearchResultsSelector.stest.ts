@@ -169,8 +169,14 @@ ssuite({ title: 'settingsEditorSearchResultsSelector', location: 'external' }, (
 			},
 			{
 				'key': 'terminal.integrated.accessibleViewPreserveCursorPosition',
-				'type': 'boolean',
-				'markdownDescription': `Preserve the cursor position on reopen of the terminal's accessible view rather than setting it to the bottom of the buffer.`
+				'type': 'boolean | string',
+				'markdownDescription': `Controls whether the cursor position is preserved in the terminal's accessible view.`,
+				'enum': [false, true, 'always'],
+				'enumDescriptions': [
+					'Always position the cursor at the bottom of the buffer.',
+					'Preserve the cursor position on reopen until new terminal content arrives.',
+					'Always preserve the cursor position, including when new terminal content arrives.'
+				]
 			},
 			{
 				'key': 'notebook.find.filters',

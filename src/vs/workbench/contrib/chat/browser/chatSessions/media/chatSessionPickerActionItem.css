@@ -28,6 +28,10 @@
 		text-overflow: ellipsis;
 	}
 
+	.codicon + .chat-session-option-label {
+		margin-left: 6px;
+	}
+
 	span.codicon {
 		font-size: 12px;
 		margin-left: 2px;

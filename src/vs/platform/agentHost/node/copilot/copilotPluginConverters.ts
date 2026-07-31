@@ -131,27 +131,41 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 			const content = await fileService.readFile(agent.uri);
 			const raw = content.value.toString();
 			const md = parseFrontMatter(raw);
-			// Match `parseAgentFile`'s name derivation (trim + falsy fallback) so
-			// the SDK config name equals the `resolvedAgentName` resolved from the
-			// parsed plugin agent; otherwise a whitespace-padded frontmatter `name`
-			// would make the SDK reject the session-start `agent:` as not found.
-			const name = md?.getStringValue('name')?.trim() || agent.name;
-			const description = md?.getStringValue('description');
-			const tools = md?.getStringArrayValue('tools');
-			const prompt = md?.body ?? raw;
-			let model: string | undefined = md?.getStringValue('model') ?? undefined;
-			const models = md?.getStringArrayValue('model') ?? undefined;
-			if (!model && models && Array.isArray(models) && models.length > 0) {
-				model = models[0];
+			if (!md) {
+				configs.push({
+					name: agent.name,
+					prompt: raw,
+				});
+			} else {
+				// Match `parseAgentFile`'s name derivation (trim + falsy fallback) so
+				// the SDK config name equals the `resolvedAgentName` resolved from the
+				// parsed plugin agent; otherwise a whitespace-padded frontmatter `name`
+				// would make the SDK reject the session-start `agent:` as not found.
+				const name = md.getStringValue('name')?.trim() || agent.name;
+				const description = md.getStringValue('description');
+				const tools = md.getStringArrayValue('tools');
+				const skills = md.getStringArrayValue('skills');
+				let infer = md.getBooleanValue('infer');
+				const disableModelInvocation = md.getBooleanValue('disable-model-invocation');
+				if (infer === undefined && disableModelInvocation === true) {
+					infer = false;
+				}
+				const prompt = md.body ?? raw;
+				let model: string | undefined = md.getStringValue('model') ?? undefined;
+				const models = md.getStringArrayValue('model') ?? undefined;
+				if (!model && models && Array.isArray(models) && models.length > 0) {
+					model = models[0];
+				}
+				configs.push({
+					name,
+					...(description ? { description } : {}),
+					...(model ? { model } : {}),
+					tools: tools && tools.length > 0 ? tools : null,
+					...(skills !== undefined ? { skills } : {}),
+					...(infer !== undefined ? { infer } : {}),
+					prompt,
+				});
 			}
-
-			configs.push({
-				name,
-				...(description ? { description } : {}),
-				...(model ? { model } : {}),
-				tools: tools && tools.length > 0 ? tools : null,
-				prompt,
-			});
 		} catch {
 			// Skip agents whose file cannot be read
 		}
@@ -491,6 +505,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 	// We serialize only the essential fields, replacing URIs with strings.
 	const serialize = (plugins: readonly IParsedPlugin[]) => {
 		return JSON.stringify(plugins.map(p => ({
+			format: p.format,
 			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration })),
 			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),

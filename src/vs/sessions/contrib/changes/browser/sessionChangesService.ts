@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../nls.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 
 export const ISessionChangesService = createDecorator<ISessionChangesService>('sessionChangesService');
 
@@ -13,7 +19,7 @@ export const ISessionChangesService = createDecorator<ISessionChangesService>('s
  * the single source of truth for the `changes-multi-diff-source:` resource that
  * the multi-diff editor is opened with, so callers don't have to know the URI
  * shape: the session header action and the Changes view open the editor with
- * {@link getChangesEditorResource}, the layout controller recognizes the active
+ * {@link openChangesEditor}, the layout controller recognizes the active
  * editor as a Changes editor with {@link getSessionResource}, and the
  * multi-diff source resolver uses both.
  */
@@ -34,6 +40,12 @@ export interface ISessionChangesService {
 	 * otherwise `undefined`.
 	 */
 	getSessionResource(editorResource: URI): URI | undefined;
+
+	/**
+	 * Open the Changes editor for a session. In the single-pane layout this opens
+	 * the custom {@link SessionChangesEditorInput}; otherwise a plain multi-diff editor.
+	 */
+	openChangesEditor(sessionResource: URI, options?: IMultiDiffEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined>;
 }
 
 const CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'changes-multi-diff-source';
@@ -45,6 +57,12 @@ interface IChangesMultiDiffUriFields {
 export class SessionChangesService implements ISessionChangesService {
 
 	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+	) { }
 
 	getChangesEditorResource(sessionResource: URI): URI {
 		return URI.from({
@@ -70,5 +88,22 @@ export class SessionChangesService implements ISessionChangesService {
 		}
 
 		return URI.parse(fields.sessionResource);
+	}
+
+	async openChangesEditor(sessionResource: URI, options?: IMultiDiffEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
+		const multiDiffSource = this.getChangesEditorResource(sessionResource);
+
+		if (this.layoutService.isSinglePaneLayoutEnabled) {
+			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
+			const pane = await this.editorService.openEditor(input, { ...options, pinned: true }, group);
+			return pane?.group;
+		}
+
+		const pane = await this.editorService.openEditor({
+			multiDiffSource,
+			label: localize('sessions.changes.title', 'Session Changes'),
+			options,
+		}, group);
+		return pane?.group;
 	}
 }

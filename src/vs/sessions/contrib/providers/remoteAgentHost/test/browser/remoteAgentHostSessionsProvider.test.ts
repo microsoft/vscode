@@ -187,7 +187,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
 		project: opts?.project,
-		workingDirectory: opts?.workingDirectory,
+		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
 	};
 }
 
@@ -228,6 +228,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable<IActiveSession | undefined>(undefined);
+		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
@@ -265,7 +266,7 @@ async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, s
 	});
 }
 
-function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
+function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	connection.fireNotification({
@@ -276,10 +277,10 @@ function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?:
 			provider,
 			title: opts?.title ?? `Session ${rawId}`,
 			status: ProtocolSessionStatus.Idle,
-			createdAt: new Date().toISOString(),
-			modifiedAt: new Date().toISOString(),
+			createdAt: opts?.createdAt ?? new Date().toISOString(),
+			modifiedAt: opts?.modifiedAt ?? new Date().toISOString(),
 			project: opts?.project,
-			workingDirectory: opts?.workingDirectory,
+			workingDirectories: opts?.workingDirectory ? [opts.workingDirectory] : undefined,
 		},
 	});
 }
@@ -483,8 +484,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
-		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
-		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
+		const timestamp = new Date(0).toISOString();
+		fireSessionAdded(connection, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
+		fireSessionAdded(connection, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
 
 		assert.strictEqual(changes.length, 1);
 	});
@@ -629,18 +631,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('clearConnection clears pending new session config', () => {
+	test('clearConnection clears pending new session config and capabilities', () => {
+		connection.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'running-session', { title: 'Running Session' });
+		const runningSession = provider.getSessions()[0];
 
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		const supportsMultipleChatsBeforeDisconnect = runningSession.capabilities.get().supportsMultipleChats;
 		provider.clearConnection();
 
 		assert.deepStrictEqual({
 			resolved: provider.getSessionByResource(session.resource),
 			config: provider.getSessionConfig(session.sessionId),
+			sessionTypes: provider.sessionTypes,
+			supportsMultipleChatsBeforeDisconnect,
+			supportsMultipleChatsAfterDisconnect: runningSession.capabilities.get().supportsMultipleChats,
 		}, {
 			resolved: undefined,
 			config: undefined,
+			sessionTypes: [],
+			supportsMultipleChatsBeforeDisconnect: true,
+			supportsMultipleChatsAfterDisconnect: false,
 		});
 	});
 
@@ -771,6 +783,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'new-model' } },
 			},
 			serverSeq: 1,
@@ -802,6 +815,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
 			action: {
 				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1000,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -878,6 +893,51 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider2.getSessions().map(s => s.title.get()),
 			['Keep Me'],
 		);
+	}));
+
+	test('authoritative session update persists materialized workspace metadata', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, connection, { storageService });
+		const timestamp = new Date(0).toISOString();
+		fireSessionAdded(connection, 'persist-upsert', {
+			title: 'Worktree Session',
+			project: { uri: 'file:///Users/me/project', displayName: 'project' },
+			workingDirectory: 'file:///Users/me/project',
+			createdAt: timestamp,
+			modifiedAt: timestamp,
+		});
+		fireSessionAdded(connection, 'persist-upsert', {
+			title: 'Worktree Session',
+			project: { uri: 'file:///Users/me/project', displayName: 'project' },
+			workingDirectory: 'file:///Users/me/project.worktrees/session',
+			createdAt: timestamp,
+			modifiedAt: new Date(1000).toISOString(),
+		});
+		const currentWorkspace = provider.getSessions()[0].workspace.get()!;
+
+		await storageService.flush();
+
+		const restoredProvider = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true });
+		const restoredWorkspace = restoredProvider.getSessions()[0].workspace.get()!;
+		assert.deepStrictEqual({
+			current: {
+				root: currentWorkspace.folders[0].root.path,
+				workingDirectory: currentWorkspace.folders[0].workingDirectory.path,
+			},
+			restored: {
+				root: restoredWorkspace.folders[0].root.path,
+				workingDirectory: restoredWorkspace.folders[0].workingDirectory.path,
+			},
+		}, {
+			current: {
+				root: '/Users/me/project',
+				workingDirectory: '/Users/me/project.worktrees/session',
+			},
+			restored: {
+				root: '/Users/me/project',
+				workingDirectory: '/Users/me/project.worktrees/session',
+			},
+		});
 	}));
 
 	test('setConnection after unpublishCachedSessions restores cached sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1009,6 +1069,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
 			action: {
 				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1000,
 			},
 			serverSeq: 1,
 			origin: undefined,

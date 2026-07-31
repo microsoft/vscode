@@ -26,6 +26,7 @@ export const enum Parts {
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
+	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -61,6 +62,14 @@ export const enum LayoutSettings {
  * Keep in sync with the `--vscode-spacing-size40` (4px) token used there.
  */
 export const FLOATING_PANEL_MARGIN = 4;
+
+/**
+ * The trailing card margin (in pixels) when the Modern UI Update experiment is
+ * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
+ * it forms the 6px inter-card gap. Keep in sync with the
+ * `--vscode-spacing-size20` (2px) token used in `floatingPanels.css`.
+ */
+export const FLOATING_PANEL_INNER_MARGIN = 2;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
@@ -220,6 +229,24 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
 }
 
 /**
+ * Whether the primary sidebar and auxiliary bar are each in the same grid row as the
+ * editor (sibling to the editor) for a horizontal panel. A bar that is a sibling is not
+ * full-height; it sits above or below the panel row rather than spanning the full height.
+ * Mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor formula used in
+ * adjustPartPositions() in layout.ts.
+ */
+export function getFloatingSidebarSiblingToEditorStatus(
+	layoutService: IWorkbenchLayoutService
+): { sideBar: boolean; auxBar: boolean } {
+	const alignment = layoutService.getPanelAlignment();
+	const sideBarOnLeft = layoutService.getSideBarPosition() === Position.LEFT;
+	return {
+		sideBar: !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left')),
+		auxBar: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left')),
+	};
+}
+
+/**
  * Whether a visible horizontal (bottom/top) panel reaches each window edge and should
  * therefore receive a doubled outer gutter so it aligns with the editor card above it.
  * The panel spans underneath a bar that is not full-height, and reaches an edge whenever
@@ -232,12 +259,7 @@ function getFloatingHorizontalPanelOuterEdges(layoutService: IWorkbenchLayoutSer
 	}
 
 	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
-	const alignment = layoutService.getPanelAlignment();
-
-	// A bar that is a sibling of the editor is not full-height, so the panel spans
-	// underneath it to the window edge (panel is horizontal, so `isPanelVertical` is false).
-	const sideBarSiblingToEditor = !(alignment === 'center' || (sideBarLeft && alignment === 'right') || (!sideBarLeft && alignment === 'left'));
-	const auxSiblingToEditor = !(alignment === 'center' || (!sideBarLeft && alignment === 'right') || (sideBarLeft && alignment === 'left'));
+	const { sideBar: sideBarSiblingToEditor, auxBar: auxSiblingToEditor } = getFloatingSidebarSiblingToEditorStatus(layoutService);
 
 	const sideBarSideReached = !layoutService.isVisible(Parts.ACTIVITYBAR_PART) && (!layoutService.isVisible(Parts.SIDEBAR_PART) || sideBarSiblingToEditor);
 	const auxSideReached = !layoutService.isVisible(Parts.AUXILIARYBAR_PART) || auxSiblingToEditor;
@@ -289,6 +311,7 @@ export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
 export interface IPartVisibilityChangeEvent {
 	readonly partId: string;
 	readonly visible: boolean;
+	readonly source?: 'resize';
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {
@@ -394,6 +417,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Set part hidden or not in the target window.
 	 */
 	setPartHidden(hidden: boolean, part: Parts): void;
+
+	/**
+	 * Returns whether the layout surface that represents the secondary sidebar is visible.
+	 */
+	isSecondarySideBarVisible(): boolean;
+
+	/**
+	 * Toggles the layout surface that represents the secondary sidebar.
+	 */
+	toggleSecondarySideBar(): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.

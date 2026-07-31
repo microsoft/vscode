@@ -26,20 +26,19 @@ import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserElementSelectionOptions, IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, BrowserActionGroup } from '../browserEditor.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
-import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
-import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -137,6 +136,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(editor);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
@@ -194,6 +194,9 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this._elementSelectionActiveContext.set(model.isElementSelectionActive);
 		store.add(model.onDidChangeElementSelectionActive(active => {
 			this._elementSelectionActiveContext.set(active);
+			this.accessibilityService.status(active
+				? localize('browser.elementSelectionEnabled', "Element selection enabled. Press Enter to add the focused element to chat.")
+				: localize('browser.elementSelectionDisabled', "Element selection disabled."));
 		}));
 		this._areaSelectionActiveContext.set(model.isAreaSelectionActive);
 		store.add(model.onDidChangeAreaSelectionActive(active => {
@@ -338,6 +341,13 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		const value = createElementContextValue(elementData, displayNameFull);
+		const attachImages = this.configurationService.getValue<boolean>(BrowserSendElementsToChatAttachImagesSettingId);
+		const screenshotBuffer = attachImages
+			? await model.captureScreenshot({
+				quality: 90,
+				pageRect: bounds
+			})
+			: undefined;
 
 		toAttach.push({
 			id: 'element-' + Date.now(),
@@ -352,23 +362,9 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			computedStyles: elementData.computedStyles,
 			dimensions: elementData.dimensions,
 			innerText,
+			imageData: screenshotBuffer?.buffer,
+			imageMimeType: screenshotBuffer ? 'image/jpeg' : undefined,
 		});
-
-		const attachImages = this.configurationService.getValue<boolean>(BrowserSendElementsToChatAttachImagesSettingId);
-		if (attachImages) {
-			const screenshotBuffer = await model.captureScreenshot({
-				quality: 90,
-				pageRect: bounds
-			});
-
-			toAttach.push({
-				id: 'element-screenshot-' + Date.now(),
-				name: 'Element Screenshot',
-				fullName: 'Element Screenshot',
-				kind: 'image',
-				value: screenshotBuffer.buffer
-			});
-		}
 
 		if (!await this._confirmContentAttachmentRisk(elementData.url ?? model.url)) {
 			return;
@@ -596,6 +592,7 @@ class AddElementToChatAction extends Action2 {
 			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
+				args: { highlightFocusedElement: true },
 			}, {
 				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -604,10 +601,11 @@ class AddElementToChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+	async run(accessor: ServicesAccessor, argument?: IBrowserElementSelectionOptions | BrowserEditor): Promise<void> {
+		const browserEditor = argument instanceof BrowserEditor ? argument : accessor.get(IEditorService).activeEditorPane;
 		if (browserEditor instanceof BrowserEditor) {
 			browserEditor.ensureBrowserFocus();
-			void browserEditor.model?.toggleElementSelection(undefined);
+			void browserEditor.model?.toggleElementSelection(undefined, argument instanceof BrowserEditor ? undefined : argument);
 		}
 	}
 }
@@ -762,13 +760,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 			},
 			agentsWindow: { default: true },
-		},
-		[AgentHostChatToolsEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: localize('workbench.browser.agentHostChatToolsEnabled', "When enabled, integrated browser tools are exposed as client-provided tools to agent host sessions in the Sessions window. Requires {0} and {1}.", `\`#${AgentHostEnabledSettingId}#\``, '`#workbench.browser.enableChatTools#`'),
-			default: false,
-			experiment: { mode: 'startup' },
-			tags: ['experimental', 'advanced'],
 		},
 		'workbench.browser.experimentalUserTools.enabled': {
 			type: 'boolean',

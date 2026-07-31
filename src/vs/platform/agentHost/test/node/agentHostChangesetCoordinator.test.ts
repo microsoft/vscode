@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -21,7 +21,7 @@ import { IAgentHostChangesetOperationService } from '../../common/agentHostChang
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
@@ -42,9 +42,9 @@ suite('ChangesetSessionCoordinator', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		}, { emitNotification });
-		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalogue(session));
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
@@ -68,13 +68,14 @@ suite('ChangesetSessionCoordinator', () => {
 		const operationContributionService: IAgentHostChangesetOperationService = {
 			_serviceBrand: undefined,
 			registerContribution: () => Disposable.None,
-			getOperations: () => undefined,
+			getOperations: () => [],
 			updateOperations: () => { },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
 		};
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStateManager, stateManager],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostChangesetOperationService, operationContributionService],
 			[IAgentHostChangesetService, changesets],
@@ -83,7 +84,7 @@ suite('ChangesetSessionCoordinator', () => {
 			[IAgentHostGitService, gitService],
 			[IAgentHostGitStateService, gitStateService],
 		), /*strict*/ true));
-		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator, stateManager));
+		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator };
 	}
 
@@ -109,13 +110,11 @@ suite('ChangesetSessionCoordinator', () => {
 			acquisitions: environment.monitor.acquisitions,
 			branchRefreshes: environment.changesets.branchRefreshes,
 			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-			sessionRefreshes: environment.changesets.sessionRefreshes,
 			gitStateRefreshes: environment.gitStateService.refreshed,
 		}, {
 			acquisitions: ['file:///repo'],
 			branchRefreshes: [firstSession],
 			uncommittedRefreshes: [secondSession],
-			sessionRefreshes: [firstSession],
 			gitStateRefreshes: [firstSession, secondSession],
 		});
 	});
@@ -149,7 +148,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, rootLookups: environment.gitService.rootLookupCalls }, { acquisitions: [], rootLookups: [] });
 
 		const summary = environment.stateManager.getSessionSummary(session)!;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectories: ['file:///repo/worktree'] });
 		environment.coordinator.onSessionMaterialized(session);
 		await environment.monitor.waitForAcquisitions(1);
 
@@ -171,7 +170,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 
 		const summary = environment.stateManager.getSessionSummary(session)!;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectories: ['file:///repo/worktree'] });
 		environment.coordinator.onSessionMaterialized(session);
 		await tick();
 
@@ -451,6 +450,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
+	refreshChangesetCatalog(_session: string): void { }
 	refreshBranchChangeset(session: string): void {
 		this.branchRefreshes.push(session);
 	}

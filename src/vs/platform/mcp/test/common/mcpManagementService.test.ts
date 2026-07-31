@@ -9,9 +9,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService } from '../../common/mcpManagementService.js';
-import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
 import { IMcpSandboxConfiguration, McpServerType, McpServerVariableType, IMcpServerConfiguration, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
@@ -51,7 +51,7 @@ class TestMcpManagementService extends AbstractCommonMcpManagementService {
 }
 
 class TestMcpResourceManagementService extends AbstractMcpResourceManagementService {
-	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService) {
+	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService, allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true }) {
 		super(
 			mcpResource,
 			ConfigurationTarget.USER,
@@ -60,6 +60,7 @@ class TestMcpResourceManagementService extends AbstractMcpResourceManagementServ
 			uriIdentityService,
 			new NullLogService(),
 			mcpResourceScannerService,
+			allowedMcpServersService,
 		);
 	}
 
@@ -1190,3 +1191,48 @@ suite('McpResourceManagementService', () => {
 		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
 	});
 });
+
+suite('McpResourceManagementService - install policy enforcement', () => {
+	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp-policy.json' });
+	let disposables: DisposableStore;
+	let fileService: FileService;
+	let uriIdentityService: UriIdentityService;
+	let scannerService: McpResourceScannerService;
+
+	const server: IInstallableMcpServer = { name: 'my-server', config: { type: McpServerType.LOCAL, command: 'node', args: [] } };
+
+	function createService(isAllowed: IAllowedMcpServersService['isAllowed']): TestMcpResourceManagementService {
+		const allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed, isServerAllowed: () => true };
+		return disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService, allowedMcpServersService));
+	}
+
+	setup(() => {
+		disposables = new DisposableStore();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('install throws and does not persist a server blocked by policy', async () => {
+		const service = createService(() => new MarkdownString('This mcp server is blocked by your organization.'));
+
+		await assert.rejects(() => service.install(server), /blocked by your organization/);
+		assert.strictEqual((await service.getInstalled()).find(s => s.name === server.name), undefined);
+	});
+
+	test('install persists a server allowed by policy', async () => {
+		const service = createService(() => true);
+
+		const local = await service.install(server);
+		assert.strictEqual(local.name, server.name);
+		assert.ok((await service.getInstalled()).some(s => s.name === server.name));
+	});
+});
+

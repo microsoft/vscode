@@ -11,13 +11,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, SessionStatus, withSessionGitState, type Changeset } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -75,9 +76,9 @@ suite.skip('AgentHostChangesetService', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalogue(sessionUri.toString()));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -92,6 +93,7 @@ suite.skip('AgentHostChangesetService', () => {
 			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 			createOperationService(),
 			createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())),
+			NULL_REVIEW_SERVICE,
 		));
 	});
 
@@ -276,7 +278,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString()))));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -285,7 +287,7 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: 'file:///wd',
+				workingDirectories: ['file:///wd'],
 			});
 			await sessionDb.setMetadata('agentHost.diffBaseBranch', 'main');
 
@@ -354,7 +356,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString()))));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -364,7 +366,7 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: 'file:///wd',
+				workingDirectories: ['file:///wd'],
 			});
 			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
 
@@ -390,7 +392,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService()));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -400,7 +402,7 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: 'file:///wd',
+				workingDirectories: ['file:///wd'],
 			});
 			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
 
@@ -423,7 +425,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService()));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -432,7 +434,7 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: 'file:///wd',
+				workingDirectories: ['file:///wd'],
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -483,7 +485,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService()));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -493,7 +495,7 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: 'file:///wd',
+				workingDirectories: ['file:///wd'],
 			});
 
 			await localChangesets.computeUncommittedChangeset(sessionStr);
@@ -557,7 +559,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString()))));
+				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -567,7 +569,7 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: 'file:///wd',
+				workingDirectories: ['file:///wd'],
 			});
 
 			await localChangesets.computeUncommittedChangeset(sessionStr);
@@ -606,6 +608,7 @@ suite.skip('AgentHostChangesetService', () => {
 				disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())),
 				createOperationService(),
 				subscriptionService,
+				NULL_REVIEW_SERVICE,
 			));
 			return { service, localStateManager, computes, subscriptions: subscriptionService.subscriptions };
 		}
@@ -619,9 +622,9 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			});
-			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalogue(sessionStr));
+			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr));
 			return sessionStr;
 		}
 
@@ -639,7 +642,7 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes, [], 'nothing computed while the working directory is unknown');
 
 			const summary = localStateManager.getSessionSummary(sessionStr)!;
-			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
 			service.onWorkingDirectoryAvailable(sessionStr);
 			await timeout(0);
 			assert.deepStrictEqual(computes.sort(), ['session', 'session']);
@@ -654,7 +657,7 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes, [], 'uncommitted compute deferred while the working directory is unknown');
 
 			const summary = localStateManager.getSessionSummary(sessionStr)!;
-			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
 			service.onWorkingDirectoryAvailable(sessionStr);
 			await timeout(0);
 			assert.deepStrictEqual(computes, ['uncommitted']);
@@ -670,7 +673,7 @@ suite.skip('AgentHostChangesetService', () => {
 			subscriptions.delete(buildSessionChangesetUri(sessionStr));
 
 			const summary = localStateManager.getSessionSummary(sessionStr)!;
-			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
 			service.onWorkingDirectoryAvailable(sessionStr);
 			await timeout(0);
 			assert.deepStrictEqual(computes, []);
@@ -691,7 +694,7 @@ suite.skip('AgentHostChangesetService', () => {
 			service.onSessionDisposed(sessionStr);
 
 			const summary = localStateManager.getSessionSummary(sessionStr)!;
-			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectory: 'file:///wd' });
+			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
 			service.onWorkingDirectoryAvailable(sessionStr);
 			await timeout(0);
 			assert.deepStrictEqual(computes, []);
@@ -927,6 +930,7 @@ suite.skip('AgentHostChangesetService', () => {
 				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				subscriptionService,
+				NULL_REVIEW_SERVICE,
 			));
 		}
 		test('onTurnComplete schedules a per-turn recompute when someone is subscribed', async () => {
@@ -1034,6 +1038,7 @@ suite.skip('AgentHostChangesetService', () => {
 				disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(buildTurnChangesetUri(sessionUri.toString(), 'turn-1')),
+				NULL_REVIEW_SERVICE,
 			));
 
 			localStateManager.createSession({
@@ -1043,7 +1048,7 @@ suite.skip('AgentHostChangesetService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: 'file:///wd',
+				workingDirectories: ['file:///wd'],
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -1114,6 +1119,7 @@ suite.skip('AgentHostChangesetService', () => {
 				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
+				NULL_REVIEW_SERVICE,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1147,6 +1153,7 @@ suite.skip('AgentHostChangesetService', () => {
 				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
+				NULL_REVIEW_SERVICE,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1177,6 +1184,7 @@ suite.skip('AgentHostChangesetService', () => {
 				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
+				NULL_REVIEW_SERVICE,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1208,6 +1216,7 @@ suite.skip('AgentHostChangesetService', () => {
 				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
+				NULL_REVIEW_SERVICE,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');

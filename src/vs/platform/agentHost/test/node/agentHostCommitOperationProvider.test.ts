@@ -43,7 +43,7 @@ suite('AgentHostCommitOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: { ...gitStateWithUncommittedChanges, uncommittedChanges: 0 } });
 
-		assert.strictEqual(operations, undefined);
+		assert.deepStrictEqual(operations?.map(op => op.id), []);
 	});
 
 	test('advertises commit on the session changeset when there are uncommitted changes', () => {
@@ -51,6 +51,6 @@ suite('AgentHostCommitOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey, changesetUri: buildSessionChangesetUri(sessionKey), changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), undefined);
+		assert.deepStrictEqual(operations?.map(op => op.id), []);
 	});
 });
