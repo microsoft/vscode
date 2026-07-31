@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../../nls.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -64,9 +65,16 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const invokingWindow = dom.getActiveWindow();
+		const invokingWindowBounds = {
+			x: invokingWindow.screenX,
+			y: invokingWindow.screenY,
+			width: invokingWindow.outerWidth,
+			height: invokingWindow.outerHeight,
+		};
 		const chatInputWindowService = accessor.get(IChatInputWindowService);
 		ensureVoiceRoutingBridge(accessor, chatInputWindowService);
-		await chatInputWindowService.toggleWindow();
+		await chatInputWindowService.toggleWindow(invokingWindowBounds);
 	}
 });
 

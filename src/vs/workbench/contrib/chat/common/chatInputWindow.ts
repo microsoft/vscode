@@ -6,6 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
 
 export const CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleInputWindow';
 
@@ -45,7 +46,7 @@ export interface IChatInputWindowService {
 	/**
 	 * Opens the floating chat input window. No-op if already open.
 	 */
-	openWindow(): Promise<void>;
+	openWindow(invokingWindowBounds?: IRectangle): Promise<void>;
 
 	/**
 	 * Closes the floating chat input window. No-op if already closed.
@@ -55,5 +56,5 @@ export interface IChatInputWindowService {
 	/**
 	 * Toggles the floating chat input window open/closed.
 	 */
-	toggleWindow(): Promise<void>;
+	toggleWindow(invokingWindowBounds?: IRectangle): Promise<void>;
 }

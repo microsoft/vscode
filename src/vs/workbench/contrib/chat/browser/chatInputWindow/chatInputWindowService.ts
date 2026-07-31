@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -66,8 +66,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	/** In-flight `openWindow()` operation, so concurrent toggles stay idempotent. */
 	private _openOperation: Promise<void> | undefined;
 	private _actionWidgetRestoreHeight: number | undefined;
-	/** The window that invoked the input window; used to center it on that window. */
-	private _invokingWindow: CodeWindow = mainWindow;
+	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
+	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -105,10 +105,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}
 	}
 
-	async openWindow(): Promise<void> {
+	async openWindow(invokingWindowBounds?: IRectangle): Promise<void> {
 		if (this._window) {
 			return;
 		}
+		this._invokingWindowBounds = invokingWindowBounds ?? this._windowBounds(dom.getActiveWindow());
 		// Coalesce concurrent open/toggle calls so we never create two aux windows.
 		if (this._openOperation) {
 			return this._openOperation;
@@ -129,9 +130,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private async _doOpenWindow(): Promise<void> {
-		// Capture the window that invoked us (before the aux window steals focus)
-		// so the input window is centered on it rather than always the main one.
-		this._invokingWindow = dom.getActiveWindow();
 		const bounds = this._defaultBounds();
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
@@ -245,12 +243,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._onDidChangeOpen.fire(false);
 	}
 
-	async toggleWindow(): Promise<void> {
+	async toggleWindow(invokingWindowBounds?: IRectangle): Promise<void> {
 		if (this.isOpen) {
 			this.closeWindow();
 		} else {
 			this._ownershipChannel.postMessage({ type: 'claim' });
-			await this.openWindow();
+			await this.openWindow(invokingWindowBounds);
 		}
 	}
 
@@ -389,9 +387,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			let y = win.screenY;
 			if (!didInitialPosition) {
 				didInitialPosition = true;
-				const invokingWindow = this._invokingWindow;
-				x = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - width) / 2);
-				y = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - contentHeight) / 2);
+				const invokingWindowBounds = this._invokingWindowBounds;
+				x = Math.round(invokingWindowBounds.x + (invokingWindowBounds.width - width) / 2);
+				y = Math.round(invokingWindowBounds.y + (invokingWindowBounds.height - contentHeight) / 2);
 			}
 			void auxiliaryWindow.setBounds({ x, y, width, height: contentHeight });
 		};
@@ -488,14 +486,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		const invokingWindow = this._invokingWindow;
+		const invokingWindowBounds = this._invokingWindowBounds;
 		// Match Quick Chat's width so the model-detail hover has room to sit
 		// beside the picker: golden-cut of the invoking window, capped like the
 		// quick input widget (MAX_WIDTH = 600).
 		const width = this._defaultWidth();
 		// Center the omni bar within the window that invoked it.
-		const x = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - width) / 2);
-		const y = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
+		const x = Math.round(invokingWindowBounds.x + (invokingWindowBounds.width - width) / 2);
+		const y = Math.round(invokingWindowBounds.y + (invokingWindowBounds.height - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
 		return {
 			x,
 			y,
@@ -505,7 +503,16 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultWidth(): number {
-		return Math.round(Math.min(this._invokingWindow.innerWidth * 0.62, 600));
+		return Math.round(Math.min(this._invokingWindowBounds.width * 0.62, 600));
+	}
+
+	private _windowBounds(window: Window): IRectangle {
+		return {
+			x: window.screenX,
+			y: window.screenY,
+			width: window.outerWidth,
+			height: window.outerHeight,
+		};
 	}
 }
 
