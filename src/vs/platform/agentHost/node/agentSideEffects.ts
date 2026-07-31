@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -184,6 +185,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -816,7 +818,15 @@ export class AgentSideEffects extends Disposable {
 		// completion since those have always been fire-and-forget; the
 		// ordering guarantee we care about is checkpoint-then-changeset.
 		if (turnId !== undefined) {
-			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId).then(() => {
+			// Resolved here rather than inside the checkpoint service so the
+			// repositories a checkpoint acts on are always explicit at the
+			// call site. Note the changeset service below deliberately keeps
+			// its own resolution: `onTurnComplete` only schedules deferred
+			// recomputes that are shared with subscription, truncation and
+			// mid-turn-debounce entry points, so it has no single point at
+			// which a caller-supplied set would apply.
+			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
+			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId, workingDirectories).then(() => {
 				this._changesets.onTurnComplete(sessionUri, turnId);
 			}, err => {
 				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
