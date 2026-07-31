@@ -108,6 +108,19 @@ suite('ChatSpeechToTextService', () => {
 		});
 	});
 
+	test('cleanup prompt prefers numerals for both final and incremental', () => {
+		const finalPrompt = createDictationCleanupSystemPrompt('final', false);
+		const incrementalPrompt = createDictationCleanupSystemPrompt('incremental', false);
+
+		assert.deepStrictEqual({
+			finalPrefersNumerals: finalPrompt.includes('Prefer numerals'),
+			incrementalPrefersNumerals: incrementalPrompt.includes('Prefer numerals'),
+		}, {
+			finalPrefersNumerals: true,
+			incrementalPrefersNumerals: true,
+		});
+	});
+
 	test('appends dictation instructions without replacing dictation safeguards', () => {
 		const prompt = createDictationCleanupSystemPrompt('final', false, 'Spell the product name as "Contoso DB".\nUse short paragraphs.');
 
