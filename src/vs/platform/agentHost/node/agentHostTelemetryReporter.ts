@@ -16,6 +16,28 @@ import type { AgentHostClientType } from '../common/agentHostClientInfo.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
+export interface IAgentHostChatModeChangeEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	fromMode: string;
+	mode: string;
+	requestCount: number;
+	storage: 'builtin';
+}
+
+export type IAgentHostChatModeChangeClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the mode change belongs to a subagent session.' };
+	fromMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent execution mode mapped to the workbench chat mode name.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent execution mode mapped to the workbench chat mode name.' };
+	requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of completed turns in the agent host chat.' };
+	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source of the target mode.' };
+	owner: 'digitarald';
+	comment: 'Reports agent host execution mode changes under the workbench chat mode event for telemetry continuity.';
+};
+
 export interface IAgentHostUserMessageSentEvent {
 	provider: string;
 	initiatorClientType: AgentHostClientType;
@@ -372,6 +394,18 @@ export class AgentHostTelemetryReporter {
 	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {
 		const ts = this._telemetryService as Partial<IAgentHostRestrictedTelemetry>;
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
+	}
+
+	chatModeChanged(provider: string, session: string, fromMode: string, mode: string, requestCount: number): void {
+		this._telemetryService.publicLog2<IAgentHostChatModeChangeEvent, IAgentHostChatModeChangeClassification>('chat.modeChange', {
+			provider,
+			agentSessionId: AgentSession.id(session),
+			isSubagentSession: isSubagentSession(session),
+			fromMode,
+			mode,
+			requestCount,
+			storage: 'builtin',
+		});
 	}
 
 	userMessageSent(provider: string, clientType: AgentHostClientType, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {

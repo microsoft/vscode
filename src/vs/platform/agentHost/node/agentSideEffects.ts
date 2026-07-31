@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import type { SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -68,6 +68,7 @@ import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type Agen
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -134,6 +135,24 @@ interface ISubagentSessionRef {
 	readonly sessionUri: ProtocolURI;
 	readonly chatUri: ProtocolURI;
 	readonly turnStopWatch: StopWatch;
+}
+
+function getChatModeName(mode: unknown): { mode: SessionMode; name: string } | undefined {
+	switch (mode) {
+		case 'interactive':
+			return { mode, name: 'agent' };
+		case 'plan':
+			return { mode, name: 'Plan' };
+		case 'autopilot':
+			return { mode, name: 'Autopilot' };
+		default:
+			return undefined;
+	}
+}
+
+function getConfiguredSessionMode(config: SessionState['config']): { mode: SessionMode; name: string } | undefined {
+	const value = config?.values[SessionConfigKey.Mode] ?? config?.schema.properties[SessionConfigKey.Mode]?.default;
+	return getChatModeName(value);
 }
 
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
@@ -211,6 +230,21 @@ export class AgentSideEffects extends Disposable {
 			sessionDataService: this._options.sessionDataService,
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
 			copilotApiService: this._options.copilotApiService,
+		}));
+		this._register(this._stateManager.onDidChangeSessionConfig(e => {
+			const previousMode = getConfiguredSessionMode(e.previous);
+			const currentMode = getConfiguredSessionMode(e.current);
+			if (!previousMode || !currentMode || previousMode.mode === currentMode.mode) {
+				return;
+			}
+
+			const agent = this._options.getAgent(e.session);
+			const sessionState = this._stateManager.getSessionState(e.session);
+			if (!agent || !sessionState) {
+				return;
+			}
+
+			this._telemetryReporter.chatModeChanged(agent.id, e.session, previousMode.name, currentMode.name, sessionState.turns.length);
 		}));
 
 		// Whenever the agents observable changes, publish to root state.
