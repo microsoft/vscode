@@ -660,7 +660,7 @@ suite('ChatService', () => {
 			},
 			provideFollowups(request, result, history, token) {
 				followupsToken = token;
-				Event.once(token.onCancellationRequested)(() => followupsCancelled.complete([]));
+				testDisposables.add(token.onCancellationRequested(() => followupsCancelled.complete([])));
 				return followupsCancelled.p;
 			},
 		};
