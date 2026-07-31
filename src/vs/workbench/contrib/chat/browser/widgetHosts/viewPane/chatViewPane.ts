@@ -573,9 +573,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
 			// Only run the per-frame glow loop for states that actually render a
-			// glow, so a disconnected input never burns a requestAnimationFrame
-			// callback. React to simulated states too, so the walkthrough commands
-			// light up the glow.
+			// glow. Idle renders none, so keeping the loop alive then would burn a
+			// requestAnimationFrame callback every frame for nothing. React to
+			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
 			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {

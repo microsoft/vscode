@@ -20,7 +20,7 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceMicGlowBoxShadow, isGlowingVoiceState, IVoiceGlowColors, voiceGlowStateColor } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceMicGlowBoxShadow, IVoiceGlowColors, voiceGlowStateColor } from '../../chat/browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, GlowThemeKind, IVoiceGlowController } from '../../chat/browser/voiceClient/voiceGlowController.js';
 
 export interface VoiceWidgetCallbacks {
@@ -593,13 +593,12 @@ export class AgentsVoiceWidget extends Disposable {
 		}
 
 		// Run the 60Hz waveform/glow loop only while there is something to
-		// animate (onboarding, listening, thinking, or speaking). Idle/disconnected
-		// render no glow, so keeping a frame loop alive then would burn CPU for
-		// nothing.
+		// animate (onboarding, listening, or speaking). Idle/disconnected render
+		// no glow, so keeping a frame loop alive then would burn CPU for nothing.
 		this._register(autorun(reader => {
 			const onboarding = this._showOnboarding.read(reader);
 			const voiceState = this._voiceState.read(reader);
-			if (onboarding || isGlowingVoiceState(voiceState)) {
+			if (onboarding || voiceState === 'listening' || voiceState === 'speaking') {
 				this._startWaveformAnimation();
 			} else {
 				this._stopWaveformAnimation();
@@ -678,7 +677,7 @@ export class AgentsVoiceWidget extends Disposable {
 
 		// The ambient glow is owned by the glow controller; clear it whenever the
 		// input box shouldn't be lit so no stale frame is left behind.
-		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && isGlowingVoiceState(voiceState));
+		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && (voiceState === 'listening' || voiceState === 'speaking'));
 		if (!shouldShowInputGlow) {
 			this._glowController?.clear();
 		}
@@ -1075,7 +1074,7 @@ export class AgentsVoiceWidget extends Disposable {
 			// The reactive autorun starts/stops this loop; guard against a frame
 			// that races a transition to a non-glowing state (styles are cleared
 			// by _stopWaveformAnimation()).
-			if (!(onboarding || isGlowingVoiceState(voiceState))) {
+			if (!(onboarding || voiceState === 'listening' || voiceState === 'speaking')) {
 				return;
 			}
 
@@ -1096,7 +1095,7 @@ export class AgentsVoiceWidget extends Disposable {
 			}
 
 			// Animate input box container border/shadow (inputBoxLayout)
-			if (this._glowController && isGlowingVoiceState(voiceState)) {
+			if (this._glowController && (voiceState === 'listening' || voiceState === 'speaking')) {
 				this._glowController.render(voiceState, intensity, this.callbacks.isMotionReduced());
 			}
 

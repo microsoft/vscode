@@ -51,7 +51,7 @@ const ACTIVE_RIM_LIGHTNESS = {
  */
 const ACTIVE_RIM_HUE_SHIFT = { cool: -10, warm: 7 } as const;
 /** Base strength of an active rim, before the audio level is applied. */
-const ACTIVE_RIM_STRENGTH = 0.86;
+const ACTIVE_RIM_STRENGTH = 1.02;
 
 /** Per-theme opacity of the three rim layers (ring / inner wash / bloom). */
 const RIM_LAYER_OPACITY = {
@@ -450,10 +450,10 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			lightness: ACTIVE_RIM_LIGHTNESS[theme][mood],
 			strength: ACTIVE_RIM_STRENGTH,
 			duration: RIM_DURATION,
-			audioGain: 0.7,
+			audioGain: 0.8,
 			// Lets the loudest moments read visibly denser rather than leaving the
 			// whole range in a narrow band.
-			peakGain: 0.85,
+			peakGain: 0.95,
 			speedGain: 0.9,
 		});
 	}
