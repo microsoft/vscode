@@ -72,8 +72,16 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 
 		let subCommands: string[] | undefined;
 		try {
-			subCommands = await this._treeSitterCommandParser.extractSubCommands(options.treeSitterLanguage, trimmedCommandLine);
+			const parseResult = await this._treeSitterCommandParser.extractAutoApprovalSubCommands(options.treeSitterLanguage, trimmedCommandLine);
+			subCommands = parseResult.subCommands;
 			this._log(`Parsed sub-commands via ${options.treeSitterLanguage} grammar`, subCommands);
+			if (parseResult.hasUnanalyzableSyntax) {
+				this._log('Command line contains syntax that cannot be safely auto-approved');
+				return {
+					isAutoApproveAllowed: false,
+					disclaimers: [],
+				};
+			}
 		} catch (e) {
 			console.error(e);
 			this._log(`Failed to parse sub-commands via ${options.treeSitterLanguage} grammar`);

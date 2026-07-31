@@ -12,13 +12,14 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import type { ICommandLineAnalyzerOptions } from '../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineAutoApproveAnalyzer } from '../../browser/tools/commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { RunInTerminalToolTelemetry } from '../../browser/runInTerminalToolTelemetry.js';
-import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../browser/treeSitterCommandParser.js';
+import { type IAutoApprovalCommandParseResult, TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../browser/treeSitterCommandParser.js';
 
 suite('CommandLineAutoApproveAnalyzer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: IInstantiationService;
 	let analyzer: CommandLineAutoApproveAnalyzer;
+	let parseResult: IAutoApprovalCommandParseResult;
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
@@ -26,8 +27,9 @@ suite('CommandLineAutoApproveAnalyzer', () => {
 			configurationService: () => configurationService
 		}, store);
 
+		parseResult = { subCommands: [], hasUnanalyzableSyntax: false };
 		const parser = {
-			extractSubCommands: async () => [],
+			extractAutoApprovalSubCommands: async () => parseResult,
 		} as unknown as TreeSitterCommandParser;
 		const telemetry = {
 			logPrepare: () => { },
@@ -48,6 +50,24 @@ suite('CommandLineAutoApproveAnalyzer', () => {
 			shell: 'pwsh',
 			os: OperatingSystem.Windows,
 			treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
+			terminalToolSessionId: 'test',
+			chatSessionResource: undefined,
+		};
+
+		const result = await analyzer.analyze(options);
+		strictEqual(result.isAutoApproveAllowed, false);
+		strictEqual(result.isAutoApproved, undefined);
+		strictEqual(result.disclaimers?.length ?? 0, 0);
+	});
+
+	test('should not allow auto approve when parsing finds unanalyzable syntax', async () => {
+		parseResult = { subCommands: ['git status'], hasUnanalyzableSyntax: true };
+		const options: ICommandLineAnalyzerOptions = {
+			commandLine: 'FOO=bar && git status',
+			cwd: undefined,
+			shell: 'bash',
+			os: OperatingSystem.Linux,
+			treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId: 'test',
 			chatSessionResource: undefined,
 		};
