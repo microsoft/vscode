@@ -82,19 +82,15 @@ When a page must load as if from a remote machine (forwarded `localhost` in a re
 
 ## Testing strategy
 
-**Keep every test layer lean and scenario-focused.** Tests should protect major functionality whose failure would damage a core browser scenario. Do not encode incidental implementation details, duplicate the same behavior across layers, or add narrow assertions for behavior that could regress without materially breaking the feature.
+**Keep every test layer lean and scenario-focused.** Protect major functionality whose failure would damage a core browser scenario, and use the lowest-cost layer that still exercises the actual risk. Do not duplicate behavior across layers or encode incidental implementation details.
 
-Choose the lowest-cost layer that can meaningfully prove the behavior:
+- **Unit tests** cover important isolated logic such as state transitions, protocol translation, persistence rules, security gates, and failure handling. Use representative cases rather than exhaustive tests of trivial branches or private structure.
+- **Widget tests** cover major renderer interactions, commands, context-key-driven visibility, and central rendering behavior that do not require a native page. Avoid pixel-level or DOM-structure assertions unless that structure is the contract.
+- **Extension API tests** under `extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts` are the preferred integration layer for browser APIs, CDP behavior, browser tools, extension-host wiring, and cross-process contracts exposed to extensions.
+- **Other E2E integration tests** cover important process boundaries or runtime integrations that need real services but not a complete workbench journey.
+- **Smoke tests** cover only major user journeys whose meaningful failure mode requires the actual Electron workbench, renderer/main/shared-process wiring, or native `WebContentsView`. This includes core risks in preload keyboard routing, native focus/visibility/lifecycle, Electron permissions, popup editors, workbench UI over the native view, and live page-to-chat attachments. Keep each test to the happy-path spine, group related assertions into one coherent journey, and leave variants, edge cases, and visual details to lower layers.
 
-- **Unit tests** should cover important isolated logic such as state transitions, protocol translation, persistence rules, security gates, and failure handling. Prefer a small set of representative cases over exhaustive tests of trivial branches or private implementation structure.
-- **Widget tests** should cover meaningful renderer UI behavior that can be exercised without a native page: major interaction states, commands, context-key-driven visibility, and rendering that is central to the user scenario. Avoid pixel-level or DOM-structure assertions unless that structure is itself the contract.
-- **Extension API tests** under `extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts` are the preferred integration layer for browser APIs, CDP behavior, browser tools, extension-host wiring, and other cross-process contracts exposed to extensions. They run more of the real stack than unit tests without paying the cost and brittleness of driving the entire workbench UI.
-- **Other E2E integration tests** should verify important process boundaries or runtime integrations that need real services but not the complete workbench journey.
-- **Smoke tests** should be reserved for a new, major feature whose core user path only becomes meaningful when exercised through the actual Electron workbench, renderer/main/shared-process wiring, and native `WebContentsView`.
-
-For smoke coverage, test only the happy-path spine needed to catch a broad full-runtime regression. Use one scenario, or at most a very small number, per major user journey. Do not move detailed variants, edge cases, visual details, or every command into smoke tests; keep those in unit, widget, or extension API tests. Before adding a new smoke test, check whether an existing core-path scenario can be extended without becoming broad or brittle.
-
-When deciding whether to add any test, ask: **if this behavior stopped working, would a major browser scenario be meaningfully broken?** If not, the assertion is probably too detailed. When deciding whether that test must be a smoke test, ask: **would a lower layer miss the failure because the risk exists specifically in the full runtime path?** If not, shift it left.
+Good assertions express the user contract and remain stable through non-behavior-breaking changes and refactoring. Tests should protect behavior whose failure would materially break a major browser scenario and live at the cheapest layer that still exercises that failure mode. Smoke coverage should extend an existing journey when it stays coherent or use at most a small number of scenarios for the major journey.
 
 ## Practical guidance
 
