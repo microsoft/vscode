@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { asJson, asText, IRequestService } from '../../request/common/request.js';
+import { asJson, asText, isSuccess, IRequestService } from '../../request/common/request.js';
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
@@ -961,6 +961,11 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 				throw error;
 			}
 			this.logService.error(`Failed to query MCP gallery: ${error}`);
+			return { servers: [], metadata: { count: 0 } };
+		}
+
+		if (!isSuccess(context)) {
+			this.logService.error(`Failed to query MCP gallery: Server returned ${context.res.statusCode}`);
 			return { servers: [], metadata: { count: 0 } };
 		}
 
