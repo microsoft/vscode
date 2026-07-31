@@ -36,7 +36,6 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -631,7 +630,6 @@ suite('AgentService (node dispatcher)', () => {
 				sessionDataService,
 				{ _serviceBrand: undefined } as IProductService,
 				createNoopGitService(),
-				NULL_CHECKPOINT_SERVICE,
 				undefined,
 				undefined,
 				undefined,
@@ -658,7 +656,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localDisposables = new DisposableStore();
 			try {
 				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
-				const svc = localDisposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), NULL_CHECKPOINT_SERVICE, rootConfigResource));
+				const svc = localDisposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
 				const agent = new MockAgent('copilot');
 				localDisposables.add(toDisposable(() => agent.dispose()));
 				svc.registerProvider(agent);
@@ -1200,6 +1198,28 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Should not throw
 			await service.disposeSession(unknownSession);
+		});
+
+		test('deletes session data before removing the worktree', async () => {
+			// Subscribers of the will-delete event drop this session's git refs,
+			// which requires resolving the repository from the working directory.
+			// For a worktree-isolated session that directory *is* the worktree, so
+			// removing it first would strand the refs in the main repository.
+			const order: string[] = [];
+			const sessionDataService: ISessionDataService = {
+				...nullSessionDataService,
+				deleteSessionData: async () => { order.push('deleteSessionData'); },
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			svc.setWorktreeIsolation({
+				removeCreatedWorktree: async () => { order.push('removeCreatedWorktree'); },
+			} as unknown as WorktreeIsolation);
+
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual(order, ['deleteSessionData', 'removeCreatedWorktree']);
 		});
 	});
 

@@ -29,9 +29,10 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
-import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
@@ -2220,8 +2221,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('auto-approves read permission for session-state plan files', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { runtime, signals } = await createAgentSession(disposables);
 				const result = await runtime.handlePermissionRequest({
@@ -2233,17 +2234,17 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(signals.length, 0);
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('resolves native environment through INativeEnvironmentService registration', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			delete process.env['XDG_STATE_HOME'];
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			delete process.env['COPILOT_HOME'];
 			try {
 				const { runtime, signals } = await createAgentSession(disposables, { environmentServiceRegistration: 'native' });
 				const result = await runtime.handlePermissionRequest({
@@ -2255,17 +2256,17 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(signals.length, 0);
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('logs and rethrows permission failures', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			delete process.env['XDG_STATE_HOME'];
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			delete process.env['COPILOT_HOME'];
 			const logService = new CapturingLogService();
 			try {
 				const { runtime } = await createAgentSession(disposables, {
@@ -2286,10 +2287,10 @@ suite('CopilotAgentSession', () => {
 				assert.ok(entry.first instanceof TypeError);
 				assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed to handle permission request: kind=read, toolCallId=tc-read-plan-missing-env');
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
@@ -2344,8 +2345,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('auto-approves write permission for session-state plan files', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { runtime, signals } = await createAgentSession(disposables);
 				const result = await runtime.handlePermissionRequest({
@@ -2357,17 +2358,17 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(signals.length, 0);
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('does not auto-approve session-state files from another session', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 				const resultPromise = runtime.handlePermissionRequest({
@@ -2383,17 +2384,17 @@ suite('CopilotAgentSession', () => {
 				const result = await resultPromise;
 				assert.strictEqual(result.kind, 'approve-once');
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
 
 		test('does not auto-approve traversal paths that escape the session-state directory', async () => {
-			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			const previousCopilotHome = process.env['COPILOT_HOME'];
+			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
 			try {
 				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 				const sessionDir = join('/mock-state-home', '.copilot', 'session-state', 'test-session-1');
@@ -2410,10 +2411,10 @@ suite('CopilotAgentSession', () => {
 				const result = await resultPromise;
 				assert.strictEqual(result.kind, 'approve-once');
 			} finally {
-				if (previousXdgStateHome === undefined) {
-					delete process.env['XDG_STATE_HOME'];
+				if (previousCopilotHome === undefined) {
+					delete process.env['COPILOT_HOME'];
 				} else {
-					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
 		});
@@ -3860,6 +3861,190 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
+		test('tool call deltas start once, accumulate buffered input, and finalize at tool start', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-stream',
+				inputDelta: '{"command":"npm ',
+			});
+			assert.strictEqual(signals.length, 0);
+
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-stream',
+				toolName: 'bash',
+				inputDelta: 'test","description":"Run',
+			});
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-stream',
+				toolName: 'bash',
+				arguments: { command: 'npm test', description: 'Run all tests' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const actions = getActions(signals);
+			const starts = actions.filter(action => action.type === ActionType.ChatToolCallStart) as ChatToolCallStartAction[];
+			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction[];
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
+			assert.deepStrictEqual({
+				starts: starts.map(action => ({ toolCallId: action.toolCallId, toolName: action.toolName })),
+				deltas: deltas.map(action => ({
+					content: action.content,
+					hasInvocationMessage: action.invocationMessage !== undefined,
+				})),
+				ready: ready && { toolCallId: ready.toolCallId, toolInput: ready.toolInput, intention: ready.intention },
+			}, {
+				starts: [{ toolCallId: 'tc-stream', toolName: 'bash' }],
+				deltas: [{ content: '', hasInvocationMessage: true }],
+				ready: { toolCallId: 'tc-stream', toolInput: 'npm test', intention: 'Run all tests' },
+			});
+		});
+
+		test('edit tool deltas progressively refine file and line-count details', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-edit-stream',
+				toolName: 'edit',
+				inputDelta: '{"path":"/repo/file.ts","old_str":"one\\ntwo"',
+			});
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-edit-stream',
+				toolName: 'edit',
+				inputDelta: ',"new_str":"one\\nupdated\\nthree"',
+			});
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-edit-stream',
+				toolName: 'edit',
+				arguments: {
+					path: '/repo/file.ts',
+					old_str: 'one\ntwo',
+					new_str: 'one\nupdated\nthree',
+				},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const actions = getActions(signals);
+			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction[];
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
+			assert.deepStrictEqual({
+				deltas: deltas.flatMap(action => {
+					const message = action.invocationMessage;
+					const text = typeof message === 'string' ? message : message?.markdown;
+					return text ? [text] : [];
+				}),
+				ready: typeof ready?.invocationMessage === 'string' ? ready.invocationMessage : ready?.invocationMessage.markdown,
+			}, {
+				deltas: [
+					'Replacing 2 lines in [file.ts](file:///repo/file.ts)',
+					'Replacing 2 lines with 3 lines in [file.ts](file:///repo/file.ts)',
+				],
+				ready: 'Editing [file.ts](file:///repo/file.ts)',
+			});
+		});
+
+		test('raw apply_patch deltas stream line counts and resolved files', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables, {
+				workingDirectory: URI.file('/workspace'),
+			});
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-patch-stream',
+				toolName: 'apply_patch',
+				inputDelta: [
+					'*** Begin Patch',
+					'*** Update File: src/file.ts',
+					'@@',
+					'-old',
+					'+new',
+					'*** End Patch',
+				].join('\n'),
+			});
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
+
+			const delta = getActions(signals).find(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction | undefined;
+			const message = delta?.invocationMessage;
+			assert.strictEqual(
+				typeof message === 'string' ? message : message?.markdown,
+				'Generating patch (6 lines) in [file.ts](file:///workspace/src/file.ts)',
+			);
+		});
+
+		test('MCP tool deltas stream before final contributor metadata arrives', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
+				},
+			});
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'docs',
+				status: 'connected',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-stream-mcp',
+				toolName: 'mcp_tool',
+				inputDelta: '{"topic":"metadata"}',
+			});
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-stream-mcp',
+				toolName: 'mcp_tool',
+				mcpServerName: 'docs',
+				arguments: { topic: 'metadata' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const actions = getActions(signals);
+			const starts = actions.filter(action => action.type === ActionType.ChatToolCallStart) as ChatToolCallStartAction[];
+			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction[];
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
+			assert.deepStrictEqual({
+				startCount: starts.length,
+				startContributor: starts[0]?.contributor,
+				deltas: deltas.map(action => ({
+					content: action.content,
+					hasInvocationMessage: action.invocationMessage !== undefined,
+				})),
+				readyContributor: ready?.contributor,
+			}, {
+				startCount: 1,
+				startContributor: undefined,
+				deltas: [{ content: '', hasInvocationMessage: true }],
+				readyContributor: {
+					kind: ToolCallContributorKind.MCP,
+					customizationId: 'mcp-top-level:copilot:test-session-1:docs',
+				},
+			});
+		});
+
+		test('full assistant message does not duplicate markdown emitted before a tool delta', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-stream-dedup');
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'I will inspect the file.',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-dedup',
+				toolName: 'view',
+				inputDelta: '{"path":"/workspace/file.ts"}',
+			});
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-dedup',
+				content: 'I will inspect the file.',
+				toolRequests: [{
+					toolCallId: 'tc-dedup',
+					name: 'view',
+					arguments: { path: '/workspace/file.ts' },
+					type: 'function',
+				}],
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			const markdownParts = getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+					? [{ kind: action.part.kind, content: action.part.content }]
+					: []);
+			assert.deepStrictEqual(markdownParts, [{
+				kind: ResponsePartKind.Markdown,
+				content: 'I will inspect the file.',
+			}]);
+		});
+
 		test('tool_start carries MCP App UI metadata from the SDK', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('tool.execution_start', {
@@ -4081,8 +4266,9 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
-		test('tool partial results reset the channel when the runtime rewrites its snapshot', async () => {
-			const { mockSession, terminalManager } = await createAgentSession(disposables);
+		test('truncated shell output streams through marker, rolling-tail, and completion transitions', async () => {
+			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			session.resetTurnState('turn-truncated-stream');
 
 			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-rewrite';
 			mockSession.fire('tool.execution_start', {
@@ -4092,27 +4278,59 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
-				partialOutput: 'tick 1\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-			// Once output is truncated the runtime rewrites its snapshot (a
-			// truncation marker under the emit cap, a rolling tail past the
-			// large-output threshold), so it stops being prefix-stable.
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-rewrite',
-				partialOutput: 'tick 1\n[...truncated 42 lines...]\n',
+				partialOutput: 'line 1\nline 498\nline 499\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
-				partialOutput: 'tick 1\n[...truncated 99 lines...]\n',
+				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 42 lines from the end>\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-rewrite',
+				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 99 lines from the end>\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-rewrite',
+				partialOutput: 'line 498\nline 499\nline 500\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-rewrite',
+				partialOutput: 'line 499\nline 500\nline 501\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-rewrite',
+				success: true,
+				result: {
+					content: 'Output too large',
+					contents: [{
+						type: 'shell_exit',
+						shellId: '0',
+						exitCode: 0,
+						outputPreview: 'line 1\nline 2\n',
+						outputTruncated: true,
+					}],
+				},
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
 
-			assert.deepStrictEqual({ data: terminalManager.outputTerminalData, resets: terminalManager.outputTerminalResets }, {
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
+			const terminalResult = completed.result.content?.find(content => content.type === ToolResultContentType.Terminal) as ToolResultTerminalContent | undefined;
+			assert.deepStrictEqual({
+				data: terminalManager.outputTerminalData,
+				resets: terminalManager.outputTerminalResets,
+				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
+				result: terminalResult?.result,
+			}, {
 				data: [
-					{ uri: terminalUri, data: 'tick 1\n' },
-					{ uri: terminalUri, data: '[...truncated 42 lines...]\n' },
-					{ uri: terminalUri, data: 'tick 1\n[...truncated 99 lines...]\n' },
+					{ uri: terminalUri, data: 'line 1\nline 498\nline 499\n' },
+					{ uri: terminalUri, data: '<output too long - dropped 42 lines from the end>\n' },
+					{ uri: terminalUri, data: 'line 500\n' },
+					{ uri: terminalUri, data: 'line 501\n' },
 				],
-				resets: [terminalUri],
+				resets: [],
+				finalized: [{ uri: terminalUri, exitCode: 0 }],
+				disposed: [terminalUri],
+				result: { exitCode: 0, preview: 'line 1\nline 2\n', truncated: true },
 			});
 		});
 
