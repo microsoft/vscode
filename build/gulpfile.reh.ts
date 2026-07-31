@@ -573,12 +573,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			promisify(glob)('**/*.node', { cwd }),
 			promisify(glob)('**/rg.exe', { cwd }),
 			promisify(glob)('**/tgrep.exe', { cwd }),
-			// Computer Use lives under plugins/computer-use/ in current @github/copilot
-			// platform packages. Keep legacy builtin-plugins globs for older layouts.
-			promisify(glob)('**/node_modules/@github/copilot-win32-*/plugins/computer-use/computer-use-mcp.exe', { cwd }),
-			promisify(glob)('**/node_modules/@github/copilot-win32-*/plugins/computer-use/CopilotComputerUse.exe', { cwd }),
-			promisify(glob)('**/node_modules/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/computer-use-mcp.exe', { cwd }),
-			promisify(glob)('**/node_modules/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/CopilotComputerUse.exe', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));
