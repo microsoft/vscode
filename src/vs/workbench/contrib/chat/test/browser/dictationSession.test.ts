@@ -45,6 +45,7 @@ suite('DictationSession', () => {
 			get isDownloadingModel() { return false; },
 			get modelDownloadProgress() { return undefined; },
 			get currentBackend() { return 'mai' as const; },
+			async switchMicrophone() { return undefined; },
 			async start() {
 				state = ChatSpeechToTextState.Recording;
 				onDidChangeState.fire(state);
