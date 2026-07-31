@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { AGENTS_WINDOW_STARTUP_AA_EXPERIMENT, SessionsWindowStartupExperiment } from '../../browser/sessionsWindowStartupExperiment.js';
 
@@ -17,6 +18,8 @@ class TestAssignmentService extends NullWorkbenchAssignmentService {
 }
 
 suite('SessionsWindowStartupExperiment', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reads the A/A treatment when the contribution starts', () => {
 		const assignmentService = new TestAssignmentService();
