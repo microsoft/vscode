@@ -845,6 +845,8 @@ Editor entry points pass an `AgentsWindowOpenSource` through `INativeHostService
 
 On the first handoff in a window, `SelectAgentsFolderContribution` starts `SessionsWindowOpenTelemetry` only when the application-scoped `TOTAL_SESSIONS_KEY` counter is still zero. The collector freezes whether the settled initial view is a workspace-preselected new-session view (or records `undefined` when a created session is visible), reads whether the initial setup flow showed its sign-in dialog, and emits `agents/firstTimeWindowOpen` once. A close within three minutes includes `windowCloseDurationMs`; otherwise the event emits at the three-minute boundary with that field undefined.
 
+`SessionsWindowStartupExperiment` reads the `agentsWindowStartupAA` treatment at `WorkbenchPhase.BlockStartup`. Both A/A variants use the same treatment value, so the read records experiment exposure without changing the Agents window experience.
+
 ### Automation Run Lifecycle
 
 `AutomationRunner` exposes separate dispatch and lifecycle promises. It resolves
