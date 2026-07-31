@@ -110,6 +110,9 @@ const copilotOptionalNativePayloadDirs = [
 
 function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 	const files = [
+		// Computer Use moved from prebuilds/* into plugins/computer-use/**.
+		// Keep the legacy prebuilds paths so older package layouts still strip.
+		'plugins/computer-use/**',
 		'prebuilds/*/computer.node',
 		'prebuilds/*/computer-use-mcp',
 		'prebuilds/*/computer-use-mcp.exe',

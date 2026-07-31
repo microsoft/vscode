@@ -628,6 +628,12 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
+			// Computer Use lives under plugins/computer-use/ in current @github/copilot
+			// platform packages. These globs are a safety net if packaging ever
+			// re-includes the binaries; the primary fix is excluding the tree in
+			// getCopilotRuntimePrebuildFiles.
+			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/plugins/computer-use/computer-use-mcp.exe', { cwd }),
+			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/plugins/computer-use/CopilotComputerUse.exe', { cwd }),
 			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/computer-use-mcp.exe', { cwd }),
 			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/CopilotComputerUse.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),

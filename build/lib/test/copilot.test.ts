@@ -44,6 +44,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linux-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linux-x64/pvrecorder/**',
 			'!node_modules/@github/copilot-linux-x64/webview/**',
+			'!node_modules/@github/copilot-linux-x64/plugins/computer-use/**',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp.exe',
@@ -75,6 +76,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linuxmusl-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/pvrecorder/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/webview/**',
+			'!node_modules/@github/copilot-linuxmusl-x64/plugins/computer-use/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp.exe',
@@ -103,6 +105,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-x64/pvrecorder/**',
 			'!node_modules/@github/copilot-win32-x64/webview/**',
+			'!node_modules/@github/copilot-win32-x64/plugins/computer-use/**',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp.exe',
@@ -132,6 +135,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-arm64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-arm64/pvrecorder/**',
 			'!node_modules/@github/copilot-win32-arm64/webview/**',
+			'!node_modules/@github/copilot-win32-arm64/plugins/computer-use/**',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp.exe',
@@ -380,6 +384,10 @@ function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], pac
 		assert(patterns.includes(`!${packageDir}/${dir}/**`), dir);
 		assert(!matchesGlob(`${packageDir}/${dir}/index.js`, patterns), dir);
 	}
+	assert(patterns.includes(`!${packageDir}/plugins/computer-use/**`), 'plugins/computer-use');
+	assert(!matchesGlob(`${packageDir}/plugins/computer-use/computer-use-mcp.exe`, patterns), 'plugins/computer-use-mcp.exe');
+	assert(!matchesGlob(`${packageDir}/plugins/computer-use/CopilotComputerUse.exe`, patterns), 'plugins/CopilotComputerUse.exe');
+	assert(!matchesGlob(`${packageDir}/plugins/computer-use/Copilot Computer Use.app/Contents/MacOS/Copilot Computer Use`, patterns), 'plugins/Copilot Computer Use.app');
 	assert(patterns.includes(`!${packageDir}/prebuilds/*/computer.node`), 'computer.node');
 	assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/computer.node`, patterns), 'computer.node');
 	assert(patterns.includes(`!${packageDir}/prebuilds/*/computer-use-mcp`), 'computer-use-mcp');
