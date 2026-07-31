@@ -7,31 +7,27 @@ import './media/chatPet.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { GlobalPointerMoveMonitor } from '../../../../../base/browser/globalPointerMoveMonitor.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import product from '../../../../../platform/product/common/product.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { ChatPetVariant, IChatPetService } from '../chatPetService.js';
+import { IChatPetService } from '../chatPetService.js';
 
-export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'onTheRun' | 'searching' | 'searchingDown';
-export type ChatPetClickInteraction = Extract<ChatPetState, 'love' | 'jump' | 'cool' | 'yapping'>;
+export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'complete' | 'love' | 'clapping' | 'jump' | 'yapping' | 'yappingMouthOpen';
+export type ChatPetClickInteraction = Extract<ChatPetState, 'love' | 'jump' | 'yapping'>;
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 const TRANSIENT_STATE_DURATION = 2_000;
 const COMPLETE_STATE_DURATION = 2_140;
 const LOVE_STATE_DURATION = 2_940;
-const COOL_STATE_DURATION = 3_000;
 const WAKE_STATE_DURATION = 880;
-const SEARCH_INTERVAL = 10_000;
 const DRAG_THRESHOLD = 2;
 const KEYBOARD_MOVE_DISTANCE = 8;
 const CHAT_PET_SOURCE_SIZE = 96;
@@ -43,8 +39,6 @@ const TYPING_FRAME_DURATIONS = Array.from({ length: 8 }, () => 120);
 const SPEECH_FRAME_DURATIONS = [220, 220, 220, 100, 160, 180];
 const CLAPPING_FRAME_DURATIONS = [80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80];
 const LOVE_FRAME_DURATIONS = [200, 200, 380, 100, 80, 1_980];
-const COOL_FRAME_DURATIONS = [600, 120, 120, 120, 160, 80, 80, 80, 1_640];
-const SEARCH_FRAME_DURATIONS = [500, 500, 500, 500];
 const YAPPING_FRAME_DURATIONS = [300, 240, 1_500, 240, 360];
 
 interface ChatPetSpriteSource {
@@ -68,11 +62,11 @@ export function getChatPetBuddyName(quality: string | undefined): 'buddy-idle-st
 	return quality === 'stable' ? 'buddy-idle-stable' : 'buddy-idle-insiders';
 }
 
-const spriteSources = new Map<ChatPetVariant, Record<ChatPetState, ChatPetSpriteSources>>();
-const speechSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
+let spriteSources: Record<ChatPetState, ChatPetSpriteSources> | undefined;
+let speechSpriteSources: ChatPetSpriteSources | undefined;
 
 export function doesChatPetStateTrackCursor(state: ChatPetState | undefined): boolean {
-	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'complete' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'complete' && state !== 'love' && state !== 'yappingMouthOpen';
 }
 
 export function getChatPetSpriteName(state: ChatPetState, quality: string | undefined): string {
@@ -82,12 +76,6 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 			return `buddy-love-${variant}`;
 		case 'clapping':
 			return `buddy-clapping-${variant}`;
-		case 'cool':
-			return `buddy-cool-${variant}`;
-		case 'onTheRun':
-		case 'searching':
-		case 'searchingDown':
-			return `buddy-search-${variant}`;
 		case 'sleep':
 			return `buddy-sleep-${variant}`;
 		case 'waking':
@@ -117,13 +105,6 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 			return CLAPPING_FRAME_DURATIONS;
 		case 'love':
 			return LOVE_FRAME_DURATIONS;
-		case 'cool':
-			return COOL_FRAME_DURATIONS;
-		case 'searching':
-			return SEARCH_FRAME_DURATIONS;
-		case 'onTheRun':
-		case 'searchingDown':
-			return [];
 		case 'yappingMouthOpen':
 			return YAPPING_FRAME_DURATIONS;
 		case 'yapping':
@@ -146,7 +127,7 @@ function createSpriteSources(name: string, state: ChatPetState, tracksCursor = t
 		animated: frameDurations.length === 0 ? staticSource : {
 			url: FileAccess.asBrowserUri(`${root}/${name}${suffix}.spritesheet.png`).toString(true),
 			frameDurations,
-			iterations: state === 'waking' || state === 'cool' || state === 'searching' ? 1 : Infinity,
+			iterations: state === 'waking' ? 1 : Infinity,
 		},
 		reducedMotion: staticSource,
 	};
@@ -156,11 +137,10 @@ export function getChatPetSpeechFrameDurations(): readonly number[] {
 	return SPEECH_FRAME_DURATIONS;
 }
 
-function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPetSpriteSources> {
-	let sources = spriteSources.get(variant);
-	if (!sources) {
-		const createStateSpriteSources = (state: ChatPetState) => createSpriteSources(getChatPetSpriteName(state, variant), state, doesChatPetStateTrackCursor(state));
-		sources = {
+function getSpriteSources(): Record<ChatPetState, ChatPetSpriteSources> {
+	if (!spriteSources) {
+		const createStateSpriteSources = (state: ChatPetState) => createSpriteSources(getChatPetSpriteName(state, product.quality), state, doesChatPetStateTrackCursor(state));
+		spriteSources = {
 			idle: createStateSpriteSources('idle'),
 			sleep: createStateSpriteSources('sleep'),
 			waking: createStateSpriteSources('waking'),
@@ -170,25 +150,20 @@ function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPet
 			love: createStateSpriteSources('love'),
 			clapping: createStateSpriteSources('clapping'),
 			jump: createStateSpriteSources('jump'),
-			cool: createStateSpriteSources('cool'),
 			yapping: createStateSpriteSources('yapping'),
 			yappingMouthOpen: createStateSpriteSources('yappingMouthOpen'),
-			onTheRun: createStateSpriteSources('onTheRun'),
-			searching: createStateSpriteSources('searching'),
-			searchingDown: createStateSpriteSources('searchingDown'),
 		};
-		spriteSources.set(variant, sources);
 	}
 
-	return sources;
+	return spriteSources;
 }
 
-function getSpeechSpriteSources(variant: ChatPetVariant): ChatPetSpriteSources {
-	let sources = speechSpriteSources.get(variant);
-	if (!sources) {
+function getSpeechSpriteSources(): ChatPetSpriteSources {
+	if (!speechSpriteSources) {
 		const root = 'vs/workbench/contrib/chat/browser/widget/media/chatPet';
+		const variant = product.quality === 'stable' ? 'stable' : 'insiders';
 		const name = `buddy-speech-${variant}-96`;
-		sources = {
+		speechSpriteSources = {
 			animated: {
 				url: FileAccess.asBrowserUri(`${root}/${name}.spritesheet.png`).toString(true),
 				frameDurations: SPEECH_FRAME_DURATIONS,
@@ -200,9 +175,8 @@ function getSpeechSpriteSources(variant: ChatPetVariant): ChatPetSpriteSources {
 				iterations: 1,
 			},
 		};
-		speechSpriteSources.set(variant, sources);
 	}
-	return sources;
+	return speechSpriteSources;
 }
 
 function doesChatPetStateSpeak(state: ChatPetState | undefined): boolean {
@@ -227,10 +201,6 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 		return 'typing';
 	}
 	return 'idle';
-}
-
-export function isChatPetVisible(enabled: boolean, isLatestFocusedWidget: boolean): boolean {
-	return enabled && isLatestFocusedWidget;
 }
 
 export function getChatPetRenderedState(baseState: ChatPetState, transientState: ChatPetState | undefined, isDragging: boolean): ChatPetState {
@@ -265,8 +235,6 @@ function getTransientStateDuration(state: ChatPetState): number {
 			return COMPLETE_STATE_DURATION;
 		case 'love':
 			return LOVE_STATE_DURATION;
-		case 'cool':
-			return COOL_STATE_DURATION;
 		case 'waking':
 			return WAKE_STATE_DURATION;
 		default:
@@ -275,7 +243,7 @@ function getTransientStateDuration(state: ChatPetState): number {
 }
 
 export function getChatPetClickInteraction(random: number, previousInteraction?: ChatPetClickInteraction): ChatPetClickInteraction {
-	const interactions: readonly ChatPetClickInteraction[] = ['love', 'jump', 'cool', 'yapping'];
+	const interactions: readonly ChatPetClickInteraction[] = ['love', 'jump', 'yapping'];
 	const availableInteractions = interactions.filter(interaction => interaction !== previousInteraction);
 	return availableInteractions[Math.min(Math.floor(random * availableInteractions.length), availableInteractions.length - 1)];
 }
@@ -312,11 +280,9 @@ export class ChatPetWidget extends Disposable {
 	private readonly _isDragging = observableValue(this, false);
 	private readonly _idleScheduler = this._register(new RunOnceScheduler(() => this._idleExpired.set(true, undefined), CHAT_PET_IDLE_SLEEP_DELAY));
 	private readonly _transientScheduler = this._register(new RunOnceScheduler(() => this._transientState.set(undefined, undefined), TRANSIENT_STATE_DURATION));
-	private readonly _searchScheduler: RunOnceScheduler;
 	private readonly _clickSuppressionScheduler = this._register(new RunOnceScheduler(() => this._suppressNextPointerClick = false, 0));
 	private readonly _spriteAnimation = this._register(new MutableDisposable());
 	private readonly _speechAnimation = this._register(new MutableDisposable());
-	private readonly _contextMenuActions = this._register(new MutableDisposable<DisposableStore>());
 	private _cursorPosition: readonly [number, number] | undefined;
 	private _activeSprite: ChatPetSpriteElement | undefined;
 	private _pendingSprite: ChatPetSpriteElement | undefined;
@@ -330,27 +296,21 @@ export class ChatPetWidget extends Disposable {
 	private _hasCustomPosition = false;
 	private _suppressNextPointerClick = false;
 	private _lastClickInteraction: ChatPetClickInteraction | undefined;
-	private _variant: ChatPetVariant;
 
 	constructor(
 		private readonly parent: HTMLElement,
 		private readonly dragBounds: HTMLElement,
 		model: IObservable<IChatModel | undefined>,
 		hasInput: IObservable<boolean>,
-		isLatestFocusedWidget: IObservable<boolean>,
 		inputChanged: (listener: () => void) => IDisposable,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
-		this._variant = this.chatPetService.variant.get();
-		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
-		this.dragBounds.classList.add('chat-pet-drag-bounds');
 		this._button = this._register(new Button(this.parent, {
-			ariaLabel: localize('chatPet.interact', "Interact with the VS Code pet. Use the context menu to put it on the run."),
+			ariaLabel: localize('chatPet.interact', "Interact with the VS Code pet"),
 		}));
 		this._button.element.classList.add('chat-pet-button');
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => {
@@ -396,29 +356,18 @@ export class ChatPetWidget extends Disposable {
 			}
 		}));
 		const onAnimationComplete = (event: AnimationEvent) => {
-			if (event.animationName === 'chat-pet-enter') {
-				this._button.element.classList.remove('entering');
-			} else if (event.animationName === 'chat-pet-exit' && !this._enabled) {
+			if (event.animationName === 'chat-pet-exit' && !this._enabled) {
 				this._finishDisable();
 			} else if (event.animationName === 'chat-pet-yapping-fall' && !this._isDragging.get() && event.target === this._activeSprite?.container && this._button.element.dataset.state === 'yapping') {
 				this._transientState.set('yappingMouthOpen', undefined);
-			} else if (event.animationName === 'chat-pet-search-down' && this._button.element.dataset.state === 'searchingDown') {
-				this._transientState.set(undefined, undefined);
 			}
 		};
 		this._register(dom.addDisposableListener(this._button.element, dom.EventType.ANIMATION_END, onAnimationComplete));
 		this._register(dom.addDisposableListener(this._button.element, 'animationcancel', onAnimationComplete));
 		this._register(dom.addDisposableListener(this._button.element, dom.EventType.POINTER_DOWN, event => this._startDrag(event)));
 		this._register(dom.addDisposableListener(this._button.element, dom.EventType.KEY_DOWN, event => this._onKeyDown(event)));
-		this._register(dom.addDisposableListener(this._button.element, dom.EventType.CONTEXT_MENU, event => {
-			if (!this._enabled) {
-				return;
-			}
-			dom.EventHelper.stop(event, true);
-			this._showContextMenu(event);
-		}));
 		this._register(inputChanged(() => {
-			if (this._enabled && !this.chatPetService.onTheRun.get()) {
+			if (this._enabled) {
 				this._wake();
 			}
 		}));
@@ -428,11 +377,6 @@ export class ChatPetWidget extends Disposable {
 			if (this._suppressNextPointerClick && e.type !== dom.EventType.KEY_DOWN) {
 				this._suppressNextPointerClick = false;
 				this._clickSuppressionScheduler.cancel();
-				return;
-			}
-			if (this.chatPetService.onTheRun.get()) {
-				this._transientState.set(undefined, undefined);
-				this.chatPetService.setOnTheRun(false);
 				return;
 			}
 			const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
@@ -453,9 +397,6 @@ export class ChatPetWidget extends Disposable {
 				case 'jump':
 					status(localize('chatPet.jumped', "The VS Code pet jumped"));
 					break;
-				case 'cool':
-					status(localize('chatPet.cool', "The VS Code pet put on sunglasses"));
-					break;
 				case 'yapping':
 					status(localize('chatPet.yapping', "The VS Code pet is yapping"));
 					break;
@@ -465,15 +406,7 @@ export class ChatPetWidget extends Disposable {
 		const motionReduced = observableFromEvent(this, this.accessibilityService.onDidChangeReducedMotion, () => this.accessibilityService.isMotionReduced());
 		this._register(autorun(reader => {
 			this._motionReduced = motionReduced.read(reader);
-			const enabled = isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidget.read(reader));
-			const variant = this.chatPetService.variant.read(reader);
-			const variantChanged = variant !== this._variant;
-			this._variant = variant;
-			const onTheRun = this.chatPetService.onTheRun.read(reader);
-			this._button.element.classList.toggle('on-the-run', onTheRun);
-			this._button.setAriaLabel(onTheRun
-				? localize('chatPet.restore', "Bring back the VS Code pet")
-				: localize('chatPet.interact', "Interact with the VS Code pet. Use the context menu to put it on the run."));
+			const enabled = this.chatPetService.enabled.read(reader);
 			const chatModel = model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
 			const needsInput = !!request?.response?.isPendingConfirmation.read(reader);
@@ -499,7 +432,6 @@ export class ChatPetWidget extends Disposable {
 
 			if (!enabled) {
 				this._idleScheduler.cancel();
-				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
 				if (transientState !== undefined) {
 					this._transientState.set(undefined, undefined);
@@ -509,17 +441,6 @@ export class ChatPetWidget extends Disposable {
 				}
 				return;
 			}
-
-			if (onTheRun) {
-				this._idleScheduler.cancel();
-				if (!this._searchScheduler.isScheduled()) {
-					this._searchScheduler.schedule();
-				}
-				const state = transientState === 'searching' || transientState === 'searchingDown' ? transientState : 'onTheRun';
-				this._renderState(state, variantChanged);
-				return;
-			}
-			this._searchScheduler.cancel();
 
 			if (this._busy) {
 				this._idleScheduler.cancel();
@@ -533,7 +454,7 @@ export class ChatPetWidget extends Disposable {
 			}
 
 			const baseState = getChatPetBaseState(hasActiveRequest, needsInput, inputHasContent, idleExpired);
-			this._renderState(getChatPetRenderedState(baseState, transientState, isDragging), variantChanged, isDragging);
+			this._renderState(getChatPetRenderedState(baseState, transientState, isDragging), false, isDragging);
 		}));
 
 		this._register(autorun(reader => {
@@ -551,7 +472,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _startDrag(event: PointerEvent): void {
-		if (!this._enabled || this.chatPetService.onTheRun.get() || event.button !== 0) {
+		if (!this._enabled || event.button !== 0) {
 			return;
 		}
 
@@ -584,41 +505,6 @@ export class ChatPetWidget extends Disposable {
 				this._suppressNextPointerClick = true;
 				this._clickSuppressionScheduler.schedule();
 			}
-		});
-	}
-
-	private _showContextMenu(event: MouseEvent): void {
-		const onTheRun = this.chatPetService.onTheRun.get();
-		const actions = new DisposableStore();
-		this._contextMenuActions.value = actions;
-		const stable = actions.add(new Action('chat.pet.variant.stable', localize('chatPet.variant.stable.action', "Stable Colors"), undefined, true, () => this.chatPetService.setVariant('stable')));
-		stable.checked = this.chatPetService.variant.get() === 'stable';
-		const insiders = actions.add(new Action('chat.pet.variant.insiders', localize('chatPet.variant.insiders.action', "Insiders Colors"), undefined, true, () => this.chatPetService.setVariant('insiders')));
-		insiders.checked = this.chatPetService.variant.get() === 'insiders';
-		const onTheRunAction = actions.add(new Action(
-			'chat.pet.onTheRun',
-			onTheRun ? localize('chatPet.comeBack.action', "Come Back") : localize('chatPet.goOnTheRun.action', "Go on the Run"),
-			undefined,
-			true,
-			() => {
-				this._transientState.set(undefined, undefined);
-				this.chatPetService.setOnTheRun(!onTheRun);
-			}
-		));
-		const separator = new Separator();
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => new StandardMouseEvent(dom.getWindow(this._button.element), event),
-			getActions: (): IAction[] => [
-				onTheRunAction,
-				separator,
-				stable,
-				insiders,
-			],
-			onHide: () => {
-				if (this._contextMenuActions.value === actions) {
-					this._contextMenuActions.clear();
-				}
-			},
 		});
 	}
 
@@ -732,19 +618,6 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _trySearch(): void {
-		if (!this._enabled || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		if (this._motionReduced) {
-			this._searchScheduler.schedule();
-			return;
-		}
-		this._transientState.set('searching', undefined);
-		this._renderState('searching', true);
-		this._searchScheduler.schedule();
-	}
-
 	private _wake(): void {
 		const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
 		this._idleExpired.set(false, undefined);
@@ -769,7 +642,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _renderState(state: ChatPetState, restart = false, useStaticSprite = false): void {
-		const sources = getSpriteSources(this._variant)[state];
+		const sources = getSpriteSources()[state];
 		const source = this._motionReduced || useStaticSprite ? sources.reducedMotion : sources.animated;
 		if (!restart && this._activeSprite && isChatPetImageSource(this._activeSprite.image, source.url)) {
 			this._pendingSprite = undefined;
@@ -803,12 +676,11 @@ export class ChatPetWidget extends Disposable {
 		this._activeSprite?.container.classList.add('hidden');
 		sprite.container.classList.remove('hidden');
 		this._activeSprite = sprite;
-		const state = this._pendingState;
-		this._startSpriteAnimation(this._pendingSource, sprite, this._spriteAnimation, () => this._onSpriteAnimationComplete(sprite, state));
-		this._button.element.dataset.state = state;
-		this._renderedState = state;
-		this._eyes.classList.toggle('tracking', doesChatPetStateTrackCursor(state));
-		this._updateSpeechBubble(state, true);
+		this._startSpriteAnimation(this._pendingSource, sprite, this._spriteAnimation);
+		this._button.element.dataset.state = this._pendingState;
+		this._renderedState = this._pendingState;
+		this._eyes.classList.toggle('tracking', doesChatPetStateTrackCursor(this._pendingState));
+		this._updateSpeechBubble(this._pendingState, true);
 		this._pendingSprite = undefined;
 		this._pendingSource = undefined;
 		this._pendingState = undefined;
@@ -818,16 +690,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _onSpriteAnimationComplete(sprite: ChatPetSpriteElement, state: ChatPetState): void {
-		if (state !== 'searching' || sprite !== this._activeSprite || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		this._transientState.set('searchingDown', undefined);
-		this._button.element.dataset.state = 'searchingDown';
-		this._renderedState = 'searchingDown';
-	}
-
-	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void): void {
+	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>): void {
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
 		const context = canvas.getContext('2d');
@@ -858,15 +721,10 @@ export class ChatPetWidget extends Disposable {
 		const startTime = targetWindow.performance.now();
 		let currentFrame = 0;
 		let animationFrame: number | undefined;
-		let completed = false;
 		const updateFrame = (timestamp: number) => {
 			const frame = getChatPetAnimationFrame(frameDurations, timestamp - startTime, source.iterations);
 			if (frame.complete) {
 				drawFrame(frame.frameIndex);
-				if (!completed) {
-					completed = true;
-					onComplete?.();
-				}
 				return;
 			}
 			if (frame.frameIndex !== currentFrame) {
@@ -891,7 +749,7 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 
-		const sources = getSpeechSpriteSources(this._variant);
+		const sources = getSpeechSpriteSources();
 		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
 		if (!isChatPetImageSource(this._speechBubble.image, source.url)) {
 			this._speechAnimation.clear();

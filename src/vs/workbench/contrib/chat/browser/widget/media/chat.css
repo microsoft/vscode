@@ -46,11 +46,6 @@
 	-webkit-user-select: text;
 }
 
-.interactive-session.chat-pet-enabled .interactive-item-container.chat-most-recent-response::after {
-	content: "";
-	flex: 0 0 48px;
-}
-
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
 	display: flex;
 	align-items: center;
