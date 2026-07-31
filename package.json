@@ -4,7 +4,7 @@
   "distro": "09533f921029d9d073c06e70f566ebe31e43cebc",
   "copilotOverride": {
     "@github/copilot-sdk": "",
-    "@github/copilot": ""
+    "@github/copilot": "a560dc058848be2ff32297627535a5fac687adb4"
   },
   "author": {
     "name": "Microsoft Corporation"
