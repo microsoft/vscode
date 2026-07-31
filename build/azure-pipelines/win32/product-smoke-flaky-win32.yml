@@ -127,7 +127,10 @@ jobs:
 
       - ${{ if or(eq(parameters.VSCODE_TEST_INTEGRATION, true), eq(parameters.VSCODE_TEST_SMOKE, true)) }}:
         - powershell: |
-            . build/azure-pipelines/win32/exec.ps1
+            # This step's workingDirectory is Agent.BuildDirectory (the parent of
+            # the sources folder), so exec.ps1 must be sourced via an absolute
+            # path rather than one relative to the sources root.
+            . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
             $ErrorActionPreference = "Stop"
             exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\app.zip VSCode-win32-x64 }
           workingDirectory: $(Agent.BuildDirectory)
@@ -135,7 +138,10 @@ jobs:
 
       - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
         - powershell: |
-            . build/azure-pipelines/win32/exec.ps1
+            # This step's workingDirectory is Agent.BuildDirectory (the parent of
+            # the sources folder), so exec.ps1 must be sourced via an absolute
+            # path rather than one relative to the sources root.
+            . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
             $ErrorActionPreference = "Stop"
             exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\server.zip vscode-server-win32-x64 }
           workingDirectory: $(Agent.BuildDirectory)
