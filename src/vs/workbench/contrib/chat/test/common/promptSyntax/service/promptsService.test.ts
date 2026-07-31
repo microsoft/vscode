@@ -2213,6 +2213,46 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('getSourceFolders - skills', () => {
+		test('includes user-level skill source folders', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderUri = URI.file('/skills-source-folders');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const folders = await service.getSourceFolders(PromptsType.skill);
+
+			const userFolders = folders.filter(f => f.storage === PromptsStorage.user);
+			const localFolders = folders.filter(f => f.storage === PromptsStorage.local);
+
+			assert.ok(userFolders.length > 0, 'Should include user-level skill source folders');
+			assert.ok(localFolders.length > 0, 'Should include workspace-level skill source folders');
+			assert.ok(
+				userFolders.some(f => f.uri.path === '/home/user/.copilot/skills'),
+				'Should include ~/.copilot/skills as a user source folder'
+			);
+		});
+
+		test('excludes defaults explicitly disabled via configuration', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {
+				'.github/skills': false,
+				'~/.copilot/skills': false,
+			});
+
+			const rootFolderUri = URI.file('/skills-disabled-defaults');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const folders = await service.getSourceFolders(PromptsType.skill);
+			const paths = folders.map(f => f.uri.path);
+
+			assert.ok(!paths.some(p => p.endsWith('/.github/skills')), 'Disabled .github/skills must not appear');
+			assert.ok(!paths.includes('/home/user/.copilot/skills'), 'Disabled ~/.copilot/skills must not appear');
+			assert.ok(paths.includes('/home/user/.agents/skills'), 'Non-disabled ~/.agents/skills must still appear');
+		});
+	});
+
 	suite('listPromptFiles - extensions', () => {
 
 		test('Contributed prompt file', async () => {

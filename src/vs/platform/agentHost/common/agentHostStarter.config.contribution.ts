@@ -13,8 +13,10 @@ import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostByokModelsEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
+	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
+	AgentHostCodexMultiRootEnabledSettingId,
 	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
 	AgentHostCopilotMultiRootEnabledSettingId,
@@ -100,6 +102,21 @@ configurationRegistry.registerConfiguration({
 			// Hidden from the Settings UI while the feature is dogfooded internally.
 			// Still settable via `settings.json`; flip `default` (e.g. to
 			// `product.quality !== 'stable'`) to enable it for a build channel.
+			included: false,
+		},
+		[AgentHostClaudeMultiRootEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.claudeAgent.multiRootEnabled', "When enabled, Claude agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
+			default: false,
+			// Hidden from the Settings UI while the feature is dogfooded internally.
+			// Still settable via `settings.json`; flip `default` (e.g. to
+			// `product.quality !== 'stable'`) to enable it for a build channel.
+			included: false,
+		},
+		[AgentHostCodexMultiRootEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.codexAgent.multiRootEnabled', "When enabled, Codex agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
+			default: false,
 			included: false,
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {

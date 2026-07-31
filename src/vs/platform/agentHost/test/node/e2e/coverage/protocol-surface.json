@@ -5,24 +5,11 @@
 		"note": "A symbol is \"covered\" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted."
 	},
 	"commands": {
-		"covered": 15,
+		"covered": 28,
 		"total": 29,
-		"percentage": 51.72,
+		"percentage": 96.55,
 		"uncovered": [
-			"createResourceWatch",
-			"fetchTurns",
-			"invokeChangesetOperation",
-			"ping",
-			"reconnect",
-			"resourceCopy",
-			"resourceDelete",
-			"resourceList",
-			"resourceMkdir",
-			"resourceMove",
-			"resourceRead",
-			"resourceRequest",
-			"resourceResolve",
-			"resourceWrite"
+			"invokeChangesetOperation"
 		]
 	},
 	"notifications": {
@@ -38,38 +25,22 @@
 		]
 	},
 	"actions": {
-		"covered": 44,
+		"covered": 64,
 		"total": 85,
-		"percentage": 51.76,
+		"percentage": 75.29,
 		"uncovered": [
-			"annotations/entryRemoved",
-			"annotations/entrySet",
-			"annotations/removed",
-			"annotations/set",
-			"annotations/updated",
-			"changeset/cleared",
-			"changeset/contentChanged",
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"changeset/filesReviewChanged",
 			"changeset/operationStatusChanged",
-			"changeset/operationsChanged",
-			"changeset/statusChanged",
-			"chat/activityChanged",
 			"chat/error",
 			"chat/inputAnswerChanged",
-			"chat/pendingMessageSet",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
 			"chat/toolCallResultConfirmed",
-			"chat/turnsLoaded",
-			"chat/workingDirectoryRemoved",
-			"chat/workingDirectorySet",
 			"resourceWatch/changed",
 			"root/activeSessionsChanged",
 			"root/agentsChanged",
-			"root/terminalsChanged",
 			"session/activityChanged",
 			"session/creationFailed",
 			"session/customizationRemoved",
@@ -78,11 +49,7 @@
 			"session/mcpServerStartRequested",
 			"session/mcpServerStateChanged",
 			"session/mcpServerStopRequested",
-			"session/workingDirectoryRemoved",
-			"session/workingDirectorySet",
-			"terminal/cleared",
-			"terminal/commandDetectionAvailable",
-			"terminal/exited"
+			"terminal/commandDetectionAvailable"
 		]
 	}
 }

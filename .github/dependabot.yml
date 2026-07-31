@@ -11,8 +11,6 @@ updates:
   - package-ecosystem: "npm"
     directory: "/extensions/markdown-language-features"
     schedule:
-      interval: "cron"
-      cronjob: "0 2,17 * * *"
-      timezone: "Europe/Zurich"
+      interval: "daily"
     allow:
       - dependency-name: "@vscode/markdown-editor"

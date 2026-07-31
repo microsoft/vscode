@@ -43,6 +43,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMessage ??= this._sdkEvent('assistant.message');
 	}
 
+	private _onToolCallDelta: Event<SessionEventPayload<'assistant.tool_call_delta'>> | undefined;
+	get onToolCallDelta(): Event<SessionEventPayload<'assistant.tool_call_delta'>> {
+		return this._onToolCallDelta ??= this._sdkEvent('assistant.tool_call_delta');
+	}
+
 	private _onToolStart: Event<SessionEventPayload<'tool.execution_start'>> | undefined;
 	get onToolStart(): Event<SessionEventPayload<'tool.execution_start'>> {
 		return this._onToolStart ??= this._sdkEvent('tool.execution_start');
@@ -56,6 +61,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onPermissionRequested: Event<SessionEventPayload<'permission.requested'>> | undefined;
 	get onPermissionRequested(): Event<SessionEventPayload<'permission.requested'>> {
 		return this._onPermissionRequested ??= this._sdkEvent('permission.requested');
+	}
+
+	private _onPermissionCompleted: Event<SessionEventPayload<'permission.completed'>> | undefined;
+	get onPermissionCompleted(): Event<SessionEventPayload<'permission.completed'>> {
+		return this._onPermissionCompleted ??= this._sdkEvent('permission.completed');
 	}
 
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
