@@ -158,6 +158,11 @@ jobs:
       steps:
         - checkout: none
 
+        # Ensured first so the crash/log pipelineArtifact outputs (which run
+        # unconditionally) have a path even if a later step fails.
+        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+          displayName: Ensure artifact directories exist
+
         - task: DownloadPipelineArtifact@2
           inputs:
             artifact: smoke-flaky-windows-x64-repo
@@ -190,9 +195,6 @@ jobs:
             AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
           displayName: Download Electron and Playwright
           retryCountOnTaskFailure: 3
-
-        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
-          displayName: Ensure artifact directories exist
 
         # Run the Electron unit tests once per iteration. continueOnError lets
         # every iteration run even if some fail, and gives each run its own
@@ -239,6 +241,11 @@ jobs:
             condition: succeededOrFailed()
       steps:
         - checkout: none
+
+        # Ensured first so the crash/log pipelineArtifact outputs (which run
+        # unconditionally) have a path even if a later step fails.
+        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+          displayName: Ensure artifact directories exist
 
         - task: DownloadPipelineArtifact@2
           inputs:
@@ -289,9 +296,6 @@ jobs:
           displayName: Download Electron and Playwright
           retryCountOnTaskFailure: 3
 
-        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
-          displayName: Ensure artifact directories exist
-
         # Run the Electron integration tests once per iteration. continueOnError
         # lets every iteration run even if some fail, and gives each run its own
         # timeline record so the flaky function can tally passes vs. failures.
@@ -338,6 +342,11 @@ jobs:
       steps:
         - checkout: none
 
+        # Ensured first so the crash/log pipelineArtifact outputs (which run
+        # unconditionally) have a path even if a later step fails.
+        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+          displayName: Ensure artifact directories exist
+
         - task: DownloadPipelineArtifact@2
           inputs:
             artifact: smoke-flaky-windows-x64-repo
@@ -378,9 +387,6 @@ jobs:
             AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
           displayName: Download Electron and Playwright
           retryCountOnTaskFailure: 3
-
-        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
-          displayName: Ensure artifact directories exist
 
         # Run the Electron smoke test once per iteration. continueOnError lets every
         # iteration run even if some fail, and gives each run its own timeline record
