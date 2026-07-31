@@ -164,8 +164,16 @@ export class AutomationsCardsWidget extends Disposable {
 		const wrapper = DOM.append(this.cardsContainer, $('.automations-card-wrapper'));
 		const card = DOM.append(wrapper, $('.automations-card'));
 		card.setAttribute('tabindex', '0');
-		card.setAttribute('role', 'button');
-		card.setAttribute('aria-label', automation.name);
+		card.setAttribute('role', 'group');
+		card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, this.formatSchedule(automation)));
+
+		// Enter/Space on the card opens edit
+		this.cardDisposables.add(DOM.addDisposableListener(card, 'keydown', (e: KeyboardEvent) => {
+			if ((e.key === 'Enter' || e.key === ' ') && e.target === card) {
+				e.preventDefault();
+				this.openEditDialog(automation);
+			}
+		}));
 
 		const main = DOM.append(card, $('.automations-card-main'));
 
@@ -196,6 +204,8 @@ export class AutomationsCardsWidget extends Disposable {
 
 		// Action buttons (icon-only with hover tooltips)
 		const actions = DOM.append(card, $('.automations-card-actions'));
+		actions.setAttribute('role', 'toolbar');
+		actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
 		const runBtn = this.createIconButton(actions, Codicon.play, localize('runNow', "Run now"), false);
 		this.cardDisposables.add(DOM.addStandardDisposableListener(runBtn, 'click', (e) => {
 			DOM.EventHelper.stop(e, true);
