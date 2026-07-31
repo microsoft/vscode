@@ -1866,6 +1866,27 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 	});
 
+	test('unsubscribe keeps the active client while another session channel remains subscribed', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+
+		const transport = connectClient('client-tools', [sessionUri, defaultChatUri]);
+		transport.simulateMessage(notification('unsubscribe', { channel: defaultChatUri }));
+		assert.deepStrictEqual(stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId), ['client-tools']);
+
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		assert.deepStrictEqual(stateManager.getSessionState(sessionUri)?.activeClients, []);
+
+		transport.simulateClose();
+	});
+
 	test('reconnect without resubscription removes the active client and fails its owned tool calls', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
