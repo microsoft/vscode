@@ -50,20 +50,15 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-MANDATORY: Always check for compilation errors before running any tests or validation scripts, or declaring work complete, then fix all compilation errors before moving forward.
+Choose validation based on the scope and risk of the change. Large-scale builds and typechecking can be slow, and consume significant resources, so minimize their use. Prefer existing editor or watch-task diagnostics and the smallest targeted tests that cover the changed behavior. Do not start build or watch tasks, run broad type checks, or make type checking a prerequisite for targeted tests solely as a completion ritual.
 
-- NEVER run tests if there are compilation errors
-- NEVER use `npm run compile` to compile TypeScript files
+Run a targeted type check or build when you are not fully confident in the change, and the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. Useful commands include:
 
-### TypeScript compilation steps
-- If the `#runTasks/getTaskOutput` tool is available, check the `VS Code - Build` watch task output for compilation errors. This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions. Start the task if it's not already running in the background.
-- If the tool is not available (e.g. in CLI environments) and you only changed code under `src/`, run `npm run typecheck-client` after making changes to type-check the main VS Code sources (it validates `./src/tsconfig.json`).
-- If you changed built-in extensions under `extensions/` and the tool is not available, run the corresponding gulp task `npm run gulp compile-extensions` instead so that TypeScript errors in extensions are also reported.
-- For TypeScript changes in the `build` folder, you can simply run `npm run typecheck` in the `build` folder.
+- `npm run typecheck-client` for the main sources under `src/`
+- `npm run gulp compile-extensions` for built-in extensions
+- `npm run typecheck` from the `build` folder for build tooling
 
-### TypeScript validation steps
-- Use the run test tool if you need to run tests. If that tool is not available, then you can use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests) or `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests (integration tests end with .integrationTest.ts or are in /extensions/).
-- Use `npm run valid-layers-check` to check for layering issues
+Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests. Add a targeted selector such as `--grep` whenever possible. Run `npm run valid-layers-check` only when a change may affect module layering.
 
 ## Coding Guidelines
 

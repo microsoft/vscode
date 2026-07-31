@@ -25,7 +25,12 @@ export interface IGitHubEndpoints {
 	readonly enterpriseHost: string | undefined;
 }
 
-const GITHUB_DOT_COM_COPILOT_API_BASE_URI = 'https://api.githubcopilot.com';
+/**
+ * The github.com Copilot API host. Distinct from {@link IGitHubEndpoints.apiBaseUri}
+ * (`api.github.com`): enterprise installs override this per user via the Copilot token's
+ * `endpoints.api`, which is not derivable from the enterprise URI.
+ */
+export const GITHUB_DOT_COM_COPILOT_API_BASE_URI = 'https://api.githubcopilot.com';
 
 /** Canonical github.com endpoints, used when no enterprise URI is configured. */
 const GITHUB_DOT_COM_ENDPOINTS: IGitHubEndpoints = {

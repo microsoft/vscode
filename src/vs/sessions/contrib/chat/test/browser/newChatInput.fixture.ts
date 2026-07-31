@@ -22,6 +22,8 @@ import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -81,7 +83,24 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly onDidChangeSlashCommands = Event.None;
 				override async getSlashCommands() { return []; }
 			}());
-			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService()));
+			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
+				new class extends mock<ISessionsService>() {
+					override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+				}(),
+				new class extends mock<IChatWidgetService>() {
+					override readonly onDidChangeFocusedSession = Event.None;
+				}(),
+			)));
+			reg.defineInstance(IVoiceInputModeService, new class extends mock<IVoiceInputModeService>() {
+				override readonly selectedMode = observableValue<VoiceInputMode>('selectedMode', 'voice');
+				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', false);
+				override readonly dictationAvailable = observableValue<boolean>('dictationAvailable', false);
+				override readonly handsFree = observableValue<boolean>('handsFree', true);
+				override readonly simulatedVoiceState = observableValue<undefined>('simulatedVoiceState', undefined);
+				override readonly simulatedHandsFree = observableValue<undefined>('simulatedHandsFree', undefined);
+				override readonly simulatedVersion = observableValue<undefined>('simulatedVersion', undefined);
+				override readonly simulatedHover = observableValue<boolean>('simulatedHover', false);
+			}());
 			reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 				override readonly isConnected = observableValue<boolean>('isConnected', false);
 				override readonly isConnecting = observableValue<boolean>('isConnecting', false);
@@ -98,9 +117,11 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
 				override readonly onDidChangeState = Event.None;
 				override readonly onDidChangePreparingModel = Event.None;
+				override readonly onDidChangeDownloadingModel = Event.None;
 				override readonly state = ChatSpeechToTextState.Idle;
 				override readonly isConfigured = false;
 				override readonly isPreparingModel = false;
+				override readonly isDownloadingModel = false;
 			}());
 		},
 	});
@@ -120,7 +141,7 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	const widget = disposableStore.add(instantiationService.createInstance(NewChatInputWidget, {
 		session,
 		getContextFolderUri: () => undefined,
-		sendRequest: async () => { },
+		sendRequest: async () => true,
 		canSendRequest: observableValue('canSendRequest', true),
 		loading: observableValue('loading', false),
 	}));

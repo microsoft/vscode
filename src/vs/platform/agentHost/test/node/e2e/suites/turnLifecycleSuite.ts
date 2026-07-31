@@ -20,8 +20,8 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled, runRecordOnlyTests } = context;
-	(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
+	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, runRecordOnlyTests } = context;
+	(portableShellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
 		this.timeout(120_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
@@ -78,6 +78,13 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 
 		const toolStarts = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
 		assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
+		if (config.provider === 'copilotcli') {
+			const toolDeltas = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'));
+			assert.ok(toolDeltas.length > 0, 'expected Copilot tool progress before the tool was ready');
+			const delta = getActionEnvelope(toolDeltas[0]).action as { content?: string; invocationMessage?: unknown };
+			assert.ok(delta.invocationMessage, 'expected Copilot to stream an invocation message');
+			assert.strictEqual(delta.content, '', 'Copilot should keep partial tool input in the agent host');
+		}
 
 		// Drain the post-tool continuation to `turnComplete` so the turn ends
 		// within this test's window. This is required for the shared replay

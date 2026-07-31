@@ -71,7 +71,10 @@ The side pane is restored in this order:
 - **D3c — An existing (created) session** → the side pane is **never** opened automatically on
   restore. If it was closed or has no remembered state it stays closed; if it was open and that view
   still exists it reopens; if that view is gone it falls back to the default view (D3d).
-- **D3d — Default view** → Files while the session is uncreated; Changes after the session is created.
+- **D3d — Default view** → **Files** until the session has produced at least one file change (in any of
+  its chats), **Changes** from then on. The change state is read at the moment the side pane is opened,
+  so a change landing later never switches a view you are already looking at (D6). Falls back to
+  Changes when the Files pane has been unpinned.
 
 ### Scenario: special cases that override the remembered state
 A few transitions intentionally ignore the remembered state above.
@@ -79,10 +82,11 @@ A few transitions intentionally ignore the remembered state above.
 #### D4 — Submitting a new session
 When a new session becomes created while staying active — either `isCreated` changes from false to true
 on the same resource, or the provider replaces the draft with a committed resource — the side pane stays
-as you left it: if it was open it stays open and switches to **Changes**; if it was closed it stays
-closed, but opening it later shows **Changes**. In single-pane detail-panel mode, the submit transition
-also keeps the editor content closed because managed Changes/File tab opens are suppressed; the open side
-pane shows the Changes detail.
+exactly as you left it: if it was open it stays open on the view it is already showing; if it was closed
+it stays closed and no view is recorded for it, so opening it later shows the default view for the
+session's change state at that time (D3d). In single-pane detail-panel mode, the submit transition
+also keeps the editor content closed and activates the Changes tab that was already shown beside Files;
+the open side pane shows the Changes detail.
 
 #### D5 — Maximizing the editor
 While the editor area is maximized, the side pane always shows **Changes**, regardless of the session's
@@ -96,7 +100,8 @@ A running session can produce new file changes at any time.
 #### D6 — New changes never open the side pane
 When a chat turn produces new file changes, the side pane is **not** opened automatically and the
 active view is not switched automatically — it stays as you left it. Only a new session opens it
-(D3b), and only the created transition switches it to Changes (D4).
+(D3b). The first change does make **Changes** the default view (D3d), but that only applies the next
+time the side pane is opened.
 
 ### Scenario: the side pane has nothing to show
 Some sessions gate off every auxiliary-bar view container — e.g. a workspace-less **quick chat**,
@@ -180,11 +185,13 @@ and hands control back once the user reopens the sessions sidebar manually.
   container is restored before capture (`_restoreSavedAuxiliaryBarContainerOnReveal`).
 - **Restore [D3]** — `_syncAuxiliaryBarVisibility(resource, hasWorkspace, isCreated)`.
   Uncreated sessions (D3b) share `_newSessionViewState`, persisted under
-  `sessions.newSessionViewState`. `_openDefaultAuxiliaryBarContainer` /
-  `_isAuxiliaryBarContainerPinned` implement D3c/D3d.
-- **New-session submit [D4]** — `_onNewSessionSubmitted` keeps the aux bar as left, switches an open one
-  to Changes, and records Changes as the active container even when hidden so opening the side pane
-  later starts on Changes. `_onSessionReplaced` applies the same state transfer when a provider commits
+  `sessions.newSessionViewState`. `_defaultAuxiliaryBarContainerId` /
+  `_openDefaultAuxiliaryBarContainer` / `_isAuxiliaryBarContainerPinned` implement D3c/D3d; the default
+  container comes from `sessionHasChanges(activeSession)`, read untracked so it is evaluated only when
+  the side pane is opened.
+- **New-session submit [D4]** — `_onNewSessionSubmitted` keeps the aux bar as left: an open one keeps
+  showing its current container, a hidden one records no container so opening the side pane later picks
+  the D3d default. `_onSessionReplaced` applies the same state transfer when a provider commits
   the draft as a new resource. In single-pane mode, the tab opens that accompany this transition are
   managed by `SinglePaneLayoutController` under editor-auto-visibility suppression, so they
   do not reveal editor content.

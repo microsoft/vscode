@@ -21,11 +21,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
@@ -204,11 +200,11 @@ export class ChatSubmitAction extends SubmitAction {
 			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.newLine,
+			icon: Codicon.arrowUpCompact,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.newLine,
+				icon: Codicon.arrowUpCompact,
 				tooltip: localize('sendToAgent', "Send to Agent"),
 			},
 			keybinding: {
@@ -781,7 +777,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			title: localize2('edits.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.newLine,
+			icon: Codicon.arrowUpCompact,
 			precondition,
 			menu: [
 				{
@@ -904,14 +900,9 @@ class SendToNewChatAction extends Action2 {
 		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
-		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
-		const configurationService = accessor.get(IConfigurationService);
-		const chatSessionsService = accessor.get(IChatSessionsService);
-		const storageService = accessor.get(IStorageService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+		const instantiationService = accessor.get(IInstantiationService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -933,7 +924,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled);
+		await instantiationService.invokeFunction(clearChatSessionPreservingType, widget, undefined);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}
