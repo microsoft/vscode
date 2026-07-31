@@ -216,17 +216,13 @@ const LEVEL_EASING = 0.08;
 const SIGNATURE_EASING = 0.06;
 /**
  * The frame duration the eased constants above are tuned against (60fps). Easing
- * is normalised to the real elapsed time each frame so the morph runs at the same
- * pace whether frames arrive on time or stutter - which they do right after the
- * card opens, while the first sample is still decoding.
+ * and the phase advance are scaled by the real elapsed time each frame so the
+ * motion runs at the same real-time pace whether frames arrive on time or stutter
+ * - which they do while a sample plays and the per-frame analyser read competes
+ * for the main thread. Scaling by real time (rather than a fixed per-frame step)
+ * is what keeps the trace moving at full speed under that load instead of stalling.
  */
 const REFERENCE_FRAME_SECONDS = 1 / 60;
-/**
- * Longest elapsed time integrated in a single frame. Clamping means a hitch or a
- * backgrounded tab slows the trace for a frame instead of lurching it forward by
- * the whole gap.
- */
-const MAX_FRAME_SECONDS = 1 / 30;
 /**
  * Bar metrics, taken from Voice Mode's own waveform in `voiceInputMode.css`,
  * which states the rule directly: *bars are strokes, not shapes* - they carry
@@ -476,13 +472,16 @@ class VoiceModeOnboardingAnimator extends Disposable {
 			return;
 		}
 
-		// Elapsed time since the previous frame, clamped so a hitch slows the
-		// trace rather than lurching it. Both the easing and the phase advance are
-		// scaled by this, so the motion is the same real-time speed whether frames
-		// arrive at 60fps or stutter while the first sample decodes.
+		// Real time elapsed since the previous frame. Both the easing and the phase
+		// advance scale by this, so the trace keeps its real-time speed whether
+		// frames arrive at 60fps or drop while a sample plays - rather than slowing
+		// down under the extra load. A big gap (a hitch, or a backgrounded tab that
+		// paused the loop) simply advances the trace to where it should be: the
+		// phase is periodic and the easing factor stays bounded, so there is no
+		// lurch to guard against.
 		const dt = this.lastTimestamp === undefined
 			? 0
-			: Math.min(MAX_FRAME_SECONDS, Math.max(0, (timestamp - this.lastTimestamp) * 0.001));
+			: Math.max(0, (timestamp - this.lastTimestamp) * 0.001);
 		this.lastTimestamp = timestamp;
 
 		// Idle, the waveform breathes gently; while a voice plays it swells with
