@@ -2920,6 +2920,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
+			isVoiceModeInput: options?.isVoiceModeInput,
 			...this.getModeRequestOptions(),
 			modeInfo,
 			agentIdSilent: this._lockedAgent?.id,

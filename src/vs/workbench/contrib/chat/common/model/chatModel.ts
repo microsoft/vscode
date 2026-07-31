@@ -31,7 +31,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsagePromptTokenDetail, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
@@ -72,6 +72,7 @@ export interface ISerializableSendOptions {
 	locationData?: IChatLocationData;
 	attempt?: number;
 	noCommandDetection?: boolean;
+	isVoiceModeInput?: boolean;
 	agentId?: string;
 	agentIdSilent?: string;
 	slashCommand?: string;
@@ -228,7 +229,8 @@ export type IChatProgressResponseContent =
 	| IChatMcpServersStartingSerialized
 	| IChatMcpAuthenticationRequired
 	| IChatMcpServersStartingSlow
-	| IChatDisabledClaudeHooksPart;
+	| IChatDisabledClaudeHooksPart
+	| IChatVoiceProgressPart;
 
 export type IChatProgressResponseContentSerialized = Exclude<IChatProgressResponseContent,
 	| IChatToolInvocation
@@ -239,9 +241,10 @@ export type IChatProgressResponseContentSerialized = Exclude<IChatProgressRespon
 	| IChatMcpAuthenticationRequired
 	| IChatMcpServersStartingSlow
 	| IChatDisabledClaudeHooksPart
+	| IChatVoiceProgressPart
 >;
 
-const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop']);
+const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'voiceProgress']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
 	return !nonHistoryKinds.has(content.kind);
 }
@@ -250,7 +253,7 @@ export function toChatHistoryContent(content: ReadonlyArray<IChatProgressRespons
 	return content.filter(isChatProgressHistoryResponseContent);
 }
 
-export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>;
+export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatVoiceProgressPart>;
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IChatProgressResponseContent>;
@@ -628,6 +631,7 @@ class AbstractResponse implements IResponse {
 				case 'elicitationSerialized':
 				case 'thinking':
 				case 'hook':
+				case 'voiceProgress':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'mcpAuthenticationRequired':
@@ -3175,7 +3179,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					message,
 					variableData: IChatRequestVariableData.toExport(r.variableData),
 					response: r.response ?
-						r.response.entireResponse.value.map(item => {
+						r.response.entireResponse.value.filter(item => item.kind !== 'voiceProgress').map(item => {
 							// Keeping the shape of the persisted data the same for back compat
 							if (item.kind === 'treeData') {
 								return item.treeData;
@@ -3300,6 +3304,7 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		locationData: options.locationData,
 		attempt: options.attempt,
 		noCommandDetection: options.noCommandDetection,
+		isVoiceModeInput: options.isVoiceModeInput,
 		agentId: options.agentId,
 		agentIdSilent: options.agentIdSilent,
 		slashCommand: options.slashCommand,

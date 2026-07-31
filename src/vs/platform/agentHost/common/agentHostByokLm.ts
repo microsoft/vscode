@@ -143,6 +143,10 @@ export interface IByokLmModelInfo {
 	readonly maxContextWindowTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
 	readonly supportsVision?: boolean;
+	/** Reasoning effort values advertised by the renderer model, when known. */
+	readonly supportedReasoningEfforts?: readonly string[];
+	/** Default reasoning effort advertised by the renderer model, when known. */
+	readonly defaultReasoningEffort?: string;
 }
 
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');

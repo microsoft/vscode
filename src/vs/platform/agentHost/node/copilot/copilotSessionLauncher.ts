@@ -175,7 +175,7 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
+export function isCopilotReasoningEffort(value: unknown): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
@@ -238,11 +238,11 @@ function isCustomAgentNotFoundError(err: unknown): boolean {
  * caller/operator is responsible for choosing a level the model supports.
  */
 export function getCopilotReasoningEffort(model: ModelSelection | undefined, effortOverride?: string): SessionConfig['reasoningEffort'] {
-	if (isReasoningEffort(effortOverride)) {
+	if (isCopilotReasoningEffort(effortOverride)) {
 		return effortOverride;
 	}
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
-	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+	return isCopilotReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
 /**
@@ -255,7 +255,7 @@ export function resolveCopilotReasoningEffort(model: ModelSelection | undefined,
 	// '' is the schema's unset marker, so an unset override reads as `undefined`.
 	const override = rawOverride ? rawOverride : undefined;
 	if (override !== undefined) {
-		if (isReasoningEffort(override)) {
+		if (isCopilotReasoningEffort(override)) {
 			logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
 		} else {
 			logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);

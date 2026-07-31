@@ -67,6 +67,7 @@ const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
 			session = await client.createSession({
 				sessionId,
 				model: 'test-model',
+				reasoningEffort: 'medium',
 				availableTools: [],
 				provider: {
 					type: 'openai',

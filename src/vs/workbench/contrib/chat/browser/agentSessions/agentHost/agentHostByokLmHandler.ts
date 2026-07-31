@@ -137,6 +137,9 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			// Only genuine renderer BYOK models — exclude agent-host copies, which
 			// carry a `targetChatSessionType` and would otherwise re-enter the bridge.
 			if (metadata?.isBYOK && !metadata.targetChatSessionType) {
+				const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
+				const supportedReasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
+				const defaultReasoningEffort = typeof reasoningEffortSchema?.default === 'string' ? reasoningEffortSchema.default : undefined;
 				models.push({
 					vendor: metadata.vendor,
 					id: metadata.id,
@@ -144,6 +147,8 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					modelIdentifier: identifier,
 					maxContextWindowTokens: metadata.maxInputTokens + metadata.maxOutputTokens,
 					supportsVision: !!metadata.capabilities?.vision,
+					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
+					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),
 				});
 			}
 		}
