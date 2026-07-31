@@ -41,14 +41,15 @@ use super::CommandContext;
 /// Internal env var that flips `code agent host` into supervisor mode:
 /// the body that actually binds the TCP listener, publishes the
 /// supervisor's registry entry, owns the proxy sidecar, and manages the AH
-/// backend's lifecycle. The foreground `code agent host` invocation
-/// re-execs itself detached with this variable set so the supervisor
-/// outlives the user's terminal.
+/// backend's lifecycle. Unless `--foreground` is passed, the foreground
+/// `code agent host` invocation re-execs itself detached with this
+/// variable set so the supervisor outlives the user's terminal.
 const SUPERVISOR_ENV: &str = "VSCODE_AGENT_HOST_SUPERVISOR";
 /// Single-line sentinel the supervisor prints once the listener is bound,
 /// its registry entry is published, and the banner has been flushed. The
-/// foreground process watches for this on the supervisor's stdout, then
-/// either exits (`--detach`) or starts forwarding output.
+/// foreground process watches for this on the detached supervisor's stdout
+/// and then exits. Not printed when the supervisor runs with
+/// `--foreground`, since there is no parent waiting on it.
 const SUPERVISOR_READY_LINE: &str = "__VSCODE_AGENT_HOST_READY__";
 /// Cap on how long the foreground waits for the supervisor to become
 /// ready before giving up and surfacing a failure.
@@ -58,9 +59,8 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 ///
 /// * **Foreground** (the default): consults the shared local agent-host
 ///   endpoint registry and either prints info about the live supervisor
-///   (`Reuse`), or daemonizes a new supervisor child (`SpawnFresh`) and
-///   either exits (`--detach`) or follows the supervisor's stdout until
-///   Ctrl-C.
+///   (`Reuse`), or starts a new supervisor (`SpawnFresh`) — daemonized by
+///   default, or run inline in this process when `--foreground` is set.
 ///
 /// * **Supervisor** (when [`SUPERVISOR_ENV`] is set): binds the public TCP
 ///   listener, publishes a registry entry recording this process's PID +
@@ -162,8 +162,8 @@ fn decide_foreground_action(
 }
 
 /// Foreground entry point: decides whether to reuse an existing supervisor
-/// or daemonize a fresh one, then prints / streams supervisor output until
-/// the user hits Ctrl-C.
+/// or start a fresh one, either detached (the default) or inline in this
+/// process when `--foreground` is set.
 async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
 	let started = Instant::now();
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
@@ -178,15 +178,18 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 		classify_agent_host(&ctx.log, &user_data_path)
 	};
 
-	match decide_foreground_action(&args, decision) {
-		ForegroundAction::SpawnFresh => daemonize_supervisor(&args).await,
+	// Bind the action before matching so the `&args` borrow ends here and
+	// the arms below are free to move `args` into `start_supervisor`.
+	let action = decide_foreground_action(&args, decision);
+	match action {
+		ForegroundAction::SpawnFresh => start_supervisor(ctx, args).await,
 		ForegroundAction::ReplaceThenSpawnFresh { pid, instance_id } => {
 			info!(
 				ctx.log,
 				"--replace set; stopping agent host (PID {}) before starting new one", pid
 			);
 			replace_existing(&ctx.log, &user_data_path, pid, instance_id).await?;
-			daemonize_supervisor(&args).await
+			start_supervisor(ctx, args).await
 		}
 		ForegroundAction::ConflictError(message) => {
 			ctx.log.result(message);
@@ -213,11 +216,21 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	}
 }
 
-/// Body of the detached supervisor process. Starts an
-/// [`AgentHostManager`], binds an [`AgentHostSidecar`] on the user's
-/// chosen `--host`/`--port`, optionally exposes it over a dev tunnel,
-/// prints the readiness banner / sentinel, then services connections
-/// until killed.
+/// Starts a brand new supervisor for this invocation: inline in this
+/// process when `--foreground` is set (so its logs stay attached to the
+/// terminal and Ctrl-C stops it), otherwise detached in the background.
+async fn start_supervisor(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
+	if args.foreground {
+		run_supervisor(ctx, args).await
+	} else {
+		daemonize_supervisor().await
+	}
+}
+
+/// Body of the supervisor process. Starts an [`AgentHostManager`], binds
+/// an [`AgentHostSidecar`] on the user's chosen `--host`/`--port`,
+/// optionally exposes it over a dev tunnel, prints the readiness banner /
+/// sentinel, then services connections until killed.
 async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
 	let started = Instant::now();
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
@@ -435,14 +448,18 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	output::print_banner_footer();
 	let _ = std::io::stdout().flush();
 
-	// Signal readiness to the foreground parent (if any) and then sever
-	// the inherited stdio so subsequent writes don't `BrokenPipe` once
-	// the parent exits.
-	println!("{SUPERVISOR_READY_LINE}");
-	let _ = std::io::stdout().flush();
-	let _ = std::io::stderr().flush();
-	if let Err(e) = redirect_stdio_to_null() {
-		warning!(ctx.log, "Failed to redirect stdio after detach: {}", e);
+	if !args.foreground {
+		// Signal readiness to the foreground parent and then sever the
+		// inherited stdio so subsequent writes don't `BrokenPipe` once
+		// the parent exits. When running with `--foreground` there is no
+		// parent waiting on us and the user wants to keep seeing logs,
+		// so both are skipped.
+		println!("{SUPERVISOR_READY_LINE}");
+		let _ = std::io::stdout().flush();
+		let _ = std::io::stderr().flush();
+		if let Err(e) = redirect_stdio_to_null() {
+			warning!(ctx.log, "Failed to redirect stdio after detach: {}", e);
+		}
 	}
 
 	let shutdown_rx = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
@@ -623,7 +640,7 @@ async fn replace_existing(
 /// foreground always exits as soon as the supervisor is up — the
 /// supervisor is shared and outlives any individual invocation, and the
 /// user manages it via `code agent kill` / `code agent ps`.
-async fn daemonize_supervisor(args: &AgentHostArgs) -> Result<i32, AnyError> {
+async fn daemonize_supervisor() -> Result<i32, AnyError> {
 	let exe = std::env::current_exe().map_err(|e| wrap(e, "could not resolve current_exe"))?;
 	let mut cmd = tokio::process::Command::new(&exe);
 	// Forward our argv unchanged so the supervisor child sees the same
@@ -636,8 +653,6 @@ async fn daemonize_supervisor(args: &AgentHostArgs) -> Result<i32, AnyError> {
 	cmd.stderr(std::process::Stdio::piped());
 	cmd.kill_on_drop(false);
 	cmd.detach_from_parent();
-
-	let _ = args; // argv was already forwarded above; explicit `args` use is unnecessary
 
 	let mut child = cmd
 		.spawn()
