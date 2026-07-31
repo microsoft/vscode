@@ -86,6 +86,8 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { createSessionArchiveAnimation, type ISessionArchiveAnimation } from './sessionArchiveAnimation.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
 
 const $ = DOM.$;
 
@@ -993,6 +995,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		private readonly automationService: IAutomationService,
 		private readonly storageService: IStorageService,
 		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly customViewService: ICustomViewService,
 	) {
 		this.readAutomationRunIds = this.loadReadAutomationRuns();
 	}
@@ -1040,11 +1043,15 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const sectionIcon = element.id === QUICK_CHATS_SECTION_ID ? Codicon.commentDiscussion
 			: element.id === 'pinned' ? Codicon.pinned
 				: element.id === AUTOMATIONS_SECTION_ID ? Codicon.watch
-				: undefined;
+					: undefined;
 		template.icon.className = sectionIcon ? `session-section-icon ${ThemeIcon.asClassName(sectionIcon)}` : 'session-section-icon';
 		template.icon.style.display = sectionIcon ? '' : 'none';
 
 		if (element.id === AUTOMATIONS_SECTION_ID) {
+			template.elementDisposables.add(autorun(reader => {
+				const activeCustomView = this.customViewService.activeCustomView.read(reader);
+				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
+			}));
 			DOM.clearNode(template.statusIndicator);
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.statusIndicator));
 			template.elementDisposables.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, READ_AUTOMATION_RUNS_KEY, template.elementDisposables)(() => {
@@ -1112,11 +1119,6 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	setDropTarget(sectionId: string, active: boolean): void {
 		const template = this.templatesById.get(sectionId);
 		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
-	}
-
-	setActive(sectionId: string, active: boolean): void {
-		const template = this.templatesById.get(sectionId);
-		template?.container.classList.toggle('active', active);
 	}
 
 	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
@@ -1913,6 +1915,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
 		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
@@ -2011,7 +2014,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this.storageService, this._sessionsManagementService);
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this.storageService, this._sessionsManagementService, this.customViewService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
@@ -2125,9 +2128,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!element) {
 				return;
 			}
-			if (!isSessionSection(element) || element.id !== AUTOMATIONS_SECTION_ID) {
-				this._sectionRenderer.setActive(AUTOMATIONS_SECTION_ID, false);
-			}
 			if (isSessionShowMore(element)) {
 				if (element.kind === 'folders') {
 					this.expandedMoreFolders = element.mode === 'more';
@@ -2145,7 +2145,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
-				this._sectionRenderer.setActive(AUTOMATIONS_SECTION_ID, true);
 				this.tree.setSelection([]);
 				this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
