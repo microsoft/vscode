@@ -20,21 +20,12 @@ import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow }
 export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
 /**
- * Glow states that render the audio-reactive rim. `processing` bridges
- * listening -> speaking with the travelling border so the glow never snaps off
- * while the agent is thinking. Connected-idle renders the calm idle rim breath
- * instead, which callers opt into separately via {@link isIdleGlowVoiceState}.
+ * Glow states that render the audio-reactive rim. Only the two talking states do:
+ * connected-idle and thinking deliberately render nothing, so the glow means
+ * "someone is talking" rather than "voice is on".
  */
 export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
-	return voiceState === 'listening' || voiceState === 'processing' || voiceState === 'speaking';
-}
-
-/**
- * Whether `voiceState` renders the subtle connected-idle rim breath. Voice mode
- * being connected is what the breath communicates, so `error` renders nothing.
- */
-export function isIdleGlowVoiceState(voiceState: VoiceGlowState): boolean {
-	return voiceState === 'idle';
+	return voiceState === 'listening' || voiceState === 'speaking';
 }
 
 /**
@@ -55,19 +46,6 @@ export function readVoiceGlowIntensity(analyser: AnalyserNode | null, dataArray:
 		sum += dataArray.value[i];
 	}
 	return Math.min(1, (sum / dataArray.value.length) / 80);
-}
-
-/**
- * A synthetic "breathing" intensity for states with no live audio to react to
- * (notably `processing`, where the mic is closed and TTS hasn't started). The
- * slow swell is what tells the user the turn is still alive. `timeMs` is any
- * monotonic clock (e.g. `Date.now()`).
- */
-export function breathingIntensity(timeMs: number): number {
-	const t = timeMs / 1000;
-	// A slow primary breath with a gentle secondary wobble so it never reads as a
-	// mechanical sine. Stays in a calm mid band (~0.25 - 0.7).
-	return 0.28 + 0.24 * (0.5 - 0.5 * Math.cos(t * 1.9)) + 0.18 * Math.abs(Math.sin(t * 0.7 + 1));
 }
 
 // --- Theme-derived colors ------------------------------------------------

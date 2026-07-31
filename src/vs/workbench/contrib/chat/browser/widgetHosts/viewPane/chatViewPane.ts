@@ -78,7 +78,7 @@ import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
-import { breathingIntensity, isGlowingVoiceState, isIdleGlowVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
@@ -536,8 +536,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const stateGlows = isGlowingVoiceState(voiceState) || isIdleGlowVoiceState(voiceState);
-				const glowActive = connected && stateGlows && (simulating || isOwner);
+				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
 
 				if (!glowActive) {
 					glowController.clear();
@@ -554,11 +553,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					// so the walkthrough glow behaves like real speech instead of sitting flat.
 					const t = Date.now() / 1000;
 					intensity = Math.min(1, 0.28 + 0.34 * Math.abs(Math.sin(t * 6.1)) + 0.22 * Math.abs(Math.sin(t * 11.3 + 1)));
-				} else if (!analyser) {
-					// Processing (mic closed, TTS not started yet) and connected-idle
-					// have no audio to react to: breathe instead, so the glow reads as
-					// alive rather than frozen.
-					intensity = breathingIntensity(Date.now());
 				} else {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
@@ -583,9 +577,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// callback. React to simulated states too, so the walkthrough commands
 			// light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
-			const simGlow = sim === 'listening' || sim === 'speaking' || sim === 'idle';
-			const glows = isGlowingVoiceState(voiceState) || isIdleGlowVoiceState(voiceState);
-			if (simGlow || (connected && glows)) {
+			const simGlow = sim === 'listening' || sim === 'speaking';
+			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();

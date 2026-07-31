@@ -20,7 +20,7 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { breathingIntensity, computeVoiceMicGlowBoxShadow, isGlowingVoiceState, IVoiceGlowColors, voiceGlowStateColor } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceMicGlowBoxShadow, isGlowingVoiceState, IVoiceGlowColors, voiceGlowStateColor } from '../../chat/browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, GlowThemeKind, IVoiceGlowController } from '../../chat/browser/voiceClient/voiceGlowController.js';
 
 export interface VoiceWidgetCallbacks {
@@ -1084,9 +1084,7 @@ export class AgentsVoiceWidget extends Disposable {
 			if (onboarding) {
 				intensity = 0.6;
 			} else if (!analyser) {
-				// Thinking has no live audio to react to, so it breathes instead of
-				// sitting frozen.
-				intensity = voiceState === 'processing' ? breathingIntensity(Date.now()) : 0.3;
+				intensity = 0.3;
 			} else {
 				const dataArray = new Uint8Array(analyser.frequencyBinCount);
 				analyser.getByteFrequencyData(dataArray);

@@ -10,14 +10,9 @@ import { DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, voiceGlowStateColor, Voice
 /**
  * The DOM applier for the Voice Mode ambient glow.
  *
- * - `listening` / `speaking` render an audio-reactive interior RIM, cool while
- *   the user speaks and warm while the agent speaks,
- * - `processing` renders the travelling BORDER light, desaturated so it reads as
- *   a calm "thinking" loop that composes with the working comet rather than
- *   racing it,
- * - connected `idle` renders a slow, near-white rim breath, so voice mode being
- *   live is visible without shouting,
- * - `error` renders nothing.
+ * `listening` and `speaking` render an audio-reactive interior RIM — cool while
+ * the user speaks, warm while the agent speaks. Every other state renders
+ * nothing, so the glow means "someone is talking" rather than "voice is on".
  *
  * Every state change is a true cross-fade between two buffered slots, so
  * `listening -> speaking` dissolves cool -> warm rather than snapping. Colors are
@@ -38,20 +33,6 @@ const FADE_OUT_MS = 650;
 /** Saturation (%) bounds for an active (listening / speaking) glow. */
 const ACTIVE_SAT_MIN = 70;
 const ACTIVE_SAT_MAX = 96;
-
-/**
- * The calm rim, shared by connected-idle and thinking: both mean "voice is live,
- * nobody is talking", so they read as one state rather than two.
- *
- * Dark themes get a near-white light. Light themes can't: white on a white input
- * is invisible, so they instead take a faint tint of the listening hue, dropped
- * far enough in lightness to actually register against the surface. Both read as
- * "quiet but live" — the light theme just has to spend a little color to say it.
- */
-const CALM_RIM = {
-	dark: { saturation: 16, lightness: 78, strength: 0.4 },
-	light: { saturation: 58, lightness: 62, strength: 0.42 },
-} as const;
 
 /**
  * The active rim's lightness, per theme and mood. The warm (speaking) rim needs a
@@ -78,20 +59,16 @@ const RIM_LAYER_OPACITY = {
 	light: { ring: 1, inner: 0.3, bloom: 0.8 },
 } as const;
 
-/** How much of the talking states' weight the calm rim carries. */
-const CALM_RIM_WEIGHT = 0.62;
-
-/** Seconds for one full breath cycle, per rim mood. */
-const RIM_DURATION = { active: 2.3, calm: 4.8 } as const;
+/** Seconds for one full breath cycle. */
+const RIM_DURATION = 2.3;
 
 export type GlowThemeKind = 'light' | 'dark';
 
 /**
- * The three looks the rim takes. `cool` and `warm` are the talking states;
- * `calm` is the shared near-white breath for connected-idle and thinking.
- * Published as a class so high-contrast themes can style each one.
+ * Which of the two talking states the rim is showing. Published as a class so
+ * high-contrast themes can style each one.
  */
-type RimMood = 'cool' | 'warm' | 'calm';
+type RimMood = 'cool' | 'warm';
 
 /** A live layer mounted on one of the buffered slots. */
 interface IMountedLayer extends IDisposable {
@@ -127,10 +104,10 @@ interface IOscillator {
 	readonly unit: '' | 'px';
 }
 
-/** Breathing parameters, theme- and mood-tuned. */
+/** Breathing parameters, theme-tuned. */
 function rimMotionParams(theme: GlowThemeKind, duration: number) {
 	const dark = theme === 'dark';
-	const scale = duration / RIM_DURATION.active;
+	const scale = duration / RIM_DURATION;
 	return {
 		/** How much the blobs grow and shrink. */
 		spread: 0.28,
@@ -233,15 +210,11 @@ function mountRimLayers(host: HTMLElement, options: {
 	}
 
 	const layerOpacity = RIM_LAYER_OPACITY[options.theme];
-	// The calm rim is the quietest state, so it takes a fraction of the weight the
-	// talking states carry — brightness alone doesn't make it recede, since it's
-	// the lightest of the three.
-	const weight = options.mood === 'calm' ? CALM_RIM_WEIGHT : 1;
 	host.style.setProperty('--vg-sat', `${options.saturation}%`);
 	host.style.setProperty('--vg-light', `${options.lightness}%`);
 	host.style.setProperty('--vg-ring-opacity', String(layerOpacity.ring));
-	host.style.setProperty('--vg-inner-opacity', (layerOpacity.inner * weight).toFixed(3));
-	host.style.setProperty('--vg-bloom-opacity', (layerOpacity.bloom * weight).toFixed(3));
+	host.style.setProperty('--vg-inner-opacity', String(layerOpacity.inner));
+	host.style.setProperty('--vg-bloom-opacity', String(layerOpacity.bloom));
 
 	const oscillators = rimOscillators(options.theme, options.duration);
 	let time = 0;
@@ -467,42 +440,34 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
 		const theme = this._themeKind();
-		const calm = mood === 'calm';
 		const accent = mood === 'warm' ? this._colors.speaking : this._colors.listening;
 		const { h, s } = accent.hsla;
-		const calmRim = CALM_RIM[theme];
-		// The calm rim borrows the listening hue but not its lift; the talking
-		// states get the mood shift that separates them from each other.
-		const activeMood = mood === 'warm' ? 'warm' : 'cool';
 		return mountRimLayers(host, {
 			theme,
 			mood,
-			hue: calm ? h : h + ACTIVE_RIM_HUE_SHIFT[activeMood],
-			saturation: calm ? calmRim.saturation : Math.round(Math.min(ACTIVE_SAT_MAX, Math.max(ACTIVE_SAT_MIN, s * 100))),
-			lightness: calm ? calmRim.lightness : ACTIVE_RIM_LIGHTNESS[theme][activeMood],
-			strength: calm ? calmRim.strength : ACTIVE_RIM_STRENGTH,
-			duration: calm ? RIM_DURATION.calm : RIM_DURATION.active,
-			audioGain: calm ? 0.35 : 0.7,
-			// The calm rim has no audio to peak on; the talking states lean on this
-			// to make the loudest moments visibly denser.
-			peakGain: calm ? 0 : 0.85,
-			speedGain: calm ? 0 : 0.9,
+			hue: h + ACTIVE_RIM_HUE_SHIFT[mood],
+			saturation: Math.round(Math.min(ACTIVE_SAT_MAX, Math.max(ACTIVE_SAT_MIN, s * 100))),
+			lightness: ACTIVE_RIM_LIGHTNESS[theme][mood],
+			strength: ACTIVE_RIM_STRENGTH,
+			duration: RIM_DURATION,
+			audioGain: 0.7,
+			// Lets the loudest moments read visibly denser rather than leaving the
+			// whole range in a narrow band.
+			peakGain: 0.85,
+			speedGain: 0.9,
 		});
 	}
 }
 
 /**
  * Map a voice state to the rim mood that renders it, or `undefined` for no glow.
- * Thinking and connected-idle share the calm rim: both mean voice is live and
- * nobody is talking, so they read as one state and don't cross-fade between
- * themselves.
+ * Only the talking states glow: thinking and connected-idle render nothing, so
+ * the light means "someone is talking" rather than "voice is on".
  */
 function resolveMood(state: VoiceGlowState): RimMood | undefined {
 	switch (state) {
 		case 'listening': return 'cool';
 		case 'speaking': return 'warm';
-		case 'processing':
-		case 'idle': return 'calm';
 		default: return undefined;
 	}
 }

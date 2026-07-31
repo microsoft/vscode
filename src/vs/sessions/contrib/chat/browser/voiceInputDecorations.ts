@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { breathingIntensity, isGlowingVoiceState, isIdleGlowVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlowController.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -94,11 +94,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			const analyser = ttsPlaybackService.analyserNode
 				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
 				?? null;
-			// Processing and connected-idle have no live audio to react to, so they
-			// breathe instead of sitting frozen.
-			const intensity = analyser
-				? readVoiceGlowIntensity(analyser, glowDataArrayRef)
-				: breathingIntensity(Date.now());
+			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 			glowController.render(voiceState, intensity, accessibilityService.isMotionReduced());
 		};
@@ -121,8 +117,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		// Glow only the single input voice is bound to, so at most one surface
 		// glows even when several sessions are visible.
 		const isOwner = !!current && !!owner && isEqual(current, owner);
-		const glows = isGlowingVoiceState(voiceState) || isIdleGlowVoiceState(voiceState);
-		if (connected && active && isOwner && glows) {
+		if (connected && active && isOwner && isGlowingVoiceState(voiceState)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();

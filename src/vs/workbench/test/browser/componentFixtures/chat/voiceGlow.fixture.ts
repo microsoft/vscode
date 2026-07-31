@@ -40,13 +40,13 @@ function renderVoiceGlow(state: VoiceGlowState, level: number) {
 }
 
 /**
- * The rim's three moods across the four voice states. Every state is pinned to a
- * representative still frame (the reduced-motion path), so the screenshots are
- * stable while still exercising the real controller and CSS.
+ * The rim's two moods. Both are pinned to a representative still frame (the
+ * reduced-motion path), so the screenshots are stable while still exercising the
+ * real controller and CSS.
  *
- * The high-contrast variants matter here: HC replaces the soft light entirely
- * (solid lines for the talking states, nothing for the calm one), so it needs
- * covering rather than being assumed to follow from the dark theme.
+ * The high-contrast variants matter here: HC replaces the soft light with a
+ * solid line, so it needs covering rather than being assumed to follow from the
+ * dark theme.
  */
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	'Voice glow (listening)': defineComponentFixture({
@@ -55,14 +55,6 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	}),
 	'Voice glow (speaking)': defineComponentFixture({
 		render: renderVoiceGlow('speaking', 0.7),
-		additionalThemes: ['darkHighContrast'],
-	}),
-	'Voice glow (processing)': defineComponentFixture({
-		render: renderVoiceGlow('processing', 0.4),
-		additionalThemes: ['darkHighContrast'],
-	}),
-	'Voice glow (connected, idle)': defineComponentFixture({
-		render: renderVoiceGlow('idle', 0.3),
 		additionalThemes: ['darkHighContrast'],
 	}),
 });

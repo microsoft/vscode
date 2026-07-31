@@ -1143,11 +1143,10 @@
 		"--voice-accent",
 		"--voice-color-listening",
 		"--voice-color-speaking",
-		"--vg-band",
-		"--vg-inner-fade",
 		"--vg-ring-width",
 		"--vg-ring-opacity",
-		"--vg-corner-alpha"
+		"--vg-corner-alpha",
+		"--vg-inner-fade"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

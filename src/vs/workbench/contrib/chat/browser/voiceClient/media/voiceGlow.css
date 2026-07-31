@@ -9,20 +9,20 @@
  * One treatment — `.voice-glow-rim`, an interior rim built from a perimeter of
  * soft blobs, masked into a hairline ring plus a wider inner wash and a blurred
  * bloom — mounted as an absolutely-positioned overlay "slot" on the chat input
- * box (see `voiceGlowController.ts`). It takes three moods:
+ * box (see `voiceGlowController.ts`). It takes two moods:
  *
- * - `.voice-glow-rim-cool` — listening, audio-reactive,
- * - `.voice-glow-rim-warm` — the agent speaking, audio-reactive,
- * - `.voice-glow-rim-calm` — thinking and connected-idle, a slow near-white
- *                            breath. Both mean "voice is live, nobody is
- *                            talking", so they share one look.
+ * - `.voice-glow-rim-cool` — the user is listening,
+ * - `.voice-glow-rim-warm` — the agent is speaking.
+ *
+ * Both are audio-reactive. Every other voice state renders nothing, so the light
+ * means "someone is talking" rather than "voice is on".
  *
  * Everything animated is a CSS custom property driven from JS, so the layers are
  * painted from one shared animation frame rather than a dozen CSS animations.
  *
  * High-contrast themes opt out of the whole soft-light language at the bottom of
  * this file: gradients and blur can't carry a guaranteed contrast ratio, so the
- * talking states become solid lines and the calm state renders nothing.
+ * two states become solid lines instead.
  */
 
 .voice-glow-slot {
@@ -102,14 +102,7 @@
 		radial-gradient(ellipse calc(52px * var(--vg-w3) * var(--vg-blob-scale)) calc(48px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(100% + var(--vg-x3)) calc(27% + var(--vg-y3)), hsl(calc(var(--vg-hue) + 18) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent);
 }
 
-/*
- * The hairline ring: the blob wash clipped to the border.
- *
- * Only the calm rim uses it (as its thin band — see below). The talking states
- * hide it: sitting a crisp colored line immediately next to the input's own
- * border reads as a doubled edge, and it fights the soft light rather than
- * defining it. Their glow is carried by the wash and the bloom instead.
- */
+/* The hairline ring itself: the blob wash clipped to the border. */
 .voice-glow-rim::after {
 	content: '';
 	position: absolute;
@@ -124,11 +117,6 @@
 	pointer-events: none;
 	z-index: 2;
 	opacity: var(--vg-ring-opacity, 1);
-}
-
-.voice-glow-rim-cool::after,
-.voice-glow-rim-warm::after {
-	display: none;
 }
 
 /*
@@ -200,51 +188,13 @@
 		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
 }
 
-/* --- Calm rim (thinking / connected-idle) --------------------------------- */
-
-/*
- * The calm rim is deliberately a different, quieter object than the talking
- * ones. It reads brighter (near-white on dark), so at the talking states' width
- * it looks heavier than the states it is meant to recede behind — and its soft
- * wash was wide enough to sit visibly inside the box's rounded corners rather
- * than following them.
- *
- * So it drops the wash and the corner catches entirely and keeps a single thin
- * band, cut with the padding-box mask so it follows `border-radius` exactly.
- */
-.voice-glow-rim-calm {
-	/* Thickness of the light band hugging the inside edge. */
-	--vg-band: 0.75px;
-	/* Sit inside the input's own border rather than on top of it. */
-	inset: var(--vscode-strokeThickness);
-	border-radius: calc(var(--vg-radius, 6px) - var(--vscode-strokeThickness));
-}
-
-.voice-glow-rim-calm::before,
-.voice-glow-rim-calm > .voice-glow-rim-corners {
-	display: none;
-}
-
-.voice-glow-rim-calm::after {
-	padding: var(--vg-band);
-	clip-path: none;
-}
-
-.voice-glow-rim-calm > .voice-glow-rim-bloom {
-	padding: calc(var(--vg-band) * 2);
-	clip-path: none;
-	filter: blur(2px);
-}
-
 /* --- High contrast --------------------------------------------------------- */
 
 /*
  * Soft light is the wrong language here: a blurred, semi-transparent gradient
  * can't guarantee a contrast ratio, and the whole effect reads as smudge at high
- * contrast. So the talking states collapse to a solid line — blue for the user,
- * purple for the agent — and the calm state (thinking / connected-idle) renders
- * nothing at all, since "voice is live but quiet" isn't worth spending contrast
- * on. Motion goes too: the line is either there or it isn't.
+ * contrast. So the two states collapse to a solid line — blue for the user,
+ * purple for the agent. Motion goes too: the line is either there or it isn't.
  */
 .hc-black .voice-glow-rim::before,
 .hc-black .voice-glow-rim::after,
@@ -252,11 +202,6 @@
 .hc-light .voice-glow-rim::before,
 .hc-light .voice-glow-rim::after,
 .hc-light .voice-glow-rim > * {
-	display: none;
-}
-
-.hc-black .voice-glow-rim-calm,
-.hc-light .voice-glow-rim-calm {
 	display: none;
 }
 

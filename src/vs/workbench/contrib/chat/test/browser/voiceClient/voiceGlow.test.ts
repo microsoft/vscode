@@ -7,22 +7,16 @@ import assert from 'assert';
 import { Color } from '../../../../../../base/common/color.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
-import { isGlowingVoiceState, isIdleGlowVoiceState, resolveVoiceGlowColors, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, resolveVoiceGlowColors, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
 
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('thinking and connected-idle share the calm rim', () => {
+	test('only the talking states glow', () => {
 		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
 		assert.deepStrictEqual(
-			states.map(state => ({ state, active: isGlowingVoiceState(state), idle: isIdleGlowVoiceState(state) })),
-			[
-				{ state: 'idle', active: false, idle: true },
-				{ state: 'listening', active: true, idle: false },
-				{ state: 'speaking', active: true, idle: false },
-				{ state: 'processing', active: true, idle: false },
-				{ state: 'error', active: false, idle: false },
-			]
+			states.filter(isGlowingVoiceState),
+			['listening', 'speaking']
 		);
 	});
 
