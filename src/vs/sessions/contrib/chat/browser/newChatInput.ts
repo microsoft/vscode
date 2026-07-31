@@ -359,6 +359,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
 			supportsBackground?: boolean;
+			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
+			onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 			/**
 			 * Keep this composer a valid voice target even while a created session
 			 * is active. Used by the in-session "new chat" composer so dictation
@@ -465,12 +467,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// First-run Voice Mode introduction, docked above the input area
 		const voiceOnboardingContainer = dom.append(chatInputContainer, dom.$('.voice-mode-onboarding-container'));
-		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus()));
+		const onDidChangeInputOnboardingVisible = () => this.options.onDidChangeInputOnboardingVisible?.(
+			this.voiceModeOnboardingService.isVisible || this.dictationOnboardingService.isVisible
+		);
+		const tipContainer = this.options.getInputOnboardingTipContainer?.();
+		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus(), tipContainer, onDidChangeInputOnboardingVisible));
 
 		// First-run dictation introduction, docked directly above the input area
 		// so it reads as one stack with it - the same slot the chat view uses.
 		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
-		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer));
+		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, tipContainer, onDidChangeInputOnboardingVisible));
 
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));

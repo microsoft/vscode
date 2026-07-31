@@ -251,6 +251,8 @@ export function buildSubprocessEnv(proxied: boolean = true): Record<string, stri
 			ANTHROPIC_API_KEY: undefined,
 			HOME: process.env['HOME'],
 			USERPROFILE: process.env['USERPROFILE'],
+			// Load rules from additional directories https://code.claude.com/docs/en/memory#load-from-additional-directories
+			CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
 		}
 		: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
 	// Replace semantics mean the sparse (proxied) env would otherwise drop the

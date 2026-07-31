@@ -116,6 +116,7 @@ import { IDictationOnboardingService } from '../../speechToText/dictationOnboard
 import { notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
@@ -250,6 +251,7 @@ export interface IChatInputPartOptions {
 	 * can pass `0` so the editor fills the box and its scrollbar sits at the edge.
 	 */
 	inputPartHorizontalPadding?: number;
+	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 }
 
 export interface IWorkingSetEntry {
@@ -2978,8 +2980,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
 		dom.hide(this.chatToolConfirmationCarouselContainer);
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
-		this._register(this.voiceModeOnboardingService.registerHost(elements.voiceModeOnboardingContainer, this.container, () => this.focus()));
-		this._register(this.dictationOnboardingService.registerHost(elements.dictationOnboardingContainer, this.container));
+		const onDidChangeInputOnboardingVisible = () => this.options.onDidChangeInputOnboardingVisible?.(
+			this.voiceModeOnboardingService.isVisible || this.dictationOnboardingService.isVisible
+		);
+		this._register(this.voiceModeOnboardingService.registerHost(elements.voiceModeOnboardingContainer, this.container, () => this.focus(), elements.chatGettingStartedTipContainer, onDidChangeInputOnboardingVisible));
+		this._register(this.dictationOnboardingService.registerHost(elements.dictationOnboardingContainer, this.container, elements.chatGettingStartedTipContainer, onDidChangeInputOnboardingVisible));
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
@@ -4258,6 +4263,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const scopedContextKeyService = this._chatEditsActionsDisposables.add(this.contextKeyService.createScoped(actionsContainer));
 		if (sessionResource) {
 			scopedContextKeyService.createKey(ChatContextKeys.agentSessionType.key, getChatSessionType(sessionResource));
+
+			// Metadata can arrive after first render, so track it rather than sampling once.
+			const sessionPullRequest = observableFromEvent(
+				this,
+				this.agentSessionsService.model.onDidChangeSessions,
+				() => {
+					const session = this.agentSessionsService.getSession(sessionResource);
+					return session ? getAgentSessionPullRequestContextValue(session) : '';
+				},
+			);
+			this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.agentSessionPullRequest, scopedContextKeyService, r => sessionPullRequest.read(r)));
 		}
 
 		this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, r => !!sessionEntriesObs.read(r)?.length));

@@ -5,6 +5,8 @@
 
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { Action } from '../../../../base/common/actions.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -13,6 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { localize } from '../../../../nls.js';
@@ -35,6 +38,7 @@ import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sess
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatTipContentPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -49,6 +53,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _chatTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _chatTipContainer: HTMLElement | undefined;
 	private _isChatTipSessionInitialized = false;
+	private _isInputOnboardingVisible = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
@@ -98,6 +103,7 @@ export class NewChatWidget extends Disposable {
 		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -106,6 +112,7 @@ export class NewChatWidget extends Disposable {
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
@@ -173,6 +180,8 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
+			getInputOnboardingTipContainer: () => this._chatTipContainer,
+			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -269,6 +278,37 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+		const aquariumAction = this._register(new Action(
+			'sessions.aquarium.showAction',
+			localize('aquariumAction', "Aquarium"),
+			undefined,
+			true,
+			() => this.aquariumService.toggleActionVisibility()
+		));
+		const petAction = this._register(new Action(
+			'sessions.chatPet.toggle',
+			localize('petAction', "Pet"),
+			undefined,
+			true,
+			() => this.chatPetService.toggle()
+		));
+		this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			const target = e.target as Node | null;
+			if (target && chatWidgetContent.contains(target)) {
+				return;
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+			aquariumAction.checked = this.aquariumService.actionVisible.get();
+			petAction.checked = this.chatPetService.enabled.get();
+			const anchor = new StandardMouseEvent(dom.getWindow(element), e);
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => [aquariumAction, petAction],
+				getCheckedActionsRepresentation: () => 'checkbox',
+			});
+		}));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
@@ -354,6 +394,10 @@ export class NewChatWidget extends Disposable {
 		if (!this._chatTipContainer) {
 			return;
 		}
+		if (this.isInputOnboardingVisible()) {
+			this._clearChatTip();
+			return;
+		}
 		// Don't show a tip in the no-agent-host empty state — there is no usable composer.
 		if (this._chatTipContainer.parentElement?.classList.contains('no-agent-host')) {
 			return;
@@ -398,6 +442,19 @@ export class NewChatWidget extends Disposable {
 		if (this._chatTipContainer) {
 			dom.clearNode(this._chatTipContainer);
 			dom.setVisibility(false, this._chatTipContainer);
+		}
+	}
+
+	private isInputOnboardingVisible(): boolean {
+		return this._isInputOnboardingVisible;
+	}
+
+	private setInputOnboardingVisible(visible: boolean): void {
+		this._isInputOnboardingVisible = visible;
+		if (visible) {
+			this._clearChatTip();
+		} else {
+			this._renderChatTip();
 		}
 	}
 
