@@ -34,6 +34,7 @@ import { SessionsManagementService } from '../../browser/sessionsManagementServi
 import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -233,6 +234,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
+	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService())));
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -1262,6 +1264,7 @@ suite('SessionsManagementService', () => {
 			override setPermissionLevel(_sessionId: string, _level: string): void { calls.push(`setPermissionLevel:${_level}`); }
 			override async setIsolationMode(_sessionId: string, _mode: string): Promise<void> { calls.push(`setIsolationMode:${_mode}`); }
 			override async setBranch(_sessionId: string, _branch: string): Promise<void> { calls.push(`setBranch:${_branch}`); }
+			override async setWorktreeBranchTrack(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeBranchTrack:${_enabled}`); }
 			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return session; }
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
@@ -1271,6 +1274,7 @@ suite('SessionsManagementService', () => {
 			modeId: 'agent',
 			permissionLevel: 'allowedTools',
 			isolationMode: 'worktree',
+			worktreeBranchTrack: false,
 			branch: 'main',
 		};
 		const result = await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, createOptions);
@@ -1281,6 +1285,7 @@ suite('SessionsManagementService', () => {
 			'setMode:agent',
 			'setPermissionLevel:allowedTools',
 			'setIsolationMode:worktree',
+			'setWorktreeBranchTrack:false',
 			'setBranch:main',
 		]);
 	});
@@ -1447,6 +1452,8 @@ suite('SessionsManagementService', () => {
 			mainChat: constObservable(chat),
 		});
 		const isolationDone = new DeferredPromise<void>();
+		const branchTrackStarted = new DeferredPromise<void>();
+		const branchTrackDone = new DeferredPromise<void>();
 		const branchStarted = new DeferredPromise<void>();
 		const branchDone = new DeferredPromise<void>();
 		const calls: string[] = [];
@@ -1456,6 +1463,12 @@ suite('SessionsManagementService', () => {
 				calls.push('isolation:start');
 				await isolationDone.p;
 				calls.push('isolation:end');
+			}
+			override async setWorktreeBranchTrack(): Promise<void> {
+				calls.push('branchTrack:start');
+				await branchTrackStarted.complete();
+				await branchTrackDone.p;
+				calls.push('branchTrack:end');
 			}
 			override async setBranch(): Promise<void> {
 				calls.push('branch:start');
@@ -1472,18 +1485,23 @@ suite('SessionsManagementService', () => {
 
 		const request = service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
 			isolationMode: 'worktree',
+			worktreeBranchTrack: false,
 			branch: 'main',
 		});
 		await Promise.resolve();
 		assert.deepStrictEqual(calls, ['isolation:start']);
 
 		await isolationDone.complete();
+		await branchTrackStarted.p;
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start']);
+
+		await branchTrackDone.complete();
 		await branchStarted.p;
-		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start']);
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start', 'branchTrack:end', 'branch:start']);
 
 		await branchDone.complete();
 		await request;
-		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start', 'branch:end', 'send']);
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start', 'branchTrack:end', 'branch:start', 'branch:end', 'send']);
 	});
 
 	test('createAndSendNewChatRequest cancels pending repository configuration and disposes the draft', async () => {

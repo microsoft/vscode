@@ -19,6 +19,8 @@ import { LocalChatSessionUri } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, hasPreferredCopilotHarness, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 
+export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+
 export const enum BYOKUtilityModelDefault {
 	None = 'none',
 	MainAgent = 'mainAgent',
@@ -26,7 +28,6 @@ export const enum BYOKUtilityModelDefault {
 }
 
 export enum ChatConfiguration {
-	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
@@ -58,6 +59,7 @@ export enum ChatConfiguration {
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
+	CollapseCompletedResponses = 'chat.agent.collapseCompletedResponses',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
 	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
@@ -368,6 +370,10 @@ export function getDefaultNewChatSessionType(
 		return options.explicitOverride;
 	}
 
+	if (isVirtualWorkspace(workspace)) {
+		return localChatSessionType;
+	}
+
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
 	if (remembered) {
 		return remembered;
@@ -388,10 +394,14 @@ export function resolveDefaultNewChatSessionType(
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const storageService = accessor.get(IStorageService);
 	const workspace = accessor.get(IWorkspaceContextService).getWorkspace();
-	const agentHostEnabled = accessor.get(IAgentHostEnablementService).enabled;
+	const agentHostEnabled = accessor.get(IAgentHostEnablementService).enabled.get();
 
 	if (options?.explicitOverride) {
 		return { sessionType: options.explicitOverride, isPreferCopilotHarnessSwap: false };
+	}
+
+	if (isVirtualWorkspace(workspace)) {
+		return { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false };
 	}
 
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);

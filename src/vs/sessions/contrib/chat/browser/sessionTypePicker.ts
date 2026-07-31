@@ -73,7 +73,7 @@ const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
  */
 export interface ISessionTypePickerOptions {
 	/**
-	 * When `false` (used e.g. by the automations dialog), an explicit pick is
+	 * When `false` (e.g. the automations dialog), an explicit pick is
 	 * never written to or cleared from the profile-wide
 	 * {@link STORAGE_KEY_LAST_SESSION_TYPE} preference, so picking a type here
 	 * cannot change the New Session default. The stored preference is still read
@@ -82,6 +82,11 @@ export interface ISessionTypePickerOptions {
 	readonly persistSelection?: boolean;
 	/** Telemetry id/name reported on selection. Defaults to {@link DEFAULT_TELEMETRY_SOURCE}. */
 	readonly telemetrySource?: string;
+	/**
+	 * When `false`, the dropdown chevron is not rendered on the trigger.
+	 * The picker is still interactive. Defaults to `true`.
+	 */
+	readonly showChevron?: boolean;
 }
 
 /**
@@ -637,8 +642,10 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDownCompact));
-		chevron.classList.add('sessions-chat-dropdown-chevron');
+		if (this._options?.showChevron !== false) {
+			const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDownCompact));
+			chevron.classList.add('sessions-chat-dropdown-chevron');
+		}
 
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
