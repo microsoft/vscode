@@ -11,12 +11,12 @@ import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff
 import { joinPath } from '../../../../../base/common/resources.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
-import { DeferredPromise, raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
@@ -44,6 +44,11 @@ export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService
  * registry-blocked environment can offer the offline install as a next step.
  */
 export const INSTALL_DICTATION_MODEL_COMMAND_ID = 'workbench.action.chat.installDictationModel';
+
+// TEMPORARY DEBUG: set to true to preview the offline-install error
+// notification locally (without a registry-blocked network). It fires shortly
+// after the workbench loads. REVERT before committing.
+const DEBUG_PREVIEW_OFFLINE_MODEL_NOTIFICATION = true;
 
 function joinIncrementalDictationText(prefix: string, suffix: string): string {
 	if (!prefix || !suffix) {
@@ -601,6 +606,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._updateConfiguredContextKey();
 			}
 		}));
+		if (DEBUG_PREVIEW_OFFLINE_MODEL_NOTIFICATION) {
+			this._register(disposableTimeout(() => this._showOfflineModelNotification(), 3000));
+		}
 	}
 
 	/** Read the configured dictation backend, derived from the selected model. */
@@ -1311,24 +1319,36 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
 			return;
 		}
-		// Name the specific model so users know exactly which package to obtain
-		// on a machine that can reach the download, then sideload via the command.
+		this._sessionErrorCode = this._sessionErrorCode || 'model';
+		this._logSessionTelemetry('error');
+		this._cancelBackend();
+		this._teardown();
+		this._setState(ChatSpeechToTextState.Idle);
+		this._showOfflineModelNotification();
+	}
+
+	/**
+	 * Show the recovery notification for a model download blocked by an
+	 * unreachable registry: it names the specific model (so the user knows which
+	 * package to obtain on a machine that can reach the download) and offers the
+	 * offline install command as a primary action.
+	 */
+	private _showOfflineModelNotification(): void {
 		const message = localize('chatStt.modelErrorOffline', "Could not download the {0} speech-to-text model, which can happen on networks that block the model registry. You can install it from a downloaded package instead.", DEFAULT_LOCAL_TRANSCRIPTION_MODEL);
 		const importAction = toAction({
 			id: INSTALL_DICTATION_MODEL_COMMAND_ID,
 			label: localize('chatStt.installFromPackage', "Install from Local Package..."),
 			run: () => this._commandService.executeCommand(INSTALL_DICTATION_MODEL_COMMAND_ID),
 		});
-		this._failSession('model', message, importAction);
+		this._notificationService.notify({ severity: Severity.Error, message, actions: { primary: [importAction] } });
 	}
 
 	/**
 	 * Abort the active recording because of an unrecoverable error (e.g. the
 	 * model failed to download/load), surfacing a notification instead of
-	 * silently returning an empty transcript. An optional recovery action is
-	 * attached to the notification when the failure is actionable.
+	 * silently returning an empty transcript.
 	 */
-	private _failSession(errorCode: string, message: string, action?: IAction): void {
+	private _failSession(errorCode: string, message: string): void {
 		if (this._state === ChatSpeechToTextState.Idle) {
 			return;
 		}
@@ -1337,11 +1357,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
-		if (action) {
-			this._notificationService.notify({ severity: Severity.Error, message, actions: { primary: [action] } });
-		} else {
-			this._notificationService.error(message);
-		}
+		this._notificationService.error(message);
 	}
 
 	/**
