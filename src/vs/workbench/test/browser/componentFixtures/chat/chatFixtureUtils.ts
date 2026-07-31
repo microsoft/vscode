@@ -173,7 +173,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IChatService, MockChatService);
 	reg.defineInstance(IChatPetService, new class extends mock<IChatPetService>() {
 		override readonly enabled = observableValue('chatPetEnabled', false);
+		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
+		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
 		override toggle() { return false; }
+		override setVariant() { }
+		override setOnTheRun() { }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
