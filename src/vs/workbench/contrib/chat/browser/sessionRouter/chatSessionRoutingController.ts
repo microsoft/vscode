@@ -480,7 +480,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const foot = dom.append(badge, dom.$('.chat-routing-badge-foot'));
 		const changeHint = dom.append(foot, dom.$('span'));
-		changeHint.textContent = localize('chatSessionRouting.changeHint', "\u2325 to change \u00B7 \u2318click for several");
+		changeHint.textContent = localize('chatSessionRouting.changeHint', "\u2325 to change \u00B7 \u2318click for several \u00B7 Escape to cancel");
 		const sendHint = dom.append(foot, dom.$('span.chat-routing-badge-foot-end'));
 
 		const renderSelection = () => {

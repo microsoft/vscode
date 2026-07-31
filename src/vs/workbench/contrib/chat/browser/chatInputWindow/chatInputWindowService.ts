@@ -55,6 +55,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _modelRef: IChatModelReference | undefined;
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
+	private _lead: HTMLElement | undefined;
+	private _trail: HTMLElement | undefined;
 	/** Shared routing + advisory-badge behaviour; recreated per widget, torn down on close. */
 	private _routingController: ChatSessionRoutingController | undefined;
 	/** In-flight `openWindow()` operation, so concurrent toggles stay idempotent. */
@@ -167,22 +169,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			'aria-hidden': 'true',
 			title: localize('chatInputWindow.drag', "Drag to move"),
 		}));
+		this._lead = lead;
 		lead.style.setProperty('-webkit-app-region', 'drag');
 		const dragGlyph = dom.append(lead, dom.$('span.chat-input-window-drag-glyph'));
 		dom.append(dragGlyph, dom.$('span'));
 		dom.append(dragGlyph, dom.$('span'));
 		dom.append(dragGlyph, dom.$('span'));
 
-		const contentSurface = dom.append(row, dom.$('.chat-input-window-content'));
-		contentSurface.style.boxSizing = 'border-box';
-		contentSurface.style.flex = '1 1 auto';
-		contentSurface.style.minWidth = '0';
-		contentSurface.style.height = `${CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT}px`;
-		contentSurface.style.overflow = 'visible';
-		contentSurface.style.backgroundColor = 'transparent';
-		contentSurface.style.border = 'none';
-		contentSurface.style.display = 'flex';
-		contentSurface.style.flexDirection = 'column';
 		applyThemeColors();
 		this._windowDisposables.add(this.themeService.onDidColorThemeChange(() => applyThemeColors()));
 
@@ -190,9 +183,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// compact ChatWidget. The response list is filtered out so only the input
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
-		this._renderChatWidget(auxiliaryWindow, contentSurface);
+		this._renderChatWidget(auxiliaryWindow, row);
 
 		const trail = dom.append(row, dom.$('.chat-input-window-trail'));
+		this._trail = trail;
 		const close = dom.append(trail, dom.$('a.chat-input-window-close', {
 			role: 'button',
 			tabindex: '0',
@@ -249,17 +243,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}
 	}
 
-	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, contentSurface: HTMLElement): void {
+	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, row: HTMLElement): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` - the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
-		// wrapper here. It renders above the drag layer (see chatInputWindow.css)
-		// so its controls stay interactive; the input-box chrome around them
-		// falls through to the drag layer and moves the window.
-		const parent = dom.append(contentSurface, dom.$('.interactive-session'));
+		// wrapper here.
+		const parent = dom.append(row, dom.$('.interactive-session'));
 		parent.style.flex = '1 1 auto';
-		parent.style.minHeight = '0';
-		parent.style.width = '100%';
+		parent.style.minWidth = '0';
 
 		const scopedContextKeyService = this._windowDisposables.add(this.contextKeyService.createScoped(parent));
 		// Mark this surface so its dedicated accessibility help (routing + how to
@@ -341,13 +332,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		};
 		this._routingController = this._windowDisposables.add(this.instantiationService.createInstance(ChatSessionRoutingController, host, 'chatInputWindow'));
 
-		const layout = () => widget.layout(parent.offsetHeight, parent.offsetWidth);
-		layout();
-
-		// Fit the frameless window to the input row and any routing panel below
-		// it. Skip while the model picker has grown the window so we do not fight
-		// its manual resize. Only touch the OS
-		// window when the size actually changed.
+		// Fit the frameless window to the widget's own content and any routing
+		// panel below it. Measuring the input container itself includes the
+		// height the host assigned and creates a feedback loop with empty space.
 		let lastContentHeight: number | undefined;
 		let didInitialPosition = false;
 		fitWindowToInput = () => {
@@ -358,11 +345,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
 			}
-			const inputHeight = widget.input.inputContainerElement?.getBoundingClientRect().height;
-			const rowHeight = inputHeight === undefined
-				? CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT
-				: Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(inputHeight));
-			contentSurface.style.height = `${rowHeight}px`;
+			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
 			const extraHeight = Array.from(auxiliaryWindow.container.children)
 				.filter(child => child !== this._row)
 				.reduce((height, child) => height + (child as HTMLElement).offsetHeight, 0);
@@ -382,23 +365,40 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			void auxiliaryWindow.setBounds({ x, y, width: win.outerWidth, height: contentHeight });
 		};
 
-		// Keep the window fitted as the input grows/shrinks (e.g. multi-line
-		// text), instead of relying on a single racy measurement that can catch
-		// the input before it collapses to its compact single-line height. Defer
-		// the fit out of the observer callback so the `resizeTo`/`moveTo` don't
-		// reenter the layout pass that triggered the notification.
-		const inputContainer = widget.input.inputContainerElement;
-		if (inputContainer && typeof auxiliaryWindow.window.ResizeObserver === 'function') {
-			const scheduledFit = this._windowDisposables.add(new MutableDisposable());
-			const resizeObserver = new auxiliaryWindow.window.ResizeObserver(() => {
-				scheduledFit.value = dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => fitWindowToInput());
-			});
-			resizeObserver.observe(inputContainer);
-			this._windowDisposables.add(toDisposable(() => resizeObserver.disconnect()));
-		}
+		let layingOut = false;
+		const layout = () => {
+			if (layingOut) {
+				return;
+			}
+			layingOut = true;
+			try {
+				const chrome = (this._lead?.offsetWidth ?? 0) + (this._trail?.offsetWidth ?? 0);
+				const rowStyle = auxiliaryWindow.window.getComputedStyle(row);
+				const horizontalPadding = Number.parseFloat(rowStyle.paddingLeft) + Number.parseFloat(rowStyle.paddingRight);
+				const available = Math.max(0, row.clientWidth - chrome - horizontalPadding);
+				parent.style.width = `${available}px`;
+				widget.layout(widget.contentHeight || row.offsetHeight, available);
+
+				const spill = parent.scrollWidth - parent.clientWidth;
+				if (spill > 0) {
+					widget.layout(widget.contentHeight || row.offsetHeight, Math.max(0, available - spill));
+				}
+				fitWindowToInput();
+			} finally {
+				layingOut = false;
+			}
+		};
+		layout();
+		this._windowDisposables.add(widget.onDidChangeHeight(() => layout()));
+		const scheduledInputLayout = this._windowDisposables.add(new MutableDisposable());
+		this._windowDisposables.add(widget.inputEditor.onDidChangeModelContent(() => {
+			// Submit controls change after the editor event; measure them in the
+			// next frame so the editor yields space before they can cover close.
+			scheduledInputLayout.value = dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => layout());
+		}));
 
 		this._windowDisposables.add(dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
-			fitWindowToInput();
+			layout();
 			// Focus the input only after the window has been positioned: the
 			// `moveTo`/`resizeTo` above blur the editor, so focusing in a
 			// follow-up frame (after the OS window is settled and keyed) is what
@@ -445,6 +445,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _disposeWidget(): void {
 		this._routingController = undefined;
 		this._row = undefined;
+		this._lead = undefined;
+		this._trail = undefined;
 		this._actionWidgetRestoreHeight = undefined;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;

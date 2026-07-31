@@ -20,7 +20,7 @@
 .chat-input-window .chat-input-window-row {
 	display: flex;
 	align-items: center;
-	flex: 0 0 auto;
+	flex: 1 1 auto;
 	min-height: 44px;
 	padding: 0 8px;
 }
@@ -103,8 +103,8 @@
 	background: transparent !important;
 }
 
-.chat-input-window .chat-input-window-content,
-.chat-input-window .chat-input-window-content > .interactive-session,
+.chat-input-window .chat-input-window-row > .interactive-session,
+.chat-input-window .interactive-session,
 .chat-input-window .interactive-input-part,
 .chat-input-window .interactive-input-and-edit-session,
 .chat-input-window .interactive-input-and-side-toolbar,
