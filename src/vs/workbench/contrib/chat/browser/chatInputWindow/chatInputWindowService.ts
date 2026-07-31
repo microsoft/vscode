@@ -17,7 +17,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -82,10 +81,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.logService.info('[chatInputWindow] service constructed');
 
 		const ownershipChannel = new BroadcastChannel('chat-input-window-ownership');
 		ownershipChannel.onmessage = (e) => {
@@ -109,7 +106,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	async openWindow(): Promise<void> {
-		this.logService.info(`[chatInputWindow] open requested existing=${Boolean(this._window)} pending=${Boolean(this._openOperation)}`);
 		if (this._window) {
 			return;
 		}
@@ -120,9 +116,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._openOperation = this._doOpenWindow();
 		try {
 			await this._openOperation;
-			this.logService.info('[chatInputWindow] open completed');
 		} catch (error) {
-			this.logService.error('[chatInputWindow] open failed', error);
 			this._disposeWidget();
 			this._window = undefined;
 			this._windowDisposables.clear();
@@ -139,7 +133,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// so the input window is centered on it rather than always the main one.
 		this._invokingWindow = dom.getActiveWindow();
 		const bounds = this._defaultBounds();
-		this.logService.info(`[chatInputWindow] opening auxiliary window bounds=${bounds.x},${bounds.y},${bounds.width}x${bounds.height}`);
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
 			bounds,
@@ -151,7 +144,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			noBackgroundThrottling: true,
 			backgroundColor: '#00000000',
 		});
-		this.logService.info('[chatInputWindow] auxiliary window created');
 
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
@@ -202,9 +194,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// compact ChatWidget. The response list is filtered out so only the input
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
-		this.logService.info('[chatInputWindow] rendering chat widget');
 		this._renderChatWidget(auxiliaryWindow, row);
-		this.logService.info('[chatInputWindow] chat widget rendered');
 
 		const trail = dom.append(row, dom.$('.chat-input-window-trail'));
 		this._trail = trail;
@@ -256,7 +246,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	async toggleWindow(): Promise<void> {
-		this.logService.info(`[chatInputWindow] toggle requested open=${this.isOpen}`);
 		if (this.isOpen) {
 			this.closeWindow();
 		} else {
@@ -307,6 +296,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				autoScroll: true,
 				renderInputOnTop: true,
 				renderStyle: 'compact',
+				renderGettingStartedTip: false,
 				// Show only the input box — drop every response list item.
 				filter: () => false,
 				enableImplicitContext: false,
@@ -328,15 +318,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		));
 		this._widget = widget;
-		this.logService.info('[chatInputWindow] chat widget created');
 		widget.render(parent);
 		widget.setVisible(true);
-		this.logService.info('[chatInputWindow] chat widget visible');
 
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
 		widget.setModel(modelRef.object);
-		this.logService.info(`[chatInputWindow] scratch model set resource=${modelRef.object.sessionResource.toString()}`);
 
 		let fitWindowToInput = () => { };
 
@@ -374,7 +361,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			},
 		};
 		this._routingController = this._windowDisposables.add(this.instantiationService.createInstance(ChatSessionRoutingController, host, 'chatInputWindow'));
-		this.logService.info('[chatInputWindow] routing controller created');
 
 		// Fit the frameless window to the widget's own content and any routing
 		// panel below it. Measuring the input container itself includes the
@@ -389,6 +375,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
 			}
+			const width = Math.max(this._defaultWidth(), win.outerWidth);
 			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
 			const extraHeight = Array.from(auxiliaryWindow.container.children)
 				.filter(child => child !== this._row)
@@ -403,13 +390,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!didInitialPosition) {
 				didInitialPosition = true;
 				const invokingWindow = this._invokingWindow;
-				x = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - win.outerWidth) / 2);
+				x = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - width) / 2);
 				y = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - contentHeight) / 2);
 			}
-			this.logService.info(`[chatInputWindow] fitting auxiliary window bounds=${x},${y},${win.outerWidth}x${contentHeight}`);
-			auxiliaryWindow.setBounds({ x, y, width: win.outerWidth, height: contentHeight }).catch(error => {
-				this.logService.error('[chatInputWindow] failed to fit auxiliary window', error);
-			});
+			void auxiliaryWindow.setBounds({ x, y, width, height: contentHeight });
 		};
 
 		let layingOut = false;
@@ -508,7 +492,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// Match Quick Chat's width so the model-detail hover has room to sit
 		// beside the picker: golden-cut of the invoking window, capped like the
 		// quick input widget (MAX_WIDTH = 600).
-		const width = Math.round(Math.min(invokingWindow.innerWidth * 0.62, 600));
+		const width = this._defaultWidth();
 		// Center the omni bar within the window that invoked it.
 		const x = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - width) / 2);
 		const y = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
@@ -518,6 +502,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			width,
 			height: CHAT_INPUT_WINDOW_DEFAULT_HEIGHT,
 		};
+	}
+
+	private _defaultWidth(): number {
+		return Math.round(Math.min(this._invokingWindow.innerWidth * 0.62, 600));
 	}
 }
 

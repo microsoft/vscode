@@ -1223,6 +1223,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderGettingStartedTipIfNeeded(): void {
+		if (this.viewOptions.renderGettingStartedTip === false) {
+			this.clearGettingStartedTip();
+			return;
+		}
 		if (!this.inputPart || !this.viewModel) {
 			return;
 		}
