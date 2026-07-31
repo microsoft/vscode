@@ -10,13 +10,15 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
-import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestChatWidgetService, TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -2156,6 +2158,18 @@ suite('AgentSessions', () => {
 		let instantiationService: TestInstantiationService;
 		let viewModel: AgentSessionsModel;
 
+		class OpenChatWidgetService extends TestChatWidgetService {
+			private readonly widget = new class extends mock<IChatWidget>() { };
+
+			constructor(private readonly openSessionResource: URI) {
+				super();
+			}
+
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined {
+				return isEqual(resource, this.openSessionResource) ? this.widget : undefined;
+			}
+		}
+
 		/** Mirrors the Agent Host controller: records the mutation, then echoes it back. */
 		class ReadOwningController implements IChatSessionItemController {
 			private readonly _onDidChangeChatSessionItems = disposables.add(new Emitter<IChatSessionItemsDelta>());
@@ -2203,6 +2217,41 @@ suite('AgentSessions', () => {
 		});
 
 		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('keeps an open session read when a later provider unread update arrives', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('test-type://owned-session');
+				const controller = new ReadOwningController([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+				instantiationService.stub(IChatWidgetService, new OpenChatWidgetService(resource));
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				controller.setItems([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: false,
+				}]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					isRead: true,
+					isMarkedUnread: false,
+				});
+			});
+		});
 
 		test('reads the provider value and routes mutations back to it', async () => {
 			return runWithFakedTimers({}, async () => {

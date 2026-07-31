@@ -707,6 +707,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
+				const shouldKeepOpenSessionRead = session.isRead === false
+					&& this.chatSessionsService.canSetChatSessionItemRead(session.resource)
+					&& !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
+				if (shouldKeepOpenSessionRead) {
+					this.chatSessionsService.setChatSessionItemRead(session.resource, true);
+				}
 
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
@@ -719,7 +725,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status: session.status ?? AgentSessionStatus.Completed,
 					archived: session.archived,
-					providerIsRead: session.isRead,
+					providerIsRead: shouldKeepOpenSessionRead ? true : session.isRead,
 					timing: session.timing,
 					changes: normalizedChanges,
 					metadata: session.metadata,
