@@ -78,8 +78,8 @@ export interface IAgentHostOctoKitService {
 		signal: AbortSignal,
 	): Promise<CreatedPullRequest>;
 
-	/** Finds the most recently updated pull request for `owner:branch`, if any. */
-	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined>;
+	/** Finds the most recently updated pull request for `headOwner:branch`, if any. */
+	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner?: string): Promise<CreatedPullRequest | undefined>;
 
 	/**
 	 * Enables auto-merge on a pull request so GitHub merges it automatically
@@ -153,8 +153,8 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		return { url: html_url, number, nodeId: typeof node_id === 'string' ? node_id : undefined };
 	}
 
-	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
-		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner = owner): Promise<CreatedPullRequest | undefined> {
+		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${headOwner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
 
 		const etag = this.pullRequestSearchEtags.get(routeSlug);
 		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, etag);

@@ -44,6 +44,11 @@ export const extensionMcpCollectionPrefix = 'ext.';
  * {@link IMcpConfigPath.id} of the originating config path.
  */
 export const MCP_CONFIGURATION_COLLECTION_ID_PREFIX = 'mcp.config.';
+export const MCP_PLUGIN_COLLECTION_ID_PREFIX = 'plugin.';
+
+export const enum McpCollectionProvenance {
+	Plugin = 'plugin',
+}
 
 /**
  * Prefix of the collection id used for MCP servers discovered from folder-root
@@ -67,6 +72,7 @@ export interface McpCollectionDefinition {
 	readonly remoteAuthority: string | null;
 	/** Globally-unique, stable ID for this definition */
 	readonly id: string;
+	readonly provenance?: McpCollectionProvenance;
 	/** Human-readable label for the definition */
 	readonly label: string;
 	/** Definitions this collection contains. */
@@ -860,6 +866,20 @@ export const enum McpServerEnablementState {
 	Enabled,
 }
 
+/**
+ * Whether an installed MCP server has been verified against the configured
+ * registry. Used to enforce the "Registry only" access policy without relying on
+ * transient install-time metadata.
+ */
+export const enum McpServerRegistryStatus {
+	/** Membership has not been determined yet (or could not be determined). */
+	Unknown,
+	/** The server was found in the active registry. */
+	Matched,
+	/** The active registry authoritatively does not contain the server. */
+	NotFound,
+}
+
 export const enum McpServerInstallState {
 	Installing,
 	Installed,
@@ -887,6 +907,7 @@ export interface IWorkbenchMcpServer {
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
 	readonly runtimeStatus: McpServerEnablementStatus | undefined;
+	readonly registryStatus: McpServerRegistryStatus;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;

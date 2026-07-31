@@ -9,6 +9,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -43,7 +44,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		await this.refreshSessionGitState(sessionKey, workingDirectory);
+		await this._attachSessionGitHubPullRequest(sessionKey);
+	}
+
+	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			return;
@@ -78,7 +84,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 			const signal = new AbortController().signal;
 			const pr = await this._octoKitService.findPullRequestByHeadBranch(
-				gitHubState.owner, gitHubState.repo, gitState.branchName, authToken, signal);
+				gitHubState.owner, gitHubState.repo, gitState.branchName, authToken, signal, gitState.githubHeadOwner);
 			if (!pr?.url) {
 				return;
 			}
@@ -91,6 +97,36 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
 		}
+	}
+
+	/**
+	 * Scans a user message for GitHub issue references and merges them into the
+	 * session's GitHub state. References already recorded are preserved and keep
+	 * their position, so the list reflects the order in which the session first
+	 * mentioned each issue.
+	 */
+	async attachSessionGitHubIssues(sessionKey: string, text: string): Promise<void> {
+		const references = parseGitHubIssueReferences(text);
+		if (references.length === 0) {
+			return;
+		}
+
+		const currentUrls = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta)?.issueUrls ?? [];
+		const nextUrls = [...currentUrls];
+		for (const reference of references) {
+			const url = toGitHubIssueUrl(reference);
+			if (!nextUrls.includes(url)) {
+				nextUrls.push(url);
+			}
+		}
+
+		if (nextUrls.length === currentUrls.length) {
+			return;
+		}
+
+		await this.setSessionGitHubState(sessionKey, {
+			issueUrls: nextUrls.slice(0, MAX_SESSION_ISSUE_REFERENCES)
+		} satisfies ISessionGitHubState);
 	}
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {

@@ -777,6 +777,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);
 			return false;
 		}
+		if (!this._areTipCommandsRegistered(tip)) {
+			return false;
+		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
 		return true;
 	}
@@ -784,6 +787,19 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private _isModeAvailable(modeName: string, contextKeyService: IContextKeyService): boolean {
 		const widget = this._chatWidgetService.getAllWidgets().find(widget => widget.scopedContextKeyService === contextKeyService);
 		return !!widget?.input.currentChatModesObs.get().findModeByName(modeName);
+	}
+
+	private _areTipCommandsRegistered(tip: ITipDefinition): boolean {
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
+		const rawMessage = tip.buildMessage(ctx);
+		const commandIds = extractCommandIds(rawMessage.value);
+		for (const commandId of commandIds) {
+			if (!CommandsRegistry.getCommand(commandId)) {
+				this._logService.debug('#ChatTips: tip excluded because command is not registered', tip.id, commandId);
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private _isSettingModified(key: string): boolean {

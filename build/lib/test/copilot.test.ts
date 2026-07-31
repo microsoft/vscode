@@ -50,6 +50,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/Copilot Computer Use.app/**',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/CopilotComputerUse.exe',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/keytar.node',
+			'!node_modules/@github/copilot-linux-x64/prebuilds/*/mediaremote-adapter/**',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/cli-native.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linux-x64', [
@@ -80,6 +81,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/Copilot Computer Use.app/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/CopilotComputerUse.exe',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/keytar.node',
+			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/mediaremote-adapter/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/cli-native.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linuxmusl-x64', [
@@ -107,6 +109,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/Copilot Computer Use.app/**',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/CopilotComputerUse.exe',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/keytar.node',
+			'!node_modules/@github/copilot-win32-x64/prebuilds/*/mediaremote-adapter/**',
 		]);
 		assertCopilotPlatformPackageIncludes(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64', [
 			'index.js',
@@ -135,6 +138,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/Copilot Computer Use.app/**',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/CopilotComputerUse.exe',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/keytar.node',
+			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/mediaremote-adapter/**',
 		]);
 		assertOptionalCopilotNativeDependenciesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
 		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
@@ -209,9 +213,12 @@ suite('copilot', () => {
 			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
 			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty'), { recursive: true });
 			fs.writeFileSync(path.join(platformPackageDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
+			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'MediaRemoteAdapter.framework'), { recursive: true });
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'runtime.node'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty.node'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'mediaremote-adapter.pl'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'MediaRemoteAdapter.framework', 'MediaRemoteAdapter'), '');
 			fs.mkdirSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64'), { recursive: true });
 			fs.writeFileSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'), '');
 			fs.mkdirSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64'), { recursive: true });
@@ -222,6 +229,7 @@ suite('copilot', () => {
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'runtime.node')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty.node')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe')));
+			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'mediaremote-adapter')));
 			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'linux-x64')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'tgrep', 'bin', 'win32-x64', 'tgrep.exe')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'tgrep', 'bin', 'win32-x64', 'tgrep.exe')));
@@ -384,6 +392,8 @@ function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], pac
 	assert(!matchesGlob(`${packageDir}/prebuilds/win32-x64/CopilotComputerUse.exe`, patterns), 'CopilotComputerUse.exe');
 	assert(patterns.includes(`!${packageDir}/prebuilds/*/keytar.node`), 'keytar.node');
 	assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/keytar.node`, patterns), 'keytar.node');
+	assert(patterns.includes(`!${packageDir}/prebuilds/*/mediaremote-adapter/**`), 'mediaremote-adapter');
+	assert(!matchesGlob(`${packageDir}/prebuilds/darwin-arm64/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter`, patterns), 'mediaremote-adapter');
 
 	if (!packageDir.includes('win32')) {
 		assert(patterns.includes(`!${packageDir}/prebuilds/*/cli-native.node`), 'cli-native.node');

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.agent-feedback-editor-overlay-host {
+	position: relative;
+}
+
 .agent-feedback-editor-overlay-widget {
 	padding: 2px 4px;
 	color: var(--vscode-foreground);

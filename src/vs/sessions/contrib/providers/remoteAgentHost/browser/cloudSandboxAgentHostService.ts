@@ -5,8 +5,8 @@
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -21,6 +21,7 @@ import {
 	CloudSandboxEnvironmentOfflineError,
 	ICloudSandboxCredentialsService,
 	isCloudSandboxSealedToken,
+	isRetryableCloudSandboxError,
 	type ICloudSandboxClientToken,
 	type ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -29,24 +30,12 @@ import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
 /** Maximum number of `/connect` "waking" retries before giving up. */
 const MAX_WAKING_RETRIES = 20;
-
-/** Upper bound on a single waking Retry-After wait (ms), guarding against a hostile header. */
-const MAX_WAKING_DELAY_MS = 30_000;
-
-/** Refresh the Web PubSub credentials this long before the access token's `expires_at`. */
-const CREDENTIAL_REFRESH_LEAD_MS = 60_000;
-
-/** Floor / ceiling for the scheduled credential-refresh delay. */
-const MIN_CREDENTIAL_REFRESH_DELAY_MS = 5_000;
-const MAX_CREDENTIAL_REFRESH_DELAY_MS = 55 * 60_000;
-
-/** Backoff delay after a failed credential refresh before retrying. */
-const CREDENTIAL_REFRESH_RETRY_MS = 30_000;
 
 /** Maximum time to wait for a sandbox environment to report `online` before giving up. */
 const ENVIRONMENT_READY_TIMEOUT_MS = 120_000;
@@ -62,24 +51,6 @@ const MAX_ESTABLISH_ATTEMPTS = 3;
 
 /** Delay between establish attempts. */
 const ESTABLISH_RETRY_DELAY_MS = 2_000;
-
-/** Mutable holder for the current Web PubSub credentials, read by the transport factory. */
-interface ICloudSandboxCreds {
-	token: ICloudSandboxClientToken;
-}
-
-/**
- * Delay (ms) until credentials should be refreshed, computed as `expires_at` minus a lead time and
- * clamped to a sane range. Falls back to the minimum when `expires_at` is missing/unparseable.
- */
-function credentialRefreshDelayMs(expiresAt: string | undefined): number {
-	const expiryMs = expiresAt ? Date.parse(expiresAt) : NaN;
-	if (Number.isNaN(expiryMs)) {
-		return MIN_CREDENTIAL_REFRESH_DELAY_MS;
-	}
-	const delay = expiryMs - Date.now() - CREDENTIAL_REFRESH_LEAD_MS;
-	return Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delay));
-}
 
 /**
  * Renderer-side coordinator for Copilot cloud sandbox connections.
@@ -156,6 +127,10 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 				}
 				// Retrying re-mints credentials and wakes the sandbox again, which cannot help here.
 				if (err instanceof CloudSandboxEnvironmentOfflineError) {
+					throw err;
+				}
+				// Nor can it help when Mission Control rejected the request outright.
+				if (!isRetryableCloudSandboxError(err)) {
 					throw err;
 				}
 				lastError = err;
@@ -251,7 +226,13 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 		// Keep credentials fresh for the life of the connection so reconnects have a valid token.
 		const store = new DisposableStore();
-		this._scheduleCredentialRefresh(store, address, options, clientToken.client_id, creds);
+		store.add(this._instantiationService.createInstance(
+			CloudSandboxCredentialRefresher,
+			address,
+			{ environmentId: options.environmentId, sessionId: options.sessionId },
+			clientToken.client_id,
+			creds,
+		));
 		this._managed.set(address, store);
 		// Expose the sealed GitHub token so the AHP `authenticate` pass can present it to the host.
 		this._creds.set(address, creds);
@@ -310,38 +291,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			}
 			await timeout(ENVIRONMENT_POLL_INTERVAL_MS, token);
 		}
-	}
-
-	/**
-	 * Re-mint Web PubSub credentials shortly before they expire and write them into {@link creds}.
-	 * The open socket is untouched; the new token is used the next time the transport is rebuilt.
-	 */
-	private _scheduleCredentialRefresh(store: DisposableStore, address: string, options: ICloudSandboxConnectOptions, clientId: string, creds: ICloudSandboxCreds): void {
-		const timer = store.add(new MutableDisposable());
-		const arm = (delayMs: number) => {
-			timer.value = disposableTimeout(() => void refresh(), Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs));
-		};
-		const refresh = async () => {
-			try {
-				const result = await this._credentialsService.reconnect(
-					{ environmentId: options.environmentId, sessionId: options.sessionId }, clientId, CancellationToken.None,
-				);
-				if (result.kind === 'waking') {
-					arm(Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS));
-					return;
-				}
-				// Keep the previous sealed token when a refresh omits it.
-				creds.token = result.token.encrypted_github_token
-					? result.token
-					: { ...result.token, encrypted_github_token: creds.token.encrypted_github_token, host_encryption_key: creds.token.host_encryption_key };
-				this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${address}`);
-				arm(credentialRefreshDelayMs(result.token.expires_at));
-			} catch (err) {
-				this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${address}; retrying`, err);
-				arm(CREDENTIAL_REFRESH_RETRY_MS);
-			}
-		};
-		arm(credentialRefreshDelayMs(creds.token.expires_at));
 	}
 
 	/** Mint client creds, retrying (bounded) while the environment is waking. */
