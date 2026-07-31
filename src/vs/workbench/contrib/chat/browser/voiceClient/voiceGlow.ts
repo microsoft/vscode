@@ -100,12 +100,70 @@ export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IV
 }
 
 /**
- * The accent for the current state. Thinking and connected-idle render the same
- * calm, near-white light, which carries a whisper of the listening hue — so they
- * take the listening accent rather than one of their own.
+ * The accent for the current state. Only the talking states carry one; anything
+ * else renders no glow, so it never reaches this.
  */
 export function voiceGlowStateColor(voiceState: VoiceGlowState, colors: IVoiceGlowColors): Color {
 	return voiceState === 'speaking' ? colors.speaking : colors.listening;
+}
+
+// --- The rim accent ----------------------------------------------------------
+
+/** Which of the two talking states a rim is showing. */
+export type VoiceRimMood = 'cool' | 'warm';
+
+/** Whether the surrounding surface is light or dark. */
+export type GlowThemeKind = 'light' | 'dark';
+
+/** Saturation (%) bounds for an active (listening / speaking) rim. */
+const RIM_SAT_MIN = 70;
+const RIM_SAT_MAX = 96;
+
+/**
+ * The rim's lightness, per theme and mood. The warm (speaking) rim needs a little
+ * more lightness than the cool one to read at the same weight, since a
+ * blue-violet edge sits darker than a cyan one at equal lightness.
+ */
+const RIM_LIGHTNESS = {
+	dark: { cool: 56, warm: 72 },
+	light: { cool: 72, warm: 72 },
+} as const;
+
+/**
+ * The rim reads a touch off the raw accent: a hair of teal on the cool side keeps
+ * listening from looking like a plain blue focus ring, and a hair of magenta on
+ * the warm side widens the contrast between "you are talking" and "the agent is
+ * talking".
+ */
+const RIM_HUE_SHIFT = { cool: -10, warm: 7 } as const;
+
+/**
+ * Tune a raw accent into the color a rim actually paints with: hue nudged off the
+ * accent, saturation bounded so a washed-out or neon theme color still reads as
+ * light, and lightness pinned so the rim carries the same weight in any theme.
+ *
+ * Shared with the dictation microphone glow, so an open microphone is the same
+ * color whichever feature opened it.
+ */
+export function resolveVoiceRimAccent(accent: Color, mood: VoiceRimMood, theme: GlowThemeKind): IVoiceRimAccent {
+	const { h, s } = accent.hsla;
+	return {
+		hue: (h + RIM_HUE_SHIFT[mood] + 360) % 360,
+		saturation: Math.round(Math.min(RIM_SAT_MAX, Math.max(RIM_SAT_MIN, s * 100))),
+		lightness: RIM_LIGHTNESS[theme][mood],
+	};
+}
+
+/** The HSL parts a rim paints with, as resolved by {@link resolveVoiceRimAccent}. */
+export interface IVoiceRimAccent {
+	readonly hue: number;
+	readonly saturation: number;
+	readonly lightness: number;
+}
+
+/** {@link resolveVoiceRimAccent} as a CSS `hsl(...)` string. */
+export function voiceRimAccentCss(accent: IVoiceRimAccent): string {
+	return `hsl(${accent.hue.toFixed(1)} ${accent.saturation}% ${accent.lightness}%)`;
 }
 
 /**

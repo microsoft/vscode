@@ -37,12 +37,12 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly _dictationThemeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly _dictationAccessibilityService: IAccessibilityService,
 		@IChatSpeechToTextService private readonly _speechToTextService: IChatSpeechToTextService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _dictationAccessibilityService);
+		super(action, options, keybindingService, notificationService, contextKeyService, _dictationThemeService, contextMenuService, _dictationAccessibilityService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -53,7 +53,7 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, this._action.id),
 			this._contextMenuService,
 		));
-		this._register(setupDictationMicGlow(container, this._speechToTextService, this._dictationAccessibilityService));
+		this._register(setupDictationMicGlow(container, this._speechToTextService, this._dictationAccessibilityService, undefined, this._dictationThemeService));
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {

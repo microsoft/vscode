@@ -9,7 +9,10 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
+import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { chatDictationActiveMicGlow } from '../../common/widget/chatColors.js';
+import { readVoiceGlowIntensity, resolveVoiceRimAccent, voiceRimAccentCss } from '../voiceClient/voiceGlow.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
 export type DictationMicGlowPhase = 'off' | 'live' | 'settling';
@@ -42,6 +45,20 @@ const RESTING_LEVEL = 0.12;
 const REDUCED_MOTION_LEVEL = 0.45;
 
 /**
+ * The color the mic glow paints with, tuned exactly as Voice Mode tunes its
+ * listening rim — so an open microphone reads the same whichever feature opened
+ * it. Themes that pin `chat.dictationActiveMicGlow` are tuned the same way, so
+ * the treatment stays consistent even when the accent doesn't.
+ */
+export function resolveDictationMicAccent(theme: IColorTheme): string | undefined {
+	const accent = theme.getColor(chatDictationActiveMicGlow);
+	if (!accent) {
+		return undefined;
+	}
+	return voiceRimAccentCss(resolveVoiceRimAccent(accent, 'cool', isDark(theme.type) ? 'dark' : 'light'));
+}
+
+/**
  * Adds audio-reactive feedback to a dictation microphone while recording, so an
  * open mic is obvious at a glance rather than being conveyed only by the filled
  * mic glyph. The glow is drawn as a pseudo-element on `target`, so hosts that
@@ -52,6 +69,7 @@ export function setupDictationMicGlow(
 	service: IChatSpeechToTextService,
 	accessibilityService: IAccessibilityService,
 	isActive?: IObservable<boolean>,
+	themeService?: IThemeService,
 ): IDisposable {
 	const store = new DisposableStore();
 	const window = getWindow(target);
@@ -98,6 +116,18 @@ export function setupDictationMicGlow(
 
 	store.add(Event.any<unknown>(service.onDidChangeState, service.onDidChangePreparingModel)(() => update()));
 	store.add(accessibilityService.onDidChangeReducedMotion(() => update()));
+	if (themeService) {
+		const syncAccent = () => {
+			const accent = resolveDictationMicAccent(themeService.getColorTheme());
+			if (accent) {
+				target.style.setProperty('--dictation-mic-accent', accent);
+			} else {
+				target.style.removeProperty('--dictation-mic-accent');
+			}
+		};
+		store.add(themeService.onDidColorThemeChange(syncAccent));
+		syncAccent();
+	}
 	if (isActive) {
 		store.add(autorun(reader => {
 			update(isActive.read(reader));
@@ -107,6 +137,7 @@ export function setupDictationMicGlow(
 		stopAnimation();
 		target.classList.remove('dictation-mic-active', 'dictation-mic-settling');
 		target.style.removeProperty('--dictation-mic-level');
+		target.style.removeProperty('--dictation-mic-accent');
 	}));
 	update();
 

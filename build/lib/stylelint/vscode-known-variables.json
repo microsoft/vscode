@@ -976,6 +976,8 @@
 		"--chat-editing-last-edit-shift",
 		"--chat-voice-icon-glow-color",
 		"--sessions-voice-icon-glow-color",
+		"--dictation-mic-accent",
+		"--dictation-mic-color",
 		"--dictation-mic-glow-radius",
 		"--dictation-mic-level",
 		"--chat-current-response-min-height",

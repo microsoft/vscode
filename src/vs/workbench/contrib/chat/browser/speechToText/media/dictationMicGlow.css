@@ -10,6 +10,9 @@
 .dictation-mic-active {
 	position: relative;
 	--dictation-mic-level: 0;
+	/* Voice Mode's listening rim color, published by `setupDictationMicGlow`. The
+		raw token is the fallback for hosts that don't pass a theme service. */
+	--dictation-mic-color: var(--dictation-mic-accent, var(--vscode-chat-dictationActiveMicGlow));
 }
 
 /* Keep the mic glyph above the glow so the icon stays crisp. */
@@ -18,7 +21,8 @@
 	z-index: 1;
 }
 
-/* Audio-reactive inner glow matching Voice Mode's listening glow style (inner border + inset wash). */
+/* The same three layers Voice Mode's rim paints — a hairline ring at the edge, an
+	inner wash and a soft bloom — scaled down to a button. */
 .dictation-mic-active::after {
 	content: '';
 	position: absolute;
@@ -26,10 +30,10 @@
 	z-index: 0;
 	pointer-events: none;
 	border-radius: var(--dictation-mic-glow-radius, var(--vscode-cornerRadius-small));
-	background: color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) 12%, transparent);
+	background: color-mix(in srgb, var(--dictation-mic-color) 12%, transparent);
 	box-shadow:
-		inset 0 0 0 1px color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) calc(30% + var(--dictation-mic-level) * 30%), transparent),
-		inset 0 0 calc(3px + var(--dictation-mic-level) * 6px) color-mix(in srgb, var(--vscode-chat-dictationActiveMicGlow) calc(10% + var(--dictation-mic-level) * 20%), transparent);
+		inset 0 0 0 1px color-mix(in srgb, var(--dictation-mic-color) calc(30% + var(--dictation-mic-level) * 30%), transparent),
+		inset 0 0 calc(3px + var(--dictation-mic-level) * 6px) color-mix(in srgb, var(--dictation-mic-color) calc(10% + var(--dictation-mic-level) * 20%), transparent);
 	opacity: calc(0.5 + var(--dictation-mic-level) * 0.5);
 	transition: opacity 260ms ease-out, box-shadow 320ms ease-out;
 	will-change: opacity, box-shadow;
@@ -63,12 +67,21 @@
 	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
 }
 
-/* High-contrast themes replace the soft glow with a solid outline, which must
-	stay fully opaque to keep its contrast at low levels. */
+/* High-contrast themes replace the soft glow with a solid line, matching the
+	Voice Mode rim's high-contrast treatment — blue, since an open microphone is
+	the listening state. It stays fully opaque to keep its contrast at low levels. */
 .hc-black .dictation-mic-active::after,
 .hc-light .dictation-mic-active::after {
 	opacity: 1;
 	background: none;
 	box-shadow: none;
-	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline: var(--vscode-strokeThickness) solid var(--vscode-charts-blue);
+}
+
+.hc-black .dictation-mic-active::after {
+	outline-color: var(--vscode-charts-blue, #3794ff);
+}
+
+.hc-light .dictation-mic-active::after {
+	outline-color: var(--vscode-charts-blue, #0f4a85);
 }

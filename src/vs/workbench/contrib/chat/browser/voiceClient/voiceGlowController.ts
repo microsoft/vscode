@@ -5,7 +5,9 @@
 
 import './media/voiceGlow.css';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, voiceGlowStateColor, VoiceGlowState } from './voiceGlow.js';
+import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, voiceGlowStateColor, VoiceGlowState, VoiceRimMood } from './voiceGlow.js';
+
+export type { GlowThemeKind };
 
 /**
  * The DOM applier for the Voice Mode ambient glow.
@@ -30,26 +32,6 @@ const FADE = 'opacity .6s cubic-bezier(.4,0,.2,1)';
 /** How long a faded-out slot is kept mounted before its layer is torn down. */
 const FADE_OUT_MS = 650;
 
-/** Saturation (%) bounds for an active (listening / speaking) glow. */
-const ACTIVE_SAT_MIN = 70;
-const ACTIVE_SAT_MAX = 96;
-
-/**
- * The active rim's lightness, per theme and mood. The warm (speaking) rim needs a
- * little more lightness than the cool one to read at the same weight, since a
- * blue-violet edge sits darker than a cyan one at equal lightness.
- */
-const ACTIVE_RIM_LIGHTNESS = {
-	dark: { cool: 56, warm: 72 },
-	light: { cool: 72, warm: 72 },
-} as const;
-/**
- * The rim reads a touch off the raw accent: a hair of teal on the cool side keeps
- * listening from looking like a plain blue focus ring, and a hair of magenta on
- * the warm side widens the contrast between "you are talking" and "the agent is
- * talking".
- */
-const ACTIVE_RIM_HUE_SHIFT = { cool: -10, warm: 7 } as const;
 /** Base strength of an active rim, before the audio level is applied. */
 const ACTIVE_RIM_STRENGTH = 1.02;
 
@@ -62,13 +44,11 @@ const RIM_LAYER_OPACITY = {
 /** Seconds for one full breath cycle. */
 const RIM_DURATION = 2.3;
 
-export type GlowThemeKind = 'light' | 'dark';
-
 /**
  * Which of the two talking states the rim is showing. Published as a class so
  * high-contrast themes can style each one.
  */
-type RimMood = 'cool' | 'warm';
+type RimMood = VoiceRimMood;
 
 /** A live layer mounted on one of the buffered slots. */
 interface IMountedLayer extends IDisposable {
@@ -435,14 +415,13 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
 		const theme = this._themeKind();
-		const accent = mood === 'warm' ? this._colors.speaking : this._colors.listening;
-		const { h, s } = accent.hsla;
+		const accent = resolveVoiceRimAccent(mood === 'warm' ? this._colors.speaking : this._colors.listening, mood, theme);
 		return mountRimLayers(host, {
 			theme,
 			mood,
-			hue: h + ACTIVE_RIM_HUE_SHIFT[mood],
-			saturation: Math.round(Math.min(ACTIVE_SAT_MAX, Math.max(ACTIVE_SAT_MIN, s * 100))),
-			lightness: ACTIVE_RIM_LIGHTNESS[theme][mood],
+			hue: accent.hue,
+			saturation: accent.saturation,
+			lightness: accent.lightness,
 			strength: ACTIVE_RIM_STRENGTH,
 			duration: RIM_DURATION,
 			audioGain: 0.8,
