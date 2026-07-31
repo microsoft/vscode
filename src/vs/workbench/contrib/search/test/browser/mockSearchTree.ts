@@ -36,9 +36,49 @@ export class MockObjectTree<T, TRef> implements IDisposable {
 	get onDidDispose() { return someEvent; }
 	get lastVisibleElement() { return this.elements[this.elements.length - 1]; }
 
-	constructor(private elements: any[]) { }
+	private readonly _nodes = new Set<unknown>();
+	private _focus: unknown[] = [];
+	private _selection: unknown[] = [];
+
+	constructor(private elements: any[]) {
+		for (const element of elements) {
+			this._nodes.add(element);
+		}
+	}
 
 	domFocus(): void { }
+
+	hasNode(element: unknown): boolean {
+		return this._nodes.has(element);
+	}
+
+	materialize(...elements: unknown[]): void {
+		for (const element of elements) {
+			this._nodes.add(element);
+		}
+	}
+
+	getFocus(): unknown[] {
+		return this._focus;
+	}
+
+	getSelection(): unknown[] {
+		return this._selection;
+	}
+
+	setFocus(elements: unknown[]): void {
+		if (!elements.every(e => this.hasNode(e))) {
+			throw new Error('Tree element not found');
+		}
+		this._focus = elements;
+	}
+
+	setSelection(elements: unknown[], _browserEvent?: UIEvent): void {
+		if (!elements.every(e => this.hasNode(e))) {
+			throw new Error('Tree element not found');
+		}
+		this._selection = elements;
+	}
 
 	collapse(location: TRef, recursive: boolean = false): boolean {
 		return true;

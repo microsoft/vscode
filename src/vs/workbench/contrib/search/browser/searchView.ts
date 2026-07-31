@@ -61,6 +61,7 @@ import { IFindInFilesArgs } from './searchActionsBase.js';
 import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, TextSearchResultRenderer } from './searchResultsView.js';
+import { selectSearchTreeElementIfPresent } from './searchTreeSelection.js';
 import { SearchWidget } from './searchWidget.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
@@ -2288,10 +2289,8 @@ export class SearchView extends ViewPane {
 
 						if (isIMatchInNotebook(match)) {
 							elemParent.showMatch(match);
-							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
-								this.tree.setSelection([match], getSelectionKeyboardEvent());
-								this.tree.setFocus([match]);
-							}
+							// Remapped match may not be in the async tree yet (#328427).
+							selectSearchTreeElementIfPresent(this.tree, match, getSelectionKeyboardEvent());
 						}
 					}
 				}
