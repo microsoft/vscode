@@ -759,6 +759,10 @@ export namespace ConfigKey {
 
 		/** Enable extended (1 hour) prompt cache TTL on the rolling message-level breakpoints (last cacheable user/tool-result blocks) for the Anthropic Messages API. Same model/location/subagent gating as {@link AnthropicExtendedCacheTtl}. */
 		export const AnthropicExtendedCacheTtlMessages = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtlMessages', ConfigType.ExperimentBased, false);
+
+		/** Recover an Anthropic `stop_reason: "refusal"` by re-issuing the request once against the model's configured fallback (see `getRefusalFallbackModel`). */
+		export const AnthropicRefusalFallback = defineSetting<boolean>('chat.anthropic.refusalFallback.enabled', ConfigType.ExperimentBased, false);
+
 		/** Per-model capability overrides. Keys are model ids, values declare an aliased `family`. Lets evals route an unknown preview model id to a known production family (e.g. `"claude-opus-4.7"`) so the Anthropic prompt resolver, multi-replace tools, tool search, context editing, etc. all activate without a code change. */
 		export const ModelCapabilityOverrides = defineSetting<Record<string, IModelCapabilityOverride>>('chat.modelCapabilityOverrides', ConfigType.Simple, {});
 

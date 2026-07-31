@@ -15,6 +15,7 @@ import { IInteractionService } from '../../../../platform/chat/common/interactio
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../../../platform/endpoint/common/capiClient';
+import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -76,6 +77,7 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 			]).seal() as unknown as IInstantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			createMockEndpointProvider(),
 		);
 	});
 
@@ -197,6 +199,7 @@ describe('ChatMLFetcherImpl request.options.tools telemetry', () => {
 			]).seal() as unknown as IInstantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			createMockEndpointProvider(),
 		);
 	});
 
@@ -746,6 +749,13 @@ function createMockConversationOptions() {
 
 function createMockPowerService(): IPowerService {
 	return new NullPowerService();
+}
+
+function createMockEndpointProvider(): IEndpointProvider {
+	return {
+		_serviceBrand: undefined,
+		getAllChatEndpoints: async () => [],
+	} as unknown as IEndpointProvider;
 }
 
 class FakeHeaders implements IHeaders {

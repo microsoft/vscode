@@ -529,3 +529,38 @@ export function modelSupportsContextEditing(model: LanguageModelChat | IChatEndp
 		n.startsWith('claude-opus-4');
 	return matches(normalizedId) || matches(normalizedFamily);
 }
+
+/**
+ * Model to re-issue a request against when the originally selected model
+ * declines it with `stop_reason: "refusal"` (Anthropic Messages API).
+ *
+ * Keys are normalized model id / family prefixes, values are CAPI model ids.
+ * Only the newest Claude generations are known to emit refusals; they fall back
+ * to the closest previous-generation Opus, which is available on the same CAPI
+ * Anthropic passthrough.
+ */
+const REFUSAL_FALLBACK_MODELS: readonly (readonly [prefix: string, fallbackModel: string])[] = [
+	['claude-fable-5', 'claude-opus-4.8'],
+	['claude-opus-5', 'claude-opus-4.8'],
+];
+
+/**
+ * Returns the fallback model for a model that refused a request, or `undefined`
+ * when no fallback is configured. Accepts either an id string, a
+ * {@link LanguageModelChat}, or an {@link IChatEndpoint} — when given an
+ * endpoint/chat the model **family** is also checked, so a per-model family
+ * override (see {@link IModelCapabilityOverride}) lights this up automatically.
+ */
+export function getRefusalFallbackModel(model: LanguageModelChat | IChatEndpoint | string): string | undefined {
+	const normalize = (s: string) => s.toLowerCase().replace(/\./g, '-');
+	const candidates = typeof model === 'string'
+		? [normalize(model)]
+		: [normalize(getModelId(model)), normalize(model.family)];
+
+	for (const [prefix, fallbackModel] of REFUSAL_FALLBACK_MODELS) {
+		if (candidates.some(candidate => candidate.startsWith(prefix))) {
+			return fallbackModel;
+		}
+	}
+	return undefined;
+}

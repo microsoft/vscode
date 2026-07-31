@@ -8,7 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, isKimiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getRefusalFallbackModel, isKimiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
@@ -250,6 +250,34 @@ describe('getModelCapabilityOverride', () => {
 		}).toEqual({
 			unknown: undefined,
 			emptyMap: undefined,
+		});
+	});
+});
+
+describe('getRefusalFallbackModel', () => {
+	test('returns the fallback for models that can refuse', () => {
+		expect({
+			fable5: getRefusalFallbackModel('claude-fable-5'),
+			opus5: getRefusalFallbackModel('claude-opus-5'),
+			byFamily: getRefusalFallbackModel(fakeModel('claude-opus-5', 'preview-anthropic')),
+			datestamped: getRefusalFallbackModel('claude-opus-5-20260101'),
+		}).toEqual({
+			fable5: 'claude-opus-4.8',
+			opus5: 'claude-opus-4.8',
+			byFamily: 'claude-opus-4.8',
+			datestamped: 'claude-opus-4.8',
+		});
+	});
+
+	test('returns undefined for models without a configured fallback', () => {
+		expect({
+			opus48: getRefusalFallbackModel('claude-opus-4.8'),
+			sonnet: getRefusalFallbackModel('claude-sonnet-4.6'),
+			gpt: getRefusalFallbackModel('gpt-5.5'),
+		}).toEqual({
+			opus48: undefined,
+			sonnet: undefined,
+			gpt: undefined,
 		});
 	});
 });

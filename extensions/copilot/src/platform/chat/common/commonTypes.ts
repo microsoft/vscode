@@ -110,6 +110,7 @@ export enum ChatFetchResponseType {
 	AgentUnauthorized = 'agent_unauthorized',
 	AgentFailedDependency = 'agent_failed_dependency',
 	InvalidStatefulMarker = 'invalid_stateful_marker',
+	Refusal = 'refusal',
 	Success = 'success'
 }
 
@@ -181,7 +182,13 @@ export type ChatFetchError =
 	 * The `statefulMarker` present in the request was invalid or expired. The
 	 * request may be retried without that marker to resubmit it anew.
 	 */
-	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined };
+	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
+	/**
+	 * The model declined to answer for safety reasons and returned no usable
+	 * content (Anthropic `stop_reason: "refusal"`). May be retried once against
+	 * a configured fallback model, see `getRefusalFallbackModel`.
+	 */
+	| { type: ChatFetchResponseType.Refusal; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined };
 
 export type ChatFetchRetriableError<T> =
 	/**
@@ -473,6 +480,9 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 		case ChatFetchResponseType.InvalidStatefulMarker:
 			// should be unreachable, retried within the endpoint
 			details = { message: l10n.t(`Your chat session state is invalid, please start a new chat.`) };
+			break;
+		case ChatFetchResponseType.Refusal:
+			details = { message: l10n.t(`Sorry, the model declined to respond to this request. Please try rephrasing your prompt or switching to a different model.`) };
 			break;
 	}
 

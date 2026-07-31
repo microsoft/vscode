@@ -146,7 +146,13 @@ export interface IResponseDelta {
 	copilotConfirmation?: ICopilotConfirmation;
 	thinking?: ThinkingDelta | EncryptedThinkingDelta;
 	phase?: string;
-	retryReason?: FilterReason | 'network_error' | 'server_error';
+	retryReason?: FilterReason | 'network_error' | 'server_error' | 'refusal';
+	/**
+	 * Human-readable explanation rendered to the user when {@link retryReason} is
+	 * set and the reason alone isn't self-describing (e.g. naming the fallback
+	 * model a refused request was re-issued against).
+	 */
+	retryMessage?: string;
 	/** Marker for the current response, which should be presented in `IMakeChatRequestOptions` on the next call */
 	statefulMarker?: string;
 	/** Context management information from Anthropic Messages API */

@@ -785,7 +785,7 @@ interface AnthropicCompletionState {
 function mapStopReason(stopReason: string | null | undefined): FinishedCompletionReason {
 	switch (stopReason) {
 		case 'refusal':
-			return FinishedCompletionReason.ClientDone;
+			return FinishedCompletionReason.Refusal;
 		case 'max_tokens':
 		case 'model_context_window_exceeded':
 			return FinishedCompletionReason.Length;

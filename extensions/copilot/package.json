@@ -4463,6 +4463,16 @@
             ],
             "description": "%github.copilot.config.anthropic.promptCaching.extendedTtlMessages%"
           },
+          "github.copilot.chat.anthropic.refusalFallback.enabled": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ],
+            "description": "%github.copilot.config.anthropic.refusalFallback.enabled%"
+          },
           "github.copilot.chat.modelCapabilityOverrides": {
             "type": "object",
             "default": {},

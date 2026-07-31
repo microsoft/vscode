@@ -223,6 +223,8 @@ export interface IMakeChatRequestOptions {
 	enableRetryOnFilter?: boolean;
 	/** Enable retrying the request when it failed. Defaults to enableRetryOnFilter. Note- if using finishedCb, requires supporting delta.retryReason, eg with clearToPreviousToolInvocation */
 	enableRetryOnError?: boolean;
+	/** Internal: set on the fallback attempt of a refusal recovery so it isn't retried again. */
+	disableRefusalFallback?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
 	/** Per-request model capability opt-ins (thinking, tool search, context editing). */
@@ -265,6 +267,8 @@ export type IChatRequestTelemetryProperties = {
 	connectivityTestError?: string;
 	connectivityTestErrorGitHubRequestId?: string;
 	retryAfterFilterCategory?: string;
+	/** The model that refused the request when this request is a refusal fallback retry. */
+	refusalFallbackFromModel?: string;
 	/** A subtype for categorizing the request with a messageSource- eg subagent */
 	subType?: string;
 	/** For a subagent: The request ID of the parent request that invoked this subagent. */
