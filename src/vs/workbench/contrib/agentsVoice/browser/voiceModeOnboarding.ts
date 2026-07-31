@@ -201,9 +201,23 @@ const WAVE_TEMPO = (2 * Math.PI) / IDLE_CYCLE_SECONDS / Math.abs(RESTING_SIGNATU
 // --- Waveform -----------------------------------------------------------
 
 /** Amplitude with nothing playing: present, but clearly at rest. */
-const IDLE_GAIN = 0.55;
-/** A restrained lift while a sample plays; the voice chips already carry the stronger activity cue. */
-const SPEAKING_GAIN = 0.18;
+const IDLE_GAIN = 0.5;
+/**
+ * Extra amplitude at peak loudness. Matched to the dictation card's waveform so
+ * the trace clearly swells with the voice being previewed rather than only
+ * nudging - the card's job is to let you hear (and see) each voice, and a trace
+ * that answers the sample reads as responding to it.
+ */
+const SPEAKING_GAIN = 0.45;
+/**
+ * How much of the travelling motion is always present, versus driven by the
+ * sample. At rest the trace drifts slowly - alive, not frozen - and it flows in
+ * earnest only while a voice plays, so the movement itself reads as a response to
+ * the voice you just picked rather than idle decoration.
+ */
+const IDLE_MOTION = 0.2;
+/** Additional travelling speed at peak loudness, on top of {@link IDLE_MOTION}. */
+const SPEAKING_MOTION = 0.8;
 /**
  * How quickly the band chases the audio, per {@link REFERENCE_FRAME_SECONDS}.
  * Low and slow reads as smooth.
@@ -484,12 +498,15 @@ class VoiceModeOnboardingAnimator extends Disposable {
 			: Math.max(0, (timestamp - this.lastTimestamp) * 0.001);
 		this.lastTimestamp = timestamp;
 
-		// Idle, the waveform breathes gently; while a voice plays it swells with
-		// that voice. Both the level and the shape are eased so the ribbon glides
-		// rather than snapping between frames.
+		// Idle, the waveform drifts gently; while a voice plays it flows and swells
+		// with that voice. Both the level and the shape are eased so the ribbon
+		// glides rather than snapping between frames.
 		this.level += (this.source.getLevel() - this.level) * easingFactor(LEVEL_EASING, dt);
 		easeSignature(this.waves, this.source.getSignature(), easingFactor(SIGNATURE_EASING, dt));
-		advanceOscillation(this.waves, dt);
+		// Drive the travelling motion from the sample: nearly still at rest, flowing
+		// while a voice plays, so the movement reads as a response to the previewed
+		// voice rather than constant idle motion.
+		advanceOscillation(this.waves, dt * (IDLE_MOTION + this.level * SPEAKING_MOTION));
 		const gain = IDLE_GAIN + this.level * SPEAKING_GAIN;
 
 		this.context.clearRect(0, 0, this.width, this.height);
