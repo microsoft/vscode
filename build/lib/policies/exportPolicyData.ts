@@ -66,21 +66,24 @@ function readPolicyData(path: string): ExportedPolicyDataDto {
 	return result;
 }
 
-function runPolicyExport(codeScript: string, outputPath: string, profilePath: string, agents: boolean): void {
+function runPolicyExport(codeScript: string, outputPath: string, userDataPath: string, extensionsPath: string, agents: boolean): void {
 	const args = [
 		`--export-policy-data=${outputPath}`,
-		`--user-data-dir=${join(profilePath, 'user-data')}`,
-		`--extensions-dir=${join(profilePath, 'extensions')}`,
+		`--user-data-dir=${userDataPath}`,
+		`--extensions-dir=${extensionsPath}`,
 	];
 	if (agents) {
 		args.unshift('--agents');
 	}
 
 	const command = `"${codeScript}" ${args.map(arg => `"${arg}"`).join(' ')}`;
+	const env = { ...process.env };
+	delete env['VSCODE_PORTABLE'];
+	delete env['VSCODE_APPDATA'];
 	execSync(command, {
 		cwd: rootPath,
 		stdio: 'inherit',
-		env: process.env,
+		env,
 	});
 }
 
@@ -125,16 +128,16 @@ async function main(): Promise<void> {
 	const codeScript = process.platform === 'win32'
 		? resolve(rootPath, 'scripts', 'code.bat')
 		: resolve(rootPath, 'scripts', 'code.sh');
-	const temporaryRoot = mkdtempSync(join(process.platform === 'win32' ? tmpdir() : '/tmp', 'vscode-policy-'));
+	const temporaryRoot = mkdtempSync(join(tmpdir(), 'vp-'));
 
 	try {
-		const workbenchPath = join(temporaryRoot, 'workbench.jsonc');
-		const agentsPath = join(temporaryRoot, 'agents.jsonc');
+		const workbenchPath = join(temporaryRoot, 'w.jsonc');
+		const agentsPath = join(temporaryRoot, 'a.jsonc');
 
 		console.log('Exporting policy data from the Workbench...');
-		runPolicyExport(codeScript, workbenchPath, join(temporaryRoot, 'workbench'), false);
+		runPolicyExport(codeScript, workbenchPath, join(temporaryRoot, 'wu'), join(temporaryRoot, 'we'), false);
 		console.log('Exporting policy data from the Agents window...');
-		runPolicyExport(codeScript, agentsPath, join(temporaryRoot, 'agents'), true);
+		runPolicyExport(codeScript, agentsPath, join(temporaryRoot, 'au'), join(temporaryRoot, 'ae'), true);
 
 		const mergedContent = serializePolicyData(mergePolicyData([
 			{ source: 'Workbench', data: readPolicyData(workbenchPath) },
