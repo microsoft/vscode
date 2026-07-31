@@ -1064,6 +1064,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// separate chat channel, so reading them before the chat
 					// subscription lands would yield an empty history.
 					await this._whenSubscriptionHydrated(sub, token);
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
 					// A failed subscription surfaces as an `Error` value; rethrow it
 					// so the real reason (e.g. the working directory no longer
 					// exists) is logged and rendered instead of a generic message.
@@ -5227,30 +5230,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Resolves once a subscription has received its first snapshot (its
 	 * `value` is no longer `undefined`) — i.e. it has hydrated with state or
-	 * an error. Rejects with a cancellation error if cancellation is requested.
+	 * an error. Resolves immediately if already hydrated or if cancellation
+	 * is requested.
 	 */
 	private _whenSubscriptionHydrated<T>(sub: IAgentSubscription<T>, token: CancellationToken): Promise<void> {
-		if (sub.value !== undefined) {
+		if (sub.value !== undefined || token.isCancellationRequested) {
 			return Promise.resolve();
 		}
-		if (token.isCancellationRequested) {
-			return Promise.reject(new CancellationError());
-		}
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(resolve => {
 			const store = new DisposableStore();
 			const settle = () => { store.dispose(); resolve(); };
-			const cancel = () => { store.dispose(); reject(new CancellationError()); };
 			store.add(sub.onDidChange(() => { if (sub.value !== undefined) { settle(); } }));
 			const onDidError = sub.onDidError;
 			if (onDidError) {
 				store.add(onDidError(settle));
 			}
-			store.add(token.onCancellationRequested(cancel));
-			if (sub.value !== undefined) {
-				settle();
-			} else if (token.isCancellationRequested) {
-				cancel();
-			}
+			store.add(token.onCancellationRequested(settle));
+			if (sub.value !== undefined) { settle(); }
 		});
 	}
 
