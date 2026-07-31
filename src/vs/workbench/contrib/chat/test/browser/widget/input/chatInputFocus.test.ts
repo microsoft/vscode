@@ -4,51 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { FileAccess } from '../../../../../../../base/common/network.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 
 suite('Chat input focus ring (#328401)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('native-edit-context has no focus outline; chat-input-container carries focused', () => {
-		// Electron unit tests often do not apply :focus styles. Mirror the workbench
-		// [tabindex]:focus rule with a class so we can assert cascade/override.
-		const style = mainWindow.document.createElement('style');
-		style.textContent = `
+	async function loadProductionEditContextCss(): Promise<HTMLLinkElement> {
+		const link = mainWindow.document.createElement('link');
+		link.rel = 'stylesheet';
+		link.href = FileAccess.asFileUri('vs/editor/browser/controller/editContext/native/nativeEditContext.css').toString(true);
+		await new Promise<void>((resolve, reject) => {
+			link.addEventListener('load', () => resolve());
+			link.addEventListener('error', () => reject(new Error('Failed to load production nativeEditContext.css')));
+			mainWindow.document.head.appendChild(link);
+		});
+		return link;
+	}
+
+	test('native-edit-context has no focus outline under workbench tabindex focus styles', async () => {
+		const productionLink = await loadProductionEditContextCss();
+
+		// Electron unit tests often skip :focus; mirror workbench [tabindex]:focus only.
+		const workbenchFocusStyle = mainWindow.document.createElement('style');
+		workbenchFocusStyle.textContent = `
 			.monaco-workbench [tabindex="0"].force-focus {
 				outline-width: 1px;
 				outline-style: solid;
 				outline-offset: -1px;
 				outline-color: #007fd4;
 			}
-			.monaco-editor .native-edit-context {
-				outline: none !important;
-			}
 		`;
-		mainWindow.document.head.appendChild(style);
+		mainWindow.document.head.appendChild(workbenchFocusStyle);
 
 		const root = mainWindow.document.createElement('div');
 		root.className = 'monaco-workbench';
 		root.innerHTML = `
-			<div class="interactive-session">
-				<div class="chat-input-container">
-					<div class="monaco-editor">
-						<div class="native-edit-context" tabindex="0"></div>
-					</div>
-				</div>
-				<div class="control-focus" tabindex="0"></div>
+			<div class="monaco-editor">
+				<div class="native-edit-context" tabindex="0"></div>
 			</div>
+			<div class="control-focus" tabindex="0"></div>
 		`;
 		mainWindow.document.body.appendChild(root);
 
 		try {
-			const inputContainer = root.querySelector('.chat-input-container') as HTMLElement;
 			const nativeEditContext = root.querySelector('.native-edit-context') as HTMLElement;
 			const control = root.querySelector('.control-focus') as HTMLElement;
-
-			// Whole-widget treatment: ChatInputPart toggles this on editor focus.
-			inputContainer.classList.toggle('focused', true);
-			assert.ok(inputContainer.classList.contains('focused'));
 
 			nativeEditContext.classList.add('force-focus');
 			assert.strictEqual(
@@ -65,7 +67,8 @@ suite('Chat input focus ring (#328401)', () => {
 			);
 		} finally {
 			root.remove();
-			style.remove();
+			workbenchFocusStyle.remove();
+			productionLink.remove();
 		}
 	});
 });
