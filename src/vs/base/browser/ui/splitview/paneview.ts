@@ -342,7 +342,6 @@ export abstract class Pane extends Disposable implements IView {
 			this.header.removeAttribute('role');
 		}
 
-		this.header.style.lineHeight = `${this.headerSize}px`;
 		this.header.classList.toggle('hidden', !this.headerVisible);
 		this.header.classList.toggle('expanded', expanded);
 		this.header.classList.toggle('not-collapsible', !this.collapsible);

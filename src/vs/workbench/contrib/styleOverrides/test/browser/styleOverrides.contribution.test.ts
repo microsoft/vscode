@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getWindow } from '../../../../../base/browser/dom.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -18,6 +19,7 @@ class StyleOverridesTestPane extends Pane {
 
 	constructor() {
 		super({ title: 'Test', minimumBodySize: 0, maximumBodySize: 0 });
+		this.render();
 	}
 
 	protected renderHeader(container: HTMLElement): void { }
@@ -56,6 +58,12 @@ suite('StyleOverridesContribution', () => {
 		store.add(layoutService.onDidAddContainerEmitter);
 		store.add(new StyleOverridesContribution(configurationService, layoutService));
 		const pane = store.add(new StyleOverridesTestPane());
+		const paneView = document.createElement('div');
+		paneView.classList.add('monaco-pane-view');
+		paneView.appendChild(pane.element);
+		layoutService.mainContainer.appendChild(paneView);
+		document.body.appendChild(layoutService.mainContainer);
+		store.add(toDisposable(() => layoutService.mainContainer.remove()));
 
 		const auxiliaryContainer = document.createElement('div');
 		const auxiliaryDisposables = store.add(new DisposableStore());
@@ -65,6 +73,8 @@ suite('StyleOverridesContribution', () => {
 			mainEnabled: layoutService.mainContainer.classList.contains('style-override'),
 			auxiliaryEnabled: auxiliaryContainer.classList.contains('style-override'),
 			paneHeaderSize: pane.minimumSize,
+			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
+			paneHeaderInlineLineHeight: pane.draggableElement!.style.lineHeight,
 			layoutCount: layoutService.layoutCount,
 		};
 
@@ -81,17 +91,23 @@ suite('StyleOverridesContribution', () => {
 			mainEnabledAfterToggle: layoutService.mainContainer.classList.contains('style-override'),
 			auxiliaryEnabledAfterToggle: auxiliaryContainer.classList.contains('style-override'),
 			paneHeaderSizeAfterToggle: pane.minimumSize,
+			paneHeaderLineHeightAfterToggle: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
+			paneHeaderInlineLineHeightAfterToggle: pane.draggableElement!.style.lineHeight,
 			layoutCountAfterToggle: layoutService.layoutCount,
 		}, {
 			startupState: {
 				mainEnabled: true,
 				auxiliaryEnabled: true,
 				paneHeaderSize: 28,
+				paneHeaderLineHeight: '28px',
+				paneHeaderInlineLineHeight: '',
 				layoutCount: 0,
 			},
 			mainEnabledAfterToggle: false,
 			auxiliaryEnabledAfterToggle: false,
 			paneHeaderSizeAfterToggle: 22,
+			paneHeaderLineHeightAfterToggle: '22px',
+			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 1,
 		});
 	});
