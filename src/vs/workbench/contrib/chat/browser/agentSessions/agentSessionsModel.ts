@@ -709,9 +709,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					: changes;
 				const shouldKeepOpenSessionRead = session.isRead === false
 					&& this.chatSessionsService.canSetChatSessionItemRead(session.resource)
+					&& !this.explicitlyMarkedUnreadSessions.has(session.resource)
 					&& !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
 				if (shouldKeepOpenSessionRead) {
 					this.chatSessionsService.setChatSessionItemRead(session.resource, true);
+				}
+				if (session.isRead) {
+					this.explicitlyMarkedUnreadSessions.delete(session.resource);
 				}
 
 				sessions.set(session.resource, this.toAgentSession({
@@ -744,6 +748,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				(isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))
 			) {
 				sessions.set(session.resource, session);
+			}
+		}
+		for (const resource of this.explicitlyMarkedUnreadSessions) {
+			if (!sessions.has(resource)) {
+				this.explicitlyMarkedUnreadSessions.delete(resource);
 			}
 		}
 
@@ -786,6 +795,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private static readonly UNREAD_MARKER = -1;
 
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
+	private readonly explicitlyMarkedUnreadSessions = new ResourceSet();
 
 	/**
 	 * Resolve the state entry for a session, honoring a one-way migration from
@@ -922,6 +932,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
 		if (this.ownsReadState(session)) {
+			if (read) {
+				this.explicitlyMarkedUnreadSessions.delete(session.resource);
+			} else {
+				this.explicitlyMarkedUnreadSessions.add(session.resource);
+			}
 			if (read === (session.providerIsRead ?? true)) {
 				return; // no change
 			}
