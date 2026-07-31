@@ -131,4 +131,23 @@ suite('DictationSession', () => {
 
 		assert.deepStrictEqual([afterMore, editor.getValue()], ['one tw three', 'one tw three']);
 	});
+
+	test('appends a stray keystroke after the transcript instead of at the start', async () => {
+		const { service, onDidUpdateTranscript, setTranscript } = createService('one two', true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: 'one two', finalizedText: '' });
+		// A bumped key must be appended at the hidden caret after the dictated region.
+		editor.trigger('test', 'type', { text: 'x' });
+		// More speech arrives and is appended after the stray character rather
+		// than jumping to the start of the input.
+		setTranscript('one two three');
+		onDidUpdateTranscript.fire({ text: 'one two three', finalizedText: '' });
+		const afterMore = editor.getValue();
+		await stopDictation();
+
+		assert.deepStrictEqual([afterMore, editor.getValue()], ['one twox three', 'one twox three']);
+	});
 });
