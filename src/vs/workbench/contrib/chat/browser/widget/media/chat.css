@@ -4719,26 +4719,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* Voice mode: blue when listening. The glow keeps the button's resting shape —
-	only its color and the pulse change between states, so the control never
-	morphs from a circle into a rounded square mid-session. */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.4);
-	color: var(--vscode-charts-blue, #58a6ff) !important;
+/* Voice mode mic glyph: tinted with the same theme-derived accent as the ambient
+	glow (published as `--voice-accent` by the glow controller). The glow keeps the
+	button's resting shape — only its color and the pulse change between states, so
+	the control never morphs from a circle into a rounded square mid-session. */
+.chat-input-container.voice-active .chat-input-toolbars .action-label.codicon-voice-mode-compact {
+	--chat-voice-icon-glow-color: color-mix(in srgb, var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) 40%, transparent);
+	color: var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) !important;
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
-}
-
-/* Voice mode: purple when speaking */
-.chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.4);
-	color: var(--vscode-charts-purple, #a371f7) !important;
-	border-radius: var(--vscode-cornerRadius-circle);
-}
-
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact,
 .monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
