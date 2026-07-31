@@ -1146,6 +1146,8 @@ export interface ISessionGitState {
 	readonly uncommittedChanges?: number;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
+	/** GitHub owner parsed from the current branch's upstream remote. */
+	readonly githubHeadOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
 }
@@ -1199,6 +1201,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
 		githubOwner?: string;
+		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
@@ -1209,6 +1212,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
 	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
+	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
 }

@@ -572,6 +572,36 @@
             "included": true
         },
         {
+            "key": "chat.customizations.strictPluginOnlyCustomization",
+            "name": "ChatStrictPluginOnlyCustomization",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.132",
+            "localization": {
+                "description": {
+                    "key": "chat.customizations.strictPluginOnlyCustomization.policy",
+                    "value": "Blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers while keeping eligible plugin customizations available."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false
+        },
+        {
+            "key": "chat.hooks.allowManagedOnly",
+            "name": "ChatAllowManagedHooksOnly",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.132",
+            "localization": {
+                "description": {
+                    "key": "chat.hooks.allowManagedOnly.policy",
+                    "value": "Allows hooks only from enterprise-managed sources and plugins force-enabled by policy."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false
+        },
+        {
             "key": "chat.agent.enabled",
             "name": "ChatAgentMode",
             "category": "InteractiveSession",
