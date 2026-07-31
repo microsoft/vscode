@@ -9,9 +9,10 @@ import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Emitter } from '../../../base/common/event.js';
 import { hasKey } from '../../../base/common/types.js';
-import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, McpServerAllowResult } from './allowedMcpServers.js';
+import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
 import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue } from './mcpManagement.js';
 import { McpServerType } from './mcpPlatformTypes.js';
+import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../policy/common/copilotManagedSettings.js';
 
 export class AllowedMcpServersService extends Disposable implements IAllowedMcpServersService {
 
@@ -25,7 +26,7 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	) {
 		super();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(mcpAccessConfig) || e.affectsConfiguration(mcpAllowedServersConfig) || e.affectsConfiguration(mcpDeniedServersConfig)) {
+			if (e.affectsConfiguration(mcpAccessConfig) || e.affectsConfiguration(mcpAllowedServersConfig) || e.affectsConfiguration(mcpDeniedServersConfig) || e.affectsConfiguration(COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG)) {
 				this._onDidChangeAllowedMcpServers.fire();
 			}
 		}));
@@ -41,8 +42,13 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 			return new MarkdownString(nls.localize('mcp servers are not allowed', "Model Context Protocol servers are disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink));
 		}
 
-		const allowlist = getMcpServerMatchers(this.configurationService.getValue(mcpAllowedServersConfig));
-		const denylist = getMcpServerMatchers(this.configurationService.getValue(mcpDeniedServersConfig));
+		const managedOnly = this.configurationService.getValue<boolean>(COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG) === true;
+		const allowlist = managedOnly
+			? getMcpServerMatchers(this.configurationService.inspect<readonly IMcpServerMatcher[]>(mcpAllowedServersConfig).policyValue) ?? []
+			: getMcpServerMatchers(this.configurationService.getValue(mcpAllowedServersConfig));
+		const denylist = managedOnly
+			? this.getAllConfiguredMatchers(mcpDeniedServersConfig)
+			: getMcpServerMatchers(this.configurationService.getValue(mcpDeniedServersConfig));
 		switch (checkMcpServerAllowed(allowlist, denylist, identity)) {
 			case McpServerAllowResult.Denied:
 				return new MarkdownString(nls.localize('mcp server is denied', "This Model Context Protocol server is blocked by your organization's policy. Please contact your administrator for more information."));
@@ -51,6 +57,20 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		}
 
 		return true;
+	}
+
+	private getAllConfiguredMatchers(key: string): IMcpServerMatcher[] {
+		const inspected = this.configurationService.inspect<readonly IMcpServerMatcher[]>(key);
+		return [
+			inspected.applicationValue,
+			inspected.userValue,
+			inspected.userLocalValue,
+			inspected.userRemoteValue,
+			inspected.workspaceValue,
+			inspected.workspaceFolderValue,
+			inspected.memoryValue,
+			inspected.policyValue,
+		].flatMap(value => getMcpServerMatchers(value) ?? []);
 	}
 
 	private toIdentity(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): IMcpServerIdentity {

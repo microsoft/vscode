@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -415,9 +415,10 @@ suite('ChatListRenderer', () => {
 				},
 			},
 			listWidget: {
-				suppressAutoScroll: false,
+				acquireAutoScrollHold: () => toDisposable(() => { }),
 				scrollToCurrentItem: () => { },
 			},
+			_editingAutoScrollHold: disposables.add(new MutableDisposable()),
 			createInput: () => { },
 			onDidChangeItems: () => { },
 			getContrib: () => undefined,

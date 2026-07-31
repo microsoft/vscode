@@ -24,11 +24,6 @@ const SAMPLE_RATE = 16000;
 const CHANNELS = 1;
 const BITS_PER_SAMPLE = 16;
 
-/**
- * Default on-device model. `nemotron-speech-streaming-en-0.6b` is the NVIDIA
- * Nemotron streaming RNN-T model the GitHub Copilot app ships for dictation; it
- * runs through Foundry Local's native streaming ASR engine (ORT + ORT-GenAI).
- */
 /** Application name reported to Foundry Local for logs/telemetry and its data dir. */
 const FOUNDRY_APP_NAME = 'vscode-dictation';
 

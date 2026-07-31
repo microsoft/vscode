@@ -77,7 +77,7 @@ import { IWorkingCopyService } from '../../../../../services/workingCopy/common/
 import { ChatMode } from '../../../common/chatModes.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -2440,7 +2440,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
 				const modelId = this._toLanguageModelId(opts.sessionResource, rawUsage?.model);
-				const modelName = modelId ? this._languageModelsService.lookupLanguageModel(modelId)?.name : undefined;
+				const modelName = this._getLanguageModelDisplayName(modelId);
 				if (modelName && modelName !== modelObservable.read(undefined)) {
 					transaction(tx => modelObservable.set(modelName, tx));
 				}
@@ -3722,7 +3722,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				credits += turnCredits;
 			}
 			const turnModelId = this._toLanguageModelId(sessionResource, turn.usage?.model);
-			const turnModelName = turnModelId ? this._languageModelsService.lookupLanguageModel(turnModelId)?.name : undefined;
+			const turnModelName = this._getLanguageModelDisplayName(turnModelId);
 			if (turnModelName) {
 				modelName = turnModelName;
 			}
@@ -4484,6 +4484,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
 	}
 
+	private _getLanguageModelDisplayName(modelIdentifier: string | undefined): string | undefined {
+		if (!modelIdentifier) {
+			return undefined;
+		}
+		const metadata = this._languageModelsService.lookupLanguageModel(modelIdentifier);
+		return metadata ? getLanguageModelDisplayNameWithProvider({ identifier: modelIdentifier, metadata }, this._languageModelsService) : undefined;
+	}
+
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
 		const fallbackRawModelId = turn?.message?.model?.id ?? lastTurnModelSelection(this._getSessionState(backendSession.toString()))?.id;
 		return this._createTurnModelLookup(sessionResource, fallbackRawModelId).toResponseDetails(turn?.usage?.model, turn?.usage);
@@ -4503,18 +4511,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Try the raw billed id, its dots-normalised form (slug mismatch: `claude-sonnet-4-6` → `.6`),
 		// then the fallback (picked) id. Only the last path sets resolvedFromRaw=false so the caller
 		// can surface billedModelId (e.g. "Auto (raptor-mini)") when the billed model is unregistered.
-		const lookupModel = (rawModelId: string | undefined): { model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
 			const normalizedRaw = rawModelId?.replace(/-(\d+)$/, '.$1');
 			for (const candidate of [rawModelId, normalizedRaw !== rawModelId ? normalizedRaw : undefined]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
 				if (!modelId) { continue; }
 				const model = this._languageModelsService.lookupLanguageModel(modelId);
-				if (model) { return { model, resolvedFromRaw: true }; }
+				if (model) { return { identifier: modelId, model, resolvedFromRaw: true }; }
 			}
 			const fallbackModelId = this._toLanguageModelId(sessionResource, fallbackRawModelId);
 			if (fallbackModelId) {
 				const model = this._languageModelsService.lookupLanguageModel(fallbackModelId);
-				if (model) { return { model, resolvedFromRaw: false }; }
+				if (model) { return { identifier: fallbackModelId, model, resolvedFromRaw: false }; }
 			}
 			return undefined;
 		};
@@ -4525,7 +4533,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
 				const billedModelId = resolved && !resolved.resolvedFromRaw ? rawModelId : undefined;
-				return formatTurnResponseDetails(resolved?.model, billedModelId, usage);
+				const responseModel = resolved ? {
+					name: getLanguageModelDisplayNameWithProvider({ identifier: resolved.identifier, metadata: resolved.model }, this._languageModelsService),
+					pricing: resolved.model.pricing,
+				} : undefined;
+				return formatTurnResponseDetails(responseModel, billedModelId, usage);
 			},
 			toAutoModeResolution: usage => {
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;

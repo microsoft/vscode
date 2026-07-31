@@ -390,6 +390,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -771,7 +772,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
 		}));
-		dom.append(attachButton, renderIcon(Codicon.add));
+		dom.append(attachButton, renderIcon(Codicon.addCompact));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._contextAttachments.showPicker(this.options.getContextFolderUri());
 		}));
@@ -950,7 +951,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
 		this._register(sttService.onDidChangeDownloadingModel(renderState));
-		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
+		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService, undefined, this.themeService));
 
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while

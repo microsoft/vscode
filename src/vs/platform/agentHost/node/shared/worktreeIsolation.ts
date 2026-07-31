@@ -14,7 +14,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -518,11 +518,12 @@ export class WorktreeIsolation extends Disposable {
 
 		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
 
-		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
-		if (!repositoryRoot) {
+		const checkoutRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		if (!checkoutRoot) {
 			return workingDirectory;
 		}
 
+		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
 		const worktreesRoot = getWorktreesRoot(repositoryRoot);
 		// Prefix (e.g. the user's `git.branchPrefix`) the client forwards for
 		// worktree-isolated sessions. Prepended ahead of the built-in `agents/`
@@ -568,7 +569,7 @@ export class WorktreeIsolation extends Disposable {
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
 				await withPercentProgress(WorktreeCreationPhase.CopyingIncludeFiles, onProgress, progress =>
-					this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles, progress));
+					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktree, worktreeIncludeFiles, progress));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
@@ -818,6 +819,15 @@ export class WorktreeIsolation extends Disposable {
 		return meta?.repositoryRoot ? projectFromRepositoryRoot(meta.repositoryRoot) : undefined;
 	}
 
+	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<URI> {
+		try {
+			return await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot) ?? fallbackRoot;
+		} catch (error) {
+			this._logService.warn(`[${this._logLabel}] Failed to resolve primary worktree for '${checkoutRoot.fsPath}': ${errorMessage(error)}`);
+			return fallbackRoot;
+		}
+	}
+
 	/**
 	 * Synchronous companion to {@link resolveWorktreeProject} for the
 	 * materialize-event path: the repository project for a worktree this agent
@@ -872,6 +882,10 @@ export class WorktreeIsolation extends Disposable {
 		}
 	}
 
+	/**
+	 * Reads worktree metadata and migrates repository roots written before linked checkouts were canonicalized.
+	 * It probes an existing worktree when available and otherwise falls back to the persisted root for archived sessions.
+	 */
 	private async _readWorktreeMetadata(sessionUri: URI): Promise<{ branchName: string; worktreePath?: URI; repositoryRoot?: URI } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
 		if (!ref) {
@@ -887,7 +901,19 @@ export class WorktreeIsolation extends Disposable {
 				return undefined;
 			}
 			const worktreePath = worktreePathRaw ? URI.parse(worktreePathRaw) : undefined;
-			const repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
+			let repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
+			if (repositoryRoot) {
+				const checkoutRoot = worktreePath && await fileExists(worktreePath.fsPath) ? worktreePath : repositoryRoot;
+				const primaryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
+				if (primaryRoot.toString() !== repositoryRoot.toString()) {
+					repositoryRoot = primaryRoot;
+					try {
+						await ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString());
+					} catch (error) {
+						this._logService.warn(`[${this._logLabel}] Failed to normalize worktree repository metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);
+					}
+				}
+			}
 			return { branchName, worktreePath, repositoryRoot };
 		} finally {
 			ref.dispose();
