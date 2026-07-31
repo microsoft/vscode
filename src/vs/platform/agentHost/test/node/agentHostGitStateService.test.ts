@@ -25,7 +25,7 @@ suite('AgentHostGitStateService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
+	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; agentService?: IAgentService }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
@@ -49,8 +49,8 @@ suite('AgentHostGitStateService', () => {
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
 			gitService,
-			{} as unknown as IAgentHostOctoKitService,
-			{} as unknown as IAgentService,
+			options?.octoKitService ?? {} as unknown as IAgentHostOctoKitService,
+			options?.agentService ?? {} as unknown as IAgentService,
 			createTestGitHubEndpointService(),
 			new NullLogService(),
 			sessionDataService,
@@ -205,6 +205,57 @@ suite('AgentHostGitStateService', () => {
 			}, {
 				github: { owner: 'microsoft', repo: 'vscode' },
 				persistedGit: JSON.stringify(next),
+			});
+		});
+	});
+
+	test('preserves pull request attachment when a later refresh replaces its queued refresh', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
+			const octoKitService = {
+				findPullRequestByHeadBranch: async (owner: string, repo: string, branch: string, _token: string, _signal: AbortSignal, headOwner?: string) => {
+					calls.push({ owner, repo, branch, headOwner });
+					return { url: 'https://github.com/microsoft/vscode/pull/1', number: 1 };
+				},
+			} as unknown as IAgentHostOctoKitService;
+			const agentService = { getAuthToken: () => 'token' } as unknown as IAgentService;
+			const h = createHarness({ octoKitService, agentService });
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState: {
+					branchName: 'feature',
+					baseBranchName: 'main',
+					githubOwner: 'microsoft',
+					githubRepo: 'vscode',
+				},
+			});
+			h.setGitResult({
+				branchName: 'feature',
+				baseBranchName: 'main',
+				upstreamBranchName: 'fork/feature',
+				githubOwner: 'microsoft',
+				githubHeadOwner: 'fork-owner',
+				githubRepo: 'vscode',
+			});
+
+			await Promise.all([
+				h.service.refreshSessionGitState(SESSION, URI.parse(WORKING_DIRECTORY)),
+				h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY)),
+				h.service.refreshSessionGitState(SESSION, URI.parse(WORKING_DIRECTORY)),
+			]);
+
+			assert.deepStrictEqual({
+				gitCalls: h.gitCalls.length,
+				calls,
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			}, {
+				gitCalls: 2,
+				calls: [{ owner: 'microsoft', repo: 'vscode', branch: 'feature', headOwner: 'fork-owner' }],
+				github: {
+					owner: 'microsoft',
+					repo: 'vscode',
+					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+				},
 			});
 		});
 	});
