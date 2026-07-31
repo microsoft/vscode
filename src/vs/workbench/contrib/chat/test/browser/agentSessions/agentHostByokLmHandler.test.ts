@@ -18,7 +18,7 @@ import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMet
 interface ICapturedRequest {
 	modelId: string;
 	messages: IChatMessage[];
-	options: ILanguageModelChatRequestOptions;
+	options: ILanguageModelChatRequestOptions & { tools?: readonly { name: string }[] };
 }
 
 /**
@@ -291,6 +291,46 @@ suite('AgentHostByokLmHandler', () => {
 					{ name: 'apply_patch', description: '', inputSchema: { type: 'object', properties: { input: { type: 'string' } }, required: ['input'] } },
 				],
 			},
+		});
+	});
+
+	test('preserves the issue #327424 tool count through the AgentHost BYOK bridge', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+		const builtInTools = Array.from({ length: 51 }, (_, index) => ({
+			type: 'function' as const,
+			name: `builtin_${index}`,
+		}));
+		const mcpToolCounts = [24, 10, 13];
+		const mcpTools = mcpToolCounts.flatMap((count, serverIndex) =>
+			Array.from({ length: count }, (_, toolIndex) => ({
+				type: 'function' as const,
+				name: `mcp_${serverIndex}_${toolIndex}`,
+			}))
+		);
+
+		await handler.chat(
+			{
+				vendor: 'acme',
+				modelId: 'claude',
+				input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'use an MCP tool' }] }],
+				tools: [...builtInTools, ...mcpTools],
+			},
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({
+			input: { builtIn: builtInTools.length, mcp: mcpTools.length },
+			output: {
+				builtIn: service.captured?.options.tools?.filter(tool => tool.name.startsWith('builtin_')).length,
+				mcp: service.captured?.options.tools?.filter(tool => tool.name.startsWith('mcp_')).length,
+			},
+		}, {
+			input: { builtIn: 51, mcp: 47 },
+			output: { builtIn: 51, mcp: 47 },
 		});
 	});
 

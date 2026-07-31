@@ -326,6 +326,11 @@ export class VirtualToolGrouper implements IToolCategorization {
 			return tools;
 		}
 
+		if (!await this._toolEmbeddingsComputer.isEmbeddingModelAvailable()) {
+			this._logService.trace('[virtual-tools] Falling back to deterministic grouping because no embedding model is available');
+			return this._createFallbackTools(tools, allocatedSlots);
+		}
+
 		// If only one slot allocated, return all tools in a single group with LLM-generated summary
 		if (allocatedSlots === 1) {
 			const groupDescriptions = await this._generateBulkGroupDescriptions([tools], token);
@@ -403,6 +408,19 @@ export class VirtualToolGrouper implements IToolCategorization {
 		return groupDescriptions.groups
 			.map((v): VirtualTool | LanguageModelToolInformation => new VirtualTool(VIRTUAL_TOOL_NAME_PREFIX + v.name, SUMMARY_PREFIX + v.summary + SUMMARY_SUFFIX, 0, {}, v.tools))
 			.concat(singles);
+	}
+
+	private _createFallbackTools(tools: LanguageModelToolInformation[], allocatedSlots: number): (VirtualTool | LanguageModelToolInformation)[] {
+		const directTools = tools.slice(0, allocatedSlots - 1);
+		const groupedTools = tools.slice(directTools.length);
+		const group = new VirtualTool(
+			`${VIRTUAL_TOOL_NAME_PREFIX}fallback`,
+			`${SUMMARY_PREFIX}Contains the tools: ${groupedTools.map(tool => tool.name).join(', ')}${SUMMARY_SUFFIX}`,
+			0,
+			{},
+			groupedTools,
+		);
+		return [...directTools, group];
 	}
 
 	/**
