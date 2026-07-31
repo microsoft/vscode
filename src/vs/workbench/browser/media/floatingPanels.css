@@ -201,19 +201,18 @@
 	padding-bottom: calc(var(--vscode-spacing-size40) + var(--vscode-strokeThickness)); /* offset for the border-bottom of the status bar */
 }
 
-/* With a compact activity bar the horizontal inset is tightened to match. The
- * `compact` class lives on the activity bar element, so `:has()` lets the status
- * bar (a sibling part) react without any code-side class plumbing. */
-.monaco-workbench.floating-panels:has(.part.activitybar.compact) .part.statusbar {
+/* With a compact activity bar the horizontal inset is tightened to match.
+ * `activitybar-compact` is mirrored onto the workbench root by activitybarPart.ts;
+ * the `:not` keeps a hidden compact bar resolving to the hidden inset below. */
+.monaco-workbench.floating-panels.activitybar-compact:not(.noactivitybar) .part.statusbar {
 	padding-left: var(--vscode-spacing-size20);
 	padding-right: var(--vscode-spacing-size20);
 }
 
-/* When the activity bar is hidden its grid cell loses the `visible` class the
- * split view toggles. With no bar to align to, fall back to the standard 4px
- * inset. This has higher specificity than the compact rule above, so a hidden
- * compact bar still resolves to 4px. */
-.monaco-workbench.floating-panels:has(.split-view-view:not(.visible) .part.activitybar) .part.statusbar {
+/* When the activity bar is hidden (`noactivitybar`, toggled by layout.ts like
+ * the other part visibility classes) there is no bar to align to, so fall back
+ * to the standard 4px inset. */
+.monaco-workbench.floating-panels.noactivitybar .part.statusbar {
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }

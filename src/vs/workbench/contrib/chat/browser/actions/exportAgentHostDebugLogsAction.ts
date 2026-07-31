@@ -32,6 +32,7 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
 import { findCopilotLogsForSession, getRemoteConnectionForSession, readRemoteAgentHostLog, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
+import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
 const AGENT_HOST_LOGGER_CHANNEL_ID = AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
@@ -221,6 +222,25 @@ export async function collectAgentHostDebugLogs(
 				} catch (error) {
 					logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${file.path}': ${error instanceof Error ? error.message : String(error)}`);
 				}
+			}
+		}
+	}
+
+	// 6. Client-local capture sidecars for the session. These hold data the SDK
+	// never persists — per-model-call token/credit usage (`assistant.usage` is
+	// ephemeral) and the loaded customization set (`session.*_loaded` likewise) —
+	// so without them an export cannot explain a usage/cost discrepancy or say
+	// which skills/hooks/MCP servers were actually active.
+	if (rawSessionId) {
+		const sidecars: { path: string; resource: URI }[] = [
+			{ path: 'usage.jsonl', resource: buildAgentHostUsageUri(environmentService.userRoamingDataHome, rawSessionId) },
+			{ path: 'customizations.json', resource: buildAgentHostCustomizationsUri(environmentService.userRoamingDataHome, rawSessionId) },
+		];
+		for (const sidecar of sidecars) {
+			try {
+				files.push(await createDebugLogFile(sidecar.path, sidecar.resource, fileService));
+			} catch {
+				// Absent when agent-host debug logging was off for this session.
 			}
 		}
 	}

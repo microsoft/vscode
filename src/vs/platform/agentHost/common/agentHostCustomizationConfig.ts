@@ -8,6 +8,9 @@ import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
 
+export const codexUsageSources = ['copilot', 'openai'] as const;
+export type CodexUsageSource = typeof codexUsageSources[number];
+
 /**
  * Well-known root-config keys used by the platform to configure agent-host
  * customizations.
@@ -27,6 +30,7 @@ export const enum AgentHostConfigKey {
 	 * the user's own credentials (BYO Anthropic — Phase 19).
 	 */
 	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
+	CodexUsageSource = 'codexUsageSource',
 	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
 	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
 	/**
@@ -94,6 +98,13 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
 		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
 		default: true,
+	}),
+	[AgentHostConfigKey.CodexUsageSource]: schemaProperty<CodexUsageSource>({
+		type: 'string',
+		title: localize('agentHost.config.codexUsageSource.title', "Codex Usage Source"),
+		description: localize('agentHost.config.codexUsageSource.description', "Choose whether Codex usage is routed through GitHub Copilot or uses an existing Codex OpenAI login. VS Code does not provide the OpenAI sign-in flow; authenticate Codex separately before selecting OpenAI."),
+		default: 'copilot',
+		enum: [...codexUsageSources],
 	}),
 	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
 		type: 'string',

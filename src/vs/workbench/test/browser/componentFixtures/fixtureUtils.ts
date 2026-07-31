@@ -95,7 +95,7 @@ import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
@@ -611,10 +611,13 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
 		onDidChangeNavigation: Event.None,
+		onDidChangeFeedbackScope: Event.None,
+		activeFeedbackSessionResource: constObservable(AGENT_FEEDBACK_NEW_SESSION_RESOURCE),
 		onDidAddFeedback: Event.None,
 		onDidConvertFeedback: Event.None,
 		onDidAddReply: Event.None,
 		onDidSubmitFeedback: Event.None,
+		onDidRevealSessionComment: Event.None,
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
@@ -623,6 +626,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getFeedback: () => [],
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
+		getFeedbackSessionResource: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
 		revealSessionComment: async () => { },

@@ -26,14 +26,25 @@ interface IOpenAiTextContentPart {
 
 type IOpenAiContentPart = IOpenAiTextContentPart | { readonly type: string;[k: string]: unknown };
 
-interface IOpenAiToolCall {
+interface IOpenAiFunctionToolCall {
 	readonly id?: string;
-	readonly type?: string;
+	readonly type?: 'function';
 	readonly function?: {
 		readonly name?: string;
 		readonly arguments?: string;
 	};
 }
+
+interface IOpenAiCustomToolCall {
+	readonly id?: string;
+	readonly type: 'custom';
+	readonly custom?: {
+		readonly name?: string;
+		readonly input?: string;
+	};
+}
+
+type IOpenAiToolCall = IOpenAiFunctionToolCall | IOpenAiCustomToolCall;
 
 interface IOpenAiRequestMessage {
 	readonly role?: string;
@@ -104,11 +115,21 @@ function toBridgeToolCalls(toolCalls: IOpenAiToolCall[] | undefined): IByokLmToo
 	const mapped: IByokLmToolCall[] = [];
 	for (let i = 0; i < toolCalls.length; i++) {
 		const call = toolCalls[i];
+		if (call.type === 'custom') {
+			const name = call.custom?.name;
+			if (!name) {
+				throw new OpenAiTranslationError(`tool_calls[${i}].custom.name is required`);
+			}
+			mapped.push({
+				id: call.id ?? `call_${i}`,
+				name,
+				argumentsJson: JSON.stringify({ input: call.custom?.input ?? '' }),
+			});
+			continue;
+		}
+
 		const name = call.function?.name;
 		if (!name) {
-			// A tool call without a function name is malformed: reject at the
-			// boundary (→ 400) rather than forwarding an invalid `tool_use` part
-			// that would fail later, deeper in the renderer.
 			throw new OpenAiTranslationError(`tool_calls[${i}].function.name is required`);
 		}
 		mapped.push({

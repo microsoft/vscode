@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
-import { MainEditorAreaVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { MainEditorAreaVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Menus } from '../../browser/menus.js';
 import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
@@ -64,6 +65,14 @@ suite('Sessions - Layout Actions', () => {
 		await command.handler(accessor);
 
 		assert.strictEqual(calls, 1);
+	});
+
+	test('core auxiliary bar command toggled state uses semantic secondary sidebar visibility', () => {
+		const action = new ToggleAuxiliaryBarAction();
+		const toggled = action.desc.toggled;
+		assert.ok(toggled && hasKey(toggled, { condition: true }));
+
+		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
 	test('single-pane editor layout actions render in the layout cluster ordered hide, then maximize/restore', async () => {

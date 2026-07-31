@@ -308,6 +308,18 @@ suite('TerminalSandboxEngine', () => {
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [] });
 	});
 
+	test('unsandboxed retry preserves the original working directory on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		await engine.getSandboxConfigPath();
+
+		const wrapped = await engine.wrapCommand('pwd', true, 'bash', URI.file('/workspace/with spaces'));
+
+		strictEqual(wrapped.isSandboxWrapped, false);
+		ok(wrapped.command.includes(`/workspace/with spaces`), `Expected the unsandboxed command to include cwd. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(`&& pwd`), `Expected the unsandboxed command to change to cwd before execution. Actual: ${wrapped.command}`);
+	});
+
 	test('blocked domains request sandboxed network access before execution when enabled', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);
@@ -839,6 +851,7 @@ suite('TerminalSandboxEngine', () => {
 				bubblewrapUsable: false,
 				bubblewrapError: 'Creating new namespace failed',
 				socatInstalled: true,
+				apparmorRestrictsUnprivilegedUserNamespaces: true,
 			}),
 		});
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
@@ -850,4 +863,46 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(result.detail, 'Creating new namespace failed');
 		strictEqual(result.missingDependencies, undefined);
 	});
+
+	test('checkForSandboxingPrereqs enables weaker nested sandbox when AppArmor is not restricting user namespaces', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAdvancedRuntime, { allowPty: false });
+		const host = createHost({
+			checkSandboxDependencies: () => Promise.resolve({
+				bubblewrapInstalled: true,
+				bubblewrapUsable: false,
+				socatInstalled: true,
+				apparmorRestrictsUnprivilegedUserNamespaces: false,
+			}),
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const result = await engine.checkForSandboxingPrereqs();
+		const configPath = await engine.getSandboxConfigPath();
+		const config = JSON.parse(createdFiles.get(configPath!)!);
+
+		strictEqual(result.failedCheck, undefined);
+		strictEqual(config.enableWeakerNestedSandbox, true);
+		strictEqual(config.allowPty, false);
+	});
+
+	test('checkForSandboxingPrereqs enables weaker nested sandbox after AppArmor remediation does not fix bubblewrap', async () => {
+		const host = createHost({
+			checkSandboxDependencies: () => Promise.resolve({
+				bubblewrapInstalled: true,
+				bubblewrapUsable: false,
+				socatInstalled: true,
+				apparmorRestrictsUnprivilegedUserNamespaces: true,
+			}),
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const beforeRemediation = await engine.checkForSandboxingPrereqs();
+		const afterRemediation = await engine.checkForSandboxingPrereqs(true);
+		const config = JSON.parse(createdFiles.get(afterRemediation.sandboxConfigPath!)!);
+
+		strictEqual(beforeRemediation.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
+		strictEqual(afterRemediation.failedCheck, undefined);
+		strictEqual(config.enableWeakerNestedSandbox, true);
+	});
+
 });

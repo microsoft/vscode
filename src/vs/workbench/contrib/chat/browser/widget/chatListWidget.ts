@@ -87,6 +87,24 @@ export function getAnchoredScrollTop(scrollTop: number, currentTargetTop: number
 	return scrollTop + currentTargetTop - anchorTargetTop;
 }
 
+/**
+ * Computes the scroll-down state for the chat list, keeping two concerns decoupled:
+ *
+ * - `showButton`: whether the "scroll to bottom" affordance is shown. Driven purely by the actual
+ *   scroll position so the user can always jump to the latest content when the view is not at the
+ *   bottom — including during an auto-scroll (agent) turn where the view has fallen behind. See
+ *   https://github.com/microsoft/vscode/issues/326952 (previously this was also suppressed by the
+ *   scroll lock, hiding the button for the whole agent turn).
+ * - `atBottom`: the `chat-list-at-bottom` visual state that reserves streaming-response padding.
+ *   Intentionally still honours the scroll lock so padding during auto-scroll turns is unchanged.
+ */
+export function computeScrollDownState(isScrolledToBottom: boolean, scrollLock: boolean): { showButton: boolean; atBottom: boolean } {
+	return {
+		showButton: !isScrolledToBottom,
+		atBottom: isScrolledToBottom || scrollLock,
+	};
+}
+
 class UserToggleResizeTracker extends Disposable {
 
 	private readonly state = new UserToggleResizeState(2);
@@ -221,11 +239,6 @@ export interface IChatListWidgetOptions {
 	 * Callback to get current mode info (for rerun requests).
 	 */
 	readonly getCurrentModeInfo?: () => IChatRequestModeInfo | undefined;
-
-	/**
-	 * The render style for the chat widget. Affects minimum height behavior.
-	 */
-	readonly renderStyle?: 'compact' | 'minimal';
 }
 
 /**
@@ -306,7 +319,6 @@ export class ChatListWidget extends Disposable {
 	private readonly _location: ChatAgentLocation | undefined;
 	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
-	private readonly _renderStyle: 'compact' | 'minimal' | undefined;
 
 	//#endregion
 
@@ -389,7 +401,6 @@ export class ChatListWidget extends Disposable {
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])
 		));
-		this._renderStyle = options.renderStyle;
 
 		// Create overflow widgets container
 		const overflowWidgetsContainer = options.overflowWidgetsDomNode ?? document.createElement('div');
@@ -439,13 +450,6 @@ export class ChatListWidget extends Disposable {
 
 		this._register(this._renderer.onDidChangeItemHeight(e => {
 			this._updateElementHeight(e.element, e.height);
-
-			// If the second-to-last item's height changed, update the last item's min height
-			const secondToLastItem = this._viewModel?.getItems().at(-2);
-			if (e.element.id === secondToLastItem?.id) {
-				this.updateLastItemMinHeight();
-			}
-
 			this._onDidChangeItemHeight.fire(e);
 		}));
 
@@ -609,8 +613,11 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const atBottom = this.isScrolledToBottom || this._scrollLock;
-		this._scrollDownButton.element.style.display = atBottom ? 'none' : '';
+		const { showButton, atBottom } = computeScrollDownState(this.isScrolledToBottom, this._scrollLock);
+		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
+		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
+		// the inline style would let that rule win and keep the button hidden.
+		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 	}
 
@@ -668,8 +675,6 @@ export class ChatListWidget extends Disposable {
 		const items = this._viewModel.getItems();
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
-		const previousItem = items.at(-2);
-		const needsInitialPreviousItemHeight = (isRequestVM(previousItem) || isResponseVM(previousItem)) && previousItem.currentRenderedHeight === undefined;
 
 		const treeItems: ITreeElement<ChatTreeItem>[] = items.map(item => ({
 			element: item,
@@ -711,10 +716,6 @@ export class ChatListWidget extends Disposable {
 				}
 			});
 		});
-
-		if (needsInitialPreviousItemHeight) {
-			this.updateLastItemMinHeight();
-		}
 	}
 
 	/**
@@ -993,6 +994,13 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
+	 * Returns the currently rendered chat item containing the node.
+	 */
+	getElementFromNode(node: HTMLElement): ChatTreeItem | undefined {
+		return this._renderer.getElementFromNode(node);
+	}
+
+	/**
 	 * Update renderer options.
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
@@ -1038,40 +1046,8 @@ export class ChatListWidget extends Disposable {
 	 * Layout the list.
 	 */
 	layout(height: number, width: number): void {
-		this._bodyDimension = new dom.Dimension(width ?? this._container.clientWidth, height);
-		this.updateLastItemMinHeight();
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
-	}
-
-	private _bodyDimension: dom.Dimension | null = null;
-	private _previousLastItemMinHeight: number | null = null;
-
-	private updateLastItemMinHeight(): void {
-		if (!this._bodyDimension) {
-			return;
-		}
-
-		const contentHeight = this._bodyDimension.height;
-		if (this._renderStyle === 'compact' || this._renderStyle === 'minimal') {
-			this._container.style.removeProperty('--chat-current-response-min-height');
-		} else {
-			const secondToLastItem = this._viewModel?.getItems().at(-2);
-			const maxRequestShownHeight = 200;
-			const secondToLastItemHeight = Math.min(
-				(isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ?
-					secondToLastItem.currentRenderedHeight ?? this._delegate.getMeasuredHeight(secondToLastItem) ?? 150 : 150,
-				maxRequestShownHeight);
-			const lastItemMinHeight = Math.max(contentHeight - (secondToLastItemHeight + 10), 0);
-			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');
-			if (lastItemMinHeight !== this._previousLastItemMinHeight) {
-				this._previousLastItemMinHeight = lastItemMinHeight;
-				const lastItem = this._viewModel?.getItems().at(-1);
-				if (lastItem && this._visible && this._tree.hasElement(lastItem)) {
-					this._updateElementHeight(lastItem, undefined);
-				}
-			}
-		}
 	}
 
 	//#endregion

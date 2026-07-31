@@ -19,6 +19,7 @@ It documents the mental model, the fixture format, every config flag, and a symp
 3. **Recording needs a real token** (`GITHUB_TOKEN` or `gh auth token`) and talks to real CAPI. Only run it intentionally, with trivial/read-only prompts in temp dirs.
 4. **Never hand-write or hand-edit fixture contents** (especially not secrets/paths). Fixtures are always produced by recording; normalization/redaction is the proxy's job.
 5. **Gate, don't fight.** If a behavior can't replay deterministically, gate the test (see Workflow C) instead of loosening timeouts or the strict check.
+6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. Record symptoms, not speculative root causes.
 
 ## Workflow A — Add a cross-provider test
 
@@ -54,10 +55,11 @@ Real-time streaming, mid-turn aborts, and POSIX-specific local execution (shell 
 - **POSIX-only** (fails on Windows): gate with `!isWindows`, or a targeted per-provider flag when only one provider diverges. See the worktree and subagent-reopen tests.
 - **Provider/OS-specific replay**: add a targeted config gate that still permits recording and unaffected platforms. See the Codex shell-tool Linux gate.
 
-Always add a comment explaining *why* the gate exists.
+Always add a comment explaining *why* the gate exists. Also add or update the corresponding entry in `e2e/KNOWN_ISSUES.md`. When the variant is enabled again, remove or update the entry in the same change.
 
 ## Verifying & troubleshooting
 
 - Run a single provider in replay: `./scripts/test-integration.sh --run <path>` (no env var).
 - Filter to one test: add `--grep "<test title fragment>"`.
+- **On a hang / timeout, read the runtime log first.** For the **Copilot** provider, a failed test tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log` into the test output (`[agent-host-e2e] # …` lines) — the SDK/CLI's own account of startup, auth, the model request, and the turn lifecycle. It runs at `--log trace`. A turn that never produced a model response, a panic, or an out-of-order/protocol error points at the SDK/CLI (re-record if a bump left the fixture stale; otherwise it's a real regression). Claude/Codex use their own runtimes and are not captured here. See the README's "A turn hangs or times out with no OS pattern".
 - For any failure (`cache miss`, missing fixture, per-OS timeout, leaked PII, subagent staleness, accidental real-CAPI contact), go to the **Troubleshooting** section of the README — it maps each symptom to its cause and fix.
