@@ -124,6 +124,16 @@ interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
 	readonly workingDirectory: URI | undefined;
+	/**
+	 * The additional working directories beyond the primary process root
+	 * ({@link workingDirectory} = index 0). These are the peer roots of a
+	 * multi-root session's ordered set — the directories the agent should be
+	 * granted tool access to in addition to its process cwd. Empty (or absent)
+	 * for a single-root session. Passed through so the SDK can register them as
+	 * extra accessible roots once that surface is available; the process still
+	 * launches in {@link workingDirectory}.
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/**
@@ -286,7 +296,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
  * no BYOK models, or when enumeration fails; `startProxy` is invoked only once
  * at least one model is present.
  *
- * Each vendor maps to one `type: 'openai'` / `wireApi: 'completions'` provider
+ * Each vendor maps to one `type: 'openai'` / `wireApi: 'responses'` provider
  * whose `baseUrl` points at the proxy and authenticates with the session-scoped
  * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
  * provider-qualified selection id `vendor/id`, matching what the renderer's
@@ -342,7 +352,7 @@ export async function resolveByokSessionConfig(
 	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',
-		wireApi: 'completions',
+		wireApi: 'responses',
 		baseUrl: handle.providerBaseUrl(vendor),
 		bearerToken: `${handle.nonce}.${sessionId}`,
 	}));

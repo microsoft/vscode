@@ -17,7 +17,7 @@ import { AgentHostCodexAgentEnabledSettingId, AgentSession, ClaudePreferAgentHos
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionGitState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -63,7 +63,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
-	private readonly _onDidRootStateChange = new Emitter<RootState>();
+	private _rootStateListenerCount = 0;
+	private readonly _onDidRootStateChange = new Emitter<RootState>({
+		onDidAddListener: () => this._rootStateListenerCount++,
+		onWillRemoveListener: () => this._rootStateListenerCount--,
+	});
+	private readonly _onDidRootStateError = new Emitter<Error>();
 	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
 
@@ -75,6 +80,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
+	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -91,6 +97,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			get value() { return self._rootStateValue; },
 			get verifiedValue() { return self._rootStateValue instanceof Error ? undefined : self._rootStateValue; },
 			onDidChange: self._onDidRootStateChange.event,
+			onDidError: self._onDidRootStateError.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
@@ -163,7 +170,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public wireOps: string[] = [];
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
-		this.createSessionConfigs.push({ config: config?.config, workingDirectory: config?.workingDirectory });
+		this.createSessionConfigs.push({ config: config?.config, workingDirectory: config?.workingDirectories?.[0] });
 		this.wireOps.push(`createSession:${uri.toString()}`);
 		this.createdSessionUris.push(uri);
 		const hook = this.onCreateSession;
@@ -269,7 +276,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	setRootStateError(): void {
-		this._rootStateValue = new Error('root state failed');
+		const error = new Error('root state failed');
+		this._rootStateValue = error;
+		this._onDidRootStateError.fire(error);
 	}
 
 	fireNotification(n: INotification): void {
@@ -300,7 +309,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
 		project: opts?.project,
-		workingDirectory: opts?.workingDirectory,
+		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
 		_meta: opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined,
 	};
 }
@@ -345,7 +354,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IAgentHostService, agentHostService);
 	const configurationService = options?.configurationService ?? new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: options?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(options?.agentHostEnabled ?? true) });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
@@ -543,6 +552,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'copilotcli', label: 'Copilot' },
 			{ id: 'openai', label: 'OpenAI' },
 		]);
+	});
+
+	test('shares the root-state listener across session adapters', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
+		const provider = createProvider(disposables, agentHost);
+		const listenerCountBeforeSessions = agentHost.rootStateListenerCount;
+
+		for (let i = 0; i < 200; i++) {
+			fireSessionAdded(agentHost, `listener-${i}`);
+		}
+
+		const listenerCountAfterSessions = agentHost.rootStateListenerCount;
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+		const supportsMultipleChatsAfterHydration = provider.getSessions()[0].capabilities.get().supportsMultipleChats;
+		agentHost.setRootStateError();
+
+		assert.deepStrictEqual({
+			listenerCountBeforeSessions,
+			listenerCountAfterSessions,
+			sessionCount: provider.getSessions().length,
+			supportsMultipleChatsAfterHydration,
+			supportsMultipleChatsAfterError: provider.getSessions()[0].capabilities.get().supportsMultipleChats,
+		}, {
+			listenerCountBeforeSessions: 1,
+			listenerCountAfterSessions: 1,
+			sessionCount: 200,
+			supportsMultipleChatsAfterHydration: true,
+			supportsMultipleChatsAfterError: false,
+		});
 	});
 
 	test('reports no session types before rootState hydrates', () => {
@@ -1157,9 +1195,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('caches session-scoped flags but never transient activity bits', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		// A session that was mid-turn (and unread) when the cache was flushed.
+		await persistCachedSessions(disposables, storageService, [{
+			...createSession('busy-1', { summary: 'Busy One' }),
+			status: ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsArchived,
+		}]);
+
+		// Authentication pending, so nothing corrects the hydrated state — a stale
+		// spinner here would stick around indefinitely for an unreachable remote host.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		const restored = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			status: restored.status.get(),
+			isArchived: restored.isArchived.get(),
+			isRead: restored.isRead.get(),
+		}, {
+			status: SessionStatus.Completed,
+			isArchived: true,
+			isRead: false,
+		});
+	}));
+
 	test('hydrated quick chat stays workspace-less after reload despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Regression #324581: a committed quick chat persisted into the startup
-		// cache carries a scratch cwd. The adapter's session-kind is fixed at
+		// cache carries a scratch cwd. The adapter seeds its session-kind at
 		// construction from `_meta.workspaceless`, so the tag must survive the
 		// serialize/deserialize round-trip — otherwise the restored session
 		// leaks the scratch dir as a workspace folder.
@@ -1185,6 +1250,79 @@ suite('LocalAgentHostSessionsProvider', () => {
 			workspace: undefined,
 			isQuickChat: true,
 		});
+	}));
+
+	test('a refresh publishes _meta and summary fields as one atomic update', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// `AgentHostSessionAdapter.update` applies `_meta` through `setMeta`,
+		// which must join the caller's transaction. A plain `transaction()`
+		// finishes — and therefore notifies — before `update` has applied the
+		// rest of the snapshot, so observers would see a torn state: the new
+		// workspace (or a fresh quick-chat promotion) alongside the previous
+		// archived/read flags.
+		agentHost.addSession(createSession('atomic-1', { summary: 'One', workingDirectory: URI.file('/repo') }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		const observed: { branch: string | undefined; isArchived: boolean }[] = [];
+		disposables.add(autorun(reader => {
+			observed.push({
+				branch: session.workspace.read(reader)?.folders[0]?.gitRepository?.branchName,
+				isArchived: session.isArchived.read(reader),
+			});
+		}));
+
+		// One refresh that moves both the `_meta`-derived workspace and a
+		// plain summary field.
+		agentHost.addSession({
+			...createSession('atomic-1', { summary: 'One', workingDirectory: URI.file('/repo') }),
+			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived,
+			_meta: withSessionGitState(undefined, { branchName: 'feature' }),
+		});
+		agentHost.fireAction({
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'atomic-1').toString()),
+			action: { type: ActionType.ChatTurnComplete },
+			serverSeq: 1,
+			origin: undefined,
+		} as ActionEnvelope);
+		await timeout(0);
+
+		assert.deepStrictEqual(observed, [
+			{ branch: undefined, isArchived: false },
+			{ branch: 'feature', isArchived: true },
+		]);
+	}));
+
+	test('a summaryChanged notification publishes the change chip and _meta as one atomic update', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// `_handleSessionSummaryChanged` batches into a transaction, but a
+		// setter that writes its observable without one builds and finishes a
+		// transaction of its own, notifying immediately. `changes` is applied
+		// before `_meta`, so an observer of both would otherwise run once on
+		// the new chip with the stale workspace, then again at the outer
+		// finish.
+		agentHost.addSession(createSession('atomic-2', { summary: 'Two', workingDirectory: URI.file('/repo') }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		const observed: { branch: string | undefined; files: number | undefined }[] = [];
+		disposables.add(autorun(reader => {
+			observed.push({
+				branch: session.workspace.read(reader)?.folders[0]?.gitRepository?.branchName,
+				files: session.changesSummary?.read(reader)?.files,
+			});
+		}));
+
+		fireSessionSummaryChanged(agentHost, 'atomic-2', {
+			changes: { additions: 3, deletions: 1, files: 2 },
+			_meta: withSessionGitState(undefined, { branchName: 'feature' }),
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(observed, [
+			{ branch: undefined, files: undefined },
+			{ branch: 'feature', files: 2 },
+		]);
 	}));
 
 	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1647,6 +1785,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(actions.map(({ action }) => (action as { id: string }).id), ['mcp://docs', 'mcp://docs']);
 	});
 
+	test('getBackendChatResource looks up the host-supplied backend chat URI', () => {
+		const provider = createProvider(disposables, agentHost);
+
+		fireSessionAdded(agentHost, 'chat-lookup', { title: 'Chat Lookup' });
+		fireSessionAdded(agentHost, 'no-state', { title: 'No State' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Chat Lookup');
+		const unhydrated = provider.getSessions().find(s => s.title.get() === 'No State');
+		assert.ok(session);
+		assert.ok(unhydrated);
+
+		// The backend chat URIs are host-supplied and independent of the client
+		// resources; the lookup returns them verbatim rather than constructing them.
+		// On the wire they are strings.
+		const backendSession = AgentSession.uri('copilotcli', 'backend-abc').toString();
+		const defaultBackend = buildDefaultChatUri(backendSession);
+		const peerBackend = buildChatUri(backendSession, 'peer-1');
+		const fakeState: SessionState = {
+			provider: 'copilotcli',
+			title: 'Chat Lookup',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [
+				{ resource: defaultBackend, title: 'Default', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+				{ resource: peerBackend, title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+			],
+			defaultChat: defaultBackend,
+		};
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('chat-lookup', 'copilotcli', fakeState);
+
+		assert.deepStrictEqual({
+			// Default chat (client resource has no fragment) resolves via `defaultChat`.
+			defaultChat: provider.getBackendChatResource(session.resource)?.toString(),
+			// Peer chat (client fragment) resolves via its `ChatSummary.resource`.
+			peerChat: provider.getBackendChatResource(session.resource.with({ fragment: 'peer-1' }))?.toString(),
+			// A peer chat absent from hydrated state has no backend URI.
+			missingPeer: provider.getBackendChatResource(session.resource.with({ fragment: 'ghost' }))?.toString(),
+			// A session whose state has not hydrated yields nothing.
+			notHydrated: provider.getBackendChatResource(unhydrated.resource),
+		}, {
+			defaultChat: URI.parse(defaultBackend).toString(),
+			peerChat: URI.parse(peerBackend).toString(),
+			missingPeer: undefined,
+			notHydrated: undefined,
+		});
+	});
+
 	test('getCustomAgents returns no agents when the session has no SessionState', () => {
 		const provider = createProvider(disposables, agentHost);
 
@@ -2026,14 +2212,150 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('promotes an untagged session to a quick chat once state reports it workspace-less, and persists the promotion', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Regression: a session whose first sighting carried no `_meta` (a
+		// persisted cache entry written before the tag was plumbed through, or a
+		// host that dropped `_meta` from its listing) is born workspace-bound,
+		// so the host's throwaway scratch cwd surfaces as a workspace folder
+		// named after the session id. The kind must heal itself as soon as an
+		// authoritative `_meta.workspaceless` arrives — and the healed kind must
+		// reach the persisted cache, otherwise the next launch resurrects the
+		// mis-classification from the stale snapshot.
+		const storageService = disposables.add(new InMemoryStorageService());
+		agentHost.addSession(createSession('quick-untagged', {
+			summary: 'Quick Chat',
+			workingDirectory: URI.file('/home/user/.copilot/chats/quick-untagged'),
+		}));
+
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		const beforePromotion = { hasWorkspace: session.workspace.get() !== undefined, isQuickChat: session.isQuickChat?.get() };
+
+		// Subscribe to session state so the host's snapshot reaches the adapter.
+		provider.getSessionConfig(session.sessionId);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'quick-untagged').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('quick-untagged', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			_meta: withSessionWorkspaceless(undefined, true),
+			chats: [{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		});
+		await storageService.flush();
+
+		// Next launch hydrates from the persisted cache (authentication pending,
+		// so no listing can re-supply the tag).
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const hydrated = createProvider(disposables, nextHost, undefined, { storageService }).getSessions()[0];
+
+		assert.deepStrictEqual({
+			beforePromotion,
+			afterPromotion: { workspace: session.workspace.get(), isQuickChat: session.isQuickChat?.get() },
+			afterReload: { workspace: hydrated?.workspace.get(), isQuickChat: hydrated?.isQuickChat?.get() },
+		}, {
+			beforePromotion: { hasWorkspace: true, isQuickChat: false },
+			afterPromotion: { workspace: undefined, isQuickChat: true },
+			afterReload: { workspace: undefined, isQuickChat: true },
+		});
+	}));
+
+	test('reports a kind-only promotion so the list regroups a session that never had a workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Regression: promotion must be announced even when the workspace does
+		// not change. An untagged session with no working directory already has
+		// `workspace === undefined`, so keying the change event off the
+		// workspace alone would silently promote it and leave the sidebar
+		// showing it outside the "Chats" section until some unrelated event
+		// forced a regroup.
+		agentHost.addSession(createSession('quick-no-cwd', { summary: 'Quick Chat' }));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId);
+
+		const changed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changed.push(...e.changed.map(s => s.sessionId))));
+
+		const sessionUri = AgentSession.uri('copilotcli', 'quick-no-cwd').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('quick-no-cwd', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			_meta: withSessionWorkspaceless(undefined, true),
+			chats: [{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		});
+
+		assert.deepStrictEqual({
+			isQuickChat: session.isQuickChat?.get(),
+			announced: changed.includes(session.sessionId),
+		}, {
+			isQuickChat: true,
+			announced: true,
+		});
+	}));
+
+	test('listing reconcile promotes a cached adapter in place and announces the regroup', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Regression: a startup-cache entry written while the `listSessions`
+		// wire dropped `_meta` is hydrated as workspace-bound. The first
+		// authoritative listing must promote that *same* adapter in place and
+		// report it in `changed`, since the list regroups imperatively.
+		const storageService = disposables.add(new InMemoryStorageService());
+		const scratchDir = URI.file('/home/user/.copilot/chats/quick-poisoned');
+		await persistCachedSessions(disposables, storageService, [
+			createSession('quick-poisoned', { summary: 'Quick Chat', workingDirectory: scratchDir }),
+		]);
+
+		// Next launch: the host now reports the session as workspace-less.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.addSession(createSession('quick-poisoned', { summary: 'Quick Chat', workingDirectory: scratchDir, quickChat: true }));
+
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+		const hydrated = provider.getSessions()[0];
+		const fromCache = { hasWorkspace: hydrated.workspace.get() !== undefined, isQuickChat: hydrated.isQuickChat?.get() };
+
+		const changed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changed.push(...e.changed.map(s => s.sessionId))));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			fromCache,
+			afterListing: { workspace: hydrated.workspace.get(), isQuickChat: hydrated.isQuickChat?.get() },
+			announced: changed.includes(hydrated.sessionId),
+			healedInPlace: provider.getSessions()[0] === hydrated,
+		}, {
+			fromCache: { hasWorkspace: true, isQuickChat: false },
+			afterListing: { workspace: undefined, isQuickChat: true },
+			announced: true,
+			healedInPlace: true,
+		});
+	}));
+
 	test('committed quick chat announced via sessionAdded stays workspace-less despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Regression: when a quick-chat draft graduates, the host announces the
 		// committed session via a `sessionAdded` notification whose summary
 		// carries `_meta.workspaceless` — but also the scratch cwd the host
-		// assigned. The adapter's session-kind is fixed at construction, so the
-		// tag must reach it here (not just via the later listSessions/state
-		// channels), otherwise `workspace` leaks the scratch folder and the
-		// archive-on-delete fallback pre-fills a new session with it.
+		// assigned. The adapter seeds its session-kind at construction, so the
+		// tag should reach it here (not just via the later listSessions/state
+		// channels), otherwise `workspace` leaks the scratch folder until a
+		// later `_meta` heals it and the archive-on-delete fallback pre-fills a
+		// new session with it.
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
 
@@ -2176,6 +2498,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 			requests: [
 				{ isolation: 'folder' },
 			],
+			remembered: {},
+		});
+	});
+
+	test('maps the programmatic branch tracking setter to hidden agent-host config without remembering it', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { [SessionConfigKey.WorktreeBranchTrack]: false },
+		};
+		await provider.setWorktreeBranchTrack(session.sessionId, false);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstAutomationRequest).map(request => request.config),
+			createSessionConfig: provider.getCreateSessionConfig(session.sessionId),
+			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+		}, {
+			requests: [
+				{
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.WorktreeBranchTrack]: false,
+				},
+			],
+			createSessionConfig: { [SessionConfigKey.WorktreeBranchTrack]: false },
 			remembered: {},
 		});
 	});

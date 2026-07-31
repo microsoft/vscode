@@ -52,6 +52,7 @@ import {
 	IBrowserViewState,
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
+	IBrowserElementSelectionOptions,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -419,7 +420,7 @@ export interface IBrowserViewModel extends IDisposable {
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
-	toggleElementSelection(enabled?: boolean): Promise<void>;
+	toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
 	toggleAreaSelection(enabled?: boolean): Promise<void>;
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
@@ -850,8 +851,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.getConsoleLogs(this.id);
 	}
 
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
-		return this.browserViewService.toggleElementSelection(this.id, enabled);
+	async toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void> {
+		return this.browserViewService.toggleElementSelection(this.id, enabled, options);
 	}
 
 	async toggleAreaSelection(enabled?: boolean): Promise<void> {

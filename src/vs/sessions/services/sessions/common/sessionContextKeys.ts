@@ -140,7 +140,8 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);
 
-	// Mirror the changes pill: the default changeset, falling back to the session's changes.
+	// Mirror the changes pill: the default changeset, falling back to the session's changes — but while the worktree is pending those changes belong to the checkout, not the session.
+	const worktreePending = session?.worktreePending?.read(reader) ?? false;
 	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
 	let insertions = 0;
 	let deletions = 0;
@@ -148,7 +149,7 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 		insertions += change.insertions;
 		deletions += change.deletions;
 	}
-	keys.hasChanges.set(insertions > 0 || deletions > 0);
+	keys.hasChanges.set(!worktreePending && (insertions > 0 || deletions > 0));
 
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);

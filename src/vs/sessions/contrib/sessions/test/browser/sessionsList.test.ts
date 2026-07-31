@@ -9,7 +9,8 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, shouldAnimateArchiveAction, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -56,6 +57,20 @@ function createSession(id: string, opts: {
 suite('Sessions - SessionsList Helpers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('animates only a single-session inline archive action with motion enabled', () => {
+		assert.deepStrictEqual({
+			singleArchive: shouldAnimateArchiveAction(ARCHIVE_SESSION_COMMAND_ID, 1, false),
+			multiArchive: shouldAnimateArchiveAction(ARCHIVE_SESSION_COMMAND_ID, 2, false),
+			reducedMotion: shouldAnimateArchiveAction(ARCHIVE_SESSION_COMMAND_ID, 1, true),
+			otherAction: shouldAnimateArchiveAction('sessionsViewPane.pinSession', 1, false),
+		}, {
+			singleArchive: true,
+			multiArchive: false,
+			reducedMotion: false,
+			otherAction: false,
+		});
+	});
 
 	suite('groupByWorkspace', () => {
 

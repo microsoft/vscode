@@ -11,6 +11,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
+import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -55,6 +56,7 @@ import {
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
+import type { Implementation } from '../common/state/protocol/common/commands.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -196,6 +198,7 @@ type ChannelSubscription =
  */
 interface IConnectedClient {
 	readonly clientId: string;
+	readonly clientInfo: Implementation | undefined;
 	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
 	/**
@@ -230,6 +233,7 @@ type IClientRecord = IActiveClientRecord | IGraceClientRecord;
 
 interface IActiveClientRecord {
 	readonly state: 'active';
+	clientInfo: Implementation | undefined;
 	/**
 	 * Live transports for this client, oldest first. The active connection is
 	 * the last entry (most recent wins). Older entries are kept so that if a
@@ -242,6 +246,7 @@ interface IActiveClientRecord {
 
 interface IGraceClientRecord {
 	readonly state: 'grace';
+	readonly clientInfo: Implementation | undefined;
 	/**
 	 * Epoch ms when the client last had a live transport, or when this record
 	 * was created for a never-connected orphan tool-call stamp. Pins the grace
@@ -480,7 +485,7 @@ export class ProtocolServerHandler extends Disposable {
 									`Unsupported action: ${action.type}`,
 								);
 							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || action.type === ActionType.RootConfigChanged) {
-								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq);
+								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, getAgentHostClientType(client.clientInfo));
 							}
 						}
 						break;
@@ -513,7 +518,7 @@ export class ProtocolServerHandler extends Disposable {
 					this._rejectPendingReverseRequestsForConnection(client);
 					if (record.connections.length === 0) {
 						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
-						this._clients.set(client.clientId, { state: 'grace', lastSeenAt: Date.now(), disconnectTimeouts: new DisposableMap() });
+						this._clients.set(client.clientId, { state: 'grace', clientInfo: record.clientInfo, lastSeenAt: Date.now(), disconnectTimeouts: new DisposableMap() });
 						this._handleClientDisconnected(client.clientId);
 						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 					}
@@ -557,6 +562,7 @@ export class ProtocolServerHandler extends Disposable {
 
 		const client: IConnectedClient = {
 			clientId: params.clientId,
+			clientInfo: params.clientInfo,
 			protocolVersion: negotiated,
 			transport,
 			subscriptions: new Map(),
@@ -665,12 +671,17 @@ export class ProtocolServerHandler extends Disposable {
 		disposables: DisposableStore,
 	): { client: IConnectedClient; responsePromise: Promise<unknown> } {
 		this._logService.info(`[ProtocolServer] Reconnect: clientId=${params.clientId}, lastSeenSeq=${params.lastSeenServerSeq}`);
+		const existingRecord = this._clients.get(params.clientId);
+		if (!existingRecord) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Reconnect client not found: ${params.clientId}`);
+		}
 
 		// Synchronously install the client so messages arriving on this transport
 		// while we restore subscriptions can find a valid client object. The
 		// reconnect response is only sent once `responsePromise` resolves below.
 		const client: IConnectedClient = {
 			clientId: params.clientId,
+			clientInfo: existingRecord.clientInfo,
 			protocolVersion: PROTOCOL_VERSION,
 			transport,
 			subscriptions: new Map(),
@@ -966,9 +977,10 @@ export class ProtocolServerHandler extends Disposable {
 		const existing = this._clients.get(clientId);
 		if (existing?.state === 'active') {
 			existing.connections.push(client);
+			existing.clientInfo = client.clientInfo ?? existing.clientInfo;
 		} else {
 			existing?.disconnectTimeouts.dispose();
-			this._clients.set(clientId, { state: 'active', connections: [client] });
+			this._clients.set(clientId, { state: 'active', clientInfo: client.clientInfo ?? existing?.clientInfo, connections: [client] });
 		}
 		this._pruneClientRecords();
 		this._onDidChangeConnectionCount.fire(this._connectedClientCount);
@@ -988,7 +1000,7 @@ export class ProtocolServerHandler extends Disposable {
 		if (record) {
 			return record;
 		}
-		const created: IGraceClientRecord = { state: 'grace', lastSeenAt: Date.now(), disconnectTimeouts: new DisposableMap() };
+		const created: IGraceClientRecord = { state: 'grace', clientInfo: undefined, lastSeenAt: Date.now(), disconnectTimeouts: new DisposableMap() };
 		this._clients.set(clientId, created);
 		return created;
 	}
@@ -1178,7 +1190,7 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					workingDirectory: params.workingDirectories?.[0] ? URI.parse(params.workingDirectories[0]) : undefined,
+					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
 					fork,
 					config: params.config,
@@ -1258,25 +1270,21 @@ export class ProtocolServerHandler extends Disposable {
 				if (!provider) {
 					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
 				}
-				// Encode isRead/isArchived as status bitmask flags
-				let status = s.status ?? SessionStatus.Idle;
-				if (s.isRead) {
-					status |= SessionStatus.IsRead;
-				}
-				if (s.isArchived) {
-					status |= SessionStatus.IsArchived;
-				}
 				return {
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
-					status,
+					status: s.status ?? SessionStatus.Idle,
 					activity: s.activity,
 					createdAt: new Date(s.startTime).toISOString(),
 					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					workingDirectories: s.workingDirectory ? [s.workingDirectory.toString()] : undefined,
+					workingDirectories: s.workingDirectories?.map(d => d.toString()),
 					changes: s.changes,
+					// `_meta` carries the workspace-less marker, which seeds or
+					// promotes the client's session kind and cannot be
+					// re-derived from the (scratch) working directory.
+					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
 			return { items };

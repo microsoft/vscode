@@ -71,6 +71,18 @@ jobs:
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
+      - name: Build component explorer
+        run: npx rspack build --config rspack.serve-out.config.mts
+        working-directory: build/rspack
+        env:
+          COMPONENT_EXPLORER_STATIC_BUILD: 1
+
+      - name: Upload component explorer
+        uses: actions/upload-artifact@v7
+        with:
+          name: component-explorer
+          path: .build/rspack-serve-out/
+
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 
@@ -378,23 +390,6 @@ jobs:
         run: |
           echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
           exit 1
-
-
-      # - name: Prepare explorer artifact
-      #   run: |
-      #     mkdir -p /tmp/explorer-artifact/screenshot-report
-      #     cp -r build/vite/dist/* /tmp/explorer-artifact/
-      #     if [ -d test/componentFixtures/.screenshots/report ]; then
-      #       cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
-      #     fi
-
-      # - name: Upload explorer artifact
-      #   uses: actions/upload-artifact@v7
-      #   with:
-      #     name: component-explorer
-      #     path: /tmp/explorer-artifact/
-
-
       # - name: Set check title
       #   env:
       #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
