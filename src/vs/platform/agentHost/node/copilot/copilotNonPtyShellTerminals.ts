@@ -23,8 +23,8 @@ interface INonPtyShellStream {
 	readonly uri: string;
 	readonly title: string;
 	created: boolean;
-	/** The last cumulative snapshot written to the channel. */
-	lastEmitted: string;
+	lastSnapshot: string;
+	sourceTruncated: boolean;
 	finalized: boolean;
 }
 
@@ -44,6 +44,38 @@ function parseCompletedShell(text: string | undefined): TerminalCommandResult | 
 	};
 }
 
+const enum StitchConstants {
+	/** Minimum characters of overlap required to treat a rewritten snapshot as a rolling tail. */
+	MinimumOverlapLength = 8
+}
+
+const partialOutputTruncationMarker = /<output too long - dropped \d+ (?:characters|lines) from the end>\n?$/;
+
+function getTruncatedOutputPrefix(output: string): string | undefined {
+	const match = partialOutputTruncationMarker.exec(output);
+	return match ? output.slice(0, match.index) : undefined;
+}
+
+/**
+ * Finds where `next` overlaps the end of `previous` when the runtime rewrote
+ * its cumulative snapshot as a rolling tail.
+ */
+function findStitchOverlap(previous: string, next: string): number | undefined {
+	const probe = next.slice(0, StitchConstants.MinimumOverlapLength);
+	if (probe.length < StitchConstants.MinimumOverlapLength) {
+		return undefined;
+	}
+	let index = previous.indexOf(probe);
+	while (index !== -1) {
+		const overlapLength = previous.length - index;
+		if (overlapLength <= next.length && next.startsWith(previous.slice(index))) {
+			return overlapLength;
+		}
+		index = previous.indexOf(probe, index + 1);
+	}
+	return undefined;
+}
+
 export interface INonPtyShellToolCompletion {
 	readonly uri: string;
 	readonly result?: TerminalCommandResult;
@@ -56,10 +88,7 @@ export interface INonPtyShellToolCompletion {
  * via `tool.execution_partial_result` as throttled cumulative snapshots that
  * may be rewritten once output is truncated (a trailing truncation marker
  * under the emit cap, a rolling tail past the large-output threshold); this
- * class emits only the unseen suffix as `terminal/data` while the snapshot
- * grows in place, and resets the channel when the snapshot was rewritten, so
- * subscribed clients receive live plain-text output (`isPty: false` — no VT
- * parsing needed).
+ * class preserves the streamed transcript across those lossy rewrites.
  *
  * Created once per session and disposed with it, matching the pty-backed
  * `ShellManager` lifecycle.
@@ -95,7 +124,8 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			this._streams.set(toolCallId, {
 				uri: buildNonPtyShellTerminalUri(this._sessionUri, toolCallId),
 				title,
-				lastEmitted: '',
+				lastSnapshot: '',
+				sourceTruncated: false,
 				finalized: false,
 				created: false,
 			});
@@ -111,19 +141,38 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (created) {
 			this._createTerminal(toolCallId, stream);
 		}
-		if (stream.finalized || cumulativeOutput === stream.lastEmitted) {
+		if (stream.finalized || cumulativeOutput === stream.lastSnapshot) {
 			return { uri: stream.uri, created };
 		}
-		if (cumulativeOutput.startsWith(stream.lastEmitted)) {
-			this._terminalManager.appendOutputTerminalData(stream.uri, cumulativeOutput.slice(stream.lastEmitted.length));
+		const truncatedPrefix = getTruncatedOutputPrefix(cumulativeOutput);
+		if (truncatedPrefix !== undefined) {
+			if (!stream.sourceTruncated) {
+				if (cumulativeOutput.startsWith(stream.lastSnapshot)) {
+					this._terminalManager.appendOutputTerminalData(stream.uri, cumulativeOutput.slice(stream.lastSnapshot.length));
+				} else {
+					const overlap = findStitchOverlap(stream.lastSnapshot, cumulativeOutput);
+					this._terminalManager.appendOutputTerminalData(stream.uri, overlap === undefined ? cumulativeOutput.slice(truncatedPrefix.length) : cumulativeOutput.slice(overlap));
+				}
+				stream.sourceTruncated = true;
+			}
+		} else if (cumulativeOutput.startsWith(stream.lastSnapshot)) {
+			this._terminalManager.appendOutputTerminalData(stream.uri, cumulativeOutput.slice(stream.lastSnapshot.length));
 		} else {
-			// The snapshot no longer extends what we emitted — the runtime
-			// rewrote it after truncation (marker under the emit cap, rolling
-			// tail past the large-output threshold). Start the channel over.
-			this._terminalManager.resetOutputTerminal(stream.uri);
-			this._terminalManager.appendOutputTerminalData(stream.uri, cumulativeOutput);
+			const overlap = findStitchOverlap(stream.lastSnapshot, cumulativeOutput);
+			if (overlap !== undefined) {
+				const unseen = cumulativeOutput.slice(overlap);
+				if (unseen) {
+					this._terminalManager.appendOutputTerminalData(stream.uri, unseen);
+				}
+			} else if (stream.sourceTruncated || cumulativeOutput.length < stream.lastSnapshot.length) {
+				this._terminalManager.appendOutputTerminalData(stream.uri, cumulativeOutput);
+				stream.sourceTruncated = true;
+			} else {
+				this._terminalManager.resetOutputTerminal(stream.uri);
+				this._terminalManager.appendOutputTerminalData(stream.uri, cumulativeOutput);
+			}
 		}
-		stream.lastEmitted = cumulativeOutput;
+		stream.lastSnapshot = cumulativeOutput;
 		return { uri: stream.uri, created };
 	}
 
@@ -145,10 +194,11 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			}
 			return { uri: stream.uri, shouldRetire: false };
 		}
-		if (!stream.created) {
+		const created = !stream.created;
+		if (created) {
 			this._createTerminal(toolCallId, stream);
 		}
-		if (result.preview !== undefined) {
+		if (result.preview !== undefined && (!result.truncated || created)) {
 			this.append(toolCallId, result.preview);
 		}
 		if (result.exitCode !== undefined) {
