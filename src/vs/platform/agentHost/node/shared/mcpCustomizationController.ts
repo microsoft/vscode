@@ -280,24 +280,31 @@ export class McpCustomizationController extends Disposable {
 		const previous = this._live.get().get(server.name);
 		const state = this._stateForUpdate(previous?.state, server.state);
 		const enabled = server.enabled ?? previous?.enabled ?? true;
-		// Once promoted to a top-level entry, stay top-level for the
-		// session — flipping back to a child mid-stream would orphan the
-		// previously-published top-level id.
-		let topLevelId = previous?.topLevelId;
-		if (topLevelId === undefined) {
-			const childId = this._options.resolveChildId(server.name);
-			if (childId !== undefined) {
-				this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId: undefined }, tx);
+		// A top-level entry is only a fallback for servers whose child
+		// customization could not be resolved yet — child customizations are
+		// registered asynchronously, so the first state update for a
+		// plugin-derived server can arrive before its child id exists. Once the
+		// child id resolves, retract the previously published top-level entry
+		// and continue as a child, otherwise the same server stays surfaced
+		// twice for the rest of the session.
+		const childId = this._options.resolveChildId(server.name);
+		if (childId !== undefined) {
+			if (previous?.topLevelId !== undefined) {
 				this._options.emit({
-					type: ActionType.SessionMcpServerStateChanged,
-					id: childId,
-					state,
-					channel: this._buildChannel(server.name, state),
+					type: ActionType.SessionCustomizationRemoved,
+					id: previous.topLevelId,
 				});
-				return;
 			}
-			topLevelId = this._mintTopLevelId(server.name);
+			this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId: undefined }, tx);
+			this._options.emit({
+				type: ActionType.SessionMcpServerStateChanged,
+				id: childId,
+				state,
+				channel: this._buildChannel(server.name, state),
+			});
+			return;
 		}
+		const topLevelId = previous?.topLevelId ?? this._mintTopLevelId(server.name);
 		this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId }, tx);
 		this._options.emit({
 			type: ActionType.SessionCustomizationUpdated,

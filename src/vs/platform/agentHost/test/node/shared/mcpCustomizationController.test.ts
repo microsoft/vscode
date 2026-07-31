@@ -197,6 +197,39 @@ suite('McpCustomizationController', () => {
 		]);
 	});
 
+	test('top-level entry is retracted once its child customization resolves', () => {
+		// Child customizations register asynchronously, so the first state
+		// update can land before the child id exists.
+		const customizations: Customization[] = [];
+		const { controller, actions } = harness(store, { customizations });
+		store.add(controller);
+
+		controller.applyOne(server('fs', authRequired()));
+		const topLevelId = 'mcp-top-level:copilot:session-1:fs';
+		assert.deepStrictEqual(controller.topLevelCustomizations().map(c => c.id), [topLevelId]);
+
+		actions.length = 0;
+		customizations.push(...PLUGIN_CUSTOMIZATIONS);
+		controller.applyOne(server('fs', ready()));
+
+		assert.deepStrictEqual({ actions, topLevel: controller.topLevelCustomizations(), runtimeStates: [...controller.runtimeStates.get().keys()] }, {
+			actions: [
+				{
+					type: ActionType.SessionCustomizationRemoved,
+					id: topLevelId,
+				},
+				{
+					type: ActionType.SessionMcpServerStateChanged,
+					id: 'mcp-child:demo:fs',
+					state: { kind: McpServerStatus.Ready },
+					channel: 'mcp://copilot/session-1/fs',
+				},
+			],
+			topLevel: [],
+			runtimeStates: ['mcp-child:demo:fs'],
+		});
+	});
+
 	test('removing a bare top-level server emits SessionCustomizationRemoved', () => {
 		const { controller, actions } = harness(store);
 		store.add(controller);
