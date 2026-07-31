@@ -11,7 +11,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -26,7 +26,6 @@ import { automationIcon } from '../../../../../workbench/contrib/chat/browser/ai
 import { basename } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -35,6 +34,7 @@ import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
@@ -61,10 +61,11 @@ export class AutomationsCardsWidget extends Disposable {
 
 	private readonly cardsSection: AutomationCardsSection;
 	private readonly historySection: AutomationHistorySection;
+	private readonly isMarkingAllRead = observableValue(this, false);
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
-		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -79,11 +80,7 @@ export class AutomationsCardsWidget extends Disposable {
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
 
 		this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent));
-		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent));
-
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, AutomationHistorySection.READ_AUTOMATION_RUNS_KEY, this._store)(() => {
-			this.historySection.invalidateReadState();
-		}));
+		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.isMarkingAllRead));
 
 		this._register(autorun(reader => {
 			const items = this.automationService.automations.read(reader);
@@ -91,10 +88,22 @@ export class AutomationsCardsWidget extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
+			if (this.isMarkingAllRead.read(reader)) {
+				return;
+			}
 			const items = this.automationService.automations.read(reader);
 			const allRuns = this.automationService.runs.read(reader);
-			this.historySection.readStateVersion.read(reader);
-			this.historySection.render(allRuns, items);
+			const sessions = new Map<string, IAutomationRunSessionState>();
+			for (const run of allRuns) {
+				if (!run.sessionResource) {
+					continue;
+				}
+				const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+				if (session) {
+					sessions.set(run.id, { isRead: session.isRead.read(reader) });
+				}
+			}
+			this.historySection.render(allRuns, items, sessions);
 		}));
 	}
 
@@ -381,19 +390,14 @@ class AutomationCardsSection extends Disposable {
  */
 class AutomationHistorySection extends Disposable {
 
-	static readonly READ_AUTOMATION_RUNS_KEY = 'sessionsListControl.readAutomationRuns';
-
-	readonly readStateVersion = observableValue<number>('automationEditorReadState', 0);
-
 	private readonly container: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
+		private readonly isMarkingAllRead: ISettableObservable<boolean>,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IAutomationService private readonly automationService: IAutomationService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
@@ -401,11 +405,7 @@ class AutomationHistorySection extends Disposable {
 		this.container = DOM.append(parent, $('.automations-history'));
 	}
 
-	invalidateReadState(): void {
-		this.readStateVersion.set(this.readStateVersion.get() + 1, undefined);
-	}
-
-	render(runs: readonly IAutomationRun[], automations: readonly IAutomation[]): void {
+	render(runs: readonly IAutomationRun[], automations: readonly IAutomation[], sessions: ReadonlyMap<string, IAutomationRunSessionState>): void {
 		this.disposables.clear();
 		DOM.clearNode(this.container);
 
@@ -421,13 +421,7 @@ class AutomationHistorySection extends Disposable {
 		headerLabel.textContent = localize('historyHeader', "History");
 
 		const automationMap = new Map(automations.map(a => [a.id, a]));
-		const readIds = this.getReadRunIds();
-
-		// Show "Mark all as read" if there are unread runs with valid sessions
-		const hasUnread = runs.some(r =>
-			(r.status === 'completed' || r.status === 'failed') && r.sessionResource &&
-			!!this.sessionsManagementService.getSession(URI.parse(r.sessionResource)) && !readIds.has(r.id)
-		);
+		const hasUnread = runs.some(run => isUnreadAutomationRun(run, sessions.get(run.id)));
 		if (hasUnread) {
 			const markAllButton = this.disposables.add(new Button(headerRow, {
 				...defaultButtonStyles,
@@ -437,7 +431,8 @@ class AutomationHistorySection extends Disposable {
 			markAllButton.label = localize('markAllRead', "Mark all as read");
 			markAllButton.element.classList.add('automations-mark-all-read');
 			this.disposables.add(markAllButton.onDidClick(() => {
-				this.markAllRunsRead(runs);
+				markAllButton.enabled = false;
+				void this.markAllRunsRead(runs);
 			}));
 		}
 
@@ -450,14 +445,13 @@ class AutomationHistorySection extends Disposable {
 
 			const groupGrid = DOM.append(groupEl, $('.automations-run-cards-grid'));
 			for (const run of group.runs) {
-				this.renderRunRow(groupGrid, run, automationMap, group.kind, readIds);
+				this.renderRunRow(groupGrid, run, automationMap, group.kind, sessions.get(run.id));
 			}
 		}
 	}
 
-	private renderRunRow(parent: HTMLElement, run: IAutomationRun, automationMap: Map<string, IAutomation>, bucketKind: DateBucketKind, readIds: Set<string>): void {
-		const sessionExists = run.sessionResource && !!this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
-		const isUnread = (run.status === 'completed' || run.status === 'failed') && sessionExists && !readIds.has(run.id);
+	private renderRunRow(parent: HTMLElement, run: IAutomationRun, automationMap: Map<string, IAutomation>, bucketKind: DateBucketKind, sessionState: IAutomationRunSessionState | undefined): void {
+		const isUnread = isUnreadAutomationRun(run, sessionState);
 		const card = DOM.append(parent, $('.automations-run-card'));
 		if (isUnread) {
 			card.classList.add('unread');
@@ -515,7 +509,7 @@ class AutomationHistorySection extends Disposable {
 			errorEl.textContent = run.errorMessage;
 		}
 
-		if (run.sessionResource && sessionExists) {
+		if (run.sessionResource && sessionState) {
 			card.classList.add('clickable');
 			card.setAttribute('tabindex', '0');
 			card.setAttribute('role', 'button');
@@ -545,7 +539,6 @@ class AutomationHistorySection extends Disposable {
 		}
 		try {
 			await this.sessionsService.openSession(resource, { preserveFocus: false });
-			this.markRunRead(run.id);
 		} catch (error) {
 			this.logService.error('[AutomationsCards] Failed to open automation run', error);
 			await this.dialogService.error(
@@ -555,52 +548,28 @@ class AutomationHistorySection extends Disposable {
 		}
 	}
 
-	private markRunRead(runId: string): void {
-		const raw = this.storageService.get(AutomationHistorySection.READ_AUTOMATION_RUNS_KEY, StorageScope.PROFILE);
-		let ids: string[];
+	private async markAllRunsRead(runs: readonly IAutomationRun[]): Promise<void> {
+		this.isMarkingAllRead.set(true, undefined);
+		const sessions = new Map<string, ISession>();
 		try {
-			ids = raw ? JSON.parse(raw) : [];
-		} catch {
-			ids = [];
-		}
-		if (!ids.includes(runId)) {
-			ids.push(runId);
-			// Prune stale IDs to prevent unbounded growth
-			const currentRunIds = new Set(this.automationService.runs.get().map(r => r.id));
-			ids = ids.filter(id => id === runId || currentRunIds.has(id));
-			this.storageService.store(
-				AutomationHistorySection.READ_AUTOMATION_RUNS_KEY,
-				JSON.stringify(ids),
-				StorageScope.PROFILE,
-				StorageTarget.USER,
-			);
-		}
-	}
-
-	private getReadRunIds(): Set<string> {
-		const raw = this.storageService.get(AutomationHistorySection.READ_AUTOMATION_RUNS_KEY, StorageScope.PROFILE);
-		try {
-			return new Set(raw ? JSON.parse(raw) : []);
-		} catch {
-			return new Set();
-		}
-	}
-
-	private markAllRunsRead(runs: readonly IAutomationRun[]): void {
-		const ids: string[] = [];
-		for (const run of runs) {
-			if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
-				if (this.sessionsManagementService.getSession(URI.parse(run.sessionResource))) {
-					ids.push(run.id);
+			for (const run of runs) {
+				if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
+					const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+					if (session && !session.isRead.get()) {
+						sessions.set(session.resource.toString(), session);
+					}
 				}
 			}
+			await this.sessionsManagementService.markAllRead([...sessions.values()]);
+		} catch (error) {
+			this.logService.error('[AutomationsCards] Failed to mark automation runs read', error);
+			await this.dialogService.error(
+				localize('automationMarkAllReadFailed', "Failed to mark automation runs as read."),
+				getErrorMessage(error),
+			);
+		} finally {
+			this.isMarkingAllRead.set(false, undefined);
 		}
-		this.storageService.store(
-			AutomationHistorySection.READ_AUTOMATION_RUNS_KEY,
-			JSON.stringify(ids),
-			StorageScope.PROFILE,
-			StorageTarget.USER,
-		);
 	}
 }
 
@@ -609,6 +578,14 @@ class AutomationHistorySection extends Disposable {
 //#region Helpers
 
 type DateBucketKind = 'today' | 'yesterday' | 'week' | 'month';
+
+interface IAutomationRunSessionState {
+	readonly isRead: boolean;
+}
+
+function isUnreadAutomationRun(run: IAutomationRun, sessionState: IAutomationRunSessionState | undefined): boolean {
+	return (run.status === 'completed' || run.status === 'failed') && !!sessionState && !sessionState.isRead;
+}
 
 function formatSchedule(automation: IAutomation): string {
 	const { interval, scheduleHour, scheduleMinute } = automation.schedule;

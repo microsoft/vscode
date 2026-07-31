@@ -149,6 +149,7 @@ The **Create Group** context-menu action is also available from list blank space
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
 - A session becomes **unread** when it produces new output in the background — a turn completes, is cancelled, or errors while the session is not being viewed. Each provider detects this and marks its own session unread: the agent-host provider server-side in `agentSideEffects`, the local chat provider via its tracked session model, and the Copilot Chat provider on the `InProgress` → terminal transition. `SessionsService` only keeps the **active** session marked read.
+- Automation run history uses the linked session's `ISession.isRead` state directly. The Automations shortcut and run cards react to that observable, and **Mark All as Read** delegates to `ISessionsManagementService.markAllRead`; there is no separate automation-run read store.
 - Legacy view-level read state (previously persisted by `SessionsListModelService` under `sessionsListControl.readSessions`) is migrated once into provider ownership by `SessionsListModelService.migrateLegacyReadState`. The migration is additive — it only ever promotes a session to read (never back to unread) — and runs once per session. `AgentSessionsModel.migrateReadStateToProvider` does the same for the editor window's read timestamps.
 - Pin/sort state is cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 

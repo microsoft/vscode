@@ -20,7 +20,6 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -34,6 +33,7 @@ import { AutomationsCardsWidget } from '../../browser/views/automationsView.js';
 const AUTOMATION_ID = 'automation-1';
 const RUN_ID = 'run-1';
 const SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-1');
+const SECOND_SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-2');
 const FOLDER = URI.parse('file:///workspace');
 
 function hourly(): IAutomationSchedule {
@@ -191,20 +191,74 @@ class FakeRunner extends mock<IAutomationRunner>() {
 class FakeSessionsService extends mock<ISessionsService>() {
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;
+	error: Error | undefined;
+
+	constructor(private readonly onOpen: () => Promise<void>) {
+		super();
+	}
 
 	override async openSession(): Promise<void> {
 		this.openCalls++;
 		await this.openGate.p;
+		if (this.error) {
+			throw this.error;
+		}
+		await this.onOpen();
 	}
 }
 
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 	sessionExists = true;
+	readonly isRead = observableValue<boolean>(this, false);
+	readonly secondIsRead = observableValue<boolean>(this, false);
+	readonly session = upcastPartial<ISession>({
+		resource: SESSION_RESOURCE,
+		sessionId: 'test/session-1',
+		isRead: this.isRead,
+	});
+	readonly secondSession = upcastPartial<ISession>({
+		resource: SECOND_SESSION_RESOURCE,
+		sessionId: 'test/session-2',
+		isRead: this.secondIsRead,
+	});
+	markAllReadCalls = 0;
+	markAllReadSessionCount = 0;
+	getSessionCalls = 0;
+	readonly markAllReadCompleted = new DeferredPromise<void>();
 
 	override getSession(resource: URI): ISession | undefined {
-		return this.sessionExists && resource.toString() === SESSION_RESOURCE.toString()
-			? upcastPartial<ISession>({ resource })
-			: undefined;
+		this.getSessionCalls++;
+		if (!this.sessionExists) {
+			return undefined;
+		}
+		if (resource.toString() === SESSION_RESOURCE.toString()) {
+			return this.session;
+		}
+		if (resource.toString() === SECOND_SESSION_RESOURCE.toString()) {
+			return this.secondSession;
+		}
+		return undefined;
+	}
+
+	override async markRead(session: ISession): Promise<void> {
+		if (session === this.session) {
+			this.isRead.set(true, undefined);
+		} else if (session === this.secondSession) {
+			this.secondIsRead.set(true, undefined);
+		}
+	}
+
+	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
+		this.markAllReadCalls++;
+		this.markAllReadSessionCount = sessions.length;
+		for (const session of sessions) {
+			await this.markRead(session);
+		}
+		this.markAllReadCompleted.complete();
+	}
+
+	setRead(isRead: boolean): void {
+		this.isRead.set(isRead, undefined);
 	}
 }
 
@@ -216,10 +270,9 @@ suite('AutomationsCardsWidget', () => {
 		const automationDialogService = new FakeAutomationDialogService();
 		const dialogService = new FakeDialogService();
 		const runner = new FakeRunner();
-		const sessionsService = new FakeSessionsService();
 		const sessionsManagementService = new FakeSessionsManagementService();
+		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
 		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
-		const storageService = disposables.add(new InMemoryStorageService());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IAutomationDialogService, automationDialogService);
@@ -231,11 +284,10 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IStorageService, storageService);
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, configurationService, dialogService, runner, sessionsManagementService, sessionsService, storageService, widget };
+		return { automationService, automationDialogService, configurationService, dialogService, runner, sessionsManagementService, sessionsService, widget };
 	}
 
 	test('renders localized schedules and accessible run state', () => {
@@ -275,7 +327,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('run card opens with Space and becomes read only after open succeeds', async () => {
-		const { automationService, sessionsService, storageService, widget } = setup();
+		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 		const card = widget.element.querySelector<HTMLElement>('.automations-run-card');
@@ -283,17 +335,110 @@ suite('AutomationsCardsWidget', () => {
 		card?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
 		assert.deepStrictEqual({
 			openCalls: sessionsService.openCalls,
-			readBeforeOpen: storageService.get('sessionsListControl.readAutomationRuns', StorageScope.PROFILE),
+			readBeforeOpen: sessionsManagementService.isRead.get(),
 		}, {
 			openCalls: 1,
-			readBeforeOpen: undefined,
+			readBeforeOpen: false,
 		});
 
 		sessionsService.openGate.complete();
 		await sessionsService.openGate.p;
 		await Promise.resolve();
 
-		assert.strictEqual(storageService.get('sessionsListControl.readAutomationRuns', StorageScope.PROFILE), JSON.stringify([RUN_ID]));
+		assert.deepStrictEqual({
+			isRead: sessionsManagementService.isRead.get(),
+			label: widget.element.querySelector('.automations-run-card')?.getAttribute('aria-label'),
+		}, {
+			isRead: true,
+			label: card?.getAttribute('aria-label')?.replace(', Unread', ''),
+		});
+	});
+
+	test('run remains unread when opening its session fails', async () => {
+		const { automationService, dialogService, sessionsManagementService, sessionsService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		sessionsService.error = new Error('open failed');
+		const unreadLabel = widget.element.querySelector('.automations-run-card')?.getAttribute('aria-label');
+
+		widget.element.querySelector<HTMLDivElement>('.automations-run-card')?.click();
+		sessionsService.openGate.complete();
+		await dialogService.errorCalled.p;
+
+		assert.deepStrictEqual({
+			isRead: sessionsManagementService.isRead.get(),
+			label: widget.element.querySelector('.automations-run-card')?.getAttribute('aria-label'),
+			error: dialogService.errors,
+		}, {
+			isRead: false,
+			label: unreadLabel,
+			error: [{ message: 'Failed to open automation run.', detail: 'open failed' }],
+		});
+	});
+
+	test('session read state reactively updates run history', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+
+		const unreadLabel = widget.element.querySelector('.automations-run-card')?.getAttribute('aria-label');
+		sessionsManagementService.setRead(true);
+		const readLabel = widget.element.querySelector('.automations-run-card')?.getAttribute('aria-label');
+
+		assert.deepStrictEqual({
+			unreadLabel,
+			readLabel,
+			markAllVisible: !!widget.element.querySelector('.automations-mark-all-read'),
+		}, {
+			unreadLabel: readLabel ? `${readLabel}, Unread` : undefined,
+			readLabel,
+			markAllVisible: false,
+		});
+	});
+
+	test('mark all as read delegates to session management', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run(), run({ id: 'run-2' })]);
+
+		widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read')?.click();
+		await sessionsManagementService.markAllReadCompleted.p;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			isRead: sessionsManagementService.isRead.get(),
+			markAllReadCalls: sessionsManagementService.markAllReadCalls,
+			markAllReadSessionCount: sessionsManagementService.markAllReadSessionCount,
+			markAllVisible: !!widget.element.querySelector('.automations-mark-all-read'),
+		}, {
+			isRead: true,
+			markAllReadCalls: 1,
+			markAllReadSessionCount: 1,
+			markAllVisible: false,
+		});
+	});
+
+	test('mark all as read coalesces history rendering', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([
+			run(),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+		]);
+
+		widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read')?.click();
+		await sessionsManagementService.markAllReadCompleted.p;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			getSessionCalls: sessionsManagementService.getSessionCalls,
+			firstIsRead: sessionsManagementService.isRead.get(),
+			secondIsRead: sessionsManagementService.secondIsRead.get(),
+		}, {
+			getSessionCalls: 6,
+			firstIsRead: true,
+			secondIsRead: true,
+		});
 	});
 
 	test('stale run sessions are not exposed as buttons', () => {

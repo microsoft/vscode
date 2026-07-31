@@ -1267,7 +1267,6 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 });
 
 const MARK_ALL_AUTOMATION_RUNS_READ_COMMAND_ID = 'sessionsView.markAllAutomationRunsRead';
-const READ_AUTOMATION_RUNS_KEY = 'sessionsListControl.readAutomationRuns';
 
 registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 	constructor() {
@@ -1276,25 +1275,20 @@ registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 			title: localize2('markAllAutomationRunsRead', "Mark All as Read"),
 		});
 	}
-	override run(accessor: ServicesAccessor): void {
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		const automationService = accessor.get(IAutomationService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const storageService = accessor.get(IStorageService);
 
 		const runs = automationService.runs.get();
-		const readIds: string[] = [];
+		const sessions = new Map<string, ISession>();
 		for (const run of runs) {
 			if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
-				if (sessionsManagementService.getSession(URI.parse(run.sessionResource))) {
-					readIds.push(run.id);
+				const session = sessionsManagementService.getSession(URI.parse(run.sessionResource));
+				if (session && !session.isRead.get()) {
+					sessions.set(session.resource.toString(), session);
 				}
 			}
 		}
-		storageService.store(
-			READ_AUTOMATION_RUNS_KEY,
-			JSON.stringify(readIds),
-			StorageScope.PROFILE,
-			StorageTarget.USER,
-		);
+		await sessionsManagementService.markAllRead([...sessions.values()]);
 	}
 });

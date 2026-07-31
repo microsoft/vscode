@@ -92,7 +92,6 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
 const $ = DOM.$;
 
 const AUTOMATIONS_SECTION_ID = 'automations';
-const READ_AUTOMATION_RUNS_KEY = 'sessionsListControl.readAutomationRuns';
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 
@@ -985,17 +984,15 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
-	private readonly readAutomationRunIds: Set<string>;
-	private readonly readStateVersion = observableValue<number>('automationReadState', 0);
 	readonly automationStatus = derived(this, reader => {
 		const runs = this.automationService.runs.read(reader);
-		this.readStateVersion.read(reader);
-		const hasUnreadRun = (status: 'completed' | 'failed') => runs.some(run =>
-			run.status === status
-			&& !!run.sessionResource
-			&& !!this.sessionsManagementService.getSession(URI.parse(run.sessionResource))
-			&& !this.readAutomationRunIds.has(run.id)
-		);
+		const hasUnreadRun = (status: 'completed' | 'failed') => runs.some(run => {
+			if (run.status !== status || !run.sessionResource) {
+				return false;
+			}
+			const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+			return !!session && !session.isRead.read(reader);
+		});
 		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
 			return SessionStatus.InProgress;
 		}
@@ -1013,12 +1010,9 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
-		private readonly storageService: IStorageService,
 		private readonly sessionsManagementService: ISessionsManagementService,
 		private readonly customViewService: ICustomViewService,
-	) {
-		this.readAutomationRunIds = this.loadReadAutomationRuns();
-	}
+	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
 		const disposables = new DisposableStore();
@@ -1074,13 +1068,6 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			}));
 			DOM.clearNode(template.statusIndicator);
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.statusIndicator));
-			template.elementDisposables.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, READ_AUTOMATION_RUNS_KEY, template.elementDisposables)(() => {
-				this.readAutomationRunIds.clear();
-				for (const id of this.loadReadAutomationRuns()) {
-					this.readAutomationRunIds.add(id);
-				}
-				this.readStateVersion.set(this.readStateVersion.get() + 1, undefined);
-			}));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
 				if (automationStatus === SessionStatus.InProgress) {
@@ -1141,18 +1128,6 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			template.chevron.classList.add('collapsible');
 			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
-		}
-	}
-
-	private loadReadAutomationRuns(): Set<string> {
-		const raw = this.storageService.get(READ_AUTOMATION_RUNS_KEY, StorageScope.PROFILE);
-		if (!raw) {
-			return new Set();
-		}
-		try {
-			return new Set(JSON.parse(raw));
-		} catch {
-			return new Set();
 		}
 	}
 
@@ -2043,7 +2018,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this.storageService, this._sessionsManagementService, this.customViewService);
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this._sessionsManagementService, this.customViewService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
