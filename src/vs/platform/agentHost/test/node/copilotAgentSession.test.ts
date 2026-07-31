@@ -4278,15 +4278,15 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 1\nline 2\n',
+				partialOutput: 'line 1\nline 498\nline 499\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 1\nline 2\n<output too long - dropped 42 lines from the end>\n',
+				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 42 lines from the end>\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 1\nline 2\n<output too long - dropped 99 lines from the end>\n',
+				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 99 lines from the end>\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
@@ -4322,9 +4322,9 @@ suite('CopilotAgentSession', () => {
 				result: terminalResult?.result,
 			}, {
 				data: [
-					{ uri: terminalUri, data: 'line 1\nline 2\n' },
+					{ uri: terminalUri, data: 'line 1\nline 498\nline 499\n' },
 					{ uri: terminalUri, data: '<output too long - dropped 42 lines from the end>\n' },
-					{ uri: terminalUri, data: 'line 498\nline 499\nline 500\n' },
+					{ uri: terminalUri, data: 'line 500\n' },
 					{ uri: terminalUri, data: 'line 501\n' },
 				],
 				resets: [],

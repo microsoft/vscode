@@ -158,7 +158,8 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		} else if (cumulativeOutput.startsWith(stream.lastSnapshot)) {
 			this._terminalManager.appendOutputTerminalData(stream.uri, cumulativeOutput.slice(stream.lastSnapshot.length));
 		} else {
-			const overlap = findStitchOverlap(stream.lastSnapshot, cumulativeOutput);
+			const previousSnapshot = getTruncatedOutputPrefix(stream.lastSnapshot) ?? stream.lastSnapshot;
+			const overlap = findStitchOverlap(previousSnapshot, cumulativeOutput);
 			if (overlap !== undefined) {
 				const unseen = cumulativeOutput.slice(overlap);
 				if (unseen) {
@@ -198,8 +199,16 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (created) {
 			this._createTerminal(toolCallId, stream);
 		}
-		if (result.preview !== undefined && (!result.truncated || created)) {
-			this.append(toolCallId, result.preview);
+		if (!stream.finalized && result.preview !== undefined) {
+			if (created) {
+				this.append(toolCallId, result.preview);
+			} else if (!result.truncated) {
+				if (stream.sourceTruncated || !result.preview.startsWith(stream.lastSnapshot)) {
+					this._replaceOutput(stream, result.preview);
+				} else {
+					this.append(toolCallId, result.preview);
+				}
+			}
 		}
 		if (result.exitCode !== undefined) {
 			this._finalize(stream, result.exitCode);
@@ -232,6 +241,15 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		}
 		stream.finalized = true;
 		this._terminalManager.finalizeOutputTerminal(stream.uri, exitCode);
+	}
+
+	private _replaceOutput(stream: INonPtyShellStream, output: string): void {
+		this._terminalManager.resetOutputTerminal(stream.uri);
+		if (output) {
+			this._terminalManager.appendOutputTerminalData(stream.uri, output);
+		}
+		stream.lastSnapshot = output;
+		stream.sourceTruncated = false;
 	}
 
 	private _createTerminal(toolCallId: string, stream: INonPtyShellStream): void {

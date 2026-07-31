@@ -53,9 +53,9 @@ suite('NonPtyShellTerminalStreams', () => {
 
 		test('preserves the transcript across truncation marker rewrites and disjoint rolling tails', () => {
 			streams.track('call-3', 'shell');
-			streams.append('call-3', 'line 1\r\nline 2\r\n');
-			streams.append('call-3', 'line 1\r\nline 2\r\n<output too long - dropped 42 lines from the end>\n');
-			streams.append('call-3', 'line 1\r\nline 2\r\n<output too long - dropped 99 lines from the end>\n');
+			streams.append('call-3', 'line 1\r\nline 498\r\nline 499\r\n');
+			streams.append('call-3', 'line 1\r\nline 498\r\nline 499\r\n<output too long - dropped 42 lines from the end>\n');
+			streams.append('call-3', 'line 1\r\nline 498\r\nline 499\r\n<output too long - dropped 99 lines from the end>\n');
 			streams.append('call-3', 'line 498\r\nline 499\r\nline 500\r\n');
 			streams.append('call-3', 'line 499\r\nline 500\r\nline 501\r\n');
 			streams.append('call-3', 'line 700\r\nline 701\r\nline 702\r\n');
@@ -66,8 +66,8 @@ suite('NonPtyShellTerminalStreams', () => {
 			}, {
 				resets: [],
 				content: [
-					'line 1\r\nline 2\r\n<output too long - dropped 42 lines from the end>\n',
-					'line 498\r\nline 499\r\nline 500\r\n',
+					'line 1\r\nline 498\r\nline 499\r\n<output too long - dropped 42 lines from the end>\n',
+					'line 500\r\n',
 					'line 501\r\n',
 					'line 700\r\nline 701\r\nline 702\r\n',
 				].join(''),
@@ -131,10 +131,73 @@ suite('NonPtyShellTerminalStreams', () => {
 			strictEqual(channelContent(), 'line 1\r\nline 2\r\n');
 		});
 
-		test('an unrelated rewrite still resets the channel', () => {
+		test('replaces a truncated stream with an authoritative non-truncated completion preview', () => {
 			streams.track('call-8', 'shell');
-			streams.append('call-8', 'alpha beta gamma\r\n');
-			streams.append('call-8', 'completely different content\r\n');
+			const appended = streams.append('call-8', 'head\r\n<output too long - dropped 42 lines from the end>\n');
+			ok(appended);
+
+			streams.completeToolCall('call-8', undefined, {
+				shellId: 'shell-1',
+				result: { exitCode: 0, preview: 'complete output\r\n', truncated: false }
+			});
+
+			deepStrictEqual({
+				resets: manager.outputTerminalResets,
+				data: manager.outputTerminalData,
+			}, {
+				resets: [appended.uri],
+				data: [
+					{ uri: appended.uri, data: 'head\r\n<output too long - dropped 42 lines from the end>\n' },
+					{ uri: appended.uri, data: 'complete output\r\n' },
+				],
+			});
+		});
+
+		test('clears stale streamed output when the authoritative completion preview is empty', () => {
+			streams.track('call-9', 'shell');
+			const appended = streams.append('call-9', 'stale output\r\n');
+			ok(appended);
+
+			streams.completeToolCall('call-9', undefined, {
+				shellId: 'shell-1',
+				result: { exitCode: 0, preview: '', truncated: false }
+			});
+
+			deepStrictEqual({
+				resets: manager.outputTerminalResets,
+				data: manager.outputTerminalData,
+			}, {
+				resets: [appended.uri],
+				data: [{ uri: appended.uri, data: 'stale output\r\n' }],
+			});
+		});
+
+		test('appends a prefix-stable authoritative completion preview', () => {
+			streams.track('call-10', 'shell');
+			const appended = streams.append('call-10', 'line 1\r\n');
+			ok(appended);
+
+			streams.completeToolCall('call-10', undefined, {
+				shellId: 'shell-1',
+				result: { exitCode: 0, preview: 'line 1\r\nline 2\r\n', truncated: false }
+			});
+
+			deepStrictEqual({
+				resets: manager.outputTerminalResets,
+				data: manager.outputTerminalData,
+			}, {
+				resets: [],
+				data: [
+					{ uri: appended.uri, data: 'line 1\r\n' },
+					{ uri: appended.uri, data: 'line 2\r\n' },
+				],
+			});
+		});
+
+		test('an unrelated rewrite still resets the channel', () => {
+			streams.track('call-11', 'shell');
+			streams.append('call-11', 'alpha beta gamma\r\n');
+			streams.append('call-11', 'completely different content\r\n');
 
 			strictEqual(manager.outputTerminalResets.length, 1);
 			deepStrictEqual(manager.outputTerminalData.map(d => d.data), ['alpha beta gamma\r\n', 'completely different content\r\n']);
@@ -143,11 +206,11 @@ suite('NonPtyShellTerminalStreams', () => {
 
 	suite('completion and lifecycle', () => {
 		test('parses fallback completion, finalizes once, and ignores later output', () => {
-			streams.track('call-9', 'shell');
+			streams.track('call-12', 'shell');
 
-			const completion = streams.completeToolCall('call-9', 'fallback output\r\n<shellId: shell-1 completed with exit code -1>', undefined);
-			streams.completeToolCall('call-9', 'different output\r\n<shellId: shell-1 completed with exit code -1>', undefined);
-			streams.append('call-9', 'late output\r\n');
+			const completion = streams.completeToolCall('call-12', 'fallback output\r\n<shellId: shell-1 completed with exit code -1>', undefined);
+			streams.completeToolCall('call-12', 'different output\r\n<shellId: shell-1 completed with exit code -1>', undefined);
+			streams.append('call-12', 'late output\r\n');
 
 			deepStrictEqual({
 				completion,
@@ -155,43 +218,43 @@ suite('NonPtyShellTerminalStreams', () => {
 				finalized: manager.outputTerminalsFinalized,
 			}, {
 				completion: {
-					uri: 'agenthost-terminal://shell/session-1/call-9',
+					uri: 'agenthost-terminal://shell/session-1/call-12',
 					result: { exitCode: -1, preview: 'fallback output\r\n' },
 					shouldRetire: true,
 				},
 				content: 'fallback output\r\n',
-				finalized: [{ uri: 'agenthost-terminal://shell/session-1/call-9', exitCode: -1 }],
+				finalized: [{ uri: 'agenthost-terminal://shell/session-1/call-12', exitCode: -1 }],
 			});
 		});
 
 		test('drops an unstarted stream without completion data', () => {
-			streams.track('call-10', 'shell');
+			streams.track('call-13', 'shell');
 
-			strictEqual(streams.completeToolCall('call-10', undefined, undefined), undefined);
-			strictEqual(streams.append('call-10', 'late output'), undefined);
+			strictEqual(streams.completeToolCall('call-13', undefined, undefined), undefined);
+			strictEqual(streams.append('call-13', 'late output'), undefined);
 		});
 
 		test('keeps a started stream alive without completion data', () => {
-			streams.track('call-11', 'shell');
-			const appended = streams.append('call-11', 'partial output');
+			streams.track('call-14', 'shell');
+			const appended = streams.append('call-14', 'partial output');
 			ok(appended);
 
-			deepStrictEqual(streams.completeToolCall('call-11', undefined, undefined), {
+			deepStrictEqual(streams.completeToolCall('call-14', undefined, undefined), {
 				uri: appended.uri,
 				shouldRetire: false,
 			});
 		});
 
 		test('retires a stream exactly once', () => {
-			streams.track('call-12', 'shell');
-			const appended = streams.append('call-12', 'partial output');
+			streams.track('call-15', 'shell');
+			const appended = streams.append('call-15', 'partial output');
 			ok(appended);
 
-			streams.retire('call-12');
-			streams.retire('call-12');
+			streams.retire('call-15');
+			streams.retire('call-15');
 
 			deepStrictEqual(manager.disposedTerminals, [appended.uri]);
-			strictEqual(streams.append('call-12', 'late output'), undefined);
+			strictEqual(streams.append('call-15', 'late output'), undefined);
 		});
 
 		test('ignores append and completion for an untracked tool call', () => {
