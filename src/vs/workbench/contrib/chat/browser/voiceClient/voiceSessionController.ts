@@ -6200,9 +6200,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return undefined;
 		}
 
-		for (const part of parts) {
+		for (let index = 0; index < parts.length; index++) {
+			const part = parts[index];
 			const type = getVoiceConfirmationType([part]);
 			if (type && this._isOpenPendingPart(part)) {
+				if (type === 'questionnaire' && isVoiceQuestionnaireInvocation(part)) {
+					const carousel = parts.slice(index + 1).find(candidate =>
+						candidate.kind === 'questionCarousel'
+						&& candidate.resolveId === part.toolCallId
+						&& this._isOpenPendingPart(candidate));
+					if (carousel) {
+						return { requestId: lastRequest.id, type, part: carousel };
+					}
+				}
 				return { requestId: lastRequest.id, type, part };
 			}
 		}
@@ -6211,7 +6221,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _isOpenPendingPart(part: IChatProgressResponseContent): boolean {
 		if (part.kind === 'questionCarousel') {
-			return !part.isUsed && !part.answeredExternally && part.questions.length > 0;
+			return !part.isUsed && !part.answeredExternally;
 		}
 		if (part.kind === 'elicitation2') {
 			return part.state.get() === 'pending';

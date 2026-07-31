@@ -1000,6 +1000,7 @@ suite('VoiceSessionController', () => {
 			},
 			resolvedContext: {
 				id: sessionResource.toString(),
+				label: 'Chat',
 				is_active: true,
 				agent_state: 'idle',
 			},
@@ -1059,7 +1060,8 @@ suite('VoiceSessionController', () => {
 		const questionnairePending = pendingFor(URI.parse('chat-session:/questionnaire-route'), 'request-questionnaire-route', [questionnaire, unrelatedTool]);
 
 		const plan = new ChatPlanReviewData('Review plan', 'Plan body', [{ id: 'implement', label: 'Implement Plan' }], true);
-		const planPending = pendingFor(URI.parse('chat-session:/plan-route'), 'request-plan-route', [waitingTool('older'), plan]);
+		const olderTool = waitingTool('older');
+		const planPending = pendingFor(URI.parse('chat-session:/plan-route'), 'request-plan-route', [olderTool, plan]);
 
 		const postApprovalTool = waitingTool('post-approval', true);
 		const postApprovalPending = pendingFor(URI.parse('chat-session:/post-route'), 'request-post-route', [postApprovalTool]);
@@ -1081,18 +1083,21 @@ suite('VoiceSessionController', () => {
 			},
 			plan: {
 				type: planPending?.type,
-				idMatches: planPending?.pending_id === peekPendingId('request-plan-route', plan),
+				idMatches: planPending?.pending_id === peekPendingId('request-plan-route', olderTool),
 			},
 			postApproval: {
 				type: postApprovalPending?.type,
 				idMatches: postApprovalPending?.pending_id === peekPendingId('request-post-route', postApprovalTool),
 			},
-			askQuestionsBeforeCarousel: askQuestionsPending,
+			askQuestionsBeforeCarousel: {
+				type: askQuestionsPending?.type,
+				idMatches: askQuestionsPending?.pending_id === peekPendingId('request-ask-route', olderQuestionnaire),
+			},
 		}, {
 			questionnaire: { type: 'questions', idMatches: true },
 			plan: { type: 'approval', idMatches: true },
 			postApproval: { type: 'approval', idMatches: true },
-			askQuestionsBeforeCarousel: undefined,
+			askQuestionsBeforeCarousel: { type: 'questions', idMatches: true },
 		});
 	});
 
