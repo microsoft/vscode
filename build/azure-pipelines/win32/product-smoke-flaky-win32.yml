@@ -180,10 +180,11 @@ jobs:
           displayName: Download built workspace
 
         - powershell: |
-            . build/azure-pipelines/win32/exec.ps1
             $ErrorActionPreference = "Stop"
             New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
-            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y }
+            # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+            7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+            if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
           displayName: Extract built workspace
 
         - task: NodeTool@0
@@ -278,12 +279,15 @@ jobs:
           displayName: Download packaged server
 
         - powershell: |
-            . build/azure-pipelines/win32/exec.ps1
             $ErrorActionPreference = "Stop"
             New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
-            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y }
-            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y }
-            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-server\server.zip -o"$(Agent.BuildDirectory)" -y }
+            # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+            7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+            if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
+            7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y
+            if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
+            7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-server\server.zip -o"$(Agent.BuildDirectory)" -y
+            if ($LASTEXITCODE -ne 0) { throw "7z extract of server.zip failed with exit code $LASTEXITCODE" }
           displayName: Extract built workspace, app and server
 
         - task: NodeTool@0
@@ -371,11 +375,13 @@ jobs:
           displayName: Download packaged app
 
         - powershell: |
-            . build/azure-pipelines/win32/exec.ps1
             $ErrorActionPreference = "Stop"
             New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
-            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y }
-            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y }
+            # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+            7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+            if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
+            7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y
+            if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
           displayName: Extract built workspace and app
 
         - task: NodeTool@0
