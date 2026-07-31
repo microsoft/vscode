@@ -3346,6 +3346,25 @@ suite('VoiceSessionController', () => {
 		}]);
 	});
 
+	test('keeps the original target when active-session updates pass through undefined', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getActiveSessionId = Reflect.get(controller, '_getActiveSessionId') as () => string | undefined;
+		const firstSession = URI.parse('chat-session:/voice-session-a');
+		const secondSession = URI.parse('chat-session:/voice-session-b');
+
+		controller.setActiveSessionShown(firstSession);
+		controller.setActiveSessionShown(undefined);
+		controller.setActiveSessionShown(secondSession);
+
+		assert.deepStrictEqual({
+			targetSession: controller.targetSession.get()?.toString(),
+			activeSession: getActiveSessionId.call(controller),
+		}, {
+			targetSession: firstSession.toString(),
+			activeSession: firstSession.toString(),
+		});
+	});
+
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const chatService = new ControllableChatService();

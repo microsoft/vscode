@@ -4363,6 +4363,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (!this._externalActiveSessionMode && this._activeSessionShown === undefined) {
 				return;
 			}
+			const previouslyShown = this._activeSessionShown;
+			if (previouslyShown && !this._targetSession.get()) {
+				this._targetSession.set(URI.parse(previouslyShown), undefined);
+			}
 			this.logService.trace(`[voice] setActiveSessionShown=<none>; restoring focus-based detection (was ${this._activeSessionShown ?? '<none>'})`);
 			this._externalActiveSessionMode = false;
 			this._activeSessionShown = undefined;
