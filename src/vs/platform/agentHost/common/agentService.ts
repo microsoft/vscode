@@ -814,6 +814,13 @@ export interface IAgentCreateSessionResult {
 	 * has been persisted.
 	 */
 	readonly provisional?: boolean;
+	/**
+	 * `true` when this `createSession` newly adopted a legacy on-disk Copilot CLI
+	 * session (seeded its agent-host metadata for the first time). Lets the host
+	 * run the one-time checkpoint carry-over; `false`/absent for normal creates
+	 * and for re-opens of an already-adopted session.
+	 */
+	readonly adopted?: boolean;
 }
 
 /**
@@ -998,6 +1005,16 @@ export interface IAgentCreateSessionConfig {
 		readonly turns: readonly Turn[];
 		readonly model?: ModelSelection;
 	};
+	/**
+	 * Adopt an existing on-disk legacy Copilot CLI session in place. The id is
+	 * carried by {@link session}; its SDK event log under
+	 * `~/.copilot/session-state/<id>/` is reused verbatim. The provider seeds the
+	 * agent-host VS Code-layer metadata (only for a genuine extension-host Copilot
+	 * CLI session) and the session is then populated via the normal restore flow.
+	 * Triggered explicitly on user reopen — never on reload auto-restore. Requires
+	 * {@link session} and {@link workingDirectories}.
+	 */
+	readonly adoptExistingSession?: boolean;
 	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
 	 * set, the service reports any long-running session bring-up work — chiefly
@@ -1582,6 +1599,17 @@ export interface IAgent {
 
 	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
+
+	/**
+	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
+	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
+	 * no agent-host metadata yet, seed that metadata in place — reusing the event
+	 * log verbatim — so the normal restore flow can resume it. Returns `true` iff
+	 * it newly adopted the session (so the caller can run a one-time checkpoint
+	 * bridge), `false` otherwise. Optional: providers without a legacy on-disk
+	 * format omit it.
+	 */
+	ensureSessionAdopted?(session: URI): Promise<boolean>;
 
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;

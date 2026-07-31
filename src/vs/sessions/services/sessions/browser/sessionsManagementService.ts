@@ -16,13 +16,14 @@ import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/r
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
-import { buildHostLocalEventsPath, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { buildHostLocalEventsPath, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -186,6 +187,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessions(): ISession[] {
+		// Dedup only affects the displayed list; lookups (`getSession`,
+		// `getSessionForChatResource`) use the raw merged set so an EH row that is
+		// hidden here can still be resolved and migrated when clicked.
+		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
+	}
+
+	private _getMergedSessions(): ISession[] {
 		const sessions: ISession[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			sessions.push(...provider.getSessions());
@@ -193,14 +201,50 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return sessions;
 	}
 
+	/**
+	 * A legacy Copilot CLI session migrated in place to the agent host is briefly
+	 * listed by BOTH the extension-host provider (`copilotcli:/<id>`) and the
+	 * agent-host provider (`agent-host-copilotcli:/<id>`) for the same underlying
+	 * SDK session id — the workbench agent-session model caches the stale legacy
+	 * entry even after the extension stops reporting it. Drop the legacy entry so
+	 * exactly one row shows per session.
+	 */
+	private _dedupeMigratedCopilotCliSessions(sessions: ISession[]): ISession[] {
+		let migratedRawIds: Set<string> | undefined;
+		for (const session of sessions) {
+			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+				const rawId = getCopilotCliSessionRawId(session.resource);
+				if (rawId) {
+					(migratedRawIds ??= new Set<string>()).add(rawId);
+				}
+			}
+		}
+		if (!migratedRawIds) {
+			return sessions;
+		}
+		return sessions.filter(session => {
+			// A legacy Copilot CLI entry is any non-agent-host session of type
+			// `copilotcli`. Its raw id is the last path segment (both surfaces
+			// encode the SDK session id plainly, e.g. `copilotcli:/<rawId>`).
+			if (session.resource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME
+				&& (session.resource.scheme === COPILOT_CLI_EH_SCHEME || session.sessionType === COPILOT_CLI_EH_SCHEME)) {
+				const rawId = getCopilotCliSessionRawId(session.resource) ?? session.resource.path.replace(/^\//, '');
+				if (rawId && migratedRawIds!.has(rawId)) {
+					return false;
+				}
+			}
+			return true;
+		});
+	}
+
 	getSession(resource: URI): ISession | undefined {
-		return this.getSessions().find(s =>
+		return this._getMergedSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 		);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this.getSessions()) {
+		for (const session of this._getMergedSessions()) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };
@@ -459,6 +503,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
 		}
 		return session;
+	}
+
+	async adoptLegacyCliSessionOnOpen(session: ISession): Promise<URI | undefined> {
+		// Legacy Copilot CLI sessions migrate into the local agent-host provider,
+		// regardless of which (legacy) provider currently owns the entry.
+		const provider = this.sessionsProvidersService.getProvider(LOCAL_AGENT_HOST_PROVIDER_ID);
+		const migrated = await provider?.adoptLegacyCliSession?.(session);
+		if (migrated) {
+			// Refresh the aggregated list so the now-duplicate legacy entry is
+			// dropped by `_dedupeMigratedCopilotCliSessions` right away.
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+		}
+		return migrated;
 	}
 
 	async createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {

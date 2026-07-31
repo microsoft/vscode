@@ -350,6 +350,14 @@ export interface ISessionsManagementService {
 	createQuickChat(options?: ICreateNewSessionOptions): ISession;
 
 	/**
+	 * On explicit user reopen, migrate a legacy extension-host Copilot CLI
+	 * session into an agent-host session in place and return the migrated
+	 * agent-host chat resource (so the caller can open it), or `undefined` when
+	 * the session's provider does not support adoption.
+	 */
+	adoptLegacyCliSessionOnOpen(session: ISession): Promise<URI | undefined>;
+
+	/**
 	 * Create (or reuse an existing untitled) chat in the given session via its
 	 * provider so it can be shown as the new-chat-in-session view. Pass
 	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh

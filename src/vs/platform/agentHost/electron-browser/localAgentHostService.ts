@@ -378,7 +378,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 }
 
 function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
-	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined;
+	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined || config.adoptExistingSession === true;
 }
 
 function hasChatExtensions(options: IAgentCreateChatOptions): boolean {

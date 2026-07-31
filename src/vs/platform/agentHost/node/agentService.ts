@@ -1094,6 +1094,40 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
+
+		// Explicit adopt (user reopened a legacy Copilot CLI session): the provider
+		// seeded the VS Code-layer metadata reusing the on-disk event log. Restore
+		// off the critical path — resuming a long session can take many seconds.
+		// Returning immediately lets the client surface and open the migrated
+		// session right away; the editor's own subscribe drives the
+		// (in-flight-deduped) restore behind a loading state. The checkpoint bridge
+		// and announce run once restore completes.
+		if (config?.adoptExistingSession) {
+			void (async () => {
+				try {
+					await this.restoreSession(session);
+					if (created.adopted && this._checkpointService.adoptLegacyCheckpoints) {
+						const checkpointWorkingDirectory = config.workingDirectories?.[0];
+						if (checkpointWorkingDirectory) {
+							const turns = await this._getChatMessages(provider, URI.parse(buildDefaultChatUri(session.toString())));
+							await this._checkpointService.adoptLegacyCheckpoints(session, checkpointWorkingDirectory, AgentSession.id(session), turns.map(t => t.id));
+						}
+					}
+					// Force the announce: `restoreSession` already marked the summary
+					// announced without emitting, so clients that surface sessions purely
+					// from `SessionAdded` (e.g. the editor session list) would otherwise
+					// never see the adopted session.
+					const adoptedKey = session.toString();
+					const adoptedSummary = this._stateManager.getSessionSummary(adoptedKey);
+					if (adoptedSummary) {
+						this._stateManager.markSessionPersisted(adoptedKey, adoptedSummary, true);
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] adopt: background restore/bridge failed for ${session.toString()}`, err);
+				}
+			})();
+			return session;
+		}
 		// Record this session's opt-in so a cold SDK download triggered at
 		// materialization (first message) is surfaced as progress. The download
 		// is provider-global, so we only track interest here; emission is keyed

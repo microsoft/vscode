@@ -36,6 +36,7 @@ import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -2470,6 +2471,126 @@ suite('SessionsManagementService', () => {
 					{ providerId: 'quick-provider', sessionTypeId: 'quick' },
 					{ providerId: 'quick-provider', sessionTypeId: 'other' },
 				],
+			);
+		});
+	});
+
+	suite('legacy Copilot CLI migration', () => {
+
+		const RAW_ID = 'sess-abc';
+
+		function legacyCliSession(): ISession {
+			return stubSession({
+				sessionId: `legacy-${RAW_ID}`,
+				providerId: 'default-copilot',
+				sessionType: COPILOT_CLI_EH_SCHEME,
+				resource: URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${RAW_ID}` }),
+			});
+		}
+
+		function migratedCliSession(): ISession {
+			return stubSession({
+				sessionId: `migrated-${RAW_ID}`,
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				sessionType: COPILOT_CLI_EH_SCHEME,
+				resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` }),
+			});
+		}
+
+		function serviceWithSessions(sessions: readonly ISession[]): ISessionsManagementService {
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessions[0]); }
+				override getSessions(): ISession[] { return [...sessions]; }
+			};
+			return createSessionsManagementService(sessions[0], disposables, provider).service;
+		}
+
+		test('getSessions hides the legacy entry once its migrated agent-host entry exists', () => {
+			const legacy = legacyCliSession();
+			const migrated = migratedCliSession();
+			const service = serviceWithSessions([legacy, migrated]);
+
+			assert.deepStrictEqual(
+				service.getSessions().map(s => s.sessionId),
+				[migrated.sessionId],
+			);
+		});
+
+		test('getSessions keeps the legacy entry visible when no migrated entry exists', () => {
+			const legacy = legacyCliSession();
+			const service = serviceWithSessions([legacy]);
+
+			assert.deepStrictEqual(
+				service.getSessions().map(s => s.sessionId),
+				[legacy.sessionId],
+			);
+		});
+
+		test('getSession still resolves the hidden legacy entry so it can be migrated on open', () => {
+			const legacy = legacyCliSession();
+			const migrated = migratedCliSession();
+			const service = serviceWithSessions([legacy, migrated]);
+
+			// Hidden from the displayed list, yet still resolvable by resource so
+			// an explicit open can trigger migration.
+			assert.deepStrictEqual(
+				{
+					listed: service.getSessions().some(s => s.sessionId === legacy.sessionId),
+					resolved: service.getSession(legacy.resource)?.sessionId ?? null,
+				},
+				{ listed: false, resolved: legacy.sessionId },
+			);
+		});
+
+		test('adoptLegacyCliSessionOnOpen delegates to the local-agent-host provider and returns the migrated resource', async () => {
+			const legacy = legacyCliSession();
+			const migratedResource = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` });
+
+			let adoptedWith: ISession | undefined;
+			const agentHostProvider = new class extends TestSessionsProvider {
+				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				constructor() { super(legacy); }
+				override getSessions(): ISession[] { return [legacy]; }
+				override async adoptLegacyCliSession(session: ISession): Promise<URI | undefined> {
+					adoptedWith = session;
+					return migratedResource;
+				}
+			};
+			const { service } = createSessionsManagementService(legacy, disposables, agentHostProvider);
+
+			let changeCount = 0;
+			disposables.add(service.onDidChangeSessions(() => changeCount++));
+
+			const result = await service.adoptLegacyCliSessionOnOpen(legacy);
+
+			assert.deepStrictEqual(
+				{
+					adoptedWith: adoptedWith?.sessionId ?? null,
+					result: result?.toString() ?? null,
+					changeCount,
+				},
+				{ adoptedWith: legacy.sessionId, result: migratedResource.toString(), changeCount: 1 },
+			);
+		});
+
+		test('adoptLegacyCliSessionOnOpen returns undefined and fires no change when the provider does not migrate', async () => {
+			const legacy = legacyCliSession();
+			const agentHostProvider = new class extends TestSessionsProvider {
+				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				constructor() { super(legacy); }
+				override getSessions(): ISession[] { return [legacy]; }
+				override async adoptLegacyCliSession(): Promise<URI | undefined> { return undefined; }
+			};
+			const { service } = createSessionsManagementService(legacy, disposables, agentHostProvider);
+
+			let changeCount = 0;
+			disposables.add(service.onDidChangeSessions(() => changeCount++));
+
+			const result = await service.adoptLegacyCliSessionOnOpen(legacy);
+
+			assert.deepStrictEqual(
+				{ result: result ?? null, changeCount },
+				{ result: null, changeCount: 0 },
 			);
 		});
 	});

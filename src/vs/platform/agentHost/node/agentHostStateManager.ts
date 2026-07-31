@@ -593,7 +593,7 @@ export class AgentHostStateManager extends Disposable {
 	 * state is authoritative for those. No-ops for sessions that were already
 	 * announced (idempotent).
 	 */
-	markSessionPersisted(session: URI, summary: SessionSummary): void {
+	markSessionPersisted(session: URI, summary: SessionSummary, force = false): void {
 		const key = session.toString();
 		const entry = this._sessionStates.get(key);
 		if (!entry) {
@@ -603,8 +603,12 @@ export class AgentHostStateManager extends Disposable {
 		// The notifier records a session's announced summary whenever it has
 		// been surfaced to clients (either through `createSession` or here);
 		// using it as the idempotency check keeps us from firing `SessionAdded`
-		// twice for a session whose creation was not deferred.
-		if (this._summaryNotifier.isAnnounced(key)) {
+		// twice for a session whose creation was not deferred. `force` overrides
+		// this for adopt, where `restoreSession` marks the summary announced
+		// without ever emitting, so clients (e.g. the workspace-scoped editor
+		// session list) that rely on the notification would otherwise miss it —
+		// a redundant re-announce is harmless (`SessionAdded` is idempotent).
+		if (!force && this._summaryNotifier.isAnnounced(key)) {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling

@@ -187,6 +187,60 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		await this._sequencer.queue(sessionUri.toString(), () => this._disposeSessionData(sessionUri));
 	}
 
+	adoptLegacyCheckpoints(sessionUri: URI, workingDirectory: URI, rawSessionId: string, turnIds: readonly string[]): Promise<void> {
+		return this._sequencer.queue(sessionUri.toString(), () => this._adoptLegacyCheckpoints(sessionUri, workingDirectory, rawSessionId, turnIds));
+	}
+
+	private async _adoptLegacyCheckpoints(sessionUri: URI, workingDirectory: URI, rawSessionId: string, turnIds: readonly string[]): Promise<void> {
+		const repoRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		if (!repoRoot || !this._gitService.listRefNamesWithOids) {
+			return; // non-git session (no checkpoints existed) or capability unavailable
+		}
+		// Legacy EH checkpoint refs are `refs/sessions/<id>/checkpoints/turn/<N>`.
+		// Pass the id prefix (no glob) so git's for-each-ref prefix match returns
+		// every nested ref regardless of depth.
+		const legacy = await this._gitService.listRefNamesWithOids(repoRoot, `refs/sessions/${rawSessionId}`);
+		if (legacy.length === 0) {
+			return;
+		}
+		// Parse the turn number from each legacy ref's trailing path segment.
+		const oidByTurn = new Map<number, string>();
+		for (const { ref, oid } of legacy) {
+			const n = parseInt(ref.substring(ref.lastIndexOf('/') + 1), 10);
+			if (Number.isFinite(n)) {
+				oidByTurn.set(n, oid);
+			}
+		}
+		const sanitized = this._sanitizedSessionId(sessionUri);
+		// Re-point each legacy commit under the agent-host ref namespace (same OIDs).
+		const refByTurn = new Map<number, string>();
+		for (const [n, oid] of oidByTurn) {
+			const refName = buildCheckpointRefName(sanitized, n);
+			await this._gitService.updateRef(repoRoot, refName, oid);
+			refByTurn.set(n, refName);
+		}
+		const ref = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			const baseRef = refByTurn.get(0);
+			if (baseRef) {
+				await ref.object.setMetadata(META_CHECKPOINT_BASE_REF, baseRef);
+				await ref.object.setMetadata(META_CHECKPOINT_WORKING_DIR, workingDirectory.toString());
+			}
+			// The i-th resumed turn (0-based) corresponds to end-of-turn checkpoint N=i+1.
+			for (let i = 0; i < turnIds.length; i++) {
+				const refName = refByTurn.get(i + 1);
+				if (refName) {
+					await ref.object.setTurnCheckpointRef(turnIds[i], refName);
+				}
+			}
+		} finally {
+			ref.dispose();
+		}
+		// Drop the legacy refs now the commits are reachable via the agent-host namespace.
+		await this._gitService.deleteRefs(repoRoot, legacy.map(l => l.ref)).catch(() => { });
+		this._logService.info(`[AgentHostCheckpoint] Adopted ${refByTurn.size} legacy checkpoint refs for ${sessionUri.toString()}`);
+	}
+
 	private async _disposeSessionData(sessionUri: URI): Promise<void> {
 		const refHandle = await this._sessionDataService.tryOpenDatabase(sessionUri);
 		if (!refHandle) {

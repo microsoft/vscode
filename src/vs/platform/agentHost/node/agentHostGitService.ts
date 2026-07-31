@@ -595,6 +595,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return out?.trim() || undefined;
 	}
 
+	async listRefNamesWithOids(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>> {
+		const out = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(objectname)', pattern]);
+		if (!out) {
+			return [];
+		}
+		const result: Array<{ ref: string; oid: string }> = [];
+		for (const line of out.split('\n')) {
+			const trimmed = line.trim();
+			if (!trimmed) {
+				continue;
+			}
+			const [ref, oid] = trimmed.split('\x00');
+			if (ref && oid) {
+				result.push({ ref, oid });
+			}
+		}
+		return result;
+	}
+
 	async overlayPathIntoTree(repositoryRoot: URI, baseTreeOid: string, path: string, sourceTreeOid: string): Promise<string | undefined> {
 		// Build a throwaway index seeded from `baseTreeOid`, replace/remove the
 		// single `path` using `sourceTreeOid`, and write the result back out as

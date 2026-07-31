@@ -195,6 +195,16 @@ export interface ISessionsProvider {
 	createQuickChat(sessionTypeId: string): ISession;
 
 	/**
+	 * Migrate a legacy extension-host Copilot CLI session into an agent-host
+	 * session in place, triggered on explicit user reopen. Adopts the on-disk
+	 * event log verbatim (idempotent) and returns the agent-host chat resource of
+	 * the migrated session so the caller can open it, or `undefined` when the
+	 * provider cannot adopt. Optional.
+	 * @param session The legacy session the user is reopening.
+	 */
+	adoptLegacyCliSession?(session: ISession): Promise<URI | undefined>;
+
+	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via
 	 * {@link createNewSession}, removing it from the provider's tracking and
 	 * releasing any resources it eagerly acquired (e.g. a backend session).

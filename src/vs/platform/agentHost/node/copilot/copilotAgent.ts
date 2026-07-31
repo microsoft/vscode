@@ -1542,7 +1542,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const mapped = await Promise.all(sessions.map(async s => {
 			const session = AgentSession.uri(this.id, s.sessionId);
 			const metadata = await this._readStoredSessionMetadata(session);
-			if (!metadata) {
+			// Only list sessions the agent host actually owns: a genuine native /
+			// already-migrated session has a persisted working directory. The DB
+			// file alone can exist without real metadata (created empty by
+			// checkpoint / changeset / git services), and legacy extension-host
+			// Copilot CLI sessions have an on-disk event log but no agent-host
+			// metadata — neither should appear here. Legacy sessions are migrated on
+			// explicit open, not surfaced as duplicate entries.
+			if (!metadata?.workingDirectory) {
 				return undefined;
 			}
 			let { project, resolved } = metadata;
@@ -1897,6 +1904,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._importConversation(sessionConfig, sessionId, workingDirectory);
 		}
 
+		if (sessionConfig.adoptExistingSession) {
+			const sessionUri = AgentSession.uri(this.id, sessionId);
+			const adopted = await this.ensureSessionAdopted(sessionUri);
+			// `resolvedWorkingDirectory` / `project` are unused for adopt (the host
+			// returns immediately and drives the rest via `restoreSession`), so we
+			// skip resolving them again here — `ensureSessionAdopted` already seeded
+			// the working directory and project from the authoritative SDK cwd.
+			return { session: sessionUri, adopted };
+		}
+
 		// Non-fork path: create a *provisional* session. The Copilot SDK
 		// session, the worktree (if any), and the on-disk metadata are all
 		// deferred until the first {@link sendMessage} via
@@ -2012,6 +2029,72 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._resumeSession(sessionId);
 			this._logService.info(`[Copilot] Imported session created: ${sessionUri.toString()}`);
 			return { session: sessionUri, resolvedWorkingDirectory: workingDirectory, ...(project ? { project } : {}) };
+		});
+	}
+
+	/**
+	 * Whether an on-disk Copilot session was created by the VS Code extension-host
+	 * Copilot CLI feature — identified by its `vscode.metadata.json` marker under
+	 * `~/.copilot/session-state/<id>/`. Distinguishes EH CLI sessions (the only
+	 * ones we migrate) from other Copilot SDK sessions that share the same store
+	 * (standalone `copilot` CLI runs, Local agent sessions, …).
+	 */
+	private async _isExtensionHostCliSession(sessionId: string): Promise<boolean> {
+		const markerPath = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sessionId, 'vscode.metadata.json');
+		try {
+			await fs.access(markerPath);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Adopt-on-open for legacy extension-host Copilot CLI sessions. If `session`
+	 * has an on-disk SDK event log (`~/.copilot/session-state/<id>/`) but no
+	 * agent-host VS Code-layer metadata yet, seed that metadata in place — reusing
+	 * the event log verbatim — so the normal restore flow can resume it as editable
+	 * turns. Returns `true` iff it newly adopted the session (so the caller can run
+	 * the one-time checkpoint bridge); `false` when already migrated / native or
+	 * not an adoptable on-disk session.
+	 */
+	async ensureSessionAdopted(session: URI): Promise<boolean> {
+		const sessionId = AgentSession.id(session);
+		return this._sessionSequencer.queue(sessionId, async () => {
+			// A genuine native / already-adopted session always has a persisted
+			// working directory. The session DB FILE can also exist without any
+			// real metadata (checkpoint / changeset / git services create it via
+			// `openDatabase`), so gate on `workingDirectory` — not mere DB
+			// existence — to avoid falsely treating an empty DB as migrated.
+			const existing = await this._readStoredSessionMetadata(session);
+			if (existing?.workingDirectory) {
+				return false; // already native / adopted
+			}
+			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
+			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
+			if (!(await this._isExtensionHostCliSession(sessionId))) {
+				return false;
+			}
+			const client = await this._ensureClient();
+			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
+			const workingDirectory = typeof sdkMetadata?.context?.workingDirectory === 'string' ? URI.file(sdkMetadata.context.workingDirectory) : undefined;
+			if (!workingDirectory) {
+				return false; // no adoptable on-disk session
+			}
+			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl)`);
+			// Resolve the project from the SDK-derived cwd (authoritative) — the
+			// caller may not have supplied a working directory (e.g. the chat
+			// editor), so we cannot trust a hint.
+			const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			// Seed VS Code-layer metadata only — the SDK event log on disk is
+			// untouched. Writing `agentSessionData/<sanitizedId>/session.db` here
+			// is also what makes the legacy extension-host Copilot CLI list stop
+			// showing this session (it dedups against agent-host-owned session ids).
+			// `isolation: 'folder'` keeps the session in place in the reused cwd —
+			// a git repo would otherwise default to worktree and show a spurious
+			// "Creating worktree…".
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' });
+			return true;
 		});
 	}
 
@@ -3417,7 +3500,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -3445,6 +3528,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (project) {
 				work.push(db.setMetadata(CopilotAgent._META_PROJECT_URI, project.uri.toString()));
 				work.push(db.setMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME, project.displayName));
+			}
+			// Persisted the same way `AgentService._persistConfigValues` writes them,
+			// so restore's config resolution overlays them (used by adopt to force
+			// folder isolation) — folded into this write to avoid a second DB open.
+			if (configValues) {
+				work.push(db.setMetadata('configValues', JSON.stringify(configValues)));
 			}
 			await Promise.all(work);
 		} finally {
@@ -3702,7 +3791,15 @@ class SessionDiscoveredEntry extends Disposable {
 				}
 				throw err;
 			});
-		}, delay);
+		}, delay).catch(err => {
+			// The delayer rejects a pending trigger with `CancellationError` when
+			// cancelled or disposed (session teardown). Swallow it so the stored
+			// `_settled` promise never surfaces an unhandled rejection.
+			if (err instanceof CancellationError) {
+				return;
+			}
+			throw err;
+		});
 	}
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {
