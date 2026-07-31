@@ -6,6 +6,7 @@
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -111,19 +112,8 @@ export class AgentHostPromptCacheNotification extends Disposable {
 			telemetryId: 'copilot.promptCacheExpired',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('promptCacheExpiration.title', "This chat's prompt cache is stale"),
-			description: localize('promptCacheExpiration.description', "The next prompt will incur increased cost. Consider starting a new chat."),
+			description: new MarkdownString(localize('promptCacheExpiration.description', "The next prompt will incur increased cost. Consider starting a new chat. [Learn more]({0})", PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL)),
 			actions: [
-				{
-					kind: ChatInputNotificationActionKind.Command,
-					label: localize('promptCacheExpiration.dontShowAgain', "Don't Show Again"),
-					commandId: DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND,
-				},
-				{
-					kind: ChatInputNotificationActionKind.Command,
-					label: localize('promptCacheExpiration.learnMore', "Learn More"),
-					commandId: 'vscode.open',
-					commandArgs: [URI.parse(PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL)],
-				},
 				{
 					kind: ChatInputNotificationActionKind.Command,
 					label: localize('promptCacheExpiration.startNewChat', "Start New Chat"),
@@ -131,7 +121,11 @@ export class AgentHostPromptCacheNotification extends Disposable {
 				},
 			],
 			dismissible: true,
-			autoDismissOnMessage: false,
+			autoDismissOnMessage: true,
+			mute: {
+				commandId: DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND,
+				tooltip: localize('promptCacheExpiration.dontShowAgain', "Don't Show Again"),
+			},
 			sessionResources: [sessionResource],
 		});
 	}
