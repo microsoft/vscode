@@ -60,6 +60,20 @@ parameters:
     displayName: "🎯 Windows x64"
     type: boolean
     default: true
+  # Lets a single test type be exercised on its own, e.g. to chase a flake that
+  # only shows up in one of the three, without paying for the other two.
+  - name: VSCODE_TEST_UNIT
+    displayName: "🧪 Unit Tests"
+    type: boolean
+    default: true
+  - name: VSCODE_TEST_INTEGRATION
+    displayName: "🧪 Integration Tests"
+    type: boolean
+    default: true
+  - name: VSCODE_TEST_SMOKE
+    displayName: "🧪 Smoke Tests"
+    type: boolean
+    default: true
 
 variables:
   - name: VSCODE_QUALITY
@@ -184,21 +198,24 @@ extends:
             name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
-            - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Unit
-                iterations: ${{ parameters.iterations }}
-            - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Integration
-                iterations: ${{ parameters.iterations }}
-            - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Smoke
-                iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
+              - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Unit
+                  iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+              - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Integration
+                  iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
+              - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Smoke
+                  iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - stage: Windows
@@ -208,21 +225,24 @@ extends:
             name: 1es-windows-2022-x64
             os: windows
           jobs:
-            - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Unit
-                iterations: ${{ parameters.iterations }}
-            - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Integration
-                iterations: ${{ parameters.iterations }}
-            - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Smoke
-                iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
+              - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Unit
+                  iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+              - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Integration
+                  iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
+              - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Smoke
+                  iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
         - stage: macOS
@@ -232,15 +252,18 @@ extends:
             name: AcesShared
             os: macOS
           jobs:
-            - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
-              parameters:
-                VSCODE_TEST_SUITE: Unit
-                iterations: ${{ parameters.iterations }}
-            - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
-              parameters:
-                VSCODE_TEST_SUITE: Integration
-                iterations: ${{ parameters.iterations }}
-            - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
-              parameters:
-                VSCODE_TEST_SUITE: Smoke
-                iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
+              - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
+                parameters:
+                  VSCODE_TEST_SUITE: Unit
+                  iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+              - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
+                parameters:
+                  VSCODE_TEST_SUITE: Integration
+                  iterations: ${{ parameters.iterations }}
+            - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
+              - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
+                parameters:
+                  VSCODE_TEST_SUITE: Smoke
+                  iterations: ${{ parameters.iterations }}
