@@ -245,6 +245,9 @@ export class AgentSideEffects extends Disposable {
 					case ActionType.ChatError:
 						this._inputRequestTracker.clearTurn(envelope.channel, action.turnId);
 						break;
+					case ActionType.ChatTruncated:
+						this._inputRequestTracker.clearChat(envelope.channel);
+						break;
 				}
 				if (envelope.action.type === ActionType.ChatTurnCancelled) {
 					let turnIds = this._cancelledTurnIds.get(envelope.channel);

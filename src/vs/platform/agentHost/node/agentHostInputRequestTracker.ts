@@ -97,6 +97,14 @@ export class AgentHostInputRequestTracker {
 		}
 	}
 
+	clearChat(session: string): void {
+		for (const [key, timing] of this._pending) {
+			if (timing.session === session) {
+				this._pending.delete(key);
+			}
+		}
+	}
+
 	clearAgentSession(session: string): void {
 		for (const [key, timing] of this._pending) {
 			const owningSession = isAhpChatChannel(timing.session) ? parseRequiredSessionUriFromChatUri(timing.session) : timing.session;

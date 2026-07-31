@@ -193,13 +193,17 @@ suite('AgentHostInputRequestTracker', () => {
 		tracker.clearTurn(rootChat, 'turn-1');
 		tracker.inputCompleted(rootChat, accept(request.id), completedState(rootChat, 'turn-1', request));
 
-		tracker.inputRequested('mock', subagentChat, 'turn-2', { ...request, id: 'request-2' });
-		tracker.clearAgentSession(rootSession);
-		tracker.inputCompleted(subagentChat, accept('request-2'), completedState(subagentChat, 'turn-2', { ...request, id: 'request-2' }));
+		tracker.inputRequested('mock', rootChat, 'turn-2', { ...request, id: 'request-2' });
+		tracker.clearChat(rootChat);
+		tracker.inputCompleted(rootChat, accept('request-2'), completedState(rootChat, 'turn-2', { ...request, id: 'request-2' }));
 
-		tracker.inputRequested('mock', rootChat, 'turn-3', { ...request, id: 'request-3' });
+		tracker.inputRequested('mock', subagentChat, 'turn-3', { ...request, id: 'request-3' });
+		tracker.clearAgentSession(rootSession);
+		tracker.inputCompleted(subagentChat, accept('request-3'), completedState(subagentChat, 'turn-3', { ...request, id: 'request-3' }));
+
+		tracker.inputRequested('mock', rootChat, 'turn-4', { ...request, id: 'request-4' });
 		tracker.clear();
-		tracker.inputCompleted(rootChat, accept('request-3'), completedState(rootChat, 'turn-3', { ...request, id: 'request-3' }));
+		tracker.inputCompleted(rootChat, accept('request-4'), completedState(rootChat, 'turn-4', { ...request, id: 'request-4' }));
 
 		assert.deepStrictEqual(telemetry.events, []);
 	});

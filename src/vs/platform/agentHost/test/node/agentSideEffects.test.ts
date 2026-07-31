@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -5014,6 +5014,38 @@ suite('AgentSideEffects', () => {
 					isSubagentSession: false,
 				},
 			});
+		});
+
+		test('chat truncation clears pending ask-user telemetry', () => {
+			setupSession();
+			startTurn('turn-1');
+
+			const request: ChatInputRequest = {
+				id: 'req-1',
+				purpose: ChatInputRequestPurpose.AskUser,
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+			};
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTruncated,
+			});
+
+			startTurn('turn-2');
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputCompleted,
+				requestId: request.id,
+				response: SessionInputResponseKind.Accept,
+			});
+
+			const events = telemetryService.events.filter(event => event.eventName === 'askQuestionsToolInvoked');
+			assert.deepStrictEqual(events.map(event => (event.data as IAgentHostAskQuestionsToolInvokedEvent).requestId), ['turn-2']);
 		});
 
 		test('chat input request without an active turn is not mirrored', () => {
