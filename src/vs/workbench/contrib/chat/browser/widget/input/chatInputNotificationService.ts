@@ -62,7 +62,7 @@ export interface IChatInputNotification {
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
 	readonly message: string | IMarkdownString;
-	readonly description: string | undefined;
+	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
 	readonly dismissible: boolean;
 	readonly autoDismissOnMessage: boolean;
@@ -247,7 +247,8 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			return;
 		}
 		const rawMessage = typeof notification.message === 'string' ? notification.message : notification.message.value;
-		const signature = `${notification.id}\u0000${rawMessage}\u0000${notification.description ?? ''}`;
+		const rawDescription = typeof notification.description === 'string' ? notification.description : notification.description?.value ?? '';
+		const signature = `${notification.id}\u0000${rawMessage}\u0000${rawDescription}`;
 		if (this._announcedById.get(notification.id) === signature) {
 			return;
 		}
@@ -256,7 +257,8 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		// targets, etc. verbatim. Done after the de-dupe check so we don't pay
 		// the parse cost on unrelated re-renders.
 		const message = renderAsPlaintext(notification.message);
-		const text = notification.description ? `${message}. ${notification.description}` : message;
+		const description = notification.description ? renderAsPlaintext(notification.description) : '';
+		const text = description ? `${message}. ${description}` : message;
 		status(text);
 	}
 }
