@@ -39,7 +39,7 @@ import { createNoopGitService, createSessionDataService, TestSessionDatabase } f
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
@@ -1297,6 +1297,51 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.deepStrictEqual(sessions[0]._meta, { workspaceless: true });
+		});
+
+		test('listSessions normalizes a persisted linked-worktree project', async () => {
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
+			const sessionId = 'test-session-linked-worktree';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = {
+				workingDirectories: [sessionWorktree],
+				project: { uri: linkedCheckout, displayName: 'parent' },
+			};
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const gitService = createNoopGitService();
+			let resolvedFrom: URI | undefined;
+			let resolutionCount = 0;
+			gitService.getWorktreeRoots = async workingDirectory => {
+				resolvedFrom = workingDirectory;
+				resolutionCount++;
+				if (workingDirectory.toString() === sessionWorktree.toString()) {
+					return [];
+				}
+				return [primaryRoot, linkedCheckout, sessionWorktree];
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+			await svc.listSessions();
+
+			assert.deepStrictEqual({
+				resolutionCount,
+				resolvedFrom: resolvedFrom?.toString(),
+				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+			}, {
+				resolutionCount: 2,
+				resolvedFrom: linkedCheckout.toString(),
+				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
+				persistedRepositoryRoot: primaryRoot.toString(),
+			});
 		});
 
 		test('listSessions uses SDK title when no custom title exists', async () => {
