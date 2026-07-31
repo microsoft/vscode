@@ -138,9 +138,7 @@ suite('DictationSession', () => {
 
 		await startDictation(service, editor, mainWindow, new NullLogService());
 		onDidUpdateTranscript.fire({ text: 'one two', finalizedText: '' });
-		// The user bumps the keyboard mid-dictation; the character types at the
-		// caret, which must be parked at the end of the dictated region so it is
-		// appended rather than inserted at the beginning of the input.
+		// A bumped key must be appended at the hidden caret after the dictated region.
 		editor.trigger('test', 'type', { text: 'x' });
 		// More speech arrives and is appended after the stray character rather
 		// than jumping to the start of the input.
