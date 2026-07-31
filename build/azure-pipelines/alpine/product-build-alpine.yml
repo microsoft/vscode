@@ -84,11 +84,6 @@ jobs:
         parameters:
           installRuntimeToolchain: true
 
-      # Alpine is musl Linux; the runtime stages those prebuilds under `linuxmusl-*`.
-      - template: ../copilot/download-runtime-artifact.yml@self
-        parameters:
-          VSCODE_COPILOT_TARGET: linuxmusl-${{ parameters.VSCODE_ARCH }}
-
       - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts alpine $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
@@ -224,6 +219,11 @@ jobs:
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX
+
+      # Alpine is musl Linux; the runtime stages those prebuilds under `linuxmusl-*`.
+      - template: ../copilot/download-runtime-artifact.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: linuxmusl-${{ parameters.VSCODE_ARCH }}
 
       - script: |
           set -e

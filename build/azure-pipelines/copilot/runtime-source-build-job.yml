@@ -27,12 +27,17 @@ jobs:
     # A cold Rust build of the runtime takes ~20 minutes; leave room for a slow
     # agent without letting a hung build hold the release for an hour.
     timeoutInMinutes: 60
+    # The override is committed to package.json, which nothing can read until a
+    # job is on an agent, so Detect reads it and this job asks Detect. A normal
+    # build skips here without ever acquiring an agent.
+    dependsOn: CopilotRuntimeDetect
     ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME_CANARY, true) }}:
-      # Every cron triggers this pipeline; the canary only wants one of them.
-      condition: and(succeeded(), eq(variables['Build.CronSchedule.DisplayName'], variables['VSCODE_COPILOT_RUNTIME_CANARY_CRON']))
+      condition: eq(dependencies.CopilotRuntimeDetect.outputs['detect.VSCODE_COPILOT_RUNTIME_SOURCE'], 'true')
       # A scheduled build publishes. Losing the canary must never fail it — the
       # signal is the job's own result, not the build's.
       continueOnError: true
+    ${{ else }}:
+      condition: eq(dependencies.CopilotRuntimeDetect.outputs['detect.VSCODE_COPILOT_RUNTIME_SOURCE'], 'true')
     ${{ if startsWith(parameters.VSCODE_COPILOT_TARGET, 'win32') }}:
       pool:
         name: 1es-windows-2022-x64

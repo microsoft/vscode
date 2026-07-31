@@ -182,8 +182,13 @@ async function main(): Promise<void> {
 	let runtimeGit = overrides.find((o): o is GitOverride => o.pkg === 'runtime' && o.kind === 'git');
 
 	// Signal the pipeline (gates the Key Vault + Rust toolchain steps) as early as
-	// possible so `--detect` can run before them.
-	console.log(`##vso[task.setvariable variable=VSCODE_COPILOT_RUNTIME_SOURCE]${runtimeGit || pinnedSource ? 'true' : 'false'}`);
+	// possible so `--detect` can run before them. `isOutput` additionally exposes it
+	// to other jobs, which is how the CopilotRuntime stage's detect job decides
+	// whether its eight build jobs run at all: stages are selected before anything
+	// runs, so package.json cannot be read until a job is on an agent.
+	const runtimeSource = runtimeGit || pinnedSource ? 'true' : 'false';
+	console.log(`##vso[task.setvariable variable=VSCODE_COPILOT_RUNTIME_SOURCE]${runtimeSource}`);
+	console.log(`##vso[task.setvariable variable=VSCODE_COPILOT_RUNTIME_SOURCE;isOutput=true]${runtimeSource}`);
 	if (detectOnly) {
 		return;
 	}

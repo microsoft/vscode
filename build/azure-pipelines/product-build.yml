@@ -126,17 +126,6 @@ parameters:
     displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
     type: string
     default: auto
-  # copilotOverride (package.json): pin @github/copilot-sdk / @github/copilot to
-  # a feed version or build from source at a commit SHA. 'default' uses
-  # the committed package.json copilotOverride field.
-  - name: VSCODE_COPILOT_SDK
-    displayName: "Copilot override: @github/copilot-sdk ('default' = use package.json)"
-    type: string
-    default: default
-  - name: VSCODE_COPILOT_RUNTIME
-    displayName: "Copilot override: @github/copilot ('default' = use package.json)"
-    type: string
-    default: default
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -156,41 +145,21 @@ variables:
       value: ""
     ${{ else }}:
       value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
-  # Normalize the 'default' sentinel to empty so apply-copilot-override falls back
-  # to the committed package.json copilotOverride field; a non-'default' value overrides it.
+  # The Copilot overrides live in package.json `copilotOverride` and nowhere else,
+  # so a build is fully described by its commit and a runtime pin goes through
+  # code review like any other change. These stay defined but empty because the
+  # templates pass them to apply-copilot-override.ts, which treats empty as
+  # "use package.json"; the canary sets VSCODE_COPILOT_RUNTIME at job scope.
   - name: VSCODE_COPILOT_SDK
-    ${{ if eq(parameters.VSCODE_COPILOT_SDK, 'default') }}:
-      value: ""
-    ${{ else }}:
-      value: ${{ parameters.VSCODE_COPILOT_SDK }}
+    value: ""
   - name: VSCODE_COPILOT_RUNTIME
-    ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME, 'default') }}:
-      value: ""
-    ${{ else }}:
-      value: ${{ parameters.VSCODE_COPILOT_RUNTIME }}
-  # Whether to run the CopilotRuntime stage, which builds @github/copilot from
-  # source on dedicated per-target agents. Stages are selected before anything
-  # runs, so this can only key off the queue-time parameter — not off whether that
-  # value turns out to be a commit (source build) or a version (feed). It is
-  # therefore deliberately over-inclusive: a feed override also runs the stage,
-  # whose jobs then detect they have nothing to build and exit. A source override
-  # committed to package.json instead of passed here gets no stage at all and
-  # falls back to building in the packaging jobs.
-  #
-  # An explicit lowercase literal, not ${{ ne(...) }}: the packaging jobs compare
-  # it in a runtime condition, and ${{ }} would emit 'True'/'False'.
-  - name: VSCODE_COPILOT_RUNTIME_STAGE
-    ${{ if or(ne(parameters.VSCODE_COPILOT_RUNTIME, 'default'), eq(variables['Build.Reason'], 'Schedule')) }}:
-      value: "true"
-    ${{ else }}:
-      value: "false"
-  # Canary mode: a scheduled build nobody asked for a runtime override on runs
-  # the stage purely to prove the hotfix path still works, against the commit the
-  # pinned release was built from. Its artifacts are deliberately NOT wired into
-  # packaging — a scheduled build publishes, and a canary must never change what
-  # ships nor fail a build that does.
+    value: ""
+  # Canary mode: a scheduled build runs the CopilotRuntime stage against the
+  # commit the pinned release was built from, purely to prove the hotfix path
+  # still works. A scheduled build publishes, so the canary is kept out of its
+  # way — it never changes what ships and never fails a build that does.
   - name: VSCODE_COPILOT_RUNTIME_CANARY
-    ${{ if and(eq(parameters.VSCODE_COPILOT_RUNTIME, 'default'), eq(variables['Build.Reason'], 'Schedule')) }}:
+    ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
       value: "true"
     ${{ else }}:
       value: "false"
@@ -362,29 +331,31 @@ extends:
       # Builds @github/copilot from source per target and publishes each as an
       # artifact the packaging stages consume, so the Rust build runs on an agent
       # that exists for it rather than inside nine packaging jobs.
-      - ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
-        - stage: CopilotRuntime
-          displayName: Copilot Runtime
-          dependsOn: []
-          jobs:
-            - template: build/azure-pipelines/copilot/runtime-source-build.yml@self
-              parameters:
-                VSCODE_COPILOT_RUNTIME_CANARY: ${{ eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'true') }}
-                VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-                VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
-                VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
-                VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
-                VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
-                VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
-                VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
-                VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
+      #
+      # Always present, and nothing depends on it. The override is committed to
+      # package.json, which cannot be read while stages are being selected, so a
+      # Detect job inside the stage reads it and gates the eight build jobs. The
+      # packaging stages stay independent and wait for an artifact only if their
+      # own copy of package.json says one is coming.
+      - stage: CopilotRuntime
+        displayName: Copilot Runtime
+        dependsOn: []
+        jobs:
+          - template: build/azure-pipelines/copilot/runtime-source-build.yml@self
+            parameters:
+              VSCODE_COPILOT_RUNTIME_CANARY: ${{ eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'true') }}
+              VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+              VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+              VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
+              VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
+              VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
+              VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
+              VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+              VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
-          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
-            dependsOn: CopilotRuntime
-          ${{ else }}:
-            dependsOn: []
+          dependsOn: []
           pool:
             name: 1es-windows-2022-x64
             os: windows
@@ -438,10 +409,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
-          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
-            dependsOn: CopilotRuntime
-          ${{ else }}:
-            dependsOn: []
+          dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
@@ -512,10 +480,7 @@ extends:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
-          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
-            dependsOn: CopilotRuntime
-          ${{ else }}:
-            dependsOn: []
+          dependsOn: []
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
@@ -536,10 +501,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
-          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
-            dependsOn: CopilotRuntime
-          ${{ else }}:
-            dependsOn: []
+          dependsOn: []
           pool:
             name: AcesShared
             os: macOS

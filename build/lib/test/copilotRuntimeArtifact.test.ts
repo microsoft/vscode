@@ -214,6 +214,37 @@ suite('copilot runtime artifact pipeline wiring', () => {
 		}
 	});
 
+	/**
+	 * The wait short-circuits when the producing job fails, but only if it can
+	 * find that job — an unrecognised producer name degrades to blocking for the
+	 * full hour instead, which during a hotfix is indistinguishable from a hang.
+	 */
+	test('the download waits on a producer job that exists', () => {
+		const job = fs.readFileSync(path.join(PIPELINES, 'runtime-source-build-job.yml'), 'utf8');
+		const download = fs.readFileSync(path.join(PIPELINES, 'download-runtime-artifact.yml'), 'utf8');
+		const declared = /^\s*-\s*job:\s*(.+?)\s*$/m.exec(job)?.[1];
+		assert.ok(declared, 'runtime-source-build-job.yml declares no job name');
+
+		for (const target of copilotPlatforms) {
+			const producer = /--producer=[^=]+=([^"\s]+)/.exec(render(download, target))?.[1];
+			assert.strictEqual(producer, render(declared, target), `producer job for ${target}`);
+		}
+	});
+
+	/**
+	 * package.json cannot be read while stages are being selected, so a job has to
+	 * read it and the build jobs have to ask that job.
+	 */
+	test('the build jobs are gated on the detect job', () => {
+		const job = fs.readFileSync(path.join(PIPELINES, 'runtime-source-build-job.yml'), 'utf8');
+		const fanOut = fs.readFileSync(path.join(PIPELINES, 'runtime-source-build.yml'), 'utf8');
+		const detect = /^\s*-\s*job:\s*(\S+)\s*$/m.exec(fanOut)?.[1];
+		assert.ok(detect, 'runtime-source-build.yml declares no detect job');
+
+		assert.match(job, new RegExp(`dependsOn:\\s*${detect}`), 'build jobs must depend on the detect job');
+		assert.match(job, new RegExp(`dependencies\\.${detect}\\.outputs\\['detect\\.VSCODE_COPILOT_RUNTIME_SOURCE'\\]`), 'build jobs must gate on the detect output');
+	});
+
 	test('the download lands where the packaging code looks for it', () => {
 		for (const target of copilotPlatforms) {
 			const downloadPath = valueOf('download-runtime-artifact.yml', 'path', target);

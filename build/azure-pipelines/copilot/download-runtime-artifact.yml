@@ -1,15 +1,17 @@
-# Downloads the `@github/copilot` package the CopilotRuntime stage built for this
-# job's target, so gulp packaging consumes it instead of compiling the runtime
-# here. See build/lib/copilotRuntimeSource.ts.
+# Waits for and downloads the `@github/copilot` package the CopilotRuntime stage
+# built for this job's target, so gulp packaging consumes it instead of compiling
+# the runtime here. See build/lib/copilotRuntimeSource.ts.
 #
-# A no-op unless this build both requested a runtime override at queue time
-# (VSCODE_COPILOT_RUNTIME_STAGE — so the producing stage exists, and
-# VSCODE_COPILOT_RUNTIME_CANARY — so it built this build's commit rather than
-# running as the nightly canary) and resolved it to a source build
-# (VSCODE_COPILOT_RUNTIME_SOURCE, set by the apply step). When any of those is
-# false the packaging job falls back to building the target in place, which is
-# also what happens when the override is committed to package.json rather than
-# passed at queue time.
+# A no-op unless this job's own package.json asks for a runtime source build
+# (VSCODE_COPILOT_RUNTIME_SOURCE, set by the apply step) — the same file the
+# producing stage read, so the two never disagree.
+#
+# Waits rather than depending on the stage: a stage dependency would hold every
+# packaging job at the gate even when nothing is being overridden. Belongs late
+# in the job, after the ~20 minutes of compiling that the runtime build overlaps
+# with, so the wait is normally already satisfied when it is reached. Naming the
+# producer lets the wait fail fast when that target's build failed instead of
+# blocking for an hour.
 
 parameters:
   # A `@github/copilot-<platform>-<arch>` target, e.g. `linuxmusl-arm64`.
@@ -17,8 +19,14 @@ parameters:
     type: string
 
 steps:
+  - script: node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)copilot_runtime_${{ replace(parameters.VSCODE_COPILOT_TARGET, '-', '_') }}=CopilotRuntime_${{ replace(parameters.VSCODE_COPILOT_TARGET, '-', '_') }}" $(ARTIFACT_PREFIX)copilot_runtime_${{ replace(parameters.VSCODE_COPILOT_TARGET, '-', '_') }}
+    condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Wait for ${{ parameters.VSCODE_COPILOT_TARGET }} runtime artifact
+
   - task: DownloadPipelineArtifact@2
-    condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false'), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
     inputs:
       artifact: $(ARTIFACT_PREFIX)copilot_runtime_${{ replace(parameters.VSCODE_COPILOT_TARGET, '-', '_') }}
       patterns: "**"

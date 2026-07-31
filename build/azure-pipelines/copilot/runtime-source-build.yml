@@ -5,6 +5,13 @@
 # carry an unpublished runtime commit, so it is built to fail loudly and early
 # rather than 40 minutes into packaging.
 #
+# The override lives in package.json, which the pipeline cannot read when it
+# decides which stages exist — template expressions have no file I/O, and nothing
+# is on an agent yet. So this stage always exists, and a single cheap Detect job
+# reads package.json and gates the eight build jobs behind it. A normal build
+# pays for that one job and nothing else: the build jobs are skipped without ever
+# acquiring an agent, and no other stage waits on this one.
+#
 # Targets mirror the platform toggles, so a partial build does not compile
 # runtimes nobody will package. A target that is skipped here but turns out to be
 # needed is not a failure: the packaging job falls back to building it in place
@@ -33,6 +40,34 @@ parameters:
     type: boolean
 
 jobs:
+  - job: CopilotRuntimeDetect
+    displayName: Detect
+    timeoutInMinutes: 20
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME_CANARY, true) }}:
+      # Every cron triggers this pipeline; the canary only wants one of them.
+      condition: and(succeeded(), eq(variables['Build.CronSchedule.DisplayName'], variables['VSCODE_COPILOT_RUNTIME_CANARY_CRON']))
+      variables:
+        # Nobody committed an override, so verify against the commit the pinned
+        # runtime version was released from.
+        VSCODE_COPILOT_RUNTIME: pinned-source
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      # Publishes VSCODE_COPILOT_RUNTIME_SOURCE for the build jobs' conditions.
+      - script: node build/azure-pipelines/common/apply-copilot-override.ts --detect
+        name: detect
+        env:
+          VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+        displayName: Copilot override — detect
+
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:

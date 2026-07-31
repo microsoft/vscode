@@ -54,10 +54,6 @@ steps:
     parameters:
       installRuntimeToolchain: true
 
-  - template: ../../copilot/download-runtime-artifact.yml@self
-    parameters:
-      VSCODE_COPILOT_TARGET: darwin-${{ parameters.VSCODE_ARCH }}
-
   - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
@@ -205,6 +201,10 @@ steps:
       displayName: Apply CG NOTICE
       # deemon --attach can exit non-zero if the background daemon died; never fail for that.
       continueOnError: true
+
+  - template: ../../copilot/download-runtime-artifact.yml@self
+    parameters:
+      VSCODE_COPILOT_TARGET: darwin-${{ parameters.VSCODE_ARCH }}
 
   - script: |
       set -e

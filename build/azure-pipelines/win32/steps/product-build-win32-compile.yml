@@ -57,10 +57,6 @@ steps:
       windows: true
       installRuntimeToolchain: true
 
-  - template: ../../copilot/download-runtime-artifact.yml@self
-    parameters:
-      VSCODE_COPILOT_TARGET: win32-${{ parameters.VSCODE_ARCH }}
-
   - pwsh: |
       mkdir .build -ea 0
       node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
@@ -201,6 +197,10 @@ steps:
       displayName: Apply CG NOTICE
       # deemon --attach can exit non-zero if the background daemon died; never fail for that.
       continueOnError: true
+
+  - template: ../../copilot/download-runtime-artifact.yml@self
+    parameters:
+      VSCODE_COPILOT_TARGET: win32-${{ parameters.VSCODE_ARCH }}
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
