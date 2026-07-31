@@ -3,8 +3,8 @@
   "version": "1.132.0",
   "distro": "09533f921029d9d073c06e70f566ebe31e43cebc",
   "copilotOverride": {
-    "@github/copilot-sdk": "a54b0b5885534ba5ad073cfe99c7f0085b1be11c",
-    "@github/copilot": "a560dc058848be2ff32297627535a5fac687adb4"
+    "@github/copilot-sdk": "",
+    "@github/copilot": ""
   },
   "author": {
     "name": "Microsoft Corporation"
