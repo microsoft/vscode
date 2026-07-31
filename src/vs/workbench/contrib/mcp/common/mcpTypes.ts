@@ -866,20 +866,6 @@ export const enum McpServerEnablementState {
 	Enabled,
 }
 
-/**
- * Whether an installed MCP server has been verified against the configured
- * registry. Used to enforce the "Registry only" access policy without relying on
- * transient install-time metadata.
- */
-export const enum McpServerRegistryStatus {
-	/** Membership has not been determined yet (or could not be determined). */
-	Unknown,
-	/** The server was found in the active registry. */
-	Matched,
-	/** The active registry authoritatively does not contain the server. */
-	NotFound,
-}
-
 export const enum McpServerInstallState {
 	Installing,
 	Installed,
@@ -907,7 +893,6 @@ export interface IWorkbenchMcpServer {
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
 	readonly runtimeStatus: McpServerEnablementStatus | undefined;
-	readonly registryStatus: McpServerRegistryStatus;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
