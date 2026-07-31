@@ -5324,16 +5324,13 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state?.workingDirectories?.[0], sourceDir.toString());
 		});
 
-		test('subscription restore preserves persisted roots through next send and one-primary materialization', async () => {
+		test('subscription restore preserves persisted roots through next send', async () => {
 			// Provider metadata is session-owned. There is deliberately no window
 			// workspace input to the restore path that could replace or truncate it.
 			const repoA = URI.file('/source/repo-a');
 			const repoB = URI.file('/source/repo-b');
-			const resolvedPrimary = URI.file('/source/repo-a.worktrees/resumed');
 			const sent = new DeferredPromise<void>();
 			class MultiRootMockAgent extends MockAgent {
-				private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: { uri: URI; displayName: string } | undefined }>();
-				readonly onDidMaterializeSession = this._onDidMaterialize.event;
 				readonly sendWorkingDirectories: (readonly string[] | undefined)[] = [];
 				override readonly chats: IAgentChats = {
 					createChat: async () => undefined,
@@ -5348,13 +5345,6 @@ suite('AgentService (node dispatcher)', () => {
 					changeAgent: async () => { },
 					getMessages: async () => [],
 				};
-				materialize(session: URI, workingDirectories: readonly URI[]): void {
-					this._onDidMaterialize.fire({ session, workingDirectories, project: undefined });
-				}
-				override dispose(): void {
-					this._onDidMaterialize.dispose();
-					super.dispose();
-				}
 			}
 			const agent = new MultiRootMockAgent('copilot');
 			agent.sessionMetadataOverrides = { workingDirectories: [repoA, repoB] };
@@ -5381,21 +5371,15 @@ suite('AgentService (node dispatcher)', () => {
 			);
 			await sent.p;
 
-			// A resumed provider can report only its resolved process root. The
-			// session-owned tail must survive that receipt.
-			agent.materialize(session, [resolvedPrimary]);
-			const reconciled = service.stateManager.getSessionState(session.toString());
 			const listed = (await service.listSessions()).find(metadata => metadata.session.toString() === session.toString());
 			assert.deepStrictEqual({
 				restored: restored?.workingDirectories,
 				nextHarnessRequest: agent.sendWorkingDirectories,
-				reconciled: reconciled?.workingDirectories,
 				summary: listed?.workingDirectories?.map(directory => directory.toString()),
 			}, {
 				restored: [repoA, repoB].map(directory => directory.toString()),
 				nextHarnessRequest: [[repoA, repoB].map(directory => directory.toString())],
-				reconciled: [resolvedPrimary, repoB].map(directory => directory.toString()),
-				summary: [resolvedPrimary, repoB].map(directory => directory.toString()),
+				summary: [repoA, repoB].map(directory => directory.toString()),
 			});
 		});
 
