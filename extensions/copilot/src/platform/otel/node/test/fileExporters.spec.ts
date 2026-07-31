@@ -12,6 +12,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { packageJson } from '../../../env/common/packagejson';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName } from '../../common/genAiAttributes';
 import { FileLogExporter, FileMetricExporter, FileSpanExporter } from '../fileExporters';
 
@@ -26,7 +27,7 @@ async function createFinishedSpans(names: readonly string[], configure?: (span: 
 		}),
 		spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
 	});
-	const tracer = provider.getTracer('copilot-chat', '0.59.0');
+	const tracer = provider.getTracer('copilot-chat', packageJson.version);
 
 	for (const name of names) {
 		const span = tracer.startSpan(name, { kind: SpanKind.INTERNAL });
@@ -78,7 +79,7 @@ describe('FileSpanExporter', () => {
 					'session.id': 'test-session',
 				},
 			},
-			instrumentationScope: { name: 'copilot-chat', version: '0.59.0' },
+			instrumentationScope: { name: 'copilot-chat', version: packageJson.version },
 			traceId: span.spanContext().traceId,
 			spanId: span.spanContext().spanId,
 			name: 'invoke_agent',
