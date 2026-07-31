@@ -1135,6 +1135,7 @@
 		"--vg-op-br",
 		"--vg-hue",
 		"--vg-sat",
+		"--vg-size",
 		"--vg-light",
 		"--vg-strength",
 		"--vg-blob-scale",
