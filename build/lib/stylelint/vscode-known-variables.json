@@ -594,7 +594,6 @@
 		"--vscode-panelStickyScroll-background",
 		"--vscode-panelStickyScroll-border",
 		"--vscode-panelStickyScroll-shadow",
-		"--vscode-panelTitle-activeBackground",
 		"--vscode-panelTitle-activeBorder",
 		"--vscode-panelTitle-activeForeground",
 		"--vscode-panelTitle-border",
