@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -125,6 +125,30 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
+	test('preserves checkpoint interruption metadata from the backend', async () => {
+		const { service } = createService();
+		const events: IVoiceNarrationSignal[] = [];
+		store.add(service.onNarrationInterrupted(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'narration_interrupted',
+				narration_id: 'checkpoint-narration',
+				coding_session_id: 'chat-session:/one',
+				retryable: false,
+				reason: 'superseded_by_response',
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{
+			narrationId: 'checkpoint-narration',
+			codingSessionId: 'chat-session:/one',
+			retryable: false,
+			reason: 'superseded_by_response',
+		}]);
+	});
+
 	test('preserves the backend turn ID when audio has a narration ID', async () => {
 		const { service } = createService();
 		const events: IVoiceAudioResponse[] = [];
@@ -143,6 +167,11 @@ suite('VoiceClientService', () => {
 				is_final: false,
 				turn_id: 'backend-turn',
 				narration_id: 'client-narration',
+				request_id: 'request-1',
+				checkpoint_id: 'planning',
+				sequence: 1,
+				narration_kind: 'checkpoint',
+				playback_id: 'playback-1',
 			}),
 		}));
 
@@ -154,6 +183,11 @@ suite('VoiceClientService', () => {
 			transcript: undefined,
 			turnId: 'backend-turn',
 			responseId: 'client-narration',
+			requestId: 'request-1',
+			checkpointId: 'planning',
+			sequence: 1,
+			narrationKind: 'checkpoint',
+			playbackId: 'playback-1',
 		}]);
 	});
 
@@ -249,6 +283,191 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('sends first-class checkpoint narration metadata', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		const narrationId = service.requestNarration('chat-session:/one', 'checkpoint', 'Updating the code.', undefined, {
+			requestId: 'request-1',
+			checkpointId: 'editing',
+			sequence: 2,
+		});
+		service.sendNarrationPlaybackComplete('chat-session:/one', narrationId!, 'playback-1');
+
+		assert.deepStrictEqual(socket().sent.slice(1), [
+			{
+				type: 'request_narration',
+				coding_session_id: 'chat-session:/one',
+				kind: 'checkpoint',
+				text: 'Updating the code.',
+				narration_id: narrationId,
+				request_id: 'request-1',
+				checkpoint_id: 'editing',
+				sequence: 2,
+			},
+			{
+				type: 'narration_playback_complete',
+				coding_session_id: 'chat-session:/one',
+				narration_id: narrationId,
+				playback_id: 'playback-1',
+			},
+		]);
+	});
+
+	test('sends typed confirmation narration metadata', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		const narrationId = service.requestNarration(
+			'chat-session:/one',
+			'confirmation',
+			'questionnaire: 1 question',
+			undefined,
+			undefined,
+			'questionnaire',
+		);
+
+		assert.deepStrictEqual(socket().sent[1], {
+			type: 'request_narration',
+			coding_session_id: 'chat-session:/one',
+			kind: 'confirmation',
+			text: 'questionnaire: 1 question',
+			narration_id: narrationId,
+			confirmation_type: 'questionnaire',
+		});
+	});
+
+	test('persists and clears typed confirmation session state', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		service.sendSessionContext({
+			sessions: [{
+				id: 'chat-session:/one',
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'questionnaire: 1 question',
+				confirmation_type: 'questionnaire',
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+		service.sendSessionContext({
+			sessions: [{
+				id: 'chat-session:/one',
+				is_active: true,
+				agent_state: 'idle',
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+
+		assert.deepStrictEqual(socket().sent.slice(1), [
+			{
+				type: 'session_context',
+				mode: 'delta',
+				upserts: [{
+					id: 'chat-session:/one',
+					is_active: true,
+					agent_state: 'waiting_for_confirmation',
+					agent_state_detail: 'questionnaire: 1 question',
+					confirmation_type: 'questionnaire',
+				}],
+				removes: [],
+			},
+			{
+				type: 'session_context',
+				mode: 'delta',
+				upserts: [{
+					id: 'chat-session:/one',
+					agent_state: 'idle',
+					agent_state_detail: null,
+					confirmation_type: null,
+				}],
+				removes: [],
+			},
+		]);
+	});
+
+	test('invalidated context preserves pending deletion tombstones', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const sessionId = 'chat-session:/one';
+
+		service.sendSessionContext({
+			sessions: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+				pending: {
+					type: 'questions',
+					pending_id: 'request-1#p1',
+					request_id: 'request-1',
+					questions: [],
+				},
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+		service.invalidateSessionCache(sessionId);
+		service.sendSessionContext({
+			sessions: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+
+		assert.deepStrictEqual(socket().sent.at(-1), {
+			type: 'session_context',
+			mode: 'delta',
+			upserts: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+				pending: null,
+			}],
+			removes: [],
+		});
+	});
+
+	test('normalizes legacy suppressed narration acknowledgements', async () => {
+		const { service } = createService();
+		const events: IVoiceNarrationAck[] = [];
+		store.add(service.onNarrationAck(event => events.push(event)));
+		await service.connect(createTestWindow());
+
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'narration_ack',
+				narration_id: 'narration-1',
+				coding_session_id: 'chat-session:/one',
+				disposition: 'suppressed',
+				reason: 'stale',
+			}),
+		}));
+		assert.deepStrictEqual(events, [{
+			narrationId: 'narration-1',
+			codingSessionId: 'chat-session:/one',
+			disposition: 'suppressed',
+			reason: 'stale',
+		}]);
+	});
+
 	test('flags a passive ptt_start for hands-free barge-in listens', async () => {
 		const { service } = createService();
 
@@ -264,6 +483,30 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('serializes the pending id on a question narration', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const questionId = service.requestNarration('cs1', 'question', 'Which region?', undefined, undefined, undefined, { pendingId: 'p1' });
+		const replyId = service.requestNarration('cs1', 'response', 'Done.');
+
+		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), [
+			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'question', text: 'Which region?', narration_id: questionId, pending_id: 'p1' },
+			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'response', text: 'Done.', narration_id: replyId },
+		]);
+	});
+
+	test('drops a narration requested before the session starts', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		const narrationId = service.requestNarration('cs1', 'question', 'Which region?', undefined, undefined, undefined, { pendingId: 'p1' });
+
+		assert.strictEqual(narrationId, undefined);
+		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), []);
+	});
+
 	test('serializes configured language in start_session context', async () => {
 		const { service } = createService({
 			'agents.voice.language': 'fr-fr',
@@ -277,10 +520,12 @@ suite('VoiceClientService', () => {
 			type: message.type,
 			session_context: message.session_context,
 			voice: message.voice,
+			auto_narrate: message.auto_narrate,
 		})), [{
 			type: 'start_session',
 			session_context: { sessions: [], display_locale: 'fr-FR' },
 			voice: 'kevin_neutral',
+			auto_narrate: false,
 		}]);
 	});
 
@@ -431,6 +676,7 @@ suite('VoiceClientService', () => {
 				session_context: message.session_context,
 				voice: message.voice,
 				voice_instructions: message.voice_instructions,
+				auto_narrate: message.auto_narrate,
 			})),
 		}, {
 			disconnectedMessages: [],
@@ -440,6 +686,7 @@ suite('VoiceClientService', () => {
 				session_context: { sessions: [], display_locale: 'de-DE' },
 				voice: 'daniel_neutral',
 				voice_instructions: 'Keep replies concise.',
+				auto_narrate: false,
 			}],
 		});
 	});

@@ -309,7 +309,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
 	}
 
-	const renderStyle = options.renderStyle === 'default' ? undefined : options.renderStyle ?? 'compact';
 	const inputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -444,24 +443,22 @@ const LAST_RESPONSE_HOVER: IFixtureMessage[] = [
 	{
 		user: 'Summarize the changes',
 		assistant: [
-			{ kind: 'markdown', text: 'The response content ends here. The remaining row height is reserved space.' },
+			{ kind: 'markdown', text: 'The response content ends here.' },
 		],
 		details: 'Claude Opus 4.8 - 2 credits',
 	},
 ];
 
-async function renderLastResponseHover(context: ComponentFixtureContext, target: 'content' | 'reserved-space'): Promise<void> {
+async function renderLastResponseHover(context: ComponentFixtureContext): Promise<void> {
 	await renderChatWidget(context, {
 		messages: LAST_RESPONSE_HOVER,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 	});
 
 	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
-	const hoverTarget = target === 'content' ? response?.querySelector<HTMLElement>(':scope > .value') : response;
-	hoverTarget?.dispatchEvent(new MouseEvent('mouseenter'));
+	response?.querySelector<HTMLElement>(':scope > .value')?.dispatchEvent(new MouseEvent('mouseenter'));
 }
 
 const KEYBOARD_FOCUS: IFixtureMessage[] = [
@@ -486,7 +483,6 @@ async function renderKeyboardFocus(context: ComponentFixtureContext, target: 're
 		messages: KEYBOARD_FOCUS,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 		verbose: target === 'request-timestamp',
 	});
@@ -612,10 +608,7 @@ const SCROLLBAR_PROMPT_MARKERS: IFixtureMessage[] = [
 ];
 
 async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
-	const targetWindow = context.container.ownerDocument.defaultView;
-	if (!targetWindow) {
-		throw new Error('ResizeObserver harness requires a window');
-	}
+	const targetWindow = dom.getWindow(context.container);
 
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
@@ -633,7 +626,6 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		}],
 		width: 720,
 		height: 600,
-		renderStyle: 'default',
 		hostLayoutMode,
 		onRendered: value => handle = value,
 	});
@@ -670,7 +662,7 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
 			warningCount++;
 			warnings.textContent = `Warnings: ${warningCount}`;
-			warnings.dataset['lastAttribution'] = dom.getRecentDisposableResizeObserverAttributionForLoopError(event.message) ?? event.message;
+			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 			status.textContent = 'Captured ResizeObserver warning';
 		}
 	}));
@@ -764,8 +756,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
-	LastResponseContentHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'content') }),
-	LastResponseReservedSpaceHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'reserved-space') }),
+	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),
 	ResponseActionKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'response-action') }),
 	RequestTimestampKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'request-timestamp') }),
 });

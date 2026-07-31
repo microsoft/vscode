@@ -16,13 +16,16 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
@@ -127,9 +130,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	 * header. The Agents window contributes an "Open Subagent" action (rendered
 	 * as a pill) into this menu; elsewhere the menu is empty and nothing shows.
 	 */
-	private _openChatToolbar: MenuWorkbenchToolBar | undefined;
+	private _openChatToolbar: WorkbenchToolBar | undefined;
 	private _openChatToolbarContainer: HTMLElement | undefined;
 	private readonly _openChatActionListeners = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _openChatActionViewRegistration = this._register(new MutableDisposable());
 
 	// Confirmation auto-expand tracking
 	private toolsWaitingForConfirmation: number = 0;
@@ -241,20 +245,61 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this._openChatToolbarContainer?.classList.add('hidden');
 			return;
 		}
-		if (!this._openChatToolbar) {
-			const container = $('.chat-subagent-open-chat-toolbar');
-			this._collapseButton.element.parentElement?.insertBefore(container, this._collapseButton.element);
-			this._openChatToolbarContainer = container;
-			this._openChatToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, container, MenuId.ChatSubagentContent, {
-				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				menuOptions: { shouldForwardArgs: true },
-				toolbarOptions: { primaryGroup: () => true },
-			}));
-			this._register(this._openChatToolbar.onDidChangeMenuItems(() => this._trackOpenChatActions()));
-			this._trackOpenChatActions();
+		if (!this._ensureOpenChatToolbar()) {
+			return;
 		}
 		this._updateOpenChatToolbarContext();
 		this._openChatToolbarContainer!.classList.remove('hidden');
+	}
+
+	private _ensureOpenChatToolbar(): boolean {
+		if (this._openChatToolbar) {
+			return true;
+		}
+		const menuAction = this._getOpenChatMenuAction();
+		if (!menuAction) {
+			return false;
+		}
+		const actionViewItemProvider = this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+		if (!actionViewItemProvider) {
+			if (!this._openChatActionViewRegistration.value) {
+				this._openChatActionViewRegistration.value = Event.once(Event.filter(
+					this.actionViewItemService.onDidChange,
+					menuId => menuId === MenuId.ChatSubagentContent
+				))(() => {
+					this._openChatActionViewRegistration.clear();
+					this._updateOpenChatLink();
+				});
+			}
+			return false;
+		}
+
+		this._openChatActionViewRegistration.clear();
+		const container = $('.chat-subagent-open-chat-toolbar');
+		this._collapseButton?.element.parentElement?.insertBefore(container, this._collapseButton.element);
+		this._openChatToolbarContainer = container;
+		this._openChatToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			actionViewItemProvider: (action, options) => actionViewItemProvider(
+				action,
+				options,
+				this.instantiationService,
+				dom.getWindow(container).vscodeWindowId
+			),
+		}));
+		this._openChatToolbar.setActions([menuAction]);
+		this._trackOpenChatActions();
+		return true;
+	}
+
+	private _getOpenChatMenuAction(): MenuItemAction | undefined {
+		for (const [, actions] of this.menuService.getMenuActions(MenuId.ChatSubagentContent, this.contextKeyService, { shouldForwardArgs: true })) {
+			const action = actions.find(action => action.id === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+			if (action instanceof MenuItemAction) {
+				return action;
+			}
+		}
+		return undefined;
 	}
 
 	private _trackOpenChatActions(): void {
@@ -328,6 +373,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
 		const { description, isDefaultDescription, agentName, prompt, modelName, credits } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);

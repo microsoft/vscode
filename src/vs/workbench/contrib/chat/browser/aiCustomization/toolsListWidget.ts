@@ -327,7 +327,7 @@ export class ToolsListWidget extends Disposable {
 			referenceName: 'copilotCli',
 			icon: Codicon.copilot,
 			source: ToolDataSource.Internal,
-			description: localize('clientToolSet.copilotCli.description', "Copilot CLI"),
+			description: localize('clientToolSet.copilotCli.description', "Copilot"),
 			detail: localize('clientToolSet.copilotCli.detail', "Built-in tools the Copilot CLI agent runs inside its own runtime."),
 			getTools: () => tools,
 		};

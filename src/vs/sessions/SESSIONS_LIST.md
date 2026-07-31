@@ -66,6 +66,8 @@ User groups are **fully user-managed**: their order is owned by `ISessionSection
 
 Archived sessions always go to the "Done" section regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned — and archiving removes the session from any user-created group. This cleanup also applies when an archived session is added by a provider and when persisted group state loads. Restoring the session does not restore its former group membership.
 
+Group membership, pin state, and manual sort keys are **durable user intent**: they are discarded only when a session is *definitively deleted* (`ISessionsManagementService.onDidDeleteSession`) or archived — never when a session merely drops out of a provider's list. A provider can evict sessions transiently (an agent host aggregates one listing across several agents, and an agent whose auth token or SDK is still loading contributes an empty list), so treating `onDidChangeSessions.removed` as a deletion would permanently destroy grouping and pins for sessions that return on the next refresh. The trade-off is that a session deleted from another window leaves a stale membership/pin entry behind; those entries match no session and are inert.
+
 The experimental `chat.experimental.sessionArchiveActionWording` setting keeps archive actions consistent across the regular workbench and Agents window. The `archive` variant uses **Archive**, **Archive All**, **Unarchive**, and **Unarchive All** with `Codicon.archive`/`Codicon.unarchive`; the `done` variant uses **Mark as Done**, **Mark All as Done**, **Restore**, and **Restore All** with `Codicon.check`/`Codicon.checkAll`/`Codicon.redo`. Confirmation copy follows the selected vocabulary, while the underlying archived state and the "Done" section remain unchanged.
 
 ### Sorting
@@ -143,15 +145,17 @@ The **Create Group** context-menu action is also available from list blank space
 ### Read / Unread
 
 - Read/unread state is **owned by the sessions provider** and surfaced via `ISession.isRead`. Marking happens through `ISessionsManagementService.markRead` / `markUnread` / `markAllRead`, which route to the provider's `setSessionReadState`. The agent-host provider persists it via the protocol `IsRead` status bit; the Copilot Chat provider via its agent session model (`setRead`); the local chat provider via its persisted session metadata.
+- For agent-host sessions the `IsRead` status bit is the only representation — the host persists it, publishes it on `SessionSummary.status`, and fans changes out to every connected client. The **editor window** shares that state via the item controller (`IChatSessionsService.canSetChatSessionItemRead` / `setChatSessionItemRead`), mirroring the archive bridge, so marking a session read in either window shows up in the other.
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
 - A session becomes **unread** when it produces new output in the background — a turn completes, is cancelled, or errors while the session is not being viewed. Each provider detects this and marks its own session unread: the agent-host provider server-side in `agentSideEffects`, the local chat provider via its tracked session model, and the Copilot Chat provider on the `InProgress` → terminal transition. `SessionsService` only keeps the **active** session marked read.
-- Legacy view-level read state (previously persisted by `SessionsListModelService` under `sessionsListControl.readSessions`) is migrated once into provider ownership by `SessionsListModelService.migrateLegacyReadState`. The migration is additive — it only ever promotes a session to read (never back to unread) — and runs once per session.
+- Legacy view-level read state (previously persisted by `SessionsListModelService` under `sessionsListControl.readSessions`) is migrated once into provider ownership by `SessionsListModelService.migrateLegacyReadState`. The migration is additive — it only ever promotes a session to read (never back to unread) — and runs once per session. `AgentSessionsModel.migrateReadStateToProvider` does the same for the editor window's read timestamps.
 - Pin/sort state is cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 
 ### Navigation
 
 - **Clicking a session** marks it read and calls `SessionsManagementService.openSession()`
+- **Double-clicking a rename-capable session title** opens the existing **Rename...** Quick Input after the first click opens the session. The title handler consumes the `dblclick` so it does not issue a second open. The gesture is gated live on `ISession.capabilities.supportsRename`, applies only to the main `SessionsList` (not `SessionsFlatList` consumers), and is limited to unmodified primary-button double-clicks on the rendered title text. Keyboard users can focus the row, open its context menu (for example with Shift+F10), and choose **Rename...**.
 - **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
 - **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl/Cmd+PageUp` / `Ctrl/Cmd+PageDown` navigates the visible list (`Cmd+Alt+Left` / `Cmd+Alt+Right` and `Cmd+Shift+[` / `Cmd+Shift+]` on macOS); `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
 - **Mobile** — opening a session also closes the sidebar drawer
