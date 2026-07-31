@@ -34,7 +34,6 @@ import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureServi
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { IChatInputWindowService } from '../../../common/chatInputWindow.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
@@ -429,13 +428,23 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly acceptedInputs: string[] = [];
+	readonly acceptedOmniInputs: string[] = [];
+
+	constructor(private readonly omniFocused = false) {
+		super();
+	}
 
 	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
-		let result: string | undefined;
+		let result: string | boolean | undefined;
 		if (commandId === '_chat.voice.getCurrentSession') {
 			result = 'chat-session';
 		} else if (commandId === '_chat.voice.acceptInput' && typeof args[0] === 'string') {
 			this.acceptedInputs.push(args[0]);
+		} else if (commandId === '_chat.omni.acceptVoiceInput' && typeof args[0] === 'string') {
+			if (this.omniFocused) {
+				this.acceptedOmniInputs.push(args[0]);
+			}
+			result = this.omniFocused;
 		}
 		return result as T;
 	}
@@ -512,9 +521,6 @@ suite('VoiceSessionController', () => {
 			new TestChatWidgetService(),
 			notificationService,
 			promptsService,
-			new class extends mock<IChatInputWindowService>() {
-				override readonly onDidResolveRoute = Event.None;
-			}(),
 		));
 	}
 
@@ -4228,6 +4234,34 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
 	});
 
+	test('focused omni chat routes voice input instead of the panel session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService(true);
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			commandService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+		);
+
+		const sendTranscriptionToChat = Reflect.get(controller, '_sendTranscriptionToChat') as (text: string) => Promise<void>;
+		await sendTranscriptionToChat.call(controller, 'run the focused omni request');
+
+		assert.deepStrictEqual({
+			omniInputs: commandService.acceptedOmniInputs,
+			panelInputs: commandService.acceptedInputs,
+		}, {
+			omniInputs: ['run the focused omni request'],
+			panelInputs: [],
+		});
+	});
+
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
@@ -4534,10 +4568,6 @@ suite('VoiceSessionController live transcription', () => {
 			onDidChangeFocusedSession: Event.None,
 			getAllWidgets: () => [],
 		});
-		instantiationService.stub(IChatInputWindowService, {
-			onDidResolveRoute: Event.None,
-		});
-
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));
 		controller['_isConnected'].set(true, undefined);
 		controller['_userLogin'] = 'test-user';

@@ -16,6 +16,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
@@ -30,6 +31,7 @@ import { IChatModelReference, IChatService } from '../../common/chatService/chat
 import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
+import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT } from '../../common/chatInputWindow.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
@@ -47,14 +49,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private readonly _onDidChangeOpen = this._register(new Emitter<boolean>());
 	readonly onDidChangeOpen: Event<boolean> = this._onDidChangeOpen.event;
-	private readonly _onDidResolveRoute = this._register(new Emitter<{ resource: URI | undefined; kind?: 'existing_session' | 'new_session' }>());
-	readonly onDidResolveRoute = this._onDidResolveRoute.event;
 
 	private readonly _auxiliaryWindowRef = this._register(new MutableDisposable());
 	private _window: IAuxiliaryWindow | undefined;
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _ownershipChannel: BroadcastChannel;
 	private _modelRef: IChatModelReference | undefined;
+	private _widget: ChatWidget | undefined;
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
 	private _lead: HTMLElement | undefined;
@@ -79,8 +80,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
+
+		this._register(CommandsRegistry.registerCommand('_chat.omni.acceptVoiceInput', (_accessor, text: string) => this.acceptVoiceInput(text)));
 
 		const ownershipChannel = new BroadcastChannel('chat-input-window-ownership');
 		ownershipChannel.onmessage = (e) => {
@@ -245,6 +249,20 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}
 	}
 
+	async acceptVoiceInput(text: string): Promise<boolean> {
+		const window = this._window?.window;
+		const widget = this._widget;
+		if (!window?.document.hasFocus() || !widget || !this._routingController) {
+			return false;
+		}
+
+		await widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
+			preserveFocus: true,
+			isVoiceModeInput: true,
+		});
+		return true;
+	}
+
 	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, row: HTMLElement): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` - the aux container already tracks the
@@ -293,6 +311,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				overlayBackground: editorBackground,
 			}
 		));
+		this._widget = widget;
 		widget.render(parent);
 		widget.setVisible(true);
 
@@ -309,7 +328,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
 			onDidResolveRoute: (resource, kind) => {
-				this._onDidResolveRoute.fire({ resource, kind });
+				this.commandService.executeCommand('_chat.voice.setOmniTarget', resource?.toString(), kind).catch(() => { });
 			},
 			placeBadge: (badge) => {
 				const container = this._window?.container;
@@ -350,7 +369,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
 			}
-			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(row.scrollHeight));
+			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
 			const extraHeight = Array.from(auxiliaryWindow.container.children)
 				.filter(child => child !== this._row)
 				.reduce((height, child) => height + (child as HTMLElement).offsetHeight, 0);
@@ -452,6 +471,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _disposeWidget(): void {
 		this._routingController = undefined;
+		this._widget = undefined;
 		this._row = undefined;
 		this._lead = undefined;
 		this._trail = undefined;

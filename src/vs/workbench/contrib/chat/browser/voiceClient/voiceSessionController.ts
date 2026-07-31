@@ -43,7 +43,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IChatInputWindowService } from '../../common/chatInputWindow.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
@@ -771,13 +770,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IChatInputWindowService chatInputWindowService: IChatInputWindowService,
 	) {
 		super();
 
-		this._register(chatInputWindowService.onDidResolveRoute(({ resource, kind }) => {
+		this._register(CommandsRegistry.registerCommand('_chat.voice.setOmniTarget', (_accessor, resource: string | undefined, kind?: 'existing_session' | 'new_session') => {
 			if (this._isConnected.get() || this._isConnecting.get()) {
-				this.setTargetSession(resource, kind);
+				this.setTargetSession(resource ? URI.parse(resource) : undefined, kind);
 			}
 		}));
 
@@ -3164,9 +3162,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		// A focus-change submit pins routing to the session the user was
-		// dictating into; it takes priority over the user-picked target and the
-		// currently focused session so their words land where they were aimed.
-		const target = this._consumePinnedSubmitSession() ?? this._targetSession.get();
+		// dictating into, so it takes priority over whichever surface has focus
+		// by the time the backend finalizes the turn.
+		const pinnedTarget = this._consumePinnedSubmitSession();
+		const acceptedByOmni = !pinnedTarget && await this.commandService.executeCommand<boolean>('_chat.omni.acceptVoiceInput', text).catch(() => false);
+		if (acceptedByOmni) {
+			return;
+		}
+
+		const target = pinnedTarget ?? this._targetSession.get();
 		if (target) {
 			// Check if target is the currently visible session
 			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
