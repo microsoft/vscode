@@ -44,6 +44,12 @@ export interface IAgentHostE2ETestContext {
 	readonly runRecordOnlyTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
+	/**
+	 * Open an extra connection to the same server. Needed only by tests that
+	 * exercise connection lifecycle, which cannot be expressed on the single
+	 * shared connection. The caller must close what it opens.
+	 */
+	readonly connectClient: () => Promise<TestProtocolClient>;
 }
 
 function registerHostOnlyTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, enabled: boolean): void {

@@ -16,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { getAgentSessionPullRequestUri, IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
@@ -1312,31 +1312,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	}
 
 	private _extractPullRequestUri(session: IAgentSession): URI | undefined {
-		const metadata = session.metadata;
-		if (!metadata) {
-			return undefined;
-		}
-
-		const url = metadata.pullRequestUrl as string | undefined;
-		if (url) {
-			try {
-				return URI.parse(url);
-			} catch {
-				// fall through
-			}
-		}
-
-		// Construct from pullRequestNumber + owner/repo
-		const prNumber = metadata.pullRequestNumber as number | undefined;
-		if (typeof prNumber === 'number') {
-			const owner = metadata.owner as string | undefined;
-			const name = metadata.name as string | undefined;
-			if (owner && name) {
-				return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
-			}
-		}
-
-		return undefined;
+		return getAgentSessionPullRequestUri(session);
 	}
 
 	private _extractChanges(session: IAgentSession): readonly ISessionFileChange[] {
