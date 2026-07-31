@@ -41,11 +41,17 @@ suite('AgentHostPromptCacheNotification', () => {
 
 		assert.deepStrictEqual([...notificationService.notifications.values()].map(notification => ({
 			message: notification.message,
+			description: typeof notification.description === 'string' ? notification.description : notification.description?.value,
 			actions: notification.actions.map(action => action.label),
+			muteCommandId: notification.mute?.commandId,
+			autoDismissOnMessage: notification.autoDismissOnMessage,
 			sessionResources: notification.sessionResources?.map(resource => resource.toString()),
 		})), [{
 			message: 'This chat\'s prompt cache is stale',
-			actions: ['Don\'t Show Again', 'Learn More', 'Start New Chat'],
+			description: 'The next prompt will incur increased cost. Consider starting a new chat. [Learn more](https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters)',
+			actions: ['Start New Chat'],
+			muteCommandId: 'workbench.action.chat.disablePromptCacheExpirationNotification',
+			autoDismissOnMessage: true,
 			sessionResources: [sessionResource.toString()],
 		}]);
 		clock.restore();
