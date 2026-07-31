@@ -23,6 +23,7 @@ import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import './media/sessionChatInputToolbar.css';
 
@@ -87,6 +88,7 @@ export class SessionChatInputToolbar extends Disposable {
 	/** The chat whose last-turn changes are reflected. */
 	private readonly _chat = observableValue<IChat | undefined>('chat', undefined);
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
+	private readonly _browsers: SessionBrowsersControl;
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
@@ -158,11 +160,15 @@ export class SessionChatInputToolbar extends Disposable {
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));
 		this.element.appendChild(pills.element);
 
+		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled));
+		this.element.appendChild(this._browsers.element);
+
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled));
 		this.element.appendChild(this._backgroundActivities.element);
 
 		this._register(autorun(reader => {
-			this.element.classList.toggle('hidden', !pills.isVisible.read(reader) && !this._backgroundActivities.isVisible.read(reader));
+			const anyVisible = pills.isVisible.read(reader) || this._browsers.isVisible.read(reader) || this._backgroundActivities.isVisible.read(reader);
+			this.element.classList.toggle('hidden', !anyVisible);
 		}));
 	}
 
@@ -190,6 +196,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 	setDebugData(data: ISessionChatPillsDebugData | undefined): void {
 		this._debugData.set(data, undefined);
+		this._browsers.setDebugData(data);
 		this._backgroundActivities.setDebugData(data);
 	}
 

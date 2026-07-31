@@ -43,6 +43,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMessage ??= this._sdkEvent('assistant.message');
 	}
 
+	private _onToolCallDelta: Event<SessionEventPayload<'assistant.tool_call_delta'>> | undefined;
+	get onToolCallDelta(): Event<SessionEventPayload<'assistant.tool_call_delta'>> {
+		return this._onToolCallDelta ??= this._sdkEvent('assistant.tool_call_delta');
+	}
+
 	private _onToolStart: Event<SessionEventPayload<'tool.execution_start'>> | undefined;
 	get onToolStart(): Event<SessionEventPayload<'tool.execution_start'>> {
 		return this._onToolStart ??= this._sdkEvent('tool.execution_start');

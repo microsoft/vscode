@@ -56,6 +56,13 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		return result.snapshot!.state as TerminalState;
 	}
 
+	/** The terminal's visible text, flattening command parts and raw output alike. */
+	function terminalText(state: TerminalState): string {
+		return state.content
+			.map(part => part.type === 'command' ? part.output : part.value)
+			.join('');
+	}
+
 	async function dispatchAndWait(channel: string, clientSeq: number, action: StateAction): Promise<void> {
 		context.client.clearReceived();
 		context.client.dispatch({ channel, clientSeq, action });
@@ -393,9 +400,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 				streamedOutput += action.data;
 				return /(?:^|\D)42(?:\D|$)/.test(streamedOutput);
 			}, 30_000);
-			const output = (await terminalState(terminalUri)).content
-				.map(part => part.type === 'command' ? part.output : part.value)
-				.join('');
+			const output = terminalText(await terminalState(terminalUri));
 			assert.match(output, /(?:^|\D)42(?:\D|$)/);
 		});
 	});
@@ -413,13 +418,26 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 				&& (getActionEnvelope(n).action as { data: string }).data.includes('CLEAR_MARKER'),
 				30_000,
 			);
+			const before = terminalText(await terminalState(terminalUri));
 
 			await dispatchAndWait(terminalUri, 2, { type: ActionType.TerminalCleared });
 
 			// The scrollback lives in host state, not just in the client's view,
-			// so clearing must empty it for every subscriber including one that
+			// so clearing must drop it for every subscriber including one that
 			// subscribes later.
-			assert.deepStrictEqual((await terminalState(terminalUri)).content, []);
+			//
+			// Asserting the buffer is *empty* would be wrong: the shell is live
+			// and redraws its prompt as soon as the screen is cleared, so bytes
+			// legitimately arrive after the clear reduces. What has to be gone
+			// is the output the client had already accumulated.
+			const after = terminalText(await terminalState(terminalUri));
+			assert.deepStrictEqual({
+				markerBeforeClear: before.includes('CLEAR_MARKER'),
+				markerAfterClear: after.includes('CLEAR_MARKER'),
+			}, {
+				markerBeforeClear: true,
+				markerAfterClear: false,
+			});
 		});
 	});
 
