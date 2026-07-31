@@ -13,7 +13,7 @@ jobs:
 
       - uses: 'actions/setup-node@v6'
         with:
-          node-version: 'lts/*'
+          node-version: '24'
 
       - name: 'Run vscode-telemetry-extractor'
         run: 'npx --package=@vscode/telemetry-extractor@1.14.0 --yes vscode-telemetry-extractor -s .'
