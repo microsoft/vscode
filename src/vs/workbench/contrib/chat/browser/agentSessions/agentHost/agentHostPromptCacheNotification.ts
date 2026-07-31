@@ -17,7 +17,6 @@ import { IWorkbenchAssignmentService } from '../../../../../services/assignment/
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 const PROMPT_CACHE_EXPIRATION_NOTIFICATION_EXPERIMENT = 'copilotchat.promptCacheExpirationNotification';
-const PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS = 10 * 60 * 1000;
 const PROMPT_CACHE_EXPIRATION_DISABLED_STORAGE_KEY = 'chat.promptCacheExpirationNotification.disabled';
 const DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND = 'workbench.action.chat.disablePromptCacheExpirationNotification';
 const PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters';
@@ -74,9 +73,9 @@ export class AgentHostPromptCacheNotification extends Disposable {
 				this._cacheExpirations.set(sessionResource, promptCache.cacheExpiresAt);
 				const expirationTime = Date.parse(promptCache.cacheExpiresAt);
 				if (Number.isFinite(expirationTime)) {
-					const remainingTime = expirationTime + PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS - Date.now();
-					if (remainingTime >= 0) {
-						expirationScheduler.schedule(remainingTime + 1);
+					const remainingTime = expirationTime - Date.now();
+					if (remainingTime > 0) {
+						expirationScheduler.schedule(remainingTime);
 					}
 				}
 			} else {
@@ -99,7 +98,7 @@ export class AgentHostPromptCacheNotification extends Disposable {
 		const cacheExpiresAt = this._cacheExpirations.get(sessionResource);
 		const expirationTime = cacheExpiresAt ? Date.parse(cacheExpiresAt) : Number.NaN;
 		const disabled = this._storageService.getBoolean(PROMPT_CACHE_EXPIRATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false);
-		if (!this._experimentEnabled || disabled || !Number.isFinite(expirationTime) || Date.now() <= expirationTime + PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS) {
+		if (!this._experimentEnabled || disabled || !Number.isFinite(expirationTime) || Date.now() < expirationTime) {
 			this._notificationService.deleteNotification(this._notificationId(sessionResource));
 			return;
 		}
