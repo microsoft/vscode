@@ -3858,9 +3858,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		if (!this._githubToken) {
-			return [];
-		}
+		// Reject rather than reporting an empty list while the GitHub token is
+		// still landing: the workbench treats a successful listing as the
+		// authoritative session set and would evict — and permanently unpin and
+		// ungroup — every Codex session. A rejection instead leaves the cached
+		// list intact and self-heals through the caller's backoff retry.
+		this._ensureAuthenticated();
 		// Don't connect (and trigger a cold SDK download) just to list threads
 		// at startup. When the SDK isn't local yet, surface an empty list; the
 		// download fires (with host-level progress) once the user starts a

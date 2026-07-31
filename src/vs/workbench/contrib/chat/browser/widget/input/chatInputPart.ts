@@ -116,6 +116,7 @@ import { IDictationOnboardingService } from '../../speechToText/dictationOnboard
 import { notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
@@ -2178,8 +2179,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.resetScrollbarVisibilityAfterAccept();
 
-		// Auto-dismiss notifications that requested it
-		this.chatInputNotificationService.handleMessageSent();
+		// Auto-dismiss notifications that requested it. Scope to this input's
+		// session so a message here doesn't hide notifications for other sessions.
+		this.chatInputNotificationService.handleMessageSent({
+			sessionType: this._notificationModelTargetChatSessionType.get(),
+			sessionResource: this._currentSessionResourceObservable.get(),
+		});
 
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
@@ -4262,6 +4267,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const scopedContextKeyService = this._chatEditsActionsDisposables.add(this.contextKeyService.createScoped(actionsContainer));
 		if (sessionResource) {
 			scopedContextKeyService.createKey(ChatContextKeys.agentSessionType.key, getChatSessionType(sessionResource));
+
+			// Metadata can arrive after first render, so track it rather than sampling once.
+			const sessionPullRequest = observableFromEvent(
+				this,
+				this.agentSessionsService.model.onDidChangeSessions,
+				() => {
+					const session = this.agentSessionsService.getSession(sessionResource);
+					return session ? getAgentSessionPullRequestContextValue(session) : '';
+				},
+			);
+			this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.agentSessionPullRequest, scopedContextKeyService, r => sessionPullRequest.read(r)));
 		}
 
 		this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, r => !!sessionEntriesObs.read(r)?.length));
