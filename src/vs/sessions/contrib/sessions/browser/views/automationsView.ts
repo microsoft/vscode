@@ -612,7 +612,6 @@ class AutomationsCustomViewContribution extends Disposable {
 
 		this._register(customViewService.registerCustomView({
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
-			title: localize('automationsTitle', "Automations"),
 			ctor: new SyncDescriptor(AutomationsCustomView),
 			actions: { style: 'buttonBar', menuId: Menus.CustomViewAutomations },
 		}));
