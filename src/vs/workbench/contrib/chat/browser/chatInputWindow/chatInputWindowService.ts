@@ -12,6 +12,7 @@ import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
