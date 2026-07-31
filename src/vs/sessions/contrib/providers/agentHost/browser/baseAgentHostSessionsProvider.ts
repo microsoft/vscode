@@ -4422,6 +4422,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._cacheInitialized = true;
 			this._sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
 			const currentKeys = new Set<string>();
+			const listedAgentProviders = new Set<string>();
 			const added: ISession[] = [];
 			const changed: ISession[] = [];
 
@@ -4429,6 +4430,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const meta = this._adoptSessionMeta(rawMeta);
 				const rawId = AgentSession.id(meta.session);
 				currentKeys.add(rawId);
+				const agentProvider = AgentSession.provider(meta.session);
+				if (agentProvider) {
+					listedAgentProviders.add(agentProvider);
+				}
 
 				const existing = this._sessionCache.get(rawId);
 				if (existing) {
@@ -4449,9 +4454,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// Some hosts briefly omit the just-sent eager session from listSessions.
 			// Keep the pending session visible until sendRequest graduates it.
 			const pendingRawId = this._pendingSession?.resource.path.replace(/^\//, '');
+			// The host aggregates one listing across all of its agents, and an
+			// agent that cannot enumerate yet (its SDK is not downloaded) can
+			// contribute an empty list rather than failing. When other agents
+			// did answer, a namespace with no row at all is therefore *unknown*
+			// rather than empty, and evicting it would be a silent data loss —
+			// `removed` discards the user's pins and group membership. A wholly
+			// empty listing keeps the authoritative-empty contract, since an
+			// agent that cannot answer at all rejects (and we never get here).
+			// Real deletions still arrive through `deleteSessions` and the
+			// `sessionRemoved` notification.
+			const evictUnlistedAgents = listedAgentProviders.size === 0;
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
 					if (key === pendingRawId) {
+						continue;
+					}
+					if (!evictUnlistedAgents && !listedAgentProviders.has(cached.agentProvider)) {
 						continue;
 					}
 					this._sessionCache.delete(key);
