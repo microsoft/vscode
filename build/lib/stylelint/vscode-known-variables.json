@@ -1138,15 +1138,16 @@
 		"--vg-light",
 		"--vg-strength",
 		"--vg-blob-scale",
-		"--vg-ring-width",
-		"--vg-inner-fade",
-		"--vg-ring-opacity",
 		"--vg-inner-opacity",
 		"--vg-bloom-opacity",
-		"--vg-corner-alpha",
 		"--voice-accent",
 		"--voice-color-listening",
-		"--voice-color-speaking"
+		"--voice-color-speaking",
+		"--vg-band",
+		"--vg-inner-fade",
+		"--vg-ring-width",
+		"--vg-ring-opacity",
+		"--vg-corner-alpha"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

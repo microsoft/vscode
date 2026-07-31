@@ -41,13 +41,16 @@ const ACTIVE_SAT_MAX = 96;
 
 /**
  * The calm rim, shared by connected-idle and thinking: both mean "voice is live,
- * nobody is talking", so they read as one state rather than two. Kept near-white
- * — a pure gray reads as a muddy ring, so it holds a whisper of the listening hue
- * at high lightness so it reads as a soft light.
+ * nobody is talking", so they read as one state rather than two.
+ *
+ * Dark themes get a near-white light. Light themes can't: white on a white input
+ * is invisible, so they instead take a faint tint of the listening hue, dropped
+ * far enough in lightness to actually register against the surface. Both read as
+ * "quiet but live" — the light theme just has to spend a little color to say it.
  */
 const CALM_RIM = {
 	dark: { saturation: 16, lightness: 78, strength: 0.4 },
-	light: { saturation: 16, lightness: 92, strength: 0.5 },
+	light: { saturation: 58, lightness: 62, strength: 0.42 },
 } as const;
 
 /**
@@ -74,6 +77,9 @@ const RIM_LAYER_OPACITY = {
 	dark: { ring: 1, inner: 0.44, bloom: 0.66 },
 	light: { ring: 1, inner: 0.3, bloom: 0.8 },
 } as const;
+
+/** How much of the talking states' weight the calm rim carries. */
+const CALM_RIM_WEIGHT = 0.62;
 
 /** Seconds for one full breath cycle, per rim mood. */
 const RIM_DURATION = { active: 2.3, calm: 4.8 } as const;
@@ -227,11 +233,15 @@ function mountRimLayers(host: HTMLElement, options: {
 	}
 
 	const layerOpacity = RIM_LAYER_OPACITY[options.theme];
+	// The calm rim is the quietest state, so it takes a fraction of the weight the
+	// talking states carry — brightness alone doesn't make it recede, since it's
+	// the lightest of the three.
+	const weight = options.mood === 'calm' ? CALM_RIM_WEIGHT : 1;
 	host.style.setProperty('--vg-sat', `${options.saturation}%`);
 	host.style.setProperty('--vg-light', `${options.lightness}%`);
 	host.style.setProperty('--vg-ring-opacity', String(layerOpacity.ring));
-	host.style.setProperty('--vg-inner-opacity', String(layerOpacity.inner));
-	host.style.setProperty('--vg-bloom-opacity', String(layerOpacity.bloom));
+	host.style.setProperty('--vg-inner-opacity', (layerOpacity.inner * weight).toFixed(3));
+	host.style.setProperty('--vg-bloom-opacity', (layerOpacity.bloom * weight).toFixed(3));
 
 	const oscillators = rimOscillators(options.theme, options.duration);
 	let time = 0;

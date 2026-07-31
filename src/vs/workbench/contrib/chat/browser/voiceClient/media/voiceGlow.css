@@ -188,6 +188,42 @@
 		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
 }
 
+/* --- Calm rim (thinking / connected-idle) --------------------------------- */
+
+/*
+ * The calm rim is deliberately a different, quieter object than the talking
+ * ones. It reads brighter (near-white on dark), so at the talking states' width
+ * it looks heavier than the states it is meant to recede behind — and its soft
+ * wash was wide enough to sit visibly inside the box's rounded corners rather
+ * than following them.
+ *
+ * So it drops the wash and the corner catches entirely and keeps a single thin
+ * band, cut with the padding-box mask so it follows `border-radius` exactly.
+ */
+.voice-glow-rim-calm {
+	/* Thickness of the light band hugging the inside edge. */
+	--vg-band: 0.75px;
+	/* Sit inside the input's own border rather than on top of it. */
+	inset: var(--vscode-strokeThickness);
+	border-radius: calc(var(--vg-radius, 6px) - var(--vscode-strokeThickness));
+}
+
+.voice-glow-rim-calm::before,
+.voice-glow-rim-calm > .voice-glow-rim-corners {
+	display: none;
+}
+
+.voice-glow-rim-calm::after {
+	padding: var(--vg-band);
+	clip-path: none;
+}
+
+.voice-glow-rim-calm > .voice-glow-rim-bloom {
+	padding: calc(var(--vg-band) * 2);
+	clip-path: none;
+	filter: blur(2px);
+}
+
 /* --- High contrast --------------------------------------------------------- */
 
 /*
