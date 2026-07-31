@@ -103,7 +103,9 @@ suite('copilotOverride', () => {
 	test('the committed package.json resolves cleanly', () => {
 		// `--detect` runs on every build, so a mismatch between the field keys and
 		// the package names would fail normal builds, not just override builds.
-		assert.deepStrictEqual(resolveCopilotOverrides(path.join(import.meta.dirname, '../../../'), {}), []);
+		// Only that it resolves, not that it is empty: package.json is the only way
+		// to request an override, so a release branch carrying one is the point.
+		assert.doesNotThrow(() => resolveCopilotOverrides(path.join(import.meta.dirname, '../../../'), {}));
 	});
 
 	test('source build versions are unique per commit', () => {

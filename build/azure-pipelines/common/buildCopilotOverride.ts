@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { sourceBuildVersion, type GitOverride } from './copilotOverride.ts';
-import { gitAuthArgs, gitEnv, redactedError, redactSecrets } from '../../lib/copilotRuntimeSource.ts';
+import { gitAuthArgs, gitEnv, redactedError, redactSecrets, withGitHubRetries } from '../../lib/copilotRuntimeSource.ts';
 
 /**
  * Source build for the `copilotOverride` SDK `git:<commit>` override. The SDK is
@@ -54,12 +54,16 @@ function cloneRepo(repo: string, sha: string, dest: string): void {
 	// check it out. Falls back to a full fetch if the shallow SHA fetch is refused.
 	run('git', ['init', '-q'], dest);
 	run('git', ['remote', 'add', 'origin', url], dest);
-	try {
-		run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', sha], dest, gitEnv());
-	} catch {
-		console.log(`[copilot-override] Shallow fetch of ${repo}@${sha} failed; retrying with a full fetch.`);
-		run('git', [...authArgs, 'fetch', 'origin'], dest, gitEnv());
-	}
+	// Every node_modules and compile job builds its own tarball, so one transient
+	// GitHub failure anywhere fails the build.
+	withGitHubRetries(`fetch ${repo}@${sha}`, () => {
+		try {
+			run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', sha], dest, gitEnv());
+		} catch {
+			console.log(`[copilot-override] Shallow fetch of ${repo}@${sha} failed; retrying with a full fetch.`);
+			run('git', [...authArgs, 'fetch', 'origin'], dest, gitEnv());
+		}
+	});
 	run('git', ['checkout', '-q', sha], dest);
 	console.log(`[copilot-override] Checked out ${repo}@${sha} -> ${dest}`);
 }
