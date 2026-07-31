@@ -837,7 +837,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.session.toString();
 		let primaryRoot = this._normalizedWorktreeRepositoryRoots.get(sessionStr);
 		if (!primaryRoot) {
-			const checkoutRoot = session.workingDirectories?.[0] ?? persistedRoot;
+			const workingDirectory = session.workingDirectories?.[0];
+			const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
 			try {
 				primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
 					?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);

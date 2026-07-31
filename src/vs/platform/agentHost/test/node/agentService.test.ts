@@ -1299,7 +1299,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(sessions[0]._meta, { workspaceless: true });
 		});
 
-		test('listSessions normalizes a persisted linked-worktree project', async () => {
+		test('listSessions normalizes a persisted linked-worktree project without probing a missing session worktree', async () => {
 			const db = disposables.add(new TestSessionDatabase());
 			const primaryRoot = URI.file('/workspace/vscode');
 			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
@@ -1315,14 +1315,9 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const gitService = createNoopGitService();
-			let resolvedFrom: URI | undefined;
-			let resolutionCount = 0;
+			const resolvedFrom: URI[] = [];
 			gitService.getWorktreeRoots = async workingDirectory => {
-				resolvedFrom = workingDirectory;
-				resolutionCount++;
-				if (workingDirectory.toString() === sessionWorktree.toString()) {
-					return [];
-				}
+				resolvedFrom.push(workingDirectory);
 				return [primaryRoot, linkedCheckout, sessionWorktree];
 			};
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
@@ -1332,13 +1327,11 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.listSessions();
 
 			assert.deepStrictEqual({
-				resolutionCount,
-				resolvedFrom: resolvedFrom?.toString(),
+				resolvedFrom: resolvedFrom.map(uri => uri.toString()),
 				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
 				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
 			}, {
-				resolutionCount: 2,
-				resolvedFrom: linkedCheckout.toString(),
+				resolvedFrom: [linkedCheckout.toString()],
 				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
 				persistedRepositoryRoot: primaryRoot.toString(),
 			});
