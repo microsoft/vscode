@@ -1762,10 +1762,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const resource = this._protectedResourceFromMcpAuthRequest(request);
 		const requiredScopes = this._scopesFromChallenge(request.wwwAuthenticateParams?.scope);
-		const oauthClient: McpAuthRequirement['oauthClient'] = request.staticClientConfig?.publicClient
-			? { clientId: request.staticClientConfig.clientId }
-			: request.staticClientConfig?.clientSecret
-				? { clientId: request.staticClientConfig.clientId, clientSecret: request.staticClientConfig.clientSecret }
+		const oauthClient: McpAuthRequirement['oauthClient'] = request.staticClientConfig?.clientSecret
+			? { clientId: request.staticClientConfig.clientId, clientSecret: request.staticClientConfig.clientSecret }
+			: request.staticClientConfig && request.staticClientConfig.publicClient !== false
+				? { clientId: request.staticClientConfig.clientId }
 				: undefined;
 		const auth: McpAuthRequirement = {
 			reason: this._mcpAuthRequiredReason(request.reason),

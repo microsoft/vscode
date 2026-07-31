@@ -93,6 +93,9 @@ function toSdkMcpServer(_name: string, config: IMcpServerConfiguration): MCPServ
 		url: config.url,
 		tools: ['*'],
 		...(config.headers && { headers: { ...config.headers } }),
+		...(config.oauth?.clientId && {
+			oauthClientId: config.oauth.clientId,
+		}),
 	};
 }
 
