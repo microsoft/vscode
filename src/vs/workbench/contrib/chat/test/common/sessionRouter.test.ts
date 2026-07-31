@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildRouterMessages, heuristicScore, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { buildRouterMessages, heuristicScore, isHighConfidenceSessionRoute, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 
 suite('SessionRouter helpers', () => {
 
@@ -60,6 +60,14 @@ suite('SessionRouter helpers', () => {
 	test('parseRouterResponse returns undefined when nothing usable', () => {
 		assert.strictEqual(parseRouterResponse('no json here', new Set(['s1'])), undefined);
 		assert.strictEqual(parseRouterResponse('[{"sessionId":"unknown","confidence":0.5}]', new Set(['s1'])), undefined);
+	});
+
+	test('high-confidence routes must exceed 65 percent', () => {
+		assert.deepStrictEqual([
+			isHighConfidenceSessionRoute({ sessionId: 'below', confidence: 0.64 }),
+			isHighConfidenceSessionRoute({ sessionId: 'boundary', confidence: 0.65 }),
+			isHighConfidenceSessionRoute({ sessionId: 'above', confidence: 0.66 }),
+		], [false, false, true]);
 	});
 
 	test('heuristicScore ranks the token-overlapping session first', () => {

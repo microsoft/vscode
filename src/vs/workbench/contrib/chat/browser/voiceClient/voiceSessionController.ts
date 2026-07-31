@@ -43,6 +43,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
@@ -773,7 +774,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	) {
 		super();
 
-		this._register(CommandsRegistry.registerCommand('_chat.voice.setOmniTarget', (_accessor, resource: string | undefined, kind?: 'existing_session' | 'new_session') => {
+		this._register(CommandsRegistry.registerCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, (_accessor, resource: string | undefined, kind?: 'existing_session' | 'new_session') => {
 			if (this._isConnected.get() || this._isConnecting.get()) {
 				this.setTargetSession(resource ? URI.parse(resource) : undefined, kind);
 			}
@@ -3165,7 +3166,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// dictating into, so it takes priority over whichever surface has focus
 		// by the time the backend finalizes the turn.
 		const pinnedTarget = this._consumePinnedSubmitSession();
-		const acceptedByOmni = !pinnedTarget && await this.commandService.executeCommand<boolean>('_chat.omni.acceptVoiceInput', text).catch(() => false);
+		const acceptedByOmni = !pinnedTarget && await this.commandService.executeCommand<boolean>(CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, text).catch(() => false);
 		if (acceptedByOmni) {
 			return;
 		}

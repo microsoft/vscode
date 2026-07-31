@@ -12,6 +12,13 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
  */
 export const OmniChatEnabledSettingId = 'chat.omni.enabled';
 
+/** Existing sessions must exceed this confidence to be shown or selected. */
+export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.65;
+
+export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boolean {
+	return result.confidence > SESSION_ROUTE_CONFIDENCE_THRESHOLD;
+}
+
 /**
  * A session that a user request can be routed to. Populated by the caller from
  * the session list (e.g. `IChatSessionsService` / `ISessionsService`).

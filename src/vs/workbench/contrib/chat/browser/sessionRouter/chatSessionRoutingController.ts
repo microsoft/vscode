@@ -20,7 +20,7 @@ import { IChatRequestVariableEntry } from '../../common/attachments/chatVariable
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { heuristicScore, IRoutableSession, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { heuristicScore, IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -28,12 +28,6 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
 
 import './media/chatSessionRouting.css';
-
-/**
- * Minimum confidence for a candidate to be treated as a real match. Below this
- * for every candidate, the request targets a brand-new session instead.
- */
-const ROUTE_CONFIDENCE_THRESHOLD = 0.65;
 
 /**
  * When the last-used session is within this confidence margin of the top match,
@@ -235,7 +229,7 @@ export class ChatSessionRoutingController extends Disposable {
 	private _resolveTarget(results: ISessionRouteResult[], candidates: IRoutableSession[]): PendingTarget {
 		const labelById = new Map(candidates.map(c => [c.sessionId, c.label]));
 		const top = results[0];
-		if (!top || top.confidence <= ROUTE_CONFIDENCE_THRESHOLD) {
+		if (!top || !isHighConfidenceSessionRoute(top)) {
 			return { kind: 'new', label: localize('chatSessionRouting.newSession', "New session") };
 		}
 
@@ -244,7 +238,7 @@ export class ChatSessionRoutingController extends Disposable {
 		const lastTargetId = this.storageService.get(LAST_TARGET_STORAGE_KEY, StorageScope.WORKSPACE);
 		const preferred = lastTargetId
 			? results.find(r => r.sessionId === lastTargetId
-				&& r.confidence > ROUTE_CONFIDENCE_THRESHOLD
+				&& isHighConfidenceSessionRoute(r)
 				&& (top.confidence - r.confidence) <= ROUTE_AMBIGUITY_MARGIN)
 			: undefined;
 		const chosen = preferred ?? top;
@@ -422,7 +416,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const labelById = new Map(candidates.map(candidate => [candidate.sessionId, candidate.label]));
 		const ranked = results
-			.filter(result => result.confidence > ROUTE_CONFIDENCE_THRESHOLD && labelById.has(result.sessionId))
+			.filter(result => isHighConfidenceSessionRoute(result) && labelById.has(result.sessionId))
 			.sort((a, b) => b.confidence - a.confidence)
 			.slice(0, ROUTE_MAX_CHOICES)
 			.map(result => ({

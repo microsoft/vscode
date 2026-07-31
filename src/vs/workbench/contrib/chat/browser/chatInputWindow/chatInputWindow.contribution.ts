@@ -6,14 +6,13 @@
 import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID, IChatInputWindowService } from '../../common/chatInputWindow.js';
+import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID, IChatInputWindowService } from '../../common/chatInputWindow.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { ChatViewId } from '../chat.js';
 
@@ -25,19 +24,9 @@ const inputWindowEnabled = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${OmniChatEnabledSettingId}`, true)
 );
 
-CommandsRegistry.registerCommand('_chat.omni.acceptVoiceInput', (accessor, text: string) => {
+CommandsRegistry.registerCommand(CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, (accessor, text: string) => {
 	return accessor.get(IChatInputWindowService).acceptVoiceInput(text);
 });
-
-let voiceRoutingBridge: IDisposable | undefined;
-function ensureVoiceRoutingBridge(accessor: ServicesAccessor, service: IChatInputWindowService): void {
-	if (!voiceRoutingBridge) {
-		const commandService = accessor.get(ICommandService);
-		voiceRoutingBridge = service.onDidResolveRoute(({ resource, kind }) => {
-			commandService.executeCommand('_chat.voice.setOmniTarget', resource?.toString(), kind).catch(() => { });
-		});
-	}
-}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -73,7 +62,6 @@ registerAction2(class extends Action2 {
 			height: invokingWindow.outerHeight,
 		};
 		const chatInputWindowService = accessor.get(IChatInputWindowService);
-		ensureVoiceRoutingBridge(accessor, chatInputWindowService);
 		await chatInputWindowService.toggleWindow(invokingWindowBounds);
 	}
 });

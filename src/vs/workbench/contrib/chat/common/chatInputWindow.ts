@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 
 export const CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleInputWindow';
+export const CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID = '_chat.omni.acceptVoiceInput';
+export const CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID = '_chat.voice.setOmniTarget';
 
 /**
  * Default height for the floating chat input window.
@@ -36,9 +37,6 @@ export interface IChatInputWindowService {
 	 * Fires when the window opens or closes.
 	 */
 	readonly onDidChangeOpen: Event<boolean>;
-
-	/** Fires when omni resolves a single voice routing target. */
-	readonly onDidResolveRoute: Event<{ resource: URI | undefined; kind?: 'existing_session' | 'new_session' }>;
 
 	/** Routes voice input through omni when its auxiliary window owns focus. */
 	acceptVoiceInput(text: string): Promise<boolean>;
