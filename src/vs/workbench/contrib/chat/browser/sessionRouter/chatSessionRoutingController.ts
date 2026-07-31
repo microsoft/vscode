@@ -128,6 +128,8 @@ export interface IChatSessionRoutingHost {
 	 * the controller will fall back to an immediate dispatch.
 	 */
 	placeBadge(badge: HTMLElement): void;
+	/** Notify the host when a single-target route resolves, or clear it for fan-out. */
+	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session'): void;
 }
 
 /**
@@ -511,8 +513,11 @@ export class ChatSessionRoutingController extends Disposable {
 			if (!sent.length) {
 				return;
 			}
+			if (sent.length > 1) {
+				this.host.onDidResolveRoute?.(undefined);
+			}
 			const dispatches = sent.map(selected =>
-				this._dispatchTo(selected, submittedInput, utterance, attachedContext, cts.token)
+				this._dispatchTo(selected, submittedInput, utterance, attachedContext, cts.token, sent.length === 1)
 			);
 			if (sent.length > 1) {
 				this._showFanoutConfirmation(sent.length);
@@ -603,6 +608,7 @@ export class ChatSessionRoutingController extends Disposable {
 			return;
 		}
 		const sessionResource = resource;
+		this.host.onDidResolveRoute?.(sessionResource, 'new_session');
 
 		label.textContent = localize('chatSessionRouting.noMatch', "No matching chat found — sent to a new chat");
 		this._addActionLink(store, badge, localize('chatSessionRouting.openNewChat', "Open new chat"), () => {
@@ -690,11 +696,11 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/** Dispatch a resolved pending target, remembering it for next time. */
-	private async _dispatchTo(target: PendingTarget, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken): Promise<boolean> {
+	private async _dispatchTo(target: PendingTarget, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute = true): Promise<boolean> {
 		if (target.kind === 'new') {
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
+			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
 		}
-		return this._dispatchToSession(target.sessionId, submittedInput, utterance, attachedContext, token);
+		return this._dispatchToSession(target.sessionId, submittedInput, utterance, attachedContext, token, notifyRoute);
 	}
 
 	/** Send to an already-created new session (used by the no-delay no-match flow). */
@@ -716,13 +722,13 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private async _dispatchToSession(sessionId: string, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken): Promise<boolean> {
+	private async _dispatchToSession(sessionId: string, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute: boolean): Promise<boolean> {
 		let target: URI;
 		try {
 			target = URI.parse(sessionId);
 		} catch (err) {
 			this.logService.warn('[chatSessionRouting] invalid session id for routing:', sessionId, err);
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
+			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
 		}
 
 		try {
@@ -733,16 +739,19 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			if (!ref) {
 				this.logService.warn('[chatSessionRouting] could not load routed session, starting a new one:', sessionId);
-				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
+				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
 			}
 			this._retainSessionRef(target, ref);
+			if (notifyRoute) {
+				this.host.onDidResolveRoute?.(target, 'existing_session');
+			}
 			const result = await this.chatService.sendRequest(target, utterance, attachedContext?.length ? { attachedContext } : undefined);
 			if (token.isCancellationRequested) {
 				return true;
 			}
 			if (!result || result.kind === 'rejected') {
 				this.logService.warn('[chatSessionRouting] routed session rejected the request, starting a new one:', sessionId);
-				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
+				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
 			}
 			// Remember this session so the next request biases toward it.
 			this.storageService.store(LAST_TARGET_STORAGE_KEY, sessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -753,11 +762,11 @@ export class ChatSessionRoutingController extends Disposable {
 				return true;
 			}
 			this.logService.warn('[chatSessionRouting] error dispatching to routed session, starting a new one:', err);
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
+			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token, notifyRoute);
 		}
 	}
 
-	private async _dispatchToNewSession(submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken): Promise<boolean> {
+	private async _dispatchToNewSession(submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken, notifyRoute: boolean): Promise<boolean> {
 		try {
 			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` });
 			if (token.isCancellationRequested) {
@@ -765,6 +774,9 @@ export class ChatSessionRoutingController extends Disposable {
 				return true;
 			}
 			this._retainSessionRef(ref.object.sessionResource, ref);
+			if (notifyRoute) {
+				this.host.onDidResolveRoute?.(ref.object.sessionResource, 'new_session');
+			}
 			const result = await this.chatService.sendRequest(ref.object.sessionResource, utterance, attachedContext?.length ? { attachedContext } : undefined);
 			if (token.isCancellationRequested) {
 				return true;

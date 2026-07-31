@@ -101,6 +101,8 @@ export interface IVoiceSessionContext {
 		/** Human-readable name, so the backend can tell two sessions apart. */
 		label?: string;
 		is_active: boolean;
+		/** Omni routing decision for backend narration of the selected target. */
+		omni_route?: 'existing_session' | 'new_session';
 		agent_state: string;
 		agent_state_detail?: string;
 		confirmation_type?: VoiceConfirmationType;

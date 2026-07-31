@@ -30,6 +30,7 @@ import { IChatModelReference, IChatService } from '../../common/chatService/chat
 import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
+import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT } from '../../common/chatInputWindow.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
@@ -77,6 +78,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -306,6 +308,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
+			onDidResolveRoute: (resource, kind) => {
+				if (this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get()) {
+					this.voiceSessionController.setTargetSession(resource, kind);
+				}
+			},
 			placeBadge: (badge) => {
 				const container = this._window?.container;
 				const row = this._row;
@@ -345,7 +352,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
 			}
-			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
+			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(row.scrollHeight));
 			const extraHeight = Array.from(auxiliaryWindow.container.children)
 				.filter(child => child !== this._row)
 				.reduce((height, child) => height + (child as HTMLElement).offsetHeight, 0);

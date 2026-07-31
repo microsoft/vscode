@@ -12,6 +12,11 @@
 	overflow: hidden;
 }
 
+.chat-input-window:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden;
@@ -96,6 +101,10 @@
 .chat-input-window .interactive-session {
 	height: auto;
 	justify-content: center;
+}
+
+.chat-input-window .interactive-list {
+	display: none;
 }
 
 .chat-input-window .interactive-input-part.compact {

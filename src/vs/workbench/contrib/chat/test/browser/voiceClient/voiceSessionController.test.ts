@@ -3581,6 +3581,23 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(session.label, 'Auth fix');
 	});
 
+	test('marks an omni-routed target for backend narration', () => {
+		const resource = URI.parse('vscode-chat://a');
+		const controller = createController(
+			new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			new TestAgentSessionsService([agentSessionEntry(resource.toString(), 'Auth fix', AgentSessionStatus.InProgress)]),
+		);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => {
+			sessions: { id: string; is_active: boolean; omni_route?: string }[];
+		};
+
+		controller.setTargetSession(resource, 'new_session');
+		const [session] = buildSessionContext.call(controller).sessions;
+
+		assert.strictEqual(session.is_active, true);
+		assert.strictEqual(session.omni_route, 'new_session');
+	});
+
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {
 		// Queue semantics applied uniformly: approve the command you were asked
 		// about, then answer the questions.
