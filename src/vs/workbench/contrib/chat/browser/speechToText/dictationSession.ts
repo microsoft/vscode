@@ -145,13 +145,16 @@ class LiveTranscriptInserter {
 		const endColumn = lines.length === 1 ? this._anchor.column + lines[0].length : lines[lines.length - 1].length + 1;
 		this._end = new Position(endLine, endColumn);
 
-		// While transcription is in progress keep the caret parked at the start
-		// of the dictated region (a blinking cursor at the beginning) rather than
-		// chasing the growing/revised interim text. Once finalized, move it to the
-		// end so the user can continue typing after the dictated text. The caret
-		// is passed as executeEdits' endCursorState so the editor never briefly
-		// places it at the end of the applied edit first.
-		const caret = interim ? this._anchor : this._end;
+		// Park the caret at the end of the dictated region. The caret is hidden
+		// for the duration of the session (see the dictation-hide-cursor class),
+		// so its position is not visible while transcript text streams in. Keeping
+		// it at the end means an accidental keystroke (e.g. the user bumps the
+		// keyboard while speaking) is appended after the dictated text rather than
+		// inserted at its start, where it would move the insertion point to the
+		// beginning and corrupt the transcript. The caret is passed as
+		// executeEdits' endCursorState so the editor never briefly places it
+		// elsewhere first.
+		const caret = this._end;
 		this._isApplyingEdit = true;
 		try {
 			this._editor.executeEdits(
@@ -318,7 +321,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const inserter = new LiveTranscriptInserter(editor, logService);
 	const disposables = new DisposableStore();
 	// Hide the editor's blinking caret for the duration of the dictation
-	// session. During dictation the caret is parked at the start of the dictated
+	// session. During dictation the caret is parked at the end of the dictated
 	// region (see LiveTranscriptInserter.update), so a blinking cursor there is
 	// distracting as transcript text streams in.
 	const HIDE_CURSOR_CLASS = 'dictation-hide-cursor';
