@@ -30,7 +30,9 @@
 	inset: 0;
 	pointer-events: none;
 	opacity: 0;
-	border-radius: var(--vg-radius, 6px);
+	/* Follows the target's corners: the slot is a child of the box it lights, so
+		inheriting keeps the two in step without measuring anything in script. */
+	border-radius: inherit;
 	will-change: opacity;
 }
 
@@ -109,7 +111,6 @@
 	inset: 0;
 	border-radius: inherit;
 	padding: var(--vg-ring-width);
-	clip-path: inset(0 round var(--vg-radius, 6px));
 	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
 	-webkit-mask-composite: xor;
 	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -128,7 +129,6 @@
 	position: absolute;
 	inset: 0;
 	border-radius: inherit;
-	clip-path: inset(0 round var(--vg-radius, 6px));
 	--vg-blob-scale: 0.72;
 	-webkit-mask-image:
 		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
@@ -148,7 +148,6 @@
 	position: absolute;
 	inset: 0;
 	border-radius: inherit;
-	clip-path: inset(0 round var(--vg-radius, 6px));
 	padding: var(--vg-ring-width);
 	--vg-blob-scale: 1.22;
 	filter: blur(8px);
@@ -167,7 +166,6 @@
 	position: absolute;
 	inset: 0;
 	border-radius: inherit;
-	clip-path: inset(0 round var(--vg-radius, 6px));
 	pointer-events: none;
 	z-index: 1;
 	opacity: var(--vg-inner-opacity, 0.44);

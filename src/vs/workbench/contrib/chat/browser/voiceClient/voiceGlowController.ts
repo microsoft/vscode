@@ -19,8 +19,6 @@ import { DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, voiceGlowStateColor, Voice
  * derived from the theme accent (see `resolveVoiceGlowColors`).
  */
 
-/** Corner radius used when the target's own radius can't be read. */
-const RADIUS_FALLBACK = 6;
 /**
  * Cross-fade timing shared by every state transition. Opacity only: the glow is
  * light, and light dissolves — scaling it would read as the box "zooming", which
@@ -162,15 +160,6 @@ function clamp01(value: number): number {
 	return Math.max(0, Math.min(1, value));
 }
 
-function readRadius(el: HTMLElement): number {
-	const view = el.ownerDocument.defaultView;
-	if (!view) {
-		return RADIUS_FALLBACK;
-	}
-	const parsed = parseFloat(view.getComputedStyle(el).borderTopLeftRadius);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : RADIUS_FALLBACK;
-}
-
 function nowSeconds(el: HTMLElement): number {
 	const view = el.ownerDocument.defaultView;
 	return (view?.performance ?? performance).now() / 1000;
@@ -277,6 +266,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 	private _currentMood: RimMood | undefined;
 	private _clearTimer: ReturnType<typeof setTimeout> | undefined;
 	private _colors: IVoiceGlowColors;
+	private _reducedMotion = false;
 	private _disposed = false;
 
 	constructor(
@@ -321,33 +311,21 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		super.dispose();
 	}
 
-	/**
-	 * Match the slots to the target's corner radius. Read lazily rather than in the
-	 * constructor: hosts commonly build their input box (and the controller) before
-	 * it is attached, and a detached element has no computed style to read.
-	 */
-	private _syncRadius(): void {
-		const radius = readRadius(this._target);
-		for (const slot of this._slots) {
-			slot.style.setProperty('--vg-radius', `${radius}px`);
-		}
-	}
-
 	render(state: VoiceGlowState, level: number, reducedMotion: boolean): void {
 		if (this._disposed) {
 			return;
 		}
 		const mood = resolveMood(state);
+		this._reducedMotion = reducedMotion;
 		if (!mood) {
 			this.clear();
 			return;
 		}
 
-		// Keyed on the mood, not the state: thinking and connected-idle share the
-		// calm rim, so moving between them must not re-mount or cross-fade.
+		// Keyed on the mood, not the state, so states that share a look never
+		// re-mount or cross-fade between each other.
 		if (mood !== this._currentMood) {
 			this._currentMood = mood;
-			this._syncRadius();
 			if (this._clearTimer !== undefined) {
 				clearTimeout(this._clearTimer);
 				this._clearTimer = undefined;
@@ -356,7 +334,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		}
 
 		// State classes still track the real state, so surface CSS that tints the
-		// mic glyph can tell thinking from idle even though the rim can't.
+		// mic glyph can tell the states apart even when they share a rim.
 		if (state !== this._currentState) {
 			this._currentState = state;
 			this._target.classList.add('voice-active');
@@ -383,15 +361,25 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		this._front = undefined;
 		if (previous) {
 			this._fadeOut(previous.host);
-			// Tear the mount down once faded out, so it stops driving CSS vars.
-			const host = previous.host;
-			this._clearTimer = setTimeout(() => {
-				this._clearTimer = undefined;
-				if (this._front?.host !== host) {
-					this._mounts.get(host)?.clear();
-				}
-			}, FADE_OUT_MS);
+			this._scheduleTeardown(previous.host);
 		}
+	}
+
+	/**
+	 * Tear a slot's mount down once it has faded out so it stops driving CSS
+	 * variables. Guarded on re-entry: if the slot has since been reused as the
+	 * front layer, the new mount must survive.
+	 */
+	private _scheduleTeardown(host: HTMLElement): void {
+		if (this._clearTimer !== undefined) {
+			clearTimeout(this._clearTimer);
+		}
+		this._clearTimer = setTimeout(() => {
+			this._clearTimer = undefined;
+			if (this._front?.host !== host) {
+				this._mounts.get(host)?.clear();
+			}
+		}, FADE_OUT_MS);
 	}
 
 	refreshTheme(): void {
@@ -404,7 +392,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			// Re-mount the current layer so it picks up the new accent / theme.
 			this._currentState = 'none';
 			this._currentMood = undefined;
-			this.render(state, 0.3, false);
+			this.render(state, 0.3, this._reducedMotion);
 		}
 	}
 
@@ -421,20 +409,25 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			mounted.driveStatic(0.4);
 		}
 
+		// Under reduced motion the layers swap outright: a 600ms cross-fade is
+		// still motion, and the fixtures rely on the frame being settled.
+		const fade = reducedMotion ? 'none' : FADE;
 		const previous = this._front;
 		host.style.transition = 'none';
 		host.style.opacity = '0';
 		void host.offsetWidth; // commit the start pose before transitioning from it
-		host.style.transition = FADE;
+		host.style.transition = fade;
 		host.style.opacity = '1';
 		if (previous && previous.host !== host) {
-			this._fadeOut(previous.host);
+			this._fadeOut(previous.host, fade);
+			// Stop the outgoing layer driving CSS vars once it is out of sight.
+			this._scheduleTeardown(previous.host);
 		}
 		this._front = mounted;
 	}
 
-	private _fadeOut(host: HTMLElement): void {
-		host.style.transition = FADE;
+	private _fadeOut(host: HTMLElement, fade: string = FADE): void {
+		host.style.transition = fade;
 		host.style.opacity = '0';
 	}
 

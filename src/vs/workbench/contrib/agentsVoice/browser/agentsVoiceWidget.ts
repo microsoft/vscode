@@ -677,7 +677,7 @@ export class AgentsVoiceWidget extends Disposable {
 
 		// The ambient glow is owned by the glow controller; clear it whenever the
 		// input box shouldn't be lit so no stale frame is left behind.
-		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && (voiceState === 'listening' || voiceState === 'speaking'));
+		const shouldShowInputGlow = showConnected && (voiceState === 'listening' || voiceState === 'speaking');
 		if (!shouldShowInputGlow) {
 			this._glowController?.clear();
 		}
