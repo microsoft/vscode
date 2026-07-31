@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/voiceGlow.css';
+import { Color } from '../../../../../base/common/color.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, voiceGlowStateColor, VoiceGlowState, VoiceRimMood } from './voiceGlow.js';
 
@@ -165,6 +166,8 @@ function mountRimLayers(host: HTMLElement, options: {
 	readonly peakGain: number;
 	/** How strongly the audio level speeds the breath up. */
 	readonly speedGain: number;
+	/** Scales the rim's absolute blob sizes to the host (1 = a chat input box). */
+	readonly size?: number;
 }): IMountedLayer {
 	const store = new DisposableStore();
 	const doc = host.ownerDocument;
@@ -186,6 +189,9 @@ function mountRimLayers(host: HTMLElement, options: {
 	host.style.setProperty('--vg-ring-opacity', String(layerOpacity.ring));
 	host.style.setProperty('--vg-inner-opacity', String(layerOpacity.inner));
 	host.style.setProperty('--vg-bloom-opacity', String(layerOpacity.bloom));
+	if (options.size !== undefined) {
+		host.style.setProperty('--vg-size', options.size.toFixed(3));
+	}
 
 	const oscillators = rimOscillators(options.theme, options.duration);
 	let time = 0;
@@ -234,6 +240,86 @@ function mountRimLayers(host: HTMLElement, options: {
  */
 export function createVoiceGlowController(target: HTMLElement, themeKind?: () => GlowThemeKind, colors?: () => IVoiceGlowColors): IVoiceGlowController {
 	return new VoiceGlowController(target, themeKind, colors);
+}
+
+/** A standalone rim light mounted over a single element. */
+export interface IVoiceRimLight extends IDisposable {
+	/** Advance the rim from the smoothed audio `level` ([0,1]). */
+	drive(level: number): void;
+	/** Pin to a representative still frame (reduced motion). */
+	driveStatic(level: number): void;
+	/** Re-mount with a freshly resolved accent / theme. */
+	refresh(accent: Color, theme: GlowThemeKind): void;
+}
+
+/**
+ * The height (px) the rim's blob sizes are authored against — a chat input box.
+ * Smaller hosts scale their blobs down from this, so a mic button gets the same
+ * light rather than one blob covering the whole element.
+ */
+const RIM_REFERENCE_HEIGHT = 78;
+
+/** Keeps a very small host from scaling its blobs into invisibility. */
+const RIM_MIN_SIZE = 0.22;
+
+/**
+ * Mount the rim over `target` as an always-on light, for hosts that light a
+ * single element rather than cross-fading between voice states — the dictation
+ * microphone, which is either open or closed.
+ *
+ * The rim lives in its own absolutely-positioned slot, so hosts that rebuild
+ * their button contents don't tear it out.
+ */
+export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool'): IVoiceRimLight {
+	const store = new DisposableStore();
+	const doc = target.ownerDocument;
+
+	if (!target.style.position) {
+		target.style.position = 'relative';
+	}
+	const slot = doc.createElement('div');
+	slot.className = 'voice-glow-slot voice-glow-slot-inline';
+	target.appendChild(slot);
+	store.add(toDisposable(() => slot.remove()));
+
+	const mount = store.add(new MutableDisposable<IMountedLayer>());
+	let level = 0.3;
+
+	const remount = (nextAccent: Color, nextTheme: GlowThemeKind) => {
+		const rim = resolveVoiceRimAccent(nextAccent, mood, nextTheme);
+		// Measured lazily: hosts commonly build the button before it is attached,
+		// and a detached element has no box to measure.
+		const height = target.getBoundingClientRect().height;
+		mount.clear();
+		mount.value = mountRimLayers(slot, {
+			theme: nextTheme,
+			mood,
+			hue: rim.hue,
+			saturation: rim.saturation,
+			lightness: rim.lightness,
+			strength: ACTIVE_RIM_STRENGTH,
+			duration: RIM_DURATION,
+			audioGain: 0.8,
+			peakGain: 0.95,
+			speedGain: 0.9,
+			size: height > 0 ? Math.max(RIM_MIN_SIZE, height / RIM_REFERENCE_HEIGHT) : RIM_MIN_SIZE,
+		});
+		mount.value.driveStatic(level);
+	};
+	remount(accent, theme);
+
+	return {
+		drive: (input: number) => {
+			level = input;
+			mount.value?.drive(input);
+		},
+		driveStatic: (input: number) => {
+			level = input;
+			mount.value?.driveStatic(input);
+		},
+		refresh: remount,
+		dispose: () => store.dispose(),
+	};
 }
 
 class VoiceGlowController extends Disposable implements IVoiceGlowController {

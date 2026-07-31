@@ -161,11 +161,6 @@ export interface IVoiceRimAccent {
 	readonly lightness: number;
 }
 
-/** {@link resolveVoiceRimAccent} as a CSS `hsl(...)` string. */
-export function voiceRimAccentCss(accent: IVoiceRimAccent): string {
-	return `hsl(${accent.hue.toFixed(1)} ${accent.saturation}% ${accent.lightness}%)`;
-}
-
 /**
  * Box-shadow for a voice mic/icon button glow, shared by surfaces that light up
  * the microphone glyph in addition to the input border.

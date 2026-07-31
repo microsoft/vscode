@@ -49,6 +49,17 @@
 	z-index: 12;
 }
 
+/*
+ * Inline variant: a rim mounted directly over a single control (the dictation
+ * microphone) rather than cross-faded between voice states. It is visible as
+ * soon as it is mounted, and sits behind the control's own glyph so the icon
+ * stays crisp.
+ */
+.voice-glow-slot-inline {
+	opacity: 1;
+	z-index: 0;
+}
+
 /* --- Rim ------------------------------------------------------------------ */
 
 .voice-glow-rim {
@@ -75,10 +86,17 @@
 	--vg-sat: 90%;
 	--vg-light: 66%;
 	--vg-strength: 1;
-	--vg-blob-scale: 1;
+	/*
+	 * Scales the whole rim to the box it lights. The blob sizes below are absolute
+	 * so the light keeps a constant physical softness across inputs of different
+	 * widths; a much smaller host (a mic button) has to shrink them to match, or
+	 * a single blob swamps the whole element.
+	 */
+	--vg-size: 1;
+	--vg-blob-scale: var(--vg-size);
 	--vg-ring-width: 1px;
 	/* How far in from the edge the inner wash fades out. */
-	--vg-inner-fade: 28px;
+	--vg-inner-fade: calc(28px * var(--vg-size));
 	overflow: hidden;
 	isolation: isolate;
 }
@@ -129,7 +147,7 @@
 	position: absolute;
 	inset: 0;
 	border-radius: inherit;
-	--vg-blob-scale: 0.72;
+	--vg-blob-scale: calc(0.72 * var(--vg-size));
 	-webkit-mask-image:
 		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
 		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
@@ -149,8 +167,8 @@
 	inset: 0;
 	border-radius: inherit;
 	padding: var(--vg-ring-width);
-	--vg-blob-scale: 1.22;
-	filter: blur(8px);
+	--vg-blob-scale: calc(1.22 * var(--vg-size));
+	filter: blur(calc(8px * var(--vg-size)));
 	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
 	-webkit-mask-composite: xor;
 	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -170,20 +188,20 @@
 	z-index: 1;
 	opacity: var(--vg-inner-opacity, 0.44);
 	background:
-		radial-gradient(ellipse 60px 60px at 0% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tl))), transparent 70%),
-		radial-gradient(ellipse 60px 60px at 100% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tr))), transparent 70%),
-		radial-gradient(ellipse 60px 60px at 0% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-bl))), transparent 70%),
-		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-br))), transparent 70%);
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tr))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-bl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-br))), transparent 70%);
 }
 
 /* On light backgrounds the corner catch has to be a shadow, not a highlight. */
 .vs .voice-glow-rim > .voice-glow-rim-corners,
 .hc-light .voice-glow-rim > .voice-glow-rim-corners {
 	background:
-		radial-gradient(ellipse 60px 60px at 0% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tl))), transparent 70%),
-		radial-gradient(ellipse 60px 60px at 100% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tr))), transparent 70%),
-		radial-gradient(ellipse 60px 60px at 0% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-bl))), transparent 70%),
-		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tr))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-bl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
 }
 
 /* --- High contrast --------------------------------------------------------- */
