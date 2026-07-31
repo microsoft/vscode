@@ -130,6 +130,14 @@ suite('ResponseSelectionSideChatController', () => {
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
 		const setTranscriptRect = (rect: Partial<DOMRect>) => { transcriptRect = rect; };
+		/**
+		 * Mimics the virtualized list removing the selected row: the nodes go
+		 * away and the browser collapses the selection that lived in them.
+		 */
+		const detachSelectedRow = () => {
+			markdown.remove();
+			selectionText = '';
+		};
 		const scroll = (selectionTop?: number) => {
 			if (selectionTop !== undefined) {
 				markdown.style.top = `${selectionTop}px`;
@@ -171,7 +179,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
 		controller.setChat(chat);
 
-		return { controller, setSelection, setSelectionOutsideTranscript, setTranscriptRect, scroll, autoScrollHolds: () => autoScrollHolds, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges, inputHeight: () => inputDomNode(controller).offsetHeight };
+		return { controller, setSelection, setSelectionOutsideTranscript, setTranscriptRect, detachSelectedRow, scroll, autoScrollHolds: () => autoScrollHolds, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges, inputHeight: () => inputDomNode(controller).offsetHeight };
 	}
 
 	function inputDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
@@ -302,6 +310,21 @@ suite('ResponseSelectionSideChatController', () => {
 		const style = inputDomNode(controller).style;
 		assert.notStrictEqual(style.display, 'none');
 		assert.strictEqual(parseFloat(style.top), 0);
+	});
+
+	test('dismisses and releases the hold when virtualization detaches the selected row', () => {
+		const { controller, setSelection, scroll, autoScrollHolds, detachSelectedRow } = setup();
+		setSelection('hello world', 100);
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+		assert.strictEqual(autoScrollHolds(), 1);
+
+		// Scrolling far enough removes the row from the DOM; the captured range
+		// now anchors to nodes that will never come back.
+		detachSelectedRow();
+		scroll();
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'must not point at nothing');
+		assert.strictEqual(autoScrollHolds(), 0, 'the transcript must not stay pinned forever');
 	});
 
 	test('follows the selection as the transcript scrolls instead of staying pinned', () => {

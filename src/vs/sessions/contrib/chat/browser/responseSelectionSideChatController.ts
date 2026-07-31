@@ -285,6 +285,13 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 		const selectionRect = getVisibleBoundingRect(resolved.range);
 		if (!selectionRect) {
+			// The transcript is virtualized, so scrolling far enough removes the
+			// selected row. Removing a node re-homes any live range onto the
+			// surviving parent, collapsing it, so the range still looks attached
+			// but no longer covers anything. The anchored text cannot come back
+			// — re-rendering builds new nodes — so dismiss rather than leave the
+			// input pointing at nothing and the transcript pinned forever.
+			this._dismiss();
 			return;
 		}
 		this._input.show();

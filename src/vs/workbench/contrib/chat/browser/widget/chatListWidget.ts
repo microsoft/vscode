@@ -44,6 +44,34 @@ export interface IChatListWidgetStyles {
 }
 
 /**
+ * Ref-counted suppression of auto-scrolling to the bottom. Holds compose, so
+ * unrelated features (request editing, an open text selection) can suppress
+ * concurrently without clobbering each other; auto-scroll resumes only once the
+ * last hold is released.
+ */
+export class AutoScrollHolds {
+
+	private _count = 0;
+
+	get isHeld(): boolean {
+		return this._count > 0;
+	}
+
+	acquire(): IDisposable {
+		this._count++;
+		// Idempotent so a double-dispose releases one hold rather than
+		// decrementing past it and silently cancelling somebody else's.
+		let released = false;
+		return toDisposable(() => {
+			if (!released) {
+				released = true;
+				this._count--;
+			}
+		});
+	}
+}
+
+/**
  * Tracks when a user-triggered resize has remained stable across animation frames.
  */
 export class UserToggleResizeState {
@@ -307,7 +335,7 @@ export class ChatListWidget extends Disposable {
 	private _lastItem: ChatTreeItem | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
-	private _autoScrollHolds: number = 0;
+	private _autoScrollHolds = new AutoScrollHolds();
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
@@ -915,21 +943,12 @@ export class ChatListWidget extends Disposable {
 	 * auto-scroll resumes only once the last hold is released.
 	 */
 	acquireAutoScrollHold(): IDisposable {
-		this._autoScrollHolds++;
-		// Idempotent so a double-dispose releases one hold rather than
-		// decrementing past it and silently cancelling somebody else's.
-		let released = false;
-		return toDisposable(() => {
-			if (!released) {
-				released = true;
-				this._autoScrollHolds--;
-			}
-		});
+		return this._autoScrollHolds.acquire();
 	}
 
 	/** Whether any {@link acquireAutoScrollHold} hold is currently active. */
 	get isAutoScrollHeld(): boolean {
-		return this._autoScrollHolds > 0;
+		return this._autoScrollHolds.isHeld;
 	}
 
 	private _withPersistedAutoScroll(fn: () => void): void {

@@ -57,7 +57,15 @@ function contributingTextEndpoints(range: Range): { first: Text; last: Text } | 
 			if (node.nodeType !== Node.ELEMENT_NODE) {
 				return NodeFilter.FILTER_ACCEPT;
 			}
-			return (node as Element).checkVisibility() ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_REJECT;
+			const element = node as Element;
+			if (element.checkVisibility()) {
+				return NodeFilter.FILTER_SKIP;
+			}
+			// A `display: contents` element has no box of its own — so it reads
+			// as invisible — but its descendants do render and are selectable.
+			// Only read the computed style on this rare branch.
+			const display = dom.getWindow(element).getComputedStyle(element).display;
+			return display === 'contents' ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_REJECT;
 		},
 	});
 	let first: Text | undefined;
