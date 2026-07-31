@@ -12,6 +12,14 @@ export const ILocalTranscriptionService = createDecorator<ILocalTranscriptionSer
 /** IPC channel name used to reach the transcription service in the utility process. */
 export const localTranscriptionChannelName = 'localTranscription';
 
+/** Default on-device model used for dictation. */
+export const DEFAULT_LOCAL_TRANSCRIPTION_MODEL = 'nemotron-speech-streaming-en-0.6b';
+
+export interface ILocalTranscriptionModelImportResult {
+	readonly model: string;
+	readonly version: number;
+}
+
 /** Lifecycle of the downloaded transcription model. */
 export const enum LocalTranscriptionModelState {
 	/** Model has not been requested yet. */
@@ -93,6 +101,12 @@ export interface ILocalTranscriptionService {
 
 	/** Current model status (e.g. to gate the dictation UI). */
 	getModelStatus(): Promise<ILocalTranscriptionModelStatus>;
+
+	/**
+	 * Imports the default on-device model from an official Foundry Local expansion
+	 * pack or a prepared model directory into `cacheDir`.
+	 */
+	importModel(options: { readonly sourcePath: string; readonly cacheDir: string }): Promise<ILocalTranscriptionModelImportResult>;
 
 	/**
 	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
