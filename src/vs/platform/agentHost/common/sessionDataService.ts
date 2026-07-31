@@ -391,8 +391,14 @@ export interface ISessionDataService {
 
 	/**
 	 * Recursively deletes the data directory for a session, if it exists.
+	 *
+	 * `workingDirectories` is forwarded verbatim to
+	 * {@link IWillDeleteSessionDataEvent.workingDirectories}. Callers that
+	 * tear down live session state as part of disposal must resolve it
+	 * *before* doing so, otherwise subscribers cannot locate the
+	 * repositories they need to clean up.
 	 */
-	deleteSessionData(session: URI): Promise<void>;
+	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
 
 	/**
 	 * Fires immediately before a session's data directory (and the
@@ -404,6 +410,10 @@ export interface ISessionDataService {
 	 * `IAgentHostCheckpointService.disposeSessionData` to read the exact
 	 * list of checkpoint refs from the (still-readable) database and
 	 * delete them before the directory is removed.
+	 *
+	 * The repositories to clean up are identified by
+	 * {@link IWillDeleteSessionDataEvent.workingDirectories}, which the
+	 * caller resolves before tearing down live session state.
 	 *
 	 * Subscribers must own their own error handling — exceptions
 	 * propagated out of `waitUntil` promises are logged and ignored;
@@ -431,6 +441,21 @@ export interface ISessionDataService {
  */
 export interface IWillDeleteSessionDataEvent {
 	readonly session: URI;
+	/**
+	 * The session's working directories (index 0 = primary), as resolved
+	 * by the caller of {@link ISessionDataService.deleteSessionData}
+	 * *before* any live session state was torn down.
+	 *
+	 * Subscribers that need to touch the session's repositories (deleting
+	 * checkpoint or reviewed refs) must use this rather than querying
+	 * session state themselves: by the time this event fires the session
+	 * has typically already been removed from the state manager, so a
+	 * live lookup returns `undefined` and the cleanup silently no-ops.
+	 *
+	 * `undefined` when the session had no working directories, or when
+	 * the caller did not supply them.
+	 */
+	readonly workingDirectories: readonly string[] | undefined;
 	/**
 	 * Register an asynchronous task that must settle before the session's
 	 * data directory is removed.

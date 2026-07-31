@@ -8,7 +8,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import {
 	buildWpsUrl,
 	cloudSandboxAddress,
+	CloudSandboxAuthenticationRequiredError,
+	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
+	isRetryableCloudSandboxError,
 } from '../../common/cloudSandboxAgentHost.js';
 
 suite('cloudSandbox url/address helpers', () => {
@@ -47,6 +50,31 @@ suite('cloudSandbox url/address helpers', () => {
 		assert.strictEqual(
 			buildWpsUrl(token({ wps_endpoint: 'ws://wps.example/hubs/h', access_token: 't', client_id: 'c' })),
 			'wss://wps.example/hubs/h?access_token=t&clientId=c',
+		);
+	});
+});
+
+suite('isRetryableCloudSandboxError', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only statuses that can change on their own are retryable', () => {
+		const statuses = [200, 400, 401, 403, 404, 408, 409, 410, 422, 429, 500, 502, 503];
+		const retryable = statuses.filter(status => isRetryableCloudSandboxError(new CloudSandboxRequestError(status, `HTTP ${status}`)));
+
+		assert.deepStrictEqual(retryable, [200, 408, 429, 500, 502, 503]);
+	});
+
+	test('errors without a status are retryable, including a not-yet-available sign-in', () => {
+		assert.deepStrictEqual(
+			{
+				transport: isRetryableCloudSandboxError(new Error('socket hang up')),
+				statusless: isRetryableCloudSandboxError(new CloudSandboxRequestError(undefined, 'no status')),
+				// Raised before any request goes out, and covers the auth provider not having
+				// registered yet — so callers bound it with their own ceiling rather than here.
+				authNotReady: isRetryableCloudSandboxError(new CloudSandboxAuthenticationRequiredError()),
+			},
+			{ transport: true, statusless: true, authNotReady: true },
 		);
 	});
 });

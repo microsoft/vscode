@@ -173,7 +173,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IChatService, MockChatService);
 	reg.defineInstance(IChatPetService, new class extends mock<IChatPetService>() {
 		override readonly enabled = observableValue('chatPetEnabled', false);
+		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
+		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
 		override toggle() { return false; }
+		override setVariant() { }
+		override setOnTheRun() { }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
@@ -263,7 +267,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override announceRendered() { }
 	}());
 	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
-	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
+	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+		override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }();
+		override getSession() { return undefined; }
+	}());
 	// Agent-host chat widgets (e.g. the turn changes summary fixtures) create the
 	// generic config chips lane, which opens a session subscription. Return an
 	// inert, never-hydrating subscription (value `undefined`) so no config chips
