@@ -23,7 +23,7 @@ import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
-import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -153,7 +153,9 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _spanStore: OTelSqliteStore | undefined;
 	private _forwarder: IOutboundForwarder | undefined;
 	private _startPromise: Promise<void> | undefined;
-	private _titleExportQueue = Promise.resolve();
+	private _metadataExportQueue = Promise.resolve();
+	private readonly _sessionContexts = new Map<string, IAgentHostTraceContext>();
+	private _currentTraceContext: IAgentHostTraceContext | undefined;
 
 	constructor(
 		private readonly _fetchFn: typeof globalThis.fetch | undefined,
@@ -186,6 +188,72 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		return this._buildPassthroughConfig();
 	}
 
+	async getNativeSdkTelemetryConfig(): Promise<IAgentHostNativeOTelConfig | undefined> {
+		if (!this._config.enabled) {
+			return undefined;
+		}
+		const protocol = this._config.otlpProtocol === 'grpc'
+			? 'grpc'
+			: this._config.otlpProtocol === 'http/protobuf' ? 'http/protobuf' : 'http/json';
+		const external = this._config.otlpEndpoint ? { endpoint: this._config.otlpEndpoint, protocol } as const : undefined;
+		if (!this._config.dbSpanExporter) {
+			return { traces: external, external, captureContent: this._config.captureContent === true };
+		}
+		await this._ensureStarted();
+		return {
+			traces: this._receiver ? { endpoint: `${this._receiver.baseUrl}/v1/traces`, protocol: 'http/json' } : external,
+			external,
+			captureContent: this._config.captureContent === true,
+		};
+	}
+
+	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined {
+		if (!this._config.enabled || !conversationId || !sessionUri) {
+			return undefined;
+		}
+		const existing = this._sessionContexts.get(sessionUri);
+		if (existing) {
+			return existing;
+		}
+		const traceId = generateUuid().replaceAll('-', '');
+		const spanId = generateUuid().replaceAll('-', '').slice(0, 16);
+		const context: IAgentHostTraceContext = { traceId, spanId, traceparent: `00-${traceId}-${spanId}-01` };
+		this._sessionContexts.set(sessionUri, context);
+		const now = Date.now();
+		this._queueSyntheticSpan({
+			name: AgentHostSessionSpanName,
+			traceId,
+			spanId,
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: {
+				...this._config.resourceAttributes,
+				[GenAiAttr.CONVERSATION_ID]: conversationId,
+				[AgentHostSessionUriAttribute]: sessionUri,
+			},
+			events: [],
+		});
+		return context;
+	}
+
+	withTraceContext<T>(context: IAgentHostTraceContext | undefined, fn: () => T): T {
+		const previous = this._currentTraceContext;
+		this._currentTraceContext = context;
+		try {
+			// Provider SDKs read their callback-based trace carrier synchronously
+			// while constructing the RPC promise. Do not retain context for the
+			// lifetime of that promise: concurrent turns must not inherit it.
+			return fn();
+		} finally {
+			this._currentTraceContext = previous;
+		}
+	}
+
+	getCurrentTraceContext(): IAgentHostTraceContext | undefined {
+		return this._currentTraceContext;
+	}
+
 	getSpansDbPath(): URI | undefined {
 		return this._config.dbSpanExporter ? URI.file(this._spansDbPath) : undefined;
 	}
@@ -199,13 +267,28 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		}
 
 		const boundedTitle = title.slice(0, 200);
-		this._titleExportQueue = this._titleExportQueue
-			.then(() => this._emitSessionTitleSpan(conversationId, sessionUri, boundedTitle))
-			.catch(err => this._logService.warn('[agentHost.otel] failed to emit session title span', err));
+		const context = this.getSessionTraceContext(conversationId, sessionUri);
+		const now = Date.now();
+		this._queueSyntheticSpan({
+			name: AgentHostSessionTitleSpanName,
+			traceId: context?.traceId ?? generateUuid().replaceAll('-', ''),
+			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
+			parentSpanId: context?.spanId,
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: {
+				...this._config.resourceAttributes,
+				[GenAiAttr.CONVERSATION_ID]: conversationId,
+				[AgentHostSessionTitleAttribute]: boundedTitle,
+				[AgentHostSessionUriAttribute]: sessionUri,
+			},
+			events: [],
+		});
 	}
 
 	async flush(): Promise<void> {
-		await this._titleExportQueue;
+		await this._metadataExportQueue;
 		await this._startPromise;
 		if (this._forwarder) {
 			await this._forwarder.flush();
@@ -292,7 +375,13 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		this._logService.info(`[agentHost.otel] loopback receiver at ${receiver.baseUrl}, db ${this._spansDbPath}`);
 	}
 
-	private async _emitSessionTitleSpan(conversationId: string, sessionUri: string, title: string): Promise<void> {
+	private _queueSyntheticSpan(span: ICompletedSpanData): void {
+		this._metadataExportQueue = this._metadataExportQueue
+			.then(() => this._emitSyntheticSpan(span))
+			.catch(err => this._logService.warn('[agentHost.otel] failed to emit metadata span', err));
+	}
+
+	private async _emitSyntheticSpan(span: ICompletedSpanData): Promise<void> {
 		if (this._config.dbSpanExporter) {
 			await this._ensureStarted();
 		} else if (!this._forwarder) {
@@ -301,24 +390,6 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 				this._register(this._forwarder);
 			}
 		}
-
-		const now = Date.now();
-		const traceId = generateUuid().replaceAll('-', '');
-		const span: ICompletedSpanData = {
-			name: AgentHostSessionTitleSpanName,
-			traceId,
-			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
-			startTime: now,
-			endTime: now,
-			status: { code: SpanStatusCode.OK },
-			attributes: {
-				...this._config.resourceAttributes,
-				[GenAiAttr.CONVERSATION_ID]: conversationId,
-				[AgentHostSessionTitleAttribute]: title,
-				[AgentHostSessionUriAttribute]: sessionUri,
-			},
-			events: [],
-		};
 
 		try {
 			this._spanStore?.insertSpan(span);
@@ -358,6 +429,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 					spans: [{
 						traceId: span.traceId,
 						spanId: span.spanId,
+						...(span.parentSpanId ? { parentSpanId: span.parentSpanId } : {}),
 						name: span.name,
 						kind: 1,
 						startTimeUnixNano: `${span.startTime}000000`,

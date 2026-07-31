@@ -769,6 +769,10 @@ class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
+	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
+	getSessionTraceContext(): undefined { return undefined; }
+	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
+	getCurrentTraceContext(): undefined { return undefined; }
 	getSpansDbPath(): undefined { return undefined; }
 	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
 		this.titleChanges.push({ conversationId, sessionUri, title });

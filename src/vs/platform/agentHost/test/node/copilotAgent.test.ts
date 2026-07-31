@@ -470,6 +470,10 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig() {
 		return undefined;
 	}
+	async getNativeSdkTelemetryConfig() { return undefined; }
+	getSessionTraceContext() { return undefined; }
+	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
+	getCurrentTraceContext() { return undefined; }
 	getSpansDbPath() {
 		return undefined;
 	}
@@ -616,6 +620,10 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostOTelService, {
 		_serviceBrand: undefined,
 		getSdkTelemetryConfig: async () => undefined,
+		getNativeSdkTelemetryConfig: async () => undefined,
+		getSessionTraceContext: () => undefined,
+		withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
+		getCurrentTraceContext: () => undefined,
 		getSpansDbPath: () => undefined,
 		emitSessionTitleChanged: () => { },
 		flush: async () => undefined,
