@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { ChatPetService, getChatPetVariant, parseChatPetCommand } from '../../../browser/chatPetService.js';
+import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, isChatPetImageSource, isChatPetVisible } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
@@ -83,20 +83,6 @@ suite('ChatPetWidget', () => {
 			'buddy-idle-stable',
 			'buddy-idle-insiders',
 			'buddy-idle-insiders',
-		]);
-	});
-
-	test('parses pet command arguments', () => {
-		assert.deepStrictEqual([
-			parseChatPetCommand(''),
-			parseChatPetCommand(' stable '),
-			parseChatPetCommand('INSIDERS'),
-			parseChatPetCommand('hide'),
-		], [
-			{ kind: 'toggle' },
-			{ kind: 'variant', variant: 'stable' },
-			{ kind: 'variant', variant: 'insiders' },
-			{ kind: 'invalid', argument: 'hide' },
 		]);
 	});
 

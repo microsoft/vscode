@@ -17,7 +17,6 @@ const CHAT_PET_VARIANT_STORAGE_KEY = 'chat.vscodePet.variant';
 const CHAT_PET_ON_THE_RUN_STORAGE_KEY = 'chat.vscodePet.onTheRun';
 
 export type ChatPetVariant = 'stable' | 'insiders';
-export type ChatPetCommand = { readonly kind: 'toggle' } | { readonly kind: 'variant'; readonly variant: ChatPetVariant } | { readonly kind: 'invalid'; readonly argument: string };
 
 type ChatPetEnablementEvent = {
 	enabled: boolean;
@@ -30,17 +29,6 @@ type ChatPetEnablementClassification = {
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the VS Code pet is enabled.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the state was observed at startup or changed while VS Code was running.' };
 };
-
-export function parseChatPetCommand(prompt: string): ChatPetCommand {
-	const argument = prompt.trim().toLowerCase();
-	if (!argument) {
-		return { kind: 'toggle' };
-	}
-	if (argument === 'stable' || argument === 'insiders') {
-		return { kind: 'variant', variant: argument };
-	}
-	return { kind: 'invalid', argument };
-}
 
 export function getChatPetVariant(configuredVariant: string | undefined, productQuality: string | undefined): ChatPetVariant {
 	if (configuredVariant === 'stable' || configuredVariant === 'insiders') {
