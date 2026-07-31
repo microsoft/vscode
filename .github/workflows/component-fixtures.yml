@@ -164,14 +164,7 @@ jobs:
             || {
               echo "match=false" >> "$GITHUB_OUTPUT"
               cat /tmp/blocks-ci-stderr.txt >&2
-              CONTENT=$(cat /tmp/blocks-ci-updated.md)
-              echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
-              echo "$CONTENT" >> "$GITHUB_OUTPUT"
-              echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
-              PATCH=$(diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true)
-              echo "patch<<BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
-              echo "$PATCH" >> "$GITHUB_OUTPUT"
-              echo "BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
+              diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md > /tmp/blocks-ci.patch || true
             }
 
       - name: Upload screenshots as artifact
@@ -258,17 +251,15 @@ jobs:
         id: diff
         if: always()
         run: |
-          BODY=$(node build/lib/screenshotDiffReport.ts \
+          node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
             "${{ steps.base.outputs.base_sha }}" \
             ${{ github.sha }} \
             "${{ steps.base_manifest.outputs.path }}" \
-            test/componentFixtures/.screenshots/current/manifest.json)
-          if [ -n "$BODY" ]; then
+            test/componentFixtures/.screenshots/current/manifest.json \
+            > /tmp/screenshot-diff-report.md
+          if [ -s /tmp/screenshot-diff-report.md ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
-            echo "$BODY" >> "$GITHUB_OUTPUT"
-            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
           else
             echo "No screenshot changes to report."
           fi
@@ -288,28 +279,31 @@ jobs:
         # errors is not tied to blocks-ci here.
         run: |
           {
-            if [ -n "$COMMENT_BODY" ]; then
-              printf '%s\n' "$COMMENT_BODY"
+            if [ -s /tmp/screenshot-diff-report.md ]; then
+              cat /tmp/screenshot-diff-report.md
+              printf '\n'
             fi
-            if [ -n "$BLOCKS_CI_CONTENT" ]; then
-              if [ -n "$COMMENT_BODY" ]; then printf '\n---\n\n'; fi
+            if [ "$BLOCKS_CI_CHANGED" = "true" ]; then
+              if [ -s /tmp/screenshot-diff-report.md ]; then printf '\n---\n\n'; fi
               printf '### blocks-ci screenshots changed\n\n'
               printf 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n'
               printf '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n'
-              printf '```md\n%s\n```\n\n' "$BLOCKS_CI_CONTENT"
+              printf '```md\n'
+              cat /tmp/blocks-ci-updated.md
+              printf '```\n\n'
               printf '</details>\n'
-              if [ -n "$BLOCKS_CI_PATCH" ]; then
+              if [ -s /tmp/blocks-ci.patch ]; then
                 printf '\n<details open>\n<summary>Patch</summary>\n\n'
-                printf '```diff\n%s\n```\n\n' "$BLOCKS_CI_PATCH"
+                printf '```diff\n'
+                cat /tmp/blocks-ci.patch
+                printf '```\n\n'
                 printf '</details>\n'
               fi
             fi
           } > /tmp/comment-body.md
           echo "path=/tmp/comment-body.md" >> "$GITHUB_OUTPUT"
         env:
-          COMMENT_BODY: ${{ steps.diff.outputs.body }}
-          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
-          BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
+          BLOCKS_CI_CHANGED: ${{ steps.blocks-ci.outputs.match == 'false' }}
 
       - name: Write job summary
         if: always() && steps.comment_body.outputs.path

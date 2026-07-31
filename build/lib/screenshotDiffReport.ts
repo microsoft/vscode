@@ -31,6 +31,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
+const MAX_SCREENSHOT_ENTRIES = 50;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
 const MAX_BODY_BYTES = 300 * 1024;
 
@@ -369,6 +370,7 @@ function generateMarkdown(
 	}
 
 	const lines: string[] = [];
+	let remainingScreenshotEntries = MAX_SCREENSHOT_ENTRIES;
 	lines.push('## Screenshot Changes');
 	lines.push('');
 	if (baseSha) {
@@ -382,7 +384,8 @@ function generateMarkdown(
 		if (significantChanged.length > 0) {
 			lines.push(`### Changed (${significantChanged.length})`);
 			lines.push('');
-			for (let i = 0; i < significantChanged.length; i++) {
+			const reportedCount = Math.min(significantChanged.length, remainingScreenshotEntries);
+			for (let i = 0; i < reportedCount; i++) {
 				const entry = significantChanged[i];
 				const open = i < EXPAND_FIRST_N ? ' open' : '';
 				lines.push(`<details${open}><summary><code>${entry.fixtureId}</code></summary>`);
@@ -392,6 +395,11 @@ function generateMarkdown(
 				lines.push(`| ![before](${loadImageUrl(serviceUrl, entry.beforeHash)}) | ![after](${loadImageUrl(serviceUrl, entry.afterHash)}) |`);
 				lines.push('');
 				lines.push('</details>');
+				lines.push('');
+			}
+			remainingScreenshotEntries -= reportedCount;
+			if (reportedCount < significantChanged.length) {
+				lines.push(`_...and ${significantChanged.length - reportedCount} more changed screenshot(s) omitted. See the workflow artifacts for the complete set._`);
 				lines.push('');
 			}
 		}
@@ -404,7 +412,8 @@ function generateMarkdown(
 	if (added.length > 0) {
 		lines.push(`### Added (${added.length})`);
 		lines.push('');
-		for (let i = 0; i < added.length; i++) {
+		const reportedCount = Math.min(added.length, remainingScreenshotEntries);
+		for (let i = 0; i < reportedCount; i++) {
 			const entry = added[i];
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
 			lines.push(`<details${open}><summary><code>${entry.fixtureId}</code></summary>`);
@@ -414,12 +423,18 @@ function generateMarkdown(
 			lines.push('</details>');
 			lines.push('');
 		}
+		remainingScreenshotEntries -= reportedCount;
+		if (reportedCount < added.length) {
+			lines.push(`_...and ${added.length - reportedCount} more added screenshot(s) omitted. See the workflow artifacts for the complete set._`);
+			lines.push('');
+		}
 	}
 
 	if (removed.length > 0) {
 		lines.push(`### Removed (${removed.length})`);
 		lines.push('');
-		for (let i = 0; i < removed.length; i++) {
+		const reportedCount = Math.min(removed.length, remainingScreenshotEntries);
+		for (let i = 0; i < reportedCount; i++) {
 			const entry = removed[i];
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
 			lines.push(`<details${open}><summary><code>${entry.fixtureId}</code></summary>`);
@@ -427,6 +442,11 @@ function generateMarkdown(
 			lines.push(`![baseline](${loadImageUrl(serviceUrl, entry.beforeHash)})`);
 			lines.push('');
 			lines.push('</details>');
+			lines.push('');
+		}
+		remainingScreenshotEntries -= reportedCount;
+		if (reportedCount < removed.length) {
+			lines.push(`_...and ${removed.length - reportedCount} more removed screenshot(s) omitted. See the workflow artifacts for the complete set._`);
 			lines.push('');
 		}
 	}

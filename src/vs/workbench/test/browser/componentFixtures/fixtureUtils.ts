@@ -379,7 +379,13 @@ function parseReverseOption(value: unknown): ReverseStylesheetsOption {
 
 /** Inputs exposed as Component Explorer controls. */
 const fixtureInputSchema = z.object({
-	reverseStylesheets: z.boolean().default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
+	reverseStylesheets: z.union([
+		z.boolean(),
+		z.object({
+			fromIndex: z.number(),
+			toIndex: z.number(),
+		}),
+	]).default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
 	outputTimeTrace: z.boolean().default(false).describe('Return the render\'s virtual-time trace as its output.'),
 	outputStylesheetFiles: z.boolean().default(false).describe('Return the bundled stylesheet files as the render output.'),
 });
