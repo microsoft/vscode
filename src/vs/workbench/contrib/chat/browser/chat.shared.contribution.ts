@@ -14,6 +14,7 @@ import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -282,19 +283,19 @@ configurationRegistry.registerConfiguration({
 		'dictation.model': {
 			type: 'string',
 			enum: [
-				'nemotron-speech-streaming-en-0.6b',
+				DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
 				'mai',
 			],
 			enumItemLabels: [
-				nls.localize('dictation.model.nemotronStreaming.label', "Nemotron Streaming (English) — On-Device"),
+				nls.localize('dictation.model.nemotronStreaming.label', "Nemotron 3.5 ASR (Multilingual) — On-Device"),
 				nls.localize('dictation.model.mai.label', "MAI — Cloud"),
 			],
 			markdownEnumDescriptions: [
-				nls.localize('dictation.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Downloaded on first use and cached on disk."),
+				nls.localize('dictation.model.nemotronStreaming', "NVIDIA Nemotron 3.5 multilingual streaming RNN-T, run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Automatic language selection follows the Voice Mode language setting and system or browser locale, with model detection as a fallback. Downloaded on first use and cached on disk."),
 				nls.localize('dictation.model.mai', "Cloud transcription through the same Microsoft AI voice service used by Voice Mode. Requires a network connection and GitHub sign-in; audio is streamed to the service."),
 			],
 			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
-			default: 'nemotron-speech-streaming-en-0.6b',
+			default: DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' }
 		},
@@ -2269,9 +2270,10 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 				'onnx-community/whisper-base',
 				'onnx-community/whisper-small',
 				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+				'nemotron-speech-streaming-en-0.6b',
 			];
 			const migrated = (typeof value === 'string' && legacyModelIds.includes(value))
-				? 'nemotron-speech-streaming-en-0.6b'
+				? DEFAULT_LOCAL_TRANSCRIPTION_MODEL
 				: value;
 			const pairs: ConfigurationKeyValuePairs = [['chat.speechToText.model', { value: undefined }]];
 			// Never clobber an explicitly configured new key (e.g. after settings
@@ -2281,6 +2283,16 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			}
 			return pairs;
 		}
+	},
+	{
+		// Existing users may have the former English-only default stored
+		// explicitly. Move them to the multilingual replacement as well.
+		key: 'dictation.model',
+		migrateFn: value => ({
+			value: value === 'nemotron-speech-streaming-en-0.6b'
+				? DEFAULT_LOCAL_TRANSCRIPTION_MODEL
+				: value
+		})
 	},
 	{
 		// Dictation settings were regrouped under the top-level `dictation.*`

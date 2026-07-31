@@ -5,11 +5,36 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 
 suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves the dictation language from Voice Mode configuration and browser locale', () => {
+		assert.deepStrictEqual({
+			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
+			automatic: resolveDictationLanguage('auto', 'uk-UA'),
+			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR'),
+			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU'),
+			explicitSpanish: resolveDictationLanguage('es', 'en-US'),
+			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO'),
+			unsupportedAutomatic: resolveDictationLanguage('auto', 'he-IL'),
+			invalidExplicit: resolveDictationLanguage('not a locale', 'de-DE'),
+			missing: resolveDictationLanguage(undefined, undefined),
+		}, {
+			explicit: 'fr-FR',
+			automatic: 'uk-UA',
+			regionalAutomatic: 'pt-BR',
+			unsupportedRegion: 'en-US',
+			explicitSpanish: 'es-US',
+			regionalPortugueseFallback: 'pt-PT',
+			unsupportedAutomatic: 'auto',
+			invalidExplicit: 'auto',
+			missing: 'auto',
+		});
+	});
 
 	test('shows each cleaned prefix with the remaining raw transcript', () => {
 		assert.deepStrictEqual(

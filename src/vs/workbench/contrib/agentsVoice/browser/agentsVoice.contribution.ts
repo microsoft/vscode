@@ -644,7 +644,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.language.ko', "Korean"),
 				nls.localize('agents.voice.language.zh', "Chinese"),
 			],
-			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition, dictation, and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and dictation, and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
 		},
