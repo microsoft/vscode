@@ -93,6 +93,20 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, !!message.readonly);
 					break;
 				}
+				case 'history': {
+					// The TextDocument owns undo/redo, so route the chord to the built-in
+					// command; the active custom editor input scopes it to this resource's
+					// history, shared with the Edit menu and Command Palette. Drain any
+					// in-flight edit first and only act while this panel is active, so the
+					// chord cannot race a pending edit or land on a different document.
+					if (message.command === 'undo' || message.command === 'redo') {
+						await editQueue;
+						if (webviewPanel.active) {
+							await vscode.commands.executeCommand(message.command);
+						}
+					}
+					break;
+				}
 				case 'openLink': {
 					await this.#linkOpener.openDocumentLink(message.href as string, document.uri);
 					break;

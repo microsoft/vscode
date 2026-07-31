@@ -8,6 +8,7 @@ import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
 import { defineAnnotationsTests } from './annotationsSuite.js';
+import { defineChangesetTests } from './changesetSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
 import { defineProtocolContractTests } from './protocolContractsSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
@@ -111,6 +112,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineClientFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
+			defineChangesetTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.

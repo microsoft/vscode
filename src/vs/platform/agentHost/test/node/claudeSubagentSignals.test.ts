@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ToolCallConfirmationReason } from '../../common/state/sessionState.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { buildTopLevelSubagentReadyAction, mapSubagentSystemMessage } from '../../node/claude/claudeSubagentSignals.js';
@@ -251,6 +251,70 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			everyActionTaggedWithParent: true,
 			completePastTense: { markdown: 'Found files matching `**/*.ts`' },
 		});
+	});
+
+	test('inner client tools preserve client ownership and generic input across the lifecycle', () => {
+		const state = new ClaudeMapperState();
+		const log = new NullLogService();
+		const registry = r();
+		const parentToolCallId = 'toolu_parent_client';
+		mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, parentToolCallId, 'Task')),
+			SESSION, TURN_ID, state, log, registry,
+		);
+
+		const innerAssistant = makeAssistantMessage(SESSION_ID, [
+			{ type: 'tool_use', id: 'toolu_inner_client', name: 'mcp__client__Bash', input: { command: 'echo client' } },
+		]);
+		innerAssistant.parent_tool_use_id = parentToolCallId;
+		const fromAssistant = mapSDKMessageToAgentSignals(innerAssistant, SESSION, TURN_ID, state, log, registry, () => 'client-1');
+		const innerToolResult = makeUserToolResultMessage(SESSION_ID, 'toolu_inner_client', 'done');
+		innerToolResult.parent_tool_use_id = parentToolCallId;
+		const fromResult = mapSDKMessageToAgentSignals(innerToolResult, SESSION, TURN_ID, state, log, registry);
+
+		const actions = [...fromAssistant, ...fromResult].filter(signal => signal.kind === 'action').map(signal => signal.kind === 'action' ? signal.action : undefined);
+		assert.deepStrictEqual(actions.map(action => {
+			switch (action?.type) {
+				case ActionType.ChatToolCallStart:
+					return {
+						type: action.type,
+						toolName: action.toolName,
+						displayName: action.displayName,
+						contributor: action.contributor,
+						meta: action._meta,
+					};
+				case ActionType.ChatToolCallReady:
+					return {
+						type: action.type,
+						invocationMessage: action.invocationMessage,
+						toolInput: action.toolInput,
+					};
+				case ActionType.ChatToolCallComplete:
+					return {
+						type: action.type,
+						pastTenseMessage: action.result.pastTenseMessage,
+					};
+				default:
+					return undefined;
+			}
+		}).filter(item => item !== undefined), [
+			{
+				type: ActionType.ChatToolCallStart,
+				toolName: 'Bash',
+				displayName: 'Bash',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				meta: undefined,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				invocationMessage: 'Bash',
+				toolInput: '{\n  "command": "echo client"\n}',
+			},
+			{
+				type: ActionType.ChatToolCallComplete,
+				pastTenseMessage: 'Bash',
+			},
+		]);
 	});
 
 	test('foreground subagent completion: tool_result for a Task spawn emits ChatToolCallComplete AND IAgentSubagentCompletedSignal, then clears the spawn from the registry', () => {
