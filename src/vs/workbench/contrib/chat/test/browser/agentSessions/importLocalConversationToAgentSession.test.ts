@@ -27,6 +27,11 @@ suite('importedTurnsFromChatModel', () => {
 		return { kind: 'inlineReference', inlineReference: uri, name } as IChatProgressResponseContent;
 	}
 
+	/** Builds an inline reference from a non-URI shape (a `Location` or `IWorkspaceSymbol`). */
+	function inlineRef(reference: unknown, name?: string): IChatProgressResponseContent {
+		return { kind: 'inlineReference', inlineReference: reference, name } as IChatProgressResponseContent;
+	}
+
 	function subagentTool(toolCallId: string, agentName: string, description: string, result: string): IChatProgressResponseContent {
 		return {
 			kind: 'toolInvocationSerialized',
@@ -92,6 +97,85 @@ suite('importedTurnsFromChatModel', () => {
 				{ kind: ResponsePartKind.Markdown, content: `[a.ts](${URI.file('/repo/a.ts').toString()})` },
 				{ kind: ResponsePartKind.Markdown, content: ' — done' },
 				{ kind: ResponsePartKind.Reasoning, content: 'let me check' },
+			],
+		}]);
+	});
+
+	test('collapses a path-like inline reference label to the file basename', () => {
+		const uri = URI.file('/repo/src/common/appInsightsClientFactory.ts');
+		const result = project(model([request('q', response([
+			inlineReference(uri, 'src/common/appInsightsClientFactory.ts'),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[appInsightsClientFactory.ts](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('keeps a short inline reference label (e.g. a symbol name) as-is', () => {
+		const uri = URI.file('/repo/src/common/appInsightsClientFactory.ts');
+		const result = project(model([request('q', response([
+			inlineReference(uri, 'logEvent'),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[logEvent](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('maps a Location-shaped inline reference to its file basename', () => {
+		const uri = URI.file('/repo/src/common/baseTelemetrySender.ts');
+		const result = project(model([request('q', response([
+			inlineRef({ uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } }),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[baseTelemetrySender.ts](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('maps a workspace-symbol inline reference using its symbol name', () => {
+		const uri = URI.file('/repo/src/common/baseTelemetrySender.ts');
+		const result = project(model([request('q', response([
+			inlineRef({ name: 'logEvent', location: { uri } }),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[logEvent](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('falls back to the plain label when an inline reference has no resolvable URI', () => {
+		const result = project(model([request('q', response([
+			inlineRef({ name: 'orphan' }, 'orphan'),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'orphan' },
 			],
 		}]);
 	});

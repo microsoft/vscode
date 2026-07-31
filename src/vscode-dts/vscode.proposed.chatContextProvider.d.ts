@@ -26,7 +26,7 @@ declare module 'vscode' {
 		export function registerChatWorkspaceContextProvider(id: string, provider: ChatWorkspaceContextProvider): Disposable;
 
 		/**
-		 * Register a chat explicit context provider. Explicit context items are shown as options when the user explicitly attaches context use the "Attache Context" action in the chat input box.
+		 * Register a chat explicit context provider. Explicit context items are shown as options when the user explicitly attaches context use the "Add Context" action in the chat input box.
 		 *
 		 * Explicit context providers should also be statically contributed in package.json using the `chatContext` contribution point.
 		 *
@@ -65,11 +65,11 @@ declare module 'vscode' {
 	export interface ChatContextItem {
 		/**
 		 * Icon for the context item.
-		 * - If `icon` is not defined, no icon is shown.
-		 * - If `icon` is defined and is a file or folder icon, the icon is derived from {@link resourceUri} if `resourceUri` is defined.
-		 * - Otherwise, `icon` is used.
+		 * - If `iconPath` is not defined, no icon is shown.
+		 * - If `iconPath` is a file or folder {@link ThemeIcon theme icon}, the icon is derived from {@link resourceUri} if `resourceUri` is defined.
+		 * - Otherwise, `iconPath` is used.
 		 */
-		icon?: ThemeIcon;
+		iconPath?: IconPath;
 		/**
 		 * Human readable label for the context item.
 		 * If not set, the label is derived from {@link resourceUri}.
@@ -98,7 +98,7 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 	}
-
+	//@api should we rename to ChatGlobalContextProvider?
 	export interface ChatWorkspaceContextProvider<T extends ChatContextItem = ChatContextItem> {
 
 		/**

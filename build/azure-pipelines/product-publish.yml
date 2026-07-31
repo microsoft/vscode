@@ -55,6 +55,23 @@ jobs:
         displayName: Add build tag
 
       - pwsh: |
+          $ErrorActionPreference = 'Stop'
+          # Set the private NPM registry to the global npmrc file
+          # so that authentication works for subfolders like build/, remote/, extensions/ etc
+          # which does not have their own .npmrc file
+          npm config set registry "$env:NPM_REGISTRY"
+          $NpmrcPath = (npm config get userconfig)
+          Write-Host "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(NPMRC_PATH)
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM Authentication
+
+      - pwsh: |
           npm ci
         workingDirectory: build
         env:

@@ -11,7 +11,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import type { IAgentService } from '../../common/agentService.js';
 import { readSessionGitHubState, readSessionGitState, withSessionGitState, SessionStatus, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
-import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GIT_STATE, META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -78,7 +78,7 @@ suite('AgentHostGitStateService', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
-			workingDirectory: options?.workingDirectory,
+			workingDirectories: options?.workingDirectory ? [options.workingDirectory] : undefined,
 		};
 		// `restoreSession` materializes the session in `ready` lifecycle so the
 		// persistence path (which skips `creating` sessions) actually runs.
@@ -103,7 +103,7 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	test('defers git state while a session is creating', async () => {
+	test('refreshes git state in memory while a session is creating', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();
 			h.stateManager.createSession({
@@ -113,18 +113,23 @@ suite('AgentHostGitStateService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
-				workingDirectory: 'file:///original',
+				workingDirectories: ['file:///original'],
 			}, { emitNotification: false });
-			h.setGitResult({ branchName: 'feature' });
+			const next: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
+			h.setGitResult(next);
 
 			await h.service.refreshSessionGitState(SESSION, URI.parse('file:///explicit'));
 
 			assert.deepStrictEqual({
 				gitCalls: h.gitCalls,
+				gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+				persistedGit: await h.db.getMetadata(META_GIT_STATE),
 				runEvents: h.runEvents,
 			}, {
-				gitCalls: [],
-				runEvents: [],
+				gitCalls: ['file:///explicit'],
+				gitState: next,
+				persistedGit: undefined,
+				runEvents: [SESSION],
 			});
 		});
 	});
@@ -201,6 +206,33 @@ suite('AgentHostGitStateService', () => {
 				github: { owner: 'microsoft', repo: 'vscode' },
 				persistedGit: JSON.stringify(next),
 			});
+		});
+	});
+
+	test('accumulates the GitHub issues referenced across user messages', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+
+		await h.service.attachSessionGitHubIssues(SESSION, 'Fix https://github.com/microsoft/vscode/issues/1 please');
+		await h.service.attachSessionGitHubIssues(SESSION, 'Also microsoft/vscode#1 and octo/repo#2, but not #3');
+		await h.service.attachSessionGitHubIssues(SESSION, 'Nothing to see here');
+
+		assert.deepStrictEqual({
+			github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			persistedGitHub: await h.db.getMetadata(META_GITHUB_STATE),
+		}, {
+			github: {
+				issueUrls: [
+					'https://github.com/microsoft/vscode/issues/1',
+					'https://github.com/octo/repo/issues/2',
+				]
+			},
+			persistedGitHub: JSON.stringify({
+				issueUrls: [
+					'https://github.com/microsoft/vscode/issues/1',
+					'https://github.com/octo/repo/issues/2',
+				]
+			}),
 		});
 	});
 

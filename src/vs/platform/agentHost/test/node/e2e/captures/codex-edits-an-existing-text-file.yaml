@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+    response:
+      content:
+        - type: text
+          text: I’m replacing `edit.txt` so its entire contents become exactly `AFTER_VALUE`, then I’ll verify it.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: printf 'AFTER_VALUE' > edit.txt && cat edit.txt
+            workdir: ${workdir}/ahp-coverage-edit-${temp}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content: I’m replacing `edit.txt` so its entire contents become exactly `AFTER_VALUE`, then I’ll verify it.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: printf 'AFTER_VALUE' > edit.txt && cat edit.txt
+                workdir: ${workdir}/ahp-coverage-edit-${temp}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 2d70cd
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 3
+                Output:
+                AFTER_VALUE
+    response:
+      content: Done. `edit.txt` now contains exactly `AFTER_VALUE`.
+      stopReason: end_turn

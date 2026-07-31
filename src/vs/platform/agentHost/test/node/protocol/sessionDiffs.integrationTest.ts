@@ -14,13 +14,15 @@ import type { ChangesetContentChangedAction, SessionAddedParams } from '../../..
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	dispatchTurnStarted,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
 	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 const hasGit = (() => {
 	try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
@@ -33,12 +35,13 @@ const hasGit = (() => {
 	let tmpRoot: string;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -80,7 +83,7 @@ const hasGit = (() => {
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-git-diffs' });
 
 		const workingDirectory = URI.file(tmpRoot).toString();
-		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectories: [workingDirectory] });
 
 		const addedNotif = await client.waitForNotification(n =>
 			n.method === 'root/sessionAdded'

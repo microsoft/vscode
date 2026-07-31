@@ -10,6 +10,7 @@ import {
 	getClaudeInvocationMessage,
 	getClaudePastTenseMessage,
 	getClaudePermissionKind,
+	getClaudeStreamingInvocationMessage,
 	getClaudeToolDisplayName,
 	getClaudeToolInputString,
 	getClaudeToolKind,
@@ -36,6 +37,7 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 			'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'TodoWrite',
 			'WebFetch', 'Task',
 			'ExitPlanMode', 'AskUserQuestion',
+			'Skill', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet',
 		] as const;
 
 		const snapshot = TOOLS.map(t => [t, getClaudePermissionKind(t), getClaudeToolDisplayName(t)] as const);
@@ -58,6 +60,11 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 			['Task', 'custom-tool', 'Run subagent task'],
 			['ExitPlanMode', 'custom-tool', 'Ready to code?'],
 			['AskUserQuestion', 'custom-tool', 'Ask user a question'],
+			['Skill', 'skill', 'Run skill'],
+			['TaskCreate', 'custom-tool', 'Create task'],
+			['TaskUpdate', 'custom-tool', 'Update task'],
+			['TaskList', 'custom-tool', 'List tasks'],
+			['TaskGet', 'custom-tool', 'Read task'],
 		]);
 	});
 
@@ -138,6 +145,7 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 				url: getClaudeConfirmationTitle('WebFetch'),
 				mcpWithServer: getClaudeConfirmationTitle('mcp__github__listIssues'),
 				custom: getClaudeConfirmationTitle('Task'),
+				skill: getClaudeConfirmationTitle('Skill'),
 				unknown: getClaudeConfirmationTitle('SomeNewTool'),
 			},
 			{
@@ -147,6 +155,7 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 				url: 'Fetch URL?',
 				mcpWithServer: 'Allow tool from github?',
 				custom: 'Allow tool call?',
+				skill: 'Run skill?',
 				unknown: 'Allow tool call?',
 			},
 		);
@@ -179,6 +188,38 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 		);
 	});
 
+	test('streams rich file and line-count messages for Claude edit tools', () => {
+		assert.deepStrictEqual({
+			write: getClaudeStreamingInvocationMessage('Write', {
+				file_path: '/src/new.ts',
+				content: 'one\r\ntwo\r\nthree',
+			}),
+			edit: getClaudeStreamingInvocationMessage('Edit', {
+				file_path: '/src/foo.ts',
+				old_string: 'one',
+				new_string: 'one\ntwo',
+			}),
+			multiEdit: getClaudeStreamingInvocationMessage('MultiEdit', {
+				file_path: '/src/foo.ts',
+				edits: [
+					{ old_string: 'one', new_string: 'one\ntwo' },
+					{ old_string: 'three\nfour', new_string: 'updated' },
+				],
+			}),
+			notebookEdit: getClaudeStreamingInvocationMessage('NotebookEdit', {
+				notebook_path: '/src/notebook.ipynb',
+				new_source: 'one\ntwo',
+			}),
+			read: getClaudeStreamingInvocationMessage('Read', { file_path: '/src/foo.ts' }),
+		}, {
+			write: { markdown: 'Creating [new.ts](file:///src/new.ts) (3 lines)' },
+			edit: { markdown: 'Replacing 1 line with 2 lines in [foo.ts](file:///src/foo.ts)' },
+			multiEdit: { markdown: 'Replacing 3 lines with 3 lines in [foo.ts](file:///src/foo.ts)' },
+			notebookEdit: { markdown: 'Editing 2 lines in [notebook.ipynb](file:///src/notebook.ipynb)' },
+			read: undefined,
+		});
+	});
+
 	test('Phase 8.5 — rich rendering snapshot covers every tool row', () => {
 		const SAMPLE_INPUT: Record<string, unknown> = {
 			Bash: { command: 'git status' },
@@ -198,6 +239,11 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 			Task: { description: 'find the bug', subagent_type: 'Explore' },
 			ExitPlanMode: { plan: '...' },
 			AskUserQuestion: { question: 'why?' },
+			Skill: { skill: 'deep-research', args: 'foo' },
+			TaskCreate: { subject: 'Fix auth bug', description: '...' },
+			TaskUpdate: { taskId: '1', status: 'completed' },
+			TaskList: {},
+			TaskGet: { taskId: '1' },
 		};
 
 		const TOOLS = Object.keys(SAMPLE_INPUT) as readonly (keyof typeof SAMPLE_INPUT)[];
@@ -234,7 +280,43 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 			['Task', 'subagent', { toolKind: 'subagent' }, 'find the bug', 'Ran subagent', '"Run subagent task" failed', '{\n  "description": "find the bug",\n  "subagent_type": "Explore"\n}'],
 			['ExitPlanMode', undefined, undefined, 'Ready to code?', 'Ready to code?', '"Ready to code?" failed', '{\n  "plan": "..."\n}'],
 			['AskUserQuestion', undefined, undefined, 'Ask user a question', 'Ask user a question', '"Ask user a question" failed', '{\n  "question": "why?"\n}'],
+			['Skill', undefined, undefined, { markdown: 'Running skill `deep-research`' }, { markdown: 'Ran skill `deep-research`' }, '"Run skill" failed', '{\n  "skill": "deep-research",\n  "args": "foo"\n}'],
+			['TaskCreate', undefined, undefined, 'Creating task: Fix auth bug', 'Created task: Fix auth bug', '"Create task" failed', '{\n  "subject": "Fix auth bug",\n  "description": "..."\n}'],
+			['TaskUpdate', undefined, undefined, 'Completing task', 'Completed task', '"Update task" failed', '{\n  "taskId": "1",\n  "status": "completed"\n}'],
+			['TaskList', undefined, undefined, 'Reading task list', 'Read task list', '"List tasks" failed', '{}'],
+			['TaskGet', undefined, undefined, 'Reading task', 'Read task', '"Read task" failed', '{\n  "taskId": "1"\n}'],
 		]);
+	});
+
+	test('Phase 8.5 — TaskUpdate message varies by status', () => {
+		const invoke = (status?: string) =>
+			getClaudeInvocationMessage('TaskUpdate', 'Update task', status ? { taskId: '1', status } : { taskId: '1' });
+		const past = (status?: string) =>
+			getClaudePastTenseMessage('TaskUpdate', 'Update task', status ? { taskId: '1', status } : { taskId: '1' }, true);
+		assert.deepStrictEqual(
+			{
+				startInvoke: invoke('in_progress'),
+				startPast: past('in_progress'),
+				completeInvoke: invoke('completed'),
+				completePast: past('completed'),
+				deleteInvoke: invoke('deleted'),
+				deletePast: past('deleted'),
+				noStatusInvoke: invoke(),
+				noStatusPast: past(),
+				unknownStatusInvoke: invoke('bogus'),
+			},
+			{
+				startInvoke: 'Starting task',
+				startPast: 'Started task',
+				completeInvoke: 'Completing task',
+				completePast: 'Completed task',
+				deleteInvoke: 'Deleting task',
+				deletePast: 'Deleted task',
+				noStatusInvoke: 'Updating task',
+				noStatusPast: 'Updated task',
+				unknownStatusInvoke: 'Updating task',
+			},
+		);
 	});
 
 	test('Phase 8.5 — defensive input handling falls back to static display strings', () => {

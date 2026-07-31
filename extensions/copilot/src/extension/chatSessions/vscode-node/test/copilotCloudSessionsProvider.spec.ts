@@ -13,8 +13,9 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { normalizeInitialSessionOptions, parseSessionLogChunksSafely, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { getCloudSessionItemMetadata, normalizeInitialSessionOptions, parseSessionLogChunksSafely, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
+import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 
@@ -127,6 +128,18 @@ describe('copilotCloudSessionsProvider helpers', () => {
 
 		expect(result).toEqual([]);
 		expect(logService.error).toHaveBeenCalledWith(expect.any(SyntaxError), expect.stringContaining('Failed to parse streamed log content'));
+	});
+
+	it('includes the task branch in PR-less cloud session metadata', () => {
+		expect(getCloudSessionItemMetadata(
+			{ owner: 'microsoft', name: 'vscode', host: 'github.com' },
+			{ owner: 'microsoft', repo: 'vscode', baseRef: 'main', headRef: 'copilot/task-branch' },
+		)).toEqual({
+			owner: 'microsoft',
+			name: 'vscode',
+			host: 'github.com',
+			branch: 'copilot/task-branch',
+		});
 	});
 });
 
@@ -428,8 +441,9 @@ class FakeTaskApiClient implements ITaskApiClient {
 	private readonly _createPRResult: AgentTaskCreatePullRequestResponse;
 	private readonly _createResult: AgentTask;
 	private readonly _repoTasks: readonly AgentTask[];
+	private readonly _globalTasks: readonly AgentTask[];
 
-	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[] }) {
+	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[]; globalTasks?: readonly AgentTask[] }) {
 		this._createResult = opts?.createResult ?? ({
 			id: 'task-created',
 			state: 'queued',
@@ -438,6 +452,7 @@ class FakeTaskApiClient implements ITaskApiClient {
 		} as unknown as AgentTask);
 		this._createPRResult = opts?.createPRResult ?? { id: 1, number: 42, repository_id: 1 };
 		this._repoTasks = opts?.repoTasks ?? [];
+		this._globalTasks = opts?.globalTasks ?? [];
 	}
 
 	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
@@ -450,7 +465,7 @@ class FakeTaskApiClient implements ITaskApiClient {
 	}
 	async listTasks(options?: ListTasksOptions): Promise<AgentTaskListResponse> {
 		this.listCalls.push({ options });
-		return { tasks: [] } as unknown as AgentTaskListResponse;
+		return { tasks: this._globalTasks } as unknown as AgentTaskListResponse;
 	}
 	async getTask(_taskId: string): Promise<AgentTaskGetResponse> {
 		return { id: _taskId } as unknown as AgentTaskGetResponse;
@@ -556,6 +571,42 @@ describe('TaskApiBackend', () => {
 		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
 	});
 
+	it('fetchSessionList uses the global user-scoped list in the agents window even when repoIds are present', async () => {
+		// The agents window surfaces all of the user's sessions rather than scoping to the active
+		// workspace's repositories, so it must hit the global list and never the repo-scoped one.
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], true, false);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
+	});
+
+	it('fetchSessionList resolves a global-list task repo by numeric id when it has no html_url', async () => {
+		// Global-list (repoIds undefined) tasks may carry only `repository.id` and no `html_url`.
+		// Without resolving it the session has no repo metadata and groups under "Unknown".
+		const client = new FakeTaskApiClient({
+			globalTasks: [
+				{ id: 'g1', state: 'completed', created_at: '2026-03-27T00:00:00Z', agent_collaborators: [{ slug: 'copilot-developer' }], repository: { id: 123 } } as unknown as AgentTask,
+				{ id: 'g2', state: 'completed', created_at: '2026-03-27T00:00:00Z', agent_collaborators: [{ slug: 'copilot-developer' }], repository: { id: 123 } } as unknown as AgentTask,
+			],
+		});
+		const octoKitService = new MockOctoKitService();
+		let getRepositoryByIdCalls = 0;
+		octoKitService.getRepositoryById = async () => { getRepositoryByIdCalls++; return { owner: 'octocat', name: 'hello-world' }; };
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+
+		const result = await backend.fetchSessionList(undefined, false, false);
+
+		expect(result.map(r => r.repo)).toEqual([
+			{ owner: 'octocat', name: 'hello-world' },
+			{ owner: 'octocat', name: 'hello-world' },
+		]);
+		// Same repo id across both tasks resolves via a single cached lookup.
+		expect(getRepositoryByIdCalls).toBe(1);
+	});
+
 	it('fetchSessionList carries the raw task lifecycle state so settled tasks are not shown as in_progress', async () => {
 		// `idle` collapses to `in_progress` in the legacy SessionInfo shape; the raw `taskState`
 		// must be preserved alongside it so the provider can render it as Completed/NeedsInput.
@@ -643,9 +694,45 @@ describe('taskStateToChatSessionStatus', () => {
 	});
 });
 
+describe('isActiveTaskState / isFailedTaskState', () => {
+	it('classifies each Task API lifecycle state and falls back to active for unknown states', () => {
+		const states: readonly AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'timed_out', 'cancelled'];
+		const active = Object.fromEntries(states.map(state => [state, isActiveTaskState(state)]));
+		const failed = Object.fromEntries(states.map(state => [state, isFailedTaskState(state)]));
+
+		expect({ active, failed }).toEqual({
+			active: {
+				queued: true,
+				in_progress: true,
+				idle: true,
+				waiting_for_user: true,
+				completed: false,
+				failed: false,
+				timed_out: false,
+				cancelled: false,
+			},
+			failed: {
+				queued: false,
+				in_progress: false,
+				idle: false,
+				waiting_for_user: false,
+				completed: false,
+				failed: true,
+				timed_out: true,
+				cancelled: true,
+			},
+		});
+	});
+
+	it('treats an unknown/forward-compat state as active (never undefined) so the streamer keeps polling', () => {
+		expect(isActiveTaskState('some_new_server_state' as AgentTaskState)).toBe(true);
+		expect(isFailedTaskState('some_new_server_state' as AgentTaskState)).toBe(false);
+	});
+});
+
 describe('parseRepoFromTaskUrl', () => {
 	it('extracts owner and name from a task html_url', () => {
-		expect(parseRepoFromTaskUrl('https://github.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world' });
+		expect(parseRepoFromTaskUrl('https://github.example.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world', host: 'github.example.com' });
 	});
 
 	it('returns undefined for an unparseable URL', () => {

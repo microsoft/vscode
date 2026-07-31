@@ -13,10 +13,11 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ChangesContextKeys } from '../../common/changes.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
+import { ChangesetHasOperationsContext } from '../../browser/changesViewService.js';
 
 suite('Changes View Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,7 +79,7 @@ suite('Changes View Actions', () => {
 	test('toggle inline view is contributed to the single-pane editor header (1_diff group) with toggle state', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
+			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
 
 		assert.ok(item, 'expected the toggle inline view action on the single-pane editor header menu');
 		const when = item.when?.serialize() ?? '';
@@ -97,7 +98,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			id: 'workbench.action.agentSessions.toggleInlineView',
+			id: 'toggle.diff.renderSideBySide',
 			title: 'Show Side by Side Diff',
 			group: '1_diff',
 			order: 20,
@@ -114,7 +115,7 @@ suite('Changes View Actions', () => {
 	test('toggle inline view is contributed to the command palette (Changes category)', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
+			.find(item => item.command.id === 'toggle.diff.renderSideBySide' && item.command.category !== undefined && (typeof item.command.category === 'string' ? item.command.category : item.command.category.value) === 'Changes');
 
 		assert.ok(item, 'expected the toggle inline view action in the command palette');
 		const when = item.when?.serialize() ?? '';
@@ -127,7 +128,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			id: 'workbench.action.agentSessions.toggleInlineView',
+			id: 'toggle.diff.renderSideBySide',
 			title: 'Toggle Diff View',
 			category: 'Changes',
 			hasSessionsWindowGate: true,
@@ -199,7 +200,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
 			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			hasChangesGate: when.includes(ChangesetHasOperationsContext.key),
 		}, {
 			group: 'navigation',
 			order: 5,

@@ -5,7 +5,7 @@
 
 import * as fs from 'node:fs';
 import { register } from 'node:module';
-import { sep } from 'node:path';
+import { dirname, join } from 'node:path';
 import { product, pkg } from './bootstrap-meta.js';
 import './bootstrap-node.js';
 import * as performance from './vs/base/common/performance.js';
@@ -230,11 +230,13 @@ function enableASARSupport(): void {
 	//   VSCODE_ASAR_TRACE=1            -> trace to stderr (also '"true"', '"on"', '"stderr"')
 	//   VSCODE_ASAR_TRACE=/path/x.log  -> append the trace to that file
 	const traceSink = process.env['VSCODE_ASAR_TRACE'] || undefined;
+	// Unlike process.resourcesPath, import.meta.dirname reflects Node's junction-resolved module path.
+	const appRoot = dirname(import.meta.dirname);
 
 	register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url, {
 		data: process.env['VSCODE_DEV'] ? {} : {
-			resourcesPath: `${process.resourcesPath}${sep}app`,
-			asarPath: `${process.resourcesPath}${sep}app${sep}node_modules.asar`,
+			resourcesPath: appRoot,
+			asarPath: join(appRoot, 'node_modules.asar'),
 			traceSink,
 		}
 	});

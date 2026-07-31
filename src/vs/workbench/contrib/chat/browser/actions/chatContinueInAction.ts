@@ -595,6 +595,14 @@ export class CreateRemoteAgentJobAction {
 								type: continuationTargetType,
 								displayName: continuationTarget.displayName,
 								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+								// Replace the source chat editor in place so switching harness
+								// feels like the same chat continues rather than opening a new
+								// tab. The source (local) session stays in chat history and is
+								// recoverable. The sidebar path already swaps in place via
+								// `loadSession`, so it needs no replacement. Pass the source
+								// resource (not a bare flag) so the correct editor is resolved
+								// at replace time even if the active editor changed meanwhile.
+								replaceEditorForResource: isSidebar ? undefined : sessionResource,
 							},
 							{
 								prompt: handoffPrompt,

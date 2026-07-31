@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -22,6 +23,15 @@ import {
 	IVoiceTurnConfig,
 	IVoiceTurnAutoEnded,
 	IVoiceTurnAutoEndReason,
+	IVoiceFatalDisconnect,
+	IVoiceBargeIn,
+	IVoiceNarrationAck,
+	IVoiceNarrationSignal,
+	IVoiceDispatchResult,
+	IVoiceCheckpointNarrationMetadata,
+	VoiceConfirmationType,
+	VoiceNarrationKind,
+	isVoiceCheckpointId,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -31,6 +41,31 @@ const FAST_RETRY_COUNT = 3;
 const FAST_RETRY_DELAY_MS = 2_000;
 const SLOW_RETRY_DELAY_MS = 30_000;
 const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
+const TTS_SUPPORTED_LANGUAGE_BASES = new Set([
+	'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh',
+]);
+const ASR_SUPPORTED_LANGUAGE_BASES = new Set([
+	'ar', 'cs', 'da', 'de', 'en', 'es', 'fi', 'fr', 'hi', 'hu', 'id', 'it',
+	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
+]);
+const DEFAULT_LANGUAGE = 'en-US';
+
+function asOptionalString(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
+function asOptionalNonEmptyString(value: unknown): string | undefined {
+	const result = asOptionalString(value);
+	return result && result.length > 0 ? result : undefined;
+}
+
+function asTranscriptionStatus(value: unknown): IVoiceTranscription['status'] | undefined {
+	return value === 'partial' || value === 'final' ? value : undefined;
+}
+
+function asTranscriptionRevision(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
 
 export class VoiceClientService extends Disposable implements IVoiceClientService {
 	declare readonly _serviceBrand: undefined;
@@ -41,6 +76,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private _isConnected = false;
 	private _isResuming = false;
+	// Set once start_session/resume_session (which carries session_context) has
+	// been sent on the current connection; reset per connection. Gates
+	// `_sendSetLanguage` and `requestNarration` so the backend has the session
+	// before those follow-up messages are sent.
+	private _sessionStartedOnSocket = false;
 	private _window: (Window & typeof globalThis) | undefined;
 	private _lastSessionId: string | undefined;
 
@@ -55,7 +95,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	// state-change event needs to fire before the timer expires.
 	private _pendingContext: IVoiceSessionContext | undefined;
 	private _lastSentById = new Map<string, Record<string, unknown>>(); // session id → last-sent field values
-	private _lastSentActive = '';
+	private readonly _invalidatedSessionIds = new Set<string>();
 
 	// --- Events ---
 	private readonly _onTranscription = this._register(new Emitter<IVoiceTranscription>());
@@ -63,6 +103,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private readonly _onAudioResponse = this._register(new Emitter<IVoiceAudioResponse>());
 	readonly onAudioResponse: Event<IVoiceAudioResponse> = this._onAudioResponse.event;
+
+	private readonly _onBargeIn = this._register(new Emitter<IVoiceBargeIn>());
+	readonly onBargeIn: Event<IVoiceBargeIn> = this._onBargeIn.event;
+
+	private readonly _onNarrationAck = this._register(new Emitter<IVoiceNarrationAck>());
+	readonly onNarrationAck: Event<IVoiceNarrationAck> = this._onNarrationAck.event;
+
+	private readonly _onNarrationUnblocked = this._register(new Emitter<IVoiceNarrationSignal>());
+	readonly onNarrationUnblocked: Event<IVoiceNarrationSignal> = this._onNarrationUnblocked.event;
+
+	private readonly _onNarrationInterrupted = this._register(new Emitter<IVoiceNarrationSignal>());
+	readonly onNarrationInterrupted: Event<IVoiceNarrationSignal> = this._onNarrationInterrupted.event;
 
 	private readonly _onToolCall = this._register(new Emitter<IVoiceToolCall>());
 	readonly onToolCall: Event<IVoiceToolCall> = this._onToolCall.event;
@@ -79,6 +131,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<boolean>());
 	readonly onDidChangeConnectionState: Event<boolean> = this._onDidChangeConnectionState.event;
 
+	private readonly _onFatalDisconnect = this._register(new Emitter<IVoiceFatalDisconnect>());
+	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect> = this._onFatalDisconnect.event;
+
 	private readonly _onTurnAutoEnded = this._register(new Emitter<IVoiceTurnAutoEnded>());
 	readonly onTurnAutoEnded: Event<IVoiceTurnAutoEnded> = this._onTurnAutoEnded.event;
 
@@ -88,6 +143,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	get isResuming(): boolean {
 		return this._isResuming;
+	}
+
+	get willReconnect(): boolean {
+		return this._reconnectTimer !== undefined;
 	}
 
 	get currentSessionId(): string | undefined {
@@ -110,12 +169,16 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration('agents.voice.turn.silenceMs') ||
-				e.affectsConfiguration('agents.voice.turn.stopPhrases')
+				e.affectsConfiguration('agents.voice.turn.stopPhrases') ||
+				e.affectsConfiguration('agents.voice.handsFree')
 			) {
 				this._sendSetTurnConfig();
 			}
 			if (e.affectsConfiguration('agents.voice.voice')) {
 				this._sendSetVoice();
+			}
+			if (e.affectsConfiguration('agents.voice.language')) {
+				this._sendSetLanguage();
 			}
 		}));
 	}
@@ -135,25 +198,87 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
+	private _getLanguage(): string {
+		const configured = this._configurationService.getValue<string>('agents.voice.language');
+		if (typeof configured === 'string' && configured.trim().toLowerCase() !== 'auto') {
+			const language = this._canonicalizeSupportedLanguage(configured, TTS_SUPPORTED_LANGUAGE_BASES);
+			if (language) {
+				return language;
+			}
+			this._logService.warn(`[voice] Unsupported agents.voice.language value '${configured}', falling back to ${DEFAULT_LANGUAGE}`);
+			return DEFAULT_LANGUAGE;
+		}
+
+		return this._canonicalizeSupportedLanguage(this._window?.navigator.language, ASR_SUPPORTED_LANGUAGE_BASES)
+			?? DEFAULT_LANGUAGE;
+	}
+
+	private _canonicalizeSupportedLanguage(value: string | undefined, supportedBases: ReadonlySet<string>): string | undefined {
+		const candidate = value?.trim();
+		if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
+			return undefined;
+		}
+
+		try {
+			const canonical = Intl.getCanonicalLocales(candidate)[0];
+			return supportedBases.has(canonical.split('-')[0]) ? canonical : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _sendSetLanguage(): void {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			this._ws.send(JSON.stringify({ type: 'set_language', language: this._getLanguage() }));
+		}
+	}
+
+	/**
+	 * Whether a configuration setting has an explicit user/workspace/application
+	 * value, as opposed to falling back to its registered default.
+	 */
+	private _isExplicitlyConfigured(key: string): boolean {
+		const inspected = this._configurationService.inspect(key);
+		return inspected.userValue !== undefined
+			|| inspected.userLocalValue !== undefined
+			|| inspected.userRemoteValue !== undefined
+			|| inspected.workspaceValue !== undefined
+			|| inspected.workspaceFolderValue !== undefined
+			|| inspected.applicationValue !== undefined;
+	}
+
 	/**
 	 * Assemble the ``turn_config`` wire object from the ``agents.voice.turn.*``
 	 * settings, normalizing each into the shape the backend expects. The
 	 * ``auto_end_mode`` is derived from the other two settings: trailing-silence
 	 * ending is enabled unless ``silenceMs`` is ``-1`` (or otherwise non-positive),
 	 * and stop-phrase ending is enabled when at least one phrase is configured.
+	 *
+	 * When hands-free mode (``agents.voice.handsFree``) is disabled, the turn is
+	 * not sent automatically by default: trailing-silence and stop-phrase ending
+	 * are each suppressed unless the corresponding setting has been explicitly
+	 * configured, so a user who opts out of the hands-free loop keeps manual
+	 * control over when a turn is sent.
 	 */
 	private _getTurnConfig(): IVoiceTurnConfig {
 		const cfg = this._configurationService;
+		const handsFree = cfg.getValue<boolean>('agents.voice.handsFree') === true;
 
 		const silenceRaw = cfg.getValue<number>('agents.voice.turn.silenceMs');
-		const silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		let silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		if (!handsFree && !this._isExplicitlyConfigured('agents.voice.turn.silenceMs')) {
+			silenceEnabled = false;
+		}
 		const silence_ms = silenceEnabled ? Math.round(silenceRaw) : 800;
 
 		const phrasesRaw = cfg.getValue<string[]>('agents.voice.turn.stopPhrases');
 		const stop_phrases = Array.isArray(phrasesRaw)
 			? phrasesRaw.map(p => String(p).trim()).filter(p => p.length > 0)
 			: [];
-		const phrasesEnabled = stop_phrases.length > 0;
+		let phrasesEnabled = stop_phrases.length > 0;
+		if (!handsFree && !this._isExplicitlyConfigured('agents.voice.turn.stopPhrases')) {
+			phrasesEnabled = false;
+		}
 
 		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
 			silenceEnabled && phrasesEnabled ? 'both'
@@ -161,7 +286,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					: phrasesEnabled ? 'phrase'
 						: 'off';
 
-		return { auto_end_mode, silence_ms, stop_phrases, vad_gate_asr: true };
+		return { auto_end_mode, silence_ms, stop_phrases: phrasesEnabled ? stop_phrases : [], vad_gate_asr: true };
 	}
 
 	private _sendSetTurnConfig(): void {
@@ -199,11 +324,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			: baseUrl;
 		const ws = new win.WebSocket(url);
 		this._ws = ws;
+		this._sessionStartedOnSocket = false;
 
 		ws.onopen = () => {
 			this._reconnectAttempts = 0;
 			this._reconnectStartedAt = undefined;
 			this._isResuming = !!this._lastSessionId;
+			this._sessionStartedOnSocket = false;
 			this._setConnected(true);
 			this._startPing();
 
@@ -216,7 +343,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			let msg: {
 				type: string;
 				session_id?: string;
-				text?: string;
+				text?: unknown;
 				audio?: string;
 				is_first_chunk?: boolean;
 				is_final?: boolean;
@@ -226,10 +353,20 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				name?: string;
 				call_id?: string;
 				args?: Record<string, string>;
-				status?: string;
-				committed?: string;
+				status?: unknown;
+				committed?: unknown;
 				reason?: string;
-				turn_id?: string;
+				turn_id?: unknown;
+				revision?: unknown;
+				narration_id?: string;
+				request_id?: string;
+				checkpoint_id?: string;
+				sequence?: number;
+				narration_kind?: string;
+				playback_id?: string;
+				interrupted_turn_id?: string;
+				disposition?: string;
+				retryable?: boolean;
 			};
 			try {
 				msg = JSON.parse(evt.data as string);
@@ -242,34 +379,99 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._clearPongTimeout();
 					break;
 				case 'session_init':
-					if (!this._isResuming) {
-						this._lastSessionId = msg.session_id;
-					}
+					// Adopt the server's session id even when a resume failed and it
+					// started a fresh session; keeping the old id stalled reconnect (`_isResuming`).
+					this._lastSessionId = msg.session_id;
+					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'session_resumed':
 					this._lastSessionId = msg.session_id;
+					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'speech_started':
-					this._onSpeechStarted.fire({});
+					this._onSpeechStarted.fire({ turnId: asOptionalString(msg.turn_id) });
 					break;
-				case 'transcription':
-					this._onTranscription.fire({ text: msg.text ?? '', status: (msg.status as 'partial' | 'final') ?? 'final', committed: msg.committed as string ?? '' });
+				case 'barge_in':
+					this._onBargeIn.fire({
+						turnId: asOptionalString(msg.turn_id) ?? '',
+						interruptedTurnId: msg.interrupted_turn_id ?? '',
+					});
 					break;
-				case 'audio_response':
+				case 'narration_ack': {
+					const disposition = msg.disposition === 'busy'
+						|| msg.disposition === 'invalid'
+						|| msg.disposition === 'suppressed'
+						? msg.disposition
+						: 'accepted';
+					this._onNarrationAck.fire({
+						narrationId: msg.narration_id ?? '',
+						codingSessionId: msg.coding_session_id ?? '',
+						disposition,
+						reason: msg.reason,
+					});
+					break;
+				}
+				case 'narration_unblocked':
+					this._onNarrationUnblocked.fire({
+						narrationId: msg.narration_id ?? '',
+						codingSessionId: msg.coding_session_id ?? '',
+					});
+					break;
+				case 'narration_interrupted':
+					this._onNarrationInterrupted.fire({
+						narrationId: msg.narration_id ?? '',
+						codingSessionId: msg.coding_session_id ?? '',
+						...(typeof msg.retryable === 'boolean' ? { retryable: msg.retryable } : {}),
+						...(msg.reason ? { reason: msg.reason } : {}),
+					});
+					break;
+				case 'transcription': {
+					const status = msg.status === undefined ? 'final' : asTranscriptionStatus(msg.status);
+					const turnId = msg.turn_id === undefined ? undefined : asOptionalNonEmptyString(msg.turn_id);
+					const revision = msg.revision === undefined ? undefined : asTranscriptionRevision(msg.revision);
+					if (!status || (msg.turn_id !== undefined && !turnId) || (msg.revision !== undefined && (!turnId || revision === undefined))) {
+						break;
+					}
+					this._onTranscription.fire({
+						text: asOptionalString(msg.text) ?? '',
+						status,
+						committed: asOptionalString(msg.committed) ?? '',
+						turnId,
+						revision,
+					});
+					break;
+				}
+				case 'audio_response': {
 					// Old pre-streaming server (pre PR #44076) doesn't send
 					// `is_first_chunk` at all. Treat missing field as TRUE so
 					// suppression-clearing in _enqueueAudio still works; new
 					// streaming server always emits true/false explicitly.
+					const requestId = asOptionalString(msg.request_id);
+					const checkpointId = isVoiceCheckpointId(msg.checkpoint_id) ? msg.checkpoint_id : undefined;
+					const sequence = typeof msg.sequence === 'number' && Number.isSafeInteger(msg.sequence) && msg.sequence > 0 ? msg.sequence : undefined;
+					const narrationKind = msg.narration_kind === 'response' || msg.narration_kind === 'confirmation' || msg.narration_kind === 'checkpoint' ? msg.narration_kind as VoiceNarrationKind : undefined;
+					const playbackId = asOptionalString(msg.playback_id);
+					if (narrationKind === 'checkpoint') {
+						this._logService.info(`[voice] checkpoint audio request=${requestId ?? 'none'} stage=${checkpointId ?? 'none'} sequence=${sequence ?? 'none'} first=${msg.is_first_chunk === undefined ? true : Boolean(msg.is_first_chunk)} final=${Boolean(msg.is_final)}`);
+					}
 					this._onAudioResponse.fire({
 						audio: msg.audio ?? '',
 						isFirstChunk: msg.is_first_chunk === undefined ? true : Boolean(msg.is_first_chunk),
 						isFinal: msg.is_final ?? false,
 						codingSessionId: msg.coding_session_id,
 						transcript: msg.transcript,
+						turnId: asOptionalString(msg.turn_id),
+						responseId: msg.narration_id ?? asOptionalString(msg.turn_id),
+						...(requestId ? { requestId } : {}),
+						...(checkpointId ? { checkpointId } : {}),
+						...(sequence !== undefined ? { sequence } : {}),
+						...(narrationKind ? { narrationKind } : {}),
+						...(playbackId ? { playbackId } : {}),
 					});
 					break;
+				}
 				case 'tool_call':
 					this._onToolCall.fire({
 						callId: msg.call_id ?? '',
@@ -283,7 +485,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					// consumer stop capture for that turn; it must not send its
 					// own ptt_end.
 					const reason: IVoiceTurnAutoEndReason = msg.reason === 'stop_phrase' ? 'stop_phrase' : 'vad_silence';
-					this._onTurnAutoEnded.fire({ reason, turnId: msg.turn_id ?? '' });
+					this._onTurnAutoEnded.fire({ reason, turnId: asOptionalString(msg.turn_id) ?? '' });
 					break;
 				}
 				case 'error':
@@ -297,17 +499,22 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		};
 
 		ws.onclose = (evt: CloseEvent) => {
-			this._logService.warn('[voice] ws.onclose', { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
+			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
 				if (evt.code === 1000 || evt.code === 1001) {
 					this._cleanup();
 					return;
 				}
 
-				// Fatal errors that should NOT trigger reconnection
+				// Fatal errors that should NOT trigger reconnection. These are
+				// terminal: emit a dedicated fatal-disconnect signal (distinct
+				// from a transient drop) so the controller tears down to a clean,
+				// recoverable state instead of showing "Reconnecting..." forever.
+				// The common cause is another window taking over the single voice
+				// session (backend evicts this one with 4008).
 				if (evt.code === 4001 || evt.code === 4008 || evt.code === 4029) {
 					this._logService.warn(`[voice] fatal close code ${evt.code}: ${evt.reason}, not reconnecting`);
-					this._onError.fire(evt.reason || `Connection rejected (code ${evt.code})`);
+					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '' });
 					this._cleanup();
 					return;
 				}
@@ -324,21 +531,24 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				}
 
 				this._reconnectAttempts++;
-				this._setConnected(false);
 				this._stopPing();
 				this._ws = undefined;
 
 				const delay = this._reconnectAttempts <= FAST_RETRY_COUNT
 					? FAST_RETRY_DELAY_MS
 					: SLOW_RETRY_DELAY_MS;
-				this._logService.warn(`[voice] reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
-				this._reconnectTimer = setTimeout(() => this._connectWebSocket(), delay);
+				this._logService.warn(`[voice] ws closed abnormally (code=${evt.code} reason=${evt.reason || 'none'} wasClean=${evt.wasClean}); reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
+				this._reconnectTimer = setTimeout(() => {
+					this._reconnectTimer = undefined;
+					this._connectWebSocket();
+				}, delay);
+				this._setConnected(false);
 			}
 		};
 	}
 
 	disconnect(): void {
-		this._logService.warn('[voice] disconnect() called', new Error('disconnect trace').stack);
+		this._logService.trace('[voice] disconnect() called');
 		if (this._ws && this._ws.readyState < WebSocket.CLOSING) {
 			this._ws.close();
 		}
@@ -357,10 +567,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 		this._pendingContext = undefined;
 		this._ws = undefined;
+		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
+		this._isResuming = false;
 		this._lastSentById.clear();
-		this._lastSentActive = '';
+		this._invalidatedSessionIds.clear();
 		this._setConnected(false);
 	}
 
@@ -400,9 +612,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendPttStart(turnId: string): void {
+	sendPttStart(turnId: string, passive: boolean = false): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId }));
+			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, ...(passive ? { passive: true } : {}) }));
 		}
 	}
 
@@ -415,24 +627,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendPttEnd(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
-		}
-	}
-
-	sendBargeInStart(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_start' }));
-		}
-	}
-
-	sendBargeInAudioChunk(audio: string): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_audio_chunk', audio }));
-		}
-	}
-
-	sendBargeInStop(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_stop' }));
 		}
 	}
 
@@ -474,14 +668,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	invalidateSessionCache(sessionId: string): void {
-		this._lastSentById.delete(sessionId);
+		this._invalidatedSessionIds.add(sessionId);
 	}
 
 	private _sendDelta(context: IVoiceSessionContext): void {
 		const currentIds = new Set(context.sessions.map(s => s.id));
 		const removes = [...this._lastSentById.keys()].filter(id => !currentIds.has(id));
-		const activeKey = context.active_session ? stableStringify(context.active_session) : '';
-		const activeChanged = activeKey !== this._lastSentActive;
 
 		// Compute per-session field-level patches (JSON Merge Patch style)
 		const upserts: Record<string, unknown>[] = [];
@@ -494,20 +686,35 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			} else {
 				const patch: Record<string, unknown> = { id: session.id };
 				let hasChanges = false;
-				// Fields that changed or were added
-				for (const key of Object.keys(current)) {
-					if (key === 'id') { continue; }
-					if (stableStringify(current[key]) !== stableStringify(prev[key])) {
-						patch[key] = current[key];
-						hasChanges = true;
+				if (this._invalidatedSessionIds.has(session.id)) {
+					for (const key of Object.keys(current)) {
+						if (key !== 'id') {
+							patch[key] = current[key] ?? null;
+							hasChanges = true;
+						}
 					}
-				}
-				// Fields that were removed (present in prev, absent in current) → null per RFC 7396
-				for (const key of Object.keys(prev)) {
-					if (key === 'id') { continue; }
-					if (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined) {
-						patch[key] = null;
-						hasChanges = true;
+					for (const key of Object.keys(prev)) {
+						if (key !== 'id' && (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined)) {
+							patch[key] = null;
+							hasChanges = true;
+						}
+					}
+				} else {
+					// Fields that changed or were added
+					for (const key of Object.keys(current)) {
+						if (key === 'id') { continue; }
+						if (stableStringify(current[key]) !== stableStringify(prev[key])) {
+							patch[key] = current[key];
+							hasChanges = true;
+						}
+					}
+					// Fields that were removed (present in prev, absent in current) → null per RFC 7396
+					for (const key of Object.keys(prev)) {
+						if (key === 'id') { continue; }
+						if (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined) {
+							patch[key] = null;
+							hasChanges = true;
+						}
 					}
 				}
 				// ``agent_state_detail`` (the confirmation prompt text) and
@@ -535,7 +742,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 		}
 
-		if (upserts.length === 0 && removes.length === 0 && !activeChanged) {
+		if (upserts.length === 0 && removes.length === 0) {
 			return;
 		}
 
@@ -546,21 +753,25 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				if (v !== undefined) { obj[k] = v; }
 			}
 			this._lastSentById.set(session.id, obj);
+			this._invalidatedSessionIds.delete(session.id);
 		}
-		for (const id of removes) { this._lastSentById.delete(id); }
-		this._lastSentActive = activeKey;
+		for (const id of removes) {
+			this._lastSentById.delete(id);
+			this._invalidatedSessionIds.delete(id);
+		}
 
 		this._ws!.send(JSON.stringify({
 			type: 'session_context',
 			mode: 'delta',
 			upserts,
 			removes,
-			...(activeChanged && context.active_session ? { active_session: context.active_session } : {}),
 		}));
+		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length}`);
 	}
 
 	private _seedTracking(context: IVoiceSessionContext): void {
 		this._lastSentById.clear();
+		this._invalidatedSessionIds.clear();
 		for (const session of context.sessions) {
 			const obj: Record<string, unknown> = {};
 			for (const [k, v] of Object.entries(session as unknown as Record<string, unknown>)) {
@@ -568,13 +779,54 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			this._lastSentById.set(session.id, obj);
 		}
-		this._lastSentActive = context.active_session ? stableStringify(context.active_session) : '';
 	}
 
-	sendToolResult(callId: string, result: string): void {
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
+	}
+
+	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			this._ws.send(JSON.stringify({
+				type: 'narration_playback_complete',
+				coding_session_id: codingSessionId,
+				narration_id: narrationId,
+				playback_id: playbackId,
+			}));
+		}
+	}
+
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined {
+		// Gate on session_context having been sent: the WS preserves send order,
+		// so the backend processes start_session/resume_session before any
+		// request_narration. Pre-session this returns undefined, so _narrate queues
+		// a retry that onSessionInit replays once the session exists.
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
+			const id = narrationId ?? generateUuid();
+			this._ws.send(JSON.stringify({
+				type: 'request_narration',
+				coding_session_id: codingSessionId,
+				kind,
+				text,
+				narration_id: id,
+				...(checkpoint ? {
+					request_id: checkpoint.requestId,
+					checkpoint_id: checkpoint.checkpointId,
+					sequence: checkpoint.sequence,
+				} : {}),
+				...(kind === 'confirmation' && confirmationType ? { confirmation_type: confirmationType } : {}),
+				...(pending ? { pending_id: pending.pendingId } : {}),
+			}));
+			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
+			if (checkpoint) {
+				this._logService.info(`[voice] checkpoint sent request=${checkpoint.requestId} stage=${checkpoint.checkpointId} sequence=${checkpoint.sequence}`);
+			}
+			return id;
+		}
+		return undefined;
 	}
 
 	sendSessionStateChange(sessionId: string, newState: string, _label: string, detail?: string, lastResponseSummary?: string): void {
@@ -600,21 +852,36 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 * can answer recall questions across reconnects without backend
 	 * persistence. See ``IVoicePriorTimelineEntry``.
 	 */
-	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
+	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._seedTracking(context);
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() };
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
+			// This client drives narration itself via `requestNarration`, so opt out
+			// of the backend's default context-delta auto-narration to avoid double narration.
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: turnConfigOverride ?? this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
+			if (voiceInstructions) {
+				payload.voice_instructions = voiceInstructions;
+			}
 			this._ws.send(JSON.stringify(payload));
+			this._sessionStartedOnSocket = true;
 		}
 	}
 
-	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
+	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
-			this._seedTracking(context);
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
+			// `auto_narrate: false` for the same reason as start_session: this client
+			// drives narration, so the backend must not also auto-narrate.
+			const payload: Record<string, unknown> = { type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
+			if (voiceInstructions) {
+				payload.voice_instructions = voiceInstructions;
+			}
+			this._ws.send(JSON.stringify(payload));
+			this._sessionStartedOnSocket = true;
 		}
 	}
 

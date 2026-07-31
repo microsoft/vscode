@@ -23,7 +23,7 @@ on:
 jobs:
   macOS-test:
     name: ${{ inputs.job_name }}
-    runs-on: macos-14-xlarge
+    runs-on: macos-26-xlarge
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
       NPM_ARCH: arm64
@@ -197,6 +197,15 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
+
+      - name: Install Squid for network-isolated smoke tests
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        run: brew list squid >/dev/null 2>&1 || brew install squid
+
+      - name: 🧪 Run Agents Window smoke tests through macOS PAC proxy
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        timeout-minutes: 40
+        run: bash test/smoke/scripts/run-agents-window-network-proxy.sh
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICommandEvent, ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -22,12 +22,15 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { storeSelectedModel } from '../../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
-import { ChatTipTier, TIP_CATALOG } from '../../browser/chatTipCatalog.js';
+import { ChatTipTier, TIP_CATALOG, extractCommandIds } from '../../browser/chatTipCatalog.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -71,6 +74,31 @@ suite('ChatTipService', () => {
 	let mockInstructionFiles: IAgentInstructionFile[];
 	let mockPromptInstructionFiles: IPromptPath[];
 	let chatEntitlementService: TestChatEntitlementService;
+	let catalogCommandRegistrations: Map<string, IDisposable>;
+
+	/**
+	 * Registers every `command:` link referenced by the real {@link TIP_CATALOG} so that tips are
+	 * considered eligible, simulating a running workbench where these commands exist. Returns a map
+	 * keyed by command id so individual registrations can be disposed to simulate a missing command.
+	 */
+	function registerCatalogCommands(): Map<string, IDisposable> {
+		const registrations = new Map<string, IDisposable>();
+		for (const tip of TIP_CATALOG) {
+			const message = tip.buildMessage({
+				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
+				experimentalTipMessages: new Map(),
+			}).value;
+			for (const commandId of extractCommandIds(message)) {
+				if (registrations.has(commandId) || CommandsRegistry.getCommand(commandId)) {
+					continue;
+				}
+				const registration = CommandsRegistry.registerCommand(commandId, () => { });
+				registrations.set(commandId, registration);
+				testDisposables.add(registration);
+			}
+		}
+		return registrations;
+	}
 
 	function createProductService(hasCopilot: boolean): IProductService {
 		return {
@@ -130,6 +158,7 @@ suite('ChatTipService', () => {
 			lookupKeybinding: () => undefined,
 		} as Partial<IKeybindingService> as IKeybindingService);
 		instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
+		catalogCommandRegistrations = registerCatalogCommands();
 	});
 
 	test('returns a welcome tip', () => {
@@ -401,7 +430,7 @@ suite('ChatTipService', () => {
 	});
 
 	test('returns Auto switch tip when current model is persisted and context key is empty', () => {
-		storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1-2025-04-14', StorageScope.APPLICATION, StorageTarget.USER);
+		storeSelectedModel(storageService, ChatAgentLocation.Chat, undefined, 'copilot/gpt-4.1-2025-04-14');
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, '');
 
@@ -508,6 +537,15 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tip, undefined, 'Should not return a tip when no foreground chat sessions are visible');
 	});
 
+	test('returns a tip for the Agents new-session composer when foreground session count is zero', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 0);
+		contextKeyService.createKey(IsSessionsWindowContext.key, true);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip, 'Should return a tip for the Agents new-session composer');
+	});
+
 	test('returns undefined when foreground session count is greater than one', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 2);
@@ -592,6 +630,20 @@ suite('ChatTipService', () => {
 		const previousTip = service.navigateToPreviousTip();
 		assert.ok(previousTip);
 		assert.strictEqual(previousTip.id, 'tip.planMode', 'Expected previous tip to reverse the preferred ordering');
+	});
+
+	test('excludes a tip whose command is not registered', () => {
+		// Simulate a shipped build where the tip references a command that was never registered
+		// (see https://github.com/microsoft/vscode/issues/328231).
+		catalogCommandRegistrations.get('workbench.action.chat.openPlan')!.dispose();
+
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
+
+		assertTipNeverShown(service, 'tip.planMode');
 	});
 
 	test('getNextEligibleTip returns next tip even when only one remains', async () => {

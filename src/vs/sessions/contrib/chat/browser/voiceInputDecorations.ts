@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
 
 export interface IVoiceInputDecorationsServices {
 	readonly voiceSessionController: IVoiceSessionController;
@@ -34,6 +34,13 @@ export interface IVoiceInputDecorationsOptions {
 	readonly isActive: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
 	readonly getCurrentResource: () => URI | undefined;
+	/**
+	 * The single chat input voice mode is bound to. Only the surface whose
+	 * {@link getCurrentResource} matches this renders the glow/transcript, so
+	 * voice is active in exactly one input at a time even when several sessions
+	 * are visible.
+	 */
+	readonly currentVoiceInputResource: IObservable<URI | undefined>;
 }
 
 /**
@@ -44,7 +51,7 @@ export interface IVoiceInputDecorationsOptions {
  */
 export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServices, options: IVoiceInputDecorationsOptions): IDisposable {
 	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService } = services;
-	const { inputContainer: inputContainerEl, isActive, getCurrentResource } = options;
+	const { inputContainer: inputContainerEl, isActive, getCurrentResource, currentVoiceInputResource } = options;
 
 	const store = new DisposableStore();
 
@@ -83,6 +90,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			inputContainerEl.style.boxShadow = boxShadow;
 			inputContainerEl.classList.add('voice-active');
 			inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+			inputContainerEl.classList.toggle('voice-speaking', voiceState === 'speaking');
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -93,18 +101,19 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		}
 		inputContainerEl.style.borderColor = '';
 		inputContainerEl.style.boxShadow = '';
-		inputContainerEl.classList.remove('voice-active', 'voice-listening');
+		inputContainerEl.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
 	};
 
 	store.add(autorun(reader => {
 		const connected = voiceSessionController.isConnected.read(reader);
 		const voiceState = voiceSessionController.voiceState.read(reader);
 		const active = isActive.read(reader);
-		const targetSession = voiceSessionController.targetSession.read(reader);
+		const owner = currentVoiceInputResource.read(reader);
 		const current = getCurrentResource();
-		// Glow only the active slot targeted by the backend.
-		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
-		if (connected && active && !targetedElsewhere && (voiceState === 'listening' || voiceState === 'speaking')) {
+		// Glow only the single input voice is bound to, so at most one surface
+		// glows even when several sessions are visible.
+		const isOwner = !!current && !!owner && isEqual(current, owner);
+		if (connected && active && isOwner && isGlowingVoiceState(voiceState)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -117,23 +126,34 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const turns = voiceSessionController.transcriptTurns.read(reader);
 		const connected = voiceSessionController.isConnected.read(reader);
 		const voiceState = voiceSessionController.voiceState.read(reader);
-		const targetSession = voiceSessionController.targetSession.read(reader);
 		const active = isActive.read(reader);
+		const owner = currentVoiceInputResource.read(reader);
 		const showTranscript = configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
 		const current = getCurrentResource();
 		const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
-		// Render transcripts only on the active backend target.
-		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
-		if (!connected || !active || targetedElsewhere) {
+		// Render transcripts only on the single input voice is bound to.
+		const isOwner = !!current && !!owner && isEqual(current, owner);
+		if (!connected || !active || !isOwner) {
 			transcriptOverlayNode.style.display = 'none';
 			transcriptOverlayNode.classList.remove('has-transcript');
 			return;
 		}
 
 		if (visible.length === 0 || !showTranscript) {
-			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
-			if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
+			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+			if (!showTranscript && voiceState === 'listening') {
+				// Transcript is disabled: surface a minimal "Listening..." overlay
+				// while listening so the user has feedback. Cleared in any other state.
+				transcriptOverlayNode.style.display = '';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				transcriptOverlay.replaceChildren();
+				const listening = dom.$('span.listening');
+				listening.textContent = localize('voiceMode.listening', "Listening...");
+				transcriptOverlay.append(listening);
+				transcriptScrollable.scanDomNode();
+			} else if (!showTranscript && voiceState === 'speaking') {
+				// Transcript is disabled: hint that the user can interrupt playback.
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
@@ -141,8 +161,20 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
-					? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
-					: localize('voiceMode.clickMicHint', "Click voice mode to talk");
+					? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
+					: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
+				transcriptOverlay.append(hint);
+				transcriptScrollable.scanDomNode();
+			} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
+				transcriptOverlayNode.style.display = '';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				transcriptOverlay.replaceChildren();
+				const hint = dom.$('span.partial');
+				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				const kbLabel = kb?.getLabel();
+				hint.textContent = kbLabel
+					? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
+					: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
 				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
 			} else {

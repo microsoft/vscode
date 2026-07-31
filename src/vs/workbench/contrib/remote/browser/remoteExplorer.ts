@@ -7,7 +7,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../base/com
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, PortsEnablement, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from '../../../services/remote/common/remoteExplorerService.js';
-import { Attributes, AutoTunnelSource, forwardedPortsFeaturesEnabled, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from '../../../services/remote/common/tunnelModel.js';
+import { Attributes, AutoTunnelSource, CandidatePort, forwardedPortsFeaturesEnabled, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from '../../../services/remote/common/tunnelModel.js';
 import { ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from './tunnelView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -22,7 +22,7 @@ import { ITerminalService } from '../../terminal/browser/terminal.js';
 import { IDebugService } from '../../debug/common/debug.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { isWeb, OperatingSystem } from '../../../../base/common/platform.js';
-import { ITunnelService, RemoteTunnel, TunnelPrivacyId } from '../../../../platform/tunnel/common/tunnel.js';
+import { isAllInterfaces, isLocalhost, ITunnelService, RemoteTunnel, TunnelPrivacyId } from '../../../../platform/tunnel/common/tunnel.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
@@ -39,6 +39,22 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 
 export const VIEWLET_ID = 'workbench.view.remote';
+export const TOGGLE_VIEW_ACTION_ID = 'remoteExplorer.toggleForwardedPortsView';
+
+/**
+ * Checks if a process candidate is the remapped local endpoint of an existing tunnel.
+ */
+export function isCandidateRemappedTunnelLocalEndpoint(candidate: CandidatePort, tunnels: Iterable<Pick<Tunnel, 'localPort' | 'remotePort'>>): boolean {
+	if (!isLocalhost(candidate.host) && !isAllInterfaces(candidate.host)) {
+		return false;
+	}
+	for (const tunnel of tunnels) {
+		if (tunnel.localPort === candidate.port && tunnel.remotePort !== candidate.port) {
+			return true;
+		}
+	}
+	return false;
+}
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
@@ -166,7 +182,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			text: `$(radio-tower) ${text}`,
 			ariaLabel: tooltip,
 			tooltip,
-			command: `${TUNNEL_VIEW_ID}.focus`
+			command: TOGGLE_VIEW_ACTION_ID
 		};
 	}
 }
@@ -731,6 +747,10 @@ class ProcAutomaticPortForwarding extends Disposable {
 		for (const value of this.remoteExplorerService.tunnelModel.candidates) {
 			if (!value.detail) {
 				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} missing detail`);
+				continue;
+			}
+			if (isCandidateRemappedTunnelLocalEndpoint(value, this.remoteExplorerService.tunnelModel.forwarded.values())) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} is the local port of a forwarded tunnel`);
 				continue;
 			}
 

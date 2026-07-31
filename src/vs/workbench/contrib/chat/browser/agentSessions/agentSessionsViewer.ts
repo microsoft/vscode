@@ -54,7 +54,7 @@ import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
-import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { createPixelSpinner, IPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
@@ -103,6 +103,7 @@ class AgentSessionStatusIcon extends Disposable {
 
 	private _currentCacheKey: string | undefined;
 	private _lastSession: IAgentSession | undefined;
+	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -126,6 +127,7 @@ class AgentSessionStatusIcon extends Disposable {
 	reset(): void {
 		this._currentCacheKey = undefined;
 		this._lastSession = undefined;
+		this.spinner.clear();
 		clearNode(this.container);
 	}
 
@@ -143,10 +145,12 @@ class AgentSessionStatusIcon extends Disposable {
 			}
 
 			this._currentCacheKey = cacheKey;
+			this.spinner.clear();
 			clearNode(this.container);
 			const spinner = createPixelSpinner(undefined, { variant: isNeedsInput ? 'ring' : 'grid' });
-			spinner.style.color = color;
-			this.container.appendChild(spinner);
+			this.spinner.value = spinner;
+			spinner.element.style.color = color;
+			this.container.appendChild(spinner.element);
 			return;
 		}
 
@@ -159,6 +163,7 @@ class AgentSessionStatusIcon extends Disposable {
 		}
 
 		this._currentCacheKey = cacheKey;
+		this.spinner.clear();
 		clearNode(this.container);
 		const iconElement = h(`span${cacheKey}`).root;
 		iconElement.style.color = color;
@@ -950,22 +955,26 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
 	static readonly ITEM_HEIGHT = 54;
+	static readonly COMPACT_ITEM_HEIGHT = 52;
 	static readonly SECTION_HEIGHT = 26;
+	static readonly SPACED_SECTION_HEIGHT = 30;
 
 	constructor(private readonly _approvalModel?: AgentSessionApprovalModel,
 		private readonly _compactShowMore?: boolean,
+		private readonly _getItemHeight: () => number = () => AgentSessionsListDelegate.ITEM_HEIGHT,
+		private readonly _getSectionHeight: () => number = () => AgentSessionsListDelegate.SECTION_HEIGHT,
 	) { }
 
 	getHeight(element: AgentSessionListItem): number {
 		if (isAgentSessionSection(element)) {
-			return AgentSessionsListDelegate.SECTION_HEIGHT;
+			return this._getSectionHeight();
 		}
 
 		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
 			return this._compactShowMore ? AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
-		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
+		let height = this._getItemHeight();
 		const approval = this._approvalModel?.getApproval(element.resource).get();
 		if (approval) {
 			height += AgentSessionRenderer.getApprovalRowHeight(approval.label);

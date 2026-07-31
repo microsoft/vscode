@@ -300,7 +300,7 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(contentList, 'Content should be rendered after expanding');
 		});
 
-		test('user toggle event bubbles from the collapse button', () => {
+		test('user toggle event bubbles before expansion changes', () => {
 			const content = createThinkingPart('**Thinking content to render**');
 			const context = createMockRenderContext(false);
 			const part = store.add(instantiationService.createInstance(
@@ -315,16 +315,28 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(ancestor);
 			disposables.add(toDisposable(() => ancestor.remove()));
 
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
 			let toggleCount = 0;
-			const listener = () => toggleCount++;
+			let expandedDuringToggle: string | null | undefined;
+			const listener = () => {
+				toggleCount++;
+				expandedDuringToggle = button.ariaExpanded;
+			};
 			ancestor.addEventListener(ChatCollapsibleContentPart.userToggleEvent, listener);
 			disposables.add(toDisposable(() => ancestor.removeEventListener(ChatCollapsibleContentPart.userToggleEvent, listener)));
 
-			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
-			assert.ok(button);
 			button.click();
 
-			assert.strictEqual(toggleCount, 1);
+			assert.deepStrictEqual({
+				toggleCount,
+				expandedDuringToggle,
+				expandedAfterToggle: button.ariaExpanded,
+			}, {
+				toggleCount: 1,
+				expandedDuringToggle: 'false',
+				expandedAfterToggle: 'true',
+			});
 		});
 	});
 
@@ -1510,6 +1522,25 @@ suite('ChatThinkingContentPart', () => {
 
 			const result = part.hasSameContent(toolInvocation, [], context.element);
 			assert.strictEqual(result, true, 'Should accept tool invocations as same content');
+		});
+
+		test('should return false when a tool becomes a parent subagent', () => {
+			const content = createThinkingPart('**Working**', 'id-1');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+			const toolInvocation = {
+				kind: 'toolInvocation' as const,
+				toolSpecificData: { kind: 'subagent' },
+				subAgentInvocationId: undefined,
+			} as unknown as IChatRendererContent;
+
+			assert.strictEqual(part.hasSameContent(toolInvocation, [], context.element), false);
 		});
 
 		test('should return true for markdown content', () => {

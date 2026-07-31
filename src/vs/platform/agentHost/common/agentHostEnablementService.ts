@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWeb } from '../../../base/common/platform.js';
+import { IObservable } from '../../../base/common/observable.js';
 import * as nls from '../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 
 /** @internal Only the enablement service may read this configuration value at runtime. */
@@ -22,10 +21,10 @@ export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementS
 export interface IAgentHostEnablementService {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Whether the local agent host process is enabled in this runtime.
-	 * Returns `false` on web. This value is fixed at startup and never changes.
+	 * Whether Agent Host features are enabled in this runtime.
+	 * This can transition from `false` to `true` when a startup experiment is applied or AI features are explicitly enabled.
 	 */
-	readonly enabled: boolean;
+	readonly enabled: IObservable<boolean>;
 }
 
 // Register `chat.agentHost.enabled` and related settings.
@@ -42,33 +41,34 @@ configurationRegistry.registerConfiguration({
 		[agentHostEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
-			default: !isWeb && product.quality !== 'stable',
+			default: true,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 		},
 		'chat.agents.copilotCli.hideExtensionHost': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agents.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the Agents window picker. Requires `#chat.agentHost.enabled#`.", agentHostEnabledSettingId),
+			default: true,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.preferCopilotHarness': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, prefers the Agent Host Copilot CLI for new editor chat sessions. If the local harness is selected, it is replaced with Copilot once."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
-		'chat.editor.defaultProvider': {
-			type: 'string',
-			enum: ['local', 'copilotEh', 'copilotAh'],
-			enumDescriptions: [
-				nls.localize('chat.editor.defaultProvider.local', "Use the built-in VS Code local chat harness"),
-				nls.localize('chat.editor.defaultProvider.copilotEh', "Use the Extension Host Copilot CLI"),
-				nls.localize('chat.editor.defaultProvider.copilotAh', "Use the Agent Host Copilot CLI"),
-			],
-			description: nls.localize('chat.editor.defaultProvider', "Controls which provider is used as the default for new editor chat sessions."),
-			default: 'local',
+		'chat.defaultToCopilotHarness': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot CLI instead of the local harness. Requires `#{0}#`.", agentHostEnabledSettingId),
+			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker."),
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
@@ -76,7 +76,7 @@ configurationRegistry.registerConfiguration({
 		'chat.editor.copilotCli.hideExtensionHost': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the editor window chat picker."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
