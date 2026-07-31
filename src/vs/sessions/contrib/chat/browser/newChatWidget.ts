@@ -287,7 +287,7 @@ export class NewChatWidget extends Disposable {
 		));
 		const petAction = this._register(new Action(
 			'sessions.chatPet.toggle',
-			localize('petAction', "Pet"),
+			localize('petAction', "Pet (/vscode-pet)"),
 			undefined,
 			true,
 			() => this.chatPetService.toggle()
@@ -524,7 +524,21 @@ export class NewChatWidget extends Disposable {
 	private async _createNewSession(folderUri: URI): Promise<IOpenNewSessionResult> {
 		this._pendingPreferredUpgrade.clear();
 		const userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType();
-		const result = await this._createSessionNow(folderUri, userPick);
+		// Session creation is async, so a provider can start serving the folder
+		// (e.g. the local agent host finishing its handshake) between the call
+		// below and the listener installed after it. That change would land in
+		// the gap and be lost, leaving the composer without a draft — and with
+		// the harness picker hidden — until the user re-picks the workspace.
+		// Record it here so the listener can replay it.
+		const pendingChange = new DisposableStore();
+		let changedWhilePending = false;
+		pendingChange.add(this.sessionsManagementService.onDidChangeSessionTypes(() => changedWhilePending = true));
+		let result: IOpenNewSessionResult;
+		try {
+			result = await this._createSessionNow(folderUri, userPick);
+		} finally {
+			pendingChange.dispose();
+		}
 		if (result.trustDeclined) {
 			// The user explicitly declined trust: don't schedule a retry, which
 			// would silently recreate (and possibly re-prompt) the draft once a
@@ -541,7 +555,7 @@ export class NewChatWidget extends Disposable {
 		//    (first) type, which can change as the folder's session-type list
 		//    grows.
 		if (!result.session || !userPick || !this._isPreferredServable(folderUri, userPick)) {
-			this._scheduleRecreateOnProviderChange(folderUri, userPick, result.session);
+			this._scheduleRecreateOnProviderChange(folderUri, userPick, result.session, changedWhilePending);
 		}
 		return result;
 	}
@@ -568,30 +582,35 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void {
+	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void {
 		const store = new DisposableStore();
-		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			if (created) {
-				const active = this._session.get();
-				if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
-					return; // the draft was sent or is no longer the active session
+		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => this._recreateOnProviderChange(folderUri, userPick, created)));
+		this._pendingPreferredUpgrade.value = store;
+		if (replayMissedChange) {
+			this._recreateOnProviderChange(folderUri, userPick, created);
+		}
+	}
+
+	private _recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void {
+		if (created) {
+			const active = this._session.get();
+			if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
+				return; // the draft was sent or is no longer the active session
+			}
+			if (userPick) {
+				if (!this._isPreferredServable(folderUri, userPick)) {
+					return; // the preferred provider still cannot serve the folder
 				}
-				if (userPick) {
-					if (!this._isPreferredServable(folderUri, userPick)) {
-						return; // the preferred provider still cannot serve the folder
-					}
-				} else {
-					// No explicit pick: keep the draft on the preferred (first)
-					// type. Recreate only when that preferred actually changed.
-					const preferred = this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
-					if (!preferred || (preferred.providerId === active.providerId && preferred.sessionTypeId === active.sessionType)) {
-						return;
-					}
+			} else {
+				// No explicit pick: keep the draft on the preferred (first)
+				// type. Recreate only when that preferred actually changed.
+				const preferred = this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
+				if (!preferred || (preferred.providerId === active.providerId && preferred.sessionTypeId === active.sessionType)) {
+					return;
 				}
 			}
-			void this._createNewSession(folderUri);
-		}));
-		this._pendingPreferredUpgrade.value = store;
+		}
+		void this._createNewSession(folderUri);
 	}
 
 	/**

@@ -111,7 +111,15 @@ export interface UsageInfoMeta {
 	autoModeResolved?: IAutoModeResolvedInfo;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
+		/** This turn's nano-AIU cost. */
 		totalNanoAiu?: number;
+		/**
+		 * The whole session's accumulated nano-AIU cost, as reported by the
+		 * backend rather than summed from the turns. Clients SHOULD prefer this
+		 * over adding up per-turn totals: it is authoritative, and it also
+		 * covers work billed outside any turn (e.g. an out-of-turn compaction).
+		 */
+		sessionTotalNanoAiu?: number;
 		[key: string]: unknown;
 	};
 	/**
@@ -210,6 +218,7 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		const rawUsage = copilotUsage as Record<string, unknown>;
 		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
 		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
+		if (typeof rawUsage['sessionTotalNanoAiu'] === 'number') { usage.sessionTotalNanoAiu = rawUsage['sessionTotalNanoAiu']; }
 		result.copilotUsage = usage;
 	}
 	const quotaSnapshots = meta['quotaSnapshots'];
@@ -248,6 +257,10 @@ export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
 	const meta = readUsageInfoMeta(usage);
 	// Negative totals are treated as absent, matching how credits are read for display.
 	return (typeof meta.copilotUsage?.totalNanoAiu === 'number' && meta.copilotUsage.totalNanoAiu >= 0)
+		// A report can carry only the session total — a compaction billed while no turn
+		// was active advances it without any per-event billing payload — and that is
+		// still consumption worth showing.
+		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0)
 		|| (typeof meta.cost === 'number' && meta.cost >= 0);
 }
 
@@ -1153,6 +1166,11 @@ export interface ISessionGitHubState {
 	readonly repo?: string;
 	/** The URL of the GitHub pull request. */
 	readonly pullRequestUrl?: string;
+	/**
+	 * URLs of the GitHub issues referenced by the session's user messages, in
+	 * order of first appearance.
+	 */
+	readonly issueUrls?: readonly string[];
 }
 
 /**
@@ -1231,11 +1249,13 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		owner?: string;
 		repo?: string;
 		pullRequestUrl?: string;
+		issueUrls?: readonly string[];
 	} = {};
 
 	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
 	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
 	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	return result;
 }
 

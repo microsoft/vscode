@@ -182,19 +182,26 @@ export class AgentFeedbackOverlayWidget extends Disposable {
 	}
 }
 
-class AgentFeedbackOverlayController {
+export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
+	readonly editorPaneContainer: HTMLElement;
+}
+
+export class AgentFeedbackOverlayController {
 
 	private readonly _store = new DisposableStore();
 	private readonly _domNode = document.createElement('div');
 
 	constructor(
-		container: HTMLElement,
-		group: IEditorGroup,
+		group: IAgentFeedbackOverlayEditorGroup,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
 	) {
+		const container = group.editorPaneContainer;
+		container.classList.add('agent-feedback-editor-overlay-host');
+		this._store.add(toDisposable(() => container.classList.remove('agent-feedback-editor-overlay-host')));
+
 		this._domNode.classList.add('agent-feedback-editor-overlay');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.bottom = '24px';
@@ -305,7 +312,7 @@ export class AgentFeedbackEditorOverlay implements IWorkbenchContribution {
 						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
 					);
 
-					const ctrl = scopedInstaService.createInstance(AgentFeedbackOverlayController, group.element, group);
+					const ctrl = scopedInstaService.createInstance(AgentFeedbackOverlayController, group);
 					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
 				}
 			}

@@ -296,7 +296,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
  * no BYOK models, or when enumeration fails; `startProxy` is invoked only once
  * at least one model is present.
  *
- * Each vendor maps to one `type: 'openai'` / `wireApi: 'completions'` provider
+ * Each vendor maps to one `type: 'openai'` / `wireApi: 'responses'` provider
  * whose `baseUrl` points at the proxy and authenticates with the session-scoped
  * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
  * provider-qualified selection id `vendor/id`, matching what the renderer's
@@ -352,7 +352,7 @@ export async function resolveByokSessionConfig(
 	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',
-		wireApi: 'completions',
+		wireApi: 'responses',
 		baseUrl: handle.providerBaseUrl(vendor),
 		bearerToken: `${handle.nonce}.${sessionId}`,
 	}));

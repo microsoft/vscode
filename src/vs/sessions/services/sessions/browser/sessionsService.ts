@@ -25,6 +25,7 @@ import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService } from './sessionsPartService.js';
+import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 
@@ -308,6 +309,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
@@ -586,6 +588,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * Cancel any in-flight open-session/restore and return a fresh cancellation token.
 	 */
 	private _startOpenSession(): CancellationToken {
+		// Opening a session is the gesture that dismisses a custom view; the
+		// workbench then restores the sessions grid and its side panel state.
+		this.customViewService.hideCustomView();
+
 		this._openSessionCts.value?.cancel();
 		const cts = new CancellationTokenSource();
 		this._openSessionCts.value = cts;

@@ -45,4 +45,13 @@ export interface IAgentHostGitStateService {
 	 * @param sessionKey The key of the session for which to check the GitHub pull request.
 	 */
 	attachSessionGitHubPullRequest(sessionKey: string): Promise<void>;
+
+	/**
+	 * Detect GitHub issues referenced in a user message and add them to the
+	 * session's GitHub state. Already-known issues are kept, so the session
+	 * accumulates every issue referenced over its lifetime.
+	 * @param sessionKey The key of the session the message was sent to.
+	 * @param text The user message to scan for issue references.
+	 */
+	attachSessionGitHubIssues(sessionKey: string, text: string): Promise<void>;
 }
