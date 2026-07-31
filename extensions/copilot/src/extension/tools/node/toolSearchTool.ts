@@ -97,6 +97,9 @@ ToolRegistry.registerModelSpecificTool(
 		models: [
 			{ family: 'gpt-5.4' },
 			{ family: 'gpt-5.5' },
+			{ family: 'gpt-5.6-sol' },
+			{ family: 'gpt-5.6-terra' },
+			{ family: 'gpt-5.6-luna' },
 			{ family: 'claude-sonnet-4.5' },
 			{ family: 'claude-sonnet-4.6' },
 			{ family: 'claude-opus-4.5' },

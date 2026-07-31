@@ -53,6 +53,11 @@ export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelC
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
+/** Floors valid tool-search thresholds and returns the default for invalid values. */
+export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
+	return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
+}
+
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 interface ICopilotCliModelCapabilityOverride {
 	/** Alias the model's family for prompt/capability routing (e.g. `"claude-opus-4-8"`). */

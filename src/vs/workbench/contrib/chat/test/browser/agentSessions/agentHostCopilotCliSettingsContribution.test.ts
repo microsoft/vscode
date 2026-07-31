@@ -109,7 +109,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[AgentHostToolSearchEnabledSettingId]: true,
-			[AgentHostToolSearchDeferThresholdSettingId]: 5,
+			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostReasoningEffortOverrideSettingId]: 'xhigh',
 			[AgentHostModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 		});
