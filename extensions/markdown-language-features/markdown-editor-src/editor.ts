@@ -65,8 +65,12 @@ class Editor extends Disposable {
 					break;
 				}
 				case 'update': {
+					// `replaceSourceText` (not `sourceText.set`) applies authoritative host
+					// text: it maps the selection through the change and clears stale
+					// pending-paragraph state, so the caret stays valid after an undo shrinks
+					// the document. The guard stops this echoing back as a user edit.
 					this.isUpdatingFromExtension = true;
-					this.model.sourceText.set(new StringValue(message.content), undefined);
+					this.model.replaceSourceText(new StringValue(message.content));
 					this.isUpdatingFromExtension = false;
 					break;
 				}
@@ -157,7 +161,16 @@ class Editor extends Disposable {
 			},
 		}));
 
-		this._register(new EditorController(model, view));
+		// Wire history chords (undo/redo) to the extension so they run against the
+		// backing TextDocument's own undo stack. `record` is deliberately omitted:
+		// the TextDocument owns the history, and a second local stack would drift
+		// from the Edit menu, dirty state and hot exit.
+		this._register(new EditorController(model, view, {
+			historyStrategy: {
+				undo: () => this.#vscode.postMessage({ type: 'history', command: 'undo' }),
+				redo: () => this.#vscode.postMessage({ type: 'history', command: 'redo' }),
+			},
+		}));
 		host.appendChild(view.element);
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come

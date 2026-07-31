@@ -55,6 +55,14 @@
 	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
 }
 
+/* Standalone dictation buttons are discs, so the glow has to be one too —
+	otherwise the light spills past the button's own edge. Covers the editor
+	chat toolbar and the Agents window composer's mic button. */
+.chat-execute-toolbar .monaco-action-bar .action-item.dictation-mic-active,
+.sessions-chat-stt-button.dictation-mic-active {
+	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
+}
+
 /* High-contrast themes replace the soft glow with a solid outline, which must
 	stay fully opaque to keep its contrast at low levels. */
 .hc-black .dictation-mic-active::after,

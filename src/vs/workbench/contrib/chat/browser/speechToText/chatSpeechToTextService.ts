@@ -34,6 +34,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
+import { resolveDictationLanguage } from './dictationLanguage.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -167,7 +168,7 @@ const PCM_CAPTURE_CHUNK_SIZE = 4096;
 const ENABLED_SETTING = 'dictation.enabled';
 /**
  * Selects the dictation model. On-device model ids (e.g.
- * `nemotron-speech-streaming-en-0.6b`) run through {@link ILocalTranscriptionService};
+ * `nemotron-3.5-asr-streaming-0.6b`) run through {@link ILocalTranscriptionService};
  * the sentinel {@link DICTATION_MAI_MODEL_ID} routes to the cloud voice service instead.
  */
 export const DICTATION_MODEL_SETTING = 'dictation.model';
@@ -827,7 +828,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._activeBackend === 'mai') {
 			return this._startMaiSession(window);
 		}
-		return this._startLocalSession();
+		return this._startLocalSession(window);
 	}
 
 	/**
@@ -1133,7 +1134,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * Begin an on-device transcription session in the utility process and pipe
 	 * its interim/final results onto the shared cumulative-transcript surface.
 	 */
-	private async _startLocalSession(): Promise<void> {
+	private async _startLocalSession(window: Window & typeof globalThis): Promise<void> {
 		const local = this._localTranscription;
 		this._localSessionDisposables.add(local.onDidTranscribe(result => {
 			// The local service returns the full cumulative transcript each time.
@@ -1141,7 +1142,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}));
 		const cacheDir = joinPath(this._environmentService.cacheHome, 'chatDictationModels').fsPath;
 		const model = this._getModelId();
-		await local.start({ cacheDir, model });
+		const language = resolveDictationLanguage(
+			this._configurationService.getValue('agents.voice.language'),
+			window.navigator.language,
+		);
+		await local.start({ cacheDir, model, language });
 
 		// The model loads in the utility process in the background (start()
 		// returns immediately). On first use it may download hundreds of MB, so
