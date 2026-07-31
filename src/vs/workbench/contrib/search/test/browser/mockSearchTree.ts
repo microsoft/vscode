@@ -52,12 +52,6 @@ export class MockObjectTree<T, TRef> implements IDisposable {
 		return this._nodes.has(element);
 	}
 
-	materialize(...elements: unknown[]): void {
-		for (const element of elements) {
-			this._nodes.add(element);
-		}
-	}
-
 	getFocus(): unknown[] {
 		return this._focus;
 	}
