@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight } from '../../../browser/widget/chatWidget.js';
+import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 
@@ -82,5 +84,65 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+});
+
+suite('ChatWidget - acceptAndAwaitSentRequest', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function sentResult(): ChatSendResultSent {
+		return { kind: 'sent', data: {} as IChatSendRequestData };
+	}
+
+	test('an immediately sent request is accepted and returned', async () => {
+		let accepted = 0;
+		const result = sentResult();
+
+		const sent = await acceptAndAwaitSentRequest(result, () => accepted++);
+
+		assert.deepStrictEqual({ accepted, sent }, { accepted: 1, sent: result });
+	});
+
+	test('a queued request is accepted before the queued request settles', async () => {
+		const deferred = new DeferredPromise<ChatSendResult>();
+		let accepted = 0;
+
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
+		// The queued request has not run yet, so `pending` is still unresolved here.
+		const acceptedWhileQueued = accepted === 1;
+
+		const result = sentResult();
+		await deferred.complete(result);
+
+		assert.deepStrictEqual({ acceptedWhileQueued, accepted, sent: await pending }, {
+			acceptedWhileQueued: true,
+			accepted: 1,
+			sent: result,
+		});
+	});
+
+	test('a rejected request is never accepted', async () => {
+		let accepted = 0;
+
+		const sent = await acceptAndAwaitSentRequest({ kind: 'rejected', reason: 'Empty message' }, () => accepted++);
+
+		assert.deepStrictEqual({ accepted, sent }, { accepted: 0, sent: undefined });
+	});
+
+	test('a queued request that is rejected when it runs stays accepted but is not sent', async () => {
+		const deferred = new DeferredPromise<ChatSendResult>();
+		let accepted = 0;
+
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
+		await deferred.complete({ kind: 'rejected', reason: 'Session is read-only' });
+
+		assert.deepStrictEqual({ accepted, sent: await pending }, { accepted: 1, sent: undefined });
+	});
+
+	test('accepting is optional', async () => {
+		const result = sentResult();
+
+		assert.strictEqual(await acceptAndAwaitSentRequest(result), result);
 	});
 });

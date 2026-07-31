@@ -205,6 +205,23 @@ export interface IGitHubInfo {
 		/** Object ID of the head ref (PR branch) commit. */
 		readonly headRefOid?: string;
 	};
+	/**
+	 * GitHub issues referenced by this session, in the order they were first
+	 * mentioned. Issues may live in a different repository than {@link owner}/{@link repo}.
+	 */
+	readonly issues?: readonly IGitHubIssueRef[];
+}
+
+/** A GitHub issue referenced by a session. */
+export interface IGitHubIssueRef {
+	/** GitHub repository owner of the issue. */
+	readonly owner: string;
+	/** GitHub repository name of the issue. */
+	readonly repo: string;
+	/** Issue number. */
+	readonly number: number;
+	/** URI of the issue. */
+	readonly uri: URI;
 }
 
 export interface ISessionChangesSummary {

@@ -115,22 +115,16 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'reconnect replays only the actions a dropped client missed', async function () {
 		const { sessionUri } = await createSession('reconnect');
 		const chatUri = buildDefaultChatUri(sessionUri);
+		const droppedClientId = `reconnect-dropped-${config.provider}`;
 
-		const { carried: seenThrough, revived } = await afterConnectionDrop(`reconnect-${config.provider}`, async first => {
-			await first.call<SubscribeResult>('subscribe', { channel: chatUri });
-			const seq = nextClientSeq();
-			first.dispatch({
-				channel: chatUri,
-				clientSeq: seq,
-				action: { type: ActionType.ChatDraftChanged, draft: { text: 'seen before the drop', origin: { kind: MessageKind.User } } },
-			});
-			const echoed = await first.waitForNotification(n =>
-				isActionNotification(n, 'chat/draftChanged')
-				&& getActionEnvelope(n).channel === chatUri
-				&& getActionEnvelope(n).origin?.clientSeq === seq,
-				30_000,
-			);
-			return getActionEnvelope(echoed).serverSeq;
+		// The cutoff comes from the subscribe response rather than from watching
+		// this client receive its own dispatch: a subscription is not guaranteed
+		// to be installed before a dispatch sent immediately after it is handled,
+		// so waiting for that echo races. `fromSeq` is the same boundary and the
+		// response itself guarantees it.
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
+			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
+			return subscribed.snapshot!.fromSeq;
 		});
 
 		try {
@@ -140,7 +134,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 			const result = await revived.call<ReconnectResult>('reconnect', {
 				channel: ROOT_STATE_URI,
-				clientId: `reconnect-${config.provider}`,
+				clientId: droppedClientId,
 				lastSeenServerSeq: seenThrough,
 				subscriptions: [chatUri],
 			});
@@ -167,12 +161,13 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'reconnect reports a subscription it cannot resume as missing', async function () {
 		const { sessionUri } = await createSession('reconnect-missing');
 		const chatUri = buildDefaultChatUri(sessionUri);
+		const droppedClientId = `reconnect-missing-dropped-${config.provider}`;
 		// A channel that never existed stands in for one disposed while the client
 		// was away: either way the server cannot resume it, and the client has to
 		// be told rather than left waiting on a dead channel.
 		const goneUri = URI.from({ scheme: 'agenthost-terminal', authority: 'e2e', path: '/never-existed' }).toString();
 
-		const { carried: seenThrough, revived } = await afterConnectionDrop(`reconnect-missing-${config.provider}`, async first => {
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
 			return subscribed.snapshot!.fromSeq;
 		});
@@ -180,7 +175,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		try {
 			const result = await revived.call<ReconnectResult>('reconnect', {
 				channel: ROOT_STATE_URI,
-				clientId: `reconnect-missing-${config.provider}`,
+				clientId: droppedClientId,
 				lastSeenServerSeq: seenThrough,
 				subscriptions: [chatUri, goneUri],
 			});

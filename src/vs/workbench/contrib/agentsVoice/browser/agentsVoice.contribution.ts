@@ -8,6 +8,7 @@ import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
+import { VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
 import '../../chat/common/voicePlaybackService.js';
 
@@ -615,6 +616,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[VOICE_AGENT_PROGRESS_SETTING]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.agentProgress', "Allow Agent mode to speak brief semantic progress updates while it investigates, plans, edits, validates, or recovers from a problem."),
+			default: false,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.voice': {
 			type: 'string',
 			enum: ['victoria_neutral', 'kevin_neutral', 'maya_neutral', 'daniel_neutral'],
@@ -644,7 +652,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.language.ko', "Korean"),
 				nls.localize('agents.voice.language.zh', "Chinese"),
 			],
-			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition, dictation, and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and dictation, and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
 		},

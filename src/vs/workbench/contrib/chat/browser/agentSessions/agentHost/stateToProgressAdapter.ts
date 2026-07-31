@@ -24,6 +24,7 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
@@ -551,8 +552,16 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		promptTokens: usage?.inputTokens ?? 0,
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits: getCopilotCredits(usage),
+		sessionCopilotCredits: getSessionCopilotCredits(usage),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
 	};
+}
+
+function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefined {
+	const sessionTotalNanoAiu = readUsageInfoMeta(usage).copilotUsage?.sessionTotalNanoAiu;
+	return typeof sessionTotalNanoAiu === 'number' && sessionTotalNanoAiu >= 0
+		? sessionTotalNanoAiu / 1_000_000_000
+		: undefined;
 }
 
 function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
@@ -2295,6 +2304,7 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 		},
 		subagentInvocationId: subAgentInvocationId,
 	});
+	updateStreamingToolInvocation(invocation, tc, connectionAuthority ?? '');
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.asking', "Asking a question...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
@@ -2303,6 +2313,28 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
 	}
 	return invocation;
+}
+
+function getStreamingToolInputForDisplay(tc: ToolCallState): unknown | undefined {
+	if (tc.status !== ToolCallStatus.Streaming || !tc.partialInput) {
+		return undefined;
+	}
+	return parsePartialToolInputForDisplay(tc.partialInput) ?? tc.partialInput;
+}
+
+export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: ToolCallState, connectionAuthority: string): unknown | undefined {
+	if (tc.status !== ToolCallStatus.Streaming) {
+		return undefined;
+	}
+	const partialInput = getStreamingToolInputForDisplay(tc);
+	if (partialInput !== undefined) {
+		existing.updatePartialInput(partialInput);
+	}
+	const invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority);
+	if (invocationMessage) {
+		existing.updateStreamingMessage(invocationMessage);
+	}
+	return partialInput;
 }
 
 /**
@@ -2566,7 +2598,13 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const result: IToolResult | undefined = isFailure || resultDetails
 		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
 		: undefined;
-	invocation.didExecuteTool(result);
+	const cancelledFromStreaming = isCancelled && invocation.cancelFromStreaming(
+		tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied,
+		tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
+	);
+	if (!cancelledFromStreaming) {
+		invocation.didExecuteTool(result);
+	}
 
 	return fileEdits;
 }

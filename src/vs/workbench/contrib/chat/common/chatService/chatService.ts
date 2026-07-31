@@ -165,7 +165,21 @@ export interface IChatUsage {
 	completionTokens: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	/**
+	 * The Copilot credit cost of whatever this usage describes — a turn's own
+	 * cost on a response's usage, a sub-agent's component cost on a sub-agent's.
+	 * Scoped to its container, so summing it across responses is only ever a
+	 * lower bound on the session; prefer {@link sessionCopilotCredits} for that.
+	 */
 	copilotCredits?: number;
+	/**
+	 * The whole session's Copilot credit cost as reported by the backend, rather
+	 * than summed from the individual turns. Unlike {@link copilotCredits} this
+	 * deliberately describes more than its container: it is authoritative when
+	 * present, and covers work billed outside any turn (e.g. a compaction that
+	 * ran between turns). Not every backend reports it.
+	 */
+	sessionCopilotCredits?: number;
 	/**
 	 * The language-model ID that actually served the request. Set when a
 	 * meta-model (e.g. "auto") routes to a concrete model so consumers
@@ -586,6 +600,14 @@ export interface IChatHookPart {
 	metadata?: { readonly [key: string]: unknown };
 	/** If set, this hook was executed within a subagent invocation and should be grouped with it. */
 	subAgentInvocationId?: string;
+}
+
+export type ChatVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export interface IChatVoiceProgressPart {
+	readonly kind: 'voiceProgress';
+	readonly id: ChatVoiceProgressStage;
+	readonly value: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -1455,6 +1477,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatThinkingPart
+	| IChatVoiceProgressPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
@@ -1794,6 +1817,7 @@ export interface IRemotePendingRequest {
 
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
+	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
 	/**
 	 * The configuration (e.g. context size, thinking effort) for the selected

@@ -51,6 +51,7 @@ export const enum AccessibleViewProviderId {
 	SessionsChanges = 'sessionsChanges',
 	Survey = 'survey',
 	Automations = 'automations',
+	BrowserElementCommenting = 'browserElementCommenting',
 }
 
 export const enum AccessibleViewType {

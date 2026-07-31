@@ -347,6 +347,7 @@ export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewCon
 export interface IChatAcceptInputOptions {
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
+	isVoiceModeInput?: boolean;
 	enableImplicitContext?: boolean; // defaults to true
 	// Whether to store the input to history. This defaults to 'true' if the input
 	// box's current content is being accepted, or 'false' if a specific input
@@ -364,6 +365,13 @@ export interface IChatAcceptInputOptions {
 	preserveFocus?: boolean;
 	/** Keeps the input box contents and attachments after submitting a programmatic query, and omits them from it. The query itself is sent as-is: prompt slash commands in it are not resolved. */
 	preserveInput?: boolean;
+	/**
+	 * Called once the request has been handed over to the chat service, i.e. it was either sent
+	 * right away or queued because another request is in progress. Callers that must not wait for
+	 * a queued request to actually run should use this instead of awaiting `acceptInput`, which
+	 * only resolves once the request has been sent.
+	 */
+	onRequestAccepted?: () => void;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
