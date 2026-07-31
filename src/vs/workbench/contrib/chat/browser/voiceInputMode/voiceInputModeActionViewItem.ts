@@ -13,7 +13,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -33,6 +33,9 @@ import { IVoiceSessionController } from '../voiceClient/voiceSessionController.j
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
+import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
+import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
@@ -49,6 +52,15 @@ const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 
 /** Number of animated waveform bars shown in the voice segment. */
 const WAVEFORM_BAR_COUNT = 5;
+
+/**
+ * Height bounds (px) of an audio-reactive waveform bar. These mirror the
+ * `chat-voice-input-mode-eq` keyframes in `voiceInputMode.css`, which drive the bars
+ * whenever no analyser is available, so the two must be kept in sync; both are sized
+ * against the 12px waveform box.
+ */
+const WAVEFORM_BAR_MIN_HEIGHT = 2;
+const WAVEFORM_BAR_MAX_HEIGHT = 10;
 
 /**
  * Menu placeholder action for the segmented voice input mode toggle. The actual UI is
@@ -270,6 +282,8 @@ export function registerVoiceInputModeSimulateActions(): void {
 export interface IVoiceInputModePillOptions {
 	/** Toggle dictation for the host surface (defaults to the shared toggle command). */
 	readonly toggleDictation?: () => void;
+	/** Whether this is the focused or last-focused chat input that owns live state. */
+	readonly isActive?: IObservable<boolean>;
 }
 
 /**
@@ -299,6 +313,25 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	private _listenHoldGesture = false;
 	private _listenSuppressClick = false;
 	private readonly _listenPointerUp = this._register(new MutableDisposable());
+	// Progress ring shown over the dictation glyph during an actual on-disk
+	// model download (cache miss), mirroring the standalone toolbar button.
+	private readonly _dictationRing = this._register(new MutableDisposable<DictationDownloadRing>());
+
+	private _getLabelWithKeybinding(label: string, commandId: string): string {
+		return this.keybindingService.appendKeybinding(label, commandId);
+	}
+
+	private _updateAriaLabels(): void {
+		this._dictationCell?.setAttribute('aria-label', this._dictationCell.classList.contains('preparing')
+			? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
+			: this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID));
+		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('on')
+			? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
+			: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
+		this._listenCell?.setAttribute('aria-label', this._listenCell.classList.contains('active')
+			? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
+			: this._getLabelWithKeybinding(localize('voiceInputMode.startListening', "Start Listening"), ChatVoiceInputModeToggleListenAction.ID));
+	}
 
 	constructor(
 		action: IAction,
@@ -335,9 +368,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.dictation'));
 		this._dictationCell.setAttribute('type', 'button');
 		this._dictationCell.setAttribute('role', 'button');
-		this._dictationCell.setAttribute('aria-label', localize('voiceInputMode.dictation', "Dictation"));
 		this._dictationIcon = dom.append(this._dictationCell, dom.$('span.chat-voice-input-mode-icon'));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._dictationCell, localize('voiceInputMode.dictation', "Dictation")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._dictationCell,
+			() => getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
 		this._register(dom.addDisposableListener(this._dictationCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
@@ -347,12 +380,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
 		));
+		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
 		this._voiceCell.setAttribute('type', 'button');
 		this._voiceCell.setAttribute('role', 'button');
-		this._voiceCell.setAttribute('aria-label', localize('voiceInputMode.voice', "Voice Mode"));
 		this._voiceBars = dom.append(this._voiceCell, dom.$('span.chat-voice-input-mode-bars'));
 		for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
 			this._voiceBarEls.push(dom.append(this._voiceBars, dom.$('span.chat-voice-input-mode-bar')));
@@ -360,9 +393,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._voiceCell,
 			() => {
 				const connectedish = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get() || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
-				return connectedish
+				return getVoiceModeHoverContent(connectedish
 					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-					: localize('voiceInputMode.voice', "Voice Mode");
+					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
 			}));
 		// The voice button is a plain power toggle (connect / disconnect). Listening is
 		// driven by the separate listen cell in manual mode and by the auto-listen loop
@@ -390,8 +423,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._listenCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.listen'));
 		this._listenCell.setAttribute('type', 'button');
 		this._listenCell.setAttribute('role', 'button');
-		this._listenCell.setAttribute('aria-label', localize('voiceInputMode.listenToggle', "Toggle Listening"));
 		this._listenIcon = dom.append(this._listenCell, dom.$('span.chat-voice-input-mode-icon'));
+		this._updateAriaLabels();
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateAriaLabels()));
 		this._register(addMicButtonContextMenuListener(
 			this._listenCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
@@ -399,8 +433,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell,
 			() => this.voiceSessionController.voiceState.get() === 'listening'
-				? localize('voiceInputMode.stopListening', "Stop Listening")
-				: localize('voiceInputMode.startOrHoldListening', "Tap to start, or hold to talk")));
+				? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
+				: this._getLabelWithKeybinding(localize('voiceInputMode.startOrHoldListening', "Tap to start, or hold to talk"), ChatVoiceInputModeToggleListenAction.ID)));
 		// The listen cell supports two gestures: a tap toggles listening on/off, and a
 		// press-and-hold records while held and sends on release (hold-to-talk). Use the
 		// generic pointer-aware listener so press-and-hold also starts on iOS.
@@ -431,6 +465,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		const dictationPreparing = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangePreparingModel,
 			() => this.chatSpeechToTextService.isPreparingModel);
+		// Sub-state of preparing: `true` only during a confirmed on-disk download
+		// (cache miss), `false` while loading an already-cached model. Drives the
+		// download-vs-spinner glyph below.
+		const dictationDownloading = observableFromEvent(this,
+			this.chatSpeechToTextService.onDidChangeDownloadingModel,
+			() => this.chatSpeechToTextService.isDownloadingModel);
 
 		this._register(autorun(reader => {
 			const dictationAvailable = this.voiceInputModeService.dictationAvailable.read(reader);
@@ -438,6 +478,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const simHandsFree = this.voiceInputModeService.simulatedHandsFree.read(reader);
 			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			const isActive = sim !== undefined || (this._options?.isActive?.read(reader) ?? true);
 
 			// Resolve the effective state — a simulation override wins over live state.
 			let isDictating: boolean;
@@ -452,9 +493,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				listening = sim === 'listening';
 				speaking = sim === 'speaking';
 			} else {
-				isDictating = dictationActive.read(reader);
-				connected = this.voiceSessionController.isConnected.read(reader);
-				connecting = this.voiceSessionController.isConnecting.read(reader);
+				isDictating = isActive && dictationActive.read(reader);
+				connected = isActive && this.voiceSessionController.isConnected.read(reader);
+				connecting = isActive && this.voiceSessionController.isConnecting.read(reader);
 				const voiceState = this.voiceSessionController.voiceState.read(reader);
 				listening = connected && voiceState === 'listening';
 				speaking = connected && voiceState === 'speaking';
@@ -463,7 +504,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const voiceOn = connected || connecting;
 			this._voiceLive = voiceLive;
 			// First-use model download/load (real state only; simulations never prepare).
-			const dictationBusy = sim === undefined && dictationPreparing.read(reader);
+			const dictationBusy = sim === undefined && isActive && dictationPreparing.read(reader);
 
 			// The dedicated listen (start/stop speaking) toggle shows in manual
 			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
@@ -491,9 +532,29 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell!.classList.toggle('preparing', dictationBusy);
 			this._dictationCell!.setAttribute('aria-pressed', String(isDictating));
 			this._dictationCell!.setAttribute('aria-label', dictationBusy
-				? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
+				? localize('voiceInputMode.dictationPreparingCancelable', "Cancel Dictation. {0}", getDictationPreparingLabel(this.chatSpeechToTextService))
 				: localize('voiceInputMode.dictation', "Dictation"));
-			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationBusy ? Codicon.micDownload : (isDictating ? Codicon.micFilled : Codicon.mic))}`;
+			// Glyphs render at the compact 12px size, so use the `*Compact` variants
+			// wherever one exists (`mic` / `micFilled` have none and stay as-is).
+			// While preparing, show the download glyph only during an actual on-disk
+			// download (cache miss); otherwise (loading a cached model) show a
+			// spinner, which the `.preparing` CSS animates.
+			const dictationIcon = dictationBusy
+				? dictationDownloading.read(reader) ? Codicon.micDownloadCompact : Codicon.loadingCompact
+				: isDictating ? Codicon.micFilled : Codicon.mic;
+			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationIcon)}`;
+
+			// Wrap the download glyph in a determinate progress ring during an
+			// actual on-disk download, matching the standalone toolbar button.
+			// The ring is torn down as soon as the download completes (loading a
+			// cached model, or not preparing at all).
+			if (dictationBusy && dictationDownloading.read(reader)) {
+				if (!this._dictationRing.value) {
+					this._dictationRing.value = new DictationDownloadRing(this._dictationCell!, this.chatSpeechToTextService);
+				}
+			} else {
+				this._dictationRing.clear();
+			}
 
 			// Voice cell — Device EQ bars that transform:
 			//   disconnected → thin grey bars (click to connect)
@@ -507,9 +568,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._voiceCell!.classList.toggle('listening', listening);
 			this._voiceCell!.classList.toggle('speaking', speaking);
 			this._voiceCell!.setAttribute('aria-pressed', String(voiceOn));
-			this._voiceCell!.setAttribute('aria-label', voiceOn
-				? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-				: localize('voiceInputMode.voice', "Voice Mode"));
 			// Simulated hover (walkthrough only) mirrors the real :hover disconnect preview.
 			this._voiceCell!.classList.toggle('sim-hover', this.voiceInputModeService.simulatedHover.read(reader));
 
@@ -518,10 +576,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell!.classList.toggle('active', listening);
 			this._listenCell!.classList.toggle('muted', !listening);
 			this._listenCell!.setAttribute('aria-pressed', String(listening));
-			this._listenCell!.setAttribute('aria-label', listening
-				? localize('voiceInputMode.stopListening', "Stop Listening")
-				: localize('voiceInputMode.startListening', "Start Listening"));
-			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.personVoiceFilled : Codicon.personVoice)}`;
+			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.personVoiceFilledCompact : Codicon.personVoiceCompact)}`;
+			this._updateAriaLabels();
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
 			this._syncBarAnimation();
@@ -558,7 +614,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		if (this.accessibilityService.isMotionReduced()) {
 			for (const bar of this._voiceBarEls) {
 				bar.style.animation = 'none';
-				bar.style.height = '3px';
+				bar.style.height = `${WAVEFORM_BAR_MIN_HEIGHT}px`;
 			}
 			return;
 		}
@@ -589,7 +645,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 					sum += this._barData[Math.min(bins - 1, i * step + j)];
 				}
 				const intensity = Math.min(1, (sum / step) / 180);
-				const heightPx = 3 + intensity * 11;
+				const heightPx = WAVEFORM_BAR_MIN_HEIGHT + intensity * (WAVEFORM_BAR_MAX_HEIGHT - WAVEFORM_BAR_MIN_HEIGHT);
 				// Disable the CSS keyframe fallback while we drive heights from live audio.
 				this._voiceBarEls[i].style.animation = 'none';
 				this._voiceBarEls[i].style.height = `${heightPx}px`;
@@ -634,11 +690,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._toggleDictation();
 	}
 
-	/**
-	 * The voice button is a power toggle. Connecting also begins listening so the user
-	 * can talk immediately; in manual mode the separate listen cell then toggles
-	 * listening on and off.
-	 */
+	/** The voice button connects or disconnects; hands-free mode starts listening after connect. */
 	private _onClickVoicePowerToggle(): void {
 		this.voiceInputModeService.setSelectedMode('voice');
 
@@ -652,12 +704,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			controller.disconnect();
 		} else {
 			const targetWindow = getWindow(this._voiceCell);
-			controller.connect(targetWindow).then(() => {
-				if (controller.isConnected.get()) {
-					controller.pttDown();
-					controller.pttUp();
-				}
-			}, () => { /* connect failures are surfaced/logged by the controller */ });
+			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}
 
@@ -667,10 +714,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		if (!controller.isConnected.get()) {
 			return;
 		}
-		// While toggle-listening, a single `pttDown()` finishes the turn (stop). Otherwise
-		// `pttDown(); pttUp();` (re)starts listening, interrupting any in-progress playback.
 		if (controller.voiceState.get() === 'listening') {
-			controller.pttDown();
+			controller.stopListening();
 		} else {
 			controller.pttDown();
 			controller.pttUp();

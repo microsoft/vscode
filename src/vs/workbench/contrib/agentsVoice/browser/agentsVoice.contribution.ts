@@ -37,6 +37,7 @@ import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
 	VoiceDisabledClassification, VoiceDisabledEvent,
@@ -47,6 +48,9 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
+import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
+import { SHOW_VOICE_MODE_ONBOARDING_COMMAND } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 
 // --- Context Keys ---
 
@@ -112,6 +116,35 @@ class AgentsVoiceTelemetryContribution extends Disposable implements IWorkbenchC
 
 registerWorkbenchContribution2(AgentsVoiceTelemetryContribution.ID, AgentsVoiceTelemetryContribution, WorkbenchPhase.AfterRestored);
 
+// --- First-run introduction ---
+
+/**
+ * Shows the Voice Mode introduction the first time a session starts. This
+ * watches the connection state rather than any one entry point, because Voice
+ * Mode can be started from the input-mode pill, a command, a keybinding or the
+ * Agents window - all of which land here.
+ */
+class AgentsVoiceOnboardingContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentsVoiceOnboarding';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@IVoiceModeOnboardingService voiceModeOnboardingService: IVoiceModeOnboardingService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			if (voiceSessionController.isConnecting.read(reader) || voiceSessionController.isConnected.read(reader)) {
+				voiceModeOnboardingService.showIfNeeded();
+			}
+		}));
+	}
+}
+
+// Registered at the same late phase as the connected-key contribution so it
+// does not force `IVoiceSessionController` to instantiate early.
+registerWorkbenchContribution2(AgentsVoiceOnboardingContribution.ID, AgentsVoiceOnboardingContribution, WorkbenchPhase.Eventually);
+
 // --- Voice mode button in Chat toolbar ---
 // Shows the voice mode icon in both idle and active states.
 // Click to connect if disconnected, or toggle PTT if connected.
@@ -122,7 +155,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.connecting',
 			title: nls.localize2('agentsVoice.connecting', "Connecting..."),
-			icon: Codicon.loading,
+			icon: Codicon.loadingCompact,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTING.isEqualTo(true),
@@ -150,7 +183,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
-			icon: Codicon.voiceMode,
+			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -183,6 +216,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
+		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
 
 		// Capture hold-mode FIRST, synchronously, before any `await`. The
 		// keybinding service only reports a held chord while it is still
@@ -200,8 +234,13 @@ registerAction2(class extends Action2 {
 		// releases the key while we're still connecting, `holdMode` resolves
 		// early and the awaited release below fires right after pttDown() — the
 		// controller then treats it as a quick tap (toggle on).
-		if (!voiceController.isConnected.get()) {
+		const wasConnected = voiceController.isConnected.get();
+		if (!wasConnected) {
 			await voiceController.connect(mainWindow);
+		}
+
+		if (!holdMode && !handsFree && !wasConnected) {
+			return;
 		}
 
 		// Map the physical key/button gesture directly onto the controller's
@@ -230,7 +269,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.pttStopInChat',
 			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
-			icon: Codicon.voiceMode,
+			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_LISTENING.isEqualTo(true),
@@ -270,7 +309,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.disconnect',
 			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
-			icon: Codicon.debugDisconnect,
+			icon: Codicon.debugDisconnectCompact,
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
@@ -355,7 +394,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Open Voice Mode Settings (surfaced via the mic button context menu, no toolbar gear) ---
+// --- Open Voice Mode Settings ---
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -369,6 +408,23 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.openSettings', { query: 'agents.voice' });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_VOICE_MODE_ONBOARDING_COMMAND,
+			title: nls.localize2('agentsVoice.showOnboarding', "Voice Mode: Show Introduction"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		if (!accessor.get(IVoiceModeOnboardingService).show()) {
+			accessor.get(INotificationService).info(nls.localize('agentsVoice.onboardingNeedsChat', "Open a chat to see the Voice Mode introduction."));
+		}
 	}
 });
 
@@ -401,6 +457,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const storageService = accessor.get(IStorageService);
 		storageService.remove(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE);
+		storageService.remove(AgentsVoiceStorageKeys.IntroBannerShown, StorageScope.APPLICATION);
 	}
 });
 
@@ -425,6 +482,11 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		// Capture hold mode before awaiting so the dispatching command is still available.
+		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.pushToTalk');
+
 		// Auto-connect on first PTT press
 		if (!voiceController.isConnected.get() && !voiceController.isConnecting.get()) {
 			await voiceController.connect(mainWindow);
@@ -432,7 +494,20 @@ registerAction2(class extends Action2 {
 		if (!voiceController.isConnected.get()) {
 			return;
 		}
+
 		voiceController.pttDown();
+
+		if (!holdMode) {
+			// Not invoked via a held keybinding: emulate a tap so the controller
+			// enters toggle mode and keeps listening. Pressing again stops.
+			voiceController.pttUp();
+			return;
+		}
+
+		// The shortcut is being held: wait for release, then finish the turn.
+		// The controller decides tap-vs-hold based on how long it was held.
+		await holdMode;
+		voiceController.pttUp();
 	}
 });
 
@@ -550,7 +625,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.voice.maya', "Maya."),
 				nls.localize('agents.voice.voice.daniel', "Daniel."),
 			],
-			description: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately. Use [Voice Mode instructions](command:{0}) to customize Voice Mode behavior and terminology.", CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID),
 			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
@@ -587,13 +662,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.handsFree': {
 			type: 'boolean',
-			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by {0} and {1}.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
+			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start and end each turn manually, and ending the turn sends it. Turns are not ended automatically on trailing silence or a stop phrase unless {0} or {1} is explicitly configured.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.silenceMs': {
 			type: 'number',
-			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn automatically. Set to `-1` to disable ending the turn on silence, in which case the turn ends only via a stop phrase ({0}) or manually. When enabled, the backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth.", '`#agents.voice.turn.stopPhrases#`'),
+			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn automatically. Set to `-1` to disable ending the turn on silence, in which case the turn ends only via a stop phrase ({0}) or manually. When enabled, the backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth. When hands-free mode ({1}) is disabled, the turn is not ended on silence by default unless this setting is explicitly configured, so you keep manual control over when a turn is sent.", '`#agents.voice.turn.stopPhrases#`', '`#agents.voice.handsFree#`'),
 			default: 800,
 			anyOf: [
 				{
@@ -611,7 +686,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.turn.stopPhrases': {
 			type: 'array',
 			items: { type: 'string' },
-			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Leave empty to disable ending the turn on a stop phrase, in which case the turn ends only on trailing silence ({0}) or manually. The backend strips the matched phrase from the transcript before it reaches the agent.", '`#agents.voice.turn.silenceMs#`'),
+			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Leave empty to disable ending the turn on a stop phrase, in which case the turn ends only on trailing silence ({0}) or manually. The backend strips the matched phrase from the transcript before it reaches the agent. When hands-free mode ({1}) is disabled, stop phrases do not end the turn by default unless this setting is explicitly configured, so you keep manual control over when a turn is sent.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.handsFree#`'),
 			default: ['send it'],
 			scope: ConfigurationScope.APPLICATION,
 		},

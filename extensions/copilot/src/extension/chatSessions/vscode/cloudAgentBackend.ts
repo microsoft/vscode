@@ -89,7 +89,7 @@ export interface CloudSessionData {
 	 * attach `owner`/`name` metadata to PR-less task cards (otherwise they group under
 	 * "Unknown"/"Other" until a PR resolves) and passes it to `resolvePullArtifact` for PR lookup.
 	 */
-	readonly repo?: { readonly owner: string; readonly name: string };
+	readonly repo?: { readonly owner: string; readonly name: string; readonly host?: string };
 	/**
 	 * Branch comparison refs for a settled, PR-less task that pushed a branch. When present,
 	 * the provider fetches the changed files (`base...head`) so the session's changed-files

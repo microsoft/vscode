@@ -91,20 +91,87 @@ export interface IPullOptions {
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
+export interface IRefQuery {
+	readonly count?: number;
+	readonly pattern?: string | string[];
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
+}
+
+export type Branch = IBranch | IRemoteBranch;
+export type GitRef = IBranch | IRemoteBranch | ITag;
+
+export const enum GitRefType {
+	Head,
+	RemoteHead,
+	DetachedHead,
+	Tag
+}
+
+export interface IBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly upstream?: {
+		readonly ref: string;
+		readonly name: string;
+		readonly remote: string;
+	};
+	readonly kind: GitRefType.Head;
+}
+
+export interface IRemoteBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly remote: string;
+	readonly kind: GitRefType.RemoteHead;
+}
+
+export interface ITag {
+	readonly ref: string;
+	readonly name: string;
+	readonly kind: GitRefType.Tag;
+}
+
+export interface IDetachedHead {
+	readonly name: string;
+	readonly kind: GitRefType.DetachedHead;
+}
+
 export interface IDefaultBranch {
 	readonly name: string;
 	readonly startPoint: string;
 }
 
+/** How far along a worktree file operation is, in files. */
+export interface IWorktreeFileProgress {
+	readonly filesDone: number;
+	readonly filesTotal: number;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
+	getCurrentBranchName?(workingDirectory: URI): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
-	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;
+	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
+	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
+	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
-	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[]): Promise<void>;
+	/**
+	 * Creates a worktree for a new branch. `onProgress` receives every checkout
+	 * sample git reports, which can be several per second, so consumers are
+	 * expected to round and rate limit for their own presentation. It may also
+	 * never be called (fast checkouts and git versions that stay silent), so it
+	 * MUST be treated as best-effort.
+	 */
+	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track: boolean, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	/**
+	 * Copies the git-ignored files matching `globs` into the worktree.
+	 * `onProgress` counts the individual files covered, but only fires as whole
+	 * entries finish — a wholly-ignored directory such as `node_modules` is
+	 * copied as one recursive unit, so its files all land in a single step.
+	 */
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
@@ -293,22 +360,22 @@ export interface IAgentHostGitService {
 	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<IDiffPatchResult | undefined>;
 }
 
-function getCommonBranchPriority(branch: string): number {
-	if (branch === 'main') {
+function getBranchPriority(branch: string, currentBranch: string | undefined, defaultBranch: string | undefined): number {
+	if (branch === currentBranch) {
 		return 0;
 	}
-	if (branch === 'master') {
+	if (branch === defaultBranch) {
 		return 1;
 	}
 	return 2;
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly query?: string; readonly limit?: number }): string[] {
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
 	const normalizedQuery = options?.query?.toLowerCase();
 	const filtered = normalizedQuery
 		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
 		: [...branches];
 
-	filtered.sort((a, b) => getCommonBranchPriority(a) - getCommonBranchPriority(b));
+	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 	return options?.limit ? filtered.slice(0, options.limit) : filtered;
 }

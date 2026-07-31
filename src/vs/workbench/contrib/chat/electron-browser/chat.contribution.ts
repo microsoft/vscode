@@ -37,6 +37,7 @@ import { AgentHostSessionListContribution } from '../browser/agentSessions/agent
 import { AgentHostOpenSessionLinkOpenerContribution } from '../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from '../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
+import './codexCustomizationSettings.contribution.js';
 import { CopilotConfigSlashSubmitHandlerContribution } from '../browser/agentSessions/agentHost/copilotConfigSlashSubmitHandler.js';
 import '../browser/agentSessions/agentHost/agentHostSettings.contribution.js';
 import '../browser/agentSessions/agentHost/agentSessionSettings.contribution.js';
@@ -54,6 +55,7 @@ import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
+import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
 import { shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
@@ -263,6 +265,7 @@ registerAction2(StopReadAloud);
 registerChatDeveloperActions();
 registerChatExportZipAction();
 registerExportAgentTracesDbAction();
+registerInstallDictationModelAction();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);

@@ -5,10 +5,11 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackAddedEvent, IAgentFeedbackChangeEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent, INavigableSessionComment } from './agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackAddedEvent, IAgentFeedbackChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent, INavigableSessionComment } from './agentFeedbackService.js';
 import { IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 
@@ -24,6 +25,9 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 
 	readonly onDidChangeFeedback = this._register(new Emitter<IAgentFeedbackChangeEvent>()).event;
 	readonly onDidChangeNavigation = this._register(new Emitter<URI>()).event;
+	readonly onDidRevealSessionComment = this._register(new Emitter<IAgentFeedbackCommentRevealEvent>()).event;
+	readonly onDidChangeFeedbackScope = this._register(new Emitter<void>()).event;
+	readonly activeFeedbackSessionResource = constObservable(AGENT_FEEDBACK_NEW_SESSION_RESOURCE);
 	readonly onDidAddFeedback = this._register(new Emitter<IAgentFeedbackAddedEvent>()).event;
 	readonly onDidConvertFeedback = this._register(new Emitter<IAgentFeedbackConvertedEvent>()).event;
 	readonly onDidAddReply = this._register(new Emitter<IAgentFeedbackReplyAddedEvent>()).event;
@@ -50,6 +54,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return []; }
 	hasLoadedFeedback(_sessionResource: URI): boolean { return true; }
 	getSessionForFile(_resourceUri: URI): undefined { return undefined; }
+	getFeedbackSessionResource(_resourceUri: URI): URI | undefined { return undefined; }
 	getMostRecentSessionForResource(_resourceUri: URI): URI | undefined { return undefined; }
 	async revealFeedback(_sessionResource: URI, _feedbackId: string): Promise<void> { }
 	async revealSessionComment(): Promise<void> { }

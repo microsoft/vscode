@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from '../../../../base/browser/dom.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
+import { ITerminalService, type IDetachedTerminalInstance, type IDetachedXtermTerminal } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
@@ -21,6 +22,7 @@ import { Color } from '../../../../base/common/color.js';
 import type { IChatTerminalToolInvocationData } from '../../chat/common/chatService/chatService.js';
 import type { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import type { ITerminalFont } from '../common/terminal.js';
 
 function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: IContextKeyService, storedBackground?: string): Color | undefined {
 	if (storedBackground) {
@@ -99,6 +101,7 @@ export interface IDetachedTerminalCommandMirrorRenderResult {
 interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
 	renderCommand(): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined>;
+	layout(widthPx: number): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined>;
 	onDidUpdate: Event<IDetachedTerminalCommandMirrorRenderResult>;
 	onDidInput: Event<string>;
 }
@@ -106,6 +109,12 @@ interface IDetachedTerminalCommandMirror {
 const enum ChatTerminalMirrorMetrics {
 	MirrorRowCount = 10,
 	MirrorColCountFallback = 80,
+	/**
+	 * Pre-attach estimate of the horizontal space the mirror content cannot use: the gutter
+	 * every workbench xterm gets via `.monaco-workbench .xterm { padding-left: 20px }`
+	 * (terminal.css). Once attached, the real value is measured from computed styles.
+	 */
+	MirrorHorizontalPaddingPx = 20,
 	/**
 	 * Maximum number of lines for which we compute the max column width.
 	 * Computing max column width iterates the entire buffer, so we skip it
@@ -115,11 +124,89 @@ const enum ChatTerminalMirrorMetrics {
 }
 
 /**
+ * Computes the number of columns a chat terminal mirror should use to fill the available width
+ * of its container, using the same cell math as {@link getXtermScaledDimensions}.
+ *
+ * @param availableWidthPx The container width in CSS pixels.
+ * @param font The terminal font with measured char metrics.
+ * @param devicePixelRatio The window's device pixel ratio.
+ * @param horizontalChromePx Horizontal space the DOM chrome takes from the container width,
+ * measured from computed styles when available; defaults to the static estimate.
+ * @returns The column count, or the default fallback when the width or font is unmeasurable.
+ */
+export function computeChatTerminalMirrorCols(availableWidthPx: number, font: ITerminalFont, devicePixelRatio: number, horizontalChromePx: number = ChatTerminalMirrorMetrics.MirrorHorizontalPaddingPx): number {
+	if (!isFinite(availableWidthPx) || availableWidthPx <= 0 || !font.charWidth) {
+		return ChatTerminalMirrorMetrics.MirrorColCountFallback;
+	}
+	const dpr = isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+	const scaledWidthAvailable = (availableWidthPx - horizontalChromePx) * dpr;
+	const scaledCharWidth = font.charWidth * dpr + font.letterSpacing;
+	return Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+}
+
+function getMirrorRaw(detached: IDetachedTerminalInstance): RawXtermTerminal {
+	return (detached.xterm as IDetachedXtermTerminal & { raw: RawXtermTerminal }).raw;
+}
+
+/**
+ * Enables cursor line reflow on a mirror's terminal. The mirror is a readonly output preview
+ * with no prompt line to protect, so resize reflow should re-wrap the cursor line like any
+ * other line (xterm skips it by default).
+ */
+function enableCursorLineReflow(detached: IDetachedTerminalInstance): void {
+	getMirrorRaw(detached).options.reflowCursorLine = true;
+}
+
+/**
+ * Gets the device pixel ratio of the window the mirror's terminal is rendered in, so cell
+ * math stays correct in auxiliary windows on monitors with different scaling.
+ */
+function getMirrorDevicePixelRatio(detached: IDetachedTerminalInstance): number {
+	return getWindow(getMirrorRaw(detached).element).devicePixelRatio;
+}
+
+/**
+ * Measures the horizontal space the mirror's DOM chrome takes from the container width by
+ * reading the xterm element's computed padding, the same way the panel terminal does. xterm's
+ * own scrollbar is hidden in the chat preview, so unlike the panel terminal it takes no
+ * space. Returns undefined before the terminal is attached.
+ */
+function measureMirrorHorizontalChrome(detached: IDetachedTerminalInstance): number | undefined {
+	const element = getMirrorRaw(detached).element;
+	if (!element) {
+		return undefined;
+	}
+	const style = getWindow(element).getComputedStyle(element);
+	const chrome = parseInt(style.paddingLeft) + parseInt(style.paddingRight);
+	return isNaN(chrome) ? undefined : Math.max(chrome, 0);
+}
+
+/**
  * Computes the line count for terminal output between start and end lines.
  * The end line is exclusive (points to the line after output ends).
  */
 function computeOutputLineCount(startLine: number, endLine: number): number {
 	return Math.max(endLine - startLine, 0);
+}
+
+/**
+ * Computes the number of rendered rows occupied by a terminal snapshot.
+ * The cursor line is included when it contains content and excluded when it
+ * is the empty line after a trailing newline.
+ */
+export function computeSnapshotLineCount(buffer: {
+	readonly baseY: number;
+	readonly cursorY: number;
+	getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined;
+}, lineCount?: number): number {
+	if (lineCount !== undefined) {
+		return lineCount;
+	}
+
+	const cursorLineIndex = buffer.baseY + buffer.cursorY;
+	const hasCursorLineContent = !!buffer.getLine(cursorLineIndex)?.translateToString(true);
+	const endLine = cursorLineIndex + (hasCursorLineContent ? 1 : 0);
+	return computeOutputLineCount(0, endLine);
 }
 
 export async function getCommandOutputSnapshot(
@@ -347,6 +434,51 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		return { lineCount: this._lineCount, maxColumnWidth: this._maxColumnWidth };
 	}
 
+	/**
+	 * Resizes the mirror to fill the given width, relying on xterm's native resize reflow to
+	 * re-wrap soft-wrapped lines. No-op when the resulting cols are unchanged. The column
+	 * count derives from the mirror's own xterm font metrics, which reflect the actual
+	 * renderer cell size rather than a configuration-based estimate.
+	 */
+	async layout(widthPx: number): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
+		if (this._store.isDisposed || widthPx <= 0) {
+			return undefined;
+		}
+		let detached: IDetachedTerminalInstance;
+		try {
+			detached = await this._getOrCreateTerminal();
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				return undefined;
+			}
+			throw error;
+		}
+		if (this._store.isDisposed) {
+			return undefined;
+		}
+		const cols = computeChatTerminalMirrorCols(widthPx, detached.xterm.getFont(), getMirrorDevicePixelRatio(detached), measureMirrorHorizontalChrome(detached));
+		if (detached.xterm.cols === cols) {
+			return undefined;
+		}
+		// Wait for any in-flight streaming flush so the resize does not interleave with it
+		await this._flushPromise;
+		if (this._store.isDisposed || detached.xterm.cols === cols) {
+			return undefined;
+		}
+		// Native resize reflow re-wraps the buffer in place; rewriting the cached VT here
+		// instead would flash a cleared frame on every resize
+		detached.xterm.resize(cols, ChatTerminalMirrorMetrics.MirrorRowCount);
+		if (!this._lastVT) {
+			return undefined;
+		}
+		this._lineCount = this._getRenderedLineCount();
+		const commandFinished = this._command.endMarker && !this._command.endMarker.isDisposed;
+		if (commandFinished && this._lineCount <= ChatTerminalMirrorMetrics.MaxLinesForColumnWidthComputation) {
+			this._maxColumnWidth = this._computeMaxColumnWidth();
+		}
+		return { lineCount: this._lineCount, maxColumnWidth: this._maxColumnWidth };
+	}
+
 	private async _getCommandOutputAsVT(source: XtermTerminal): Promise<{ text: string } | undefined> {
 		if (this._store.isDisposed) {
 			return undefined;
@@ -369,6 +501,13 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _getRenderedLineCount(): number {
+		// Prefer counting the mirror's own rendered rows: they reflect the mirror's column
+		// count, which can differ from the source terminal's after a width layout
+		const detachedBuffer = this._detachedTerminal?.xterm.buffer.active;
+		if (detachedBuffer) {
+			return computeSnapshotLineCount(detachedBuffer);
+		}
+
 		// Calculate line count from the command's markers when available
 		const endMarker = this._command.endMarker;
 		if (this._command.executedMarker && endMarker && !endMarker.isDisposed) {
@@ -424,6 +563,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 				detached.dispose();
 				throw new CancellationError();
 			}
+			enableCursorLineReflow(detached);
 			this._detachedTerminal = detached;
 			this._register(processInfo);
 			this._register(detached);
@@ -630,6 +770,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 				terminal.dispose();
 				return terminal;
 			}
+			enableCursorLineReflow(terminal);
 			return this._register(terminal);
 		});
 	}
@@ -666,6 +807,42 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		return this._renderSequencer.queue(() => this._render());
 	}
 
+	/**
+	 * Resizes the mirror to fill the given width, relying on xterm's native resize reflow to
+	 * re-wrap soft-wrapped lines. No-op when the resulting cols are unchanged. The column
+	 * count derives from the mirror's own xterm font metrics, which reflect the actual
+	 * renderer cell size rather than a configuration-based estimate.
+	 */
+	public async layout(widthPx: number): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
+		if (widthPx <= 0) {
+			return undefined;
+		}
+		return this._renderSequencer.queue(async () => {
+			const terminal = await this._getTerminal();
+			if (this._store.isDisposed) {
+				return undefined;
+			}
+			const cols = computeChatTerminalMirrorCols(widthPx, terminal.xterm.getFont(), getMirrorDevicePixelRatio(terminal), measureMirrorHorizontalChrome(terminal));
+			if (terminal.xterm.cols === cols) {
+				return undefined;
+			}
+			// Native resize reflow re-wraps the rendered content in place; rewriting the
+			// snapshot here instead would flash a cleared frame on every resize
+			terminal.xterm.resize(cols, ChatTerminalMirrorMetrics.MirrorRowCount);
+			if (!this._lastRenderedText) {
+				return undefined;
+			}
+			// Same rule as _render: a truncated snapshot's buffer under-represents the real
+			// output, so its explicit lineCount must survive the resize
+			const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, this._output?.truncated ? this._output.lineCount : undefined);
+			this._lastRenderedLineCount = lineCount;
+			if (this._shouldComputeMaxColumnWidth(lineCount)) {
+				this._lastRenderedMaxColumnWidth = this._computeMaxColumnWidth(terminal);
+			}
+			return { lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
+		});
+	}
+
 	private async _render(): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
 		const output = this._output;
 		const outputVersion = this._outputVersion;
@@ -683,16 +860,16 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			this._applyTheme(this._container);
 		}
 		const text = output.text ?? '';
-		const lineCount = output.lineCount ?? this._estimateLineCount(text);
 		if (!text) {
 			if (this._lastRenderedText) {
 				await new Promise<void>(resolve => terminal.xterm.write('\x1b[2J\x1b[3J\x1b[H', resolve));
 			}
+			const lineCount = output.lineCount ?? 0;
 			this._renderedVersion = outputVersion;
 			this._lastRenderedText = '';
 			this._lastRenderedLineCount = lineCount;
 			this._lastRenderedMaxColumnWidth = 0;
-			return { lineCount: 0, maxColumnWidth: 0 };
+			return { lineCount, maxColumnWidth: 0 };
 		}
 		const write = text.startsWith(this._lastRenderedText)
 			? text.slice(this._lastRenderedText.length)
@@ -703,6 +880,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		if (this._store.isDisposed) {
 			return undefined;
 		}
+		// A persisted lineCount reflects the wrap width of the source terminal, which can differ
+		// from this mirror's cols after a width layout. Only trust it for truncated output,
+		// where the text under-represents the real row count.
+		const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, output.truncated ? output.lineCount : undefined);
 		this._renderedVersion = outputVersion;
 		this._lastRenderedText = text;
 		this._lastRenderedLineCount = lineCount;
@@ -715,16 +896,6 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 
 	private _computeMaxColumnWidth(terminal: IDetachedTerminalInstance): number {
 		return computeMaxBufferColumnWidth(terminal.xterm.buffer.active, terminal.xterm.cols);
-	}
-
-	private _estimateLineCount(text: string): number {
-		if (!text) {
-			return 0;
-		}
-		const sanitized = text.replace(/\r/g, '');
-		const segments = sanitized.split('\n');
-		const count = sanitized.endsWith('\n') ? segments.length - 1 : segments.length;
-		return Math.max(count, 1);
 	}
 
 	private _shouldComputeMaxColumnWidth(lineCount: number): boolean {
