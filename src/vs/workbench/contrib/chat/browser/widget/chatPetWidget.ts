@@ -350,7 +350,7 @@ export class ChatPetWidget extends Disposable {
 		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
 		this._overlay = dom.$('.chat-pet-overlay');
-		this.parent.insertBefore(this._overlay, this.dragBounds);
+		this.parent.prepend(this._overlay);
 		this._register(toDisposable(() => this._overlay.remove()));
 		this._button = this._register(new Button(this._overlay, {
 			ariaLabel: localize('chatPet.interact', "Interact with the VS Code pet. Use the context menu to put it on the run."),
