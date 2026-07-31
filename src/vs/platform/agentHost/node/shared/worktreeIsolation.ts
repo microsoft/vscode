@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
-import { SequencerByKey } from '../../../../base/common/async.js';
+import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -14,7 +14,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import { IAgentHostGitService, IDefaultBranch, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -47,6 +47,7 @@ export class SessionWorkingDirectoryMissingError extends Error {
 
 /** Default upper bound on branch names returned for the branch picker. */
 const BRANCH_COMPLETION_LIMIT = 25;
+const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -92,6 +93,80 @@ export function buildWorktreeAnnouncementText(branchName: string): string {
 		"Created isolated worktree for branch {0}",
 		appendEscapedMarkdownInlineCode(branchName)
 	) + '\n\n';
+}
+
+/**
+ * The steps of worktree creation that are slow enough to be worth naming while
+ * a session materializes. Ordered as they run.
+ */
+export const enum WorktreeCreationPhase {
+	/** Queued behind another worktree being created in the same repository. */
+	Starting,
+	/** Asking the model for a branch name, then probing candidates for collisions. */
+	NamingBranch,
+	/** `git worktree add` — the phase that reports file-level progress. */
+	CheckingOut,
+	/** Copying the git-ignored files the client asked to carry over. */
+	CopyingIncludeFiles,
+}
+
+/**
+ * Builds the localized activity label for a worktree-creation phase. `percent`
+ * only applies to the phases that report file-level progress
+ * ({@link WorktreeCreationPhase.CheckingOut} and
+ * {@link WorktreeCreationPhase.CopyingIncludeFiles}), where it is absent until
+ * the first sample arrives.
+ */
+export function buildWorktreeProgressText(phase: WorktreeCreationPhase, percent?: number): string {
+	switch (phase) {
+		case WorktreeCreationPhase.NamingBranch:
+			return localize('agentHost.worktreeNamingBranch', "Creating isolated worktree (naming branch)");
+		case WorktreeCreationPhase.CheckingOut:
+			return percent === undefined
+				? localize('agentHost.worktreeCheckingOut', "Creating isolated worktree (checking out files)")
+				: localize('agentHost.worktreeCheckingOutPercent', "Creating isolated worktree (checking out files, {0}%)", percent);
+		case WorktreeCreationPhase.CopyingIncludeFiles:
+			return percent === undefined
+				? localize('agentHost.worktreeCopyingIncludeFiles', "Creating isolated worktree (copying additional files)")
+				: localize('agentHost.worktreeCopyingIncludeFilesPercent', "Creating isolated worktree (copying additional files, {0}%)", percent);
+		default:
+			return localize('agentHost.worktreeCreating', "Creating isolated worktree");
+	}
+}
+
+/**
+ * Adapts the raw file counts the git service reports into progress labels for
+ * a phase. Rounds down to whole percentages, drops non-advancing samples, and
+ * debounces updates to avoid overwhelming consumers, flushing the latest
+ * percentage when the operation completes.
+ */
+async function withPercentProgress<T>(
+	phase: WorktreeCreationPhase,
+	onProgress: ((activity: string) => void) | undefined,
+	operation: (onProgress: ((progress: IWorktreeFileProgress) => void) | undefined) => Promise<T>,
+): Promise<T> {
+	if (!onProgress) {
+		return operation(undefined);
+	}
+
+	let lastPercent = -1;
+	const scheduler = new RunOnceScheduler(() => onProgress(buildWorktreeProgressText(phase, lastPercent)), WORKTREE_PROGRESS_DEBOUNCE_MS);
+	try {
+		return await operation(({ filesDone, filesTotal }) => {
+			const percent = Math.min(100, Math.floor(filesDone * 100 / filesTotal));
+			if (percent <= lastPercent) {
+				return;
+			}
+			lastPercent = percent;
+			scheduler.schedule();
+		});
+	} finally {
+		const shouldFlush = scheduler.isScheduled();
+		scheduler.dispose();
+		if (shouldFlush) {
+			onProgress(buildWorktreeProgressText(phase, lastPercent));
+		}
+	}
 }
 
 /**
@@ -147,6 +222,8 @@ export interface IIsolationConfigContribution {
 	readonly worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 	/** Read-only carrier for the client's `git.worktreeIncludeFiles`. */
 	readonly worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+	/** Read-only carrier for the programmatic worktree branch tracking preference. */
+	readonly worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 	readonly isolationValue: 'folder' | 'worktree';
 	readonly branchDefault: string | undefined;
 	readonly branchValue: string | undefined;
@@ -160,6 +237,15 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly config: Record<string, unknown> | undefined;
 	readonly prompt?: string;
 	readonly githubToken?: string;
+	/**
+	 * Receives localized activity labels while the worktree is being created,
+	 * so callers can surface live progress. Only called for sessions that
+	 * selected worktree isolation — though such a session can still fall back
+	 * to its folder after the first label (e.g. the directory turns out not to
+	 * be a git repository) — and the caller is responsible for clearing the
+	 * activity once resolution settles.
+	 */
+	readonly onProgress?: (activity: string) => void;
 }
 
 /**
@@ -321,6 +407,7 @@ export class WorktreeIsolation extends Disposable {
 		let branchValue: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
 			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch.name : gitInfo.currentBranch;
@@ -357,6 +444,15 @@ export class WorktreeIsolation extends Disposable {
 				sessionMutable: false,
 			});
 
+			worktreeBranchTrackProperty = schemaProperty<boolean>({
+				type: 'boolean',
+				title: localize('agentHost.sessionConfig.worktreeBranchTrack', "Worktree Branch Tracking"),
+				description: localize('agentHost.sessionConfig.worktreeBranchTrackDescription', "Whether the branch created for an isolated worktree tracks its upstream."),
+				default: false,
+				readOnly: true,
+				sessionMutable: false,
+			});
+
 			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
 				type: 'array',
 				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
@@ -370,7 +466,7 @@ export class WorktreeIsolation extends Disposable {
 			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeBranchTrackProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**
@@ -382,8 +478,19 @@ export class WorktreeIsolation extends Disposable {
 		if (!workingDirectory) {
 			return { items: [] };
 		}
-		const branches = await this._gitService.getBranches(workingDirectory, { query, limit: BRANCH_COMPLETION_LIMIT });
-		return { items: branches.map(branch => ({ value: branch, label: branch })) };
+		const [branches, currentBranch, defaultBranch] = await Promise.all([
+			this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),
+			this._gitService.getCurrentBranch(workingDirectory),
+			this._gitService.getDefaultBranch(workingDirectory),
+		]);
+		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
+			currentBranch,
+			defaultBranch: defaultBranch?.name,
+			query,
+			limit: BRANCH_COMPLETION_LIMIT,
+		});
+
+		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
 	}
 
 	/**
@@ -395,7 +502,7 @@ export class WorktreeIsolation extends Disposable {
 	 * working directory unchanged.
 	 */
 	async resolveWorkingDirectory(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
-		const { config, workingDirectory, sessionId, sessionUri, prompt, githubToken } = request;
+		const { config, workingDirectory, sessionId, sessionUri, prompt, githubToken, onProgress } = request;
 		if (config?.[SessionConfigKey.Isolation] !== 'worktree' || !workingDirectory || typeof config[SessionConfigKey.Branch] !== 'string') {
 			return workingDirectory;
 		}
@@ -408,6 +515,8 @@ export class WorktreeIsolation extends Disposable {
 		if (already) {
 			return already.worktree;
 		}
+
+		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
 
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
@@ -423,6 +532,7 @@ export class WorktreeIsolation extends Disposable {
 			: undefined;
 		const selectedBranch = config[SessionConfigKey.Branch] as string;
 		const { branchName, worktree, baseBranch } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
 			const branchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
 				message: prompt,
@@ -439,7 +549,15 @@ export class WorktreeIsolation extends Disposable {
 			const worktree = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix));
 			const baseBranch = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
-			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch);
+
+			// Git suppresses progress for the first couple of seconds, so name
+			// the phase up front rather than leaving the label stale until the
+			// first percentage arrives.
+			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
+
+			const worktreeBranchTrack = config[SessionConfigKey.WorktreeBranchTrack] === true;
+			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
+				this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, worktreeBranchTrack, progress));
 			return { branchName, worktree, baseBranch };
 		});
 		const worktreeIncludeFiles = Array.isArray(config[SessionConfigKey.WorktreeIncludeFiles])
@@ -448,7 +566,9 @@ export class WorktreeIsolation extends Disposable {
 			: undefined;
 		if (worktreeIncludeFiles?.length) {
 			try {
-				await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles);
+				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
+				await withPercentProgress(WorktreeCreationPhase.CopyingIncludeFiles, onProgress, progress =>
+					this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles, progress));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}

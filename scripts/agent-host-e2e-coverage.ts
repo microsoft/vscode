@@ -15,7 +15,11 @@ const coverageRoot = join(repoRoot, '.build', 'agent-host-e2e-coverage');
 const rawCoveragePath = join(coverageRoot, 'raw');
 const reportPath = join(coverageRoot, 'report');
 const summaryPath = join(reportPath, 'coverage-summary.json');
-const statsPath = join(repoRoot, 'src', 'vs', 'platform', 'agentHost', 'test', 'node', 'e2e', 'coverage', 'summary.json');
+const observedSurfacePath = join(coverageRoot, 'protocol-surface', 'observed.json');
+const e2eRoot = join(repoRoot, 'src', 'vs', 'platform', 'agentHost', 'test', 'node', 'e2e');
+const statsPath = join(e2eRoot, 'coverage', 'summary.json');
+const surfaceStatsPath = join(e2eRoot, 'coverage', 'protocol-surface.json');
+const protocolRoot = join(repoRoot, 'src', 'vs', 'platform', 'agentHost', 'common', 'state', 'protocol');
 const metricNames = ['statements', 'branches', 'functions', 'lines'] as const;
 
 type MetricName = typeof metricNames[number];
@@ -43,7 +47,11 @@ const incompatibleFlags = [
 	'AGENT_HOST_UPDATE_SNAPSHOTS',
 ];
 
-const providerE2EGlob = '**/agentHost/test/node/e2e/providers/*AgentHostE2E.integrationTest.js';
+/**
+ * Every entrypoint that makes up the portable suite: the conformance tier
+ * (registered once) plus one parity entrypoint per provider.
+ */
+const e2eGlob = '**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js';
 
 function main(): void {
 	validateEnvironment();
@@ -60,9 +68,11 @@ function main(): void {
 	const testEnvironment = {
 		...environment,
 		AGENT_HOST_E2E_COVERAGE: '1',
+		AGENT_HOST_RECORD_PROTOCOL_SURFACE: '1',
+		AGENT_HOST_PROTOCOL_SURFACE_OUT: observedSurfacePath,
 	};
 	const testScript = join(repoRoot, 'scripts', process.platform === 'win32' ? 'test-integration.bat' : 'test-integration.sh');
-	run(testScript, ['--runGlob', providerE2EGlob], testEnvironment, process.platform === 'win32');
+	run(testScript, ['--runGlob', e2eGlob], testEnvironment, process.platform === 'win32');
 
 	const rawFiles = readdirSync(rawCoveragePath).filter(file => file.endsWith('.json'));
 	if (rawFiles.length === 0) {
@@ -90,6 +100,8 @@ function main(): void {
 
 	writeStats();
 	console.log(`Agent host E2E coverage stats written to ${relative(repoRoot, statsPath)}`);
+	writeProtocolSurfaceStats();
+	console.log(`Agent host protocol surface stats written to ${relative(repoRoot, surfaceStatsPath)}`);
 }
 
 function validateEnvironment(): void {
@@ -157,20 +169,13 @@ function writeStats(): void {
 				'src/vs/platform/agentHost/common/**/*.ts',
 				'src/vs/platform/agentHost/node/**/*.ts',
 			],
-			suites: ['claude', 'codex', 'copilotcli'],
+			suites: ['conformance', 'claude', 'codex', 'copilotcli'],
 		},
 		total,
 		files,
 	};
 
-	mkdirSync(dirname(statsPath), { recursive: true });
-	const temporaryStatsPath = `${statsPath}.${process.pid}.tmp`;
-	try {
-		writeFileSync(temporaryStatsPath, `${JSON.stringify(stats, undefined, '\t')}\n`);
-		renameSync(temporaryStatsPath, statsPath);
-	} finally {
-		rmSync(temporaryStatsPath, { force: true });
-	}
+	writeJsonAtomically(statsPath, stats);
 }
 
 function toSourcePath(filePath: string): string {
@@ -237,6 +242,132 @@ function createMetric(covered: number, total: number): ICoverageMetric {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
+}
+
+interface ISurfaceGroup {
+	readonly covered: number;
+	readonly total: number;
+	readonly percentage: number;
+	readonly uncovered: readonly string[];
+}
+
+/**
+ * Records how much of the Agent Host Protocol the E2E suites actually touch.
+ *
+ * Line coverage measures the current host implementation; this measures the
+ * contract, so it stays meaningful if the implementation behind
+ * `IAgentHostTarget` is replaced. A symbol counts as covered when it crosses
+ * the wire in either direction, which is a floor on how well it is tested — the
+ * value is in the `uncovered` lists, which name contract areas that no test
+ * exercises at all.
+ */
+function writeProtocolSurfaceStats(): void {
+	const observed = readObservedSurface();
+	const stats = {
+		version: 1,
+		scope: {
+			source: 'src/vs/platform/agentHost/common/state/protocol',
+			note: 'A symbol is "covered" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted.',
+		},
+		commands: buildSurfaceGroup(declaredCommands(), observed.commands),
+		notifications: buildSurfaceGroup(declaredNotifications(), observed.notifications),
+		actions: buildSurfaceGroup(declaredActions(), observed.actions),
+	};
+	writeJsonAtomically(surfaceStatsPath, stats);
+}
+
+function readObservedSurface(): { commands: Set<string>; notifications: Set<string>; actions: Set<string> } {
+	if (!existsSync(observedSurfacePath)) {
+		throw new Error(`No protocol surface observations were written to ${observedSurfacePath}`);
+	}
+	const parsed: unknown = JSON.parse(readFileSync(observedSurfacePath, 'utf8'));
+	if (!isRecord(parsed)) {
+		throw new Error('The protocol surface observation file must be an object');
+	}
+	return {
+		commands: toStringSet(parsed.commands, 'commands'),
+		notifications: toStringSet(parsed.notifications, 'notifications'),
+		actions: toStringSet(parsed.actions, 'actions'),
+	};
+}
+
+function toStringSet(value: unknown, label: string): Set<string> {
+	if (!Array.isArray(value) || value.some(entry => typeof entry !== 'string')) {
+		throw new Error(`Expected ${label} to be an array of strings in the protocol surface observations`);
+	}
+	return new Set(value as string[]);
+}
+
+function buildSurfaceGroup(declared: readonly string[], observed: ReadonlySet<string>): ISurfaceGroup {
+	if (declared.length === 0) {
+		throw new Error('Failed to extract any protocol symbols from the generated protocol sources');
+	}
+	const uncovered = declared.filter(symbol => !observed.has(symbol));
+	const covered = declared.length - uncovered.length;
+	return {
+		covered,
+		total: declared.length,
+		percentage: Math.floor((100_000 * covered) / declared.length / 10) / 100,
+		uncovered,
+	};
+}
+
+/**
+ * Extracts `@method` tags from the generated protocol sources. Both commands
+ * and notifications are documented the same way, so the two are told apart by
+ * the file they are declared in.
+ */
+function declaredMethods(fileName: 'commands.ts' | 'notifications.ts'): readonly string[] {
+	const methods = new Set<string>();
+	for (const directory of protocolSourceDirectories()) {
+		const filePath = join(directory, fileName);
+		if (!existsSync(filePath)) {
+			continue;
+		}
+		for (const match of readFileSync(filePath, 'utf8').matchAll(/@method\s+([A-Za-z][A-Za-z0-9/]*)/g)) {
+			methods.add(match[1]);
+		}
+	}
+	return [...methods].sort();
+}
+
+function declaredCommands(): readonly string[] {
+	return declaredMethods('commands.ts');
+}
+
+function declaredNotifications(): readonly string[] {
+	return declaredMethods('notifications.ts');
+}
+
+/** Extracts the `ActionType` enum members, which are the action discriminants. */
+function declaredActions(): readonly string[] {
+	const source = readFileSync(join(protocolRoot, 'common', 'actions.ts'), 'utf8');
+	const enumBody = /export const enum ActionType \{([^}]*)\}/.exec(source);
+	if (!enumBody) {
+		throw new Error('Failed to locate the ActionType enum in the generated protocol sources');
+	}
+	const actions = new Set<string>();
+	for (const match of enumBody[1].matchAll(/=\s*'([^']+)'/g)) {
+		actions.add(match[1]);
+	}
+	return [...actions].sort();
+}
+
+function protocolSourceDirectories(): readonly string[] {
+	return readdirSync(protocolRoot, { withFileTypes: true })
+		.filter(entry => entry.isDirectory() && (entry.name === 'common' || entry.name.startsWith('channels-')))
+		.map(entry => join(protocolRoot, entry.name));
+}
+
+function writeJsonAtomically(filePath: string, value: unknown): void {
+	mkdirSync(dirname(filePath), { recursive: true });
+	const temporaryPath = `${filePath}.${process.pid}.tmp`;
+	try {
+		writeFileSync(temporaryPath, `${JSON.stringify(value, undefined, '\t')}\n`);
+		renameSync(temporaryPath, filePath);
+	} finally {
+		rmSync(temporaryPath, { force: true });
+	}
 }
 
 try {

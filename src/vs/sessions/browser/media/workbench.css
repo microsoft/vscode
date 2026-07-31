@@ -141,7 +141,9 @@
 	border-bottom-right-radius: 8px;
 }
 
-.agent-sessions-workbench .part.sessionspart {
+/* Floating content card. Shared by every full-surface content part (the
+	sessions grid and the custom view grid) so they are visually identical. */
+.agent-sessions-workbench .agents-part-card {
 	margin: 0 var(--vscode-agents-layout-floatingPanelGap) 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
@@ -149,7 +151,7 @@
 	box-sizing: border-box;
 }
 
-.agent-sessions-workbench.noeditorpane .part.sessionspart {
+.agent-sessions-workbench.noeditorpane .agents-part-card {
 	margin-right: 0;
 }
 
@@ -183,7 +185,7 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart,
+.monaco-workbench.vs.agent-sessions-workbench .agents-part-card,
 .monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
 .monaco-workbench.vs.agent-sessions-workbench .part.panel {
 	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
@@ -294,6 +296,7 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	padding-bottom: var(--vscode-spacing-size80, 8px) !important;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title {
@@ -327,7 +330,7 @@
 
 .agent-sessions-workbench .part.auxiliarybar,
 .agent-sessions-workbench .part.panel,
-.agent-sessions-workbench .part.sessionspart {
+.agent-sessions-workbench .agents-part-card {
 	transition:
 		opacity 250ms ease-out,
 		margin-top 250ms ease-out,
@@ -345,7 +348,7 @@
 
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .part.sessionspart {
+	.agent-sessions-workbench .agents-part-card {
 		opacity: 0;
 		border-color: transparent;
 		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
@@ -364,7 +367,7 @@
 		margin: 0 16px 0 6px;
 	}
 
-	.agent-sessions-workbench .part.sessionspart {
+	.agent-sessions-workbench .agents-part-card {
 		margin: 6px 16px 0 16px;
 	}
 }
@@ -373,7 +376,7 @@
 
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .part.sessionspart,
+	.agent-sessions-workbench .agents-part-card,
 	.agent-sessions-workbench .part.sidebar > .content {
 		transition: none;
 	}

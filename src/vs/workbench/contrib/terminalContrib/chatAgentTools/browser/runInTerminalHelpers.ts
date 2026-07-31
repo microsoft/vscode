@@ -104,7 +104,7 @@ export function isMultilineCommand(command: string): boolean {
 	return /(?<!\\)\n/.test(normalized);
 }
 
-export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
+export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }, options?: { skipSessionScoped?: boolean }): ToolConfirmationAction[] {
 	const actions: ToolConfirmationAction[] = [];
 
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
@@ -199,17 +199,19 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 				subCommandLabel = `Commands ${subCommandsToSuggest.map(e => `\`${e} \u2026\``).join(', ')}`;
 			}
 
-			actions.push({
-				label: `Allow ${subCommandLabel} in this Session`,
-				data: {
-					type: 'newRule',
-					rule: subCommandsToSuggest.map(key => ({
-						key,
-						value: true,
-						scope: 'session'
-					}))
-				} satisfies TerminalNewAutoApproveButtonData
-			});
+			if (!options?.skipSessionScoped) {
+				actions.push({
+					label: `Allow ${subCommandLabel} in this Session`,
+					data: {
+						type: 'newRule',
+						rule: subCommandsToSuggest.map(key => ({
+							key,
+							value: true,
+							scope: 'session'
+						}))
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
 			actions.push({
 				label: `Allow ${subCommandLabel} in this Workspace`,
 				data: {
@@ -246,20 +248,22 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			!commandsWithSubcommands.has(commandLine) &&
 			!commandsWithSubSubCommands.has(commandLine)
 		) {
-			actions.push({
-				label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
-				data: {
-					type: 'newRule',
-					rule: {
-						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
-						value: {
-							approve: true,
-							matchCommandLine: true
-						},
-						scope: 'session'
-					}
-				} satisfies TerminalNewAutoApproveButtonData
-			});
+			if (!options?.skipSessionScoped) {
+				actions.push({
+					label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
+					data: {
+						type: 'newRule',
+						rule: {
+							key: `/^${escapeRegExpCharacters(commandLine)}$/`,
+							value: {
+								approve: true,
+								matchCommandLine: true
+							},
+							scope: 'session'
+						}
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
 			actions.push({
 				label: localize('autoApprove.exactCommand2', 'Allow Exact Command Line in this Workspace'),
 				data: {
@@ -297,15 +301,17 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 
 	// Allow all commands for this session
-	actions.push({
-		label: localize('allowSession', 'Allow All Commands in this Session'),
-		tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
-		data: {
-			type: 'sessionApproval'
-		} satisfies TerminalNewAutoApproveButtonData
-	});
+	if (!options?.skipSessionScoped) {
+		actions.push({
+			label: localize('allowSession', 'Allow All Commands in this Session'),
+			tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
+			data: {
+				type: 'sessionApproval'
+			} satisfies TerminalNewAutoApproveButtonData
+		});
 
-	actions.push(new Separator());
+		actions.push(new Separator());
+	}
 
 	// Always show configure option
 	actions.push({

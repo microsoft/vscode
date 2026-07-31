@@ -8,8 +8,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart } from '../../common/state/sessionState.js';
-import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEvents — history replay', () => {
@@ -125,6 +125,34 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('resolves relative patch links in restored tool messages', async () => {
+		const patch = [
+			'*** Begin Patch',
+			'*** Update File: src/file.ts',
+			'@@',
+			'-old',
+			'+new',
+			'*** End Patch',
+		].join('\n');
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'edit the file' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'apply_patch' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'apply_patch', arguments: patch } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), URI.file('/workspace'));
+		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall) as ToolCallResponsePart | undefined;
+		assert.ok(part);
+		assert.deepStrictEqual({
+			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
+			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
+		}, {
+			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
+			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
+		});
+	});
+
 	test('restores MCP app data for completed tool calls', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
@@ -234,7 +262,13 @@ suite('mapSessionEvents — history replay', () => {
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.deepStrictEqual(part.toolCall.content, [
 			{ type: ToolResultContentType.Text, text: 'hi\n' },
-			{ type: ToolResultContentType.TerminalComplete, exitCode: 0, cwd: URI.file('/repo').toString(), preview: 'hi\n' },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: 'agenthost-terminal://shell/test-session/tc-1',
+				title: 'Run Shell Command',
+				isPty: false,
+				result: { exitCode: 0, preview: 'hi\n' },
+			},
 		]);
 	});
 
@@ -263,8 +297,13 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.strictEqual(part.toolCall.success, true);
-		assert.ok(part.toolCall.content?.some(content => content.type === ToolResultContentType.TerminalComplete && content.exitCode === 127));
-		assert.ok(!part.toolCall.content?.some(content => content.type === ToolResultContentType.Terminal));
+		assert.deepStrictEqual(part.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal), {
+			type: ToolResultContentType.Terminal,
+			resource: 'agenthost-terminal://shell/test-session/tc-1',
+			title: 'Run Shell Command',
+			isPty: false,
+			result: { exitCode: 127 },
+		});
 	});
 
 	test('restores best-effort model, fallback agent, and attachments onto user messages', async () => {
@@ -559,6 +598,52 @@ suite('mapSessionEvents — history replay', () => {
 			],
 		}]);
 	});
+
+	test('restores turn timing from the SDK event envelopes', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-07-29T10:00:00.000Z', data: { interactionId: 'm1', content: 'first' } },
+			{ type: 'assistant.message', timestamp: '2026-07-29T10:00:03.500Z', data: { messageId: 'm2', content: 'First answer.' } },
+			{ type: 'user.message', id: 'turn-2', timestamp: '2026-07-29T10:05:00.000Z', data: { interactionId: 'm3', content: 'second' } },
+			{ type: 'assistant.message', timestamp: '2026-07-29T10:05:01.000Z', data: { messageId: 'm4', content: 'Second answer.' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn-1', startedAt: '2026-07-29T10:00:00.000Z', duration: 3500 },
+			{ id: 'turn-2', startedAt: '2026-07-29T10:05:00.000Z', duration: 1000 },
+		]);
+	});
+
+	test('bounds turn duration by the last event belonging to the turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-07-29T10:00:00.000Z', data: { interactionId: 'm1', content: 'first' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-07-29T10:00:00.500Z', data: { turnId: 't1' } },
+			{ type: 'assistant.message', timestamp: '2026-07-29T10:00:03.500Z', data: { messageId: 'm2', content: 'First answer.' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-07-29T10:00:04.000Z', data: { turnId: 't1' } },
+			// Ignored by the mapper an hour later: it must not extend the turn.
+			{ type: 'session.unrelated_event', timestamp: '2026-07-29T11:00:00.000Z' },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn-1', startedAt: '2026-07-29T10:00:00.000Z', duration: 4000 },
+		]);
+	});
+
+	test('leaves turn timing undefined when envelopes carry no usable timestamp', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', data: { interactionId: 'm1', content: 'first' } },
+			{ type: 'assistant.message', timestamp: 'not-a-date', data: { messageId: 'm2', content: 'First answer.' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn-1', startedAt: undefined, duration: undefined },
+		]);
+	});
 });
 
 suite('mapSessionEvents — subagent routing', () => {
@@ -722,5 +807,30 @@ suite('mapSessionEvents — subagent routing', () => {
 				{ kind: ResponsePartKind.Markdown, content: 'Late partial result.' },
 			],
 		});
+	});
+});
+
+suite('appendSdkToolResultContent', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {
+		const content: ToolResultContent[] = [
+			{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/abc', title: 'Bash' },
+		];
+
+		const result = appendSdkToolResultContent(content, [
+			{ type: 'shell_exit', shellId: '0', exitCode: 2, outputPreview: 'boom\n', outputTruncated: false },
+		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+
+		assert.deepStrictEqual(result, { shellId: '0', result: { exitCode: 2, preview: 'boom\n', truncated: false } });
+		assert.deepStrictEqual(content, [
+			{
+				type: ToolResultContentType.Terminal,
+				resource: 'agenthost-terminal://shell/abc',
+				title: 'Bash',
+				result: { exitCode: 2, preview: 'boom\n', truncated: false },
+			},
+		]);
 	});
 });

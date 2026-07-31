@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { localize } from '../../../nls.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -22,12 +23,14 @@ import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { ChatInteractivity, SessionStatus } from '../../services/sessions/common/session.js';
+import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -47,7 +50,7 @@ export interface ISessionViewOptions extends IChatViewOptions { }
 export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
-	private static readonly CENTERED_CONTENT_MAX_WIDTH = 950;
+	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
 	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
 	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
 	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);
@@ -83,6 +86,12 @@ export class SessionView extends Disposable implements ISerializableView {
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
 
+	/** Whether the owning {@link SessionsPart} is visible in the workbench grid. */
+	private _isPartVisible = true;
+
+	/** Whether this leaf is visible within the part's internal grid. */
+	private _isLeafVisible = true;
+
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
 	constructor(
@@ -90,6 +99,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -130,20 +140,23 @@ export class SessionView extends Disposable implements ISerializableView {
 		// place of the composer which is hidden for read-only chats.
 		this._readOnlyBanner = this._register(new SessionReadOnlyBanner());
 		this._centeredContentContainer.appendChild(this._readOnlyBanner.domNode);
+		const archiveActionWording = observableFromEvent(
+			this,
+			configurationService.onDidChangeConfiguration,
+			() => getChatSessionArchiveActionWording(configurationService),
+		);
 		this._register(autorun(reader => {
 			const session = this._sessionObs.read(reader);
 			const activeChat = session?.activeChat.read(reader);
 			const readOnly = !!activeChat && activeChat.interactivity.read(reader) !== ChatInteractivity.Full;
-			// Give an archived session an explanation specific to why it is
-			// read-only, plus an inline "Restore" action; other read-only chats
-			// (e.g. subagent transcripts) keep the generic message.
 			if (readOnly) {
 				const archived = !!session && session.isArchived.read(reader);
 				if (archived && session) {
+					const action = getChatSessionArchiveActionPresentation(archiveActionWording.read(reader)).unarchive;
 					this._readOnlyBanner.setContent({
 						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
 						action: {
-							label: localize('sessionReadOnlyBanner.restore', "Restore"),
+							label: action.title.value,
 							run: () => this.commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, session),
 						},
 					});
@@ -208,6 +221,7 @@ export class SessionView extends Disposable implements ISerializableView {
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._isActive);
+				view.setVisible(this._isVisible);
 			}
 
 			if (session) {
@@ -240,7 +254,12 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (!this._lastLayout) {
 			return;
 		}
+
+		// A hidden or zero-sized leaf would report invalid geometry to the chat widget.
 		const { width, height, top, left } = this._lastLayout;
+		if (!this._isVisible || width === 0 || height === 0) {
+			return;
+		}
 
 		// Apply the centered band's width first so the header and tabs wrap to
 		// their final layout before we measure their combined height. Measuring
@@ -287,6 +306,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.sendQuery(text);
 	}
 
+	submitInput(): Promise<boolean> {
+		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
+	}
+
 	/**
 	 * Attaches the given resources as context to the hosted chat view's input.
 	 */
@@ -314,6 +337,53 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._isActive = active;
 		this._applyActiveSessionStyles();
 		this._currentView.value?.setActive(active);
+	}
+
+	/**
+	 * Grid hook invoked by the part's internal split view when this leaf is
+	 * hidden or shown (e.g. when a sibling session is maximized).
+	 */
+	setVisible(visible: boolean): void {
+		if (this._isLeafVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isLeafVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Called by the owning {@link SessionsPart} when the part itself is hidden or
+	 * shown in the workbench grid. Combined with this leaf's own visibility to
+	 * form the view's effective visibility.
+	 */
+	setPartVisible(visible: boolean): void {
+		if (this._isPartVisible === visible) {
+			return;
+		}
+		const wasVisible = this._isVisible;
+		this._isPartVisible = visible;
+		this._updateVisibility(wasVisible);
+	}
+
+	/**
+	 * Whether this view is actually shown. Unrelated to {@link setActive}:
+	 * inactive sessions shown side by side are still visible.
+	 */
+	private get _isVisible(): boolean {
+		return this._isPartVisible && this._isLeafVisible;
+	}
+
+	private _updateVisibility(wasVisible: boolean): void {
+		const visible = this._isVisible;
+		if (visible === wasVisible) {
+			return;
+		}
+		this._currentView.value?.setVisible(visible);
+		if (visible) {
+			// Catch up on the layout passes that were skipped while hidden.
+			this._layoutChildren();
+		}
 	}
 
 	private _applyActiveSessionStyles(): void {
