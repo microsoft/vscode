@@ -651,7 +651,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -734,6 +734,9 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 		lookupLanguageModel: (modelId: string) => languageModels?.get(modelId),
+		getVendors: () => [],
+		getLanguageModelGroups: () => [],
+		...languageModelsServiceOverride,
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
@@ -927,8 +930,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -944,6 +947,49 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService };
+}
+
+function createByokLanguageModelTestData(groupName?: string): { languageModels: ReadonlyMap<string, ILanguageModelChatMetadata>; languageModelsServiceOverride: Partial<ILanguageModelsService> } {
+	const originalIdentifier = groupName
+		? `customendpoint/${groupName}/custom-model`
+		: 'openrouter/amazon/nova-micro-v1';
+	const providerVendor = groupName ? 'customendpoint' : 'openrouter';
+	const providerName = groupName ? 'Custom Endpoint' : 'OpenRouter';
+	const modelName = groupName ? 'Custom Model' : 'Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)';
+	const rawModelId = groupName ? 'customendpoint/custom-model' : 'openrouter/amazon/nova-micro-v1';
+	const originalMetadata = upcastPartial<ILanguageModelChatMetadata>({
+		name: modelName,
+		id: groupName ? 'custom-model' : 'amazon/nova-micro-v1',
+		vendor: providerVendor,
+		isBYOK: true,
+	});
+	const bridgedMetadata = upcastPartial<ILanguageModelChatMetadata>({
+		name: modelName,
+		id: rawModelId,
+		vendor: 'agent-host-copilot',
+		modelGroup: { id: providerVendor },
+		byokModelIdentifier: originalIdentifier,
+	});
+	return {
+		languageModels: new Map([
+			[originalIdentifier, originalMetadata],
+			[`agent-host-copilot:${rawModelId}`, bridgedMetadata],
+		]),
+		languageModelsServiceOverride: {
+			getVendors: () => [{
+				vendor: providerVendor,
+				displayName: providerName,
+				isDefault: false,
+				configuration: undefined,
+				managementCommand: undefined,
+				when: undefined,
+			}],
+			getLanguageModelGroups: vendor => vendor === providerVendor && groupName ? [{
+				group: { vendor, name: groupName },
+				modelIdentifiers: [originalIdentifier],
+			}] : [],
+		},
+	};
 }
 
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string }> = {}): IChatAgentRequest {
@@ -3885,6 +3931,34 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
 		}));
 
+		test('live BYOK turn prefixes a groupless model with its provider', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const byok = createByokLanguageModelTestData();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, byok);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1) • 1.5 credits');
+		}));
+
+		test('live BYOK turn includes a configured group between provider and model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const byok = createByokLanguageModelTestData('My Endpoint');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, byok);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'customendpoint/custom-model', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'Custom Endpoint/My Endpoint/Custom Model • 1 credit');
+		}));
+
 		test('cancelled turn still returns model credit details from accumulated usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
@@ -3976,7 +4050,8 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('subagent credits surface on the subagent tool without re-aggregating into parent usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const byok = createByokLanguageModelTestData();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, byok);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
@@ -4024,7 +4099,7 @@ suite('AgentHostChatContribution', () => {
 			} as ChatAction);
 			fireChild({
 				type: 'chat/usage', session: childSessionUri, turnId: childTurnId,
-				usage: { inputTokens: 800, outputTokens: 200, model: 'gpt-5', _meta: { cost: 5.0 } },
+				usage: { inputTokens: 800, outputTokens: 200, model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 5.0 } },
 			} as ChatAction);
 
 			await timeout(50);
@@ -4046,11 +4121,14 @@ suite('AgentHostChatContribution', () => {
 				.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation')
 				.find(p => p.toolSpecificData?.kind === 'subagent');
 			assert.ok(subagentInvocation, 'should have a subagent tool invocation');
-			assert.strictEqual(
-				(subagentInvocation!.toolSpecificData as IChatSubagentToolInvocationData).credits,
-				5.0,
-				'subagent credits should be recorded on the subagent tool',
-			);
+			const subagentData = subagentInvocation!.toolSpecificData as IChatSubagentToolInvocationData;
+			assert.deepStrictEqual({
+				credits: subagentData.credits,
+				modelName: subagentData.modelName,
+			}, {
+				credits: 5.0,
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+			});
 		}));
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -6549,7 +6627,8 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('restores subagent pills from the chat catalog when tool metadata was lost', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const byok = createByokLanguageModelTestData();
+			const { sessionHandler, agentHostService } = createContribution(disposables, byok);
 			const sessionUri = AgentSession.uri('copilot', 'subagent-history');
 			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
 			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-subagent');
@@ -6589,6 +6668,13 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.sessionStates.set(childChatUri, {
 				...createSessionState({ ...summary, resource: childChatUri, title: 'Review agentHost changes' }),
 				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'child-turn-1',
+					message: { text: 'review changes', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [],
+					usage: { model: 'openrouter/amazon/nova-micro-v1' },
+				}],
 			} as SessionState);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/subagent-history' });
@@ -6602,10 +6688,12 @@ suite('AgentHostChatContribution', () => {
 				kind: toolPart.toolSpecificData.kind,
 				description: toolPart.toolSpecificData.description,
 				chatResource: toolPart.toolSpecificData.chatResource,
+				modelName: toolPart.toolSpecificData.modelName,
 			} : undefined, {
 				kind: 'subagent',
 				description: 'Review agentHost changes',
 				chatResource: childChatUri,
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
 			});
 		});
 

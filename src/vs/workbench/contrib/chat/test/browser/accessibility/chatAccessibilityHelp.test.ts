@@ -73,4 +73,18 @@ suite('Chat Accessibility Help', () => {
 			byDefault: false,
 		});
 	});
+
+	test('only describes spoken agent progress in agent mode', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('brief progress updates'),
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('brief progress updates'),
+		}, {
+			agentView: true,
+			panelChat: false,
+		});
+	});
 });

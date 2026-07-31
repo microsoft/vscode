@@ -61,6 +61,12 @@ export class Chat {
 		await this.code.waitForElement(CHAT_INPUT_EDITOR_FOCUSED);
 	}
 
+	async waitForInputText(text: string): Promise<void> {
+		await this.code.driver.currentPage
+			.locator(`${CHAT_INPUT_EDITOR}:visible .view-lines`, { hasText: text })
+			.waitFor({ state: 'visible' });
+	}
+
 	async sendMessage(message: string): Promise<void> {
 		// Click on the chat input to focus it
 		await this.code.waitAndClick(CHAT_INPUT_EDITOR);

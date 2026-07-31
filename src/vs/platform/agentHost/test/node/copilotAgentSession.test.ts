@@ -30,7 +30,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
@@ -104,7 +104,7 @@ class MockCopilotSession {
 		totalNanoAiu: 0,
 		sessionStartTime: new Date().toISOString(),
 		codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0, filesModified: [] },
-		modelMetrics: {},
+		modelMetrics: {} as Record<string, { cacheExpiresAt?: string }>,
 		currentModel: undefined as string | undefined,
 		lastCallInputTokens: 0,
 		lastCallOutputTokens: 0,
@@ -169,6 +169,21 @@ class MockCopilotSession {
 	 * into the session-wide total that `usage.getMetrics` reports.
 	 */
 	private _accumulateUsageMetrics(type: SessionEventType, data: unknown): void {
+		if (type === 'session.model_change') {
+			const modelChange = data as { newModel?: string };
+			if (modelChange.newModel) {
+				this.usageMetricsResult.currentModel = modelChange.newModel;
+			}
+		}
+		if (type === 'assistant.usage') {
+			const usage = data as { model?: string; cacheExpiresAt?: string; parentToolCallId?: string };
+			if (!usage.parentToolCallId && usage.model) {
+				this.usageMetricsResult.currentModel = usage.model;
+				if (usage.cacheExpiresAt) {
+					this.usageMetricsResult.modelMetrics[usage.model] = { cacheExpiresAt: usage.cacheExpiresAt };
+				}
+			}
+		}
 		const billed = type === 'assistant.usage'
 			? data
 			: type === 'session.compaction_complete'
@@ -478,6 +493,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	sessionCustomizations?: () => readonly Customization[];
+	initialSessionMeta?: Record<string, unknown>;
 	sessionUri?: URI;
 	chatChannelUri?: URI;
 	resolveMcpChildId?: (serverName: string) => string | undefined;
@@ -494,6 +510,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	isLaunchTokenCurrent?: () => boolean;
 	onTurnEnded?: () => void;
 	modelId?: string;
+	resume?: boolean;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -539,8 +556,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const mockSession = new MockCopilotSession();
 	options?.configureMockSession?.(mockSession);
 
-	const launchPlan: CopilotSessionLaunchPlan = {
-		kind: 'create',
+	const launchPlanBase = {
 		client: {
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
@@ -552,8 +568,20 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: undefined,
 		githubToken: options?.githubToken,
-		model: options?.modelId ? { id: options.modelId } : undefined,
 	};
+	const model = options?.modelId ? { id: options.modelId } : undefined;
+	const launchPlan: CopilotSessionLaunchPlan = options?.resume
+		? {
+			...launchPlanBase,
+			kind: 'resume',
+			workingDirectory: options.workingDirectory ?? URI.file('/workspace'),
+			fallback: { model },
+		}
+		: {
+			...launchPlanBase,
+			kind: 'create',
+			model,
+		};
 	let launchedRuntime: ICopilotSessionRuntime | undefined;
 	const sessionLauncher: ICopilotSessionLauncher = {
 		launch: async (_plan, runtime) => {
@@ -631,7 +659,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			super.dispatchServerAction(channel, action);
 		}
 		override getSessionState(session: string) {
-			if (!options?.sessionCustomizations || session !== sessionUri.toString()) {
+			if ((!options?.sessionCustomizations && !options?.initialSessionMeta) || session !== sessionUri.toString()) {
 				return undefined;
 			}
 			const state = createSessionState({
@@ -642,7 +670,26 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 			});
-			return mergeSessionWithDefaultChat({ ...state, customizations: [...options.sessionCustomizations()] }, undefined);
+			return mergeSessionWithDefaultChat({
+				...state,
+				...(options.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
+				...(options.sessionCustomizations ? { customizations: [...options.sessionCustomizations()] } : {}),
+			}, undefined);
+		}
+		override getSessionSummary(session: string) {
+			if (options?.initialSessionMeta && session === sessionUri.toString()) {
+				const now = new Date().toISOString();
+				return {
+					resource: session,
+					provider: 'copilot',
+					title: 'Test session',
+					status: SessionStatus.Idle,
+					createdAt: now,
+					modifiedAt: now,
+					_meta: options.initialSessionMeta,
+				};
+			}
+			return super.getSessionSummary(session);
 		}
 	}(new NullLogService()));
 	services.set(IAgentHostStateManager, stateManager);
@@ -1890,6 +1937,26 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('restores non-Opus prompt cache expiration from usage metrics on initialize', async () => {
+		const cacheExpiresAt = '2026-07-24T12:00:00.000Z';
+		const { dispatchedActions } = await createAgentSession(disposables, {
+			resume: true,
+			configureMockSession: session => {
+				session.usageMetricsResult.currentModel = 'gpt-5.4';
+				session.usageMetricsResult.modelMetrics['gpt-5.4'] = { cacheExpiresAt };
+			},
+		});
+
+		const promptCaches = dispatchedActions
+			.filter(action => action.type === ActionType.SessionMetaChanged)
+			.map(action => readSessionPromptCacheState(action._meta))
+			.filter(cache => cache !== undefined);
+		assert.deepStrictEqual(promptCaches, [{
+			modelId: 'gpt-5.4',
+			cacheExpiresAt,
+		}]);
+	});
+
 	test('updates prompt cache expiration from main-agent usage only', async () => {
 		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
 		mockSession.fire('assistant.usage', {
@@ -1905,6 +1972,7 @@ suite('CopilotAgentSession', () => {
 			cacheExpiresAt: '2026-07-24T12:10:00.000Z',
 			parentToolCallId: 'subagent-tool-call',
 		});
+		await timeout(0);
 
 		const promptCaches = dispatchedActions
 			.filter(action => action.type === ActionType.SessionMetaChanged)
@@ -1916,7 +1984,56 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('clears prompt cache expiration when the main agent model does not report one', async () => {
+	test('preserves prompt cache expiration when later usage omits a cache update', async () => {
+		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 100,
+			outputTokens: 10,
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		});
+		await timeout(0);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 50,
+			outputTokens: 5,
+		});
+		await timeout(0);
+
+		const promptCaches = dispatchedActions
+			.filter(action => action.type === ActionType.SessionMetaChanged)
+			.map(action => readSessionPromptCacheState(action._meta))
+			.filter(cache => cache !== undefined);
+		assert.deepStrictEqual(promptCaches, [{
+			modelId: 'claude-sonnet-4.6',
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		}]);
+	});
+
+	test('preserves restored prompt cache metadata after a resume metrics failure', async () => {
+		const cacheExpiresAt = '2026-07-24T12:00:00.000Z';
+		const initialSessionMeta = withSessionPromptCacheState(undefined, { modelId: 'claude-sonnet-4.6', cacheExpiresAt });
+		assert.ok(initialSessionMeta);
+		const { mockSession, dispatchedActions } = await createAgentSession(disposables, {
+			resume: true,
+			initialSessionMeta,
+			configureMockSession: session => {
+				session.usageMetricsResult.currentModel = 'claude-sonnet-4.6';
+				session.usageMetricsResult.modelMetrics['claude-sonnet-4.6'] = { cacheExpiresAt };
+				session.usageMetricsError = new Error('rpc unavailable');
+			},
+		});
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 50,
+			outputTokens: 5,
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(dispatchedActions.filter(action => action.type === ActionType.SessionMetaChanged), []);
+	});
+
+	test('clears prompt cache expiration when switching to a model without cached state', async () => {
 		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
 		mockSession.fire('assistant.usage', {
 			model: 'claude-opus-4.8',
@@ -1924,11 +2041,62 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 10,
 			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
 		});
+		mockSession.fire('session.model_change', {
+			previousModel: 'claude-opus-4.8',
+			newModel: 'gpt-5.4',
+		});
+		await timeout(0);
+
+		const promptCaches = dispatchedActions
+			.filter(action => action.type === ActionType.SessionMetaChanged)
+			.map(action => readSessionPromptCacheState(action._meta));
+		assert.deepStrictEqual(promptCaches, [{
+			modelId: 'claude-opus-4.8',
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		}, undefined]);
+	});
+
+	test('preserves prompt cache expiration for same-model configuration changes', async () => {
+		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 100,
+			outputTokens: 10,
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		});
+		await timeout(0);
+		mockSession.fire('session.model_change', {
+			previousModel: 'claude-opus-4.8',
+			newModel: 'claude-opus-4.8',
+			reasoningEffort: 'high',
+		});
+		await timeout(0);
+
+		const promptCaches = dispatchedActions
+			.filter(action => action.type === ActionType.SessionMetaChanged)
+			.map(action => readSessionPromptCacheState(action._meta));
+		assert.deepStrictEqual(promptCaches, [{
+			modelId: 'claude-opus-4.8',
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		}]);
+	});
+
+	test('clears another model cache when a usage metrics refresh fails', async () => {
+		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 100,
+			outputTokens: 10,
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		});
+		await timeout(0);
+		mockSession.usageMetricsError = new Error('rpc unavailable');
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.4',
 			inputTokens: 50,
 			outputTokens: 5,
 		});
+		await timeout(0);
 
 		const promptCaches = dispatchedActions
 			.filter(action => action.type === ActionType.SessionMetaChanged)
