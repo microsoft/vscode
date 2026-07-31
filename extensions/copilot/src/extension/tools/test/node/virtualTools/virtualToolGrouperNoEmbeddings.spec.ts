@@ -5,6 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { LanguageModelToolInformation } from 'vscode';
+import { HARD_TOOL_LIMIT } from '../../../../../platform/configuration/common/configurationService';
 import { Embedding } from '../../../../../platform/embeddings/common/embeddingsComputer';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
@@ -152,6 +153,55 @@ describe('Virtual Tools - MCP without embeddings', () => {
 			fallbackGroups: 0,
 			individualMcp: 1,
 			totalRequestTools: 64,
+		});
+	});
+
+	it('falls back when the embedding result does not cover every tool', async () => {
+		embeddingsComputer.available = true;
+		embeddingsComputer.groupTools = tools => [tools.slice(0, 4)];
+		const { builtInTools, mcpTools } = createIssueTools();
+		const root = await groupIssueTools(builtInTools, mcpTools);
+		const requestTools = [...root.tools()];
+
+		expect({
+			directMcp: requestTools.filter(tool => tool.name.startsWith('mcp_')).length,
+			fallbackGroups: requestTools.filter(tool => tool.name.startsWith(`${VIRTUAL_TOOL_NAME_PREFIX}fallback_`)).length,
+			reachableMcp: mcpTools.filter(tool => root.find(tool.name)).length,
+			totalRequestTools: requestTools.length,
+		}).toEqual({
+			directMcp: 34,
+			fallbackGroups: 3,
+			reachableMcp: 47,
+			totalRequestTools: 88,
+		});
+	});
+
+	it('keeps every fallback-tree expansion path within the hard tool limit', async () => {
+		const builtInTools = Array.from({ length: 51 }, (_, index) => makeTool(`builtin_${index}`));
+		const source = makeMcpSource('large-server');
+		const mcpTools = Array.from({ length: 500 }, (_, index) => makeTool(`mcp_large_${index}`, source));
+		const root = await groupIssueTools(builtInTools, mcpTools);
+		let maximumVisibleTools = 0;
+
+		for (const tool of mcpTools) {
+			const found = root.find(tool.name);
+			for (const group of found?.path ?? []) {
+				group.isExpanded = true;
+			}
+			maximumVisibleTools = Math.max(maximumVisibleTools, [...root.tools()].length);
+			for (const item of root.all()) {
+				if (item instanceof VirtualTool && item !== root) {
+					item.isExpanded = false;
+				}
+			}
+		}
+
+		expect({
+			reachableMcp: mcpTools.filter(tool => root.find(tool.name)).length,
+			withinHardLimit: maximumVisibleTools <= HARD_TOOL_LIMIT,
+		}).toEqual({
+			reachableMcp: 500,
+			withinHardLimit: true,
 		});
 	});
 });

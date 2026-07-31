@@ -397,6 +397,12 @@ export class VirtualToolGrouper implements IToolCategorization {
 			throw e;
 		}
 
+		const groupedToolNames = new Set(embeddingGroups.flatMap(group => group.map(tool => tool.name)));
+		if (tools.some(tool => !groupedToolNames.has(tool.name))) {
+			this._logService.trace('[virtual-tools] Falling back to deterministic grouping because embeddings did not cover every tool');
+			return this._createFallbackTools(tools, limit);
+		}
+
 		const singles = embeddingGroups.filter(g => g.length === 1).map(g => g[0]);
 		const grouped = embeddingGroups.filter(g => g.length > 1);
 
@@ -413,14 +419,42 @@ export class VirtualToolGrouper implements IToolCategorization {
 	private _createFallbackTools(tools: LanguageModelToolInformation[], allocatedSlots: number): (VirtualTool | LanguageModelToolInformation)[] {
 		const directTools = tools.slice(0, allocatedSlots - 1);
 		const groupedTools = tools.slice(directTools.length);
-		const group = new VirtualTool(
-			`${VIRTUAL_TOOL_NAME_PREFIX}fallback`,
-			`${SUMMARY_PREFIX}Contains the tools: ${groupedTools.map(tool => tool.name).join(', ')}${SUMMARY_SUFFIX}`,
-			0,
-			{},
-			groupedTools,
-		);
+		const group = this._createFallbackTree(groupedTools);
 		return [...directTools, group];
+	}
+
+	private _createFallbackTree(tools: LanguageModelToolInformation[]): VirtualTool {
+		let depth = 0;
+		while (tools.length > (Constant.FALLBACK_TREE_FRONTIER_LIMIT - depth) * 2 ** depth) {
+			depth++;
+		}
+
+		const namespace = tools[0].name;
+		const createNode = (nodeTools: LanguageModelToolInformation[], remainingDepth: number, index: number): VirtualTool => {
+			if (remainingDepth === 0) {
+				return new VirtualTool(
+					`${VIRTUAL_TOOL_NAME_PREFIX}fallback_${namespace}_${index}`,
+					`${SUMMARY_PREFIX}Contains the tools: ${nodeTools.map(tool => tool.name).join(', ')}${SUMMARY_SUFFIX}`,
+					0,
+					{},
+					nodeTools,
+				);
+			}
+
+			const split = Math.ceil(nodeTools.length / 2);
+			return new VirtualTool(
+				`${VIRTUAL_TOOL_NAME_PREFIX}fallback_${namespace}_${index}`,
+				`${SUMMARY_PREFIX}Contains additional tools from this toolset.${SUMMARY_SUFFIX}`,
+				0,
+				{},
+				[
+					createNode(nodeTools.slice(0, split), remainingDepth - 1, index * 2),
+					createNode(nodeTools.slice(split), remainingDepth - 1, index * 2 + 1),
+				],
+			);
+		};
+
+		return createNode(tools, depth, 1);
 	}
 
 	/**
