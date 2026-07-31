@@ -804,7 +804,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
 		try {
-			this._createSpeechToTextButton(toolbar);
+			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, this.inputEditor.onDidChangeModelContent));
 		} catch (error) {
 			this.logService.error('Failed to create new-session dictation control:', error);
 		}
@@ -814,9 +814,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Keep the session picker usable when optional voice initialization fails.
 		// The controller also handles voice target routing + input glow, which the
 		// segmented pill relies on, so it is created regardless of the pill; its
-		// toolbar items hide (via `when`) when the pill is active.
-		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
-		try {
+		
 			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
 				toolbarContainer: voiceContainer,
 				inputContainer: container,
