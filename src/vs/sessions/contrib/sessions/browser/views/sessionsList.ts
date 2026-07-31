@@ -986,20 +986,17 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
 	readonly automationStatus = derived(this, reader => {
 		const runs = this.automationService.runs.read(reader);
-		const hasUnreadRun = (status: 'completed' | 'failed') => runs.some(run => {
-			if (run.status !== status || !run.sessionResource) {
+		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
+			return SessionStatus.InProgress;
+		}
+		const hasUnreadRun = runs.some(run => {
+			if ((run.status !== 'completed' && run.status !== 'failed') || !run.sessionResource) {
 				return false;
 			}
 			const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
 			return !!session && !session.isRead.read(reader);
 		});
-		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
-			return SessionStatus.InProgress;
-		}
-		if (hasUnreadRun('failed')) {
-			return SessionStatus.Error;
-		}
-		if (hasUnreadRun('completed')) {
+		if (hasUnreadRun) {
 			return SessionStatus.Completed;
 		}
 		return undefined;
@@ -1073,9 +1070,6 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 				if (automationStatus === SessionStatus.InProgress) {
 					template.statusIndicator.style.display = '';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
-				} else if (automationStatus === SessionStatus.Error) {
-					template.statusIndicator.style.display = '';
-					statusIcon.setStatus(SessionStatus.Error, false, false);
 				} else if (automationStatus === SessionStatus.Completed) {
 					template.statusIndicator.style.display = '';
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
@@ -1397,10 +1391,8 @@ class SessionsAccessibilityProvider {
 						switch (this.automationStatus?.read(reader)) {
 							case SessionStatus.InProgress:
 								return localize('automationsActiveAria', "{0}, run in progress", element.label);
-							case SessionStatus.Error:
-								return localize('automationsUnreadFailedAria', "{0}, unread failed run", element.label);
 							case SessionStatus.Completed:
-								return localize('automationsUnreadCompletedAria', "{0}, unread completed run", element.label);
+								return localize('automationsUnreadRunAria', "{0}, unread run", element.label);
 							default:
 								return element.label;
 						}
