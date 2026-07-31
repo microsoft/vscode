@@ -58,11 +58,13 @@ When content capture is enabled, the agent host emits a zero-duration `vscode.ag
 
 | Attribute | Description |
 |---|---|
-| `gen_ai.conversation.id` | Provider conversation id used to correlate the metadata with SDK spans (the Copilot SDK conversation id or the Claude SDK session id). |
+| `gen_ai.conversation.id` | Provider conversation identifier (Copilot conversation ID or Claude SDK session ID; native Claude currently reports it as `session.id`). |
 | `vscode.agent_host.session.title` | Latest session title, bounded to 200 characters. |
 | `vscode.agent_host.session.uri` | Agent Host protocol URI for the session. |
 
 Title text is user-derived content, so these spans are emitted only when `chat.agentHost.otel.captureContent` is enabled. Host-produced title spans copy `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` so collectors group them with the SDK telemetry. They are persisted in DB mode and use the configured OTLP, file, or console forwarder. Synthetic OTLP forwarding currently uses OTLP/HTTP JSON; when `http/protobuf` or gRPC is configured, title spans remain available in DB mode but are not sent to that external endpoint.
+
+Emitting title metadata does not itself enable provider-native telemetry. In particular, `chat.agentHost.otel.*` does not currently turn on Claude's native OTel: an agent-host Claude turn emits no `claude_code.*` spans unless Claude's standalone OTel settings are configured separately.
 
 ## VS Code Settings
 
