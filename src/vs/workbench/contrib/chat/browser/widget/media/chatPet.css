@@ -361,6 +361,10 @@
 	}
 }
 
+.monaco-workbench.monaco-reduce-motion .chat-pet-button {
+	transition: none;
+}
+
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.entering,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.exiting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.resisting,

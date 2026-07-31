@@ -814,7 +814,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}));
 			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
-			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', this.chatPetService.enabled.read(reader))));
+			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petVisible.read(reader))));
 			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petVisible, this.inputEditor.onDidChangeModelContent));
 		}
 
