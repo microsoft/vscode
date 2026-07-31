@@ -3372,6 +3372,42 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.pendingToolConfirmations.get().length, 0);
 	});
 
+	test('switching sessions keeps voice in its original session until the user returns', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const voiceSession = URI.parse('agent-host-copilot:/voice-session');
+		const otherSession = URI.parse('agent-host-copilot:/other-session');
+		const shownSessionId = Reflect.get(controller, '_shownSessionId') as () => string | undefined;
+		const shouldDeferForSession = Reflect.get(controller, '_shouldDeferForSession') as (sessionId: string) => boolean;
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+
+		controller.setActiveSessionShown(voiceSession);
+		controller.setActiveSessionShown(otherSession);
+
+		assert.deepStrictEqual({
+			targetSession: controller.targetSession.get()?.toString(),
+			shownSession: shownSessionId.call(controller),
+			defersVoiceSession: shouldDeferForSession.call(controller, voiceSession.toString()),
+		}, {
+			targetSession: voiceSession.toString(),
+			shownSession: otherSession.toString(),
+			defersVoiceSession: true,
+		});
+
+		controller.setActiveSessionShown(voiceSession);
+
+		assert.deepStrictEqual({
+			targetSession: controller.targetSession.get()?.toString(),
+			shownSession: shownSessionId.call(controller),
+			defersVoiceSession: shouldDeferForSession.call(controller, voiceSession.toString()),
+		}, {
+			targetSession: voiceSession.toString(),
+			shownSession: voiceSession.toString(),
+			defersVoiceSession: false,
+		});
+	});
+
 	test('reports only genuine approvals as approvals', async () => {
 		// One tool now carries approve, reject, answer and skip. Widening the
 		// approval event to match would silently change what it counts.

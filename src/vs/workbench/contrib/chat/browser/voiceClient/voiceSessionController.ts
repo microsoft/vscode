@@ -259,8 +259,9 @@ export interface IVoiceSessionController {
 	newSessionAsTarget(): void;
 
 	/**
-	 * Declares the UI's active session for audio routing (`is_active`, deferral,
-	 * and buffered flushes). `undefined` restores focus-based detection.
+	 * Declares the session shown in the UI for playback deferral and buffered
+	 * flushes. It also supplies `is_active` when no voice target is pinned.
+	 * `undefined` restores focus-based detection.
 	 */
 	setActiveSessionShown(resource: URI | undefined): void;
 
@@ -4386,9 +4387,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return;
 		}
+		if ((this._isConnected.get() || this._isConnecting.get()) && this._activeSessionShown && !this._targetSession.get()) {
+			// Changing the visible session must not move an existing voice
+			// conversation with it. Pin voice to its current session while the
+			// newly shown session remains authoritative for playback deferral.
+			this._targetSession.set(URI.parse(this._activeSessionShown), undefined);
+		}
 		this.logService.trace(`[voice] setActiveSessionShown=${definedKey} (was ${this._activeSessionShown ?? '<none>'})`);
 		this._activeSessionShown = definedKey;
-		// Route audio here now: flush buffers, clear pending, and re-send context.
+		// Activate the view now: flush buffers, clear pending, and re-send context.
 		this._activateShownSession(resource);
 	}
 
