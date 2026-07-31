@@ -45,16 +45,8 @@ suite('selectSearchTreeElementIfPresent (#328427)', () => {
 
 		let setSelectionCalls = 0;
 		let setFocusCalls = 0;
-		const originalSetSelection = tree.setSelection.bind(tree);
-		const originalSetFocus = tree.setFocus.bind(tree);
-		tree.setSelection = ((elements: unknown[], browserEvent?: UIEvent) => {
-			setSelectionCalls++;
-			return originalSetSelection(elements, browserEvent);
-		}) as typeof tree.setSelection;
-		tree.setFocus = ((elements: unknown[]) => {
-			setFocusCalls++;
-			return originalSetFocus(elements);
-		}) as typeof tree.setFocus;
+		tree.setSelection = () => { setSelectionCalls++; };
+		tree.setFocus = () => { setFocusCalls++; };
 
 		assert.strictEqual(selectSearchTreeElementIfPresent(tree, match), true);
 		assert.strictEqual(setSelectionCalls, 0);

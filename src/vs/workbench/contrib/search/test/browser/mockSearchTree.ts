@@ -36,11 +36,11 @@ export class MockObjectTree<T, TRef> implements IDisposable {
 	get onDidDispose() { return someEvent; }
 	get lastVisibleElement() { return this.elements[this.elements.length - 1]; }
 
-	private readonly _nodes = new Set<unknown>();
-	private _focus: unknown[] = [];
-	private _selection: unknown[] = [];
+	private readonly _nodes = new Set<T>();
+	private _focus: T[] = [];
+	private _selection: T[] = [];
 
-	constructor(private elements: any[]) {
+	constructor(private elements: T[]) {
 		for (const element of elements) {
 			this._nodes.add(element);
 		}
@@ -48,26 +48,26 @@ export class MockObjectTree<T, TRef> implements IDisposable {
 
 	domFocus(): void { }
 
-	hasNode(element: unknown): boolean {
+	hasNode(element: T): boolean {
 		return this._nodes.has(element);
 	}
 
-	getFocus(): unknown[] {
+	getFocus(): T[] {
 		return this._focus;
 	}
 
-	getSelection(): unknown[] {
+	getSelection(): T[] {
 		return this._selection;
 	}
 
-	setFocus(elements: unknown[]): void {
+	setFocus(elements: T[], _browserEvent?: UIEvent): void {
 		if (!elements.every(e => this.hasNode(e))) {
 			throw new Error('Tree element not found');
 		}
 		this._focus = elements;
 	}
 
-	setSelection(elements: unknown[], _browserEvent?: UIEvent): void {
+	setSelection(elements: T[], _browserEvent?: UIEvent): void {
 		if (!elements.every(e => this.hasNode(e))) {
 			throw new Error('Tree element not found');
 		}
