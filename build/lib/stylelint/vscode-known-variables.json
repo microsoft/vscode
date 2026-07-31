@@ -957,6 +957,7 @@
 		"--activity-bar-action-height",
 		"--activity-bar-icon-size",
 		"--activity-bar-width",
+		"--agent-sessions-editor-tab-padding",
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",
