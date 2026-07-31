@@ -64,6 +64,8 @@ The **Sessions Part is the flexible ("remaining width") view** in the top-right 
 
 The Sessions Part-to-Editor gap and the gap above the bottom Panel share `AGENTS_FLOATING_PANEL_GAP` in TypeScript layout and its registered CSS token, `--vscode-agents-layout-floatingPanelGap`. Their grid sashes keep the split boundaries unchanged, but expand and shift their hit areas to fill those visual gaps exactly. Each shows the standard persistent three-dot gripper at rest and yields to the full sash highlight while hovered or dragged. The Auxiliary Bar's leading padding and part-internal sashes retain their independent geometry.
 
+Editor-content overlays must use the editor pane container rather than the editor-group root. In the single-pane layout, the group spans both the editor and the docked detail panel while the pane container is inset to the editor's actual bounds; anchoring feedback controls such as the Submit toolbar to the group would place them over the detail panel.
+
 ### 2.3 Layout Priority Model
 
 The workbench grid is built with `proportionalLayout: false` (see `createWorkbenchLayout()` in [browser/workbench.ts](src/vs/sessions/browser/workbench.ts)). In this mode the split views do **not** distribute resize deltas proportionally — instead each delta (window resize, or a part being shown/hidden) is absorbed by the highest-`LayoutPriority` view, while the others keep their established sizes. Each part therefore declares an explicit `priority`:

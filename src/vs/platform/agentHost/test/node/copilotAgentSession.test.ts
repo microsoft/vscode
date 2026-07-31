@@ -4266,8 +4266,9 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
-		test('tool partial results reset the channel when the runtime rewrites its snapshot', async () => {
-			const { mockSession, terminalManager } = await createAgentSession(disposables);
+		test('truncated shell output streams through marker, rolling-tail, and completion transitions', async () => {
+			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			session.resetTurnState('turn-truncated-stream');
 
 			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-rewrite';
 			mockSession.fire('tool.execution_start', {
@@ -4277,27 +4278,59 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
-				partialOutput: 'tick 1\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-			// Once output is truncated the runtime rewrites its snapshot (a
-			// truncation marker under the emit cap, a rolling tail past the
-			// large-output threshold), so it stops being prefix-stable.
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-rewrite',
-				partialOutput: 'tick 1\n[...truncated 42 lines...]\n',
+				partialOutput: 'line 1\nline 498\nline 499\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-rewrite',
-				partialOutput: 'tick 1\n[...truncated 99 lines...]\n',
+				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 42 lines from the end>\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-rewrite',
+				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 99 lines from the end>\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-rewrite',
+				partialOutput: 'line 498\nline 499\nline 500\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-rewrite',
+				partialOutput: 'line 499\nline 500\nline 501\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-rewrite',
+				success: true,
+				result: {
+					content: 'Output too large',
+					contents: [{
+						type: 'shell_exit',
+						shellId: '0',
+						exitCode: 0,
+						outputPreview: 'line 1\nline 2\n',
+						outputTruncated: true,
+					}],
+				},
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
 
-			assert.deepStrictEqual({ data: terminalManager.outputTerminalData, resets: terminalManager.outputTerminalResets }, {
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
+			const terminalResult = completed.result.content?.find(content => content.type === ToolResultContentType.Terminal) as ToolResultTerminalContent | undefined;
+			assert.deepStrictEqual({
+				data: terminalManager.outputTerminalData,
+				resets: terminalManager.outputTerminalResets,
+				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
+				result: terminalResult?.result,
+			}, {
 				data: [
-					{ uri: terminalUri, data: 'tick 1\n' },
-					{ uri: terminalUri, data: '[...truncated 42 lines...]\n' },
-					{ uri: terminalUri, data: 'tick 1\n[...truncated 99 lines...]\n' },
+					{ uri: terminalUri, data: 'line 1\nline 498\nline 499\n' },
+					{ uri: terminalUri, data: '<output too long - dropped 42 lines from the end>\n' },
+					{ uri: terminalUri, data: 'line 500\n' },
+					{ uri: terminalUri, data: 'line 501\n' },
 				],
-				resets: [terminalUri],
+				resets: [],
+				finalized: [{ uri: terminalUri, exitCode: 0 }],
+				disposed: [terminalUri],
+				result: { exitCode: 0, preview: 'line 1\nline 2\n', truncated: true },
 			});
 		});
 
