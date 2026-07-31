@@ -1286,15 +1286,9 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 
 /** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 export function parseFetchRemoteUrls(remotesOutput: string | undefined, preferredRemote?: string): string[] | undefined {
-	if (remotesOutput === undefined) {
+	const candidates = parseFetchRemotes(remotesOutput);
+	if (!candidates) {
 		return undefined;
-	}
-	const candidates: { name: string; url: string }[] = [];
-	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
-		if (match) {
-			candidates.push({ name: match[1], url: match[2] });
-		}
 	}
 	const preferredNames = new Set([preferredRemote, 'origin'].filter((name): name is string => Boolean(name)));
 	const ordered = [
@@ -1305,14 +1299,30 @@ export function parseFetchRemoteUrls(remotesOutput: string | undefined, preferre
 	return [...new Set(ordered.map(candidate => candidate.url))];
 }
 
+function parseFetchRemotes(remotesOutput: string | undefined): { name: string; url: string }[] | undefined {
+	if (remotesOutput === undefined) {
+		return undefined;
+	}
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
+		if (match) {
+			candidates.push({ name: match[1], url: match[2] });
+		}
+	}
+	return candidates;
+}
+
 /**
- * Parse `owner` and `repo` from `git remote -v` output. Prefers the requested
- * remote, then `origin`, and finally the first GitHub remote.
+ * Parse `owner` and `repo` from `git remote -v` output. When `remoteName` is
+ * provided, only that remote is considered. Otherwise, `origin` is preferred.
  *
  * Exported for tests.
  */
-export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, preferredRemote?: string): { owner: string; repo: string } | undefined {
-	const candidates = parseFetchRemoteUrls(remotesOutput, preferredRemote);
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, remoteName?: string): { owner: string; repo: string } | undefined {
+	const candidates = remoteName === undefined
+		? parseFetchRemoteUrls(remotesOutput)
+		: parseFetchRemotes(remotesOutput)?.filter(candidate => candidate.name === remoteName).map(candidate => candidate.url);
 	if (!candidates) {
 		return undefined;
 	}

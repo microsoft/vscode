@@ -209,7 +209,7 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	test('refreshes the fork owner before attaching a pull request after a turn', async () => {
+	test('preserves pull request attachment when a later refresh replaces its queued refresh', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
 			const octoKitService = {
@@ -232,19 +232,25 @@ suite('AgentHostGitStateService', () => {
 			h.setGitResult({
 				branchName: 'feature',
 				baseBranchName: 'main',
-				upstreamBranchName: 'benibenj/feature',
+				upstreamBranchName: 'fork/feature',
 				githubOwner: 'microsoft',
-				githubHeadOwner: 'benibenj',
+				githubHeadOwner: 'fork-owner',
 				githubRepo: 'vscode',
 			});
 
-			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+			await Promise.all([
+				h.service.refreshSessionGitState(SESSION, URI.parse(WORKING_DIRECTORY)),
+				h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY)),
+				h.service.refreshSessionGitState(SESSION, URI.parse(WORKING_DIRECTORY)),
+			]);
 
 			assert.deepStrictEqual({
+				gitCalls: h.gitCalls.length,
 				calls,
 				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
 			}, {
-				calls: [{ owner: 'microsoft', repo: 'vscode', branch: 'feature', headOwner: 'benibenj' }],
+				gitCalls: 2,
+				calls: [{ owner: 'microsoft', repo: 'vscode', branch: 'feature', headOwner: 'fork-owner' }],
 				github: {
 					owner: 'microsoft',
 					repo: 'vscode',

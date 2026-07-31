@@ -45,7 +45,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
-		await this._refreshSessionGitState(sessionKey, workingDirectory, true);
+		await this.refreshSessionGitState(sessionKey, workingDirectory);
+		await this._attachSessionGitHubPullRequest(sessionKey);
 	}
 
 	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
@@ -129,10 +130,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
-		await this._refreshSessionGitState(sessionKey, workingDirectory, false);
-	}
-
-	private async _refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, attachPullRequest: boolean): Promise<void> {
 		const sessionState = this._stateManager.getSessionState(sessionKey);
 		if (sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
 			return;
@@ -146,9 +143,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		if (!workingDirectory) {
-			if (attachPullRequest) {
-				await this._attachSessionGitHubPullRequest(sessionKey);
-			}
 			return;
 		}
 
@@ -174,9 +168,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 
 				this._onDidRefreshSessionGitState.fire(sessionKey);
-				if (attachPullRequest) {
-					await this._attachSessionGitHubPullRequest(sessionKey);
-				}
 
 				// We want to ensure that we refresh the git state at
 				// most every 5 seconds in order to avoid excessive git

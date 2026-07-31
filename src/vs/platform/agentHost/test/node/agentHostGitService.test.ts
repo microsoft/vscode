@@ -161,12 +161,20 @@ suite('AgentHostGitService', () => {
 	});
 
 	suite('parseGitHubRepoFromRemote', () => {
-		test('prefers the requested fork remote over origin', () => {
+		test('parses only the requested fork remote', () => {
 			const out = [
-				'origin\tgit@github.com:microsoft/vscode.git (fetch)',
-				'benibenj\thttps://github.com/benibenj/vscode.git (fetch)',
+				'origin\tgit@github.com:base-owner/repo.git (fetch)',
+				'fork\thttps://github.com/fork-owner/repo.git (fetch)',
 			].join('\n');
-			assert.deepStrictEqual(parseGitHubRepoFromRemote(out, 'benibenj'), { owner: 'benibenj', repo: 'vscode' });
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out, 'fork'), { owner: 'fork-owner', repo: 'repo' });
+		});
+
+		test('does not fall back when the requested remote is not GitHub', () => {
+			const out = [
+				'origin\tgit@github.com:base-owner/repo.git (fetch)',
+				'fork\thttps://gitlab.com/fork-owner/repo.git (fetch)',
+			].join('\n');
+			assert.strictEqual(parseGitHubRepoFromRemote(out, 'fork'), undefined);
 		});
 
 		test('parses ssh (scp-like) origin remote', () => {
