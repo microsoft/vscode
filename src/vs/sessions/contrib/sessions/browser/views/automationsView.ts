@@ -74,13 +74,9 @@ export class AutomationsCardsWidget extends Disposable {
 
 		this._register(autorun(reader => {
 			const items = this.automationService.automations.read(reader);
-			this.cardsSection.render(items);
-		}));
-
-		this._register(autorun(reader => {
-			const items = this.automationService.automations.read(reader);
 			const allRuns = this.automationService.runs.read(reader);
 			this.historySection.readStateVersion.read(reader);
+			this.cardsSection.render(items);
 			this.historySection.render(allRuns, items);
 		}));
 	}
