@@ -64,6 +64,24 @@ export function setup(logger: Logger): void {
 			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 		});
 
+		it('opens a blank tab and navigates from the address bar', async function () {
+			const app = this.app as Application;
+			const workbenchPage = app.code.driver.currentPage;
+			const targetUrl = `${baseUrl}/address-bar`;
+			const browserPage = await app.code.driver.waitForNewPage('/address-bar', async () => {
+				await app.workbench.quickaccess.runCommand('workbench.action.browser.open', { keepOpen: true });
+				const addressInput = workbenchPage.locator('.quick-input-widget:visible input[placeholder*="enter URL"]');
+				await addressInput.waitFor();
+				await addressInput.fill(targetUrl);
+				await addressInput.press('Enter');
+			});
+			openPages.add(browserPage);
+
+			await browserPage.locator('#address-bar-content').waitFor();
+			await waitForWorkbenchUrl(workbenchPage, targetUrl);
+			await waitForActiveBrowserTab(workbenchPage, 'Browser Smoke Address Bar');
+		});
+
 		it('navigates through history and exposes it in History', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/navigation/a`, openPages, fixturePath);
@@ -311,6 +329,8 @@ async function runBrowserOverflowAction(browserPage: Page, workbenchPage: Page, 
 
 function pageForRoute(route: string, requestCount: number): string {
 	switch (route) {
+		case '/address-bar':
+			return html('Browser Smoke Address Bar', '<div id="address-bar-content">Address bar navigation</div>');
 		case '/navigation/a':
 			return html('Browser Smoke A', '<a id="to-b" href="/navigation/b">Go to B</a>');
 		case '/navigation/b':
