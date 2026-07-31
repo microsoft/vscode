@@ -12,6 +12,7 @@
  * chat input.
  */
 
+import { appendEscapedMarkdownInlineCode, isPortableMarkdownTarget } from '../common/htmlContent.js';
 import { createTrustedTypesPolicy } from './trustedTypes.js';
 
 const maxInputLength = 200_000;
@@ -65,7 +66,7 @@ function convertNode(node: Node): string {
 		}
 
 		case 'code':
-			return `\`${el.textContent ?? ''}\``;
+			return appendEscapedMarkdownInlineCode(el.textContent ?? '');
 
 		case 'blockquote': {
 			const inner = convertChildren(el).trim();
@@ -111,13 +112,15 @@ function convertNode(node: Node): string {
 			return '\n---\n';
 
 		case 'a': {
-			const href = el.getAttribute('href') ?? '';
-			return sanitizeLink(href, convertChildren(el).trim());
+			return sanitizeLink(linkTargetOf(el), convertChildren(el).trim());
 		}
 
 		case 'img': {
 			const src = el.getAttribute('src') ?? '';
 			const alt = el.getAttribute('alt') ?? '';
+			if (!isPortableMarkdownTarget(src)) {
+				return alt ? appendEscapedMarkdownInlineCode(alt) : '';
+			}
 			return `![${alt}](${src})`;
 		}
 
@@ -147,10 +150,34 @@ function convertChildren(node: Node): string {
 	return result;
 }
 
-/** Produce a markdown link, stripping dangerous schemes like `javascript:`. */
+/**
+ * Reads the target of an anchor. Rendered VS Code links route clicks through `data-href`, so
+ * that attribute is consulted when `href` cannot be shared — but never ahead of a usable
+ * `href`, since arbitrary pages use the same attribute name and could redirect a link.
+ */
+function linkTargetOf(el: HTMLElement): string {
+	const href = (el.getAttribute('href') ?? '').trim();
+	if (href && isPortableMarkdownTarget(href)) {
+		return href;
+	}
+	return (el.getAttribute('data-href') ?? '').trim() || href;
+}
+
+/**
+ * Renders an anchor as markdown, keeping only targets that still mean something wherever the
+ * markdown is pasted. Everything else falls back to the text the reader actually saw.
+ */
 function sanitizeLink(href: string, text: string): string {
-	if (/^(javascript|vbscript|data):/i.test(href.trim())) {
+	const target = href.trim();
+
+	// An executable target carries no label worth marking up as code.
+	if (/^(javascript|vbscript|data):/i.test(target)) {
 		return text;
 	}
-	return `[${text}](${href})`;
+
+	if (!target || !isPortableMarkdownTarget(target)) {
+		return text ? appendEscapedMarkdownInlineCode(text) : '';
+	}
+
+	return `[${text}](${target})`;
 }
