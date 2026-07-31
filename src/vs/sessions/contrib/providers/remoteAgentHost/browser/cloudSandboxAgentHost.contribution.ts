@@ -9,7 +9,9 @@ import { ICloudSandboxAgentHostService, ICloudSandboxCredentialsService } from '
 import { CloudSandboxAgentHostService } from './cloudSandboxAgentHostService.js';
 import { CloudSandboxAgentHostContribution } from './cloudSandboxAgentHostContribution.js';
 import { CloudSandboxCredentialsService } from './cloudSandboxCredentialsService.js';
+import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './cloudSandboxTelemetry.js';
 
+registerSingleton(ICloudSandboxTelemetryService, CloudSandboxTelemetryService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxCredentialsService, CloudSandboxCredentialsService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxAgentHostService, CloudSandboxAgentHostService, InstantiationType.Delayed);
 
