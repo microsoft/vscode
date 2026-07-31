@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../base/common/async.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -41,7 +42,7 @@ import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatConte
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
-import { IChatPetService } from './chatPetService.js';
+import { IChatPetService, parseChatPetCommand } from './chatPetService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
@@ -68,13 +69,23 @@ export class ChatSlashCommandsContribution extends Disposable {
 
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'vscode-pet',
-			detail: nls.localize('vscodePet', "Toggle an interactive VS Code pet (Experimental)"),
+			detail: nls.localize('vscodePet', "Toggle the VS Code pet or choose Stable or Insiders colors (Experimental)"),
 			sortText: 'z3_vscodePet',
-			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat]
-		}, async () => {
-			chatPetService.toggle();
+		}, async prompt => {
+			const command = parseChatPetCommand(prompt);
+			switch (command.kind) {
+				case 'toggle':
+					chatPetService.toggle();
+					break;
+				case 'variant':
+					chatPetService.setVariant(command.variant);
+					break;
+				case 'invalid':
+					status(nls.localize('vscodePet.invalidArgument', "Unknown VS Code pet option: {0}. Use stable or insiders.", command.argument));
+					break;
+			}
 		}));
 		const clearCommandRegistration = this._register(new MutableDisposable());
 		const registerClearCommand = () => {
