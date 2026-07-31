@@ -179,7 +179,7 @@ export interface ISessionsService {
 	 *   that folder (via {@link ISessionsManagementService.createNewSession})
 	 *   and shows it as the active session, returning it as `result.session`.
 	 */
-	openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult>;
+	openNewSession(options?: IOpenNewSessionOptions, token?: CancellationToken): Promise<IOpenNewSessionResult>;
 
 	/**
 	 * Open a new **quick chat**: create a concrete workspace-less draft session
@@ -720,7 +720,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(undefined);
 	}
 
-	async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+	async openNewSession(options?: IOpenNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<IOpenNewSessionResult> {
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			// Single trust gate for every path that creates a concrete session for
@@ -736,11 +736,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 					uri: folderUri,
 					message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 				});
+				if (token.isCancellationRequested) {
+					return { session: undefined, trustDeclined: false };
+				}
 				if (!trusted) {
 					return { session: undefined, trustDeclined: true };
 				}
 			}
 
+			if (token.isCancellationRequested) {
+				return { session: undefined, trustDeclined: false };
+			}
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);

@@ -300,6 +300,7 @@ export function getChatPetHorizontalPosition(left: number, minimumLeft: number, 
 
 export class ChatPetWidget extends Disposable {
 
+	private readonly _overlay: HTMLElement;
 	private readonly _button: Button;
 	private readonly _sprites: readonly ChatPetSpriteElement[];
 	private readonly _speechBubble: ChatPetSpriteElement;
@@ -348,8 +349,10 @@ export class ChatPetWidget extends Disposable {
 		this._variant = this.chatPetService.variant.get();
 		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
-		this.dragBounds.classList.add('chat-pet-drag-bounds');
-		this._button = this._register(new Button(this.parent, {
+		this._overlay = dom.$('.chat-pet-overlay');
+		this.parent.prepend(this._overlay);
+		this._register(toDisposable(() => this._overlay.remove()));
+		this._button = this._register(new Button(this._overlay, {
 			ariaLabel: localize('chatPet.interact', "Interact with the VS Code pet. Use the context menu to put it on the run."),
 		}));
 		this._button.element.classList.add('chat-pet-button');
@@ -648,7 +651,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _setHorizontalPosition(left: number): boolean {
-		const parentBounds = this.parent.getBoundingClientRect();
+		const parentBounds = this._overlay.getBoundingClientRect();
 		const bounds = this.dragBounds.getBoundingClientRect();
 		const minimumLeft = bounds.left - parentBounds.left;
 		const maximumLeft = bounds.right - parentBounds.left - this._button.element.offsetWidth;
