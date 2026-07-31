@@ -29,7 +29,7 @@ suite('ByokLmBridgeRegistry', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>());
 		return {
 			connection: {
-				chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
+				chat: async (): Promise<IByokLmChatResult> => ({ output: [] }),
 				onDidChangeModels: emitter.event,
 			},
 			push: models => emitter.fire(models),

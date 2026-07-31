@@ -53,6 +53,12 @@ export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multip
 
 //#endregion
 
+//#region < --- Custom View Grid --- >
+
+export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
+
+//#endregion
+
 //#region < --- Welcome --- >
 
 export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('sessionsWelcomeVisible', false, localize('sessionsWelcomeVisible', "Whether the sessions welcome overlay is visible"));
