@@ -56,6 +56,12 @@ jobs:
             sbomEnabled: false
             isProduction: false
     steps:
+      # The crash/log pipelineArtifact outputs above run unconditionally
+      # (succeededOrFailed()), so ensure the paths exist even though this
+      # compile-only job never runs tests that would create them.
+      - script: mkdir -p .build/crashes .build/logs
+        displayName: Ensure artifact directories exist
+
       # Build VS Code from source. No VSCODE_RUN_*_TESTS flags are passed, so the
       # compile template builds the client/server but skips compiling the test
       # suites and skips the unit/integration/smoke test template entirely — the
