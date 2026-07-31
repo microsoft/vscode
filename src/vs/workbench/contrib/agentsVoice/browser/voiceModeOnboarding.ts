@@ -249,17 +249,7 @@ const BAR_GAP = 2;
 /** Shortest a bar ever gets: a dot, so a resting bar keeps its round cap. */
 const BAR_MIN = 1;
 
-/**
- * A signature being eased towards another, one component at a time.
- *
- * `oscillation` is the accumulated animation phase for the component: it advances
- * by `speed * WAVE_TEMPO * dt` every frame (see {@link advanceOscillation}) rather
- * than being recomputed from an absolute clock. Integrating it this way is what
- * keeps a voice change smooth - easing `speed` only changes how fast the phase
- * accrues from here on, so it never jerks the phase already on screen. Multiplying
- * a changing `speed` by an absolute, unbounded timestamp did exactly that, and the
- * jump grew with how long the card had been open.
- */
+/** A signature component with an incrementally accumulated animation phase. */
 type MutableWave = { frequency: number; amplitude: number; speed: number; phase: number; oscillation: number };
 
 function cloneSignature(signature: readonly IWave[]): MutableWave[] {
