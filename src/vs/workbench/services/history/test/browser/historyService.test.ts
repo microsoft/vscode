@@ -745,19 +745,11 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
-	test('getHistory clears editor dispose listeners', async () => {
-
-		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
-
-			override toUntyped(): IUntypedEditorInput {
-				return { resource: this.resource };
-			}
-		}
-
+	test('editor dispose clears history listener', async () => {
 		const [part, historyService, , , instantiationService] = await createServices();
 		historyService.getHistory();
 
-		const input = new TestFileEditorInputWithUntyped(URI.file('history-listener'), TEST_EDITOR_INPUT_ID);
+		const input = new TestFileEditorInput(URI.file('history-listener'), TEST_EDITOR_INPUT_ID);
 		await part.activeGroup.openEditor(input, { pinned: true });
 
 		const editorHistoryListeners = (historyService as unknown as { editorHistoryListeners: { size: number } }).editorHistoryListeners;
