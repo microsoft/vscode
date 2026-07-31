@@ -102,7 +102,14 @@
 		radial-gradient(ellipse calc(52px * var(--vg-w3) * var(--vg-blob-scale)) calc(48px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(100% + var(--vg-x3)) calc(27% + var(--vg-y3)), hsl(calc(var(--vg-hue) + 18) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent);
 }
 
-/* The hairline ring itself: the blob wash clipped to the border. */
+/*
+ * The hairline ring: the blob wash clipped to the border.
+ *
+ * Only the calm rim uses it (as its thin band — see below). The talking states
+ * hide it: sitting a crisp colored line immediately next to the input's own
+ * border reads as a doubled edge, and it fights the soft light rather than
+ * defining it. Their glow is carried by the wash and the bloom instead.
+ */
 .voice-glow-rim::after {
 	content: '';
 	position: absolute;
@@ -117,6 +124,11 @@
 	pointer-events: none;
 	z-index: 2;
 	opacity: var(--vg-ring-opacity, 1);
+}
+
+.voice-glow-rim-cool::after,
+.voice-glow-rim-warm::after {
+	display: none;
 }
 
 /*
