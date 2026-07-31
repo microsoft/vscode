@@ -2463,6 +2463,10 @@ pane is first mounted. View switches inside the modal are not animated. */
 	position: relative;
 }
 
+.monaco-workbench .monaco-dialog-box.automation-dialog:focus:not(:focus-visible) {
+	outline: none;
+}
+
 /*
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,
@@ -2825,6 +2829,10 @@ pane is first mounted. View switches inside the modal are not animated. */
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 
+.automation-form-row.automation-form-checkbox-row > .monaco-checkbox {
+	margin-right: 0;
+}
+
 /*
  * Lay the Schedule / Time / Day controls along a single horizontal axis.
  * Each control lives in its own `.automation-form-schedule-group`
@@ -2992,10 +3000,6 @@ pane is first mounted. View switches inside the modal are not animated. */
  * `.new-chat-bottom-container` chip vocabulary (see
  * `sessions/contrib/chat/browser/media/chatWidget.css` lines 178-209):
  * compact label text and codicons, icon-foreground color, no border.
- * The `|` divider between the Folder chip and the branch slot
- * uses the same `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)`
- * trick the new-session row uses to draw a 1px vertical separator
- * without adding a DOM element.
  */
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {
 	display: inline-flex;
@@ -3060,13 +3064,6 @@ pane is first mounted. View switches inside the modal are not animated. */
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-/* Mirror the new-session `|` divider between repo-config chips:
- * `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)` paints
- * a 1px-wide bar in the gap to the chip's left. */
-.automation-form-prompt-host .automation-form-isolation-group .automation-form-branch-picker-slot {
-	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
 }
 
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-harness-chip {
