@@ -499,7 +499,7 @@
                     },
                     {
                         "key": "chat.mcp.access.registry",
-                        "value": "Allows access to MCP servers installed from the registry that VS Code is connected to."
+                        "value": "Allows access to MCP servers listed in the registry that VS Code is connected to."
                     },
                     {
                         "key": "chat.mcp.access.any",
