@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOptions, buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
+import { buildClaudeTelemetryEnv, buildOptions, buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
 import type { ClaudeTransport, IClaudeProxyHandle } from '../../node/claude/claudeProxyService.js';
 
 suite('claudeSdkOptions / buildSubprocessEnv', () => {
@@ -74,6 +74,37 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			home: '/Users/test',
 			userProfile: 'C:\\Users\\test',
 			aiAgent: 'github_copilot_vscode_agent',
+		});
+	});
+
+	test('maps Agent Host traces to loopback and logs/metrics to the external sink', () => {
+		const env = buildClaudeTelemetryEnv({
+			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
+			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf' },
+			captureContent: false,
+		}, {
+			traceId: '1'.repeat(32),
+			spanId: '2'.repeat(16),
+			traceparent: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
+		});
+
+		assert.deepStrictEqual(env, {
+			CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+			CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
+			OTEL_TRACES_EXPORTER: 'otlp',
+			OTEL_LOGS_EXPORTER: 'otlp',
+			OTEL_METRICS_EXPORTER: 'otlp',
+			OTEL_LOG_USER_PROMPTS: '0',
+			OTEL_LOG_ASSISTANT_RESPONSES: '0',
+			OTEL_LOG_TOOL_DETAILS: '0',
+			OTEL_LOG_TOOL_CONTENT: '0',
+			OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://127.0.0.1:4567/v1/traces',
+			OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/json',
+			OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: 'http://collector:4318/v1/logs',
+			OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: 'http/protobuf',
+			OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: 'http://collector:4318/v1/metrics',
+			OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: 'http/protobuf',
+			TRACEPARENT: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
 		});
 	});
 

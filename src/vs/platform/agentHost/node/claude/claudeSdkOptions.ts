@@ -17,6 +17,7 @@ import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
 import { toSdkModelId } from './claudeModelId.js';
+import type { IAgentHostNativeOTelConfig, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 
@@ -79,6 +80,8 @@ export interface IBuildOptionsInput {
 	 * Omit when no custom agent is selected (SDK default behavior).
 	 */
 	readonly agent?: string;
+	readonly telemetry?: IAgentHostNativeOTelConfig;
+	readonly traceContext?: IAgentHostTraceContext;
 }
 
 /**
@@ -104,8 +107,11 @@ export async function buildOptions(
 ): Promise<Options> {
 	const isProxy = transport.kind === 'proxy';
 	const subprocessEnv = buildSubprocessEnv(isProxy);
+	const telemetryEnv = buildClaudeTelemetryEnv(input.telemetry, input.traceContext);
+	Object.assign(subprocessEnv, telemetryEnv);
 	const resolvedRgDiskPath = await rgDiskPath();
 	const settingsEnv: Record<string, string> = {
+		...telemetryEnv,
 		// Proxied (Copilot-routed) mode points the SDK at the local proxy on a
 		// per-session bearer. Native (BYO-Anthropic) mode omits both so the SDK
 		// uses its own credential resolution from the subprocess env
@@ -239,6 +245,52 @@ export function buildModelEnumerationOptions(): Options {
  *
  * Exported for unit testing as a pure function over `process.env`.
  */
+export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | undefined, traceContext?: IAgentHostTraceContext): Record<string, string> {
+	if (!config) {
+		return {};
+	}
+	const env: Record<string, string> = {
+		CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+		CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: config.traces ? '1' : '0',
+		OTEL_TRACES_EXPORTER: config.traces ? 'otlp' : 'none',
+		OTEL_LOGS_EXPORTER: config.external ? 'otlp' : 'none',
+		OTEL_METRICS_EXPORTER: config.external ? 'otlp' : 'none',
+		OTEL_LOG_USER_PROMPTS: config.captureContent ? '1' : '0',
+		OTEL_LOG_ASSISTANT_RESPONSES: config.captureContent ? '1' : '0',
+		OTEL_LOG_TOOL_DETAILS: config.captureContent ? '1' : '0',
+		OTEL_LOG_TOOL_CONTENT: config.captureContent ? '1' : '0',
+	};
+	if (config.traces) {
+		env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = config.traces.endpoint;
+		env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL = config.traces.protocol;
+	}
+	if (config.external) {
+		env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'logs');
+		env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL = config.external.protocol;
+		env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'metrics');
+		env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL = config.external.protocol;
+	}
+	if (traceContext) {
+		env.TRACEPARENT = traceContext.traceparent;
+		if (traceContext.tracestate) {
+			env.TRACESTATE = traceContext.tracestate;
+		}
+	}
+	return env;
+}
+
+function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics'): string {
+	try {
+		const url = new URL(endpoint);
+		if (url.pathname === '' || url.pathname === '/') {
+			url.pathname = `/v1/${signal}`;
+		}
+		return url.toString().replace(/\/$/, '');
+	} catch {
+		return endpoint;
+	}
+}
+
 export function buildSubprocessEnv(proxied: boolean = true): Record<string, string | undefined> {
 	// Proxy mode: a sparse env (creds arrive via settings.env), and the user's
 	// personal ANTHROPIC_API_KEY must not leak to the Copilot proxy.
