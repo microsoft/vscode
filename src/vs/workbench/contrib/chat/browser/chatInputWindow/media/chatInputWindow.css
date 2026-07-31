@@ -20,7 +20,7 @@
 .chat-input-window .chat-input-window-row {
 	display: flex;
 	align-items: center;
-	flex: 1 1 auto;
+	flex: 0 0 auto;
 	min-height: 44px;
 	padding: 0 8px;
 }
@@ -91,6 +91,15 @@
 
 .chat-input-window .chat-side-toolbar {
 	display: none;
+}
+
+.chat-input-window .interactive-session {
+	height: auto;
+	justify-content: center;
+}
+
+.chat-input-window .interactive-input-part.compact {
+	padding-top: 0;
 }
 
 .chat-input-window .chat-input-toolbars .chat-input-picker-item,

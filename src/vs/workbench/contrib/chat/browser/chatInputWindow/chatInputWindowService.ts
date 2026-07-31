@@ -34,6 +34,9 @@ import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
+// ChatWidget reserves 50px for its response list. This budget leaves the
+// compact editor its full 83px intrinsic maximum while the list stays hidden.
+const CHAT_INPUT_WINDOW_WIDGET_HEIGHT_BUDGET = 133;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -293,6 +296,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		));
 		widget.render(parent);
 		widget.setVisible(true);
+		widget.setInputPartMaxHeightOverride(CHAT_INPUT_WINDOW_WIDGET_HEIGHT_BUDGET);
 
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
@@ -389,7 +393,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		};
 		layout();
-		this._windowDisposables.add(widget.onDidChangeHeight(() => layout()));
+		this._windowDisposables.add(widget.onDidChangeContentHeight(() => fitWindowToInput()));
 		const scheduledInputLayout = this._windowDisposables.add(new MutableDisposable());
 		this._windowDisposables.add(widget.inputEditor.onDidChangeModelContent(() => {
 			// Submit controls change after the editor event; measure them in the
