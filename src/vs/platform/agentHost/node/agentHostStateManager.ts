@@ -562,10 +562,8 @@ export class AgentHostStateManager extends Disposable {
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
 
 		if (options?.emitNotification !== false) {
-			// Announcing the summary to the notifier is what makes
-			// its later flush emit incremental updates and what makes
-			// `markSessionPersisted` a no-op. Provisional sessions
-			// intentionally skip both until they are persisted.
+			// Announced sessions publish later persisted-field updates incrementally.
+			// Provisional sessions skip both notifications until they are persisted.
 			this._summaryNotifier.announce(key, summary);
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionAdded',
@@ -583,15 +581,8 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Fire a {@link NotificationType.SessionAdded} notification for a session
-	 * whose creation was deferred via `createSession({ emitNotification: false })`.
-	 *
-	 * Propagates the materialization-resolved catalog fields (`project`,
-	 * `workingDirectory`, `modifiedAt`, `changes`) from the supplied summary
-	 * onto the session entry so subscribers see them. The reducer-owned metadata
-	 * (`title`, `status`, `activity`) is intentionally NOT copied back — the live
-	 * state is authoritative for those. No-ops for sessions that were already
-	 * announced (idempotent).
+	 * Applies materialization-resolved fields and publishes the appropriate
+	 * add or summary-change notification.
 	 */
 	markSessionPersisted(session: URI, summary: SessionSummary): void {
 		const key = session.toString();
@@ -600,21 +591,13 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] markSessionPersisted: unknown session ${key}`);
 			return;
 		}
-		// The notifier records a session's announced summary whenever it has
-		// been surfaced to clients (either through `createSession` or here);
-		// using it as the idempotency check keeps us from firing `SessionAdded`
-		// twice for a session whose creation was not deferred.
-		if (this._summaryNotifier.isAnnounced(key)) {
-			return;
-		}
-		// Propagate the materialization-resolved fields so subscribers calling
-		// `getSessionState` / `getSessionSummary` see the resolved working
-		// directory / project. We don't need to schedule a
-		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
-		// notification carries the complete summary already.
 		entry.state = { ...entry.state, project: summary.project, workingDirectories: summary.workingDirectories };
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
+		if (this._summaryNotifier.isAnnounced(key)) {
+			this._summaryNotifier.markDirty(key);
+			return;
+		}
 		const full = this._toSummary(key, entry);
 		this._summaryNotifier.announce(key, full);
 		this._onDidEmitNotification.fire({

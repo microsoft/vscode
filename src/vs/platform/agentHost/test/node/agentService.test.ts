@@ -5324,23 +5324,79 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state?.workingDirectories?.[0], sourceDir.toString());
 		});
 
-		test('restoreSession uses agent working directory in state', async () => {
-			// Agent returns the worktree path through listSessions
-			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
-			copilotAgent.sessionMetadataOverrides = { workingDirectories: worktreeDir ? [worktreeDir] : undefined };
-			service.registerProvider(copilotAgent);
+		test('subscription restore preserves persisted roots through next send and one-primary materialization', async () => {
+			// Provider metadata is session-owned. There is deliberately no window
+			// workspace input to the restore path that could replace or truncate it.
+			const repoA = URI.file('/source/repo-a');
+			const repoB = URI.file('/source/repo-b');
+			const resolvedPrimary = URI.file('/source/repo-a.worktrees/resumed');
+			const sent = new DeferredPromise<void>();
+			class MultiRootMockAgent extends MockAgent {
+				private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: { uri: URI; displayName: string } | undefined }>();
+				readonly onDidMaterializeSession = this._onDidMaterialize.event;
+				readonly sendWorkingDirectories: (readonly string[] | undefined)[] = [];
+				override readonly chats: IAgentChats = {
+					createChat: async () => undefined,
+					fork: async () => undefined,
+					disposeChat: async () => { },
+					sendMessage: async (_chat, _prompt, workingDirectories) => {
+						this.sendWorkingDirectories.push(workingDirectories?.map(directory => directory.toString()));
+						sent.complete();
+					},
+					abort: async () => { },
+					changeModel: async () => { },
+					changeAgent: async () => { },
+					getMessages: async () => [],
+				};
+				materialize(session: URI, workingDirectories: readonly URI[]): void {
+					this._onDidMaterialize.fire({ session, workingDirectories, project: undefined });
+				}
+				override dispose(): void {
+					this._onDidMaterialize.dispose();
+					super.dispose();
+				}
+			}
+			const agent = new MultiRootMockAgent('copilot');
+			agent.sessionMetadataOverrides = { workingDirectories: [repoA, repoB] };
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 
-			// Delete from state to simulate a server restart
+			// Delete from state to simulate an evicted/cold server snapshot. The
+			// subscription is the same entry point used by a resuming client.
 			service.stateManager.deleteSession(session.toString());
-			assert.strictEqual(service.stateManager.getSessionState(session.toString()), undefined);
+			await service.subscribe(session, 'resuming-client');
+			const restored = service.stateManager.getSessionState(session.toString());
 
-			// Restore the session (simulates a client subscribing after restart)
-			await service.restoreSession(session);
+			service.dispatchAction(
+				buildDefaultChatUri(session.toString()),
+				{
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-after-resume',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'continue', origin: { kind: MessageKind.User } },
+				},
+				'resuming-client', 1,
+			);
+			await sent.p;
 
-			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
+			// A resumed provider can report only its resolved process root. The
+			// session-owned tail must survive that receipt.
+			agent.materialize(session, [resolvedPrimary]);
+			const reconciled = service.stateManager.getSessionState(session.toString());
+			const listed = (await service.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+			assert.deepStrictEqual({
+				restored: restored?.workingDirectories,
+				nextHarnessRequest: agent.sendWorkingDirectories,
+				reconciled: reconciled?.workingDirectories,
+				summary: listed?.workingDirectories?.map(directory => directory.toString()),
+			}, {
+				restored: [repoA, repoB].map(directory => directory.toString()),
+				nextHarnessRequest: [[repoA, repoB].map(directory => directory.toString())],
+				reconciled: [resolvedPrimary, repoB].map(directory => directory.toString()),
+				summary: [resolvedPrimary, repoB].map(directory => directory.toString()),
+			});
 		});
 
 		test('_resolveWorkingDirectoryBeforeSend returns the full set (index 0 + tail), or undefined when unset', async () => {

@@ -585,6 +585,33 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
 	});
 
+	test('markSessionPersisted emits restored working directory changes', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const repoA = 'file:///repo-a';
+			const repoB = 'file:///repo-b';
+			const resolvedPrimary = 'file:///repo-a.worktrees/resumed';
+			manager.restoreSession({ ...makeSessionSummary(), workingDirectories: [repoA, repoB] }, []);
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+			manager.markSessionPersisted(sessionUri, {
+				...makeSessionSummary(),
+				workingDirectories: [resolvedPrimary, repoB],
+			});
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+			assert.deepStrictEqual(changed.map(notification => ({
+				session: notification.session,
+				workingDirectories: notification.changes.workingDirectories,
+			})), [{
+				session: sessionUri,
+				workingDirectories: [resolvedPrimary, repoB],
+			}]);
+		});
+	});
+
 	test('emits sessionSummaryChanged when summary changes', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			manager.createSession(makeSessionSummary());
