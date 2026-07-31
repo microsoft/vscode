@@ -129,6 +129,57 @@ suite('AgentHostByokLmHandler', () => {
 		]);
 	});
 
+	test('listModels carries string reasoning effort metadata from renderer BYOK schemas', async () => {
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				['id-reasoning', {
+					...byokModel('acme', 'reasoning'),
+					configurationSchema: {
+						properties: {
+							reasoningEffort: {
+								type: 'string',
+								enum: ['minimal', 'low', 1, 'high'],
+								default: 'high',
+							},
+						},
+					},
+				}],
+				['id-malformed', {
+					...byokModel('acme', 'malformed'),
+					configurationSchema: {
+						properties: {
+							reasoningEffort: {
+								type: 'string',
+								enum: [1, false],
+								default: 1,
+							},
+						},
+					},
+				}],
+				['id-plain', byokModel('acme', 'plain')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		const models = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual(models, [
+			{
+				vendor: 'acme',
+				id: 'reasoning',
+				name: 'acme reasoning',
+				modelIdentifier: 'id-reasoning',
+				maxContextWindowTokens: 2000,
+				supportsVision: false,
+				supportedReasoningEfforts: ['minimal', 'low', 'high'],
+				defaultReasoningEffort: 'high',
+			},
+			{ vendor: 'acme', id: 'malformed', name: 'acme malformed', modelIdentifier: 'id-malformed', maxContextWindowTokens: 2000, supportsVision: false },
+			{ vendor: 'acme', id: 'plain', name: 'acme plain', modelIdentifier: 'id-plain', maxContextWindowTokens: 2000, supportsVision: false },
+		]);
+	});
+
 	test('buffers ordered thinking, text, tool calls, continuation and usage', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),

@@ -25,6 +25,23 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes the VS Code pet context menu', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
+			navigation: helpText.includes('use the up and down arrow keys to choose'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+		}, {
+			keybinding: true,
+			navigation: true,
+			actions: true,
+		});
+	});
+
 	test('only describes the selection side chat affordance in the sessions window', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -54,6 +71,20 @@ suite('Chat Accessibility Help', () => {
 			shown: true,
 			notShown: false,
 			byDefault: false,
+		});
+	});
+
+	test('only describes spoken agent progress in agent mode', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('brief progress updates'),
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('brief progress updates'),
+		}, {
+			agentView: true,
+			panelChat: false,
 		});
 	});
 });

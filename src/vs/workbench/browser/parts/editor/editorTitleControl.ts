@@ -39,6 +39,7 @@ export class EditorTitleControl extends Themable {
 	private readonly editorTabsControlDisposable = this._register(new DisposableStore());
 
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
+	private breadcrumbsContainer: HTMLElement | undefined;
 	private readonly breadcrumbsControlDisposables = this._register(new DisposableStore());
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
@@ -79,11 +80,12 @@ export class EditorTitleControl extends Themable {
 
 	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
 		if (this.groupsView.partOptions.showTabs === 'single') {
+			this.breadcrumbsContainer = undefined;
 			return undefined; // Single tabs have breadcrumbs inlined. No tabs have no breadcrumbs.
 		}
 
 		// Breadcrumbs container
-		const breadcrumbsContainer = $('.breadcrumbs-below-tabs');
+		const breadcrumbsContainer = this.breadcrumbsContainer = $('.breadcrumbs-below-tabs');
 		this.parent.appendChild(breadcrumbsContainer);
 
 		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupView, {
@@ -200,7 +202,7 @@ export class EditorTitleControl extends Themable {
 		}
 	}
 
-	layout(dimensions: IEditorTitleControlDimensions): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions, breadcrumbsRightInset = 0): Dimension {
 
 		// Layout tabs control
 		const tabsControlDimension = this.editorTabsControl.layout(dimensions);
@@ -208,7 +210,9 @@ export class EditorTitleControl extends Themable {
 		// Layout breadcrumbs if visible
 		let breadcrumbsControlDimension: Dimension | undefined = undefined;
 		if (this.breadcrumbsControl?.isHidden() === false) {
-			breadcrumbsControlDimension = new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT);
+			const breadcrumbsWidth = Math.max(0, dimensions.container.width - breadcrumbsRightInset);
+			this.breadcrumbsContainer!.style.width = `${breadcrumbsWidth}px`;
+			breadcrumbsControlDimension = new Dimension(breadcrumbsWidth, BreadcrumbsControl.HEIGHT);
 			this.breadcrumbsControl.layout(breadcrumbsControlDimension);
 		}
 

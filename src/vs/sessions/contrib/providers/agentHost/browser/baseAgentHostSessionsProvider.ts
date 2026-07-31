@@ -19,6 +19,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
+import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -46,7 +47,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -195,7 +196,20 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
-		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
+		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number);
+}
+
+/** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
+function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly IGitHubIssueRef[] | undefined {
+	const refs: IGitHubIssueRef[] = [];
+	for (const url of issueUrls ?? []) {
+		const reference = parseGitHubIssueUrl(url);
+		if (reference) {
+			refs.push({ ...reference, uri: URI.parse(url) });
+		}
+	}
+	return refs.length > 0 ? refs : undefined;
 }
 
 // ============================================================================
@@ -664,6 +678,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					number: pullRequestNumber,
 					uri: URI.parse(state.pullRequestUrl!),
 				} : undefined,
+				issues: toGitHubIssueRefs(state.issueUrls),
 			};
 		});
 
@@ -4407,6 +4422,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._cacheInitialized = true;
 			this._sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
 			const currentKeys = new Set<string>();
+			const listedAgentProviders = new Set<string>();
 			const added: ISession[] = [];
 			const changed: ISession[] = [];
 
@@ -4414,6 +4430,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const meta = this._adoptSessionMeta(rawMeta);
 				const rawId = AgentSession.id(meta.session);
 				currentKeys.add(rawId);
+				const agentProvider = AgentSession.provider(meta.session);
+				if (agentProvider) {
+					listedAgentProviders.add(agentProvider);
+				}
 
 				const existing = this._sessionCache.get(rawId);
 				if (existing) {
@@ -4434,9 +4454,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// Some hosts briefly omit the just-sent eager session from listSessions.
 			// Keep the pending session visible until sendRequest graduates it.
 			const pendingRawId = this._pendingSession?.resource.path.replace(/^\//, '');
+			// The host aggregates one listing across all of its agents, and an
+			// agent that cannot enumerate yet (its SDK is not downloaded) can
+			// contribute an empty list rather than failing. When other agents
+			// did answer, a namespace with no row at all is therefore *unknown*
+			// rather than empty, and evicting it would be a silent data loss —
+			// `removed` discards the user's pins and group membership. A wholly
+			// empty listing keeps the authoritative-empty contract, since an
+			// agent that cannot answer at all rejects (and we never get here).
+			// Real deletions still arrive through `deleteSessions` and the
+			// `sessionRemoved` notification.
+			const evictUnlistedAgents = listedAgentProviders.size === 0;
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
 					if (key === pendingRawId) {
+						continue;
+					}
+					if (!evictUnlistedAgents && !listedAgentProviders.has(cached.agentProvider)) {
 						continue;
 					}
 					this._sessionCache.delete(key);
