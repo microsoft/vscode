@@ -18,6 +18,12 @@ parameters:
   - name: installRuntimeToolchain
     type: boolean
     default: false
+  # Resolve the runtime source override and stop, skipping the SDK tarball and
+  # the manifest/lockfile rewrites. For the dedicated runtime build jobs, which
+  # never install VS Code's dependencies.
+  - name: runtimeOnly
+    type: boolean
+    default: false
 
 steps:
   # Detect whether a runtime source build is requested and surface it as a
@@ -72,6 +78,7 @@ steps:
         env:
           VSCODE_COPILOT_SDK: $(VSCODE_COPILOT_SDK)
           VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+          COPILOT_OVERRIDE_RUNTIME_ONLY: ${{ parameters.runtimeOnly }}
           # App credentials for minting a runtime clone token. Only set when the
           # gated Key Vault step above ran; otherwise the literal $(...) macro is
           # treated as "no key" by the script.
@@ -83,6 +90,7 @@ steps:
         env:
           VSCODE_COPILOT_SDK: $(VSCODE_COPILOT_SDK)
           VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+          COPILOT_OVERRIDE_RUNTIME_ONLY: ${{ parameters.runtimeOnly }}
           GITHUB_APP_ID: "4297675"
           GITHUB_APP_PRIVATE_KEY: $(copilot-agent-runtime-gh-app)
         displayName: Apply Copilot override

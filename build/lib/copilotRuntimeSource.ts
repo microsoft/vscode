@@ -19,14 +19,21 @@ import { parseLsRemoteTagSha, pinnedRuntimeVersion, runtimeSourceTag, sourceBuil
  *   1. `apply-copilot-override.ts` writes a lightweight marker ({repo, ref}) and
  *      signals the pipeline to install the Rust toolchain (gated so normal builds
  *      pay nothing — see `apply-copilot-override.yml`).
- *   2. During gulp packaging, `ensureCopilotPlatformPackage(platform, arch)` calls
+ *   2. Preferably, a dedicated per-target job in the `CopilotRuntime` stage calls
+ *      {@link buildRuntimeTarget} and publishes the result as a pipeline artifact
+ *      (see `copilot/runtime-source-build.yml`).
+ *   3. During gulp packaging, `ensureCopilotPlatformPackage(platform, arch)` calls
  *      {@link materializeRuntimeSourcePackage} instead of downloading the published
- *      package. That lazily clones + installs once, then builds the specific
- *      target and drops the full package (JS + native) into node_modules.
+ *      package. That consumes the artifact from step 2 when the packaging job has
+ *      one, and otherwise falls back to building the target in place.
  *
- * Because gulp only asks for the targets a given platform job actually packages,
- * each job cross-compiles just its own matrix slice — matching what the runtime's
- * own release pipeline does.
+ * The two paths run the same build; they differ only in *where*. Prefer the
+ * artifact: a packaging agent is provisioned to package VS Code, not to
+ * cross-compile Rust, and every fidelity defect this integration has hit (musl
+ * prebuild layout, the glibc floor, cross-linker selection) came from the build
+ * being a guest in an environment shaped for something else. The in-place
+ * fallback keeps a plain `copilotOverride` commit in `package.json` working
+ * without any pipeline plumbing.
  */
 
 const IS_WINDOWS = process.platform === 'win32';
@@ -41,7 +48,16 @@ const RUNTIME_SRC_DIR = path.join(OVERRIDES_DIR, 'runtime-src');
 const CHECKOUT_STAMP = path.join(RUNTIME_SRC_DIR, '.copilot-source-ref');
 /** Finished per-target packages, keyed by ref + target so a repeat build is a copy. */
 const RUNTIME_PKGS_DIR = path.join(OVERRIDES_DIR, 'runtime-pkgs');
-/** Written last in a finished package dir, so a partial copy is never reused. */
+/**
+ * Where a packaging job unpacks the per-target package built by the
+ * `CopilotRuntime` stage, one subdirectory per target.
+ */
+const RUNTIME_ARTIFACTS_DIR = path.join(OVERRIDES_DIR, 'runtime-artifacts');
+/**
+ * Written last in a finished package dir, so a partial copy is never reused.
+ * Holds the commit it was built from, which is also what lets a packaging job
+ * prove a downloaded artifact belongs to the build it is packaging.
+ */
 const PACKAGE_STAMP = '.copilot-source-complete';
 /**
  * Cargo output, deliberately outside the checkout: `ensureCheckout` wipes the
@@ -61,6 +77,11 @@ const RUNTIME_TOKEN_FILE = path.join(OVERRIDES_DIR, 'runtime-token');
 interface RuntimeMarker {
 	readonly repo: string;
 	readonly ref: string;
+}
+
+/** The commit the runtime is being built from, or undefined for a normal build. */
+export function runtimeSourceRef(): string | undefined {
+	return isRuntimeSourceActive() ? readMarker().ref : undefined;
 }
 
 function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = process.env): void {
@@ -259,9 +280,10 @@ function toBuildTarget(copilotPackagePlatformArch: string): BuildTarget {
 }
 
 /**
- * Builds the runtime from source for one target and populates `packageDir` (the
- * `node_modules/@github/copilot-<platform>-<arch>` directory) with the resulting
- * full package (JS bundle + native binaries). No-op unless a runtime source
+ * Populates `packageDir` (the `node_modules/@github/copilot-<platform>-<arch>`
+ * directory) with the full runtime package (JS bundle + native binaries) for
+ * one target, from the artifact built by the `CopilotRuntime` stage when this
+ * job has one and otherwise by building it here. No-op unless a runtime source
  * override is active.
  */
 export function materializeRuntimeSourcePackage(packageDir: string, copilotPackagePlatformArch: string): void {
@@ -269,12 +291,81 @@ export function materializeRuntimeSourcePackage(packageDir: string, copilotPacka
 		return;
 	}
 	const marker = readMarker();
-	const built = ensureTargetBuilt(marker, copilotPackagePlatformArch);
+	const built = downloadedRuntimeArtifact(marker.ref, copilotPackagePlatformArch) ?? ensureTargetBuilt(marker, copilotPackagePlatformArch);
 
 	fs.rmSync(packageDir, { recursive: true, force: true });
 	fs.mkdirSync(packageDir, { recursive: true });
 	fs.cpSync(built, packageDir, { recursive: true });
 	console.log(`[copilot-runtime-source] Materialized ${copilotPackagePlatformArch} from ${marker.repo}@${marker.ref} into ${packageDir}`);
+}
+
+/** Pipeline artifact name carrying the built package for one target. */
+export function runtimeArtifactName(copilotPackagePlatformArch: string): string {
+	return `copilot_runtime_${copilotPackagePlatformArch.replace(/-/g, '_')}`;
+}
+
+/** Where a packaging job expects that artifact to have been downloaded. */
+export function runtimeArtifactDir(copilotPackagePlatformArch: string): string {
+	return path.join(RUNTIME_ARTIFACTS_DIR, copilotPackagePlatformArch);
+}
+
+/**
+ * The package for `target` downloaded from the `CopilotRuntime` stage, or
+ * undefined if this job has none and must build the target itself.
+ *
+ * A stamp recording a different commit is a hard error rather than a rebuild:
+ * it means the pipeline handed this job an artifact from another build, and
+ * quietly rebuilding would hide that the release nearly shipped code it never
+ * asked for.
+ */
+export function downloadedRuntimeArtifact(expectedRef: string, copilotPackagePlatformArch: string): string | undefined {
+	const dir = path.resolve(runtimeArtifactDir(copilotPackagePlatformArch));
+	const stamp = path.join(dir, PACKAGE_STAMP);
+	if (!fs.existsSync(stamp)) {
+		return undefined;
+	}
+	const ref = fs.readFileSync(stamp, 'utf8').trim();
+	if (ref !== expectedRef) {
+		throw new Error(`[copilot-runtime-source] The downloaded ${copilotPackagePlatformArch} artifact was built from ${ref}, but this build requires ${expectedRef}.`);
+	}
+	console.log(`[copilot-runtime-source] Using prebuilt ${copilotPackagePlatformArch} artifact from ${dir}`);
+	return dir;
+}
+
+/**
+ * Builds one target from source and returns the directory holding the finished
+ * package, for a dedicated build job that publishes it as a pipeline artifact.
+ * Throws unless a runtime source override is active.
+ */
+export function buildRuntimeTarget(copilotPackagePlatformArch: string): string {
+	if (!isRuntimeSourceActive()) {
+		throw new Error(`[copilot-runtime-source] No runtime source override is active, so ${copilotPackagePlatformArch} cannot be built from source.`);
+	}
+	return ensureTargetBuilt(readMarker(), copilotPackagePlatformArch);
+}
+
+/**
+ * The target this host can execute. Node reports `linux` for both libc flavors;
+ * the glibc package is the default and callers name `linuxmusl-*` explicitly.
+ */
+export function hostTarget(): string {
+	return `${process.platform}-${process.arch}`;
+}
+
+/**
+ * Runs the built CLI, because a package can satisfy every structural assertion
+ * and still fail to load (a native addon built against the wrong Node ABI, a
+ * bundling regression). Skipped for cross-compiled targets, which cannot be
+ * executed on this host.
+ */
+export function smokeRunPackage(packageDir: string, copilotPackagePlatformArch: string): void {
+	if (copilotPackagePlatformArch !== hostTarget()) {
+		console.log(`[copilot-runtime-source] ${copilotPackagePlatformArch} is cross-compiled; skipping the smoke run.`);
+		return;
+	}
+	const entry = path.join(packageDir, 'index.js');
+	const version = execFileSync(process.execPath, [entry, '--version'], { encoding: 'utf8', timeout: 120_000 }).trim();
+	console.log(`[copilot-runtime-source] smoke run: ${entry} --version -> ${version}`);
 }
 
 /**

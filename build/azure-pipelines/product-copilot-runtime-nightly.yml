@@ -1,0 +1,89 @@
+# Nightly verification that the Copilot runtime source build still works, on
+# every platform target.
+#
+# That path is how a VS Code release carries an unpublished `@github/copilot`
+# commit, so it only ever runs during an emergency — on agents that have never
+# exercised it, at the worst possible moment to discover it is broken. This runs
+# the same per-target jobs the product build uses (copilot/runtime-source-build.yml),
+# so a nightly pass is direct evidence the hotfix path is ready.
+#
+# It builds the commit the *currently pinned* runtime version was released from
+# (`pinned-source`) rather than a branch: `main` can be broken, whereas the
+# pinned version is known good and already shipping, so a failure here means the
+# build integration regressed rather than the runtime.
+
+pr: none
+trigger: none
+
+schedules:
+  # `always: true` because this verifies the build environment, not the source:
+  # an agent image change can break it on a day with no commits.
+  - cron: "0 6 * * *"
+    displayName: Daily at 06:00 UTC (Copilot runtime source build)
+    branches:
+      include:
+        - main
+    always: true
+
+parameters:
+  # Overridable so the same pipeline can pre-flight a specific hotfix commit
+  # before it is used for a real release.
+  - name: VSCODE_COPILOT_RUNTIME
+    displayName: "@github/copilot commit ('pinned-source' = the pinned release's commit)"
+    type: string
+    default: pinned-source
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
+
+variables:
+  - name: VSCODE_COPILOT_RUNTIME
+    value: ${{ parameters.VSCODE_COPILOT_RUNTIME }}
+  # No SDK override: this pipeline verifies the runtime build path only.
+  - name: VSCODE_COPILOT_SDK
+    value: ""
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  - name: ARTIFACT_PREFIX
+    value: ""
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (copilot runtime source)"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    stages:
+      - stage: CopilotRuntime
+        displayName: Copilot Runtime
+        dependsOn: []
+        jobs:
+          - template: build/azure-pipelines/copilot/runtime-source-build.yml@self
+            parameters:
+              VSCODE_BUILD_WIN32: true
+              VSCODE_BUILD_WIN32_ARM64: true
+              VSCODE_BUILD_LINUX: true
+              VSCODE_BUILD_LINUX_ARM64: true
+              VSCODE_BUILD_ALPINE: true
+              VSCODE_BUILD_ALPINE_ARM64: true
+              VSCODE_BUILD_MACOS: true
+              VSCODE_BUILD_MACOS_ARM64: true

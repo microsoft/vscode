@@ -168,6 +168,22 @@ variables:
       value: ""
     ${{ else }}:
       value: ${{ parameters.VSCODE_COPILOT_RUNTIME }}
+  # Whether to run the CopilotRuntime stage, which builds @github/copilot from
+  # source on dedicated per-target agents. Stages are selected before anything
+  # runs, so this can only key off the queue-time parameter — not off whether that
+  # value turns out to be a commit (source build) or a version (feed). It is
+  # therefore deliberately over-inclusive: a feed override also runs the stage,
+  # whose jobs then detect they have nothing to build and exit. A source override
+  # committed to package.json instead of passed here gets no stage at all and
+  # falls back to building in the packaging jobs.
+  #
+  # An explicit lowercase literal, not ${{ ne(...) }}: the packaging jobs compare
+  # it in a runtime condition, and ${{ }} would emit 'True'/'False'.
+  - name: VSCODE_COPILOT_RUNTIME_STAGE
+    ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME, 'default') }}:
+      value: "false"
+    ${{ else }}:
+      value: "true"
   - name: CARGO_REGISTRY
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -328,9 +344,31 @@ extends:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
+      # Builds @github/copilot from source per target and publishes each as an
+      # artifact the packaging stages consume, so the Rust build runs on an agent
+      # that exists for it rather than inside nine packaging jobs.
+      - ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+        - stage: CopilotRuntime
+          displayName: Copilot Runtime
+          dependsOn: []
+          jobs:
+            - template: build/azure-pipelines/copilot/runtime-source-build.yml@self
+              parameters:
+                VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+                VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
+                VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
+                VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
+                VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
+                VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+                VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
+
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
-          dependsOn: []
+          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+            dependsOn: CopilotRuntime
+          ${{ else }}:
+            dependsOn: []
           pool:
             name: 1es-windows-2022-x64
             os: windows
@@ -384,7 +422,10 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
-          dependsOn: []
+          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+            dependsOn: CopilotRuntime
+          ${{ else }}:
+            dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
@@ -455,7 +496,10 @@ extends:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
-          dependsOn: []
+          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+            dependsOn: CopilotRuntime
+          ${{ else }}:
+            dependsOn: []
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
@@ -476,7 +520,10 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
-          dependsOn: []
+          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+            dependsOn: CopilotRuntime
+          ${{ else }}:
+            dependsOn: []
           pool:
             name: AcesShared
             os: macOS

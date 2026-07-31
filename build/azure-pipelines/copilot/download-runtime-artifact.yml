@@ -1,0 +1,25 @@
+# Downloads the `@github/copilot` package the CopilotRuntime stage built for this
+# job's target, so gulp packaging consumes it instead of compiling the runtime
+# here. See build/lib/copilotRuntimeSource.ts.
+#
+# A no-op unless this build both requested a runtime override at queue time
+# (VSCODE_COPILOT_RUNTIME_STAGE — so the producing stage exists) and resolved it
+# to a source build (VSCODE_COPILOT_RUNTIME_SOURCE, set by the apply step). When
+# either is false the packaging job falls back to building the target in place,
+# which is also what happens when the override is committed to package.json
+# rather than passed at queue time.
+
+parameters:
+  # A `@github/copilot-<platform>-<arch>` target, e.g. `linuxmusl-arm64`.
+  - name: VSCODE_COPILOT_TARGET
+    type: string
+
+steps:
+  - task: DownloadPipelineArtifact@2
+    condition: and(succeeded(), eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_SOURCE'], 'true'))
+    inputs:
+      artifact: $(ARTIFACT_PREFIX)copilot_runtime_${{ replace(parameters.VSCODE_COPILOT_TARGET, '-', '_') }}
+      patterns: "**"
+      # Must match runtimeArtifactDir() in build/lib/copilotRuntimeSource.ts.
+      path: $(Build.SourcesDirectory)/.build/copilot-overrides/runtime-artifacts/${{ parameters.VSCODE_COPILOT_TARGET }}
+    displayName: Download ${{ parameters.VSCODE_COPILOT_TARGET }} runtime artifact

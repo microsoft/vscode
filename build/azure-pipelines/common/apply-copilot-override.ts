@@ -162,6 +162,12 @@ async function handleRuntimeSource(runtimeGit: GitOverride | undefined, token: s
 
 async function main(): Promise<void> {
 	const detectOnly = process.argv.includes('--detect');
+	// The dedicated runtime source build jobs need only the marker and the clone
+	// token. They never install VS Code's dependencies, so rewriting the manifests
+	// would be dead work — and building the SDK tarball would make an unrelated
+	// SDK override able to fail the runtime build.
+	const runtimeOnly = process.argv.includes('--runtime-only')
+		|| (process.env['COPILOT_OVERRIDE_RUNTIME_ONLY'] ?? '').trim().toLowerCase() === 'true';
 	const env: NodeJS.ProcessEnv = { ...process.env };
 
 	// The sentinel is not a version, so keep it away from the pure resolver (which
@@ -200,6 +206,10 @@ async function main(): Promise<void> {
 	// traceable to these commits after the queue-time parameters are forgotten.
 	for (const tag of overrideBuildTags(overrides)) {
 		console.log(`##vso[build.addbuildtag]${tag}`);
+	}
+
+	if (runtimeOnly) {
+		return;
 	}
 
 	// Manifest pins for feed + SDK-source overrides (runtime source is handled via

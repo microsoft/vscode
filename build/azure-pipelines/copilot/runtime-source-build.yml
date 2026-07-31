@@ -1,0 +1,71 @@
+# Builds `@github/copilot` from source, one job per platform target, for the
+# packaging stages to consume as pipeline artifacts.
+#
+# This is the hotfix and nightly path: it is the only way a VS Code release can
+# carry an unpublished runtime commit, so it is built to fail loudly and early
+# rather than 40 minutes into packaging.
+#
+# Targets mirror the platform toggles, so a partial build does not compile
+# runtimes nobody will package. A target that is skipped here but turns out to be
+# needed is not a failure: the packaging job falls back to building it in place
+# (see build/lib/copilotRuntimeSource.ts).
+
+parameters:
+  - name: VSCODE_BUILD_WIN32
+    type: boolean
+  - name: VSCODE_BUILD_WIN32_ARM64
+    type: boolean
+  - name: VSCODE_BUILD_LINUX
+    type: boolean
+  - name: VSCODE_BUILD_LINUX_ARM64
+    type: boolean
+  - name: VSCODE_BUILD_ALPINE
+    type: boolean
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    type: boolean
+  - name: VSCODE_BUILD_MACOS
+    type: boolean
+  - name: VSCODE_BUILD_MACOS_ARM64
+    type: boolean
+
+jobs:
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: win32-x64
+
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: win32-arm64
+
+  - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: linux-x64
+
+  - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: linux-arm64
+
+  # Alpine is musl Linux; the runtime stages those prebuilds under `linuxmusl-*`.
+  - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: linuxmusl-x64
+
+  - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: linuxmusl-arm64
+
+  - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: darwin-x64
+
+  - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+      - template: runtime-source-build-job.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: darwin-arm64

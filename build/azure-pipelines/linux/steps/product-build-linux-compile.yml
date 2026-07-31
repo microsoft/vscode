@@ -74,6 +74,12 @@ steps:
     parameters:
       installRuntimeToolchain: true
 
+  # armhf has no @github/copilot platform package, so nothing is built for it.
+  - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+      - template: ../../copilot/download-runtime-artifact.yml@self
+        parameters:
+          VSCODE_COPILOT_TARGET: linux-${{ parameters.VSCODE_ARCH }}
+
   - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
