@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/voiceGlow.css';
+import { Color } from '../../../../../base/common/color.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, voiceGlowStateColor, VoiceGlowState } from './voiceGlow.js';
+import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, voiceGlowStateColor, VoiceGlowState, VoiceRimMood } from './voiceGlow.js';
+
+export type { GlowThemeKind };
 
 /**
  * The DOM applier for the Voice Mode ambient glow.
@@ -30,26 +33,6 @@ const FADE = 'opacity .6s cubic-bezier(.4,0,.2,1)';
 /** How long a faded-out slot is kept mounted before its layer is torn down. */
 const FADE_OUT_MS = 650;
 
-/** Saturation (%) bounds for an active (listening / speaking) glow. */
-const ACTIVE_SAT_MIN = 70;
-const ACTIVE_SAT_MAX = 96;
-
-/**
- * The active rim's lightness, per theme and mood. The warm (speaking) rim needs a
- * little more lightness than the cool one to read at the same weight, since a
- * blue-violet edge sits darker than a cyan one at equal lightness.
- */
-const ACTIVE_RIM_LIGHTNESS = {
-	dark: { cool: 56, warm: 72 },
-	light: { cool: 72, warm: 72 },
-} as const;
-/**
- * The rim reads a touch off the raw accent: a hair of teal on the cool side keeps
- * listening from looking like a plain blue focus ring, and a hair of magenta on
- * the warm side widens the contrast between "you are talking" and "the agent is
- * talking".
- */
-const ACTIVE_RIM_HUE_SHIFT = { cool: -10, warm: 7 } as const;
 /** Base strength of an active rim, before the audio level is applied. */
 const ACTIVE_RIM_STRENGTH = 1.02;
 
@@ -62,13 +45,11 @@ const RIM_LAYER_OPACITY = {
 /** Seconds for one full breath cycle. */
 const RIM_DURATION = 2.3;
 
-export type GlowThemeKind = 'light' | 'dark';
-
 /**
  * Which of the two talking states the rim is showing. Published as a class so
  * high-contrast themes can style each one.
  */
-type RimMood = 'cool' | 'warm';
+type RimMood = VoiceRimMood;
 
 /** A live layer mounted on one of the buffered slots. */
 interface IMountedLayer extends IDisposable {
@@ -185,6 +166,8 @@ function mountRimLayers(host: HTMLElement, options: {
 	readonly peakGain: number;
 	/** How strongly the audio level speeds the breath up. */
 	readonly speedGain: number;
+	/** Scales the rim's absolute blob sizes to the host (1 = a chat input box). */
+	readonly size?: number;
 }): IMountedLayer {
 	const store = new DisposableStore();
 	const doc = host.ownerDocument;
@@ -206,6 +189,9 @@ function mountRimLayers(host: HTMLElement, options: {
 	host.style.setProperty('--vg-ring-opacity', String(layerOpacity.ring));
 	host.style.setProperty('--vg-inner-opacity', String(layerOpacity.inner));
 	host.style.setProperty('--vg-bloom-opacity', String(layerOpacity.bloom));
+	if (options.size !== undefined) {
+		host.style.setProperty('--vg-size', options.size.toFixed(3));
+	}
 
 	const oscillators = rimOscillators(options.theme, options.duration);
 	let time = 0;
@@ -254,6 +240,94 @@ function mountRimLayers(host: HTMLElement, options: {
  */
 export function createVoiceGlowController(target: HTMLElement, themeKind?: () => GlowThemeKind, colors?: () => IVoiceGlowColors): IVoiceGlowController {
 	return new VoiceGlowController(target, themeKind, colors);
+}
+
+/** A standalone rim light mounted over a single element. */
+export interface IVoiceRimLight extends IDisposable {
+	/** Advance the rim from the smoothed audio `level` ([0,1]). */
+	drive(level: number): void;
+	/** Pin to a representative still frame (reduced motion). */
+	driveStatic(level: number): void;
+	/** Re-mount with a freshly resolved accent / theme. */
+	refresh(accent: Color, theme: GlowThemeKind): void;
+}
+
+/**
+ * The height (px) the rim's blob sizes are authored against — a chat input box.
+ * Smaller hosts scale their blobs down from this, so a mic button gets the same
+ * light rather than one blob covering the whole element.
+ */
+const RIM_REFERENCE_HEIGHT = 78;
+
+/**
+ * How much of the rim's scale is fixed rather than proportional to the host.
+ *
+ * Scaling the blobs strictly with the host collapses the effect on a control:
+ * the blobs stop overlapping, so the wash breaks into scattered dots and only
+ * the hairline survives. Holding part of the scale back keeps them large enough
+ * to bleed into one another, which is what makes the rim read as light.
+ */
+const RIM_SIZE_FLOOR = 0.35;
+
+/**
+ * Mount the rim over `target` as an always-on light, for hosts that light a
+ * single element rather than cross-fading between voice states — the dictation
+ * microphone, which is either open or closed.
+ *
+ * The rim lives in its own absolutely-positioned slot, so hosts that rebuild
+ * their button contents don't tear it out.
+ */
+export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool'): IVoiceRimLight {
+	const store = new DisposableStore();
+	const doc = target.ownerDocument;
+
+	if (!target.style.position) {
+		target.style.position = 'relative';
+	}
+	const slot = doc.createElement('div');
+	slot.className = 'voice-glow-slot voice-glow-slot-inline';
+	target.appendChild(slot);
+	store.add(toDisposable(() => slot.remove()));
+
+	const mount = store.add(new MutableDisposable<IMountedLayer>());
+	let level = 0.3;
+
+	const remount = (nextAccent: Color, nextTheme: GlowThemeKind) => {
+		const rim = resolveVoiceRimAccent(nextAccent, mood, nextTheme);
+		// Measured lazily: hosts commonly build the button before it is attached,
+		// and a detached element has no box to measure.
+		const height = target.getBoundingClientRect().height;
+		const proportion = height > 0 ? Math.min(1, height / RIM_REFERENCE_HEIGHT) : 0;
+		mount.clear();
+		mount.value = mountRimLayers(slot, {
+			theme: nextTheme,
+			mood,
+			hue: rim.hue,
+			saturation: rim.saturation,
+			lightness: rim.lightness,
+			strength: ACTIVE_RIM_STRENGTH,
+			duration: RIM_DURATION,
+			audioGain: 0.8,
+			peakGain: 0.95,
+			speedGain: 0.9,
+			size: RIM_SIZE_FLOOR + (1 - RIM_SIZE_FLOOR) * proportion,
+		});
+		mount.value.driveStatic(level);
+	};
+	remount(accent, theme);
+
+	return {
+		drive: (input: number) => {
+			level = input;
+			mount.value?.drive(input);
+		},
+		driveStatic: (input: number) => {
+			level = input;
+			mount.value?.driveStatic(input);
+		},
+		refresh: remount,
+		dispose: () => store.dispose(),
+	};
 }
 
 class VoiceGlowController extends Disposable implements IVoiceGlowController {
@@ -435,14 +509,13 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
 		const theme = this._themeKind();
-		const accent = mood === 'warm' ? this._colors.speaking : this._colors.listening;
-		const { h, s } = accent.hsla;
+		const accent = resolveVoiceRimAccent(mood === 'warm' ? this._colors.speaking : this._colors.listening, mood, theme);
 		return mountRimLayers(host, {
 			theme,
 			mood,
-			hue: h + ACTIVE_RIM_HUE_SHIFT[mood],
-			saturation: Math.round(Math.min(ACTIVE_SAT_MAX, Math.max(ACTIVE_SAT_MIN, s * 100))),
-			lightness: ACTIVE_RIM_LIGHTNESS[theme][mood],
+			hue: accent.hue,
+			saturation: accent.saturation,
+			lightness: accent.lightness,
 			strength: ACTIVE_RIM_STRENGTH,
 			duration: RIM_DURATION,
 			audioGain: 0.8,
