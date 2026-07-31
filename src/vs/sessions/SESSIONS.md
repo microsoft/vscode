@@ -369,7 +369,8 @@ keyboard labels, and styling have one workbench-owned implementation.
 Plan review binds the plan resource to its owning session while that review is
 active. Only accepted comments created after the active review registration are
 included in plan submission, so pre-existing or already-submitted session feedback
-is not resent or cleared.
+is not resent or cleared. Ownership snapshots include hidden feedback states so a
+pre-existing comment cannot become plan-owned merely by transitioning to accepted.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s

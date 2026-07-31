@@ -20,9 +20,9 @@ import { IUserInteractionService, MockUserInteractionService } from '../../../..
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import sinon from 'sinon';
 import { IResourceEditorInput, ITextEditorOptions } from '../../../../../../../platform/editor/common/editor.js';
-import { ITextFileService } from '../../../../../../services/textfile/common/textfiles.js';
+import { ITextFileContent, ITextFileService } from '../../../../../../services/textfile/common/textfiles.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
-import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
+import { AgentEditorCommentsBridge, IAgentEditorComment, IAgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../../../base/common/event.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
@@ -577,6 +577,57 @@ suite('ChatPlanReviewPart', () => {
 			});
 		});
 
+		test('comments added while the plan save is pending remain unsubmitted', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			const changed = store.add(new Emitter<void>());
+			const comments: IAgentEditorComment[] = [{
+				id: 'submitted',
+				resource: planUri,
+				range: { startLineNumber: 5, startColumn: 1, endLineNumber: 5, endColumn: 2 },
+				body: 'Submit this',
+			}];
+			store.add(lastCommentsBridge!.registerProvider({
+				priority: 100,
+				onDidChangeComments: changed.event,
+				onDidRevealComment: VSCodeEvent.None,
+				acceptsComments: () => true,
+				getComments: () => comments,
+				addComment: () => { },
+				deleteComment: (_resource, id) => {
+					const index = comments.findIndex(comment => comment.id === id);
+					if (index !== -1) {
+						comments.splice(index, 1);
+					}
+				},
+			}));
+			changed.fire();
+			const saveDeferred = new DeferredPromise<URI | undefined>();
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			sinon.stub(lastTextFileService!, 'save').returns(saveDeferred.p);
+
+			const submitButton = getFooterButtons(widget).find(button => button.textContent?.includes('Submit Feedback'))!;
+			submitButton.click();
+			comments.push({
+				id: 'added-during-save',
+				resource: planUri,
+				range: { startLineNumber: 8, startColumn: 1, endLineNumber: 8, endColumn: 2 },
+				body: 'Keep this',
+			});
+			changed.fire();
+			saveDeferred.complete(planUri);
+			await tick();
+
+			assert.deepStrictEqual({
+				submittedFeedback: lastSubmitResult?.feedback,
+				remainingCommentIds: lastCommentsBridge!.getComments(planUri, true).map(comment => comment.id),
+			}, {
+				submittedFeedback: 'Inline comments on `plan.md`:\n- **Line 5:** Submit this',
+				remainingCommentIds: ['added-during-save'],
+			});
+		});
+
 		test('inline comments auto-promote into review mode even before Review button is clicked', () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
@@ -755,6 +806,44 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Multiple actions', () => {
+		test('persists edited plan content before submission', async () => {
+			const planUri = URI.parse('file:///plan.md');
+			const review = new ChatPlanReviewData(
+				'Review Plan',
+				'# Original plan',
+				[{ id: 'approve', label: 'Approve', default: true }],
+				true,
+				planUri.toJSON(),
+			);
+			createWidget(review);
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			sinon.stub(lastTextFileService!, 'save').resolves(planUri);
+			sinon.stub(lastTextFileService!, 'read').resolves({
+				resource: planUri,
+				name: 'plan.md',
+				size: 13,
+				mtime: 1,
+				ctime: 1,
+				etag: '1',
+				readonly: false,
+				locked: false,
+				executable: false,
+				encoding: 'utf8',
+				value: '# Edited plan',
+			} satisfies ITextFileContent);
+
+			getFooterButtons(widget).find(button => button.textContent?.includes('Approve'))!.click();
+			await tick();
+
+			assert.deepStrictEqual({
+				content: review.content,
+				serializedContent: review.toJSON().content,
+			}, {
+				content: '# Edited plan',
+				serializedContent: '# Edited plan',
+			});
+		});
+
 		test('concurrent approval attempts submit only once', async () => {
 			const review = createMockReviewWithPlan({
 				actions: [{ id: 'approve', label: 'Approve', default: true }],

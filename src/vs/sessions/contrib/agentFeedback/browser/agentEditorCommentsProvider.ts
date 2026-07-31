@@ -69,6 +69,16 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		return comments;
 	}
 
+	getCommentIds(resource: URI, includeRelated = false): readonly string[] {
+		const sessionResource = this._getSessionResource(resource);
+		if (!sessionResource) {
+			return [];
+		}
+		return getSessionEditorComments(sessionResource, this._agentFeedbackService.getFeedback(sessionResource))
+			.filter(comment => includeRelated || isEqual(comment.resourceUri, resource))
+			.map(comment => comment.id);
+	}
+
 	addComment(resource: URI, range: IRange, body: string): void {
 		const sessionResource = this._getSessionResource(resource);
 		if (!sessionResource) {

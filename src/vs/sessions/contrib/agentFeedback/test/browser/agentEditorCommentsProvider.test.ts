@@ -43,8 +43,18 @@ suite('AgentEditorCommentsProviderContribution', () => {
 		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge));
 
 		assert.deepStrictEqual(
-			bridge.getComments(planUri, true).map(comment => comment.body),
-			['Accepted'],
+			{
+				visible: bridge.getComments(planUri, true).map(comment => comment.body),
+				allIds: bridge.getCommentIds(planUri, true),
+			},
+			{
+				visible: ['Accepted'],
+				allIds: [
+					'agentFeedback:accepted',
+					'agentFeedback:created',
+					'agentFeedback:submitted',
+				],
+			},
 		);
 	});
 });

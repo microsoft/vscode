@@ -99,6 +99,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._isSubmitted = !!review.isUsed || isResponseComplete;
 		if (review instanceof ChatPlanReviewData) {
 			this._register(review.onDidDismiss(() => {
+				if (this.updatePlanContentFromModel()) {
+					this.renderMarkdown();
+				}
 				this._isSubmitted = true;
 				void this.markUsed();
 			}));
@@ -744,7 +747,28 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			return true;
 		}
 		const planUri = URI.revive(this.review.planUri);
-		return !this._textFileService.isDirty(planUri) || !!await this._textFileService.save(planUri);
+		if (this._textFileService.isDirty(planUri) && !await this._textFileService.save(planUri)) {
+			return false;
+		}
+		if (this.review instanceof ChatPlanReviewData) {
+			if (!this.updatePlanContentFromModel()) {
+				this.review.content = (await this._textFileService.read(planUri)).value;
+			}
+			this.renderMarkdown();
+		}
+		return true;
+	}
+
+	private updatePlanContentFromModel(): boolean {
+		if (!(this.review instanceof ChatPlanReviewData) || !this.review.planUri) {
+			return false;
+		}
+		const model = this._textFileService.files.get(URI.revive(this.review.planUri));
+		if (!model?.isResolved()) {
+			return false;
+		}
+		this.review.content = model.textEditorModel.getValue();
+		return true;
 	}
 
 	private async enterFeedbackMode(options?: { focus?: boolean }): Promise<void> {
@@ -852,7 +876,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._isSubmitted = true;
 			const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
 			if (planUri) {
-				this._planReviewFeedbackService.clearFeedback(planUri);
+				for (const item of editorFeedbackItems) {
+					this._planReviewFeedbackService.removeFeedback(planUri, item.id);
+				}
 			}
 			this._options.onSubmit({
 				rejected: false,

@@ -575,6 +575,53 @@ suite('ChatListRenderer', () => {
 
 			assert.strictEqual(content.value, 'Approved&nbsp;plan\n\n## Plan summary\n\n[Open full plan file (plan.md)](file:///sessions/abc/plan.md?vscodeLinkType=file)');
 		});
+
+		test('renders structured feedback as markdown before the plan', () => {
+			const content = buildPlanReviewProgressContent({
+				kind: 'planReview',
+				title: 'Review Plan',
+				content: '## Plan summary',
+				actions: [{ id: 'interactive', label: 'Implement Plan' }],
+				canProvideFeedback: true,
+				planUri: URI.file('/sessions/abc/plan.md').toJSON(),
+				isUsed: true,
+				data: {
+					rejected: false,
+					feedback: 'Use **named helpers**.\n\nInline comments on `plan.md`:\n- **Line 6:** Extract this',
+					feedbackOverall: 'Use **named helpers**.',
+					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 6:** Extract this',
+				},
+			}, 'Provided feedback');
+
+			assert.strictEqual(content.value, [
+				'Provided&nbsp;feedback',
+				'Use **named helpers**.',
+				'Inline comments on `plan.md`:\n- **Line 6:** Extract this',
+				'## Plan summary',
+				'[Open full plan file (plan.md)](file:///sessions/abc/plan.md?vscodeLinkType=file)',
+			].join('\n\n'));
+		});
+
+		test('renders combined legacy feedback as markdown', () => {
+			const content = buildPlanReviewProgressContent({
+				kind: 'planReview',
+				title: 'Review Plan',
+				content: '',
+				actions: [{ id: 'interactive', label: 'Implement Plan' }],
+				canProvideFeedback: true,
+				isUsed: true,
+				data: {
+					rejected: false,
+					feedback: 'Overall **comment**\n\nInline comments:\n- **Line 7:** Rename this',
+				},
+			}, 'Provided feedback');
+
+			assert.strictEqual(content.value, [
+				'Provided&nbsp;feedback',
+				'Overall **comment**',
+				'Inline comments:\n- **Line 7:** Rename this',
+			].join('\n\n'));
+		});
 	});
 
 	test('working progress ignores subagent-owned response parts', () => {

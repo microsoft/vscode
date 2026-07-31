@@ -37,6 +37,7 @@ export interface IAgentEditorCommentsProvider {
 	/** Whether new comments can be added for the resource (i.e. it is in scope for a session). */
 	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI, includeRelated?: boolean): readonly IAgentEditorComment[];
+	getCommentIds?(resource: URI, includeRelated?: boolean): readonly string[];
 	addComment(resource: URI, range: IRange, body: string): void;
 	deleteComment(resource: URI, id: string): void;
 }
@@ -58,8 +59,10 @@ export interface IAgentEditorCommentsBridge {
 	/** Whether new comments can be added for the resource. `false` when no provider is registered. */
 	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI, includeRelated?: boolean): readonly IAgentEditorComment[];
+	getCommentIds(resource: URI, includeRelated?: boolean): readonly string[];
 	addComment(resource: URI, range: IRange, body: string): void;
 	deleteComment(resource: URI, id: string): void;
+	revealComment(resource: URI, id: string): void;
 
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable;
 }
@@ -108,12 +111,23 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 		return includeRelated ? comments : comments.filter(comment => isEqual(comment.resource, resource));
 	}
 
+	getCommentIds(resource: URI, includeRelated = false): readonly string[] {
+		const provider = this._getProvider(resource);
+		return provider?.getCommentIds?.(resource, includeRelated)
+			?? provider?.getComments(resource, includeRelated).map(comment => comment.id)
+			?? [];
+	}
+
 	addComment(resource: URI, range: IRange, body: string): void {
 		this._getProvider(resource)?.addComment(resource, range, body);
 	}
 
 	deleteComment(resource: URI, id: string): void {
 		this._getProvider(resource)?.deleteComment(resource, id);
+	}
+
+	revealComment(resource: URI, id: string): void {
+		this._onDidRevealComment.fire({ resource, id });
 	}
 
 	private _getProvider(resource: URI): IAgentEditorCommentsProvider | undefined {

@@ -118,7 +118,7 @@ class NavigatePlanReviewFeedbackAction extends Action2 {
 					revealIfOpened: true,
 					selection: { startLineNumber: item.line, startColumn: item.column },
 				},
-			});
+			}, review.group);
 		}
 	}
 }

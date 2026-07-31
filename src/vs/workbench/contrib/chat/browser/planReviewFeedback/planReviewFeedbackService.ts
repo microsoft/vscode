@@ -107,8 +107,8 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		registrations.push(registration);
 		this._registrations.set(key, registrations);
 		this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: true });
-		for (const comment of this._commentsBridge.getComments(planUri, true)) {
-			registration.existingCommentIds.add(comment.id);
+		for (const commentId of this._commentsBridge.getCommentIds(planUri, true)) {
+			registration.existingCommentIds.add(commentId);
 		}
 		this._onDidChangeRegistrations.fire();
 		return toDisposable(() => {
@@ -263,6 +263,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 		const target = items[targetIdx];
 		this.setNavigationAnchor(planUri, target.id);
+		this._commentsBridge.revealComment(target.resource, target.id);
 		return target;
 	}
 
@@ -318,6 +319,10 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			range: item.range,
 			body: item.text,
 		})) ?? [];
+	}
+
+	getCommentIds(resource: URI): readonly string[] {
+		return this._getRegistration(resource)?.items.map(item => item.id) ?? [];
 	}
 
 	addComment(resource: URI, range: IRange, body: string): void {

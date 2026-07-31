@@ -8,7 +8,7 @@ import { IPlanReviewFeedbackRegistration, IPlanReviewFeedbackService, PlanReview
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentEditorCommentsBridge } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
+import { AgentEditorCommentsBridge, IAgentEditorComment } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
 import { Event } from '../../../../../base/common/event.js';
 
 function createService(store: DisposableStore): PlanReviewFeedbackService {
@@ -483,6 +483,8 @@ suite('PlanReviewFeedbackService - Provider-backed navigation', () => {
 		const relatedUri = URI.parse('file:///related.ts');
 		const bridge = store.add(new AgentEditorCommentsBridge());
 		const service = store.add(new PlanReviewFeedbackService(bridge));
+		const reveals: string[] = [];
+		store.add(bridge.onDidRevealComment(event => reveals.push(`${event.resource.toString()}:${event.id}`)));
 		store.add(service.registerPlanReview(planUri, createRegistration()));
 		store.add(bridge.registerProvider({
 			priority: 100,
@@ -503,11 +505,40 @@ suite('PlanReviewFeedbackService - Provider-backed navigation', () => {
 			first: first?.id,
 			second: second?.id,
 			bearing: service.getNavigationBearing(planUri),
+			reveals,
 		}, {
 			first: 'plan',
 			second: 'related',
 			bearing: { activeIdx: 1, totalCount: 2 },
+			reveals: [
+				`${planUri.toString()}:plan`,
+				`${relatedUri.toString()}:related`,
+			],
 		});
+	});
+
+	test('pre-existing hidden comments remain excluded after becoming visible', () => {
+		const planUri = URI.parse('file:///plan.md');
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		const service = store.add(new PlanReviewFeedbackService(bridge));
+		const comments: IAgentEditorComment[] = [];
+		store.add(bridge.registerProvider({
+			priority: 100,
+			onDidChangeComments: Event.None,
+			onDidRevealComment: Event.None,
+			acceptsComments: () => true,
+			getComments: () => comments,
+			getCommentIds: () => ['existing'],
+			addComment: () => { },
+			deleteComment: () => { },
+		}));
+		store.add(service.registerPlanReview(planUri, createRegistration()));
+		comments.push(
+			{ id: 'existing', resource: planUri, range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 2 }, body: 'Existing' },
+			{ id: 'new', resource: planUri, range: { startLineNumber: 7, startColumn: 1, endLineNumber: 7, endColumn: 2 }, body: 'New' },
+		);
+
+		assert.deepStrictEqual(service.getFeedback(planUri).map(item => item.id), ['new']);
 	});
 
 	test('submission feedback excludes and preserves comments that predate the review', () => {
