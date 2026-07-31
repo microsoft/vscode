@@ -1,15 +1,23 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
-  - name: VSCODE_TEST_SUITE
-    type: string
+  - name: VSCODE_TEST_UNIT
+    type: boolean
+  - name: VSCODE_TEST_INTEGRATION
+    type: boolean
+  - name: VSCODE_TEST_SMOKE
+    type: boolean
   - name: iterations
     type: object
 
 jobs:
-  - job: WindowsSmokeFlaky${{ parameters.VSCODE_TEST_SUITE }}
-    displayName: Windows ${{ parameters.VSCODE_TEST_SUITE }} Tests
-    timeoutInMinutes: 300
+  # Compiles and packages VS Code exactly once for this platform. The Unit,
+  # Integration and Smoke jobs below all depend on this job and reuse its
+  # output (downloaded from pipeline artifacts) instead of rebuilding, so we
+  # only pay for a from-source build once per platform, not once per test type.
+  - job: WindowsSmokeFlakyBuild
+    displayName: Windows Build (shared)
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: x64
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -17,23 +25,43 @@ jobs:
       outputs:
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/crashes
-          artifactName: crash-dump-windows-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
+          artifactName: crash-dump-windows-$(VSCODE_ARCH)-build-$(System.JobAttempt)
           displayName: Publish Crash Reports
           sbomEnabled: false
           isProduction: false
           condition: succeededOrFailed()
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/logs
-          artifactName: logs-windows-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
+          artifactName: logs-windows-$(VSCODE_ARCH)-build-$(System.JobAttempt)
           displayName: Publish Log Files
           sbomEnabled: false
           isProduction: false
           condition: succeededOrFailed()
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/repo.zip
+          artifactName: smoke-flaky-windows-x64-repo
+          displayName: Publish built workspace
+          sbomEnabled: false
+          isProduction: false
+        - ${{ if or(eq(parameters.VSCODE_TEST_INTEGRATION, true), eq(parameters.VSCODE_TEST_SMOKE, true)) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/app.zip
+            artifactName: smoke-flaky-windows-x64-app
+            displayName: Publish packaged app
+            sbomEnabled: false
+            isProduction: false
+        - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/server.zip
+            artifactName: smoke-flaky-windows-x64-server
+            displayName: Publish packaged server
+            sbomEnabled: false
+            isProduction: false
     steps:
       # Build VS Code from source. No VSCODE_RUN_*_TESTS flags are passed, so the
       # compile template builds the client/server but skips compiling the test
-      # suites and skips the unit/integration/smoke test template entirely — we
-      # run the tests below with iteration loops, nothing else.
+      # suites and skips the unit/integration/smoke test template entirely — the
+      # test jobs below compile whichever suites they need and run them.
       - template: ./steps/product-build-win32-compile.yml@self
         parameters:
           VSCODE_ARCH: x64
@@ -41,21 +69,14 @@ jobs:
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
 
-      - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
-        env:
-          GITHUB_TOKEN: "$(github-token-code-oss)"
-          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
-        displayName: Download Electron and Playwright
-        retryCountOnTaskFailure: 3
-
-      # The compile template only compiles the smoke suite when a test flag is
-      # set; since we pass none, compile it explicitly here.
-      - ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Smoke') }}:
+      # Compiled here (rather than in the Integration/Smoke jobs) so the output
+      # is captured by the workspace archive below and doesn't need recompiling
+      # once per test job.
+      - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
         - powershell: npm run compile --prefix test/smoke
           displayName: Compile smoke tests
 
-      # Build the integration test extensions that integration tests depend on.
-      - ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Integration') }}:
+      - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
         - powershell: |
             . build/azure-pipelines/win32/exec.ps1
             $ErrorActionPreference = "Stop"
@@ -80,16 +101,96 @@ jobs:
             }
           displayName: Build integration tests
 
-      # Guarantee the artifact directories exist so the 1ES output publishing
-      # never fails on a missing path. The smoke runner writes logs under
-      # .build/logs and crash dumps under .build/crashes (only on a crash).
-      - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
-        displayName: Ensure artifact directories exist
+      # Archive everything the downstream test jobs need so they can download
+      # and extract instead of rebuilding. The workspace archive excludes .git
+      # since test jobs never need source history, only the built output.
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\repo.zip $(Build.SourcesDirectory)\* -xr!.git }
+        displayName: Archive built workspace for reuse by test jobs
 
-      # Run the Electron unit tests once per iteration. continueOnError lets
-      # every iteration run even if some fail, and gives each run its own
-      # timeline record so the flaky function can tally passes vs. failures.
-      - ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Unit') }}:
+      - ${{ if or(eq(parameters.VSCODE_TEST_INTEGRATION, true), eq(parameters.VSCODE_TEST_SMOKE, true)) }}:
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\app.zip VSCode-win32-x64 }
+          workingDirectory: $(Agent.BuildDirectory)
+          displayName: Archive packaged app for reuse by test jobs
+
+      - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\server.zip vscode-server-win32-x64 }
+          workingDirectory: $(Agent.BuildDirectory)
+          displayName: Archive packaged server for reuse by test jobs
+
+  - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
+    - job: WindowsSmokeFlakyUnit
+      dependsOn: WindowsSmokeFlakyBuild
+      displayName: Windows Unit Tests
+      timeoutInMinutes: 300
+      variables:
+        VSCODE_ARCH: x64
+      templateContext:
+        outputs:
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/.build/crashes
+            artifactName: crash-dump-windows-$(VSCODE_ARCH)-unit-$(System.JobAttempt)
+            displayName: Publish Crash Reports
+            sbomEnabled: false
+            isProduction: false
+            condition: succeededOrFailed()
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/.build/logs
+            artifactName: logs-windows-$(VSCODE_ARCH)-unit-$(System.JobAttempt)
+            displayName: Publish Log Files
+            sbomEnabled: false
+            isProduction: false
+            condition: succeededOrFailed()
+      steps:
+        - checkout: none
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: smoke-flaky-windows-x64-repo
+            patterns: "**"
+            path: $(Pipeline.Workspace)/smoke-flaky-windows-x64-repo
+          displayName: Download built workspace
+
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y }
+          displayName: Extract built workspace
+
+        - task: NodeTool@0
+          inputs:
+            versionSource: fromFile
+            versionFilePath: .nvmrc
+
+        - task: AzureKeyVault@2
+          displayName: "Azure Key Vault: Get Secrets"
+          inputs:
+            azureSubscription: vscode-oss-build-secrets
+            KeyVaultName: vscode-oss-build-secrets
+            SecretsFilter: "github-token-code-oss"
+
+        - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+            AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+          displayName: Download Electron and Playwright
+          retryCountOnTaskFailure: 3
+
+        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+          displayName: Ensure artifact directories exist
+
+        # Run the Electron unit tests once per iteration. continueOnError lets
+        # every iteration run even if some fail, and gives each run its own
+        # timeline record so the flaky function can tally passes vs. failures.
         - ${{ each i in parameters.iterations }}:
           - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
             env:
@@ -107,10 +208,87 @@ jobs:
             continueOnError: true
             timeoutInMinutes: 15
 
-      # Run the Electron integration tests once per iteration. continueOnError
-      # lets every iteration run even if some fail, and gives each run its own
-      # timeline record so the flaky function can tally passes vs. failures.
-      - ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Integration') }}:
+  - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+    - job: WindowsSmokeFlakyIntegration
+      dependsOn: WindowsSmokeFlakyBuild
+      displayName: Windows Integration Tests
+      timeoutInMinutes: 300
+      variables:
+        VSCODE_ARCH: x64
+      templateContext:
+        outputs:
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/.build/crashes
+            artifactName: crash-dump-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+            displayName: Publish Crash Reports
+            sbomEnabled: false
+            isProduction: false
+            condition: succeededOrFailed()
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/.build/logs
+            artifactName: logs-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+            displayName: Publish Log Files
+            sbomEnabled: false
+            isProduction: false
+            condition: succeededOrFailed()
+      steps:
+        - checkout: none
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: smoke-flaky-windows-x64-repo
+            patterns: "**"
+            path: $(Pipeline.Workspace)/smoke-flaky-windows-x64-repo
+          displayName: Download built workspace
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: smoke-flaky-windows-x64-app
+            patterns: "**"
+            path: $(Pipeline.Workspace)/smoke-flaky-windows-x64-app
+          displayName: Download packaged app
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: smoke-flaky-windows-x64-server
+            patterns: "**"
+            path: $(Pipeline.Workspace)/smoke-flaky-windows-x64-server
+          displayName: Download packaged server
+
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y }
+            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y }
+            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-server\server.zip -o"$(Agent.BuildDirectory)" -y }
+          displayName: Extract built workspace, app and server
+
+        - task: NodeTool@0
+          inputs:
+            versionSource: fromFile
+            versionFilePath: .nvmrc
+
+        - task: AzureKeyVault@2
+          displayName: "Azure Key Vault: Get Secrets"
+          inputs:
+            azureSubscription: vscode-oss-build-secrets
+            KeyVaultName: vscode-oss-build-secrets
+            SecretsFilter: "github-token-code-oss"
+
+        - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+            AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+          displayName: Download Electron and Playwright
+          retryCountOnTaskFailure: 3
+
+        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+          displayName: Ensure artifact directories exist
+
+        # Run the Electron integration tests once per iteration. continueOnError
+        # lets every iteration run even if some fail, and gives each run its own
+        # timeline record so the flaky function can tally passes vs. failures.
         - ${{ each i in parameters.iterations }}:
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
@@ -128,23 +306,92 @@ jobs:
             continueOnError: true
             timeoutInMinutes: 20
 
-      # Run the Electron smoke test once per iteration. continueOnError lets every
-      # iteration run even if some fail, and gives each run its own timeline record
-      # so the SmokeFlaky function can tally passes vs. failures.
-      #
-      # The smoke runner wipes .build\logs\smoke-tests-electron on startup, so a
-      # failing iteration's diagnostics would be destroyed by the next one and the
-      # published artifact would only ever hold the last iteration. Set the failed
-      # run aside under a name the runner does not touch.
-      - ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Smoke') }}:
+  - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
+    - job: WindowsSmokeFlakySmoke
+      dependsOn: WindowsSmokeFlakyBuild
+      displayName: Windows Smoke Tests
+      timeoutInMinutes: 300
+      variables:
+        VSCODE_ARCH: x64
+      templateContext:
+        outputs:
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/.build/crashes
+            artifactName: crash-dump-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+            displayName: Publish Crash Reports
+            sbomEnabled: false
+            isProduction: false
+            condition: succeededOrFailed()
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/.build/logs
+            artifactName: logs-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+            displayName: Publish Log Files
+            sbomEnabled: false
+            isProduction: false
+            condition: succeededOrFailed()
+      steps:
+        - checkout: none
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: smoke-flaky-windows-x64-repo
+            patterns: "**"
+            path: $(Pipeline.Workspace)/smoke-flaky-windows-x64-repo
+          displayName: Download built workspace
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: smoke-flaky-windows-x64-app
+            patterns: "**"
+            path: $(Pipeline.Workspace)/smoke-flaky-windows-x64-app
+          displayName: Download packaged app
+
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y }
+            exec { 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y }
+          displayName: Extract built workspace and app
+
+        - task: NodeTool@0
+          inputs:
+            versionSource: fromFile
+            versionFilePath: .nvmrc
+
+        - task: AzureKeyVault@2
+          displayName: "Azure Key Vault: Get Secrets"
+          inputs:
+            azureSubscription: vscode-oss-build-secrets
+            KeyVaultName: vscode-oss-build-secrets
+            SecretsFilter: "github-token-code-oss"
+
+        - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+            AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+          displayName: Download Electron and Playwright
+          retryCountOnTaskFailure: 3
+
+        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+          displayName: Ensure artifact directories exist
+
+        # Run the Electron smoke test once per iteration. continueOnError lets every
+        # iteration run even if some fail, and gives each run its own timeline record
+        # so the SmokeFlaky function can tally passes vs. failures.
+        #
+        # The smoke runner wipes .build\logs\smoke-tests-electron on startup, so a
+        # failing iteration's diagnostics would be destroyed by the next one and the
+        # published artifact would only ever hold the last iteration. Set the failed
+        # run aside under a name the runner does not touch.
         - ${{ each i in parameters.iterations }}:
           - powershell: |
-            npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-            $status = $LASTEXITCODE
-            if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
-              Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"
-            }
-            exit $status
+              npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+              $status = $LASTEXITCODE
+              if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
+                Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"
+              }
+              exit $status
             displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
             continueOnError: true
             timeoutInMinutes: 20
