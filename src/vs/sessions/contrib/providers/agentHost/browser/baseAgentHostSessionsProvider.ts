@@ -19,6 +19,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
+import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -46,7 +47,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -195,7 +196,20 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
-		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
+		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number);
+}
+
+/** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
+function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly IGitHubIssueRef[] | undefined {
+	const refs: IGitHubIssueRef[] = [];
+	for (const url of issueUrls ?? []) {
+		const reference = parseGitHubIssueUrl(url);
+		if (reference) {
+			refs.push({ ...reference, uri: URI.parse(url) });
+		}
+	}
+	return refs.length > 0 ? refs : undefined;
 }
 
 // ============================================================================
@@ -664,6 +678,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					number: pullRequestNumber,
 					uri: URI.parse(state.pullRequestUrl!),
 				} : undefined,
+				issues: toGitHubIssueRefs(state.issueUrls),
 			};
 		});
 

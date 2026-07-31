@@ -535,6 +535,10 @@ export class AgentService extends Disposable implements IAgentService {
 				// Check for a GitHub pull request associated with the session's branch.
 				void this._gitStateService.attachSessionGitHubPullRequest(session.toString());
 			},
+			onUserMessage: (session, text) => {
+				// Record the GitHub issues the message references on the session.
+				void this._gitStateService.attachSessionGitHubIssues(session.toString(), text);
+			},
 		}));
 
 		// Server-side tools, executed in-process against each session's own

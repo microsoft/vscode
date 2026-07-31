@@ -108,6 +108,12 @@ export interface IAgentSideEffectsOptions {
 	 * excluded — only the parent session URI is passed.
 	 */
 	readonly onTurnComplete: (session: ProtocolURI) => void;
+	/**
+	 * Called with the text of every user message that is forwarded to an agent,
+	 * so the host can derive session state from what the user wrote (e.g. the
+	 * GitHub issues the message references).
+	 */
+	readonly onUserMessage?: (session: ProtocolURI, text: string) => void;
 }
 
 interface IQueuedMessageSender {
@@ -1209,6 +1215,7 @@ export class AgentSideEffects extends Disposable {
 					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
 				}
 				this._titleController.seedTitleFromFirstMessage(sessionChannel, action.message.text, chatChannel);
+				this._options.onUserMessage?.(sessionChannel, action.message.text);
 
 				const agent = this._options.getAgent(sessionChannel);
 				if (!agent) {
