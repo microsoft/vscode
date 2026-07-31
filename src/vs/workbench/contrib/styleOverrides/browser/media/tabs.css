@@ -38,7 +38,7 @@
 
 /* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.
  * 20px is the minimum to fit the tab action icons (16px codicon + 2px padding on each side). */
-.style-override .part.editor .title.tabs.compact-height {
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.compact-height {
 	--editor-group-tab-height: 20px !important;
 }
 
@@ -113,11 +113,13 @@
 	padding: 0 var(--vscode-spacing-size40) !important;
 }
 
-.style-override .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top) {
+.style-override .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
+.style-override .part.editor .tabs-container > .tab.sticky:not(.sticky-compact):not(.pinned-action-off):not(.tab-actions-left) {
 	padding-right: var(--vscode-spacing-size240) !important;
 }
 
-.style-override .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact) {
+.style-override .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact),
+.style-override .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
 	padding-left: var(--vscode-spacing-size240) !important;
 	padding-right: var(--vscode-spacing-size40) !important;
 }
@@ -139,19 +141,8 @@
 	background-color: var(--modern-ui-tab-active-background) !important;
 }
 
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
-	display: block;
-	position: absolute;
-	z-index: 8;
-	bottom: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	border: 2px solid var(--tab-border-bottom-color);
-	border-radius: var(--vscode-cornerRadius-small);
-	background-color: transparent;
-	box-sizing: border-box;
-	pointer-events: none;
+.style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
+	display: none !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.selected:not(.active) {
@@ -279,11 +270,12 @@
 	border-left: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
 }
 
-.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.dirty):not(:hover) > .tab-actions .action-label:not(:focus) {
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.dirty):not(.sticky):not(:hover) > .tab-actions .action-label:not(:focus) {
 	opacity: 0;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky:not(.pinned-action-off) > .tab-actions .action-label,
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.close-action-off):hover > .tab-actions .action-label,
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions .action-label:focus {
 	opacity: 1;
@@ -478,11 +470,12 @@
 	display: none;
 }
 
-:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.dirty):not(:hover) > .tab-actions .action-label:not(:focus) {
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.dirty):not(.sticky):not(:hover) > .tab-actions .action-label:not(:focus) {
 	opacity: 0 !important;
 }
 
 :is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.dirty > .tab-actions .action-label,
+:is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky:not(.pinned-action-off) > .tab-actions .action-label,
 :is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:hover > .tab-actions .action-label,
 :is(.hc-black, .hc-light).style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions .action-label:focus {
 	opacity: 1 !important;
