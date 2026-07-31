@@ -180,10 +180,25 @@ variables:
   # An explicit lowercase literal, not ${{ ne(...) }}: the packaging jobs compare
   # it in a runtime condition, and ${{ }} would emit 'True'/'False'.
   - name: VSCODE_COPILOT_RUNTIME_STAGE
-    ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME, 'default') }}:
-      value: "false"
-    ${{ else }}:
+    ${{ if or(ne(parameters.VSCODE_COPILOT_RUNTIME, 'default'), eq(variables['Build.Reason'], 'Schedule')) }}:
       value: "true"
+    ${{ else }}:
+      value: "false"
+  # Canary mode: a scheduled build nobody asked for a runtime override on runs
+  # the stage purely to prove the hotfix path still works, against the commit the
+  # pinned release was built from. Its artifacts are deliberately NOT wired into
+  # packaging — a scheduled build publishes, and a canary must never change what
+  # ships nor fail a build that does.
+  - name: VSCODE_COPILOT_RUNTIME_CANARY
+    ${{ if and(eq(parameters.VSCODE_COPILOT_RUNTIME, 'default'), eq(variables['Build.Reason'], 'Schedule')) }}:
+      value: "true"
+    ${{ else }}:
+      value: "false"
+  # The one daily schedule the canary runs on. Every cron triggers this pipeline,
+  # so without this it would run on all of them. Kept in sync with `schedules:`
+  # by a test, since a renamed cron would otherwise silently stop the canary.
+  - name: VSCODE_COPILOT_RUNTIME_CANARY_CRON
+    value: "Mon-Fri at 5:00 UTC (build, publish, and release)"
   - name: CARGO_REGISTRY
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -354,6 +369,7 @@ extends:
           jobs:
             - template: build/azure-pipelines/copilot/runtime-source-build.yml@self
               parameters:
+                VSCODE_COPILOT_RUNTIME_CANARY: ${{ eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'true') }}
                 VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                 VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
                 VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
@@ -365,7 +381,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
-          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
             dependsOn: CopilotRuntime
           ${{ else }}:
             dependsOn: []
@@ -422,7 +438,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
-          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
             dependsOn: CopilotRuntime
           ${{ else }}:
             dependsOn: []
@@ -496,7 +512,7 @@ extends:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
-          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
             dependsOn: CopilotRuntime
           ${{ else }}:
             dependsOn: []
@@ -520,7 +536,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
-          ${{ if eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true') }}:
+          ${{ if and(eq(variables['VSCODE_COPILOT_RUNTIME_STAGE'], 'true'), eq(variables['VSCODE_COPILOT_RUNTIME_CANARY'], 'false')) }}:
             dependsOn: CopilotRuntime
           ${{ else }}:
             dependsOn: []

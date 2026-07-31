@@ -11,6 +11,10 @@
 # (see build/lib/copilotRuntimeSource.ts).
 
 parameters:
+  # Run as the nightly canary rather than for a requested override.
+  - name: VSCODE_COPILOT_RUNTIME_CANARY
+    type: boolean
+    default: false
   - name: VSCODE_BUILD_WIN32
     type: boolean
   - name: VSCODE_BUILD_WIN32_ARM64
@@ -33,39 +37,47 @@ jobs:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: win32-x64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: win32-arm64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: linux-x64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: linux-arm64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
   # Alpine is musl Linux; the runtime stages those prebuilds under `linuxmusl-*`.
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: linuxmusl-x64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: linuxmusl-arm64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: darwin-x64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
       - template: runtime-source-build-job.yml@self
         parameters:
           VSCODE_COPILOT_TARGET: darwin-arm64
+          VSCODE_COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}

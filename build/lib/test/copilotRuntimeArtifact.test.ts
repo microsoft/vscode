@@ -192,4 +192,15 @@ suite('copilot runtime artifact pipeline wiring', () => {
 
 		assert.deepStrictEqual([...targets].sort(), [...copilotPlatforms].sort());
 	});
+
+	test('the canary runs on a schedule that exists', () => {
+		const productBuild = fs.readFileSync(path.join(PIPELINES, '../product-build.yml'), 'utf8');
+		const cron = /^\s*-\s*name:\s*VSCODE_COPILOT_RUNTIME_CANARY_CRON\s*\n\s*value:\s*"([^"]+)"/m.exec(productBuild)?.[1];
+		assert.ok(cron, 'product-build.yml declares no VSCODE_COPILOT_RUNTIME_CANARY_CRON');
+
+		// The canary job keys off the cron's display name, so renaming the schedule
+		// without updating this would silently stop it running.
+		const schedules = [...productBuild.matchAll(/^\s*displayName:\s*(.+?)\s*$/gm)].map(match => match[1]);
+		assert.ok(schedules.includes(cron), `no schedule in product-build.yml is named "${cron}"`);
+	});
 });
