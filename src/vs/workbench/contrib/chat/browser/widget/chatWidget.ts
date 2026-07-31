@@ -91,7 +91,8 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { ChatPetWidget } from './chatPetWidget.js';
+import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
+import { IChatPetService } from '../chatPetService.js';
 
 const $ = dom.$;
 
@@ -301,6 +302,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
+	private _isInputOnboardingVisible = false;
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -455,6 +457,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatGoalSummaryService private readonly chatGoalSummaryService: IChatGoalSummaryService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -499,14 +502,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.tips.enabled')) {
 				if (!this.configurationService.getValue<boolean>('chat.tips.enabled')) {
-					// Clear the existing tip so it doesn't linger
-					if (this.inputPart) {
-						this._gettingStartedTipPartRef = undefined;
-						this._gettingStartedTipPart.clear();
-						const tipContainer = this.inputPart.gettingStartedTipContainerElement;
-						dom.clearNode(tipContainer);
-						dom.setVisibility(false, tipContainer);
-					}
+					this.clearGettingStartedTip();
 				} else {
 					this.updateChatViewVisibility();
 				}
@@ -700,6 +696,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
+	get rendersInputOnTop(): boolean {
+		return this.viewOptions.renderInputOnTop ?? false;
+	}
+
 	get attachmentCapabilities(): IChatAgentAttachmentCapabilities {
 		return this._attachmentCapabilities;
 	}
@@ -805,7 +805,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
-			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model)));
+			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
+			const targetWindow = dom.getWindow(this.container);
+			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
+			this._register(this.chatWidgetService.onDidChangeFocusedWidget(focusedWidget => {
+				if (focusedWidget && dom.getWindow(focusedWidget.domNode) === targetWindow) {
+					isLatestFocusedWidgetInWindow.set(focusedWidget === this, undefined);
+				}
+			}));
+			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
+			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petVisible.read(reader))));
+			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petVisible, this.inputEditor.onDidChangeModelContent));
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
@@ -1105,16 +1115,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Show/hide the getting-started tip container based on empty state.
 			// Only use this in the standard chat layout where the welcome view is shown.
 			if (isStandardLayout && this.inputPart) {
-				const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 				if (numItems === 0) {
 					this.renderGettingStartedTipIfNeeded();
 				} else {
 					// Dispose the cached tip part so the next empty state picks a
 					// fresh (rotated) tip instead of re-showing the stale one.
-					this._gettingStartedTipPartRef = undefined;
-					this._gettingStartedTipPart.clear();
-					dom.clearNode(tipContainer);
-					dom.setVisibility(false, tipContainer);
+					this.clearGettingStartedTip();
 				}
 			}
 		}
@@ -1188,7 +1194,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderGettingStartedTipIfNeeded(): void {
-		if (!this.inputPart) {
+		if (!this.inputPart || !this.viewModel) {
+			return;
+		}
+		if (this.isInputOnboardingVisible()) {
+			this.clearGettingStartedTip();
 			return;
 		}
 
@@ -1196,12 +1206,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
 		if (!tip) {
-			if (this._gettingStartedTipPart.value) {
-				this._gettingStartedTipPartRef = undefined;
-				this._gettingStartedTipPart.clear();
-				dom.clearNode(tipContainer);
-			}
-			dom.setVisibility(false, tipContainer);
+			this.clearGettingStartedTip();
 			return;
 		}
 
@@ -1236,6 +1241,29 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		dom.clearNode(tipContainer);
 		tipContainer.appendChild(tipPart.domNode);
 		dom.setVisibility(true, tipContainer);
+	}
+
+	private clearGettingStartedTip(): void {
+		this._gettingStartedTipPartRef = undefined;
+		this._gettingStartedTipPart.clear();
+		if (this.inputPart) {
+			const tipContainer = this.inputPart.gettingStartedTipContainerElement;
+			dom.clearNode(tipContainer);
+			dom.setVisibility(false, tipContainer);
+		}
+	}
+
+	private isInputOnboardingVisible(): boolean {
+		return this._isInputOnboardingVisible;
+	}
+
+	private setInputOnboardingVisible(visible: boolean): void {
+		this._isInputOnboardingVisible = visible;
+		if (visible) {
+			this.clearGettingStartedTip();
+		} else if (this.isEmpty()) {
+			this.renderGettingStartedTipIfNeeded();
+		}
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -1716,7 +1744,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			listContainer,
 			{
 				rendererOptions: options,
-				renderStyle: this.viewOptions.renderStyle,
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -1741,7 +1768,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.listWidget.onDidRerender(item => {
 			if (isRequestVM(item.currentElement) && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
 				if (!item.rowContainer.contains(this.inputContainer)) {
-					item.rowContainer.appendChild(this.inputContainer);
+					item.requestTimestampContainer.before(this.inputContainer);
 				}
 				this.input.focus();
 			}
@@ -1839,9 +1866,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputPart?.setEditing(!!this.viewModel?.editing && isInput, isEditingSentRequest);
 
 			if (!isInput) {
-				const rowContainer = item.rowContainer;
 				this.inputContainer = dom.$('.chat-edit-input-container');
-				rowContainer.appendChild(this.inputContainer);
+				item.requestTimestampContainer.before(this.inputContainer);
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
@@ -2033,6 +2059,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
 		};
 
 		if (this.viewModel?.editing) {
@@ -2249,6 +2276,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}
+			this.clearGettingStartedTip();
 			this.viewModel = undefined;
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
@@ -2275,11 +2303,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Switching sessions resets tip service state; clear any rendered tip so
 		// empty-state rendering picks a fresh, context-appropriate tip.
-		this._gettingStartedTipPartRef = undefined;
-		this._gettingStartedTipPart.clear();
-		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
-		dom.clearNode(tipContainer);
-		dom.setVisibility(false, tipContainer);
+		this.clearGettingStartedTip();
 
 		// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel
 		// fires onDidChangeViewModel, which ChatInputPart listens to and expects the input model to be initialized.
@@ -3189,6 +3213,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/**
+	 * Updates the widget's available space after the intrinsic input height changed.
+	 * The input has already laid itself out, so this only resizes the list-side
+	 * surfaces and must not call {@link ChatInputPart.layout}.
+	 */
+	layoutForInputHeight(height: number, width: number): void {
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950);
+		this.bodyDimension = new dom.Dimension(width, height);
+		this._layoutListForInputHeight();
+	}
+
+	/**
 	 * Re-layout just the list, welcome container, and list container to match
 	 * the current input-part height. Called both from {@link layout} and from
 	 * the inputPart.height autorun so we never re-enter inputPart.layout when
@@ -3397,6 +3432,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
+}
+
+export function layoutChatWidgetForInputHeight(widget: Pick<ChatWidget, 'setInputPartMaxHeightOverride' | 'layoutForInputHeight'>, inputMaxHeight: number | undefined, height: number, width: number): void {
+	widget.setInputPartMaxHeightOverride(inputMaxHeight);
+	widget.layoutForInputHeight(height, width);
 }
 
 const MIN_LIST_HEIGHT = 50;

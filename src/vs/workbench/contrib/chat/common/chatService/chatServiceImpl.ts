@@ -285,6 +285,8 @@ export class ChatService extends Disposable implements IChatService {
 		this._register(this._sessionModels.onDidDisposeModel(model => {
 			clearChatMarks(model.sessionResource);
 			this.chatDebugService.endSession(model.sessionResource);
+			this._sessionFollowupCancelTokens.get(model.sessionResource)?.cancel();
+			this._sessionFollowupCancelTokens.deleteAndDispose(model.sessionResource);
 			// Drop the forward untitled→real mapping for this session so it stops
 			// re-targeting late sends. The inverse alias is intentionally retained.
 			this.chatSessionService.clearMaterializedSessionResource(model.sessionResource);
@@ -935,7 +937,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData, timestamp, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
 						completeLastResponse();
@@ -956,7 +958,7 @@ export class ChatService extends Disposable implements IChatService {
 						undefined, // isCompleteAddedRequest
 						undefined, // modelId
 						undefined, // userSelectedTools
-						undefined, // id
+						id,
 						isSystemInitiated,
 						systemInitiatedLabel,
 						undefined, // terminalExecutionId

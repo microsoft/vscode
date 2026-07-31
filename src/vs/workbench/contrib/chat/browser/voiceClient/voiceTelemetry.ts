@@ -91,7 +91,7 @@ export type VoiceToolApprovalEvent = {
 export type VoiceToolApprovalClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired when the voice backend approves or rejects a tool confirmation.';
-	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (approve_confirmation, reject_confirmation).' };
+	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (respond_to_session).' };
 	approved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was an approval (true) or denial (false).' };
 };
 

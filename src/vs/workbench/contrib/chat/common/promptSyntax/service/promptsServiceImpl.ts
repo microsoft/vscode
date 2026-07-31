@@ -416,17 +416,27 @@ export class PromptsService extends Disposable implements IPromptsService {
 			for (const folder of hooksFolders) {
 				result.push({ uri: folder.uri, storage: folder.storage, type, source: folder.source });
 			}
-		} else {
-			for (const uri of await this.fileLocator.getConfigBasedSourceFolders(type)) {
-				result.push({ uri, storage: PromptsStorage.local, type });
-			}
+			return result;
 		}
 
-		if (type !== PromptsType.skill && type !== PromptsType.hook) {
-			// no user source folders for skills and hooks
-			const userHome = this.userDataService.currentProfile.promptsHome;
-			result.push({ uri: userHome, storage: PromptsStorage.user, type });
+		if (type === PromptsType.skill) {
+			// Skills have both workspace and user-level source folders (e.g.
+			// ~/.copilot/skills). Use the resolved source folders so each
+			// location reports its actual storage (local vs user), otherwise
+			// creating a user-level skill fails with "No skill source folders found".
+			const resolvedFolders = await this.fileLocator.getResolvedSourceFolders(type);
+			for (const folder of resolvedFolders) {
+				result.push({ uri: folder.searchRoot, storage: folder.storage, type, source: folder.source });
+			}
+			return result;
 		}
+
+		for (const uri of await this.fileLocator.getConfigBasedSourceFolders(type)) {
+			result.push({ uri, storage: PromptsStorage.local, type });
+		}
+
+		const userHome = this.userDataService.currentProfile.promptsHome;
+		result.push({ uri: userHome, storage: PromptsStorage.user, type });
 
 		return result;
 	}

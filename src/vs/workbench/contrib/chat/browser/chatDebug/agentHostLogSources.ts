@@ -49,7 +49,7 @@ export const enum AgentHostLogSourceKind {
 	Events = 'events',
 	/** The client-side AHP JSON-RPC wire log (`<logsHome>/ahp/*.jsonl`). */
 	WireLog = 'wire',
-	/** The Copilot SDK process logs under `~/.copilot/logs`. */
+	/** The Copilot SDK process logs under `<COPILOT_HOME>/logs`. */
 	CliLog = 'cliLog',
 	/** A VS Code output channel (agent host process, renderer, shared). */
 	ProcessChannel = 'processChannel',
@@ -216,7 +216,7 @@ export async function enumerateAgentHostLogSources(
 		});
 	}
 
-	// 5. Copilot SDK process logs (~/.copilot/logs), content-filtered lazily by session id.
+	// 5. Copilot SDK process logs (<COPILOT_HOME>/logs), content-filtered lazily by session id.
 	const rawSessionId = getCopilotCliSessionRawId(sessionResource);
 	if (rawSessionId) {
 		const copilotLogsDir = isLocal

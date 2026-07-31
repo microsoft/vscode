@@ -413,7 +413,9 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 		if (lastMessage && lastMessage.role === message.role) {
 			const prevContent = Array.isArray(lastMessage.content) ? lastMessage.content : [{ type: 'text' as const, text: lastMessage.content }];
 			const newContent = Array.isArray(message.content) ? message.content : [{ type: 'text' as const, text: message.content }];
-			lastMessage.content = [...prevContent, ...newContent];
+			lastMessage.content = lastMessage.role === 'assistant'
+				? mergeAssistantContent(prevContent, newContent)
+				: [...prevContent, ...newContent];
 		} else {
 			mergedMessages.push(message);
 		}
@@ -423,6 +425,22 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 		messages: mergedMessages,
 		...(systemBlocks.length ? { system: systemBlocks } : {}),
 	};
+}
+
+function isThinkingBlock(block: ContentBlockParam): boolean {
+	return block.type === 'thinking' || block.type === 'redacted_thinking';
+}
+
+// Keep at most one response's thinking blocks when merging consecutive assistants (#327646).
+function mergeAssistantContent(prevContent: ContentBlockParam[], newContent: ContentBlockParam[]): ContentBlockParam[] {
+	const hasToolUse = (blocks: ContentBlockParam[]) => blocks.some(block => block.type === 'tool_use');
+	const thinkingSource = hasToolUse(newContent) ? newContent : hasToolUse(prevContent) ? prevContent : undefined;
+
+	return [
+		...(thinkingSource?.filter(isThinkingBlock) ?? []),
+		...prevContent.filter(block => !isThinkingBlock(block)),
+		...newContent.filter(block => !isThinkingBlock(block)),
+	];
 }
 
 /**
