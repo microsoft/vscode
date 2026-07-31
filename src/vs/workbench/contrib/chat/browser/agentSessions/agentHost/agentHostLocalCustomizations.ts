@@ -22,6 +22,7 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 
@@ -192,6 +193,23 @@ async function resolveConfigurationForSync(
 }
 
 /**
+ * Whether folder-root `.mcp.json` servers from *every* workspace folder should
+ * be seeded into a session's synced customizations, rather than only the
+ * primary (working-directory) folder's — which the SDK already auto-discovers.
+ *
+ * True only for the local Copilot Agent Host harness, in a multi-root workspace,
+ * with the multi-root setting enabled. Kept as a pure function so the gate can
+ * be unit-tested independently of {@link AgentHostActiveClientService}'s wiring
+ * (a regression here would otherwise leave the feature tests — which call the
+ * collector with the flag hardcoded — green).
+ */
+export function shouldSyncWorkspaceDotMcp(sessionType: string, workspaceFolderCount: number, multiRootSettingEnabled: boolean): boolean {
+	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+		&& workspaceFolderCount > 1
+		&& multiRootSettingEnabled;
+}
+
+/**
  * Enumerates MCP servers configured directly in VS Code — i.e. those that
  * are not contributed by an agent plugin — so they can be bundled into the
  * synthetic synced plugin. Plugin-sourced servers are excluded because they
@@ -205,8 +223,16 @@ async function resolveConfigurationForSync(
  * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
  * synced, but only when their config can be resolved without requiring user
  * interaction.
+ *
+ * When {@link includeWorkspaceDotMcp} is `true` (multi-root Copilot Agent Host
+ * gate), folder-root `.mcp.json` servers are additionally synced so servers
+ * from non-primary workspace folders reach the session — the agent host only
+ * auto-discovers the primary (working-directory) folder's `.mcp.json`, and
+ * relies on the SDK to de-duplicate the primary against the synced set. These
+ * are passed as-is: `.mcp.json` supports no `${...}` variables and already
+ * carries an explicit absolute `cwd`.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService): Promise<ISyncableMcpServer[]> {
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, includeWorkspaceDotMcp: boolean): Promise<ISyncableMcpServer[]> {
 	const result: ISyncableMcpServer[] = [];
 	for (const server of mcpService.servers.get()) {
 		if (server.collection.id.startsWith(MCP_PLUGIN_COLLECTION_ID_PREFIX)) {
@@ -227,14 +253,23 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 		}
 		const collection = definitions.collection;
 		if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection)) {
-			if (!McpCollectionDefinition.isVscodeMcpJson(collection)) {
+			if (McpCollectionDefinition.isVscodeMcpJson(collection)) {
+				const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
+				if (!resolved) {
+					continue;
+				}
+				configuration = resolved;
+			} else if (includeWorkspaceDotMcp && McpCollectionDefinition.isWorkspaceDotMcpJson(collection)) {
+				// Folder-root `.mcp.json`: pass as-is (no variables to resolve; cwd is absolute).
+				// Intentional tradeoff: servers are keyed by name in the flat synced bundle
+				// (`SyncedCustomizationBundler`), so two folders defining the same server name
+				// collide and the last one wins. Accepted — matches the existing behavior for
+				// same-named `.vscode/mcp.json` servers across folders.
+			} else {
+				// `.cursor/mcp.json`, the `.code-workspace` workspace-level config,
+				// or the gate is off — leave discovery to the agent host.
 				continue;
 			}
-			const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
-			if (!resolved) {
-				continue;
-			}
-			configuration = resolved;
 		}
 		result.push({ name: server.definition.label, configuration });
 	}
@@ -259,6 +294,7 @@ export async function resolveCustomizationRefs(
 	configurationResolverService: IConfigurationResolverService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
+	includeWorkspaceDotMcp: boolean = false,
 	options?: ILocalCustomizationSyncOptions,
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
@@ -330,7 +366,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, includeWorkspaceDotMcp);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}
