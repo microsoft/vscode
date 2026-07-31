@@ -114,7 +114,7 @@ export const chatInputWorkingBorderColor3 = registerColor(
 export const chatVoiceGlowBaseColor = registerColor(
 	'chat.voiceGlowBaseColor',
 	focusBorder,
-	localize('chat.voiceGlowBaseColor', 'Base accent the Voice Mode ambient glow is derived from. The listening, processing and speaking glows are hue-shifted from this color.'), true);
+	localize('chat.voiceGlowBaseColor', 'Base accent the Voice Mode ambient glow is derived from. The listening and speaking glows are hue-shifted from this color.'), true);
 
 export const chatVoiceListeningGlow = registerColor(
 	'chat.voiceListeningGlow',

@@ -17,6 +17,8 @@ import { DEFAULT_VOICE_GLOW_COLORS, IVoiceGlowColors, voiceGlowStateColor, Voice
  * Every state change is a true cross-fade between two buffered slots, so
  * `listening -> speaking` dissolves cool -> warm rather than snapping. Colors are
  * derived from the theme accent (see `resolveVoiceGlowColors`).
+ *
+ * The rim design is inspired by the work of Jakub Antalik (@Jakubantalik).
  */
 
 /**
