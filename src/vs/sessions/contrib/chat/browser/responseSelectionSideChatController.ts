@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -100,7 +100,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	/** Range currently painted via the CSS custom highlight, if any. */
 	private _paintedRange: Range | undefined;
 	/** Pins the transcript while a selection or the question input is active. */
-	private readonly _autoScrollHold = this._register(new MutableDisposable());
+	private readonly _autoScrollHold = this._register(new MutableDisposable<IDisposable>());
 	private _chat: IChat | undefined;
 	/** Bumped on a genuine chat navigation/force-dismiss so a stale submission's completion/error handler can no-op. */
 	private _generation = 0;
@@ -228,7 +228,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 			return false;
 		}
 		const range = selection.getRangeAt(0);
-		return this._widget.domNode.contains(range.commonAncestorContainer);
+		// Scoped to the transcript specifically: selecting text elsewhere in the
+		// chat view (a banner, the input) says nothing about wanting the
+		// transcript to hold still.
+		return this._widget.transcriptDomNode.contains(range.commonAncestorContainer);
 	}
 
 	/**

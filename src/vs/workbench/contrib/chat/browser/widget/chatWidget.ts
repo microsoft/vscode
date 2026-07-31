@@ -317,7 +317,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private recentlyRestoredCheckpoint: boolean = false;
 
 	/** Suppresses auto-scroll for the duration of an inline request edit. */
-	private readonly _editingAutoScrollHold = this._register(new MutableDisposable());
+	private readonly _editingAutoScrollHold = this._register(new MutableDisposable<IDisposable>());
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());

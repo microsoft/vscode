@@ -916,7 +916,15 @@ export class ChatListWidget extends Disposable {
 	 */
 	acquireAutoScrollHold(): IDisposable {
 		this._autoScrollHolds++;
-		return toDisposable(() => { this._autoScrollHolds--; });
+		// Idempotent so a double-dispose releases one hold rather than
+		// decrementing past it and silently cancelling somebody else's.
+		let released = false;
+		return toDisposable(() => {
+			if (!released) {
+				released = true;
+				this._autoScrollHolds--;
+			}
+		});
 	}
 
 	/** Whether any {@link acquireAutoScrollHold} hold is currently active. */

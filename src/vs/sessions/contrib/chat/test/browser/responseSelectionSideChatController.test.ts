@@ -49,6 +49,11 @@ suite('ResponseSelectionSideChatController', () => {
 		doc.body.appendChild(widgetDomNode);
 		store.add(toDisposable(() => widgetDomNode.remove()));
 
+		// Mirrors the real structure: the scrollable transcript is a child of
+		// the chat view, and responses are rendered inside it.
+		const transcriptDomNode = doc.createElement('div');
+		widgetDomNode.appendChild(transcriptDomNode);
+
 		const markdown = doc.createElement('div');
 		markdown.classList.add('chat-markdown-part');
 		// Positioned so the selection's real client rects (the controller
@@ -58,14 +63,12 @@ suite('ResponseSelectionSideChatController', () => {
 		markdown.style.left = '0px';
 		const textNode = doc.createTextNode('hello world');
 		markdown.appendChild(textNode);
-		widgetDomNode.appendChild(markdown);
+		transcriptDomNode.appendChild(markdown);
 
 		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', setVote: () => undefined });
 		const focusResponseItemCalls: boolean[] = [];
 		const onDidScroll = store.add(new Emitter<void>());
 		let autoScrollHolds = 0;
-		const transcriptDomNode = doc.createElement('div');
-		widgetDomNode.appendChild(transcriptDomNode);
 		const widget = upcastPartial<IChatWidget>({
 			domNode: widgetDomNode,
 			transcriptDomNode,
@@ -94,21 +97,36 @@ suite('ResponseSelectionSideChatController', () => {
 		const range = doc.createRange();
 		range.setStart(textNode, 0);
 		range.setEnd(textNode, textNode.data.length);
+		// A selection in chat-view chrome outside the scrollable transcript.
+		const outsideNode = doc.createTextNode('unrelated text');
+		const outside = doc.createElement('div');
+		outside.appendChild(outsideNode);
+		widgetDomNode.appendChild(outside);
+		const outsideRange = doc.createRange();
+		outsideRange.setStart(outsideNode, 0);
+		outsideRange.setEnd(outsideNode, outsideNode.data.length);
+		let activeRange = range;
 		mutableWindow.getSelection = () => upcastPartial<Selection>({
 			toString: () => selectionText,
 			isCollapsed: selectionText.length === 0,
-			anchorNode: textNode,
-			focusNode: textNode,
+			anchorNode: activeRange.startContainer,
+			focusNode: activeRange.endContainer,
 			rangeCount: 1,
-			getRangeAt: () => range,
+			getRangeAt: () => activeRange,
 		});
 		store.add(toDisposable(() => { mutableWindow.getSelection = originalGetSelection; }));
 
 		const setSelection = (text: string, selectionTop?: number) => {
+			activeRange = range;
 			selectionText = text;
 			if (selectionTop !== undefined) {
 				markdown.style.top = `${selectionTop}px`;
 			}
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const setSelectionOutsideTranscript = (text: string) => {
+			activeRange = outsideRange;
+			selectionText = text;
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
 		const setTranscriptRect = (rect: Partial<DOMRect>) => { transcriptRect = rect; };
@@ -153,7 +171,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
 		controller.setChat(chat);
 
-		return { controller, setSelection, setTranscriptRect, scroll, autoScrollHolds: () => autoScrollHolds, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges, inputHeight: () => inputDomNode(controller).offsetHeight };
+		return { controller, setSelection, setSelectionOutsideTranscript, setTranscriptRect, scroll, autoScrollHolds: () => autoScrollHolds, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges, inputHeight: () => inputDomNode(controller).offsetHeight };
 	}
 
 	function inputDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
@@ -361,6 +379,15 @@ suite('ResponseSelectionSideChatController', () => {
 
 		setSelection('');
 		assert.strictEqual(autoScrollHolds(), 0, 'clearing the selection releases the transcript');
+	});
+
+	test('does not hold auto-scroll for a selection outside the transcript', () => {
+		// Text selected in a banner or the input area says nothing about wanting
+		// the transcript to hold still.
+		const { setSelectionOutsideTranscript, autoScrollHolds } = setup({ getElementFromNode: () => undefined });
+		setSelectionOutsideTranscript('unrelated text');
+
+		assert.strictEqual(autoScrollHolds(), 0);
 	});
 
 	test('holds auto-scroll for a transcript selection that does not resolve to a single response', () => {
