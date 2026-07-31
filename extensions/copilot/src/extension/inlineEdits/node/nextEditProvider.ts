@@ -701,7 +701,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				telemetryBuilder.setStatelessNextEditTelemetry(nextEditResult.telemetry);
 				if (speculativeRequest) {
 					const firstEdit = await requestToReuse.firstEdit.p;
-					return firstEdit.map(val => ({ ...val, isFromSpeculativeRequest: true }));
+					return firstEdit.map(val => ({ ...val, isFromSpeculativeRequest: true, baseCacheEntry: val.baseCacheEntry ?? val }));
 				}
 				return nextEditResult.nextEdit.isError() ? nextEditResult.nextEdit : requestToReuse.firstEdit.p;
 			} else {
