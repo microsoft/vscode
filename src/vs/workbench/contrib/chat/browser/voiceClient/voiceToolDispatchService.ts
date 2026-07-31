@@ -10,13 +10,15 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
-import { IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatPlanReviewResult, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/voiceClient/voiceQuestionAnswers.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IVoiceDispatchResult, IVoiceToolCall, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
+import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 /**
@@ -304,7 +306,14 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		}
 		const approve = responseType === 'approve';
 
+		if (part.kind === 'planReview' && part instanceof ChatPlanReviewData) {
+			return this._resolvePlanReview(part, approve) ? { ok: true } : { ok: false, reason: 'stale_pending' };
+		}
+
 		if (part.kind === 'toolInvocation') {
+			if (getVoiceConfirmationType([part]) !== 'tool') {
+				return { ok: false, reason: 'unsupported' };
+			}
 			const confirmed = IChatToolInvocation.confirmWith(
 				part as IChatToolInvocation,
 				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },
@@ -313,6 +322,30 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		}
 
 		return { ok: false, reason: 'unsupported' };
+	}
+
+	private _resolvePlanReview(plan: ChatPlanReviewData, approve: boolean): boolean {
+		if (plan.isUsed) {
+			return false;
+		}
+		let result: IChatPlanReviewResult;
+		if (approve) {
+			const action = plan.actions.find(candidate => candidate.default) ?? plan.actions[0];
+			if (!action) {
+				return false;
+			}
+			result = {
+				action: action.label,
+				actionId: action.id,
+				rejected: false,
+			};
+		} else {
+			result = { rejected: true };
+		}
+		plan.data = result;
+		plan.isUsed = true;
+		void plan.completion.complete(result);
+		return true;
 	}
 
 	/** Resolve a coding session id to its chat model, never falling back to the focused session. */
