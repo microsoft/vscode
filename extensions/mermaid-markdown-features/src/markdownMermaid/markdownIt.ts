@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type MarkdownIt from 'markdown-it';
+import { escapeHtmlText } from '../util/html';
 
 const mermaidLanguageId = 'mermaid';
 const containerTokenName = 'mermaidContainer';
@@ -123,7 +124,9 @@ export function extendMarkdownItWithMermaid(md: MarkdownIt, config: { languageId
 		md.renderer.rules[containerTokenName] = (tokens: MarkdownIt.Token[], idx: number) => {
 			const token = tokens[idx];
 			const src = token.content;
-			return `<div class="${mermaidLanguageId}">${preProcess(src)}</div>`;
+			// Persist source on the element so preview rerenders can recover it when SVG/CSS
+			// pollutes textContent (see resolveMermaidSource / #323522).
+			return `<div class="${mermaidLanguageId}" data-vscode-mermaid-source="${escapeHtmlText(src.trim())}">${preProcess(src)}</div>`;
 		};
 	});
 
@@ -131,7 +134,7 @@ export function extendMarkdownItWithMermaid(md: MarkdownIt, config: { languageId
 	md.options.highlight = (code: string, lang: string, attrs: string) => {
 		const reg = new RegExp('\\b(' + config.languageIds().map(escapeRegExp).join('|') + ')\\b', 'i');
 		if (lang && reg.test(lang)) {
-			return `<pre class="${mermaidLanguageId}" style="all: unset;">${preProcess(code)}</pre>`;
+			return `<pre class="${mermaidLanguageId}" style="all: unset;" data-vscode-mermaid-source="${escapeHtmlText(code.trim())}">${preProcess(code)}</pre>`;
 		}
 		return highlight?.(code, lang, attrs) ?? code;
 	};

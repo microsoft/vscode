@@ -6,6 +6,7 @@ import elkLayouts from '@mermaid-js/layout-elk';
 import tidyTreeLayouts from '@mermaid-js/layout-tidy-tree';
 import zenuml from '@mermaid-js/mermaid-zenuml';
 import mermaid, { MermaidConfig } from 'mermaid';
+import { resolveMermaidSource } from '../../src/markdownMermaid/mermaidSource';
 import { iconPacks } from './iconPackConfig';
 import { ClickDragMode, MermaidExtensionConfig, ShowControlsMode } from './config';
 import { vsCodeMermaidTheme, VsCodeMermaidThemeTracker } from './vsCodeTheme';
@@ -60,37 +61,19 @@ export function markVsCodeContextAsError(el: HTMLElement): void {
 	el.dataset.vscodeContext = JSON.stringify({ ...context, mermaidError: true });
 }
 
-function hasRenderedMermaidOutput(mermaidContainer: HTMLElement): boolean {
-	return !!mermaidContainer.querySelector(':scope > svg, :scope > .mermaid-error');
+function isAbortError(error: unknown): boolean {
+	return error instanceof Error && error.name === 'AbortError';
 }
 
-function resolveMermaidSource(mermaidContainer: HTMLElement): string {
-	const rawText = (mermaidContainer.textContent ?? '').trim();
-
-	if (rawText && !hasRenderedMermaidOutput(mermaidContainer)) {
-		mermaidContainer.dataset.vscodeMermaidSource = rawText;
-		return rawText;
+/**
+ * Remove Mermaid's temporary render hosts (`id` starts with `dmermaid`).
+ * Do not remove `.mermaid > svg` — those are live diagrams; source recovery handles rerenders.
+ */
+function cleanupMermaidTempNodes(root: HTMLElement): void {
+	const doc = root.ownerDocument ?? document;
+	for (const el of doc.querySelectorAll('[id^="dmermaid"]')) {
+		el.remove();
 	}
-
-	const canonicalSource = (mermaidContainer.dataset.vscodeMermaidSource ?? '').trim();
-	if (canonicalSource) {
-		return canonicalSource;
-	}
-
-	try {
-		const context = JSON.parse(mermaidContainer.dataset.vscodeContext || '{}') as { mermaidSource?: string };
-		if (typeof context.mermaidSource === 'string') {
-			const source = context.mermaidSource.trim();
-			if (source) {
-				mermaidContainer.dataset.vscodeMermaidSource = source;
-				return source;
-			}
-		}
-	} catch {
-		// fall through
-	}
-
-	return '';
 }
 
 function renderMermaidElement(
@@ -140,14 +123,14 @@ function renderMermaidElement(
 				writeOut(mermaidContainer, renderResult.svg, false);
 				renderResult.bindFunctions?.(mermaidContainer);
 			} catch (error) {
-				// Mermaid often rejects with a plain `{ str, message, ... }` object, not an Error.
-				// Still surface those failures; only AbortError should stay silent.
-				if (!(error instanceof Error && error.name === 'AbortError')) {
-					markVsCodeContextAsError(mermaidContainer);
-					writeOut(mermaidContainer, createMermaidErrorElement(error).outerHTML, true);
+				if (isAbortError(error)) {
+					// Superseded by a newer init(); leave the container for the next pass.
+					return;
 				}
 
-				throw error;
+				// Mermaid often rejects with a plain `{ str, message, ... }` object, not an Error.
+				markVsCodeContextAsError(mermaidContainer);
+				writeOut(mermaidContainer, createMermaidErrorElement(error).outerHTML, true);
 			}
 		})()
 	};
@@ -161,6 +144,8 @@ export async function renderMermaidBlocksInElement(
 	// Track used IDs for this render pass
 	const usedIds = new Set<string>();
 
+	cleanupMermaidTempNodes(root);
+
 	// We need to generate all the container ids sync, but then do the actual rendering async
 	const renderPromises: Array<Promise<void>> = [];
 	for (const mermaidContainer of root.querySelectorAll<HTMLElement>('.mermaid')) {
@@ -172,7 +157,9 @@ export async function renderMermaidBlocksInElement(
 		}
 	}
 
-	await Promise.all(renderPromises);
+	// One diagram failing (or an aborted in-flight pass) must not reject the whole batch —
+	// otherwise retainStates / later diagrams never run.
+	await Promise.allSettled(renderPromises);
 }
 
 export async function registerMermaidAddons() {
