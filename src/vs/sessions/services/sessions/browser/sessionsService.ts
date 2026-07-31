@@ -20,7 +20,7 @@ import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { COPILOT_CLI_EH_SCHEME } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
@@ -710,10 +710,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Opening a legacy extension-host Copilot CLI session converts it in place:
 		// adopt its on-disk event log into the agent host and open the resulting
-		// agent-host session instead. Only the legacy provider's entries qualify (the
-		// agent-host provider's own sessions are already migrated). Runs only on this
-		// explicit-open path — never on reload restore (`restoreVisibleSessions`).
-		if (sessionData.sessionType === 'copilotcli' && sessionData.providerId !== LOCAL_AGENT_HOST_PROVIDER_ID) {
+		// agent-host session instead. Gated on the legacy EH resource scheme so only
+		// genuine extension-host entries qualify — the local agent-host provider's own
+		// sessions (`agent-host-copilotcli:`) and remote agent-host Copilot sessions
+		// (`remote-<authority>-copilotcli:`) both share the `copilotcli` session type
+		// but must not be migrated. Runs only on this explicit-open path — never on
+		// reload restore (`restoreVisibleSessions`).
+		if (sessionData.resource.scheme === COPILOT_CLI_EH_SCHEME) {
 			try {
 				const migratedResource = await this.sessionsManagementService.adoptLegacyCliSessionOnOpen(sessionData);
 				if (migratedResource) {

@@ -241,12 +241,10 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		}
 		const ref = this._sessionDataService.openDatabase(sessionUri);
 		try {
-			const baseRef = refByTurn.get(0);
-			if (baseRef) {
-				await ref.object.setMetadata(META_CHECKPOINT_BASE_REF, baseRef);
-				await ref.object.setMetadata(META_CHECKPOINT_WORKING_DIR, workingDirectory.toString());
-			}
-			// The i-th resumed turn (0-based) corresponds to end-of-turn checkpoint N=i+1.
+			// The baseline (turn 0) and per-turn commits are discoverable by the
+			// `buildCheckpointRefName` convention (re-pointed above via updateRef), so
+			// only the per-turn checkpoint index needs seeding here. The i-th resumed
+			// turn (0-based) corresponds to end-of-turn checkpoint N=i+1.
 			for (let i = 0; i < turnIds.length; i++) {
 				const refName = refByTurn.get(i + 1);
 				if (refName) {

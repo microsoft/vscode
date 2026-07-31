@@ -1017,7 +1017,8 @@ export interface IAgentCreateSessionConfig {
 	 * agent-host VS Code-layer metadata (only for a genuine extension-host Copilot
 	 * CLI session) and the session is then populated via the normal restore flow.
 	 * Triggered explicitly on user reopen — never on reload auto-restore. Requires
-	 * {@link session} and {@link workingDirectories}.
+	 * {@link session}; the provider resolves the authoritative working directory
+	 * from the SDK session metadata, so {@link workingDirectories} is optional.
 	 */
 	readonly adoptExistingSession?: boolean;
 	/**

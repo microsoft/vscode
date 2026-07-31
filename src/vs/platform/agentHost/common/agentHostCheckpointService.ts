@@ -108,13 +108,14 @@ export interface IAgentHostCheckpointService {
 
 	/**
 	 * Adopts the legacy extension-host Copilot CLI checkpoint refs
-	 * (`refs/sessions/<rawSessionId>/<N>`) for a migrated session: re-points each
-	 * commit under this service's `refs/agents/<sid>/checkpoints/turn/<N>`
-	 * namespace (same OIDs), seeds the session database (baseline ref, working
-	 * dir, per-turn index keyed by the supplied ordered {@link turnIds}), and
-	 * drops the legacy refs. Best-effort and idempotent; a no-op when the working
-	 * directory is not git-backed or no legacy refs exist. Optional so fixtures
-	 * that don't exercise migration can omit it.
+	 * (`refs/sessions/<rawSessionId>/checkpoints/turn/<N>`) for a migrated session:
+	 * re-points each commit under this service's
+	 * `refs/agents/<sid>/checkpoints/turn/<N>` namespace (same OIDs), seeds the
+	 * session database per-turn checkpoint index keyed by the supplied ordered
+	 * {@link turnIds} (the baseline and per-turn commits stay discoverable by the
+	 * ref-name convention), and drops the legacy refs. Best-effort and idempotent;
+	 * a no-op when the working directory is not git-backed or no legacy refs exist.
+	 * Optional so fixtures that don't exercise migration can omit it.
 	 */
 	adoptLegacyCheckpoints?(sessionUri: URI, workingDirectory: URI, rawSessionId: string, turnIds: readonly string[]): Promise<void>;
 }

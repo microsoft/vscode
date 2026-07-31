@@ -1143,26 +1143,35 @@ export class AgentService extends Disposable implements IAgentService {
 		// and announce run once restore completes.
 		if (config?.adoptExistingSession) {
 			void (async () => {
+				const adoptedKey = session.toString();
 				try {
 					await this.restoreSession(session);
+					// Bridge legacy git checkpoints into the agent-host namespace. The
+					// working directory is taken from the restored summary (authoritative)
+					// rather than the create config, because the chat-editor caller supplies
+					// none. Isolated in its own try/catch so a checkpoint failure still lets
+					// the announce below run.
 					if (created.adopted && this._checkpointService.adoptLegacyCheckpoints) {
-						const checkpointWorkingDirectory = config.workingDirectories?.[0];
-						if (checkpointWorkingDirectory) {
-							const turns = await this._getChatMessages(provider, URI.parse(buildDefaultChatUri(session.toString())));
-							await this._checkpointService.adoptLegacyCheckpoints(session, checkpointWorkingDirectory, AgentSession.id(session), turns.map(t => t.id));
+						try {
+							const checkpointWorkingDirectory = this._stateManager.getSessionSummary(adoptedKey)?.workingDirectories?.[0];
+							if (checkpointWorkingDirectory) {
+								const turns = await this._getChatMessages(provider, URI.parse(buildDefaultChatUri(adoptedKey)));
+								await this._checkpointService.adoptLegacyCheckpoints(session, URI.parse(checkpointWorkingDirectory), AgentSession.id(session), turns.map(t => t.id));
+							}
+						} catch (err) {
+							this._logService.warn(`[AgentService] adopt: checkpoint bridge failed for ${adoptedKey}`, err);
 						}
 					}
 					// Force the announce: `restoreSession` already marked the summary
 					// announced without emitting, so clients that surface sessions purely
 					// from `SessionAdded` (e.g. the editor session list) would otherwise
 					// never see the adopted session.
-					const adoptedKey = session.toString();
 					const adoptedSummary = this._stateManager.getSessionSummary(adoptedKey);
 					if (adoptedSummary) {
 						this._stateManager.markSessionPersisted(adoptedKey, adoptedSummary, true);
 					}
 				} catch (err) {
-					this._logService.warn(`[AgentService] adopt: background restore/bridge failed for ${session.toString()}`, err);
+					this._logService.warn(`[AgentService] adopt: background restore/announce failed for ${adoptedKey}`, err);
 				}
 			})();
 			return session;

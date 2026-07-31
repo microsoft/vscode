@@ -2706,8 +2706,12 @@ suite('CopilotAgent', () => {
 		// listing gates on that (an empty DB is a ghost / un-migrated session).
 		await ownedDb.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
 		ownedDb.dispose();
+		// A ghost DB exists (created empty by checkpoint / git services) but has no
+		// stored working directory, so it must be excluded from the list.
+		const ghostSession = AgentSession.uri('copilotcli', 'ghost');
+		sessionDataService.openDatabase(ghostSession).dispose();
 
-		const client = new TestCopilotClient([sdkSession('owned'), sdkSession('external')]);
+		const client = new TestCopilotClient([sdkSession('owned'), sdkSession('ghost'), sdkSession('external')]);
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');

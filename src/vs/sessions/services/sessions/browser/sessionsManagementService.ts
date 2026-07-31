@@ -223,12 +223,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return sessions;
 		}
 		return sessions.filter(session => {
-			// A legacy Copilot CLI entry is any non-agent-host session of type
-			// `copilotcli`. Its raw id is the last path segment (both surfaces
-			// encode the SDK session id plainly, e.g. `copilotcli:/<rawId>`).
-			if (session.resource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME
-				&& (session.resource.scheme === COPILOT_CLI_EH_SCHEME || session.sessionType === COPILOT_CLI_EH_SCHEME)) {
-				const rawId = getCopilotCliSessionRawId(session.resource) ?? session.resource.path.replace(/^\//, '');
+			// Only the legacy extension-host scheme (`copilotcli:`) denotes a stale
+			// entry to drop. Remote agent-host Copilot sessions
+			// (`remote-<authority>-copilotcli:`) share the `copilotcli` session type but
+			// are distinct sessions that must never be deduped against a local migrated
+			// id, and the migrated entry itself uses `agent-host-copilotcli:`.
+			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
+				const rawId = getCopilotCliSessionRawId(session.resource);
 				if (rawId && migratedRawIds!.has(rawId)) {
 					return false;
 				}
