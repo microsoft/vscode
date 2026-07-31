@@ -7,6 +7,7 @@ import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -57,6 +58,7 @@ export class NewChatWidget extends Disposable {
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
+	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
 
 	/**
 	 * The currently mounted no-agent-host empty state, if any. Set by
@@ -126,6 +128,7 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {}));
 		this._register(this._pendingPreferredUpgrade);
+		this._register(this._newSessionCreation);
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
@@ -522,6 +525,9 @@ export class NewChatWidget extends Disposable {
 
 	private async _createNewSession(folderUri: URI): Promise<IOpenNewSessionResult> {
 		this._pendingPreferredUpgrade.clear();
+		const creationCts = new CancellationTokenSource();
+		const creationLifecycle = toDisposable(() => creationCts.dispose(true));
+		this._newSessionCreation.value = creationLifecycle;
 		const userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType();
 		const creation: { result?: IOpenNewSessionResult } = {};
 		let providerChangedWhileCreating = false;
@@ -554,8 +560,11 @@ export class NewChatWidget extends Disposable {
 		store.add(this.sessionsManagementService.onDidChangeSessionTypes(recreateIfNeeded));
 		this._pendingPreferredUpgrade.value = store;
 
-		const result = await this._createSessionNow(folderUri, userPick);
+		const result = await this._createSessionNow(folderUri, userPick, creationCts.token);
 		creation.result = result;
+		if (this._newSessionCreation.value === creationLifecycle) {
+			this._newSessionCreation.clear();
+		}
 		if (this._pendingPreferredUpgrade.value !== store) {
 			return result;
 		}
@@ -585,7 +594,7 @@ export class NewChatWidget extends Disposable {
 		return result;
 	}
 
-	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined): Promise<IOpenNewSessionResult> {
+	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
 		const effectivePick = userPick && this._isPreferredServable(folderUri, userPick)
@@ -600,7 +609,7 @@ export class NewChatWidget extends Disposable {
 					: fallbackProviderId
 						? { providerId: fallbackProviderId }
 						: undefined),
-			});
+			}, token);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 			return { session: undefined, trustDeclined: false };

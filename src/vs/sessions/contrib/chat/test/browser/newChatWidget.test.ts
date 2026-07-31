@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -17,6 +18,7 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 
 interface INewChatWidgetHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
+	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	readonly sessionsManagementService: { readonly onDidChangeSessionTypes: Event<void> };
 	readonly _session: IObservable<IActiveSession | undefined>;
 	readonly _newChatInput: {
@@ -26,7 +28,7 @@ interface INewChatWidgetHarness {
 		};
 	};
 	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
-	_createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined): Promise<IOpenNewSessionResult>;
+	_createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult>;
 	_createNewSession(folderUri: URI): Promise<IOpenNewSessionResult>;
 }
 
@@ -37,11 +39,13 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
+	newSessionCreation: MutableDisposable<IDisposable>,
 	onDidChangeSessionTypes: Event<void>,
-	createSessionNow: () => Promise<IOpenNewSessionResult>,
+	createSessionNow: (token: CancellationToken) => Promise<IOpenNewSessionResult>,
 ): INewChatWidgetHarness {
 	const harness: INewChatWidgetHarness = {
 		_pendingPreferredUpgrade: pendingPreferredUpgrade,
+		_newSessionCreation: newSessionCreation,
 		sessionsManagementService: { onDidChangeSessionTypes },
 		_session: observableValue<IActiveSession | undefined>('session', undefined),
 		_newChatInput: {
@@ -51,7 +55,7 @@ function createHarness(
 			},
 		},
 		_isPreferredServable: () => false,
-		_createSessionNow: createSessionNow,
+		_createSessionNow: (_folderUri, _userPick, token) => createSessionNow(token),
 		_createNewSession: folderUri => createNewSession.call(harness, folderUri),
 	};
 	return harness;
@@ -63,10 +67,11 @@ suite('NewChatWidget', () => {
 	test('replays a provider change that arrives while creating the draft', async () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
 		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
+		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
 		const folder = URI.file('/project');
 		const firstCreation = new DeferredPromise<IOpenNewSessionResult>();
 		let createCount = 0;
-		const harness = createHarness(pendingPreferredUpgrade, sessionTypesChanged.event, () => {
+		const harness = createHarness(pendingPreferredUpgrade, newSessionCreation, sessionTypesChanged.event, () => {
 			createCount++;
 			return createCount === 1
 				? firstCreation.p
@@ -84,14 +89,39 @@ suite('NewChatWidget', () => {
 	test('waits for another provider change after creation fails', async () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
 		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
+		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
 		let createCount = 0;
-		const harness = createHarness(pendingPreferredUpgrade, sessionTypesChanged.event, async () => {
+		const harness = createHarness(pendingPreferredUpgrade, newSessionCreation, sessionTypesChanged.event, async () => {
 			createCount++;
 			return { session: undefined, trustDeclined: false };
 		});
 
 		await harness._createNewSession(URI.file('/project'));
+		const countBeforeChange = createCount;
+		sessionTypesChanged.fire();
 
-		assert.strictEqual(createCount, 1);
+		assert.deepStrictEqual({ countBeforeChange, countAfterChange: createCount }, { countBeforeChange: 1, countAfterChange: 2 });
+	});
+
+	test('cancels an in-flight creation when a newer one starts', async () => {
+		const sessionTypesChanged = disposables.add(new Emitter<void>());
+		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
+		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
+		const firstCreation = new DeferredPromise<IOpenNewSessionResult>();
+		const tokens: CancellationToken[] = [];
+		const harness = createHarness(pendingPreferredUpgrade, newSessionCreation, sessionTypesChanged.event, token => {
+			tokens.push(token);
+			return tokens.length === 1
+				? firstCreation.p
+				: Promise.resolve({ session: undefined, trustDeclined: true });
+		});
+
+		const first = harness._createNewSession(URI.file('/first'));
+		const second = harness._createNewSession(URI.file('/second'));
+		const firstCancelledWhenSecondStarted = tokens[0].isCancellationRequested;
+		firstCreation.complete({ session: undefined, trustDeclined: false });
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({ tokenCount: tokens.length, firstCancelledWhenSecondStarted }, { tokenCount: 2, firstCancelledWhenSecondStarted: true });
 	});
 });
