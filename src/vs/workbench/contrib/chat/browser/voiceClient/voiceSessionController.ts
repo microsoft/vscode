@@ -4352,6 +4352,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._getFocusedSessionId();
 	}
 
+	private _pinActiveSessionAsTarget(): void {
+		if ((this._isConnected.get() || this._isConnecting.get()) && this._activeSessionShown && !this._targetSession.get()) {
+			// Changing the visible session must not move an existing voice
+			// conversation with it. Pin voice to its current session while the
+			// newly shown session remains authoritative for playback deferral.
+			this._targetSession.set(URI.parse(this._activeSessionShown), undefined);
+		}
+	}
+
 	setActiveSessionShown(resource: URI | undefined): void {
 		const key = resource?.toString();
 		// `undefined` means the embedder has no active session to pin (e.g. a
@@ -4364,6 +4373,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (!this._externalActiveSessionMode && this._activeSessionShown === undefined) {
 				return;
 			}
+			this._pinActiveSessionAsTarget();
 			this.logService.trace(`[voice] setActiveSessionShown=<none>; restoring focus-based detection (was ${this._activeSessionShown ?? '<none>'})`);
 			this._externalActiveSessionMode = false;
 			this._activeSessionShown = undefined;
@@ -4387,12 +4397,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return;
 		}
-		if ((this._isConnected.get() || this._isConnecting.get()) && this._activeSessionShown && !this._targetSession.get()) {
-			// Changing the visible session must not move an existing voice
-			// conversation with it. Pin voice to its current session while the
-			// newly shown session remains authoritative for playback deferral.
-			this._targetSession.set(URI.parse(this._activeSessionShown), undefined);
-		}
+		this._pinActiveSessionAsTarget();
 		this.logService.trace(`[voice] setActiveSessionShown=${definedKey} (was ${this._activeSessionShown ?? '<none>'})`);
 		this._activeSessionShown = definedKey;
 		// Activate the view now: flush buffers, clear pending, and re-send context.

@@ -3372,7 +3372,7 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.pendingToolConfirmations.get().length, 0);
 	});
 
-	test('switching sessions keeps voice in its original session until the user returns', async () => {
+	test('switching through a draft keeps voice in its original session until the user returns', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
 		const voiceSession = URI.parse('agent-host-copilot:/voice-session');
@@ -3383,6 +3383,7 @@ suite('VoiceSessionController', () => {
 		voiceClientService.fireConnectionState(true);
 
 		controller.setActiveSessionShown(voiceSession);
+		controller.setActiveSessionShown(undefined);
 		controller.setActiveSessionShown(otherSession);
 
 		assert.deepStrictEqual({
