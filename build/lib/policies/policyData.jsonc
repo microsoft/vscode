@@ -207,21 +207,6 @@
             "included": true
         },
         {
-            "key": "chat.agentHost.enabled",
-            "name": "ChatAgentHostEnabled",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.126",
-            "localization": {
-                "description": {
-                    "key": "chat.agentHost.enabled",
-                    "value": "When enabled, some agents run in a separate agent host process."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
             "key": "chat.agentHost.otel.captureContent",
             "name": "CopilotOtelCaptureContent",
             "category": "InteractiveSession",
@@ -499,7 +484,7 @@
                     },
                     {
                         "key": "chat.mcp.access.registry",
-                        "value": "Allows access to MCP servers installed from the registry that VS Code is connected to."
+                        "value": "Allows access to MCP servers listed in the registry that VS Code is connected to."
                     },
                     {
                         "key": "chat.mcp.access.any",
