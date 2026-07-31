@@ -18,9 +18,9 @@ data the SDK accepts directly.
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated
   one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's
   `tool_instructions` section. The browser line is the one registered today.
-- `anthropicPrompt.ts` — per-model contributor for Claude Opus 4.8. It
-  `replace`s every instruction-bearing section, so it owns the model's behavior
-  end to end while staying in `customize` mode (see "Owning the whole prompt").
+- `anthropicPrompt.ts` — per-model contributor for Claude Opus 4.8. It owns
+  every instruction-bearing section while staying in `customize` mode (see
+  "Owning the whole prompt").
 - `allPrompts.ts` — side-effect import hub; importing it registers every
   contributor into the shared `agentHostPromptRegistry`.
 
@@ -149,9 +149,9 @@ layering is a known follow-up.
 
 To replace all of the SDK's guidance, do NOT reach for `replace` mode. Use
 `customize` with `action: 'replace'` on every instruction-bearing section —
-`identity`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`,
-`last_instructions` — which is what `anthropicPrompt.ts` does. Nothing
-SDK-authored survives, and you keep what `replace` mode would silently cost you:
+`preamble`, `tone`, `tool_efficiency`, `code_change_rules`, `guidelines`,
+`tool_instructions`, `last_instructions` — which is what `anthropicPrompt.ts`
+does. You keep what `replace` mode would silently cost you:
 
 - **Repository custom instructions.** In `replace` mode the CLI never loads
   them, so `AGENTS.md` / `.github/copilot-instructions.md` stop applying.
@@ -161,9 +161,19 @@ SDK-authored survives, and you keep what `replace` mode would silently cost you:
   run for `customize` configs.
 
 Leave `environment_context`, `custom_instructions` and `runtime_instructions`
-alone: they carry session facts, not guidance. Note that replacing `identity`
-also drops its sibling members (tone, tool efficiency, task instructions, and
-the version/model banner), so a contributor that replaces it owns that text too.
+alone: they carry session facts, not guidance.
+
+**`identity` is a group, not a section.** It expands to `preamble`, `tone`,
+`tool_efficiency`, `search_and_delegation`, `version_information`,
+`model_information` and `task_instructions`, so `identity: replace` drops all
+seven — including the model banner the agent needs to answer "which model are
+you?" and the search/delegation text the SDK interpolates the session's real
+tool names into. Address the three you actually own individually instead.
+
+**`safety` is not a static section either.** It maps to
+`environment_limitations`, whose opening line the SDK picks from the live
+sandbox config (`chat.agentHost.sdkSandbox.enabled`); replacing it hardcodes one
+sandbox state and drops the prohibited-actions list. `append` to it.
 
 ## Reference
 

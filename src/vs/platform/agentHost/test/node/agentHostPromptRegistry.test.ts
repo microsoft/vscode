@@ -134,19 +134,34 @@ suite('AgentHostPromptRegistry', () => {
 			return config;
 		}
 
-		test('replaces every instruction-bearing section, ungated', () => {
+		test('owns every instruction-bearing section, ungated', () => {
 			const config = resolveOpus();
 			assert.deepStrictEqual(
 				Object.entries(config.sections ?? {}).map(([section, override]) => `${section}:${String(override?.action)}`),
 				[
-					'identity:replace',
+					'preamble:replace',
+					'tone:replace',
+					'tool_efficiency:replace',
 					'code_change_rules:replace',
 					'guidelines:replace',
-					'safety:replace',
+					'safety:append',
 					'tool_instructions:replace',
 					'last_instructions:replace',
 				]
 			);
+		});
+
+		// `identity` is a section GROUP; replacing it would also drop the model and
+		// version banners, the task instructions, and the SDK's session-resolved
+		// `search_and_delegation`. Address its individually-owned members instead.
+		test('does not touch the identity group', () => {
+			assert.ok(!Object.prototype.hasOwnProperty.call(resolveOpus().sections ?? {}, 'identity'));
+		});
+
+		// The SDK picks the `safety` opening line from the live sandbox config, so
+		// no static text can assert whether the session is sandboxed.
+		test('does not hardcode the session sandbox state', () => {
+			assert.ok(!/sandbox/i.test(resolveOpus().sections?.safety?.content ?? ''));
 		});
 
 		test('leaves the sections that carry session facts alone', () => {
