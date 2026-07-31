@@ -54,10 +54,19 @@
  * microphone) rather than cross-faded between voice states. It is visible as
  * soon as it is mounted, and sits behind the control's own glyph so the icon
  * stays crisp.
+ *
+ * A control is far smaller than an input box, and the rim's softness does not
+ * survive being scaled down with it: below a few pixels a blur reads as a hard
+ * edge rather than as light, and a 1px ring that is barely 1% of an input's
+ * height is 5% of a button's, so it drowns out everything behind it. The ring
+ * therefore thins, and the inner wash is held back as a share of the box rather
+ * than an absolute distance.
  */
 .voice-glow-slot-inline {
 	opacity: 1;
 	z-index: 0;
+	--vg-ring-width: 0.6px;
+	--vg-inner-fade: 42%;
 }
 
 /* --- Rim ------------------------------------------------------------------ */
@@ -168,7 +177,9 @@
 	border-radius: inherit;
 	padding: var(--vg-ring-width);
 	--vg-blob-scale: calc(1.22 * var(--vg-size));
-	filter: blur(calc(8px * var(--vg-size)));
+	/* Floored: a sub-pixel blur reads as a hard edge, not as light. Above button
+		sizes the scaled value wins, so an input box is unaffected. */
+	filter: blur(max(4px, calc(8px * var(--vg-size))));
 	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
 	-webkit-mask-composite: xor;
 	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);

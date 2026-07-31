@@ -259,8 +259,15 @@ export interface IVoiceRimLight extends IDisposable {
  */
 const RIM_REFERENCE_HEIGHT = 78;
 
-/** Keeps a very small host from scaling its blobs into invisibility. */
-const RIM_MIN_SIZE = 0.22;
+/**
+ * How much of the rim's scale is fixed rather than proportional to the host.
+ *
+ * Scaling the blobs strictly with the host collapses the effect on a control:
+ * the blobs stop overlapping, so the wash breaks into scattered dots and only
+ * the hairline survives. Holding part of the scale back keeps them large enough
+ * to bleed into one another, which is what makes the rim read as light.
+ */
+const RIM_SIZE_FLOOR = 0.35;
 
 /**
  * Mount the rim over `target` as an always-on light, for hosts that light a
@@ -290,6 +297,7 @@ export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: G
 		// Measured lazily: hosts commonly build the button before it is attached,
 		// and a detached element has no box to measure.
 		const height = target.getBoundingClientRect().height;
+		const proportion = height > 0 ? Math.min(1, height / RIM_REFERENCE_HEIGHT) : 0;
 		mount.clear();
 		mount.value = mountRimLayers(slot, {
 			theme: nextTheme,
@@ -302,7 +310,7 @@ export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: G
 			audioGain: 0.8,
 			peakGain: 0.95,
 			speedGain: 0.9,
-			size: height > 0 ? Math.max(RIM_MIN_SIZE, height / RIM_REFERENCE_HEIGHT) : RIM_MIN_SIZE,
+			size: RIM_SIZE_FLOOR + (1 - RIM_SIZE_FLOOR) * proportion,
 		});
 		mount.value.driveStatic(level);
 	};
