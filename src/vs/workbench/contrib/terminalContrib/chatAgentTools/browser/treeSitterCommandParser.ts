@@ -82,8 +82,13 @@ export class TreeSitterCommandParser extends Disposable {
 		for (const capture of captures) {
 			if (capture.name === 'command') {
 				subCommands.push(masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex));
-			} else if (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command') {
-				hasUnanalyzableSyntax = true;
+			} else if (capture.name === 'unanalyzable') {
+				// Prefix env assignments (`FOO=bar git status`) are children of the
+				// command node and are handled by the existing transient-env deny
+				// path; only standalone shell-state mutations fail closed here.
+				if (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command') {
+					hasUnanalyzableSyntax = true;
+				}
 			}
 		}
 		return { subCommands, hasUnanalyzableSyntax };
