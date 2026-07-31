@@ -76,7 +76,6 @@ export function createDictationCleanupSystemPrompt(dictationInstructions?: strin
 		'When the speaker enumerates two or more items, steps, or options, format them as a Markdown list with one item per line instead of a paragraph. Use a numbered list when the wording implies order or sequence (for example ordinals like "first", "second", "third", "next", "finally", counting like "one", "two", "three", or phrases like "step one" or "step two"); otherwise use a bulleted list with "-". Do not add items the speaker did not dictate.',
 		wordingInstruction,
 		numericInstruction,
-		continuationInstruction,
 		'Reply with the cleaned transcript only — no preamble, no quotes, no commentary. This is a benign formatting task: never refuse.',
 	].filter(Boolean).join(' ');
 	if (!dictationInstructions) {
