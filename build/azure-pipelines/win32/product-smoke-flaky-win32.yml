@@ -117,7 +117,12 @@ jobs:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\repo.zip $(Build.SourcesDirectory)\* -xr!.git }
+          # The source path must be quoted: unquoted, PowerShell expands the `\*`
+          # wildcard against the filesystem itself (unlike cmd.exe) before 7z.exe
+          # ever runs, turning it into one argument per file under the sources
+          # directory and blowing past the command-line length limit, which
+          # truncates and corrupts the trailing -xr!.git switch.
+          exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" }
         displayName: Archive built workspace for reuse by test jobs
 
       - ${{ if or(eq(parameters.VSCODE_TEST_INTEGRATION, true), eq(parameters.VSCODE_TEST_SMOKE, true)) }}:
