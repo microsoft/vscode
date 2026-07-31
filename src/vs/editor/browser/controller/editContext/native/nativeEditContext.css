@@ -9,6 +9,8 @@
 	position: absolute;
 	overflow-y: scroll;
 	scrollbar-width: none;
+	/* Same as .inputarea — suppress workbench [tabindex]:focus outline (#328401). */
+	outline: none !important;
 	z-index: -10;
 	white-space: pre-wrap;
 }
