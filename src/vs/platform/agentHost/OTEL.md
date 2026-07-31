@@ -54,7 +54,7 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 
 ## Session Title Metadata
 
-When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever an authoritative session title changes, for any agent provider (Copilot and Claude). This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
+When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever an authoritative Copilot or Claude session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
 
 | Attribute | Description |
 |---|---|
