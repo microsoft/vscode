@@ -1166,6 +1166,11 @@ export interface ISessionGitHubState {
 	readonly repo?: string;
 	/** The URL of the GitHub pull request. */
 	readonly pullRequestUrl?: string;
+	/**
+	 * URLs of the GitHub issues referenced by the session's user messages, in
+	 * order of first appearance.
+	 */
+	readonly issueUrls?: readonly string[];
 }
 
 /**
@@ -1244,11 +1249,13 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		owner?: string;
 		repo?: string;
 		pullRequestUrl?: string;
+		issueUrls?: readonly string[];
 	} = {};
 
 	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
 	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
 	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	return result;
 }
 

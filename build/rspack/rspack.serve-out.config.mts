@@ -98,6 +98,9 @@ export default {
 			{
 				test: /\.ttf$/,
 				type: 'asset/resource',
+				generator: {
+					publicPath: isStaticComponentExplorerBuild ? '../' : '/',
+				},
 			},
 			{
 				// Built-in theme JSON files use JSONC (comments / trailing

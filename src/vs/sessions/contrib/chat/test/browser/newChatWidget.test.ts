@@ -12,6 +12,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -30,12 +31,16 @@ interface INewChatWidgetHarness {
 	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
 	_createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult>;
 	_createNewSession(folderUri: URI): Promise<IOpenNewSessionResult>;
+	_scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void;
+	_recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void;
 }
 
 const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession') as (
 	this: INewChatWidgetHarness,
 	folderUri: URI,
 ) => Promise<IOpenNewSessionResult>;
+const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
+const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as INewChatWidgetHarness['_recreateOnProviderChange'];
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -57,6 +62,8 @@ function createHarness(
 		_isPreferredServable: () => false,
 		_createSessionNow: (_folderUri, _userPick, token) => createSessionNow(token),
 		_createNewSession: folderUri => createNewSession.call(harness, folderUri),
+		_scheduleRecreateOnProviderChange: (folderUri, userPick, created, replayMissedChange) => scheduleRecreateOnProviderChange.call(harness, folderUri, userPick, created, replayMissedChange),
+		_recreateOnProviderChange: (folderUri, userPick, created) => recreateOnProviderChange.call(harness, folderUri, userPick, created),
 	};
 	return harness;
 }
