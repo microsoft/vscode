@@ -11,6 +11,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID, IChatInputWindowService } from '../../common/chatInputWindow.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
@@ -64,6 +65,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(ILogService).info('[chatInputWindow] toggle command invoked');
 		const chatInputWindowService = accessor.get(IChatInputWindowService);
 		ensureVoiceRoutingBridge(accessor, chatInputWindowService);
 		await chatInputWindowService.toggleWindow();
