@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
@@ -20,7 +22,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -254,7 +256,10 @@ export interface IAgentFeedbackService {
 
 	/**
 	 * Submit the currently accumulated accepted feedback for the session to the
-	 * agent and mark those items as submitted. Returns whether the feedback was submitted.
+	 * agent and mark those items as submitted. Resolves once the request has been
+	 * accepted by the chat widget — which, while another request is in progress,
+	 * means it was queued rather than sent. Returns whether the feedback was
+	 * submitted.
 	 */
 	submitFeedback(sessionResource: URI): Promise<boolean>;
 
@@ -846,7 +851,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// submitted via the "Submit Feedback" button). Attach the accepted
 		// items — which are about to become submitted — to this single request
 		// so the agent receives the comments, then remove the transient
-		// attachment again once the request has been sent.
+		// attachment again once the request has been accepted.
 		if (this._isAgentHostSession(sessionResource)) {
 			const acceptedItems = this.getFeedback(sessionResource).filter(item => item.state === AgentFeedbackState.Accepted);
 			const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
@@ -856,32 +861,43 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				widget.attachmentModel.addContext(createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource));
 			}
 
-			try {
-				await widget.acceptInput('/act-on-feedback');
-			} catch (err) {
-				this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-				return false;
-			} finally {
-				widget.attachmentModel.delete(attachmentId);
+			return this._sendActOnFeedbackRequest(widget, sessionResource, () => widget.attachmentModel.delete(attachmentId));
+		}
+
+		// For non-agent-host sessions the reactive attachment contribution also
+		// marks submission on send; marking from the helper is idempotent and
+		// covers sessions without that contribution.
+		return this._sendActOnFeedbackRequest(widget, sessionResource);
+	}
+
+	/**
+	 * Sends the `/act-on-feedback` request and marks the accepted feedback as
+	 * submitted as soon as the request has been accepted by the chat widget.
+	 * The request is queued when the agent is still working on another request,
+	 * in which case awaiting {@link IChatWidget.acceptInput} would only resolve
+	 * once that queued request eventually runs — the feedback items must move to
+	 * the submitted state right away.
+	 */
+	private _sendActOnFeedbackRequest(widget: IChatWidget, sessionResource: URI, cleanup?: () => void): Promise<boolean> {
+		const submitted = new DeferredPromise<boolean>();
+		const cleanupOnce = cleanup && createSingleCallFunction(cleanup);
+
+		widget.acceptInput('/act-on-feedback', {
+			onRequestAccepted: () => {
+				cleanupOnce?.();
+				this.markFeedbackSubmitted(sessionResource);
+				submitted.complete(true);
 			}
-
-			this.markFeedbackSubmitted(sessionResource);
-			return true;
-		}
-
-		// Send first so the accepted feedback is still attached to the request,
-		// then mark the items as submitted. For non-agent-host sessions the
-		// attachment contribution also marks submission on send; marking here is
-		// idempotent and covers sessions without that contribution.
-		try {
-			await widget.acceptInput('/act-on-feedback');
-		} catch (err) {
+		}).then(() => {
+			cleanupOnce?.();
+			submitted.complete(false);
+		}, err => {
 			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-			return false;
-		}
+			cleanupOnce?.();
+			submitted.complete(false);
+		});
 
-		this.markFeedbackSubmitted(sessionResource);
-		return true;
+		return submitted.p;
 	}
 
 	markFeedbackSubmitted(sessionResource: URI): void {

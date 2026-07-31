@@ -14,9 +14,10 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -656,10 +657,16 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let fileA: URI;
 	let widgetOps: string[];
 	let addedEntries: IAgentFeedbackVariableEntry[];
+	/** Resolves when the (possibly queued) request is actually sent, i.e. when `acceptInput` resolves. */
+	let acceptInputSent: DeferredPromise<void>;
+	/** Whether the widget hands the request over to the chat service. */
+	let acceptsRequest: boolean;
 
 	setup(() => {
 		widgetOps = [];
 		addedEntries = [];
+		acceptInputSent = new DeferredPromise<void>();
+		acceptsRequest = true;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -687,7 +694,15 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 					widgetOps.push(`add:${entries[0]?.id}`);
 				},
 			},
-			acceptInput: async (query: string) => { widgetOps.push(`accept:${query}`); return undefined; },
+			acceptInput: async (query: string, options?: IChatAcceptInputOptions) => {
+				widgetOps.push(`accept:${query}`);
+				if (acceptsRequest) {
+					options?.onRequestAccepted?.();
+				}
+				await acceptInputSent.p;
+				widgetOps.push(`sent:${query}`);
+				return undefined;
+			},
 		} as unknown as IChatWidget;
 		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 			override getWidgetBySessionResource(_resource: URI): IChatWidget { return widget; }
@@ -724,6 +739,40 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			kind: 'agentFeedback',
 			texts: ['Please simplify'],
 			state: AgentFeedbackState.Submitted,
+		});
+	});
+
+	test('marks feedback as submitted once the request is queued behind an in-progress request', async () => {
+		service.addFeedback(session, fileA, r(10), 'Please simplify');
+
+		// `acceptInputSent` is still pending: the request was queued and only runs
+		// once the in-progress request completes.
+		const submitted = await service.submitFeedback(session);
+
+		assert.deepStrictEqual({
+			submitted,
+			state: service.getFeedback(session)[0].state,
+			sent: widgetOps.includes('sent:/act-on-feedback'),
+		}, {
+			submitted: true,
+			state: AgentFeedbackState.Submitted,
+			sent: false,
+		});
+	});
+
+	test('keeps feedback accepted when the request is not accepted by the widget', async () => {
+		acceptsRequest = false;
+		acceptInputSent.complete();
+		service.addFeedback(session, fileA, r(10), 'Please simplify');
+
+		const submitted = await service.submitFeedback(session);
+
+		assert.deepStrictEqual({
+			submitted,
+			state: service.getFeedback(session)[0].state,
+		}, {
+			submitted: false,
+			state: AgentFeedbackState.Accepted,
 		});
 	});
 });

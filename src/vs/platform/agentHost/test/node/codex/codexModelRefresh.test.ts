@@ -5,7 +5,6 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,29 +13,31 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
-import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 
-function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Promise<CCAModel[]>): CodexAgent {
+function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Promise<CCAModel[]>, rootConfig: Record<string, boolean> = {}): CodexAgent {
 	const instantiationService = new TestInstantiationService();
+	const logService = new NullLogService();
+	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+	configurationService.updateRootConfig(rootConfig);
 	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
-	instantiationService.stub(IAgentConfigurationService, {
-		_serviceBrand: undefined,
-		onDidRootConfigChange: Event.None,
-		getRootValue: () => undefined,
-	});
+	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, logService);
 	return disposables.add(instantiationService.createInstance(CodexAgent));
 }
 
@@ -61,5 +62,20 @@ suite('CodexAgent model refresh', () => {
 		await agent.refreshModels();
 
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), ['gpt-5.5']);
+	});
+
+	test('advertises multiple working directories only while enabled', () => {
+		const agent = createAgent(disposables, async () => []);
+		const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+		agent['_configurationService'].updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: true });
+		const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+		agent['_configurationService'].updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: false });
+		const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
+
+		assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
+			disabledByDefault: undefined,
+			whenEnabled: { immutablePrimary: true },
+			afterDisabling: undefined,
+		});
 	});
 });

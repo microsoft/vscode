@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -61,6 +62,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
@@ -200,7 +202,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const button = container.appendChild(document.createElement('button'));
 		button.classList.add('chat-turn-preview-action');
 		button.type = 'button';
-		const label = this._register(resourceLabels.create(button));
+		const label = this._register(resourceLabels.create(button, { hoverTargetOverride: button }));
 
 		const clickDisposable = dom.addDisposableListener(button, 'click', (e) => {
 			this._openPrimaryPreview(previewFiles.get());
@@ -211,13 +213,15 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			const files = previewFiles.read(reader);
 			const primaryFile = files.at(0);
 			if (primaryFile) {
+				const name = basename(primaryFile.uri);
 				label.setResource(
-					{ resource: primaryFile.uri, name: basename(primaryFile.uri) },
-					{ fileKind: FileKind.FILE },
+					{ resource: primaryFile.uri, name },
+					{
+						fileKind: FileKind.FILE,
+						title: localize('chat.turnPreview.tooltip', "{0} • Open Preview", this._labelService.getUriLabel(primaryFile.uri)),
+					},
 				);
-				const tooltip = localize('chat.turnPreview.tooltip', 'Open Preview: {0}', basename(primaryFile.uri));
-				button.setAttribute('aria-label', tooltip);
-				button.title = tooltip;
+				button.setAttribute('aria-label', localize('chat.turnPreview.ariaLabel', "Open Preview: {0}", name));
 			}
 			container.classList.toggle('hidden', !showPreview.read(reader));
 		}));
