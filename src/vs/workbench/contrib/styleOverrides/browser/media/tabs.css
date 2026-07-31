@@ -302,6 +302,13 @@
 	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
 }
 
+/* Skip hover while dragging so drop indicators stay clear. */
+.style-override .part.panel > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover,
+.style-override .part.auxiliarybar > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 /*
  * Drop the underline active indicator in favour of the pill background. The
  * base rules (auxiliaryBarPart.css / paneCompositePart.css) paint the indicator
