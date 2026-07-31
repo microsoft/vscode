@@ -90,6 +90,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		}
 
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
+		let firstSessionItem: ISessionPickItem | undefined;
 
 		// New session item
 		items.push({
@@ -136,7 +137,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			}
 			items.push({ type: 'separator', label });
 			for (const session of sessions) {
-				items.push(toPickItem(session));
+				const item = toPickItem(session);
+				firstSessionItem ??= item;
+				items.push(item);
 			}
 		};
 
@@ -151,6 +154,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
+		if (firstSessionItem) {
+			picker.activeItems = [firstSessionItem];
+		}
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);
