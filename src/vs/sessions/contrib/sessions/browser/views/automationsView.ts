@@ -72,6 +72,7 @@ export class AutomationsCardsWidget extends Disposable {
 		super();
 
 		this.element = $('.automations-cards-widget');
+		this.element.tabIndex = -1;
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
 		const focusTracker = this._register(DOM.trackFocus(this.element));
 		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
@@ -112,7 +113,7 @@ export class AutomationsCardsWidget extends Disposable {
 	}
 
 	focus(): void {
-		this.cardsSection.focus();
+		this.element.focus();
 	}
 }
 
@@ -126,7 +127,6 @@ class AutomationCardsSection extends Disposable {
 	private readonly container: HTMLElement;
 	private readonly emptyContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
-	private firstFocusableElement: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -147,7 +147,6 @@ class AutomationCardsSection extends Disposable {
 	render(automations: readonly IAutomation[]): void {
 		this.disposables.clear();
 		DOM.clearNode(this.container);
-		this.firstFocusableElement = undefined;
 
 		if (automations.length === 0) {
 			this.container.style.display = 'none';
@@ -174,7 +173,6 @@ class AutomationCardsSection extends Disposable {
 			type: 'button',
 			'aria-label': localize('editAutomationNamed', "Edit automation {0}", automation.name),
 		}));
-		this.firstFocusableElement ??= main;
 		this.disposables.add(DOM.addDisposableListener(main, DOM.EventType.CLICK, () => {
 			void this.openEditDialog(automation);
 		}));
@@ -276,12 +274,7 @@ class AutomationCardsSection extends Disposable {
 		}));
 		createButton.label = localize('createAutomation', "Create automation");
 		createButton.element.classList.add('automations-cards-create-button');
-		this.firstFocusableElement = createButton.element;
 		this.disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
-	}
-
-	focus(): void {
-		this.firstFocusableElement?.focus();
 	}
 
 	private async openCreateDialog(): Promise<void> {

@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.automations-cards-widget {
+.monaco-workbench .automations-cards-widget {
 	position: relative;
 	height: 100%;
 	overflow: hidden;
+}
+
+.monaco-workbench .automations-cards-widget:focus {
 	outline: none;
 }
 
@@ -103,7 +106,7 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.automations-card:focus-within {
+.automations-card:has(> .automations-card-main:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -123,6 +126,10 @@
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
+}
+
+.monaco-workbench .automations-card-main:focus {
+	outline: none;
 }
 
 /* Card Name */

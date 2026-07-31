@@ -326,6 +326,21 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('focus targets the view without selecting an automation card', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+
+		widget.focus();
+
+		assert.deepStrictEqual({
+			activeElement: document.activeElement,
+			cardFocused: widget.element.querySelector('.automations-card-main') === document.activeElement,
+		}, {
+			activeElement: widget.element,
+			cardFocused: false,
+		});
+	});
+
 	test('run card opens with Space and becomes read only after open succeeds', async () => {
 		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
