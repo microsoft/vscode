@@ -62,6 +62,7 @@ import {
 	type Turn
 } from '../common/state/sessionState.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
@@ -179,6 +180,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _turnTracker: AgentHostTurnTracker;
 	private readonly _toolCallTracker: AgentHostToolCallTracker;
+	private readonly _inputRequestTracker: AgentHostInputRequestTracker;
 	private readonly _titleController: AgentHostSessionTitleController;
 	/** Host-owned worktree isolation controller; injected post-construction. */
 	private _worktree: WorktreeIsolation | undefined;
@@ -197,6 +199,7 @@ export class AgentSideEffects extends Disposable {
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
 		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter));
+		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._localCommands = this._register(instantiationService.createInstance(
 			AgentHostLocalCommands,
@@ -223,6 +226,26 @@ export class AgentSideEffects extends Disposable {
 		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
+				const chatState = this._stateManager.getChatState(envelope.channel);
+				const action = envelope.action;
+				switch (action.type) {
+					case ActionType.ChatInputRequested: {
+						const turnId = chatState?.activeTurn?.id;
+						const provider = this._options.getAgent(parseRequiredSessionUriFromChatUri(envelope.channel))?.id;
+						if (turnId && provider) {
+							this._inputRequestTracker.inputRequested(provider, envelope.channel, turnId, action.request);
+						}
+						break;
+					}
+					case ActionType.ChatInputCompleted:
+						this._inputRequestTracker.inputCompleted(envelope.channel, action, chatState);
+						break;
+					case ActionType.ChatTurnComplete:
+					case ActionType.ChatTurnCancelled:
+					case ActionType.ChatError:
+						this._inputRequestTracker.clearTurn(envelope.channel, action.turnId);
+						break;
+				}
 				if (envelope.action.type === ActionType.ChatTurnCancelled) {
 					let turnIds = this._cancelledTurnIds.get(envelope.channel);
 					if (!turnIds) {
@@ -1087,6 +1110,10 @@ export class AgentSideEffects extends Disposable {
 		}
 	}
 
+	clearInputRequestsForSession(session: ProtocolURI): void {
+		this._inputRequestTracker.clearAgentSession(session);
+	}
+
 	/**
 	 * Finds the subagent session that owns a given tool call by checking
 	 * whether the tool call was previously registered under a subagent
@@ -1878,6 +1905,7 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallAgents.clear();
 		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();
+		this._inputRequestTracker.clear();
 		super.dispose();
 	}
 }

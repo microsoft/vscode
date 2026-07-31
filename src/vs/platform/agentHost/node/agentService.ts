@@ -2017,6 +2017,7 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			this._sideEffects.clearQueuedMessageSenders(chat.resource);
 		}
+		this._sideEffects.clearInputRequestsForSession(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());

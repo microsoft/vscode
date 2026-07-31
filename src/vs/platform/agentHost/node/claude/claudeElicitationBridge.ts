@@ -5,7 +5,7 @@
 
 import type { ElicitationRequest, ElicitationResult } from '@anthropic-ai/claude-agent-sdk';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ChatInputResponseKind } from '../../common/state/sessionState.js';
+import { ChatInputRequestPurpose, ChatInputResponseKind } from '../../common/state/sessionState.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { buildElicitationRequest, cancelledElicitationResult, elicitationResultFromAnswers } from './claudeElicitation.js';
 
@@ -56,7 +56,10 @@ export async function handleElicitation(
 	// yielded no representable fields. The workbench would inject a required
 	// generic text question whose answer this translator then discards — falsely
 	// reporting the elicitation as accepted. Cancel instead of surfacing it.
-	const chatRequest = buildElicitationRequest(requestId, request);
+	const chatRequest = {
+		...buildElicitationRequest(requestId, request),
+		purpose: ChatInputRequestPurpose.Elicitation,
+	};
 	if (!chatRequest.url && !chatRequest.questions?.length) {
 		return cancelledElicitationResult();
 	}
