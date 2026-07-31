@@ -176,7 +176,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
+		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal, gitState?.githubHeadOwner);
 		if (existing) {
 			this._throwIfCancelled(token);
 			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
@@ -206,7 +206,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._throwIfCancelled(token);
 			let foundAfterFailure: CreatedPullRequest | undefined;
 			try {
-				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
+				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal, gitState?.githubHeadOwner);
 			} catch {
 				this._throwIfCancelled(token);
 				throw err;

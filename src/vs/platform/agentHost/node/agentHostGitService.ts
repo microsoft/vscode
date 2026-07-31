@@ -760,6 +760,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
+		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
+		const githubHeadRepo = upstreamRemote ? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote) : undefined;
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -786,6 +788,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
 			githubOwner: githubRepo?.owner,
+			githubHeadOwner: githubHeadRepo?.owner,
 			githubRepo: githubRepo?.repo,
 		};
 		// Strip undefined fields so the resulting object is the same regardless
@@ -1303,15 +1306,13 @@ export function parseFetchRemoteUrls(remotesOutput: string | undefined, preferre
 }
 
 /**
- * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
- * remote; falls back to the first GitHub remote so worktrees that renamed
- * the remote still surface PR state. Returns `undefined` if no GitHub
- * remote is present or the URL doesn't match a GitHub repo shape.
+ * Parse `owner` and `repo` from `git remote -v` output. Prefers the requested
+ * remote, then `origin`, and finally the first GitHub remote.
  *
  * Exported for tests.
  */
-export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
-	const candidates = parseFetchRemoteUrls(remotesOutput);
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, preferredRemote?: string): { owner: string; repo: string } | undefined {
+	const candidates = parseFetchRemoteUrls(remotesOutput, preferredRemote);
 	if (!candidates) {
 		return undefined;
 	}
