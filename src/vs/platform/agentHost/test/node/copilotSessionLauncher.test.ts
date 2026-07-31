@@ -74,7 +74,7 @@ suite('resolveByokSessionConfig', () => {
 	 * A bridge connection that pushes `models` as its snapshot synchronously when
 	 * the registry subscribes; `chat` is scripted (unused by most tests).
 	 */
-	function connectionOf(models: IByokLmModelInfo[], chat: IByokLmBridgeConnection['chat'] = async () => ({ content: '' })): IByokLmBridgeConnection {
+	function connectionOf(models: IByokLmModelInfo[], chat: IByokLmBridgeConnection['chat'] = async () => ({ output: [] })): IByokLmBridgeConnection {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
@@ -122,7 +122,7 @@ suite('resolveByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		// A window connected without a BYOK handler never pushes, so it stays
 		// non-serving and contributes no models.
-		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: Event.None });
+		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None });
 		const proxy = countingProxy();
 
 		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -147,8 +147,8 @@ suite('resolveByokSessionConfig', () => {
 		assert.strictEqual(proxy.starts, 1);
 		assert.deepStrictEqual(config, {
 			providers: [
-				{ name: 'acme', type: 'openai', wireApi: 'completions', baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'NONCE.sess-1' },
-				{ name: 'globex', type: 'openai', wireApi: 'completions', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
+				{ name: 'acme', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'NONCE.sess-1' },
+				{ name: 'globex', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
 			],
 			models: [
 				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000 },
@@ -163,7 +163,10 @@ suite('resolveByokSessionConfig', () => {
 		let captured: IByokLmChatRequest | undefined;
 		const registration = registry.register('client-1', connectionOf(
 			[{ vendor: 'acme', id: 'claude' }],
-			async (request) => { captured = request; return { content: 'hello from byok' }; },
+			async (request) => {
+				captured = request;
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'hello from byok' }] }] };
+			},
 		));
 		const service = new ByokLmProxyService(log, registry);
 		let handle: IByokLmProxyHandle | undefined;
@@ -172,10 +175,10 @@ suite('resolveByokSessionConfig', () => {
 		const provider = config.providers![0];
 		const model = config.models![0];
 		try {
-			const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+			const response = await fetch(`${provider.baseUrl}/responses`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${provider.bearerToken}` },
-				body: JSON.stringify({ model: model.id, messages: [{ role: 'user', content: 'hi' }] }),
+				body: JSON.stringify({ model: model.id, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }] }),
 			});
 			assert.strictEqual(response.status, 200);
 			const text = await response.text();
@@ -193,7 +196,7 @@ suite('resolveByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registration = registry.register('client-1', {
-			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
+			chat: async (): Promise<IByokLmChatResult> => ({ output: [] }),
 			onDidChangeModels: emitter.event,
 		});
 		const proxy = countingProxy();
@@ -231,7 +234,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: emitter.event };
+		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event };
 	}
 
 	/** A fake proxy service whose handles carry a unique nonce per `start()`. */

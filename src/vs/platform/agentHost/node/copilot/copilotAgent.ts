@@ -76,7 +76,7 @@ import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
-import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -1092,12 +1092,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
 			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
+			const supportedReasoningEfforts = m.supportedReasoningEfforts?.filter(isCopilotReasoningEffort);
+			const defaultReasoningEffort = supportedReasoningEfforts?.find(effort => effort === m.defaultReasoningEffort) ?? supportedReasoningEfforts?.[0];
+			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts, defaultReasoningEffort);
 			return {
 				provider: this.id,
 				id: `${m.vendor}/${m.id}`,
 				name: m.name ?? m.id,
 				maxContextWindow: m.maxContextWindowTokens,
 				supportsVision: m.supportsVision ?? false,
+				...(thinkingLevel ? { configSchema: { type: 'object', properties: { [ThinkingLevelConfigKey]: thinkingLevel } } satisfies ConfigSchema } : {}),
 				...(byokMeta && { _meta: byokMeta }),
 			};
 		});
@@ -2180,8 +2184,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
 
+		// The resolved root set (index 0 = process root, e.g. a worktree).
+		// Shared by the persisted metadata, the baseline checkpoint and the
+		// materialize receipt so all three agree on the same directories.
+		const materializedWorkingDirectories = resolvedWorkingDirectories ?? (workingDirectory ? [workingDirectory] : undefined);
+
 		this._provisionalSessions.delete(sessionId);
-		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, resolvedWorkingDirectories ?? (workingDirectory ? [workingDirectory] : undefined), customizationDirectory, project, true);
+		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, materializedWorkingDirectories, customizationDirectory, project, true);
 		if (agent !== undefined) {
 			await this._storeSessionAgentMetadata(sessionUri, agent);
 		}
@@ -2192,14 +2201,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// invisible to the FileEditTracker pipeline. Best-effort: a
 		// non-git folder or capture failure leaves the session running
 		// with the legacy `file_edits`-based per-turn diff path.
-		this._checkpointService.captureBaseline(sessionUri, workingDirectory).catch(err => {
+		//
+		// The resolved directories are passed explicitly: the state manager
+		// does not learn about them until it observes the materialize event
+		// fired below, so a lookup here would still see the pre-worktree set.
+		this._checkpointService.captureBaselineCheckpoint(sessionUri, materializedWorkingDirectories).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
 		});
 
 		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
 		// Emit the resolved working-directory set (index 0 = process root). The host
 		// replaces index 0 of the session set with it, preserving the tail.
-		this._onDidMaterializeSession.fire({ session: sessionUri, project, workingDirectories: resolvedWorkingDirectories ?? (workingDirectory ? [workingDirectory] : undefined) });
+		this._onDidMaterializeSession.fire({ session: sessionUri, project, workingDirectories: materializedWorkingDirectories });
 		return agentSession;
 	}
 

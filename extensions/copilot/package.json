@@ -5618,7 +5618,7 @@
         },
         {
           "command": "github.copilot.chat.checkoutPullRequestReroute",
-          "when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
+          "when": "chatSessionType == copilot-cloud-agent && chatSessionPullRequest != 'none' && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
           "group": "navigation@0"
         },
         {
@@ -6832,7 +6832,7 @@
         "inputPlaceholder": "Run local tasks with Claude, type `#` for adding context",
         "order": 3,
         "description": "%github.copilot.session.providerDescription.claude%",
-        "when": "config.github.copilot.chat.claudeAgent.enabled && ((isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
+        "when": "config.github.copilot.chat.claudeAgent.enabled && (!agentHostEnabled || (isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
         "canDelegate": true,
         "requiresCustomModels": true,
         "supportsAutoModel": false,

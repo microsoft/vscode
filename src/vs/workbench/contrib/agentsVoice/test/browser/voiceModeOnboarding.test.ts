@@ -18,7 +18,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { AgentsVoiceStorageKeys } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
+import { VoiceModeOnboardingBanner, VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
 
 suite('Voice Mode onboarding', () => {
 
@@ -93,7 +93,8 @@ suite('Voice Mode onboarding', () => {
 		// rather than arriving with an answer already filled in.
 		const selectedOnOpen = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 		const voices = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-voice-label')].map(element => element.textContent);
-		const hasMicrophonePicker = host.container.querySelector('.voice-mode-onboarding-microphone-picker') !== null;
+		const voicesLabel = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voices-label')?.textContent;
+		const microphonePickerHidden = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-microphone-picker')?.hidden;
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
 		const selectedAfterPick = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 
@@ -106,9 +107,10 @@ suite('Voice Mode onboarding', () => {
 		assert.deepStrictEqual(
 			{
 				shown,
-				hasMicrophonePicker,
+				microphonePickerHidden,
 				selectedOnOpen,
 				voices,
+				voicesLabel,
 				selectedAfterPick,
 				shownAfterClose,
 				shownAgain,
@@ -116,9 +118,10 @@ suite('Voice Mode onboarding', () => {
 			},
 			{
 				shown: true,
-				hasMicrophonePicker: true,
+				microphonePickerHidden: true,
 				selectedOnOpen: 0,
-				voices: ['Maya', 'Victoria', 'Kevin', 'Daniel'],
+				voices: ['Maya (Default)', 'Victoria', 'Kevin', 'Daniel'],
+				voicesLabel: 'Agent Voice:',
 				selectedAfterPick: 1,
 				shownAfterClose: false,
 				shownAgain: false,
@@ -128,6 +131,108 @@ suite('Voice Mode onboarding', () => {
 					{ name: 'voiceModeOnboarding.action', data: { action: 'close', source: 'automatic' } },
 				],
 			});
+	});
+
+	test('clicking the playing voice stops its preview without changing the selection', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override readonly onDidChangeScreenReaderOptimized = Event.None;
+			override readonly onDidChangeReducedMotion = Event.None;
+			override isScreenReaderOptimized(): boolean { return false; }
+			override isMotionReduced(): boolean { return false; }
+		});
+
+		const audio = document.createElement('audio');
+		let playCount = 0;
+		let pauseCount = 0;
+		audio.play = () => {
+			playCount++;
+			return Promise.resolve();
+		};
+		audio.pause = () => pauseCount++;
+
+		const host = createHost(disposables);
+		disposables.add(instantiationService.createInstance(VoiceModeOnboardingBanner, {
+			container: host.container,
+			onDismiss: () => undefined,
+			source: 'manual',
+			audioFactory: () => audio,
+		}));
+
+		const maya = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!;
+		maya.click();
+		const playingAfterFirstClick = maya.classList.contains('playing');
+		const ariaLabelAfterFirstClick = maya.getAttribute('aria-label');
+		maya.click();
+
+		assert.deepStrictEqual(
+			{
+				label: maya.querySelector('.voice-mode-onboarding-voice-label')?.textContent,
+				playCount,
+				pauseCount,
+				playingAfterFirstClick,
+				ariaLabelAfterFirstClick,
+				playingAfterSecondClick: maya.classList.contains('playing'),
+				ariaLabelAfterSecondClick: maya.getAttribute('aria-label'),
+				selectedAfterSecondClick: maya.classList.contains('selected'),
+			},
+			{
+				label: 'Maya (Default)',
+				playCount: 1,
+				pauseCount: 1,
+				playingAfterFirstClick: true,
+				ariaLabelAfterFirstClick: 'Stop Maya (Default) preview.',
+				playingAfterSecondClick: false,
+				ariaLabelAfterSecondClick: 'Maya (Default). Hear this voice and use it for every conversation.',
+				selectedAfterSecondClick: true,
+			});
+	});
+
+	test('previews the native voice per language and keeps the chooser only for English', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override readonly onDidChangeScreenReaderOptimized = Event.None;
+			override readonly onDidChangeReducedMotion = Event.None;
+			override isScreenReaderOptimized(): boolean { return false; }
+			override isMotionReduced(): boolean { return false; }
+		});
+
+		// A language Voice Mode speaks natively shows its one voice with no
+		// chooser; English and languages without a native voice keep the four.
+		const cases = [
+			{ language: 'de-DE', options: 1, chooser: false, sample: 'de_marc_neutral.mp3' },
+			{ language: 'es-MX', options: 1, chooser: false, sample: 'es-ES_maria_neutral.mp3' },
+			{ language: 'fr-CA', options: 1, chooser: false, sample: 'fr_david_neutral.mp3' },
+			{ language: 'it-IT', options: 1, chooser: false, sample: 'it_eva_neutral.mp3' },
+			{ language: 'ja-JP', options: 1, chooser: false, sample: 'ja_aruha_neutral.mp3' },
+			{ language: 'ko-KR', options: 1, chooser: false, sample: 'ko_jiyon_neutral.mp3' },
+			{ language: 'pt-PT', options: 1, chooser: false, sample: 'pt-BR_gil_neutral.mp3' },
+			{ language: 'zh-TW', options: 1, chooser: false, sample: 'zh_wuzhi_neutral.mp3' },
+			{ language: 'en-GB', options: 4, chooser: true, sample: 'maya_neutral.mp3' },
+			{ language: 'is', options: 4, chooser: true, sample: 'maya_neutral.mp3' },
+		];
+		const actual: { language: string; options: number; chooser: boolean; sample: string }[] = [];
+
+		for (const { language } of cases) {
+			const host = createHost(disposables);
+			const audio = document.createElement('audio');
+			audio.play = () => Promise.resolve();
+			disposables.add(instantiationService.createInstance(VoiceModeOnboardingBanner, {
+				container: host.container,
+				onDismiss: () => undefined,
+				source: 'manual',
+				audioFactory: () => audio,
+				voiceLanguage: language,
+			}));
+
+			const options = host.container.querySelectorAll('.voice-mode-onboarding-voice').length;
+			const chooser = !!host.container.querySelector('.voice-mode-onboarding-voices[role="radiogroup"]');
+			host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
+			const sample = audio.src.split(/[?#]/)[0].split('/').pop() ?? '';
+			actual.push({ language, options, chooser, sample });
+		}
+
+		assert.deepStrictEqual(actual, cases);
 	});
 
 	test('can be shown again manually', () => {

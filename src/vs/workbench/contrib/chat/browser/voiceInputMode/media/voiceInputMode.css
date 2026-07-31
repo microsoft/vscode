@@ -30,17 +30,18 @@
 	transition: none;
 }
 
-/* Voice Mode color by state — matches the input-box glow shades: listening (user) = charts.blue, speaking (assistant) = charts.purple, so custom/high-contrast themes can override them. */
+/* Voice Mode color by state — driven from the same theme-derived accents as the input-box glow
+ * (see `resolveVoiceGlowColors`), so the pill, the waveform and the glow always agree. */
 .chat-voice-input-mode-cell.voice {
 	color: var(--vscode-icon-foreground);
 }
 
 .chat-voice-input-mode-cell.voice.listening {
-	color: var(--vscode-charts-blue, #58a6ff);
+	color: var(--voice-color-listening, var(--vscode-charts-blue, #58a6ff));
 }
 
 .chat-voice-input-mode-cell.voice.speaking {
-	color: var(--vscode-charts-purple, #a371f7);
+	color: var(--voice-color-speaking, var(--vscode-charts-purple, #a371f7));
 }
 
 /* Compact glyph size, matching the agent / model picker icons that sit beside the pill.
@@ -57,31 +58,53 @@
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
-.chat-voice-input-mode-cell.dictation.preparing:not(.cloud-preparing)::after {
-	content: '';
+/* Determinate download ring drawn over the compact download glyph while the
+ * on-device model downloads (cache miss). Mirrors the standalone toolbar
+ * button's ring; reuses its shared `dictation-download-ring-spin` keyframe. */
+.chat-voice-input-mode-cell.dictation {
+	position: relative;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring {
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	z-index: 2;
-	box-sizing: border-box;
+	/* Sized to hug the compact 12px download glyph rather than the full cell. */
 	width: 16px;
 	height: 16px;
-	border: 1.5px solid transparent;
-	border-top-color: var(--vscode-progressBar-background);
-	border-right-color: var(--vscode-progressBar-background);
-	border-radius: 50%;
 	transform: translate(-50%, -50%) rotate(-90deg);
 	pointer-events: none;
 }
 
-.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation.preparing:not(.cloud-preparing)::after {
-	animation: dictation-pill-download-spin 1.2s linear infinite;
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
 }
 
-@keyframes dictation-pill-download-spin {
-	to {
-		transform: translate(-50%, -50%) rotate(270deg);
-	}
+.hc-black .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
 }
 
 /* The Device EQ waveform lives in the voice cell and transforms per state. Thin bars = default (disconnected); thick bars = filled (connected). Its box matches the compact glyph size of the neighbouring cells so every state of the pill reads at the same optical weight. */

@@ -23,6 +23,8 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. Off by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
+	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
+	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
 	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
@@ -42,12 +44,19 @@ export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Promp
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
+export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
+
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.reasoningEffortOverride';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
+
+/** Floors valid tool-search thresholds and returns the default for invalid values. */
+export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
+	return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
+}
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 interface ICopilotCliModelCapabilityOverride {
@@ -93,6 +102,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
 		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.ToolSearchDeferThreshold]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
+		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
+		default: 1,
 	}),
 	[CopilotCliConfigKey.ReasoningEffortOverride]: schemaProperty<string>({
 		type: 'string',

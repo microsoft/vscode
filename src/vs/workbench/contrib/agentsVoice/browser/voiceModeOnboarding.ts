@@ -33,10 +33,13 @@ import './media/voiceModeOnboarding.css';
 /** Setting the banner writes when a voice chip is picked. */
 const VOICE_SETTING = 'agents.voice.voice';
 
+/** Setting that controls the language Voice Mode speaks. */
+const VOICE_LANGUAGE_SETTING = 'agents.voice.language';
+
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
-type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
 
 type VoiceModeOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
@@ -78,7 +81,7 @@ interface IWave {
 const VOICES: readonly IVoiceModeVoice[] = [
 	{
 		id: 'maya_neutral',
-		label: localize('voiceMode.onboarding.voice.maya', "Maya"),
+		label: localize('voiceMode.onboarding.voice.maya', "Maya (Default)"),
 		// Flowing mid-range: even spread, gentle drift.
 		signature: [
 			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
@@ -123,6 +126,42 @@ const VOICES: readonly IVoiceModeVoice[] = [
 ];
 
 /**
+ * A language Voice Mode speaks natively, and the single voice its backend uses
+ * for that language. Choosing between voices is an English-only affordance, so
+ * for these languages the card previews this one voice rather than the four
+ * English options.
+ */
+interface ILocalizedVoice {
+	readonly id: string;
+	readonly label: string;
+}
+
+const LOCALIZED_VOICES: Readonly<Record<string, ILocalizedVoice>> = {
+	de: { id: 'de_marc_neutral', label: localize('voiceMode.onboarding.voice.marc', "Marc") },
+	es: { id: 'es-ES_maria_neutral', label: localize('voiceMode.onboarding.voice.maria', "Maria") },
+	fr: { id: 'fr_david_neutral', label: localize('voiceMode.onboarding.voice.david', "David") },
+	it: { id: 'it_eva_neutral', label: localize('voiceMode.onboarding.voice.eva', "Eva") },
+	ja: { id: 'ja_aruha_neutral', label: localize('voiceMode.onboarding.voice.aruha', "Aruha") },
+	ko: { id: 'ko_jiyon_neutral', label: localize('voiceMode.onboarding.voice.jiyon', "Jiyon") },
+	pt: { id: 'pt-BR_gil_neutral', label: localize('voiceMode.onboarding.voice.gil', "Gil") },
+	zh: { id: 'zh_wuzhi_neutral', label: localize('voiceMode.onboarding.voice.wuzhi', "Wuzhi") },
+};
+
+/**
+ * The native voice for a spoken language, or `undefined` when the language has
+ * no native voice and the card should fall back to the English voice chooser.
+ */
+function localizedVoiceForLanguage(language: string): ILocalizedVoice | undefined {
+	try {
+		const canonical = Intl.getCanonicalLocales(language.trim())[0];
+		const base = canonical?.split('-')[0].toLowerCase();
+		return base ? LOCALIZED_VOICES[base] : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * The trace before anyone has chosen: the four signatures averaged component by
  * component, so it belongs to no voice in particular rather than quietly being
  * the first one in the list. The declared phases all sit within a couple of
@@ -162,13 +201,42 @@ const WAVE_TEMPO = (2 * Math.PI) / IDLE_CYCLE_SECONDS / Math.abs(RESTING_SIGNATU
 // --- Waveform -----------------------------------------------------------
 
 /** Amplitude with nothing playing: present, but clearly at rest. */
-const IDLE_GAIN = 0.55;
-/** A restrained lift while a sample plays; the voice chips already carry the stronger activity cue. */
-const SPEAKING_GAIN = 0.18;
-/** How quickly the band chases the audio. Low and slow reads as smooth. */
+const IDLE_GAIN = 0.5;
+/**
+ * Extra amplitude at peak loudness. Matched to the dictation card's waveform so
+ * the trace clearly swells with the voice being previewed rather than only
+ * nudging - the card's job is to let you hear (and see) each voice, and a trace
+ * that answers the sample reads as responding to it.
+ */
+const SPEAKING_GAIN = 0.45;
+/**
+ * How much of the travelling motion is always present, versus driven by the
+ * sample. At rest the trace drifts slowly - alive, not frozen - and it flows in
+ * earnest only while a voice plays, so the movement itself reads as a response to
+ * the voice you just picked rather than idle decoration.
+ */
+const IDLE_MOTION = 0.2;
+/** Additional travelling speed at peak loudness, on top of {@link IDLE_MOTION}. */
+const SPEAKING_MOTION = 0.8;
+/**
+ * How quickly the band chases the audio, per {@link REFERENCE_FRAME_SECONDS}.
+ * Low and slow reads as smooth.
+ */
 const LEVEL_EASING = 0.08;
-/** How quickly the trace morphs from one voice's signature to another. */
+/**
+ * How quickly the trace morphs from one voice's signature to another, per
+ * {@link REFERENCE_FRAME_SECONDS}.
+ */
 const SIGNATURE_EASING = 0.06;
+/**
+ * The frame duration the eased constants above are tuned against (60fps). Easing
+ * and the phase advance are scaled by the real elapsed time each frame so the
+ * motion runs at the same real-time pace whether frames arrive on time or stutter
+ * - which they do while a sample plays and the per-frame analyser read competes
+ * for the main thread. Scaling by real time (rather than a fixed per-frame step)
+ * is what keeps the trace moving at full speed under that load instead of stalling.
+ */
+const REFERENCE_FRAME_SECONDS = 1 / 60;
 /**
  * Bar metrics, taken from Voice Mode's own waveform in `voiceInputMode.css`,
  * which states the rule directly: *bars are strokes, not shapes* - they carry
@@ -181,11 +249,21 @@ const BAR_GAP = 2;
 /** Shortest a bar ever gets: a dot, so a resting bar keeps its round cap. */
 const BAR_MIN = 1;
 
-/** A signature being eased towards another, one component at a time. */
-type MutableWave = { frequency: number; amplitude: number; speed: number; phase: number };
+/** A signature component with an incrementally accumulated animation phase. */
+type MutableWave = { frequency: number; amplitude: number; speed: number; phase: number; oscillation: number };
 
 function cloneSignature(signature: readonly IWave[]): MutableWave[] {
-	return signature.map(wave => ({ ...wave }));
+	return signature.map(wave => ({ ...wave, oscillation: 0 }));
+}
+
+/**
+ * Convert a per-{@link REFERENCE_FRAME_SECONDS} easing constant into the fraction
+ * to ease by across `dt` seconds, so the morph settles at the same real-time rate
+ * regardless of frame rate. Reduces to the raw constant when `dt` is exactly one
+ * reference frame.
+ */
+function easingFactor(perFrameEasing: number, dt: number): number {
+	return 1 - Math.pow(1 - perFrameEasing, dt / REFERENCE_FRAME_SECONDS);
 }
 
 /**
@@ -194,17 +272,33 @@ function cloneSignature(signature: readonly IWave[]): MutableWave[] {
  * new voice instead of cutting to it.
  *
  * `phase` eases with the rest: it is a static offset per component (the motion
- * comes from `time * speed`), so leaving it behind would strand every voice on
- * whichever phases the trace happened to start with. Every declared phase sits
- * within a radian or two of its neighbours, well inside half a turn, so easing
- * straight to the target is also the shortest way round the circle.
+ * comes from the accumulated `oscillation`), so leaving it behind would strand
+ * every voice on whichever phases the trace happened to start with. Every declared
+ * phase sits within a radian or two of its neighbours, well inside half a turn, so
+ * easing straight to the target is also the shortest way round the circle.
+ *
+ * `oscillation` is deliberately left untouched: it is where the component is in its
+ * cycle, not part of the target texture, so it keeps flowing across the morph.
  */
-function easeSignature(current: MutableWave[], target: readonly IWave[]): void {
+function easeSignature(current: MutableWave[], target: readonly IWave[], factor: number): void {
 	for (let i = 0; i < current.length && i < target.length; i++) {
-		current[i].frequency += (target[i].frequency - current[i].frequency) * SIGNATURE_EASING;
-		current[i].amplitude += (target[i].amplitude - current[i].amplitude) * SIGNATURE_EASING;
-		current[i].speed += (target[i].speed - current[i].speed) * SIGNATURE_EASING;
-		current[i].phase += (target[i].phase - current[i].phase) * SIGNATURE_EASING;
+		current[i].frequency += (target[i].frequency - current[i].frequency) * factor;
+		current[i].amplitude += (target[i].amplitude - current[i].amplitude) * factor;
+		current[i].speed += (target[i].speed - current[i].speed) * factor;
+		current[i].phase += (target[i].phase - current[i].phase) * factor;
+	}
+}
+
+/**
+ * Advance each component's accumulated animation phase by the current speed over
+ * `dt` seconds, wrapping to keep it bounded over long sessions. Because this only
+ * ever adds to `oscillation`, changing `speed` mid-morph bends the motion smoothly
+ * instead of teleporting it.
+ */
+function advanceOscillation(waves: readonly MutableWave[], dt: number): void {
+	const tau = 2 * Math.PI;
+	for (const wave of waves) {
+		wave.oscillation = (wave.oscillation + wave.speed * WAVE_TEMPO * dt) % tau;
 	}
 }
 
@@ -216,7 +310,7 @@ function easeSignature(current: MutableWave[], target: readonly IWave[]): void {
 function drawBars(
 	context: CanvasRenderingContext2D,
 	width: number, height: number,
-	waves: readonly MutableWave[], time: number, gain: number,
+	waves: readonly MutableWave[], gain: number,
 ): void {
 	const pitch = BAR_WIDTH + BAR_GAP;
 	const count = Math.max(1, Math.floor(width / pitch));
@@ -228,7 +322,7 @@ function drawBars(
 
 	for (let index = 0; index < count; index++) {
 		const position = count > 1 ? index / (count - 1) : 0;
-		const amount = bandFraction(position, time, waves) * gain;
+		const amount = bandFraction(position, waves) * gain;
 		const half = Math.max(BAR_MIN / 2, Math.min(maxHalf, amount * maxHalf));
 		context.beginPath();
 		context.roundRect(inset + index * pitch, centerY - half, BAR_WIDTH, half * 2, BAR_WIDTH / 2);
@@ -245,11 +339,11 @@ function drawBars(
  * crossing - that is what makes an ASCII waveform look like it is snapping up
  * and down rather than flowing.
  */
-function bandFraction(position: number, time: number, waves: readonly MutableWave[]): number {
+function bandFraction(position: number, waves: readonly MutableWave[]): number {
 	let amplitude = 0;
 	let total = 0;
 	for (const wave of waves) {
-		const phase = position * wave.frequency * Math.PI * 2 + time * wave.speed * WAVE_TEMPO + wave.phase;
+		const phase = position * wave.frequency * Math.PI * 2 + wave.oscillation + wave.phase;
 		amplitude += (0.5 + 0.5 * Math.sin(phase)) * wave.amplitude;
 		total += wave.amplitude;
 	}
@@ -284,6 +378,8 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	private height = 0;
 	private running = false;
 	private level = 0;
+	/** Timestamp of the previous frame, for the elapsed-time each draw eases over. */
+	private lastTimestamp: number | undefined;
 	private readonly waves: MutableWave[];
 	/**
 	 * The stroke colour, taken from the canvas's own computed `color` so CSS
@@ -380,19 +476,33 @@ class VoiceModeOnboardingAnimator extends Disposable {
 			return;
 		}
 
-		const time = timestamp * 0.001;
+		// Real time elapsed since the previous frame. Both the easing and the phase
+		// advance scale by this, so the trace keeps its real-time speed whether
+		// frames arrive at 60fps or drop while a sample plays - rather than slowing
+		// down under the extra load. A big gap (a hitch, or a backgrounded tab that
+		// paused the loop) simply advances the trace to where it should be: the
+		// phase is periodic and the easing factor stays bounded, so there is no
+		// lurch to guard against.
+		const dt = this.lastTimestamp === undefined
+			? 0
+			: Math.max(0, (timestamp - this.lastTimestamp) * 0.001);
+		this.lastTimestamp = timestamp;
 
-		// Idle, the waveform breathes gently; while a voice plays it swells with
-		// that voice. Both the level and the shape are eased so the ribbon glides
-		// rather than snapping between frames.
-		this.level += (this.source.getLevel() - this.level) * LEVEL_EASING;
-		easeSignature(this.waves, this.source.getSignature());
+		// Idle, the waveform drifts gently; while a voice plays it flows and swells
+		// with that voice. Both the level and the shape are eased so the ribbon
+		// glides rather than snapping between frames.
+		this.level += (this.source.getLevel() - this.level) * easingFactor(LEVEL_EASING, dt);
+		easeSignature(this.waves, this.source.getSignature(), easingFactor(SIGNATURE_EASING, dt));
+		// Drive the travelling motion from the sample: nearly still at rest, flowing
+		// while a voice plays, so the movement reads as a response to the previewed
+		// voice rather than constant idle motion.
+		advanceOscillation(this.waves, dt * (IDLE_MOTION + this.level * SPEAKING_MOTION));
 		const gain = IDLE_GAIN + this.level * SPEAKING_GAIN;
 
 		this.context.clearRect(0, 0, this.width, this.height);
 		this.context.fillStyle = this.stroke;
 
-		drawBars(this.context, this.width, this.height, this.waves, time, gain);
+		drawBars(this.context, this.width, this.height, this.waves, gain);
 	}
 
 }
@@ -422,6 +532,7 @@ class VoiceSamplePlayer extends Disposable {
 
 	constructor(
 		private readonly element: HTMLElement,
+		private readonly audioFactory: (() => HTMLAudioElement) | undefined,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -446,11 +557,11 @@ class VoiceSamplePlayer extends Disposable {
 		return Math.min(1, Math.sqrt(sum / this.levels.length) * 3.2);
 	}
 
-	play(voiceId: string): void {
+	play(sampleId: string): void {
 		this.stop();
 		try {
 			const audio = this.ensureAudio();
-			audio.src = FileAccess.asBrowserUri(`vs/workbench/contrib/agentsVoice/browser/media/${voiceId}.mp3`).toString(true);
+			audio.src = FileAccess.asBrowserUri(`vs/workbench/contrib/agentsVoice/browser/media/${sampleId}.mp3`).toString(true);
 
 			const store = new DisposableStore();
 			store.add(dom.addDisposableListener(audio, 'ended', () => this.stop()));
@@ -458,7 +569,7 @@ class VoiceSamplePlayer extends Disposable {
 			store.add(toDisposable(() => audio.pause()));
 			this.playback.value = store;
 
-			this.setPlayingVoice(voiceId);
+			this.setPlayingVoice(sampleId);
 			audio.play().catch(error => {
 				this.logService.trace(`[voice] Voice Mode onboarding preview failed: ${error}`);
 				this.stop();
@@ -480,7 +591,7 @@ class VoiceSamplePlayer extends Disposable {
 		}
 
 		const targetWindow = dom.getWindow(this.element);
-		const audio = new targetWindow.Audio();
+		const audio = this.audioFactory?.() ?? new targetWindow.Audio();
 		this.audio = audio;
 		this._register(toDisposable(() => {
 			audio.pause();
@@ -522,6 +633,17 @@ export interface IVoiceModeOnboardingBannerOptions {
 	readonly container: HTMLElement;
 	readonly onDismiss: () => void;
 	readonly source: 'automatic' | 'manual';
+	/** Allows tests to provide a deterministic media element. */
+	readonly audioFactory?: () => HTMLAudioElement;
+	/** Allows tests to provide a deterministic spoken language. */
+	readonly voiceLanguage?: string;
+}
+
+/** A rendered voice option, with the strings its play state swaps between. */
+interface IVoiceElement {
+	readonly element: HTMLElement;
+	readonly label: string;
+	readonly restingAria: string;
 }
 
 /**
@@ -544,7 +666,10 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	private microphoneOptions: IMicrophoneOption[] = [];
 	private microphonePickerContainer: HTMLElement | undefined;
 
-	private readonly voiceElements = new Map<string, HTMLElement>();
+	private readonly voiceElements = new Map<string, IVoiceElement>();
+
+	/** The native voice for the spoken language, when one exists. */
+	private readonly localizedVoice: ILocalizedVoice | undefined;
 
 	/** The voice being auditioned, and the one that will be committed. */
 	private selectedVoice: IVoiceModeVoice | undefined;
@@ -574,7 +699,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			},
 		}));
 		this.domNode = this.card.domNode;
-		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode));
+		this.localizedVoice = localizedVoiceForLanguage(this.resolveSpokenLanguage());
+		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode, options.audioFactory));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
 
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
@@ -660,16 +786,15 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.microphonePicker.clear();
 		dom.clearNode(this.microphonePickerContainer);
 
+		this.microphonePickerContainer.hidden = this.microphoneOptions.length <= 1;
+		if (this.microphonePickerContainer.hidden) {
+			return;
+		}
+
 		dom.append(this.microphonePickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.voice-mode-onboarding-microphone-icon`))
 			.setAttribute('aria-hidden', 'true');
 
 		const selected = indexOfMicrophone(this.microphoneOptions, this.currentMicrophoneId());
-		if (this.microphoneOptions.length <= 1) {
-			const label = dom.append(this.microphonePickerContainer, dom.$('.voice-mode-onboarding-microphone-label'));
-			label.textContent = this.microphoneOptions[selected]?.label ?? localize('voiceMode.onboarding.noMicrophone', "No microphone found");
-			label.title = label.textContent;
-			return;
-		}
 
 		const store = new DisposableStore();
 		const selectBox = store.add(new SelectBox(
@@ -703,40 +828,87 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	/**
-	 * The four voices as real buttons - border, hover lift, pressed feedback -
-	 * because bare text gave no sign it could be clicked at all.
+	 * The voices as real buttons - border, hover lift, pressed feedback -
+	 * because bare text gave no sign it could be clicked at all. In a language
+	 * Voice Mode speaks natively there is only one voice, so the card previews
+	 * that voice instead of offering the English chooser.
 	 */
 	private renderVoices(container: HTMLElement): void {
+		const labelText = localize('voiceMode.onboarding.voices', "Agent Voice:");
+		const label = dom.append(container, dom.$('.voice-mode-onboarding-voices-label'));
+		label.textContent = labelText;
+
+		if (this.localizedVoice) {
+			this.renderLocalizedVoice(container, labelText, this.localizedVoice);
+			return;
+		}
+
 		const group = dom.append(container, dom.$('.voice-mode-onboarding-voices'));
 		group.setAttribute('role', 'radiogroup');
-		group.setAttribute('aria-label', localize('voiceMode.onboarding.voices', "Voice Mode voice"));
+		group.setAttribute('aria-label', labelText);
 
 		for (const voice of VOICES) {
 			const option = dom.append(group, dom.$('.voice-mode-onboarding-voice'));
 			option.setAttribute('role', 'radio');
-			// Spells out both halves of what a click does: it speaks, and it sticks.
-			option.setAttribute('aria-label', localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label));
+			const restingAria = localize('voiceMode.onboarding.voice.ariaLabel', "{0}. Hear this voice and use it for every conversation.", voice.label);
+			option.setAttribute('aria-label', restingAria);
 
-			// The icon is the affordance: it says "this will speak" before the
-			// click, and "this is yours" after it.
-			const icon = dom.append(option, dom.$('span.voice-mode-onboarding-voice-icon'));
-			dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.play.id}.voice-mode-onboarding-voice-idle`)).setAttribute('aria-hidden', 'true');
-			dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.checkCompact.id}.voice-mode-onboarding-voice-chosen`)).setAttribute('aria-hidden', 'true');
-			const bars = dom.append(icon, dom.$('span.voice-mode-onboarding-voice-bars'));
-			bars.setAttribute('aria-hidden', 'true');
-			for (let bar = 0; bar < 3; bar++) {
-				dom.append(bars, dom.$('span.voice-mode-onboarding-voice-bar'));
-			}
+			this.appendVoiceIcon(option);
 
 			const label = dom.append(option, dom.$('span.voice-mode-onboarding-voice-label'));
 			label.textContent = voice.label;
-			this.voiceElements.set(voice.id, option);
+			this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
 
 			this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.selectVoice(voice)));
 			this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => this.handleOptionKey(event, voice)));
 		}
 
 		this.updateSelection();
+	}
+
+	/**
+	 * The single native voice for the spoken language, as a preview button:
+	 * there is nothing to choose, so it only ever plays and stops.
+	 */
+	private renderLocalizedVoice(container: HTMLElement, ariaLabel: string, voice: ILocalizedVoice): void {
+		const group = dom.append(container, dom.$('.voice-mode-onboarding-voices'));
+		group.setAttribute('aria-label', ariaLabel);
+
+		const option = dom.append(group, dom.$('.voice-mode-onboarding-voice'));
+		option.setAttribute('role', 'button');
+		option.tabIndex = 0;
+		const restingAria = localize('voiceMode.onboarding.voice.previewAriaLabel', "{0}. Hear how your agent will sound.", voice.label);
+		option.setAttribute('aria-label', restingAria);
+
+		this.appendVoiceIcon(option);
+
+		const label = dom.append(option, dom.$('span.voice-mode-onboarding-voice-label'));
+		label.textContent = voice.label;
+		this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
+
+		this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.previewLocalizedVoice(voice)));
+		this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+				keyboardEvent.preventDefault();
+				this.previewLocalizedVoice(voice);
+			}
+		}));
+	}
+
+	/**
+	 * The icon is the affordance: it says "this will speak" before the click,
+	 * animating bars while it speaks, then a check once a voice is chosen.
+	 */
+	private appendVoiceIcon(option: HTMLElement): void {
+		const icon = dom.append(option, dom.$('span.voice-mode-onboarding-voice-icon'));
+		dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.play.id}.voice-mode-onboarding-voice-idle`)).setAttribute('aria-hidden', 'true');
+		dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.checkCompact.id}.voice-mode-onboarding-voice-chosen`)).setAttribute('aria-hidden', 'true');
+		const bars = dom.append(icon, dom.$('span.voice-mode-onboarding-voice-bars'));
+		bars.setAttribute('aria-hidden', 'true');
+		for (let bar = 0; bar < 3; bar++) {
+			dom.append(bars, dom.$('span.voice-mode-onboarding-voice-bar'));
+		}
 	}
 
 	// --- Shared behaviour ---
@@ -759,7 +931,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			const index = VOICES.indexOf(voice);
 			const next = VOICES[(index + (forward ? 1 : VOICES.length - 1)) % VOICES.length];
 			this.selectVoice(next);
-			this.voiceElements.get(next.id)?.focus();
+			this.voiceElements.get(next.id)?.element.focus();
 		}
 	}
 
@@ -779,7 +951,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 				'Preserve the double square brackets: they mark the text that becomes a link.',
 				'The link opens Voice Mode settings.',
 			],
-		}, "Your agent can speak back to you, free of charge. Adjust [[settings]] anytime.");
+		}, "Choose how your agent speaks to you. Adjust [[settings]] anytime.");
 
 		dom.append(description, renderFormattedText(text, {
 			actionHandler: {
@@ -832,6 +1004,11 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
+		if (this.player.playingVoice === voice.id) {
+			this.player.stop();
+			status(localize('voiceMode.onboarding.voice.previewStopped', "{0} preview stopped.", voice.label));
+			return;
+		}
 		this.logAction('selectVoice');
 		this.selectedVoice = voice;
 		this.updateSelection();
@@ -841,11 +1018,43 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			.catch(error => this.logService.error(`[voice] Failed to persist the Voice Mode voice: ${error}`));
 	}
 
+	/**
+	 * The localized voice is not a choice - it is the only voice for the
+	 * language - so previewing it just plays and stops, and never persists.
+	 */
+	private previewLocalizedVoice(voice: ILocalizedVoice): void {
+		if (this.player.playingVoice === voice.id) {
+			this.player.stop();
+			status(localize('voiceMode.onboarding.voice.localizedStopped', "{0} preview stopped.", voice.label));
+			return;
+		}
+		this.logAction('previewVoice');
+		this.player.play(voice.id);
+		status(localize('voiceMode.onboarding.voice.localizedPlaying', "Playing {0} preview.", voice.label));
+	}
+
+	/**
+	 * The spoken language, mirroring the resolution the voice client uses: an
+	 * explicit test override, then the configured language (unless `auto`), then
+	 * the window's language.
+	 */
+	private resolveSpokenLanguage(): string {
+		if (this.options.voiceLanguage) {
+			return this.options.voiceLanguage;
+		}
+
+		const configuredLanguage = this.configurationService.getValue<string>(VOICE_LANGUAGE_SETTING)?.trim();
+		if (configuredLanguage && configuredLanguage.toLowerCase() !== 'auto') {
+			return configuredLanguage;
+		}
+		return dom.getWindow(this.domNode).navigator.language;
+	}
+
 	private updateSelection(): void {
-		for (const [id, element] of this.voiceElements) {
+		for (const [id, entry] of this.voiceElements) {
 			const selected = id === this.selectedVoice?.id;
-			element.classList.toggle('selected', selected);
-			element.setAttribute('aria-checked', String(selected));
+			entry.element.classList.toggle('selected', selected);
+			entry.element.setAttribute('aria-checked', String(selected));
 		}
 		this.updateTabStop();
 	}
@@ -856,16 +1065,20 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	 */
 	private updateTabStop(): void {
 		let first = true;
-		for (const [id, element] of this.voiceElements) {
+		for (const [id, entry] of this.voiceElements) {
 			const isTabStop = this.selectedVoice === undefined ? first : id === this.selectedVoice.id;
-			element.tabIndex = isTabStop ? 0 : -1;
+			entry.element.tabIndex = isTabStop ? 0 : -1;
 			first = false;
 		}
 	}
 
 	private updatePlaying(playingVoice: string | undefined): void {
-		for (const [id, element] of this.voiceElements) {
-			element.classList.toggle('playing', id === playingVoice);
+		for (const [id, entry] of this.voiceElements) {
+			const playing = id === playingVoice;
+			entry.element.classList.toggle('playing', playing);
+			entry.element.setAttribute('aria-label', playing
+				? localize('voiceMode.onboarding.voice.stopPreview', "Stop {0} preview.", entry.label)
+				: entry.restingAria);
 		}
 		this.domNode.classList.toggle('playing', playingVoice !== undefined);
 	}
@@ -888,6 +1101,7 @@ export const IVoiceModeOnboardingService = createDecorator<IVoiceModeOnboardingS
 
 export interface IVoiceModeOnboardingService {
 	readonly _serviceBrand: undefined;
+	readonly isVisible: boolean;
 
 	/**
 	 * Register a container that can host the banner (a chat input). The most
@@ -900,7 +1114,7 @@ export interface IVoiceModeOnboardingService {
 	 * Passed explicitly because `focusRoot` is a container, not a control - the
 	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -918,6 +1132,10 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 
 	private readonly onboarding: ChatInputOnboarding;
 
+	get isVisible(): boolean {
+		return this.onboarding.isVisible;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -929,8 +1147,8 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, focus);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, focus, tipContainer, onDidChangeVisible);
 	}
 
 	showIfNeeded(): void {

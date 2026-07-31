@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -108,6 +109,12 @@ export interface IAgentSideEffectsOptions {
 	 * excluded — only the parent session URI is passed.
 	 */
 	readonly onTurnComplete: (session: ProtocolURI) => void;
+	/**
+	 * Called with the text of every user message that is forwarded to an agent,
+	 * so the host can derive session state from what the user wrote (e.g. the
+	 * GitHub issues the message references).
+	 */
+	readonly onUserMessage?: (session: ProtocolURI, text: string) => void;
 }
 
 interface IQueuedMessageSender {
@@ -184,6 +191,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -709,10 +717,14 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
-			// Only the start action carries the tool name and contributor, so the
-			// source kind must be captured here rather than on completion. The
-			// provider comes from the agent that emitted the signal.
+			// Ready may refine the contributor once the complete tool metadata is
+			// available, so the tracker updates the source kind below when needed.
 			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
+		} else if (action.type === ActionType.ChatToolCallReady) {
+			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor);
+			if (action.confirmed) {
+				this._toolCallTracker.toolCallExecutionStarted(sessionKey, action.toolCallId);
+			}
 		}
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
@@ -816,7 +828,15 @@ export class AgentSideEffects extends Disposable {
 		// completion since those have always been fire-and-forget; the
 		// ordering guarantee we care about is checkpoint-then-changeset.
 		if (turnId !== undefined) {
-			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId).then(() => {
+			// Resolved here rather than inside the checkpoint service so the
+			// repositories a checkpoint acts on are always explicit at the
+			// call site. Note the changeset service below deliberately keeps
+			// its own resolution: `onTurnComplete` only schedules deferred
+			// recomputes that are shared with subscription, truncation and
+			// mid-turn-debounce entry points, so it has no single point at
+			// which a caller-supplied set would apply.
+			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
+			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId, workingDirectories).then(() => {
 				this._changesets.onTurnComplete(sessionUri, turnId);
 			}, err => {
 				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
@@ -1124,6 +1144,7 @@ export class AgentSideEffects extends Disposable {
 			permissionPath: e.permissionPath,
 			toolInput: e.state.toolInput,
 			requestSandboxBypass: e.requestSandboxBypass,
+			shellLanguage: e.shellLanguage,
 		};
 		const autoApproval = e.managedApprovalRequired
 			? undefined
@@ -1168,10 +1189,12 @@ export class AgentSideEffects extends Disposable {
 			// Mark confirmations where a persistent allow rule can suppress the next equivalent prompt.
 			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRuleResolvable: true }) } } };
 		}
-		this._stateManager.dispatchServerAction(
-			sessionKey,
-			this._permissionManager.createToolReadyAction(effective, sessionKey, turnId)
-		);
+		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
+		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
+		if (readyAction.confirmed) {
+			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
+		}
+		this._stateManager.dispatchServerAction(sessionKey, readyAction);
 	}
 
 	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientType = AgentHostClientType.Unknown): void {
@@ -1202,6 +1225,7 @@ export class AgentSideEffects extends Disposable {
 					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
 				}
 				this._titleController.seedTitleFromFirstMessage(sessionChannel, action.message.text, chatChannel);
+				this._options.onUserMessage?.(sessionChannel, action.message.text);
 
 				const agent = this._options.getAgent(sessionChannel);
 				if (!agent) {
@@ -1235,6 +1259,9 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
 				}
 				const toolCallKey = `${channel}:${action.toolCallId}`;
+				if (action.approved) {
+					this._toolCallTracker.toolCallExecutionStarted(channel, action.toolCallId);
+				}
 				const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
 				const agentId = this._toolCallAgents.get(toolCallKey);
 				if (agentId) {
@@ -1578,7 +1605,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const state = this._stateManager.getSessionState(session);
-		if (!state?.queuedMessages?.length) {
+		if (!state?.queuedMessages?.length || state.steeringMessage) {
 			return;
 		}
 

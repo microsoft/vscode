@@ -423,6 +423,12 @@ Codex fixtures use its unified `exec_command` tool, so Codex record/replay serve
 
 When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. For the **Copilot** provider, a failed test tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log` into the test output — look for the `[agent-host-e2e] # …` lines. That is the SDK/CLI's own account of startup, auth, the model request, and the turn lifecycle; a turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and the full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down. (Claude and Codex use their own runtimes and are not captured here — check their provider CLI's own logs.)
 
+### Replayed text is doubled (`VALUEVALUE`)
+
+The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
+
+`responsesMessageToSse` therefore sends the added item empty. Recording is unaffected (it proxies real bytes), which is why this only ever showed up on replay — and why the recorded capture looked correct while the replayed snapshot did not.
+
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
@@ -461,18 +467,26 @@ Existing tests there stay and keep running — they are cheap and they work. The
 
 A one-off union measurement (protocol + E2E vs. E2E alone) put the protocol suite's unique contribution at **1673 statements (+1.8pp)** across 30 files. Cross-referencing that with the protocol-surface `uncovered` list gives a concrete list of contracts that exist *only* in the frozen suite and should be re-expressed here as conformance tests, highest value first:
 
-| Area | Only tested in | Uncovered protocol symbols |
+The **Protocol symbols** column lists what each row is responsible for; check `coverage/protocol-surface.json` for the authoritative covered/uncovered split rather than reading it out of this table.
+
+| Area | Status | Protocol symbols |
 |---|---|---|
-| Client-hosted filesystem (reverse requests) | *migrated* — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` |
-| Turn history paging | `turnExecution` | `fetchTurns`, `chat/turnsLoaded` |
-| Reconnect and multi-client fan-out | `multiClient` | `reconnect` |
-| Changeset lifecycle | `sessionDiffs` | all 8 `changeset/*` actions |
-| OTLP export | `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` |
-| Liveness | `handshake`, several others | `ping` |
+| Client-hosted filesystem (reverse requests) | migrated — `suites/clientFilesystemSuite.ts` | `resourceWatch/changed` still uncovered |
+| Turn history paging | migrated — `suites/protocolContractsSuite.ts` | `fetchTurns`, `chat/turnsLoaded` — covered |
+| Reconnect and multi-client fan-out | partly migrated — `suites/protocolContractsSuite.ts` covers `reconnect`; fan-out across several live clients is still only in `multiClient` | `reconnect` — covered |
+| Changeset lifecycle | migrated — `suites/changesetSuite.ts` | 5 of 8 `changeset/*` covered; `fileSet`, `fileRemoved`, `operationStatusChanged` still uncovered |
+| OTLP export | still only in `otlpLogs` | `otlp/exportLogs`, `otlp/exportMetrics`, `otlp/exportTraces` uncovered |
+| Liveness | migrated — `suites/protocolContractsSuite.ts` | `ping` — covered |
+
+Changeset lifecycle followed. `suites/changesetSuite.ts` covers status, content, review state, the operations a changeset advertises, and the catalog in the conformance tier, driving real git-backed edits through host-executed bang commands so no scenario crosses the model boundary. The frozen suite's version could not be copied: it drives a mock agent with the magic prompt `terminal-edit:<path>`, which no other AHP implementation would understand.
+
+The three remaining `changeset/*` actions need scenarios this suite does not yet reach: `fileSet` / `fileRemoved` are the incremental per-file updates (the bulk `contentChanged` path is what a fresh session emits), and `operationStatusChanged` needs an invoked operation — `commit` and `discard-changes` are the two that run without network access.
 
 The filesystem family was the largest of these and is now covered by `suites/clientFilesystemSuite.ts` in the conformance tier — both the `resource*` command surface the host executes against its own filesystem, and the reverse direction where the host asks the *client* for a file it cannot otherwise reach. See [The filesystem, in both directions](#the-filesystem-in-both-directions).
 
-Some contracts are covered by **neither** suite and need new tests outright: the entire `annotations/*` channel (5 actions), `invokeChangesetOperation`, `auth/required`, `root/progress`, and `chat/toolCallAuthRequired` / `chat/toolCallAuthResolved`.
+Some contracts are covered by **neither** suite and need new tests outright: `auth/required`, `root/progress`, and `chat/toolCallAuthRequired` / `chat/toolCallAuthResolved`. The `annotations/*` channel is now covered by `suites/annotationsSuite.ts`.
+
+`reconnect` is only answerable on a transport that has **not** completed the handshake — it is the alternative to `initialize`, not a command an established connection can issue. Testing it therefore needs a second connection that can be dropped and re-established, which is what `IAgentHostE2ETestContext.connectClient` exists for; the shared per-test client cannot express it.
 
 ---
 

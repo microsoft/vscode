@@ -46,6 +46,9 @@ const DICTATION_SETTINGS_QUERY = 'dictation';
 /** The `deviceId` value that means "whatever the system is using". */
 const SYSTEM_DEFAULT_DEVICE_ID = '';
 
+type DictationMediaDevices = Pick<MediaDevices, 'addEventListener' | 'removeEventListener' | 'dispatchEvent' | 'enumerateDevices' | 'getUserMedia'>;
+type SwitchMicrophone = (deviceId: string) => Promise<AnalyserNode | undefined>;
+
 type DictationOnboardingAction = 'shown' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
 
 type DictationOnboardingActionClassification = {
@@ -111,6 +114,19 @@ interface IWave {
 	readonly amplitude: number;
 	readonly speed: number;
 	readonly phase: number;
+}
+
+function readMicrophoneLevel(analyser: AnalyserNode | undefined, waveform: Uint8Array<ArrayBuffer> | undefined): number {
+	if (!analyser || !waveform) {
+		return 0;
+	}
+	analyser.getByteTimeDomainData(waveform);
+	let sum = 0;
+	for (const sample of waveform) {
+		const centered = (sample - 128) / 128;
+		sum += centered * centered;
+	}
+	return Math.min(1, Math.sqrt(sum / waveform.length) * 4);
 }
 
 /**
@@ -185,6 +201,7 @@ class MicrophonePreview extends Disposable {
 
 	constructor(
 		private readonly element: HTMLElement,
+		private readonly mediaDevices: DictationMediaDevices | undefined,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -195,18 +212,9 @@ class MicrophonePreview extends Disposable {
 	 * frame, so it stays allocation-free.
 	 */
 	getLevel(): number {
-		if (!this.analyser || !this.waveform) {
-			return 0;
-		}
-		this.analyser.getByteTimeDomainData(this.waveform);
-		let sum = 0;
-		for (const sample of this.waveform) {
-			const centered = (sample - 128) / 128;
-			sum += centered * centered;
-		}
 		// RMS, scaled so ordinary speech fills most of the row rather than a
 		// sliver of it.
-		return Math.min(1, Math.sqrt(sum / this.waveform.length) * 4);
+		return readMicrophoneLevel(this.analyser, this.waveform);
 	}
 
 	/**
@@ -221,8 +229,7 @@ class MicrophonePreview extends Disposable {
 		this.releaseMicrophone();
 
 		const targetWindow = dom.getWindow(this.element);
-		const mediaDevices = targetWindow.navigator.mediaDevices;
-		if (!mediaDevices?.getUserMedia) {
+		if (!this.mediaDevices?.getUserMedia) {
 			this.setError(MicrophonePreviewError.Unavailable);
 			return;
 		}
@@ -234,7 +241,7 @@ class MicrophonePreview extends Disposable {
 
 		let stream: MediaStream;
 		try {
-			stream = await mediaDevices.getUserMedia({ audio: constraints });
+			stream = await this.mediaDevices.getUserMedia({ audio: constraints });
 		} catch (error) {
 			this.setError(toPreviewError(error));
 			this.logService.trace(`[chat-stt] microphone preview unavailable: ${error}`);
@@ -523,14 +530,15 @@ export interface IDictationOnboardingBannerOptions {
 	/** The element the card attaches itself to. */
 	readonly container: HTMLElement;
 	readonly onDismiss: () => void;
-	/** Whether this manually opened card should acquire a microphone preview. */
+	/** Whether this manually opened card should also acquire a microphone preview. */
 	readonly previewMicrophone: boolean;
 	readonly source: 'automatic' | 'manual';
 }
 
 /**
- * The first-run dictation card explains the feature while recording starts.
- * When reopened manually, it also previews and selects the microphone.
+ * The first-run dictation card explains the feature and offers microphone
+ * selection while recording starts. When reopened manually, it also previews
+ * the selected microphone.
  *
  * The card runs alongside the first dictation, so it explains the feature
  * without delaying the action the user invoked.
@@ -541,15 +549,19 @@ export class DictationOnboardingBanner extends Disposable {
 
 	private readonly card: ChatInputOnboardingCard;
 	private readonly preview: MicrophonePreview | undefined;
-	private readonly waveform: MicrophoneWaveform | undefined;
+	private readonly waveform: MicrophoneWaveform;
 	private readonly hint: HTMLElement | undefined;
 	private readonly pickerContainer: HTMLElement | undefined;
+	private dictationAnalyser: AnalyserNode | undefined;
+	private dictationWaveform: Uint8Array<ArrayBuffer> | undefined;
+	private switchMicrophone: SwitchMicrophone | undefined;
 
 	private readonly picker = this._register(new MutableDisposable<DisposableStore>());
 	private options: IMicrophoneOption[] = [];
 
 	constructor(
 		private readonly bannerOptions: IDictationOnboardingBannerOptions,
+		private readonly mediaDevices: DictationMediaDevices | undefined,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -577,16 +589,24 @@ export class DictationOnboardingBanner extends Disposable {
 
 		this.renderClose();
 
-		if (this.bannerOptions.previewMicrophone) {
-			// The device and its level are one group: the bars are *this*
-			// microphone's level. Automatic onboarding runs beside an already
-			// active dictation stream, so only the manually opened introduction
-			// owns this independent preview and its device picker.
-			const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
-			this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
-			const waveformContainer = dom.append(device, dom.$('.dictation-onboarding-waveform'));
+		const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
+		this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
+		this.options = [{
+			deviceId: SYSTEM_DEFAULT_DEVICE_ID,
+			label: localize('dictation.onboarding.systemDefault', "System default"),
+		}];
+		this.renderPicker();
 
-			const preview = this.preview = this._register(instantiationService.createInstance(MicrophonePreview, this.domNode));
+		if (this.mediaDevices) {
+			this._register(dom.addDisposableListener(this.mediaDevices, 'devicechange', () => void this.refreshMicrophones()));
+		}
+
+		const waveformContainer = dom.append(device, dom.$('.dictation-onboarding-waveform'));
+		if (this.bannerOptions.previewMicrophone) {
+			// Automatic onboarding runs beside an already active dictation
+			// stream, so only the manually opened introduction owns this
+			// independent preview.
+			const preview = this.preview = this._register(instantiationService.createInstance(MicrophonePreview, this.domNode, this.mediaDevices));
 			this.waveform = this._register(instantiationService.createInstance(MicrophoneWaveform, waveformContainer, {
 				getLevel: () => preview.getLevel(),
 				isAvailable: () => preview.error === undefined,
@@ -597,20 +617,15 @@ export class DictationOnboardingBanner extends Disposable {
 			this.hint.setAttribute('aria-live', 'polite');
 			this.updateHint();
 
-			this.options = [{
-				deviceId: SYSTEM_DEFAULT_DEVICE_ID,
-				label: localize('dictation.onboarding.systemDefault', "System default"),
-			}];
-			this.renderPicker();
-
-			const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
-			if (mediaDevices) {
-				this._register(dom.addDisposableListener(mediaDevices, 'devicechange', () => void this.refreshDevices()));
-			}
-
-			this.waveform.start();
 			void this.startPreview();
+		} else {
+			this.waveform = this._register(instantiationService.createInstance(MicrophoneWaveform, waveformContainer, {
+				getLevel: () => readMicrophoneLevel(this.dictationAnalyser, this.dictationWaveform),
+				isAvailable: () => this.dictationAnalyser !== undefined,
+			}, undefined));
+			void this.refreshMicrophones();
 		}
+		this.waveform.start();
 		this.logAction('shown');
 	}
 
@@ -676,23 +691,33 @@ export class DictationOnboardingBanner extends Disposable {
 			return;
 		}
 		const listening = this.preview.listen(this.currentDeviceId());
-		await Promise.all([listening, this.refreshDevices()]);
-		await this.refreshDevices();
+		await Promise.all([listening, this.refreshMicrophones()]);
+		await this.refreshMicrophones();
 	}
 
 	private currentDeviceId(): string {
 		return this.storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, SYSTEM_DEFAULT_DEVICE_ID);
 	}
 
-	private async refreshDevices(): Promise<void> {
-		const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
-		if (!mediaDevices?.enumerateDevices) {
+	async refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this.switchMicrophone = switchMicrophone ?? this.switchMicrophone;
+		if (!this.preview && analyserNode) {
+			this.dictationAnalyser = analyserNode;
+			this.dictationWaveform = new Uint8Array(analyserNode.fftSize);
+		}
+		if (!this.preview && !this.dictationAnalyser) {
+			return;
+		}
+		if (!this.mediaDevices?.enumerateDevices) {
 			return;
 		}
 
 		let devices: MediaDeviceInfo[];
 		try {
-			devices = await mediaDevices.enumerateDevices();
+			devices = await this.mediaDevices.enumerateDevices();
 		} catch (error) {
 			this.logService.trace(`[chat-stt] could not enumerate microphones: ${error}`);
 			return;
@@ -715,10 +740,7 @@ export class DictationOnboardingBanner extends Disposable {
 		this.renderPicker();
 	}
 
-	/**
-	 * A picker with one entry is not a choice - it is a label that happens to
-	 * open a menu. With a single microphone the card just names it.
-	 */
+	/** A picker with one entry is not a choice, so only show this row for multiple microphones. */
 	private renderPicker(): void {
 		if (!this.pickerContainer) {
 			return;
@@ -726,17 +748,15 @@ export class DictationOnboardingBanner extends Disposable {
 		this.picker.clear();
 		dom.clearNode(this.pickerContainer);
 
+		this.pickerContainer.hidden = this.options.length <= 1;
+		if (this.pickerContainer.hidden) {
+			return;
+		}
+
 		dom.append(this.pickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.dictation-onboarding-picker-icon`))
 			.setAttribute('aria-hidden', 'true');
 
 		const selected = indexOfMicrophone(this.options, this.currentDeviceId());
-
-		if (this.options.length <= 1) {
-			const label = dom.append(this.pickerContainer, dom.$('span.dictation-onboarding-picker-label'));
-			label.textContent = this.options[selected]?.label ?? localize('dictation.onboarding.noMicrophone', "No microphone found");
-			label.title = label.textContent;
-			return;
-		}
 
 		const store = new DisposableStore();
 		// Custom-drawn rather than the platform control, and with the face colors
@@ -771,7 +791,13 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 
 		status(localize('dictation.onboarding.microphoneSelected', "{0} selected.", option.label));
-		void this.preview?.listen(option.deviceId).then(() => this.updateHint());
+		if (this.preview) {
+			void this.preview.listen(option.deviceId).then(() => this.updateHint());
+		} else if (this.switchMicrophone) {
+			void this.switchMicrophone(option.deviceId)
+				.then(analyser => this.refreshMicrophones(analyser))
+				.catch(error => this.logService.error(`[chat-stt] failed to switch dictation microphone: ${error}`));
+		}
 	}
 
 	/**
@@ -799,7 +825,7 @@ export class DictationOnboardingBanner extends Disposable {
 
 	private dismiss(action: 'close' | 'escape'): void {
 		this.logAction(action);
-		this.waveform?.stop();
+		this.waveform.stop();
 		this.preview?.releaseMicrophone();
 		this.bannerOptions.onDismiss();
 	}
@@ -829,6 +855,7 @@ export const IDictationOnboardingService = createDecorator<IDictationOnboardingS
 
 export interface IDictationOnboardingService {
 	readonly _serviceBrand: undefined;
+	readonly isVisible: boolean;
 
 	/**
 	 * Register a container that can host the card (a chat input). The most
@@ -838,7 +865,7 @@ export interface IDictationOnboardingService {
 	 * @param focusRoot the element whose focus marks this host as the active one
 	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -853,6 +880,9 @@ export interface IDictationOnboardingService {
 	 */
 	show(): boolean;
 
+	/** Refresh the visible card after dictation acquires microphone permission. */
+	refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): void;
+
 	/** Reset first-run state so the introduction is shown next time. */
 	reset(): void;
 }
@@ -862,6 +892,11 @@ export class DictationOnboardingService extends Disposable implements IDictation
 	declare readonly _serviceBrand: undefined;
 
 	private readonly onboarding: ChatInputOnboarding;
+	private currentBanner: DictationOnboardingBanner | undefined;
+
+	get isVisible(): boolean {
+		return this.onboarding.isVisible;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -875,8 +910,8 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot);
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
+		return this.onboarding.registerHost(container, focusRoot, undefined, tipContainer, onDidChangeVisible);
 	}
 
 	showIfNeeded(): boolean {
@@ -887,17 +922,25 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true));
 	}
 
+	refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): void {
+		if (this.onboarding.isVisible) {
+			void this.currentBanner?.refreshMicrophones(analyserNode, switchMicrophone);
+		}
+	}
+
 	reset(): void {
 		this.storageService.remove(DICTATION_INTRO_SHOWN_KEY, StorageScope.APPLICATION);
 	}
 
 	private createBanner(container: HTMLElement, dismiss: () => void, source: 'automatic' | 'manual', previewMicrophone: boolean): DictationOnboardingBanner {
-		return this.instantiationService.createInstance(DictationOnboardingBanner, {
+		const banner = this.instantiationService.createInstance(DictationOnboardingBanner, {
 			container,
 			onDismiss: dismiss,
 			previewMicrophone,
 			source,
-		});
+		}, dom.getWindow(container).navigator.mediaDevices);
+		this.currentBanner = banner;
+		return banner;
 	}
 }
 

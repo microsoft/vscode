@@ -204,6 +204,18 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessions.set(AgentSession.id(meta.session), meta);
 	}
 
+	/**
+	 * Drop a session from what `listSessions()` reports, without going through
+	 * `disposeSession`. Simulates an agent that cannot enumerate its sessions
+	 * yet (auth token or SDK still loading) and so contributes nothing to the
+	 * host's aggregated listing.
+	 */
+	stopListingSessions(...ids: string[]): void {
+		for (const id of ids) {
+			this._sessions.delete(id);
+		}
+	}
+
 	// ---- Session-state subscriptions ---------------------------------------
 
 	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
@@ -1090,6 +1102,75 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eventCount: 1,
 			added: ['First', 'Second'],
 			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
+	test('a session whose agent reports nothing survives the refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// The host aggregates one listing across all of its agents, and an
+		// agent that cannot enumerate yet (SDK not downloaded) contributes an
+		// empty list instead of failing. Codex going quiet must not evict its
+		// sessions: `removed` is treated as a definitive deletion downstream
+		// and would discard the user's pins and groups.
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'codex', displayName: 'Codex', description: '', models: [] } as AgentInfo,
+		]);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		agentHost.addSession(createSession('codex-1', { provider: 'codex', summary: 'Codex One' }));
+		agentHost.addSession(createSession('cli-1', { provider: 'copilotcli', summary: 'CLI One' }));
+
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		await timeout(0);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		agentHost.stopListingSessions('codex-1');
+		agentHost.fireAction({
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'cli-1').toString()),
+			action: { type: ActionType.ChatTurnComplete },
+			serverSeq: 1,
+			origin: undefined,
+		} as ActionEnvelope);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			removed: changes.flatMap(c => c.removed.map(s => s.title.get())),
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			removed: [],
+			cachedTitles: ['CLI One', 'Codex One'],
+		});
+	}));
+
+	test('a session missing while its agent still reports others is evicted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// The agent answered and listed a sibling session, so its namespace is
+		// known: the missing session really is gone and must be evicted.
+		agentHost.addSession(createSession('cli-gone', { provider: 'copilotcli', summary: 'Gone' }));
+		agentHost.addSession(createSession('cli-kept', { provider: 'copilotcli', summary: 'Kept' }));
+
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		agentHost.stopListingSessions('cli-gone');
+		agentHost.fireAction({
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'cli-kept').toString()),
+			action: { type: ActionType.ChatTurnComplete },
+			serverSeq: 1,
+			origin: undefined,
+		} as ActionEnvelope);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			removed: changes.flatMap(c => c.removed.map(s => s.title.get())),
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			removed: ['Gone'],
+			cachedTitles: ['Kept'],
 		});
 	}));
 
@@ -2498,6 +2579,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 			requests: [
 				{ isolation: 'folder' },
 			],
+			remembered: {},
+		});
+	});
+
+	test('maps the programmatic branch tracking setter to hidden agent-host config without remembering it', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { [SessionConfigKey.WorktreeBranchTrack]: false },
+		};
+		await provider.setWorktreeBranchTrack(session.sessionId, false);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstAutomationRequest).map(request => request.config),
+			createSessionConfig: provider.getCreateSessionConfig(session.sessionId),
+			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+		}, {
+			requests: [
+				{
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.WorktreeBranchTrack]: false,
+				},
+			],
+			createSessionConfig: { [SessionConfigKey.WorktreeBranchTrack]: false },
 			remembered: {},
 		});
 	});
