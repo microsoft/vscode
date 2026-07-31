@@ -1401,6 +1401,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		// Only now show the expanded state (after content is ready)
 		this._setExpanded(true);
+		await this._layoutMirrorWidth();
 		this._layoutOutput();
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
@@ -1585,6 +1586,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}
 		}));
 		await mirror.attach(this._terminalContainer);
+		await this._layoutMirrorWidth(mirror);
 		let result = await mirror.renderCommand();
 		// Only show "No output" message if:
 		// 1. Command has finished (has endMarker), AND
@@ -1628,6 +1630,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (this._snapshotMirror) {
 			this._snapshotMirror.setOutput(snapshot);
+			await this._layoutMirrorWidth(this._snapshotMirror);
 			const result = await this._snapshotMirror.render();
 			this._layoutOutput(result?.lineCount ?? snapshot.lineCount ?? this._lastRenderedLineCount ?? 0);
 			return;
@@ -1639,6 +1642,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
 		await this._snapshotMirror.attach(this._terminalContainer);
 		this._snapshotMirror.setOutput(snapshot);
+		await this._layoutMirrorWidth(this._snapshotMirror);
 		const result = await this._snapshotMirror.render();
 		const hasText = !!snapshot.text && snapshot.text.length > 0;
 		if (hasText) {
@@ -1696,10 +1700,31 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		if (this.isExpanded) {
+			void this._layoutMirrorWidth();
 			this._layoutOutput();
 			this._scrollOutputToBottom();
 		} else {
 			this._scrollableContainer.scanDomNode();
+		}
+	}
+
+	/**
+	 * Resizes the mirror's column count to fill the currently available width. No-op while the
+	 * width is unmeasurable (e.g. collapsed); the mirror keeps its current cols until the next
+	 * layout opportunity.
+	 */
+	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<void> {
+		if (!mirror) {
+			return;
+		}
+		const width = this._terminalContainer.clientWidth || this._outputBody.clientWidth || this.domNode.clientWidth || (this.domNode.parentElement?.clientWidth ?? 0);
+		if (width <= 0) {
+			return;
+		}
+		const result = await mirror.layout(width);
+		if (!this._store.isDisposed && result?.lineCount !== undefined) {
+			// Re-wrapping can change the number of rendered rows, so refresh the box height
+			this._layoutOutput(result.lineCount);
 		}
 	}
 
