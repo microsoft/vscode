@@ -2,11 +2,11 @@ on:
   workflow_call:
     inputs:
       job_name:
-        type: string
-        required: true
+        type: 
+        required: false
       rustup_toolchain:
-        type: string
-        required: true
+        type: 
+        required: false
 
 jobs:
   linux-cli-test:
@@ -18,7 +18,7 @@ jobs:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
         with:
-          lfs: true
+          lfs: false
 
       - name: Install Rust
         run: |

@@ -440,11 +440,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		const treeSitterLanguage = language === 'powershell' ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
 		let subCommands: string[];
 		try {
-			const parseResult = await this._autoApproveCommandParser.extractAutoApprovalSubCommands(treeSitterLanguage, trimmedCommandLine);
-			if (parseResult.hasUnanalyzableSyntax) {
-				return undefined;
-			}
-			subCommands = parseResult.subCommands;
+			subCommands = await this._autoApproveCommandParser.extractSubCommands(treeSitterLanguage, trimmedCommandLine);
 		} catch (e) {
 			this._logService.warn('Failed to parse sub-commands when generating auto approve actions', e);
 			return undefined;
