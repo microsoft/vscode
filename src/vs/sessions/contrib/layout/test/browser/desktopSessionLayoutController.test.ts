@@ -22,6 +22,7 @@ import { ISessionFileChange, SessionStatus } from '../../../../services/sessions
 import { SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
+import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
@@ -119,7 +120,21 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
 	});
 
-	test('[D3d] keeps Files as the default for an uncreated session with changes', () => {
+	test('[D3d] defaults to Files while the session has no changes', () => {
+		createController();
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+		harness.activeSessionObs.set(session, undefined);
+
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: true,
+			openedChanges: false,
+		});
+	});
+
+	test('[D3d] defaults to Changes once one of the session chats has a change', () => {
 		createController();
 		const session = makeSession(URI.parse('session:1'), {
 			status: SessionStatus.Untitled,
@@ -131,7 +146,26 @@ suite('LayoutController (desktop)', () => {
 			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
 			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
 		}, {
-			openedFiles: true,
+			openedFiles: false,
+			openedChanges: true,
+		});
+	});
+
+	test('[D3d] does not switch a side pane that is already showing Files when a change lands', () => {
+		createController();
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+		harness.activeSessionObs.set(session, undefined);
+		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+
+		harness.openedViews = [];
+		harness.openedViewContainers = [];
+		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: false,
 			openedChanges: false,
 		});
 	});
@@ -717,27 +751,32 @@ suite('LayoutController (desktop)', () => {
 			'a restore-driven editor reveal must not overwrite session A\'s captured closed state');
 	});
 
-	test('[D4] keeps the open side pane and shows Changes when a new session is submitted', () => {
-		createController();
+	test('[D4] keeps the open side pane on its current view when a new session is submitted', () => {
+		const controller = createController();
 		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 
 		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
 
-		// Aux bar is open on the new-session view.
+		// Aux bar is open on the new-session view, showing Files.
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
 		harness.setPartHiddenCalls = [];
 		harness.openedViews = [];
 		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 
-		assert.ok(
-			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'side pane should remain open after the new session is submitted'
-		);
-		assert.ok(
-			harness.openedViews.includes(CHANGES_VIEW_ID),
-			'Changes view should be shown after the new session is submitted'
-		);
+		assert.deepStrictEqual({
+			hidden: harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+			viewState: controller.getViewState(session.resource),
+		}, {
+			hidden: false,
+			openedChanges: false,
+			viewState: {
+				auxiliaryBarVisible: true,
+				auxiliaryBarActiveViewContainerId: SESSIONS_FILES_CONTAINER_ID,
+			},
+		});
 	});
 
 	test('[D4] keeps the side pane closed when a new session is submitted with the aux bar hidden', () => {
@@ -763,7 +802,7 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
-	test('[D4] shows Changes when a hidden side pane is opened after the session is submitted', () => {
+	test('[D4] shows Files when a hidden side pane is opened after a change-free session is submitted', () => {
 		createController();
 		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
@@ -774,17 +813,47 @@ suite('LayoutController (desktop)', () => {
 		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 
 		harness.openedViewContainers = [];
+		harness.openedViews = [];
 		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 
-		assert.ok(
-			harness.openedViewContainers.includes(CHANGES_VIEW_CONTAINER_ID),
-			'Changes should be the active view when the side pane is opened later'
-		);
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: true,
+			openedChanges: false,
+		});
 	});
 
-	test('[D4] records Changes when a hidden side pane falls back from an invalid saved container', () => {
+	test('[D4] shows Changes when a hidden side pane is opened after the session produced a change', () => {
+		createController();
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+
+		harness.openedViewContainers = [];
+		harness.openedViews = [];
+		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: false,
+			openedChanges: true,
+		});
+	});
+
+	test('[D4] records Files when a change-free session falls back from an invalid saved container', () => {
 		const session = makeSession(URI.parse('session:1'));
 		const controller = createController({
 			layoutState: [{
@@ -798,6 +867,37 @@ suite('LayoutController (desktop)', () => {
 		harness.activeSessionObs.set(session, undefined);
 
 		harness.openedViews = [];
+		harness.openedViewContainers = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			viewState: controller.getViewState(session.resource),
+		}, {
+			openedFiles: true,
+			viewState: {
+				auxiliaryBarVisible: true,
+				auxiliaryBarActiveViewContainerId: SESSIONS_FILES_CONTAINER_ID,
+			},
+		});
+	});
+
+	test('[D4] records Changes when a session with changes falls back from an invalid saved container', () => {
+		const session = makeSession(URI.parse('session:1'), { changes: [makeChange('/file.ts')] });
+		const controller = createController({
+			layoutState: [{
+				sessionResource: session.resource.toString(),
+				viewState: {
+					auxiliaryBarVisible: false,
+					auxiliaryBarActiveViewContainerId: 'missing.view',
+				},
+			}],
+		});
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.openedViews = [];
+		harness.openedViewContainers = [];
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 
@@ -2247,6 +2347,22 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
 	});
 
+	test('[Scenario 8] hides the sessions list when a single-file diff is opened in a created session with the editor closed', async () => {
+		createSinglePaneController({ mainContainerWidth: 800 });
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		const diffEditor = Object.create(DiffEditorInput.prototype) as DiffEditorInput;
+		Object.defineProperty(diffEditor, 'original', { value: Object.create(FileEditorInput.prototype) });
+		Object.defineProperty(diffEditor, 'modified', { value: Object.create(FileEditorInput.prototype) });
+		openEditor(diffEditor);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
+	});
+
 	test('[Scenario 8] does not hide the sessions list on a big window when a file is opened', async () => {
 		createSinglePaneController({ mainContainerWidth: 2400 });
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -2541,14 +2657,51 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[managed tabs / Scenario 9] shows only the Files tab for a new-session view', async () => {
+	test('[managed tabs / Scenario 9] shows the Changes and Files tabs for a new-session view', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		await settle();
 
+		assert.deepStrictEqual({
+			hasChangesTab: hasChangesTab(),
+			hasFilesTab: hasFilesTab(),
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key),
+		}, {
+			hasChangesTab: true,
+			hasFilesTab: true,
+			changesTabMissing: false,
+		});
+	});
+
+	test('[managed tabs / new session] re-ensures Changes after a delayed different-folder restore retains Files', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:created')), undefined);
+		await settle();
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+
+		harness.activeSessionObs.set(undefined, undefined);
+		await settle();
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
+		await settle();
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+
+		// A different default folder delays this restore until after the draft reconcile.
+		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput);
+		assert.ok(filesTab);
+		controller.runWithRestore(() => {
+			harness.activeGroupEditors.splice(0, harness.activeGroupEditors.length, filesTab);
+			harness.activeEditorInput = filesTab;
+			harness.onDidEditorsChange.fire();
+		});
+		await settle();
+
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
 	test('[managed tabs / submit] opens the Changes tab when a new session is submitted (group already has the Files tab)', async () => {
@@ -2558,10 +2711,10 @@ suite('LayoutController (desktop)', () => {
 		const session = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
-		// New-session view: only the Files placeholder, no Changes tab yet.
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
-		// Submit: the session becomes created while the Files tab is still present.
+		// Submit from the Files tab: the existing Changes tab becomes active.
+		harness.activeEditorInput = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
 		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 		await settle();
 
@@ -2579,10 +2732,10 @@ suite('LayoutController (desktop)', () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
-		// New-session draft active: only the Files placeholder.
+		// New-session draft active: both managed tabs are present.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		await settle();
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// The provider commits the draft by replacing it with a new created resource.
 		const committed = URI.parse('session:committed');
@@ -2601,11 +2754,11 @@ suite('LayoutController (desktop)', () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
-		// Session A is a new-session draft: only the Files placeholder.
+		// Session A is a new-session draft with both managed tabs.
 		const sessionA = makeSession(URI.parse('session:a'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// Pause the very next Changes open so A's submit reconcile stalls mid-open.
 		let releaseChangesOpen!: () => void;
@@ -2697,7 +2850,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: false });
 	});
 
-	test('[managed tabs / new session] re-opens the Files tab when a working-set apply empties the group during the switch', async () => {
+	test('[managed tabs / new session] re-opens both managed tabs when a working-set apply empties the group during the switch', async () => {
 		const controller = createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -2716,11 +2869,11 @@ suite('LayoutController (desktop)', () => {
 		});
 		await settle();
 
-		// The Files placeholder must be restored (Changes must not — uncreated).
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		// Both managed tabs must be restored for the uncreated session.
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
-	test('[managed tabs / new session] re-opens the Files tab on restore-end even if no editor-change fires during the restore', async () => {
+	test('[managed tabs / new session] re-opens both managed tabs on restore-end even if no editor-change fires during the restore', async () => {
 		const controller = createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -2731,14 +2884,14 @@ suite('LayoutController (desktop)', () => {
 		// Switch to a new (uncreated) session; the working-set apply empties the
 		// group during the restore but the transient editor-change is NOT observed
 		// (it races the async close). Only the settled restore-end must re-open the
-		// Files tab.
+		// managed tabs.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		controller.runWithRestore(() => {
 			harness.activeGroupEditors.splice(0, harness.activeGroupEditors.length);
 		});
 		await settle();
 
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
 	test('[managed tabs / Scenario 9] removes the Files tab while a real editor is open and does not re-add it when that file closes', async () => {

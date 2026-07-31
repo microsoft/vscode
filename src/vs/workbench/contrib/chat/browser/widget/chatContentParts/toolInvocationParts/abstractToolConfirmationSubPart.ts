@@ -5,12 +5,15 @@
 
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
+import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { ConfirmationOptionKind, ConfirmationOption } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { IEditorIdentifier } from '../../../../../../common/editor.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -18,8 +21,64 @@ import { IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { IRenderFileWidgetsOptions } from '../chatInlineAnchorWidget.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
+
+/**
+ * Remembers editors that the user opened by clicking a file link inside a confirmation
+ * message so that they can be closed again once the confirmation has been answered.
+ */
+export class ChatConfirmationOpenedEditors extends Disposable {
+
+	private readonly _opened: IEditorIdentifier[] = [];
+
+	readonly fileWidgetOptions: IRenderFileWidgetsOptions = {
+		trackOpen: open => this._trackOpen(open),
+	};
+
+	constructor(
+		private readonly _toolInvocation: IChatToolInvocation,
+		@IEditorService private readonly _editorService: IEditorService,
+	) {
+		super();
+	}
+
+	/**
+	 * The opener API doesn't report which editor it opened, so attribute the editor the click
+	 * left active. Editors that were already open beforehand are left alone.
+	 */
+	private async _trackOpen(open: () => Promise<void>): Promise<void> {
+		const before = new Set(this._editorService.editors);
+		try {
+			await open();
+		} finally {
+			const pane = this._editorService.activeEditorPane;
+			if (pane?.input && !before.has(pane.input)) {
+				this._opened.push({ editor: pane.input, groupId: pane.group.id });
+			}
+		}
+	}
+
+	/**
+	 * A confirmation can be answered by clicking a button, but also by keybinding or voice. All
+	 * of those transition the invocation out of its waiting state, which re-renders and disposes
+	 * this sub part, so cleaning up here covers every path. Editors are kept when the part is
+	 * disposed for any other reason, such as the list virtualizing the response away.
+	 */
+	override dispose(): void {
+		const stateKind = this._toolInvocation.state.get().type;
+		if (stateKind !== IChatToolInvocation.StateKind.WaitingForConfirmation && stateKind !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			const toClose = this._opened.filter(({ editor }) => !editor.isDisposed() && !editor.isDirty());
+			if (toClose.length) {
+				this._editorService.closeEditors(toClose).catch(onUnexpectedError);
+			}
+		}
+
+		this._opened.length = 0;
+		super.dispose();
+	}
+}
 
 export interface IToolConfirmationConfig {
 	allowActionId: string;
@@ -44,6 +103,12 @@ type AbstractToolPrimaryAction = IAbstractToolPrimaryAction | Separator;
 export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public domNode!: HTMLElement;
 
+	/**
+	 * Tracks files the user opened from links in the confirmation message so they can be
+	 * closed again when the confirmation is answered.
+	 */
+	protected readonly openedEditors: ChatConfirmationOpenedEditors;
+
 	constructor(
 		protected override readonly toolInvocation: IChatToolInvocation,
 		protected readonly context: IChatContentPartRenderContext,
@@ -59,6 +124,8 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		if (toolInvocation.kind !== 'toolInvocation') {
 			throw new Error('Confirmation only works with live tool invocations');
 		}
+
+		this.openedEditors = this._register(instantiationService.createInstance(ChatConfirmationOpenedEditors, toolInvocation));
 	}
 	protected render(config: IToolConfirmationConfig) {
 		const { keybindingService, languageModelToolsService, toolInvocation } = this;
@@ -135,6 +202,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 				buttons,
 				message: contentElement,
 				footerBanner: riskBadge,
+				fileWidgetOptions: this.openedEditors.fileWidgetOptions,
 				toolbarData: {
 					arg: toolInvocation,
 					partType: config.partType,

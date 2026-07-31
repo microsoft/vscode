@@ -12,6 +12,14 @@ export const ILocalTranscriptionService = createDecorator<ILocalTranscriptionSer
 /** IPC channel name used to reach the transcription service in the utility process. */
 export const localTranscriptionChannelName = 'localTranscription';
 
+/** Default on-device model used for dictation. */
+export const DEFAULT_LOCAL_TRANSCRIPTION_MODEL = 'nemotron-speech-streaming-en-0.6b';
+
+export interface ILocalTranscriptionModelImportResult {
+	readonly model: string;
+	readonly version: number;
+}
+
 /** Lifecycle of the downloaded transcription model. */
 export const enum LocalTranscriptionModelState {
 	/** Model has not been requested yet. */
@@ -67,7 +75,7 @@ export interface ILocalTranscriptionResult {
  * native runtime), which handles decoding, VAD and endpointing internally; the
  * default model is NVIDIA's `nemotron-speech-streaming-en-0.6b` streaming RNN-T
  * (the model the GitHub Copilot app ships for dictation). The model is chosen by
- * the `chat.speechToText.model` setting. Runs in a utility process. A single
+ * the `dictation.model` setting. Runs in a utility process. A single
  * transcription session is active at a time (dictation is a singleton in the
  * renderer).
  *
@@ -95,6 +103,12 @@ export interface ILocalTranscriptionService {
 	getModelStatus(): Promise<ILocalTranscriptionModelStatus>;
 
 	/**
+	 * Imports the default on-device model from an official Foundry Local expansion
+	 * pack or a prepared model directory into `cacheDir`.
+	 */
+	importModel(options: { readonly sourcePath: string; readonly cacheDir: string }): Promise<ILocalTranscriptionModelImportResult>;
+
+	/**
 	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
 	 * transcription session. `cacheDir` is where model files are stored. `model`
 	 * selects the on-device Foundry Local model; when omitted the service default
@@ -114,8 +128,14 @@ export interface ILocalTranscriptionService {
 	 * authenticate to the proxy. TLS-intercepting proxies otherwise rely on the CA
 	 * being in the OS trust store (matching `@vscode/proxy-agent` and the desktop
 	 * app).
+	 *
+	 * `runtimeUrlTemplate`/`runtimeVersion` come from `product.dictationRuntime`
+	 * (stamped by `build/dictation-runtime/produce.ts`). When set, the native
+	 * runtime (Foundry Local addon + core libraries) is downloaded from VS Code's
+	 * CDN for this host's target. When omitted (local dev builds), the runtime
+	 * falls back to the SDK's own `node_modules` payload and nothing is downloaded.
 	 */
-	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string }): Promise<void>;
+	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string; readonly runtimeUrlTemplate?: string; readonly runtimeVersion?: string }): Promise<void>;
 
 	/** Append captured audio (raw little-endian PCM16 mono 16 kHz). */
 	pushAudio(chunk: VSBuffer): Promise<void>;

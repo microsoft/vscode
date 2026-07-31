@@ -14,6 +14,7 @@ import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionL
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -109,6 +110,18 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(envelopes[0].origin, undefined);
 	});
 
+	test('emits session title changes and suppresses no-op assignments', () => {
+		manager.createSession(makeSessionSummary());
+
+		const changes: Array<{ session: string; title: string }> = [];
+		disposables.add(manager.onDidChangeSessionTitle(e => changes.push(e)));
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+
+		assert.deepStrictEqual(changes, [{ session: sessionUri, title: 'Updated' }]);
+	});
+
 	test('serverSeq increments monotonically', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -183,6 +196,39 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.serverSeq, 3);
 	});
 
+	test('root config replacement preserves provider-backed values', () => {
+		const rootState = manager.rootState;
+		assert.ok(rootState.config);
+		rootState.config.values['codex.personality'] = 'friendly';
+		rootState._meta = withAgentCustomizationSettings(rootState, [{
+			provider: 'codex',
+			title: 'Codex Settings',
+			description: 'Codex settings',
+			settings: [{ key: 'codex.personality', group: 'Personalization' }],
+		}]);
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+		manager.dispatchClientAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { codexUsageSource: 'openai' },
+			replace: true,
+		}, { clientId: 'renderer-1', clientSeq: 1 });
+
+		assert.deepStrictEqual(manager.rootState.config?.values, {
+			codexUsageSource: 'openai',
+			'codex.personality': 'friendly',
+		});
+		assert.deepStrictEqual(envelopes[0].action, {
+			type: ActionType.RootConfigChanged,
+			config: {
+				codexUsageSource: 'openai',
+				'codex.personality': 'friendly',
+			},
+			replace: true,
+		});
+	});
+
 	test('removeSession clears state without notification', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -227,12 +273,12 @@ suite('AgentHostStateManager', () => {
 		// has no per-chat working-directory override, so getSessionState must
 		// project the RESOLVED session working directory, never the stale
 		// create-time value that was seeded onto the default chat.
-		manager.createSession({ ...makeSessionSummary(), workingDirectory: 'file:///provisional' }, { emitNotification: false });
-		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectory: 'file:///resolved-worktree' });
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///provisional'] }, { emitNotification: false });
+		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectories: ['file:///resolved-worktree'] });
 
 		assert.deepStrictEqual({
-			session: manager.getSessionState(sessionUri)?.workingDirectory,
-			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectory,
+			session: manager.getSessionState(sessionUri)?.workingDirectories?.[0],
+			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectories?.[0],
 		}, {
 			session: 'file:///resolved-worktree',
 			defaultChat: 'file:///resolved-worktree',
@@ -1681,7 +1727,7 @@ suite('Subagent URI helpers', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [],
 				chats: [],
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			};
 		}
 
@@ -1691,7 +1737,7 @@ suite('Subagent URI helpers', () => {
 				title: 'Peer',
 				status: SessionStatus.Idle,
 				modifiedAt: new Date().toISOString(),
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 				turns: [],
 			};
 		}
@@ -1701,7 +1747,7 @@ suite('Subagent URI helpers', () => {
 				makeSessionState('file:///session-wd'),
 				makeChatState('file:///peer-worktree'),
 			);
-			assert.strictEqual(merged.workingDirectory, 'file:///peer-worktree');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///peer-worktree');
 		});
 
 		test('falls back to the session working directory when the chat does not override it', () => {
@@ -1709,12 +1755,12 @@ suite('Subagent URI helpers', () => {
 				makeSessionState('file:///session-wd'),
 				makeChatState(undefined),
 			);
-			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
 		});
 
 		test('falls back to the session working directory when no chat state is hydrated', () => {
 			const merged = mergeSessionWithDefaultChat(makeSessionState('file:///session-wd'), undefined);
-			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
 			assert.deepStrictEqual(merged.turns, []);
 		});
 	});

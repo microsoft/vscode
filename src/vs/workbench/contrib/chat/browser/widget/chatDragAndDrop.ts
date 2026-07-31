@@ -14,20 +14,24 @@ import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CodeDataTransfers, containsDragType, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData } from '../../../../../platform/dnd/browser/dnd.js';
+import { DraggedChatReferenceIdentifier, CodeDataTransfers, containsDragType, extractChatReferenceDropData, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { extractSCMHistoryItemDropData } from '../../../scm/browser/scmHistoryChatContext.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { isAgentHostTarget } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService, ImageTransferData } from '../attachments/chatAttachmentResolveService.js';
+import { isCrossAgentHostChatReferenceDrop, isSelfChatReferenceDrop, resolveChatReferenceDropEntry } from './chatReferenceDrop.js';
 import { IChatInputStyles } from './input/chatInputPart.js';
 import { convertStringToUInt8Array } from '../chatImageUtils.js';
 
 enum ChatDragAndDropType {
+	CHAT_REFERENCE,
 	FILE_INTERNAL,
 	FILE_EXTERNAL,
 	FOLDER,
@@ -49,6 +53,13 @@ export class ChatDragAndDrop extends Themable {
 	private overlayTextBackground: string = '';
 	private disableOverlay: boolean = false;
 
+	/**
+	 * In-process transfer for a dragged chat reference. Readable during
+	 * `dragover` (unlike the `dataTransfer` mime payload), so the self-reference
+	 * guard can suppress the overlay when a chat is dragged onto its own input.
+	 */
+	private readonly chatReferenceTransfer = LocalSelectionTransfer.getInstance<DraggedChatReferenceIdentifier>();
+
 	constructor(
 		private readonly widgetRef: () => IChatWidget | undefined,
 		private readonly attachmentModel: ChatAttachmentModel,
@@ -57,7 +68,7 @@ export class ChatDragAndDrop extends Themable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 		@ILogService private readonly logService: ILogService,
-		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 	) {
 		super(themeService);
 
@@ -192,7 +203,9 @@ export class ChatDragAndDrop extends Themable {
 
 	private guessDropType(e: DragEvent): ChatDragAndDropType | undefined {
 		// This is an estimation based on the datatransfer types/items
-		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
+		if (containsDragType(e, CodeDataTransfers.CHAT_REFERENCE)) {
+			return this.guessChatReferenceDropType(e);
+		} else if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
 			return ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT;
 		} else if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
 			return ChatDragAndDropType.SCM_HISTORY_ITEM;
@@ -215,6 +228,52 @@ export class ChatDragAndDrop extends Themable {
 		return undefined;
 	}
 
+	/**
+	 * Resolves the drop type for a dragged chat reference. Only agent-host-backed
+	 * chat inputs can reference another chat, and a chat may reference any other
+	 * chat of the *same agent host* — including one from a different session shown
+	 * side by side in the Agents window.
+	 *
+	 * Two payload-dependent guards suppress the overlay entirely (rather than
+	 * appearing droppable and then doing nothing):
+	 * - a self-reference (a chat dropped onto its *own* input), and
+	 * - a cross-agent-host reference, which the owning host could never resolve.
+	 *
+	 * The dragged chat's client resource is read from the in-process
+	 * {@link LocalSelectionTransfer} (readable during `dragover`) with the
+	 * `dataTransfer` mime payload as a fallback (readable on `drop`), and compared
+	 * against this input's own client session resource. Both are opaque client
+	 * URIs, so the workbench never touches an AHP chat URI.
+	 */
+	private guessChatReferenceDropType(e: DragEvent): ChatDragAndDropType | undefined {
+		const sessionResource = this.widgetRef()?.viewModel?.model.sessionResource;
+		if (!sessionResource || !isAgentHostTarget(getChatSessionType(sessionResource))) {
+			return undefined;
+		}
+		const droppedClientResource = this.getDraggedClientResource(e);
+		if (droppedClientResource !== undefined
+			&& (isSelfChatReferenceDrop(droppedClientResource, sessionResource.toString())
+				|| isCrossAgentHostChatReferenceDrop(droppedClientResource, sessionResource.toString()))) {
+			return undefined;
+		}
+		return ChatDragAndDropType.CHAT_REFERENCE;
+	}
+
+	/**
+	 * The client resource of the dragged chat reference (used only for
+	 * self-reference identity comparison). Prefers the in-process local transfer
+	 * (available during `dragover`), falling back to the `dataTransfer` mime
+	 * payload (only readable on `drop`). Returns `undefined` when neither source
+	 * carries a chat reference.
+	 */
+	private getDraggedClientResource(e: DragEvent): string | undefined {
+		const local = this.chatReferenceTransfer.getData(DraggedChatReferenceIdentifier.prototype);
+		if (local && local.length > 0) {
+			return local[0].clientResource;
+		}
+		return extractChatReferenceDropData(e)?.clientResource;
+	}
+
 	private isDragEventSupported(e: DragEvent): boolean {
 		// if guessed drop type is undefined, it means the drop is not supported
 		const dropType = this.guessDropType(e);
@@ -232,12 +291,17 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.HTML: return localize('url', 'URL');
 			case ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT: return localize('notebookOutput', 'Output');
 			case ChatDragAndDropType.SCM_HISTORY_ITEM: return localize('scmHistoryItem', 'Change');
+			case ChatDragAndDropType.CHAT_REFERENCE: return localize('chat', 'Chat');
 		}
 	}
 
 	private async resolveAttachmentsFromDragEvent(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		if (!this.isDragEventSupported(e)) {
 			return [];
+		}
+
+		if (containsDragType(e, CodeDataTransfers.CHAT_REFERENCE)) {
+			return this.resolveChatReferenceAttachContext(e);
 		}
 
 		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
@@ -286,6 +350,30 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		return [];
+	}
+
+	/**
+	 * Resolves a dropped chat reference (a chat tab from the Agents window) to a
+	 * plain chat-reference attachment (a pill) — the same shape every other drop
+	 * type produces, with no inline text, range, or editor manipulation.
+	 *
+	 * The target must be an agent-host-backed input; the actual resolution and
+	 * the self / cross-agent-host guards live in {@link resolveChatReferenceDropEntry}.
+	 * Returns `[]` when any guard rejects.
+	 */
+	private resolveChatReferenceAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
+		const data = extractChatReferenceDropData(e);
+		if (!data) {
+			return [];
+		}
+
+		const sessionResource = this.widgetRef()?.viewModel?.model.sessionResource;
+		const ownClientResource = sessionResource && isAgentHostTarget(getChatSessionType(sessionResource))
+			? sessionResource.toString()
+			: undefined;
+
+		const entry = resolveChatReferenceDropEntry(data, ownClientResource);
+		return entry ? [entry] : [];
 	}
 
 	private async downloadImageAsUint8Array(url: string): Promise<Uint8Array | undefined> {

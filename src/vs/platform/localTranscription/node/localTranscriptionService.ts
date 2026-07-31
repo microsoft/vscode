@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { dirname, join } from '../../../base/common/path.js';
 import { ensureFoundryLocalRuntime } from './foundryLocalRuntime.js';
@@ -13,8 +13,11 @@ import {
 	ILocalTranscriptionModelStatus,
 	ILocalTranscriptionResult,
 	ILocalTranscriptionService,
+	DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
+	ILocalTranscriptionModelImportResult,
 	LocalTranscriptionModelState,
 } from '../common/localTranscription.js';
+import { importFoundryLocalModel } from './foundryLocalModelImport.js';
 
 /** PCM audio format the renderer captures and streams: mono 16 kHz signed 16-bit. */
 const SAMPLE_RATE = 16000;
@@ -26,8 +29,6 @@ const BITS_PER_SAMPLE = 16;
  * Nemotron streaming RNN-T model the GitHub Copilot app ships for dictation; it
  * runs through Foundry Local's native streaming ASR engine (ORT + ORT-GenAI).
  */
-const DEFAULT_MODEL = 'nemotron-speech-streaming-en-0.6b';
-
 /** Application name reported to Foundry Local for logs/telemetry and its data dir. */
 const FOUNDRY_APP_NAME = 'vscode-dictation';
 
@@ -201,6 +202,14 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	private _loadedModelId: string | undefined;
 	/** In-flight (or resolved) model download+load for the selected model. */
 	private _modelPromise: Promise<IModel> | undefined;
+	/** Cancellation source for the in-flight model download/load; aborts it when cancelled. */
+	private _modelPrepareCts: CancellationTokenSource | undefined;
+
+	/**
+	 * Where to download the native runtime from (product.dictationRuntime), or
+	 * `undefined` in dev builds where the SDK's own node_modules payload is used.
+	 */
+	private _runtimeDownload: { urlTemplate: string; version: string } | undefined;
 
 	/** The active streaming session, once `start()` has opened it. */
 	private _session: LiveAudioTranscriptionSession | undefined;
@@ -250,11 +259,20 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		super();
 		// Tear down the active session (and its native ASR resources) when the
 		// service — and its utility process — goes away.
-		this._register(toDisposable(() => { void this._disposeSession(); }));
+		this._register(toDisposable(() => {
+			void this._disposeSession();
+			this._modelPrepareCts?.cancel();
+			this._modelPrepareCts?.dispose();
+			this._modelPrepareCts = undefined;
+		}));
 	}
 
 	async getModelStatus(): Promise<ILocalTranscriptionModelStatus> {
 		return this._status;
+	}
+
+	importModel(options: { sourcePath: string; cacheDir: string }): Promise<ILocalTranscriptionModelImportResult> {
+		return importFoundryLocalModel(options.sourcePath, options.cacheDir);
 	}
 
 	private _setStatus(status: ILocalTranscriptionModelStatus): void {
@@ -262,12 +280,18 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._onDidChangeModelStatus.fire(status);
 	}
 
-	async start(options: { cacheDir: string; model?: string; language?: string; proxyUrl?: string; noProxy?: string; proxyStrictSSL?: boolean; proxyAuthorization?: string }): Promise<void> {
+	async start(options: { cacheDir: string; model?: string; language?: string; proxyUrl?: string; noProxy?: string; proxyStrictSSL?: boolean; proxyAuthorization?: string; runtimeUrlTemplate?: string; runtimeVersion?: string }): Promise<void> {
 		// Bridge VS Code's proxy settings into this process's environment before any
 		// first-use download, so both our own fetches and the native Foundry Local
 		// model download route through the configured proxy (they read the OS/env
 		// proxy, not VS Code settings directly).
 		this._applyProxyEnv(options.proxyUrl, options.noProxy, options.proxyStrictSSL, options.proxyAuthorization);
+
+		// Record where the native runtime is published (from product.json). When
+		// unset (dev builds), the SDK's own node_modules payload is used instead.
+		this._runtimeDownload = options.runtimeUrlTemplate && options.runtimeVersion
+			? { urlTemplate: options.runtimeUrlTemplate, version: options.runtimeVersion }
+			: undefined;
 
 		// Reset any prior session before starting a new one.
 		await this._disposeSession();
@@ -279,7 +303,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._pendingChunks = [];
 		this._runtimeError = undefined;
 
-		const model = options.model ?? DEFAULT_MODEL;
+		const model = options.model ?? DEFAULT_LOCAL_TRANSCRIPTION_MODEL;
 		const language = options.language;
 		// Do not block capture on the (possibly first-use) model download/load and
 		// session open; buffer audio until the session is ready, then flush it.
@@ -448,18 +472,26 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		}
 
 		this._loadedModelId = modelId;
+		const cts = new CancellationTokenSource();
+		this._modelPrepareCts = cts;
 		this._modelPromise = (async () => {
 			try {
-				this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
+				// The model cache state is unknown until the catalog is queried.
+				this._setStatus({ state: LocalTranscriptionModelState.Loading });
 
 				// Ensure the Foundry Local native runtime (N-API addon + core
 				// libraries) is available before loading the SDK. We do not ship
 				// it — the addon requires a newer glibc than our minimum supported
-				// Linux distros — so it is downloaded on demand into a per-user
-				// cache and the SDK loader is pointed at it via env var. This is a
-				// no-op once cached.
-				const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), CancellationToken.None);
-				process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR = nativeDir;
+				// Linux distros — so in packaged builds it is downloaded on demand
+				// from VS Code's CDN (per `product.dictationRuntime`) into a
+				// per-user cache and the SDK loader is pointed at it via env var.
+				// This is a no-op once cached. In dev builds (no product config)
+				// the SDK resolves its addon + core libs from node_modules, so we
+				// skip provisioning and leave the loader on its default path.
+				if (this._runtimeDownload) {
+					const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, cts.token);
+					process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR = nativeDir;
+				}
 
 				if (!this._sdk) {
 					this._sdk = await import('foundry-local-sdk');
@@ -481,21 +513,43 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				let didDownload = false;
 				if (!model.isCached) {
 					didDownload = true;
-					await model.download((percent: number) => {
-						this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, Math.max(0, percent / 100)) });
-					});
+					// Only now, having confirmed a cache miss, surface the
+					// `Downloading` status. Report it up front (progress 0) so the
+					// download UI appears immediately rather than waiting for the
+					// SDK's first progress callback.
+					this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
+					// Bridge VS Code cancellation to the AbortSignal the SDK expects.
+					const ac = new AbortController();
+					const sub = cts.token.onCancellationRequested(() => ac.abort());
+					try {
+						await model.download((percent: number) => {
+							this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, Math.max(0, percent / 100)) });
+						}, ac.signal);
+					} finally {
+						sub.dispose();
+					}
 				}
 
+				// model.load() has no AbortSignal; check cancellation before starting it.
+				if (cts.token.isCancellationRequested) {
+					throw new Error('cancelled');
+				}
 				this._setStatus({ state: LocalTranscriptionModelState.Loading });
 				await model.load();
 
 				this._model = model;
 				this._setStatus({ state: LocalTranscriptionModelState.Ready, downloaded: didDownload });
+				if (this._modelPrepareCts === cts) {
+					this._modelPrepareCts = undefined;
+				}
 				return model;
 			} catch (err) {
 				this._model = undefined;
 				this._modelPromise = undefined;
 				this._loadedModelId = undefined;
+				if (this._modelPrepareCts === cts) {
+					this._modelPrepareCts = undefined;
+				}
 				throw err;
 			}
 		})();
@@ -656,6 +710,8 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	}
 
 	async cancel(): Promise<void> {
+		this._modelPrepareCts?.cancel();
+		this._modelPrepareCts = undefined;
 		this._sessionActive = false;
 		this._generation++;
 		await this._disposeSession();

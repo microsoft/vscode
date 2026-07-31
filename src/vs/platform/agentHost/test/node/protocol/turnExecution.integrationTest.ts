@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
@@ -19,8 +20,14 @@ import {
 	IServerHandle,
 	isActionNotification,
 	startServer,
+	stopServer,
 	TestProtocolClient,
 } from '../serverIntegrationTestHelpers.js';
+
+function isTurnComplete(notification: Parameters<typeof isActionNotification>[0], turnId: string): boolean {
+	return isActionNotification(notification, 'chat/turnComplete')
+		&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId;
+}
 
 suite('Protocol WebSocket — Turn Execution', function () {
 
@@ -32,8 +39,9 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -115,11 +123,10 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-multi-turns');
 
 		dispatchTurnStarted(client, sessionUri, 'turn-m1', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-m1'));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-m2', 'hello', 2);
-		await new Promise(resolve => setTimeout(resolve, 200));
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-m2'));
 
 		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
@@ -133,11 +140,10 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-fetchTurns');
 
 		dispatchTurnStarted(client, sessionUri, 'turn-ft-1', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-ft-1'));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-ft-2', 'hello', 2);
-		await new Promise(resolve => setTimeout(resolve, 200));
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client.waitForNotification(n => isTurnComplete(n, 'turn-ft-2'));
 
 		const loadedPromise = client.waitForNotification(n => isActionNotification(n, 'chat/turnsLoaded'));
 		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: defaultChatChannel(sessionUri) });
@@ -192,7 +198,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const initialModifiedAt = Date.parse((initialSnapshot.snapshot!.state as ISessionWithDefaultChat).chats[0].modifiedAt);
 
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(50);
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mod', 'hello', 1);
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));

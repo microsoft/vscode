@@ -276,33 +276,6 @@ export class McpCustomizationController extends Disposable {
 		transaction(tx => this._applyOne(server, tx));
 	}
 
-	/**
-	 * Optimistically transitions the named servers to
-	 * {@link McpServerStatus.Starting}, skipping any that are already
-	 * {@link McpServerStatus.Ready} (nothing to (re)start), blocked on
-	 * {@link McpServerStatus.AuthRequired} (needs the user, not a background
-	 * start), or already {@link McpServerStatus.Starting}.
-	 *
-	 * The SDK connects enabled servers in the background — on an explicit
-	 * start or when a turn begins — but emits no live "starting" event, so
-	 * without this a connecting server would read as its last settled state
-	 * (e.g. `Stopped`) until it resolves. Callers invoke this immediately
-	 * before the (blocking) connect so clients see the transient `Starting`
-	 * state; the subsequent SDK status settles each server. Batched in a
-	 * single transaction so {@link runtimeStates} observers see one update.
-	 */
-	markStarting(serverNames: Iterable<string>): void {
-		transaction(tx => {
-			for (const name of serverNames) {
-				const previous = this._live.get().get(name)?.state.kind;
-				if (previous === McpServerStatus.Ready || previous === McpServerStatus.AuthRequired || previous === McpServerStatus.Starting) {
-					continue;
-				}
-				this._applyOne({ name, state: { kind: McpServerStatus.Starting } }, tx);
-			}
-		});
-	}
-
 	private _applyOne(server: ISdkMcpServer, tx: ITransaction): void {
 		const previous = this._live.get().get(server.name);
 		const state = this._stateForUpdate(previous?.state, server.state);

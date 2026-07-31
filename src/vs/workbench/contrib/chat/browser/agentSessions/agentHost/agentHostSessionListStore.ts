@@ -9,9 +9,10 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostWorkspaceSessionMembershipStore } from './agentHostWorkspaceSessionMembershipStore.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
@@ -30,6 +31,13 @@ export interface IAgentHostSessionListEntry {
 	readonly provider: string;
 	readonly rawId: string;
 	readonly summary: SessionSummary;
+	/**
+	 * Whether {@link summary}'s status came from the host. `listSessions()`
+	 * metadata carries no status for a cold session that has never been marked
+	 * read or archived, and `SessionSummary.status` is required — so the status
+	 * is synthesized and the session-scoped flags on it mean nothing.
+	 */
+	readonly statusKnown: boolean;
 }
 
 /**
@@ -84,6 +92,7 @@ export class AgentHostSessionListStore extends Disposable {
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostWorkspaceSessionMembershipStore private readonly _workspaceMembership: IAgentHostWorkspaceSessionMembershipStore,
 	) {
 		super();
 
@@ -122,25 +131,41 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	setSessionArchived(provider: string, rawId: string, archived: boolean): void {
+		this._setSessionFlag(provider, rawId, SessionStatus.IsArchived, archived, {
+			type: ActionType.SessionIsArchivedChanged,
+			isArchived: archived,
+		});
+	}
+
+	setSessionRead(provider: string, rawId: string, isRead: boolean): void {
+		this._setSessionFlag(provider, rawId, SessionStatus.IsRead, isRead, {
+			type: ActionType.SessionIsReadChanged,
+			isRead,
+		});
+	}
+
+	/**
+	 * Optimistically flips a session-scoped status flag and dispatches the owning
+	 * action, so the host can fan the change out to other connected clients. An
+	 * uncached session still dispatches; the summary notification seeds the entry.
+	 */
+	private _setSessionFlag(provider: string, rawId: string, flag: SessionStatus, set: boolean, action: IIsArchivedChangedAction | IIsReadChangedAction): void {
 		const session = AgentSession.uri(provider, rawId);
 		const key = this._key(provider, rawId);
 		const cached = this._entries.get(key);
 		let updated: IAgentHostSessionListEntry | undefined;
 		if (cached) {
-			const status = archived
-				? cached.summary.status | SessionStatus.IsArchived
-				: cached.summary.status & ~SessionStatus.IsArchived;
-			if (status === cached.summary.status) {
+			const status = set ? cached.summary.status | flag : cached.summary.status & ~flag;
+			if (status === cached.summary.status && cached.statusKnown) {
 				return;
 			}
-			updated = { ...cached, summary: { ...cached.summary, status } };
+			// The flag is now meaningful whatever the host had said before: this
+			// dispatch is what establishes it.
+			updated = { ...cached, statusKnown: true, summary: { ...cached.summary, status } };
 		}
 
 		this._mutationGeneration++;
-		this._connection.dispatch(session.toString(), {
-			type: ActionType.SessionIsArchivedChanged,
-			isArchived: archived,
-		});
+		this._connection.dispatch(session.toString(), action);
 		if (updated) {
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
@@ -155,8 +180,13 @@ export class AgentHostSessionListStore extends Disposable {
 		// resurrecting the just-removed session.
 		this._mutationGeneration++;
 		const key = this._key(provider, rawId);
-		// Clear any local pending marker even when there's no backend entry yet:
-		// an optimistic delete can target a session the backend never announced.
+		this._workspaceMembership.remove(key);
+		this._removeSessionFromList(provider, rawId);
+	}
+
+	private _removeSessionFromList(provider: string, rawId: string): void {
+		const key = this._key(provider, rawId);
+		// An announced or deleted session is no longer pending, even when no visible entry exists.
 		this._pendingNewSessions.delete(key);
 		const entry = this._entries.get(key);
 		if (!entry) {
@@ -212,15 +242,18 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const nextEntries: IAgentHostSessionListEntry[] = [];
+		const backendSessionKeys: string[] = [];
 		for (const session of sessions) {
-			if (!this._isWorkingDirectoryInWorkspace(session.workingDirectory)) {
-				continue;
-			}
 			const entry = this._makeEntryFromMetadata(session);
 			if (entry) {
-				nextEntries.push(entry);
+				const key = this._key(entry.provider, entry.rawId);
+				backendSessionKeys.push(key);
+				if (this._isSessionInWorkspace(entry)) {
+					nextEntries.push(entry);
+				}
 			}
 		}
+		this._workspaceMembership.reconcileBackendSessions(backendSessionKeys);
 
 		this._entries.clear();
 		for (const entry of nextEntries) {
@@ -251,15 +284,16 @@ export class AgentHostSessionListStore extends Disposable {
 
 	private _onNotification(notification: INotification): void {
 		if (notification.type === 'root/sessionAdded') {
-			if (!this._isWorkingDirectoryInWorkspace(notification.summary.workingDirectory)) {
-				return;
-			}
 			const entry = this._makeEntryFromSummary(notification.summary);
 			if (!entry) {
 				return;
 			}
-			this._mutationGeneration++;
 			const key = this._key(entry.provider, entry.rawId);
+			if (!this._isSessionInWorkspace(entry)) {
+				return;
+			}
+			this._workspaceMembership.markSeen(key);
+			this._mutationGeneration++;
 			this._entries.set(key, entry);
 			// The backend has now announced this session, so it is no longer a
 			// locally-pending new session.
@@ -283,13 +317,19 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 
-			const updatedSummary = { ...cached.summary, ...notification.changes };
-			if (!this._isWorkingDirectoryInWorkspace(updatedSummary.workingDirectory)) {
-				this.removeSession(provider, rawId);
+			const updated: IAgentHostSessionListEntry = {
+				provider,
+				rawId,
+				statusKnown: cached.statusKnown || notification.changes.status !== undefined,
+				summary: { ...cached.summary, ...notification.changes },
+			};
+			if (!this._isSessionInWorkspace(updated)) {
+				this._mutationGeneration++;
+				this._removeSessionFromList(provider, rawId);
 				return;
 			}
 
-			const updated = { provider, rawId, summary: updatedSummary };
+			this._workspaceMembership.markSeen(key);
 			this._mutationGeneration++;
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
@@ -303,27 +343,21 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const rawId = AgentSession.id(session.session);
-		let status = session.status ?? SessionStatus.Idle;
-		if (session.isRead) {
-			status |= SessionStatus.IsRead;
-		}
-		if (session.isArchived) {
-			status |= SessionStatus.IsArchived;
-		}
 
 		return {
 			provider,
 			rawId,
+			statusKnown: session.status !== undefined,
 			summary: {
 				resource: session.session.toString(),
 				provider,
 				title: session.summary ?? `Session ${rawId.substring(0, 8)}`,
-				status,
+				status: session.status ?? SessionStatus.Idle,
 				activity: session.activity,
 				createdAt: new Date(session.startTime).toISOString(),
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
-				workingDirectory: session.workingDirectory?.toString(),
+				workingDirectories: session.workingDirectories?.map(d => d.toString()),
 			},
 		};
 	}
@@ -336,29 +370,23 @@ export class AgentHostSessionListStore extends Disposable {
 		return {
 			provider,
 			rawId: AgentSession.id(summary.resource),
+			statusKnown: true,
 			summary,
 		};
 	}
 
-	/**
-	 * Returns `true` if a session with the given working directory belongs
-	 * to the current VS Code workspace. When the window has no workspace
-	 * folders open (e.g. the Agents window, or an empty VS Code window),
-	 * filtering is disabled and every session is considered in-scope.
-	 *
-	 * Sessions without a working directory are excluded when a workspace
-	 * is open since they cannot be attributed to any folder.
-	 */
-	private _isWorkingDirectoryInWorkspace(workingDirectory: URI | string | undefined): boolean {
+	/** Uses legacy path containment for zero/single-folder windows and durable provenance only for multi-root workspaces. */
+	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
+		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		if (folders.length === 0) {
 			return true;
 		}
-		if (!workingDirectory) {
-			return false;
+		if (folders.length === 1) {
+			return workingDirectories.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folders[0].uri));
 		}
-		const workingDirectoryUri = typeof workingDirectory === 'string' ? URI.parse(workingDirectory) : workingDirectory;
-		return folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectoryUri, folder.uri));
+		const key = this._key(entry.provider, entry.rawId);
+		return this._workspaceMembership.shouldInclude(key, workingDirectories, this._pendingNewSessions.has(key));
 	}
 
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {

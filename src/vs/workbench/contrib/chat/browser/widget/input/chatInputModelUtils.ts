@@ -5,6 +5,9 @@
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localChatSessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
  * Describes the context needed for model selection decisions.
@@ -149,6 +152,20 @@ export function shouldDropAgnosticDraftModel(
 }
 
 /**
+ * Whether the input should treat a session as a brand-new conversation, which is what unlocks the
+ * shared new-chat draft, the default mode/permission level, and `chat.defaultModel`.
+ *
+ * `hasNoRequests` is sampled when the input binds, and a contributed session's requests load after
+ * that — so on its own it reports a started agent-host session as new. A contributed session's
+ * resource keeps its `untitled-` path until the session is started, so it stays accurate
+ * regardless of load timing. Local sessions have no such marker and rely on `hasNoRequests`.
+ */
+export function isNewConversation(sessionResource: URI, hasNoRequests: boolean): boolean {
+	return hasNoRequests
+		&& (getChatSessionType(sessionResource) === localChatSessionType || isUntitledChatSession(sessionResource));
+}
+
+/**
  * Whether the persisted per-session-type model should be restored (into the picker) when the
  * input switches to a session.
  *
@@ -158,28 +175,6 @@ export function shouldDropAgnosticDraftModel(
  */
 export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessionOwnsPool: boolean, hadIncomingModel: boolean): boolean {
 	return isEmpty && sessionOwnsPool && !hadIncomingModel;
-}
-
-/**
- * Whether the input should WAIT for a restored session's own remembered model to be contributed,
- * instead of falling back to the pool default.
- *
- * True when the session's remembered `desiredModel` belongs to this session's own pool (it
- * targets `sessionType`) but is not yet present in `allModels` — i.e. the session-type pool has
- * not finished loading at restore time (cold or partial). Waiting avoids persisting a transient
- * pool default (e.g. Haiku) over the session's remembered model (e.g. Opus) while the pool
- * settles. A model that does not belong to this session's pool returns false, so the caller
- * defaults instead of waiting forever.
- */
-export function shouldWaitForSessionModel(
-	desiredModel: ILanguageModelChatMetadataAndIdentifier,
-	sessionType: string | undefined,
-	allModels: ILanguageModelChatMetadataAndIdentifier[],
-): boolean {
-	if (!sessionType || desiredModel.metadata.targetChatSessionType !== sessionType) {
-		return false;
-	}
-	return !allModels.some(m => m.identifier === desiredModel.identifier);
 }
 
 /**
@@ -212,18 +207,6 @@ export function findDefaultModel(
 	location: ChatAgentLocation,
 ): ILanguageModelChatMetadataAndIdentifier | undefined {
 	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
-}
-
-export function findReplacementForProvisionalModel(
-	currentModelId: string | undefined,
-	provisionalModelId: string | undefined,
-	models: readonly ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	if (!provisionalModelId || currentModelId !== provisionalModelId) {
-		return undefined;
-	}
-	return models.find(model => model.metadata.isDefaultForLocation[location]);
 }
 
 /**

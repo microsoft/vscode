@@ -12,9 +12,10 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 
 /**
  * Bridges {@link IVoiceSessionController} to Agents window chat surfaces.
@@ -77,7 +78,8 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
 				} else {
-					widget.acceptInput(text, { preserveFocus: true });
+					// Preserve any text the user already typed in the input.
+					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 				}
 			}
 		}));
@@ -280,3 +282,41 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(SessionsVoiceListeningContribution.ID, SessionsVoiceListeningContribution, WorkbenchPhase.Eventually);
+
+/** Ends voice when a different welcome composer becomes active; routing in-session composers are exempt. */
+export class SessionsVoiceNewComposerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.voiceNewComposer';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
+	) {
+		super();
+
+		// Preserve the owner across the disposal/mount gap so a new surface can be detected.
+		let voiceComposer: INewChatVoiceComposer | undefined;
+		let voiceComposerCaptured = false;
+		this._register(autorun(reader => {
+			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
+			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
+			if (!connected) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = false;
+				return;
+			}
+			if (!voiceComposerCaptured) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = true;
+				return;
+			}
+			// A different welcome composer took over while voice is connected: the
+			// connection is bound to the previous surface and can't route here.
+			if (activeComposer && activeComposer !== voiceComposer && !activeComposer.routesWhileSessionActive) {
+				voiceSessionController.disconnect('internal');
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(SessionsVoiceNewComposerContribution.ID, SessionsVoiceNewComposerContribution, WorkbenchPhase.AfterRestored);

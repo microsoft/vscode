@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -19,12 +19,18 @@ export interface IAgentEditorComment {
 	readonly body: string;
 }
 
+export interface IAgentEditorCommentRevealEvent {
+	readonly resource: URI;
+	readonly id: string;
+}
+
 /**
  * Supplies the session comments for a resource. Implemented by the sessions
  * layer (backed by the agent feedback store) and registered into the bridge.
  */
 export interface IAgentEditorCommentsProvider {
 	readonly onDidChangeComments: Event<void>;
+	readonly onDidRevealComment: Event<IAgentEditorCommentRevealEvent>;
 	/** Whether new comments can be added for the resource (i.e. it is in scope for a session). */
 	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
@@ -44,6 +50,7 @@ export interface IAgentEditorCommentsBridge {
 
 	/** Fired when comments change, or when a provider is registered/unregistered. */
 	readonly onDidChangeComments: Event<void>;
+	readonly onDidRevealComment: Event<IAgentEditorCommentRevealEvent>;
 
 	/** Whether new comments can be added for the resource. `false` when no provider is registered. */
 	acceptsComments(resource: URI): boolean;
@@ -61,13 +68,18 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 
 	private readonly _onDidChangeComments = this._register(new Emitter<void>());
 	readonly onDidChangeComments = this._onDidChangeComments.event;
+	private readonly _onDidRevealComment = this._register(new Emitter<IAgentEditorCommentRevealEvent>());
+	readonly onDidRevealComment = this._onDidRevealComment.event;
 
 	private _provider: IAgentEditorCommentsProvider | undefined;
 	private readonly _providerListener = this._register(new MutableDisposable());
 
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable {
 		this._provider = provider;
-		this._providerListener.value = provider.onDidChangeComments(() => this._onDidChangeComments.fire());
+		const providerListeners = new DisposableStore();
+		providerListeners.add(provider.onDidChangeComments(() => this._onDidChangeComments.fire()));
+		providerListeners.add(provider.onDidRevealComment(event => this._onDidRevealComment.fire(event)));
+		this._providerListener.value = providerListeners;
 		this._onDidChangeComments.fire();
 		return toDisposable(() => {
 			if (this._provider === provider) {
