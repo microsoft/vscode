@@ -523,14 +523,15 @@ export interface IDictationOnboardingBannerOptions {
 	/** The element the card attaches itself to. */
 	readonly container: HTMLElement;
 	readonly onDismiss: () => void;
-	/** Whether this manually opened card should acquire a microphone preview. */
+	/** Whether this manually opened card should also acquire a microphone preview. */
 	readonly previewMicrophone: boolean;
 	readonly source: 'automatic' | 'manual';
 }
 
 /**
- * The first-run dictation card explains the feature while recording starts.
- * When reopened manually, it also previews and selects the microphone.
+ * The first-run dictation card explains the feature and offers microphone
+ * selection while recording starts. When reopened manually, it also previews
+ * the selected microphone.
  *
  * The card runs alongside the first dictation, so it explains the feature
  * without delaying the action the user invoked.
@@ -577,13 +578,23 @@ export class DictationOnboardingBanner extends Disposable {
 
 		this.renderClose();
 
+		const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
+		this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
+		this.options = [{
+			deviceId: SYSTEM_DEFAULT_DEVICE_ID,
+			label: localize('dictation.onboarding.systemDefault', "System default"),
+		}];
+		this.renderPicker();
+
+		const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
+		if (mediaDevices) {
+			this._register(dom.addDisposableListener(mediaDevices, 'devicechange', () => void this.refreshDevices()));
+		}
+
 		if (this.bannerOptions.previewMicrophone) {
-			// The device and its level are one group: the bars are *this*
-			// microphone's level. Automatic onboarding runs beside an already
-			// active dictation stream, so only the manually opened introduction
-			// owns this independent preview and its device picker.
-			const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
-			this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
+			// Automatic onboarding runs beside an already active dictation
+			// stream, so only the manually opened introduction owns this
+			// independent preview.
 			const waveformContainer = dom.append(device, dom.$('.dictation-onboarding-waveform'));
 
 			const preview = this.preview = this._register(instantiationService.createInstance(MicrophonePreview, this.domNode));
@@ -597,19 +608,10 @@ export class DictationOnboardingBanner extends Disposable {
 			this.hint.setAttribute('aria-live', 'polite');
 			this.updateHint();
 
-			this.options = [{
-				deviceId: SYSTEM_DEFAULT_DEVICE_ID,
-				label: localize('dictation.onboarding.systemDefault', "System default"),
-			}];
-			this.renderPicker();
-
-			const mediaDevices = dom.getWindow(this.domNode).navigator.mediaDevices;
-			if (mediaDevices) {
-				this._register(dom.addDisposableListener(mediaDevices, 'devicechange', () => void this.refreshDevices()));
-			}
-
 			this.waveform.start();
 			void this.startPreview();
+		} else {
+			void this.refreshDevices();
 		}
 		this.logAction('shown');
 	}
