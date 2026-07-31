@@ -208,6 +208,15 @@
 	padding-inline-start: 20px;
 }
 
+.interactive-session .chat-plan-review-container .chat-plan-review-body .rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-body .rendered-markdown a:hover,
+.interactive-session .chat-plan-review-container .chat-plan-review-body .rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {
 	min-height: min(280px, 35vh);
 }
