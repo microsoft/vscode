@@ -95,6 +95,12 @@ export function isChatInputNotificationApplicableToSession(notification: IChatIn
 
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');
 
+/** Identifies the chat session a message was sent in. */
+export interface IChatInputNotificationSessionContext {
+	readonly sessionType: string | undefined;
+	readonly sessionResource: URI | undefined;
+}
+
 export interface IChatInputNotificationService {
 	readonly _serviceBrand: undefined;
 
@@ -129,10 +135,13 @@ export interface IChatInputNotificationService {
 	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined;
 
 	/**
-	 * Called when the user sends a chat message. Auto-dismisses all notifications
-	 * that have {@link IChatInputNotification.autoDismissOnMessage} set.
+	 * Called when the user sends a chat message. Auto-dismisses the notifications
+	 * that have {@link IChatInputNotification.autoDismissOnMessage} set and that
+	 * apply to the session the message was sent in, so a message in one session
+	 * doesn't hide session-scoped notifications belonging to another. When no
+	 * context is given, all such notifications are dismissed.
 	 */
-	handleMessageSent(): void;
+	handleMessageSent(context?: IChatInputNotificationSessionContext): void;
 
 	/**
 	 * Announce a notification that a chat input is about to render to screen
@@ -220,13 +229,17 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		return best;
 	}
 
-	handleMessageSent(): void {
+	handleMessageSent(context?: IChatInputNotificationSessionContext): void {
 		let changed = false;
 		for (const notification of this._notifications.values()) {
-			if (notification.autoDismissOnMessage && !this._dismissed.has(notification.id)) {
-				this._dismissed.add(notification.id);
-				changed = true;
+			if (!notification.autoDismissOnMessage || this._dismissed.has(notification.id)) {
+				continue;
 			}
+			if (context && !isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource)) {
+				continue;
+			}
+			this._dismissed.add(notification.id);
+			changed = true;
 		}
 		if (changed) {
 			this._fireDidChange();
