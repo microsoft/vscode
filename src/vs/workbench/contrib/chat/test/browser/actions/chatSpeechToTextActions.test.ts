@@ -38,6 +38,10 @@ suite('Chat Speech to Text Actions', () => {
 			override get state(): ChatSpeechToTextState { return state; }
 			override readonly isPreparingModel = false;
 			override readonly analyserNode = new class extends mock<AnalyserNode>() { };
+			override async switchMicrophone(_window: Window & typeof globalThis, deviceId: string): Promise<AnalyserNode | undefined> {
+				calls.push(`switchMicrophone:${deviceId}`);
+				return this.analyserNode;
+			}
 		};
 		const keybindingService = new class extends mock<IKeybindingService>() {
 			override enableKeybindingHoldMode(): Promise<void> | undefined {
@@ -49,8 +53,9 @@ suite('Chat Speech to Text Actions', () => {
 				calls.push('showIfNeeded');
 				return true;
 			}
-			override refreshMicrophones(analyserNode?: AnalyserNode): void {
+			override refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: (deviceId: string) => Promise<AnalyserNode | undefined>): void {
 				calls.push(`refreshMicrophones:${analyserNode === speechService.analyserNode}`);
+				void switchMicrophone?.('mic-b');
 			}
 		};
 		const editor = new class extends mock<ICodeEditor>() {
@@ -69,6 +74,6 @@ suite('Chat Speech to Text Actions', () => {
 			},
 		);
 
-		assert.deepStrictEqual(calls, ['showIfNeeded', 'startDictation', 'refreshMicrophones:true']);
+		assert.deepStrictEqual(calls, ['showIfNeeded', 'startDictation', 'refreshMicrophones:true', 'switchMicrophone:mic-b']);
 	});
 });

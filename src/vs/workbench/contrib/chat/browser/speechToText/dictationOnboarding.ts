@@ -47,6 +47,7 @@ const DICTATION_SETTINGS_QUERY = 'dictation';
 const SYSTEM_DEFAULT_DEVICE_ID = '';
 
 type DictationMediaDevices = Pick<MediaDevices, 'addEventListener' | 'removeEventListener' | 'dispatchEvent' | 'enumerateDevices' | 'getUserMedia'>;
+type SwitchMicrophone = (deviceId: string) => Promise<AnalyserNode | undefined>;
 
 type DictationOnboardingAction = 'shown' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
 
@@ -553,6 +554,7 @@ export class DictationOnboardingBanner extends Disposable {
 	private readonly pickerContainer: HTMLElement | undefined;
 	private dictationAnalyser: AnalyserNode | undefined;
 	private dictationWaveform: Uint8Array<ArrayBuffer> | undefined;
+	private switchMicrophone: SwitchMicrophone | undefined;
 
 	private readonly picker = this._register(new MutableDisposable<DisposableStore>());
 	private options: IMicrophoneOption[] = [];
@@ -697,13 +699,17 @@ export class DictationOnboardingBanner extends Disposable {
 		return this.storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, SYSTEM_DEFAULT_DEVICE_ID);
 	}
 
-	async refreshMicrophones(analyserNode?: AnalyserNode): Promise<void> {
+	async refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): Promise<void> {
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.switchMicrophone = switchMicrophone ?? this.switchMicrophone;
 		if (!this.preview && analyserNode) {
 			this.dictationAnalyser = analyserNode;
 			this.dictationWaveform = new Uint8Array(analyserNode.fftSize);
+		}
+		if (!this.preview && !this.dictationAnalyser) {
+			return;
 		}
 		if (!this.mediaDevices?.enumerateDevices) {
 			return;
@@ -785,7 +791,13 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 
 		status(localize('dictation.onboarding.microphoneSelected', "{0} selected.", option.label));
-		void this.preview?.listen(option.deviceId).then(() => this.updateHint());
+		if (this.preview) {
+			void this.preview.listen(option.deviceId).then(() => this.updateHint());
+		} else if (this.switchMicrophone) {
+			void this.switchMicrophone(option.deviceId)
+				.then(analyser => this.refreshMicrophones(analyser))
+				.catch(error => this.logService.error(`[chat-stt] failed to switch dictation microphone: ${error}`));
+		}
 	}
 
 	/**
@@ -869,7 +881,7 @@ export interface IDictationOnboardingService {
 	show(): boolean;
 
 	/** Refresh the visible card after dictation acquires microphone permission. */
-	refreshMicrophones(analyserNode?: AnalyserNode): void;
+	refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): void;
 
 	/** Reset first-run state so the introduction is shown next time. */
 	reset(): void;
@@ -910,9 +922,9 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		return this.onboarding.show(context => this.createBanner(context.container, context.dismiss, 'manual', true));
 	}
 
-	refreshMicrophones(analyserNode?: AnalyserNode): void {
+	refreshMicrophones(analyserNode?: AnalyserNode, switchMicrophone?: SwitchMicrophone): void {
 		if (this.onboarding.isVisible) {
-			void this.currentBanner?.refreshMicrophones(analyserNode);
+			void this.currentBanner?.refreshMicrophones(analyserNode, switchMicrophone);
 		}
 	}
 

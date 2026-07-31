@@ -102,7 +102,10 @@ export async function runDictationShortcut(
 	const holdMode = keybindingService.enableKeybindingHoldMode(commandId);
 	await startDictationFn(speechService, editor, window, logService);
 	if (speechService.state === ChatSpeechToTextState.Recording) {
-		context.onboardingService?.refreshMicrophones(speechService.analyserNode);
+		context.onboardingService?.refreshMicrophones(
+			speechService.analyserNode,
+			deviceId => speechService.switchMicrophone(window, deviceId),
+		);
 	}
 	if (!holdMode) {
 		return;

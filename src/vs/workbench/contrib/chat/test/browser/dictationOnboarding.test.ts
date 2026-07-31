@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -143,6 +144,7 @@ suite('Dictation onboarding', () => {
 	test('shows populated microphone picker after dictation acquires permission without another capture', async () => {
 		const host = createHost(disposables);
 		let getUserMediaCalls = 0;
+		const selectedDeviceIds: string[] = [];
 		const mediaDevices = Object.assign(new EventTarget(), {
 			enumerateDevices: async () => [
 				device('audioinput', 'default', 'Default - Studio Mic'),
@@ -162,7 +164,16 @@ suite('Dictation onboarding', () => {
 			source: 'automatic',
 		}, mediaDevices));
 
-		await banner.refreshMicrophones();
+		const analyser = new class extends mock<AnalyserNode>() {
+			override readonly fftSize = 256;
+		};
+		await banner.refreshMicrophones(analyser, async deviceId => {
+			selectedDeviceIds.push(deviceId);
+			return analyser;
+		});
+		const picker = host.container.querySelector<HTMLSelectElement>('.dictation-onboarding-picker select')!;
+		picker.selectedIndex = 1;
+		picker.dispatchEvent(new Event('change', { bubbles: true }));
 
 		assert.deepStrictEqual(
 			{
@@ -170,12 +181,14 @@ suite('Dictation onboarding', () => {
 				options: Array.from(host.container.querySelectorAll<HTMLOptionElement>('.dictation-onboarding-picker option'), option => option.textContent),
 				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
 				getUserMediaCalls,
+				selectedDeviceIds,
 			},
 			{
 				pickerHidden: false,
 				options: ['Studio Mic (System default)', 'Built-in Mic'],
 				hasWaveform: true,
 				getUserMediaCalls: 0,
+				selectedDeviceIds: ['built-in'],
 			});
 	});
 
