@@ -22,9 +22,9 @@ import * as path from 'path';
  * A bare full 40-character lowercase commit SHA selects a source build — no npm
  * version/range/dist-tag is 40 hex chars, so the two never collide — while
  * branches and tags are not accepted, so a committed override can never move
- * under us. Queue-time pipeline parameters surface as the environment variables
- * `VSCODE_COPILOT_SDK` / `VSCODE_COPILOT_RUNTIME` and take precedence over the
- * committed field so one-off builds don't need a commit.
+ * under us. This field is the *only* way to request an override: there is no
+ * queue-time pipeline parameter, so a build is fully described by its commit and
+ * a pin goes through code review like any other change.
  */
 
 /** The two overridable packages, by short id (used for env vars and logging). */
@@ -104,15 +104,13 @@ const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const COMMIT_SHA_LIKE = /^[0-9a-fA-F]{7,40}$/;
 
 /**
- * Reads the root `package.json` `copilotOverride` field merged with the
- * `VSCODE_COPILOT_*` environment overrides and returns one resolved override per
- * package that requests one. Returns an empty array for a normal build (all
- * values empty).
+ * Reads the root `package.json` `copilotOverride` field and returns one resolved
+ * override per package that requests one. Returns an empty array for a normal
+ * build (all values empty).
  *
  * @param root repository root containing `package.json`.
- * @param env  environment to read queue-time overrides from (defaults to process.env).
  */
-export function resolveCopilotOverrides(root: string, env: NodeJS.ProcessEnv = process.env): CopilotOverride[] {
+export function resolveCopilotOverrides(root: string): CopilotOverride[] {
 	const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 	const field: Record<string, unknown> = packageJson.copilotOverride ?? {};
 
@@ -125,12 +123,7 @@ export function resolveCopilotOverrides(root: string, env: NodeJS.ProcessEnv = p
 
 	const overrides: CopilotOverride[] = [];
 	for (const { pkg, npmName, repo } of COPILOT_PACKAGES) {
-		// Env (queue-time pipeline parameter) wins over the committed field, but an
-		// empty/whitespace env value means "unset" and falls back to package.json —
-		// the pipeline normalizes its 'default' sentinel to an empty string.
-		const envValue = (env[`VSCODE_COPILOT_${pkg.toUpperCase()}`] ?? '').trim();
-		const committed = typeof field[npmName] === 'string' ? field[npmName] as string : '';
-		const value = (envValue || committed).trim();
+		const value = (typeof field[npmName] === 'string' ? field[npmName] as string : '').trim();
 		if (!value) {
 			continue;
 		}
@@ -180,7 +173,7 @@ export function overrideBuildTags(overrides: readonly CopilotOverride[]): string
 }
 
 /**
- * `VSCODE_COPILOT_RUNTIME` sentinel: build the runtime from source at the commit
+ * Sentinel for the nightly canary: build the runtime from source at the commit
  * its currently pinned version was released from.
  *
  * Exists so a schedule can exercise the source-build path continuously. Pinning
@@ -190,8 +183,12 @@ export function overrideBuildTags(overrides: readonly CopilotOverride[]): string
  */
 export const PINNED_SOURCE = 'pinned-source';
 
-export function isPinnedSourceRequested(env: NodeJS.ProcessEnv = process.env): boolean {
-	return (env['VSCODE_COPILOT_RUNTIME'] ?? '').trim() === PINNED_SOURCE;
+/**
+ * The runtime source override for an explicit commit, for the canary — which has
+ * no committed override to resolve and must not invent one in package.json.
+ */
+export function runtimeSourceOverride(ref: string): GitOverride {
+	return { pkg: 'runtime', npmName: RUNTIME_NPM_NAME, kind: 'git', repo: RUNTIME_REPO, ref };
 }
 
 /** The concrete `@github/copilot` version the lockfile installs. */

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, suite, test } from 'node:test';
-import { isPinnedSourceRequested, overrideBuildTags, parseLsRemoteTagSha, pinnedRuntimeVersion, PINNED_SOURCE, resolveCopilotOverrides, runtimeSourceTag, sourceBuildVersion } from '../../azure-pipelines/common/copilotOverride.ts';
+import { overrideBuildTags, parseLsRemoteTagSha, pinnedRuntimeVersion, resolveCopilotOverrides, runtimeSourceTag, runtimeSourceOverride, sourceBuildVersion } from '../../azure-pipelines/common/copilotOverride.ts';
 import { linuxSysrootEnv, readNativeArch, redactedError, redactSecrets, stripSourceMaps, gitAuthArgs } from '../copilotRuntimeSource.ts';
 import { execFileSync } from 'child_process';
 
@@ -36,13 +36,13 @@ afterEach(() => {
 
 suite('copilotOverride', () => {
 	test('a normal build (absent or empty field) yields no overrides', () => {
-		assert.deepStrictEqual(resolveCopilotOverrides(rootWith(undefined), {}), []);
-		assert.deepStrictEqual(resolveCopilotOverrides(rootWith({ [SDK]: '', [RUNTIME]: '' }), {}), []);
+		assert.deepStrictEqual(resolveCopilotOverrides(rootWith(undefined)), []);
+		assert.deepStrictEqual(resolveCopilotOverrides(rootWith({ [SDK]: '', [RUNTIME]: '' })), []);
 	});
 
 	test('resolves a feed spec and a bare-commit source override', () => {
 		const root = rootWith({ [SDK]: '1.2.3', [RUNTIME]: SHA });
-		assert.deepStrictEqual(resolveCopilotOverrides(root, {}), [
+		assert.deepStrictEqual(resolveCopilotOverrides(root), [
 			{ pkg: 'sdk', npmName: SDK, kind: 'feed', spec: '1.2.3' },
 			{ pkg: 'runtime', npmName: RUNTIME, kind: 'git', repo: 'github/copilot-agent-runtime', ref: SHA },
 		]);
@@ -50,7 +50,7 @@ suite('copilotOverride', () => {
 
 	test('treats non-hex specs (versions, ranges, dist-tags) as feed overrides', () => {
 		for (const spec of ['1.2.3', '^1.2.0', 'latest', 'next']) {
-			assert.deepStrictEqual(resolveCopilotOverrides(rootWith({ [SDK]: spec }), {}), [
+			assert.deepStrictEqual(resolveCopilotOverrides(rootWith({ [SDK]: spec })), [
 				{ pkg: 'sdk', npmName: SDK, kind: 'feed', spec },
 			]);
 		}
@@ -58,12 +58,12 @@ suite('copilotOverride', () => {
 
 	test('rejects hex values that are not a full lowercase 40-char commit SHA', () => {
 		for (const value of [SHA.slice(0, 7), SHA.slice(0, 39), SHA.toUpperCase()]) {
-			assert.throws(() => resolveCopilotOverrides(rootWith({ [RUNTIME]: value }), {}), /full 40-character lowercase SHA/);
+			assert.throws(() => resolveCopilotOverrides(rootWith({ [RUNTIME]: value })), /full 40-character lowercase SHA/);
 		}
 	});
 
 	test('rejects an unknown (misspelled) package name', () => {
-		assert.throws(() => resolveCopilotOverrides(rootWith({ '@github/copilot-runtime': SHA }), {}), /Unknown package/);
+		assert.throws(() => resolveCopilotOverrides(rootWith({ '@github/copilot-runtime': SHA })), /Unknown package/);
 	});
 
 	test('rejects specs npm would resolve as a git or directory dependency', () => {
@@ -73,7 +73,7 @@ suite('copilotOverride', () => {
 		// would let an override point a signed release build at other code.
 		for (const value of ['evil/malicious-repo', 'evil/repo#deadbeef', '../../etc', '..', '.', 'npm:other@1.0.0', 'https://example.com/x.tgz']) {
 			assert.throws(
-				() => resolveCopilotOverrides(rootWith({ [SDK]: value }), {}),
+				() => resolveCopilotOverrides(rootWith({ [SDK]: value })),
 				/Refusing unsafe/,
 				`accepted dangerous spec: ${value}`,
 			);
@@ -83,21 +83,33 @@ suite('copilotOverride', () => {
 	test('still accepts every legitimate version, range and dist-tag form', () => {
 		for (const value of ['1.2.3', '1.2.3-canary.4.gabc123', '1.2.3+build.5', '^1.2.0', '~1.2', '>=1.2 <2', '1.x', '*', '1.2.3 || 2.0.0', 'latest', 'next', 'insiders_2']) {
 			assert.deepStrictEqual(
-				resolveCopilotOverrides(rootWith({ [SDK]: value }), {}),
+				resolveCopilotOverrides(rootWith({ [SDK]: value })),
 				[{ pkg: 'sdk', npmName: SDK, kind: 'feed', spec: value }],
 				`rejected legitimate spec: ${value}`,
 			);
 		}
 	});
 
-	test('a queue-time env override wins; a blank env value falls back to package.json', () => {
+	test('the environment cannot override the committed field', () => {
+		// package.json is the only input, so a stray VSCODE_COPILOT_* in the
+		// environment must not be able to redirect a signed release build.
 		const root = rootWith({ [RUNTIME]: SHA });
-		assert.deepStrictEqual(resolveCopilotOverrides(root, { VSCODE_COPILOT_RUNTIME: OTHER_SHA }), [
-			{ pkg: 'runtime', npmName: RUNTIME, kind: 'git', repo: 'github/copilot-agent-runtime', ref: OTHER_SHA },
-		]);
-		assert.deepStrictEqual(resolveCopilotOverrides(root, { VSCODE_COPILOT_RUNTIME: '   ' }), [
-			{ pkg: 'runtime', npmName: RUNTIME, kind: 'git', repo: 'github/copilot-agent-runtime', ref: SHA },
-		]);
+		process.env['VSCODE_COPILOT_RUNTIME'] = OTHER_SHA;
+		try {
+			assert.deepStrictEqual(resolveCopilotOverrides(root), [
+				{ pkg: 'runtime', npmName: RUNTIME, kind: 'git', repo: 'github/copilot-agent-runtime', ref: SHA },
+			]);
+		} finally {
+			delete process.env['VSCODE_COPILOT_RUNTIME'];
+		}
+	});
+
+	test('the canary builds an override without touching package.json', () => {
+		// It has nothing committed to resolve, and must not invent one.
+		assert.deepStrictEqual(runtimeSourceOverride(SHA), {
+			pkg: 'runtime', npmName: RUNTIME, kind: 'git', repo: 'github/copilot-agent-runtime', ref: SHA,
+		});
+		assert.deepStrictEqual(resolveCopilotOverrides(rootWith(undefined)), []);
 	});
 
 	test('the committed package.json resolves cleanly', () => {
@@ -105,7 +117,7 @@ suite('copilotOverride', () => {
 		// the package names would fail normal builds, not just override builds.
 		// Only that it resolves, not that it is empty: package.json is the only way
 		// to request an override, so a release branch carrying one is the point.
-		assert.doesNotThrow(() => resolveCopilotOverrides(path.join(import.meta.dirname, '../../../'), {}));
+		assert.doesNotThrow(() => resolveCopilotOverrides(path.join(import.meta.dirname, '../../../')));
 	});
 
 	test('source build versions are unique per commit', () => {
@@ -116,7 +128,7 @@ suite('copilotOverride', () => {
 	});
 
 	test('build tags record what a released build contains', () => {
-		const overrides = resolveCopilotOverrides(rootWith({ [SDK]: '^1.2.0', [RUNTIME]: SHA }), {});
+		const overrides = resolveCopilotOverrides(rootWith({ [SDK]: '^1.2.0', [RUNTIME]: SHA }));
 		// Values are sanitized because build tags land in a REST URL path.
 		assert.deepStrictEqual(overrideBuildTags(overrides), [
 			'copilot-sdk=_1.2.0',
@@ -127,12 +139,6 @@ suite('copilotOverride', () => {
 });
 
 suite('copilotOverride.pinnedSource', () => {
-	test('only the exact sentinel selects a pinned source build', () => {
-		assert.strictEqual(isPinnedSourceRequested({ VSCODE_COPILOT_RUNTIME: `  ${PINNED_SOURCE}  ` }), true);
-		assert.strictEqual(isPinnedSourceRequested({ VSCODE_COPILOT_RUNTIME: SHA }), false);
-		assert.strictEqual(isPinnedSourceRequested({}), false);
-	});
-
 	test('reads the concrete installed version from the lockfile', () => {
 		const root = rootWith(undefined);
 		fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({

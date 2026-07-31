@@ -55,12 +55,6 @@ jobs:
     variables:
       VSCODE_COPILOT_TARGET: ${{ parameters.VSCODE_COPILOT_TARGET }}
       COPILOT_RUNTIME_STAGING: $(Build.ArtifactStagingDirectory)/copilot-runtime
-      ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME_CANARY, true) }}:
-        # Nobody requested an override, so verify against the commit the pinned
-        # runtime version was released from: `main` can be broken, whereas that
-        # commit is known good, so a failure means this integration regressed.
-        # Job-scoped, so the packaging stages still see no override.
-        VSCODE_COPILOT_RUNTIME: pinned-source
     templateContext:
       outputs:
         # The canary proves the build works; nothing consumes its output, and
@@ -92,6 +86,7 @@ jobs:
           windows: ${{ startsWith(parameters.VSCODE_COPILOT_TARGET, 'win32') }}
           installRuntimeToolchain: true
           runtimeOnly: true
+          runtimeCanary: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
 
       - script: node build/azure-pipelines/common/build-copilot-runtime-target.ts --target=$(VSCODE_COPILOT_TARGET) --out=$(COPILOT_RUNTIME_STAGING)
         displayName: Build ${{ parameters.VSCODE_COPILOT_TARGET }} from source

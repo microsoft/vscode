@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
-import { resolveCopilotOverrides, overrideBuildTags, isPinnedSourceRequested, RUNTIME_REPO, type GitOverride } from './copilotOverride.ts';
+import { resolveCopilotOverrides, overrideBuildTags, runtimeSourceOverride, RUNTIME_REPO, type GitOverride } from './copilotOverride.ts';
 import { buildSdkTarball } from './buildCopilotOverride.ts';
 import { clearRuntimeSourceMarker, resolvePinnedRuntimeCommit, writeRuntimeSourceMarker, writeRuntimeToken } from '../../lib/copilotRuntimeSource.ts';
 import { mintCloneTokenFromEnv } from './mintGithubAppToken.ts';
@@ -168,17 +168,14 @@ async function main(): Promise<void> {
 	// SDK override able to fail the runtime build.
 	const runtimeOnly = process.argv.includes('--runtime-only')
 		|| (process.env['COPILOT_OVERRIDE_RUNTIME_ONLY'] ?? '').trim().toLowerCase() === 'true';
-	const env: NodeJS.ProcessEnv = { ...process.env };
+	// The nightly canary has no committed override to resolve — it verifies the
+	// commit the pinned release was built from. Its own flag rather than a value
+	// smuggled through the environment: package.json is the only way to *request*
+	// an override, and the canary is not requesting one.
+	const canary = process.argv.includes('--canary')
+		|| (process.env['COPILOT_RUNTIME_CANARY'] ?? '').trim().toLowerCase() === 'true';
 
-	// The sentinel is not a version, so keep it away from the pure resolver (which
-	// would read it as a dist-tag). It resolves to a commit below, once the gated
-	// Key Vault step has run — which is after `--detect`.
-	const pinnedSource = isPinnedSourceRequested(env);
-	if (pinnedSource) {
-		delete env['VSCODE_COPILOT_RUNTIME'];
-	}
-
-	let overrides = resolveCopilotOverrides(ROOT, env);
+	let overrides = resolveCopilotOverrides(ROOT);
 	let runtimeGit = overrides.find((o): o is GitOverride => o.pkg === 'runtime' && o.kind === 'git');
 
 	// Signal the pipeline (gates the Key Vault + Rust toolchain steps) as early as
@@ -186,7 +183,7 @@ async function main(): Promise<void> {
 	// to other jobs, which is how the CopilotRuntime stage's detect job decides
 	// whether its eight build jobs run at all: stages are selected before anything
 	// runs, so package.json cannot be read until a job is on an agent.
-	const runtimeSource = runtimeGit || pinnedSource ? 'true' : 'false';
+	const runtimeSource = runtimeGit || canary ? 'true' : 'false';
 	console.log(`##vso[task.setvariable variable=VSCODE_COPILOT_RUNTIME_SOURCE]${runtimeSource}`);
 	console.log(`##vso[task.setvariable variable=VSCODE_COPILOT_RUNTIME_SOURCE;isOutput=true]${runtimeSource}`);
 	if (detectOnly) {
@@ -194,10 +191,11 @@ async function main(): Promise<void> {
 	}
 
 	const cloneToken = await mintCloneTokenFromEnv(RUNTIME_REPO);
-	if (pinnedSource) {
-		env['VSCODE_COPILOT_RUNTIME'] = resolvePinnedRuntimeCommit(ROOT, cloneToken);
-		overrides = resolveCopilotOverrides(ROOT, env);
-		runtimeGit = overrides.find((o): o is GitOverride => o.pkg === 'runtime' && o.kind === 'git');
+	// A committed override wins: a scheduled build of a branch carrying a real pin
+	// is that pin's build, not a canary run.
+	if (canary && !runtimeGit) {
+		runtimeGit = runtimeSourceOverride(resolvePinnedRuntimeCommit(ROOT, cloneToken));
+		overrides = [...overrides, runtimeGit];
 	}
 
 	await handleRuntimeSource(runtimeGit, cloneToken);

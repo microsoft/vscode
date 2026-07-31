@@ -49,10 +49,6 @@ jobs:
     ${{ if eq(parameters.VSCODE_COPILOT_RUNTIME_CANARY, true) }}:
       # Every cron triggers this pipeline; the canary only wants one of them.
       condition: and(succeeded(), eq(variables['Build.CronSchedule.DisplayName'], variables['VSCODE_COPILOT_RUNTIME_CANARY_CRON']))
-      variables:
-        # Nobody committed an override, so verify against the commit the pinned
-        # runtime version was released from.
-        VSCODE_COPILOT_RUNTIME: pinned-source
     steps:
       - template: ../common/checkout.yml@self
 
@@ -65,7 +61,7 @@ jobs:
       - script: node build/azure-pipelines/common/apply-copilot-override.ts --detect
         name: detect
         env:
-          VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+          COPILOT_RUNTIME_CANARY: ${{ parameters.VSCODE_COPILOT_RUNTIME_CANARY }}
         displayName: Copilot override — detect
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:

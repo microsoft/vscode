@@ -193,7 +193,7 @@ export function writeCopilotOverride(root: string, entries: Record<string, strin
 	fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
 
 	try {
-		resolveCopilotOverrides(root, {});
+		resolveCopilotOverrides(root);
 	} catch (err) {
 		fs.writeFileSync(file, before);
 		throw err;
@@ -463,7 +463,7 @@ export function pin(root: string, options: CopilotDevOptions): void {
 	for (const [name, value] of Object.entries(entries)) {
 		console.log(`[copilot-dev] Pinned ${name} -> ${value}`);
 	}
-	console.log('[copilot-dev] Commit package.json, or pass the same values as the pipeline\'s VSCODE_COPILOT_RUNTIME / VSCODE_COPILOT_SDK parameters.');
+	console.log('[copilot-dev] Commit package.json to carry this into a build: it is the only way the pipeline takes an override.');
 }
 
 export function main(argv: readonly string[], root: string): void {

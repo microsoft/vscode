@@ -145,15 +145,6 @@ variables:
       value: ""
     ${{ else }}:
       value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
-  # The Copilot overrides live in package.json `copilotOverride` and nowhere else,
-  # so a build is fully described by its commit and a runtime pin goes through
-  # code review like any other change. These stay defined but empty because the
-  # templates pass them to apply-copilot-override.ts, which treats empty as
-  # "use package.json"; the canary sets VSCODE_COPILOT_RUNTIME at job scope.
-  - name: VSCODE_COPILOT_SDK
-    value: ""
-  - name: VSCODE_COPILOT_RUNTIME
-    value: ""
   # Canary mode: a scheduled build runs the CopilotRuntime stage against the
   # commit the pinned release was built from, purely to prove the hotfix path
   # still works. A scheduled build publishes, so the canary is kept out of its

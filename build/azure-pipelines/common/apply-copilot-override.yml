@@ -24,6 +24,11 @@ parameters:
   - name: runtimeOnly
     type: boolean
     default: false
+  # Verify the commit the pinned release was built from. Only the nightly canary,
+  # which has no committed override to resolve.
+  - name: runtimeCanary
+    type: boolean
+    default: false
 
 steps:
   # Detect whether a runtime source build is requested and surface it as a
@@ -32,14 +37,12 @@ steps:
   - ${{ if eq(parameters.windows, true) }}:
       - powershell: node build/azure-pipelines/common/apply-copilot-override.ts --detect
         env:
-          VSCODE_COPILOT_SDK: $(VSCODE_COPILOT_SDK)
-          VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
         displayName: Copilot override — detect
   - ${{ else }}:
       - script: node build/azure-pipelines/common/apply-copilot-override.ts --detect
         env:
-          VSCODE_COPILOT_SDK: $(VSCODE_COPILOT_SDK)
-          VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
         displayName: Copilot override — detect
 
   # GitHub App key for cloning the private github/copilot-agent-runtime repo,
@@ -76,8 +79,7 @@ steps:
   - ${{ if eq(parameters.windows, true) }}:
       - powershell: node build/azure-pipelines/common/apply-copilot-override.ts
         env:
-          VSCODE_COPILOT_SDK: $(VSCODE_COPILOT_SDK)
-          VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
           COPILOT_OVERRIDE_RUNTIME_ONLY: ${{ parameters.runtimeOnly }}
           # App credentials for minting a runtime clone token. Only set when the
           # gated Key Vault step above ran; otherwise the literal $(...) macro is
@@ -88,8 +90,7 @@ steps:
   - ${{ else }}:
       - script: node build/azure-pipelines/common/apply-copilot-override.ts
         env:
-          VSCODE_COPILOT_SDK: $(VSCODE_COPILOT_SDK)
-          VSCODE_COPILOT_RUNTIME: $(VSCODE_COPILOT_RUNTIME)
+          COPILOT_RUNTIME_CANARY: ${{ parameters.runtimeCanary }}
           COPILOT_OVERRIDE_RUNTIME_ONLY: ${{ parameters.runtimeOnly }}
           GITHUB_APP_ID: "4297675"
           GITHUB_APP_PRIVATE_KEY: $(copilot-agent-runtime-gh-app)
