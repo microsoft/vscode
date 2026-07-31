@@ -44,7 +44,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		await this.refreshSessionGitState(sessionKey, workingDirectory);
+		await this._attachSessionGitHubPullRequest(sessionKey);
+	}
+
+	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			return;
@@ -79,7 +84,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 			const signal = new AbortController().signal;
 			const pr = await this._octoKitService.findPullRequestByHeadBranch(
-				gitHubState.owner, gitHubState.repo, gitState.branchName, authToken, signal);
+				gitHubState.owner, gitHubState.repo, gitState.branchName, authToken, signal, gitState.githubHeadOwner);
 			if (!pr?.url) {
 				return;
 			}
