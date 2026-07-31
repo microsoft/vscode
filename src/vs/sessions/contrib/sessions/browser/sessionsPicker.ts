@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+
+export interface ISessionsPickerGroups {
+	readonly needsInput: readonly ISession[];
+	readonly unread: readonly ISession[];
+	readonly recent: readonly ISession[];
+	readonly other: readonly ISession[];
+}
+
+/** Groups sessions by picker priority while preserving their existing order. */
+export function groupSessionsForPicker(recentSessions: readonly ISession[], otherSessions: readonly ISession[]): ISessionsPickerGroups {
+	const needsInput: ISession[] = [];
+	const unread: ISession[] = [];
+	const recent: ISession[] = [];
+	const other: ISession[] = [];
+
+	const groupSession = (session: ISession, remaining: ISession[]): void => {
+		if (session.isArchived.get()) {
+			return;
+		} else if (session.status.get() === SessionStatus.NeedsInput) {
+			needsInput.push(session);
+		} else if (!session.isRead.get()) {
+			unread.push(session);
+		} else {
+			remaining.push(session);
+		}
+	};
+
+	for (const session of recentSessions) {
+		groupSession(session, recent);
+	}
+	for (const session of otherSessions) {
+		groupSession(session, other);
+	}
+
+	return { needsInput, unread, recent, other };
+}
