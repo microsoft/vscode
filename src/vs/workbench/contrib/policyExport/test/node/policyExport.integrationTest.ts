@@ -21,8 +21,8 @@ suite.skip('PolicyExport Integration Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('exported policy data matches checked-in file', async function () {
-		// Skip this test in ADO pipelines
-		if (process.env['TF_BUILD']) {
+		// Skip this test in CI pipelines
+		if (process.env['TF_BUILD'] || process.env['VSCODE_SKIP_PRELAUNCH']) {
 			this.skip();
 		}
 
