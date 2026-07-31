@@ -264,11 +264,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.SearchSubagent] = searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
 		allowTools[ToolName.ExploreSubagent] = searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
 
-		// The execution subagent is powered by gemini-3-flash, so it can only be
-		// offered when that model is actually available to the user. If it isn't
-		// in the user's endpoints, keep the tool disabled regardless of the setting.
-		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
-		allowTools[ToolName.ExecutionSubagent] = executionSubagentEnabled && hasGemini3Flash;
+		allowTools[ToolName.ExecutionSubagent] = executionSubagentEnabled;
 	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
