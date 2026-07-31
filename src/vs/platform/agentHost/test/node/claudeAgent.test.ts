@@ -6702,40 +6702,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.strictEqual(customizations.find(c => c.uri === 'https://a')?.enabled, false);
 	});
 
-	test('emits a host OTel session-title span when this agent\'s session title changes', () => {
-		const { stateManager, otelService } = createTestContext(disposables);
-		const sessionUri = AgentSession.uri('claude', 'wire-title');
-		stateManager.createSession({
-			resource: sessionUri.toString(),
-			provider: 'claude',
-			title: 'Initial',
-			status: SessionStatus.Idle,
-			createdAt: new Date().toISOString(),
-			modifiedAt: new Date().toISOString(),
-		});
-
-		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
-
-		assert.deepStrictEqual(otelService.titleChanges, [{ conversationId: 'wire-title', sessionUri: sessionUri.toString(), title: 'Renamed' }]);
-	});
-
-	test('ignores session-title changes belonging to another provider', () => {
-		const { stateManager, otelService } = createTestContext(disposables);
-		const foreignUri = AgentSession.uri('copilot', 'foreign-title');
-		stateManager.createSession({
-			resource: foreignUri.toString(),
-			provider: 'copilot',
-			title: 'Initial',
-			status: SessionStatus.Idle,
-			createdAt: new Date().toISOString(),
-			modifiedAt: new Date().toISOString(),
-		});
-
-		stateManager.dispatchServerAction(foreignUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
-
-		assert.deepStrictEqual(otelService.titleChanges, []);
-	});
-
 	test('send pre-flight: dirty customizations triggers a rebind (SDK plugin URI set is captured at startup, so any change must restart the Query)', async () => {
 		const pm = new FakeAgentPluginManager();
 		const ctx = buildCtxWith(pm);
@@ -7650,3 +7616,42 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 });
 
 // #endregion
+
+suite('ClaudeAgent — host OTel session-title spans', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('emits a host OTel session-title span when this agent\'s session title changes', () => {
+		const { stateManager, otelService } = createTestContext(disposables);
+		const sessionUri = AgentSession.uri('claude', 'wire-title');
+		stateManager.createSession({
+			resource: sessionUri.toString(),
+			provider: 'claude',
+			title: 'Initial',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+
+		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+
+		assert.deepStrictEqual(otelService.titleChanges, [{ conversationId: 'wire-title', sessionUri: sessionUri.toString(), title: 'Renamed' }]);
+	});
+
+	test('ignores session-title changes belonging to another provider', () => {
+		const { stateManager, otelService } = createTestContext(disposables);
+		const foreignUri = AgentSession.uri('copilot', 'foreign-title');
+		stateManager.createSession({
+			resource: foreignUri.toString(),
+			provider: 'copilot',
+			title: 'Initial',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+
+		stateManager.dispatchServerAction(foreignUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+
+		assert.deepStrictEqual(otelService.titleChanges, []);
+	});
+});
