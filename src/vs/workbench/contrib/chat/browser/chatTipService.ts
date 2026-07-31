@@ -262,6 +262,21 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				}
 			}));
 		}
+
+		// Dynamic commands (e.g. 'workbench.action.chat.openPlan') are registered at
+		// WorkbenchPhase.Eventually and may be removed when the focused modes change.
+		// Re-evaluate the shown tip whenever any command is registered so that tips are
+		// neither shown with dead links nor permanently blocked from appearing due to a
+		// registration race at startup.
+		this._register(CommandsRegistry.onDidRegisterCommand(commandId => {
+			this._hideShownTipIfNowIneligible();
+			// If the newly registered command was a requirement that blocked a tip from
+			// being selected, reset the cached selection so the next getWelcomeTip call
+			// can re-pick the most suitable tip.
+			if (this._tipRequestId === 'welcome' && TIP_CATALOG.some(tip => tip.requiresCommands?.includes(commandId))) {
+				this._tipRequestId = undefined;
+			}
+		}));
 	}
 
 	private _hasFileOrFolderReference(message: IParsedChatRequest): boolean {
