@@ -34,9 +34,6 @@ import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
-// ChatWidget reserves 50px for its response list. This budget leaves the
-// compact editor its full 83px intrinsic maximum while the list stays hidden.
-const CHAT_INPUT_WINDOW_WIDGET_HEIGHT_BUDGET = 133;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -296,7 +293,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		));
 		widget.render(parent);
 		widget.setVisible(true);
-		widget.setInputPartMaxHeightOverride(CHAT_INPUT_WINDOW_WIDGET_HEIGHT_BUDGET);
 
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
@@ -381,11 +377,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				const horizontalPadding = Number.parseFloat(rowStyle.paddingLeft) + Number.parseFloat(rowStyle.paddingRight);
 				const available = Math.max(0, row.clientWidth - chrome - horizontalPadding);
 				parent.style.width = `${available}px`;
-				widget.layout(widget.contentHeight || row.offsetHeight, available);
+				widget.input.layout(available);
+				widget.layoutForInputHeight(Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, widget.contentHeight), available);
 
 				const spill = parent.scrollWidth - parent.clientWidth;
 				if (spill > 0) {
-					widget.layout(widget.contentHeight || row.offsetHeight, Math.max(0, available - spill));
+					const compensatedWidth = Math.max(0, available - spill);
+					widget.input.layout(compensatedWidth);
+					widget.layoutForInputHeight(Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, widget.contentHeight), compensatedWidth);
 				}
 				fitWindowToInput();
 			} finally {
