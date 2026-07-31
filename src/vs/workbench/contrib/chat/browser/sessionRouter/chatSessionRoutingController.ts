@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -170,10 +171,11 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 
 		// A new submission supersedes any pending badge from a previous one.
+		this._submitCts.value?.cancel();
 		this._pendingSend.clear();
 
-		// Replacing the source disposes any previous one; the host cancels the
-		// in-flight submission on teardown so we never dispatch after close.
+		// The host cancels the in-flight submission on teardown so we never
+		// dispatch after close.
 		const cts = new CancellationTokenSource();
 		this._submitCts.value = cts;
 		const token = cts.token;
@@ -495,6 +497,10 @@ export class ChatSessionRoutingController extends Disposable {
 				: localize('chatSessionRouting.sendNowHint', "Enter to send now");
 		};
 		renderSelection();
+		const initialTarget = options[preselected];
+		ariaAlert(initialTarget.kind === 'session'
+			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000))
+			: localize('chatSessionRouting.startingNewIn', "Starting a new session in {0} seconds. Press Escape to cancel.", Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000)));
 
 		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
 		const renderCountdown = () => {

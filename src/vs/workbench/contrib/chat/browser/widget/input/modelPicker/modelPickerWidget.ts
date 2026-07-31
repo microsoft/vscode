@@ -107,6 +107,7 @@ export class ModelPickerWidget extends Disposable {
 	private _activatingAfterTrust = false;
 	private readonly _activatingTimer = this._register(new MutableDisposable());
 	private readonly _pendingAuxiliaryRelayout = this._register(new MutableDisposable());
+	private readonly _activeShowDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _showRequestId = 0;
 
 	private _domNode: HTMLElement | undefined;
@@ -415,6 +416,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
 			this._showRequestId++;
+			this._activeShowDisposables.clear();
 			this._nameButton.setAttribute('aria-expanded', 'false');
 			this._delegate.onDidChangeVisibility?.(false);
 			this._actionWidgetService.hide(true);
@@ -496,6 +498,9 @@ export class ModelPickerWidget extends Disposable {
 		// picker is hidden. The ActionListWidget only tracks the disposable for the
 		// currently-shown hover; all other items' hover disposables would leak.
 		const hoverDisposables = new DisposableStore();
+		const showDisposables = new DisposableStore();
+		showDisposables.add(hoverDisposables);
+		this._activeShowDisposables.value = showDisposables;
 		for (const item of items) {
 			if (item.hover?.disposable) {
 				hoverDisposables.add(item.hover.disposable);
@@ -544,7 +549,11 @@ export class ModelPickerWidget extends Disposable {
 			},
 			onHide: () => {
 				this._showRequestId++;
-				hoverDisposables.dispose();
+				if (this._activeShowDisposables.value === showDisposables) {
+					this._activeShowDisposables.clear();
+				} else {
+					showDisposables.dispose();
+				}
 				this._nameButton?.setAttribute('aria-expanded', 'false');
 				this._delegate.onDidChangeVisibility?.(false);
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
@@ -557,6 +566,9 @@ export class ModelPickerWidget extends Disposable {
 		const showRequestId = ++this._showRequestId;
 		const showActionWidget = () => {
 			if (showRequestId !== this._showRequestId || this._nameButton?.getAttribute('aria-expanded') !== 'true') {
+				if (this._activeShowDisposables.value === showDisposables) {
+					this._activeShowDisposables.clear();
+				}
 				return;
 			}
 			this._actionWidgetService.show(
@@ -578,10 +590,23 @@ export class ModelPickerWidget extends Disposable {
 		};
 		const visibilityChange = this._delegate.onDidChangeVisibility?.(true);
 		if (visibilityChange) {
-			void visibilityChange.then(showActionWidget);
+			void visibilityChange.then(showActionWidget, () => {
+				if (this._activeShowDisposables.value === showDisposables) {
+					this._activeShowDisposables.clear();
+				}
+			});
 		} else {
 			showActionWidget();
 		}
+	}
+
+	override dispose(): void {
+		this._showRequestId++;
+		this._activeShowDisposables.clear();
+		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
+			this._actionWidgetService.hide(true);
+		}
+		super.dispose();
 	}
 
 	private _updateBadge(): void {
