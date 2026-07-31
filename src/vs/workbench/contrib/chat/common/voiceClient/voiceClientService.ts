@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { ChatVoiceProgressStage } from '../chatService/chatService.js';
 
 /**
  * One selectable option on a pending question, positioned in *displayed* order.
@@ -102,10 +103,24 @@ export interface IVoiceSessionContext {
 		is_active: boolean;
 		agent_state: string;
 		agent_state_detail?: string;
+		confirmation_type?: VoiceConfirmationType;
 		last_response_summary?: string;
 		pending?: IVoiceSessionPending;
 	}[];
 	display_locale: string;
+}
+
+export type VoiceConfirmationType = 'questionnaire' | 'elicitation' | 'plan' | 'tool' | 'generic';
+export type VoiceCheckpointId = ChatVoiceProgressStage;
+
+export function isVoiceCheckpointId(value: unknown): value is VoiceCheckpointId {
+	return value === 'investigating' || value === 'planning' || value === 'editing' || value === 'validating' || value === 'recovering';
+}
+
+export interface IVoiceCheckpointNarrationMetadata {
+	readonly requestId: string;
+	readonly checkpointId: VoiceCheckpointId;
+	readonly sequence: number;
 }
 
 /**
@@ -116,7 +131,7 @@ export interface IVoiceSessionContext {
  * by the narration model: the numbered options are the ordinals the user says
  * back, so a summary that drops them breaks answering.
  */
-export type VoiceNarrationKind = 'response' | 'confirmation' | 'question';
+export type VoiceNarrationKind = 'response' | 'confirmation' | 'question' | 'checkpoint';
 
 /**
  * Structured outcome of a dispatched voice tool call. The backend speaks an
@@ -158,6 +173,11 @@ export interface IVoiceAudioResponse {
 	 * direct replies and for backends that don't yet echo it (legacy fallback).
 	 */
 	readonly responseId?: string;
+	readonly requestId?: string;
+	readonly checkpointId?: VoiceCheckpointId;
+	readonly sequence?: number;
+	readonly narrationKind?: VoiceNarrationKind;
+	readonly playbackId?: string;
 }
 
 export interface IVoiceBargeIn {
@@ -166,7 +186,7 @@ export interface IVoiceBargeIn {
 }
 
 /** Disposition of a client `request_narration`, reported by `narration_ack`. */
-export type IVoiceNarrationDisposition = 'accepted' | 'busy' | 'invalid';
+export type IVoiceNarrationDisposition = 'accepted' | 'busy' | 'invalid' | 'suppressed';
 
 /** The backend's acknowledgement of a `request_narration`. */
 export interface IVoiceNarrationAck {
@@ -186,6 +206,8 @@ export interface IVoiceNarrationAck {
 export interface IVoiceNarrationSignal {
 	readonly narrationId: string;
 	readonly codingSessionId: string;
+	readonly retryable?: boolean;
+	readonly reason?: string;
 }
 
 export interface IVoiceToolCall {
@@ -342,6 +364,8 @@ export interface IVoiceClientService {
 	 */
 	invalidateSessionCache(sessionId: string): void;
 	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
+	/** Report that one correlated checkpoint playback attempt finished locally. */
+	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void;
 	/**
 	 * Ask the backend to speak `text` for a session now; returns the narration id
 	 * echoed on the resulting `audio_response`, or `undefined` if nothing was
@@ -356,7 +380,7 @@ export interface IVoiceClientService {
 	 * backend's mirror has caught up. The id is deliberately *not* folded into
 	 * `text`, which every dedup and retry-reuse guard keys on.
 	 */
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined;
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *
@@ -412,3 +436,4 @@ export interface IVoiceClientService {
 }
 
 export const IVoiceClientService = createDecorator<IVoiceClientService>('voiceClientService');
+export const VOICE_AGENT_PROGRESS_SETTING = 'agents.voice.agentProgress';

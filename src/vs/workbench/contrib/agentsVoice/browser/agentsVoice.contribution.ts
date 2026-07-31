@@ -8,6 +8,7 @@ import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
+import { VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
 import '../../chat/common/voicePlaybackService.js';
 
@@ -613,6 +614,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.speakResponses', "When enabled, the assistant reads responses aloud. When disabled, responses are not spoken; enable `#agents.voice.showTranscript#` to read them as a text transcript instead."),
 			default: true,
+			scope: ConfigurationScope.APPLICATION,
+		},
+		[VOICE_AGENT_PROGRESS_SETTING]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.agentProgress', "Allow Agent mode to speak brief semantic progress updates while it investigates, plans, edits, validates, or recovers from a problem."),
+			default: false,
+			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.voice': {
