@@ -137,22 +137,20 @@ interface ISubagentSessionRef {
 	readonly turnStopWatch: StopWatch;
 }
 
-function getChatModeName(mode: unknown): { mode: SessionMode; name: string } | undefined {
+function getSessionMode(mode: unknown): SessionMode | undefined {
 	switch (mode) {
 		case 'interactive':
-			return { mode, name: 'agent' };
 		case 'plan':
-			return { mode, name: 'Plan' };
 		case 'autopilot':
-			return { mode, name: 'Autopilot' };
+			return mode;
 		default:
 			return undefined;
 	}
 }
 
-function getConfiguredSessionMode(config: SessionState['config']): { mode: SessionMode; name: string } | undefined {
+function getConfiguredSessionMode(config: SessionState['config']): SessionMode | undefined {
 	const value = config?.values[SessionConfigKey.Mode] ?? config?.schema.properties[SessionConfigKey.Mode]?.default;
-	return getChatModeName(value);
+	return getSessionMode(value);
 }
 
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
@@ -234,7 +232,7 @@ export class AgentSideEffects extends Disposable {
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
 			const currentMode = getConfiguredSessionMode(e.current);
-			if (!previousMode || !currentMode || previousMode.mode === currentMode.mode) {
+			if (!previousMode || !currentMode || previousMode === currentMode) {
 				return;
 			}
 
@@ -244,7 +242,7 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 
-			this._telemetryReporter.chatModeChanged(agent.id, e.session, previousMode.name, currentMode.name, sessionState.turns.length);
+			this._telemetryReporter.chatModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
 		}));
 
 		// Whenever the agents observable changes, publish to root state.

@@ -30,8 +30,8 @@ export type IAgentHostChatModeChangeClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the mode change belongs to a subagent session.' };
-	fromMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent execution mode mapped to the workbench chat mode name.' };
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent execution mode mapped to the workbench chat mode name.' };
+	fromMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent host execution mode.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent host execution mode.' };
 	requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of completed turns in the agent host chat.' };
 	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source of the target mode.' };
 	owner: 'digitarald';
