@@ -32,6 +32,7 @@ import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -39,7 +40,6 @@ import { getCopilotRootPaths } from '../../../../platform/agentHost/common/copil
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
-import { localize } from '../../../../nls.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
@@ -124,6 +124,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
@@ -136,6 +137,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateWindowConfiguration()));
 		this._register(this.themeService.onDidColorThemeChange(() => this._updateWindowConfiguration()));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this._updateWindowConfiguration()));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateWindowConfiguration()));
@@ -529,16 +531,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			inputPlaceholderForeground: theme.getColor(inputPlaceholderForeground)?.toString(),
 			toolbarHoverBackground: theme.getColor(toolbarHoverBackground)?.toString(),
 			font: DEFAULT_FONT_FAMILY,
-			localizedStrings: {
-				addComment: localize('browserView.addComment', "Add Comment"),
-				addCommentPlaceholder: localize('browserView.addCommentPlaceholder', "Add a comment"),
-				commentOnSelectedElement: localize('browserView.commentOnSelectedElement', "Comment on selected element"),
-				elementComment: localize('browserView.elementComment', "Element comment {0}"),
-				elementCommentWithBody: localize('browserView.elementCommentWithBody', "Element comment {0}: {1}"),
-				emptyElementComment: localize('browserView.emptyElementComment', "Empty element comment {0}"),
-				removeComment: localize('browserView.removeComment', "Remove Comment"),
-				removeElementComment: localize('browserView.removeElementComment', "Remove element comment"),
-			},
+			reducedMotion: this.accessibilityService.isMotionReduced(),
 		};
 	}
 

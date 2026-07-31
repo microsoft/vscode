@@ -43,6 +43,9 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
 import { toAttachedContextDynamicVariable } from '../../../chat/common/attachments/chatVariables.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -105,6 +108,35 @@ const BrowserCategory = localize2('browserCategory', "Browser");
 const CONTEXT_BROWSER_ELEMENT_SELECTION_MODE = new RawContextKey<BrowserElementSelectionMode | undefined>('browserElementSelectionMode', undefined, localize('browser.elementSelectionMode', "The active element selection mode"));
 const CONTEXT_BROWSER_AREA_SELECTION_ACTIVE = new RawContextKey<boolean>('browserAreaSelectionActive', false, localize('browser.areaSelectionActive', "Whether area selection is currently active"));
 
+class BrowserElementCommentingAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly type = AccessibleViewType.Help;
+	readonly priority = 110;
+	readonly name = 'browserElementCommenting';
+	readonly when = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.isEqualTo(BrowserElementSelectionMode.Comment);
+
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
+		const editorPane = accessor.get(IEditorService).activeEditorPane;
+		if (!(editorPane instanceof BrowserEditor)) {
+			return undefined;
+		}
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.BrowserElementCommenting,
+			{ type: AccessibleViewType.Help },
+			() => [
+				localize('browser.elementCommentingAccessibilityHelp.overview', "You are in Integrated Browser element commenting mode."),
+				localize('browser.elementCommentingAccessibilityHelp.navigation', "Use Tab and Shift+Tab to move through focusable page elements. Press Enter to comment on the focused element."),
+				localize('browser.elementCommentingAccessibilityHelp.composer', "In the comment input, press Enter to add the comment or Escape to cancel it."),
+				localize('browser.elementCommentingAccessibilityHelp.continuous', "Commenting mode remains active after adding a comment. Press Escape outside the comment input to stop commenting."),
+				localize('browser.elementCommentingAccessibilityHelp.pins', "Numbered comment pins are in the page tab order. Focus a pin to preview its comment, then Tab to its Remove Comment button."),
+			].join('\n'),
+			() => editorPane.focus(),
+			AccessibilityVerbositySettingId.BrowserElementCommenting
+		);
+	}
+}
+
+AccessibleViewRegistry.register(new BrowserElementCommentingAccessibilityHelp());
+
 type IntegratedBrowserAddScreenshotToChatAddedEvent = {
 	screenshotType: 'viewport' | 'area' | 'fullPage';
 };
@@ -147,6 +179,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 	) {
 		super(editor);
 		this._elementSelectionModeContext = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.bindTo(contextKeyService);
@@ -235,9 +268,14 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			this._elementSelectionMode = state.active ? state.options.mode : undefined;
 			this._elementSelectionModeContext.set(this._elementSelectionMode);
 			const isCommenting = this._elementSelectionMode === BrowserElementSelectionMode.Comment;
+			const accessibilityHelpHint = isCommenting && state.active
+				? this.accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.BrowserElementCommenting)
+				: undefined;
 			this.accessibilityService.status(isCommenting
 				? state.active
-					? localize('browser.elementCommentingEnabled', "Element commenting enabled. Press Enter to comment on the focused element.")
+					? accessibilityHelpHint
+						? localize('browser.elementCommentingEnabledWithAccessibilityHelp', "Element commenting enabled. Press Enter to comment on the focused element. {0}", accessibilityHelpHint)
+						: localize('browser.elementCommentingEnabled', "Element commenting enabled. Press Enter to comment on the focused element.")
 					: localize('browser.elementCommentingDisabled', "Element commenting disabled.")
 				: state.active
 					? localize('browser.elementSelectionEnabled', "Element selection enabled. Press Enter to add the focused element to chat.")

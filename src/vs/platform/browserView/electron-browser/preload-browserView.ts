@@ -7,10 +7,10 @@
 /* eslint-disable no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
-import type { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewLocalizedStrings, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
+import type { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewPreloadLocalizedStrings, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
 
 const commentElementSelectionMode = 'comment' as BrowserElementSelectionMode;
-const defaultLocalizedStrings: IBrowserViewLocalizedStrings = {
+let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
 	addComment: 'Add Comment',
 	addCommentPlaceholder: 'Add a comment',
 	commentOnSelectedElement: 'Comment on selected element',
@@ -187,6 +187,10 @@ function init() {
 	ipcRenderer.on('vscode:browserView:setTheme', (_event: unknown, theme: IBrowserViewTheme) => {
 		elementPicker.setTheme(theme);
 		areaPicker.setTheme(theme);
+	});
+	ipcRenderer.on('vscode:browserView:setLocalizedStrings', (_event: unknown, strings: IBrowserViewPreloadLocalizedStrings) => {
+		localizedStrings = strings;
+		elementPicker.updateLocalizedStrings();
 	});
 	ipcRenderer.on('vscode:browserView:startElementPicker', (_event: unknown, options: IBrowserElementSelectionOptions) => {
 		elementPicker.start(options);
@@ -365,7 +369,7 @@ class ElementPicker {
 	private readonly _commentComposer: HTMLDivElement;
 	private readonly _commentInput: HTMLTextAreaElement;
 	private readonly _commentSendButton: HTMLButtonElement;
-	private readonly _comments = new Map<string, { target: Element; pin: HTMLDivElement; numberElement: HTMLSpanElement; body: string; offset: { x: number; y: number } }>();
+	private readonly _comments = new Map<string, { target: Element; pin: HTMLDivElement; numberElement: HTMLSpanElement; body: string; ordinal: number; offset: { x: number; y: number } }>();
 	private readonly _pendingComments = new Map<string, { target: Element; anchor: { x: number; y: number }; body: string }>();
 
 	// Interaction state (reset on stop)
@@ -384,7 +388,7 @@ class ElementPicker {
 	private _commentPreviewHideTimeout: number | undefined;
 	private _commentPreviewAnimations: Animation[] = [];
 	private _commentPreviewCollapsing = false;
-	private _localizedStrings = defaultLocalizedStrings;
+	private _reducedMotion = false;
 
 	constructor(
 		private readonly _onPicked: (element: Element, comment?: string) => string,
@@ -451,8 +455,8 @@ class ElementPicker {
 		commentPreviewRemoveIconPath.setAttribute('d', 'M3.854 3.146a.5.5 0 0 0-.708.708L7.293 8l-4.147 4.146a.5.5 0 0 0 .708.708L8 8.707l4.146 4.147a.5.5 0 0 0 .708-.708L8.707 8l4.147-4.146a.5.5 0 0 0-.708-.708L8 7.293 3.854 3.146Z');
 		commentPreviewRemoveIcon.appendChild(commentPreviewRemoveIconPath);
 		commentPreviewRemoveButton.appendChild(commentPreviewRemoveIcon);
-		commentPreviewRemoveButton.title = this._localizedStrings.removeComment;
-		commentPreviewRemoveButton.setAttribute('aria-label', this._localizedStrings.removeElementComment);
+		commentPreviewRemoveButton.title = localizedStrings.removeComment;
+		commentPreviewRemoveButton.setAttribute('aria-label', localizedStrings.removeElementComment);
 		commentPreviewRemoveButton.addEventListener('click', () => {
 			if (this._commentPreviewElementId) {
 				this._removeComment(this._commentPreviewElementId);
@@ -524,7 +528,7 @@ class ElementPicker {
 		commentComposer.className = 'comment-surface comment-composer';
 		commentComposer.style.display = 'none';
 		commentComposer.setAttribute('role', 'dialog');
-		commentComposer.setAttribute('aria-label', this._localizedStrings.commentOnSelectedElement);
+		commentComposer.setAttribute('aria-label', localizedStrings.commentOnSelectedElement);
 		commentComposer.setAttribute('aria-modal', 'true');
 		commentLayer.appendChild(commentComposer);
 		this._commentComposer = commentComposer;
@@ -532,11 +536,11 @@ class ElementPicker {
 		const commentInput = document.createElement('textarea');
 		commentInput.className = 'comment-input';
 		commentInput.rows = 1;
-		commentInput.placeholder = this._localizedStrings.addCommentPlaceholder;
-		commentInput.setAttribute('aria-label', this._localizedStrings.commentOnSelectedElement);
+		commentInput.placeholder = localizedStrings.addCommentPlaceholder;
+		commentInput.setAttribute('aria-label', localizedStrings.commentOnSelectedElement);
 		commentInput.addEventListener('input', () => this._layoutCommentInput());
 		commentInput.addEventListener('keydown', event => {
-			if (event.key === 'Enter') {
+			if (event.key === 'Enter' && !event.isComposing) {
 				event.preventDefault();
 				this._submitComment();
 			}
@@ -555,8 +559,8 @@ class ElementPicker {
 		sendButtonIconPath.setAttribute('d', 'M8.5 3a.5.5 0 0 0-1 0v4.5H3a.5.5 0 0 0 0 1h4.5V13a.5.5 0 0 0 1 0V8.5H13a.5.5 0 0 0 0-1H8.5V3Z');
 		sendButtonIcon.appendChild(sendButtonIconPath);
 		sendButton.appendChild(sendButtonIcon);
-		sendButton.title = this._localizedStrings.addComment;
-		sendButton.setAttribute('aria-label', this._localizedStrings.addComment);
+		sendButton.title = localizedStrings.addComment;
+		sendButton.setAttribute('aria-label', localizedStrings.addComment);
 		sendButton.addEventListener('click', () => this._submitComment());
 		commentComposer.appendChild(sendButton);
 		this._commentSendButton = sendButton;
@@ -675,7 +679,11 @@ class ElementPicker {
 	 */
 	setTheme(theme: IBrowserViewTheme): void {
 		ElementPicker._applyTheme(this._shadowHost, theme);
-		this._localizedStrings = theme.localizedStrings ?? defaultLocalizedStrings;
+		this._reducedMotion = theme.reducedMotion ?? false;
+		this._shadowHost.classList.toggle('reduce-motion', this._reducedMotion);
+	}
+
+	updateLocalizedStrings(): void {
 		this._applyLocalizedStrings();
 	}
 
@@ -726,28 +734,32 @@ class ElementPicker {
 
 	updateComments(update: IBrowserElementCommentsUpdate): void {
 		if (update.comments) {
-			const incoming = new Map(update.comments.map(comment => [comment.elementId, comment.body]));
+			const incoming = new Map(update.comments.map((comment, index) => [comment.elementId, { body: comment.body, ordinal: index + 1 }]));
 			for (const [elementId, comment] of this._comments) {
-				const body = incoming.get(elementId);
-				if (body === undefined) {
+				const incomingComment = incoming.get(elementId);
+				if (!incomingComment) {
 					this._clearCommentPreview(comment.target);
 					comment.pin.remove();
 					this._comments.delete(elementId);
-				} else if (body !== comment.body) {
-					comment.body = body;
+				} else {
+					comment.ordinal = incomingComment.ordinal;
+					if (incomingComment.body === comment.body) {
+						continue;
+					}
+					comment.body = incomingComment.body;
 					if (this._commentPreviewElementId === elementId) {
-						this._setCommentPreviewBody(body);
+						this._setCommentPreviewBody(incomingComment.body);
 						this._renderHighlight(comment.target);
 					}
 				}
 			}
-			for (const [elementId, body] of incoming) {
+			for (const [elementId, comment] of incoming) {
 				if (this._comments.has(elementId)) {
 					continue;
 				}
 				const pending = this._pendingComments.get(elementId);
 				if (pending) {
-					this._createCommentPin(elementId, pending.target, pending.anchor, body);
+					this._createCommentPin(elementId, pending.target, pending.anchor, comment.body, comment.ordinal);
 				}
 			}
 		}
@@ -891,8 +903,11 @@ class ElementPicker {
 		e.stopPropagation();
 	};
 
-	private _onFocusIn = (): void => {
+	private _onFocusIn = (event: FocusEvent): void => {
 		if (!this._selectionActive || this._commentTarget || this._externalHighlightTarget) {
+			return;
+		}
+		if (event.composedPath().includes(this._shadowHost)) {
 			return;
 		}
 		const focusedElement = this._getFocusedElement();
@@ -1213,7 +1228,7 @@ class ElementPicker {
 		}
 	}
 
-	private _createCommentPin(elementId: string, target: Element, anchor: { x: number; y: number }, body: string): void {
+	private _createCommentPin(elementId: string, target: Element, anchor: { x: number; y: number }, body: string, ordinal: number): void {
 		this._ensureMounted();
 		const existing = this._comments.get(elementId);
 		if (existing) {
@@ -1249,36 +1264,34 @@ class ElementPicker {
 		pin.addEventListener('focusin', show);
 		pin.addEventListener('focusout', () => this._scheduleCommentPreviewHide());
 		this._commentLayer.appendChild(pin);
-		const comment = { target, pin, numberElement, body, offset };
+		const comment = { target, pin, numberElement, body, ordinal, offset };
 		this._comments.set(elementId, comment);
 		this._updateCommentPinNumbers();
 		this._layoutCommentPin(comment);
 	}
 
 	private _updateCommentPinNumbers(): void {
-		let number = 1;
 		for (const comment of this._comments.values()) {
-			const numberLabel = String(number);
+			const numberLabel = String(comment.ordinal);
 			comment.numberElement.textContent = numberLabel;
-			comment.pin.title = comment.body || this._formatLocalizedString(this._localizedStrings.elementComment, numberLabel);
+			comment.pin.title = comment.body || this._formatLocalizedString(localizedStrings.elementComment, numberLabel);
 			comment.pin.setAttribute(
 				'aria-label',
 				comment.body
-					? this._formatLocalizedString(this._localizedStrings.elementCommentWithBody, numberLabel, comment.body)
-					: this._formatLocalizedString(this._localizedStrings.emptyElementComment, numberLabel)
+					? this._formatLocalizedString(localizedStrings.elementCommentWithBody, numberLabel, comment.body)
+					: this._formatLocalizedString(localizedStrings.emptyElementComment, numberLabel)
 			);
-			number++;
 		}
 	}
 
 	private _applyLocalizedStrings(): void {
-		this._commentPreviewRemoveButton.title = this._localizedStrings.removeComment;
-		this._commentPreviewRemoveButton.setAttribute('aria-label', this._localizedStrings.removeElementComment);
-		this._commentComposer.setAttribute('aria-label', this._localizedStrings.commentOnSelectedElement);
-		this._commentInput.placeholder = this._localizedStrings.addCommentPlaceholder;
-		this._commentInput.setAttribute('aria-label', this._localizedStrings.commentOnSelectedElement);
-		this._commentSendButton.title = this._localizedStrings.addComment;
-		this._commentSendButton.setAttribute('aria-label', this._localizedStrings.addComment);
+		this._commentPreviewRemoveButton.title = localizedStrings.removeComment;
+		this._commentPreviewRemoveButton.setAttribute('aria-label', localizedStrings.removeElementComment);
+		this._commentComposer.setAttribute('aria-label', localizedStrings.commentOnSelectedElement);
+		this._commentInput.placeholder = localizedStrings.addCommentPlaceholder;
+		this._commentInput.setAttribute('aria-label', localizedStrings.commentOnSelectedElement);
+		this._commentSendButton.title = localizedStrings.addComment;
+		this._commentSendButton.setAttribute('aria-label', localizedStrings.addComment);
 		this._updateCommentPinNumbers();
 	}
 
@@ -1342,7 +1355,7 @@ class ElementPicker {
 	}
 
 	private _animateCommentHighlight(pinBounds: DOMRect, target: Element, supportingElements: readonly HTMLElement[], collapsing = false): Animation | undefined {
-		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		if (this._reducedMotion) {
 			return undefined;
 		}
 		const targetBounds = this._getVisibleTargetBounds(target.getBoundingClientRect());
@@ -1413,7 +1426,7 @@ class ElementPicker {
 	private _collapseActiveCommentPreview(): void {
 		const elementId = this._commentPreviewElementId;
 		const comment = elementId ? this._comments.get(elementId) : undefined;
-		if (!elementId || !comment || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		if (!elementId || !comment || this._reducedMotion) {
 			this._hideActiveCommentPreview();
 			return;
 		}
@@ -1774,10 +1787,8 @@ class ElementPicker {
 				outline: 2px solid var(--vscode-focusBorder, #0078d4);
 				outline-offset: 2px;
 			}
-			@media (prefers-reduced-motion: reduce) {
-				.comment-backdrop-fill {
-					transition: none;
-				}
+			:host(.reduce-motion) .comment-backdrop-fill {
+				transition: none;
 			}
 			.label {
 				position: fixed; box-sizing: border-box;

@@ -5,10 +5,22 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
+import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
+import { localize } from '../../../nls.js';
+
+const localizedStrings: IBrowserViewPreloadLocalizedStrings = {
+	addComment: localize('browserView.addComment', "Add Comment"),
+	addCommentPlaceholder: localize('browserView.addCommentPlaceholder', "Add a comment"),
+	commentOnSelectedElement: localize('browserView.commentOnSelectedElement', "Comment on selected element"),
+	elementComment: localize('browserView.elementComment', "Element comment {0}"),
+	elementCommentWithBody: localize('browserView.elementCommentWithBody', "Element comment {0}: {1}"),
+	emptyElementComment: localize('browserView.emptyElementComment', "Empty element comment {0}"),
+	removeComment: localize('browserView.removeComment', "Remove Comment"),
+	removeElementComment: localize('browserView.removeElementComment', "Remove element comment"),
+};
 
 interface IActiveSelection extends IDisposable {
 	options: IBrowserElementSelectionOptions;
@@ -120,6 +132,7 @@ export class BrowserViewInspector extends Disposable {
 
 				// Apply theme immediately regardless of inspector state
 				senderFrame.postMessage('vscode:browserView:setTheme', this._theme);
+				senderFrame.postMessage('vscode:browserView:setLocalizedStrings', localizedStrings);
 
 				this._registry.notifyFrameReady(senderFrame, frameToken);
 

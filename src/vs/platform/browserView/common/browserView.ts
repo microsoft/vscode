@@ -116,7 +116,7 @@ export interface IBrowserViewRect {
 	readonly height: number;
 }
 
-export interface IBrowserViewLocalizedStrings {
+export interface IBrowserViewPreloadLocalizedStrings {
 	readonly addComment: string;
 	readonly addCommentPlaceholder: string;
 	readonly commentOnSelectedElement: string;
@@ -140,7 +140,7 @@ export interface IBrowserViewTheme {
 	readonly inputPlaceholderForeground?: string;
 	readonly toolbarHoverBackground?: string;
 	readonly font?: string;
-	readonly localizedStrings?: IBrowserViewLocalizedStrings;
+	readonly reducedMotion?: boolean;
 }
 
 /**
