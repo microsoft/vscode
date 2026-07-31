@@ -107,7 +107,15 @@
 	display: inline-flex;
 	align-items: center;
 	margin-right: 2px;
-	flex-shrink: 0;
+	flex-shrink: 1;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.chat-subagent-part .chat-subagent-open-chat-toolbar .monaco-action-bar,
+.chat-subagent-part .chat-subagent-open-chat-toolbar .actions-container {
+	min-width: 0;
+	max-width: 100%;
 }
 
 .chat-subagent-part .chat-subagent-open-chat-toolbar.hidden,

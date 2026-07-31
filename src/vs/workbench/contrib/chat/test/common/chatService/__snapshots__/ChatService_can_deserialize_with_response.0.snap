@@ -86,6 +86,7 @@
         completedAt: undefined
       },
       vote: undefined,
+      sessionCopilotCredits: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,

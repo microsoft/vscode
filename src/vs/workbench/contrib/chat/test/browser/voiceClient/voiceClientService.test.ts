@@ -264,6 +264,30 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('serializes the pending id on a question narration', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const questionId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+		const replyId = service.requestNarration('cs1', 'response', 'Done.');
+
+		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), [
+			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'question', text: 'Which region?', narration_id: questionId, pending_id: 'p1' },
+			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'response', text: 'Done.', narration_id: replyId },
+		]);
+	});
+
+	test('drops a narration requested before the session starts', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		const narrationId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+
+		assert.strictEqual(narrationId, undefined);
+		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), []);
+	});
+
 	test('serializes configured language in start_session context', async () => {
 		const { service } = createService({
 			'agents.voice.language': 'fr-fr',
@@ -281,6 +305,21 @@ suite('VoiceClientService', () => {
 			type: 'start_session',
 			session_context: { sessions: [], display_locale: 'fr-FR' },
 			voice: 'kevin_neutral',
+		}]);
+	});
+
+	test('sends voice instructions when starting a session', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine', undefined, undefined, 'Pronounce "Contoso DB" as written.');
+
+		assert.deepStrictEqual(socket().sent.map(message => ({
+			type: message.type,
+			voice_instructions: message.voice_instructions,
+		})), [{
+			type: 'start_session',
+			voice_instructions: 'Pronounce "Contoso DB" as written.',
 		}]);
 	});
 
@@ -406,7 +445,7 @@ suite('VoiceClientService', () => {
 		await configurationService.setUserConfiguration('agents.voice.language', 'de-DE');
 		fireConfigurationChange(configurationService, 'agents.voice.language');
 		await service.connect(createTestWindow('en-US'));
-		service.sendResumeSession({ sessions: [], display_locale: 'en-US' }, 'machine');
+		service.sendResumeSession({ sessions: [], display_locale: 'en-US' }, 'machine', 'Keep replies concise.');
 
 		assert.deepStrictEqual({
 			disconnectedMessages: firstSocket.sent,
@@ -415,6 +454,7 @@ suite('VoiceClientService', () => {
 				session_id: message.session_id,
 				session_context: message.session_context,
 				voice: message.voice,
+				voice_instructions: message.voice_instructions,
 			})),
 		}, {
 			disconnectedMessages: [],
@@ -423,6 +463,7 @@ suite('VoiceClientService', () => {
 				session_id: 'session-1',
 				session_context: { sessions: [], display_locale: 'de-DE' },
 				voice: 'daniel_neutral',
+				voice_instructions: 'Keep replies concise.',
 			}],
 		});
 	});

@@ -27,6 +27,8 @@ import {
 	IVoiceBargeIn,
 	IVoiceNarrationAck,
 	IVoiceNarrationSignal,
+	IVoiceDispatchResult,
+	VoiceNarrationKind,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -90,7 +92,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	// state-change event needs to fire before the timer expires.
 	private _pendingContext: IVoiceSessionContext | undefined;
 	private _lastSentById = new Map<string, Record<string, unknown>>(); // session id → last-sent field values
-	private _lastSentActive = '';
 
 	// --- Events ---
 	private readonly _onTranscription = this._register(new Emitter<IVoiceTranscription>());
@@ -160,7 +161,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration('agents.voice.turn.silenceMs') ||
-				e.affectsConfiguration('agents.voice.turn.stopPhrases')
+				e.affectsConfiguration('agents.voice.turn.stopPhrases') ||
+				e.affectsConfiguration('agents.voice.handsFree')
 			) {
 				this._sendSetTurnConfig();
 			}
@@ -224,24 +226,51 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	/**
+	 * Whether a configuration setting has an explicit user/workspace/application
+	 * value, as opposed to falling back to its registered default.
+	 */
+	private _isExplicitlyConfigured(key: string): boolean {
+		const inspected = this._configurationService.inspect(key);
+		return inspected.userValue !== undefined
+			|| inspected.userLocalValue !== undefined
+			|| inspected.userRemoteValue !== undefined
+			|| inspected.workspaceValue !== undefined
+			|| inspected.workspaceFolderValue !== undefined
+			|| inspected.applicationValue !== undefined;
+	}
+
+	/**
 	 * Assemble the ``turn_config`` wire object from the ``agents.voice.turn.*``
 	 * settings, normalizing each into the shape the backend expects. The
 	 * ``auto_end_mode`` is derived from the other two settings: trailing-silence
 	 * ending is enabled unless ``silenceMs`` is ``-1`` (or otherwise non-positive),
 	 * and stop-phrase ending is enabled when at least one phrase is configured.
+	 *
+	 * When hands-free mode (``agents.voice.handsFree``) is disabled, the turn is
+	 * not sent automatically by default: trailing-silence and stop-phrase ending
+	 * are each suppressed unless the corresponding setting has been explicitly
+	 * configured, so a user who opts out of the hands-free loop keeps manual
+	 * control over when a turn is sent.
 	 */
 	private _getTurnConfig(): IVoiceTurnConfig {
 		const cfg = this._configurationService;
+		const handsFree = cfg.getValue<boolean>('agents.voice.handsFree') === true;
 
 		const silenceRaw = cfg.getValue<number>('agents.voice.turn.silenceMs');
-		const silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		let silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		if (!handsFree && !this._isExplicitlyConfigured('agents.voice.turn.silenceMs')) {
+			silenceEnabled = false;
+		}
 		const silence_ms = silenceEnabled ? Math.round(silenceRaw) : 800;
 
 		const phrasesRaw = cfg.getValue<string[]>('agents.voice.turn.stopPhrases');
 		const stop_phrases = Array.isArray(phrasesRaw)
 			? phrasesRaw.map(p => String(p).trim()).filter(p => p.length > 0)
 			: [];
-		const phrasesEnabled = stop_phrases.length > 0;
+		let phrasesEnabled = stop_phrases.length > 0;
+		if (!handsFree && !this._isExplicitlyConfigured('agents.voice.turn.stopPhrases')) {
+			phrasesEnabled = false;
+		}
 
 		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
 			silenceEnabled && phrasesEnabled ? 'both'
@@ -249,7 +278,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					: phrasesEnabled ? 'phrase'
 						: 'off';
 
-		return { auto_end_mode, silence_ms, stop_phrases, vad_gate_asr: true };
+		return { auto_end_mode, silence_ms, stop_phrases: phrasesEnabled ? stop_phrases : [], vad_gate_asr: true };
 	}
 
 	private _sendSetTurnConfig(): void {
@@ -504,7 +533,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._lastSessionId = undefined;
 		this._isResuming = false;
 		this._lastSentById.clear();
-		this._lastSentActive = '';
 		this._setConnected(false);
 	}
 
@@ -606,8 +634,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _sendDelta(context: IVoiceSessionContext): void {
 		const currentIds = new Set(context.sessions.map(s => s.id));
 		const removes = [...this._lastSentById.keys()].filter(id => !currentIds.has(id));
-		const activeKey = context.active_session ? stableStringify(context.active_session) : '';
-		const activeChanged = activeKey !== this._lastSentActive;
 
 		// Compute per-session field-level patches (JSON Merge Patch style)
 		const upserts: Record<string, unknown>[] = [];
@@ -661,7 +687,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 		}
 
-		if (upserts.length === 0 && removes.length === 0 && !activeChanged) {
+		if (upserts.length === 0 && removes.length === 0) {
 			return;
 		}
 
@@ -674,16 +700,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._lastSentById.set(session.id, obj);
 		}
 		for (const id of removes) { this._lastSentById.delete(id); }
-		this._lastSentActive = activeKey;
 
 		this._ws!.send(JSON.stringify({
 			type: 'session_context',
 			mode: 'delta',
 			upserts,
 			removes,
-			...(activeChanged && context.active_session ? { active_session: context.active_session } : {}),
 		}));
-		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length} activeChanged=${activeChanged}`);
+		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length}`);
 	}
 
 	private _seedTracking(context: IVoiceSessionContext): void {
@@ -695,16 +719,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			this._lastSentById.set(session.id, obj);
 		}
-		this._lastSentActive = context.active_session ? stableStringify(context.active_session) : '';
 	}
 
-	sendToolResult(callId: string, result: string): void {
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -712,7 +735,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
 			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
-			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: id }));
+			this._ws.send(JSON.stringify({
+				type: 'request_narration',
+				coding_session_id: codingSessionId,
+				kind,
+				text,
+				narration_id: id,
+				...(pending ? { pending_id: pending.pendingId } : {}),
+			}));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
 			return id;
 		}
@@ -742,28 +772,35 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 * can answer recall questions across reconnects without backend
 	 * persistence. See ``IVoicePriorTimelineEntry``.
 	 */
-	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
+	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
 			// This client drives narration itself via `requestNarration`, so opt out
 			// of the backend's default context-delta auto-narration to avoid double narration.
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: turnConfigOverride ?? this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
+			}
+			if (voiceInstructions) {
+				payload.voice_instructions = voiceInstructions;
 			}
 			this._ws.send(JSON.stringify(payload));
 			this._sessionStartedOnSocket = true;
 		}
 	}
 
-	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
+	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
 			// `auto_narrate: false` for the same reason as start_session: this client
 			// drives narration, so the backend must not also auto-narrate.
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false }));
+			const payload: Record<string, unknown> = { type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
+			if (voiceInstructions) {
+				payload.voice_instructions = voiceInstructions;
+			}
+			this._ws.send(JSON.stringify(payload));
 			this._sessionStartedOnSocket = true;
 		}
 	}

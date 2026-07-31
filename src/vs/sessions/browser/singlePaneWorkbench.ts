@@ -76,9 +76,17 @@ export class SinglePaneWorkbench extends Workbench {
 		this.toggleEditorPane();
 	}
 
+	override isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.EDITOR_PART, mainWindow);
+	}
+
 	toggleEditorPane(): void {
-		const visible = !this.isVisible(Parts.EDITOR_PART, mainWindow);
+		const visible = !this.isSecondarySideBarVisible();
+		const editorHadFocus = !visible && this.hasFocus(Parts.EDITOR_PART);
 		this.setEditorHidden(!visible, /* explicit */ true);
+		if (editorHadFocus) {
+			this.focusPart(this.isVisible(Parts.AUXILIARYBAR_PART) ? Parts.AUXILIARYBAR_PART : Parts.SESSIONS_PART);
+		}
 		alert(visible
 			? localize('editorPaneVisible', "Editor pane shown")
 			: localize('editorPaneHidden', "Editor pane hidden"));
@@ -178,12 +186,19 @@ export class SinglePaneWorkbench extends Workbench {
 		return editorVisible || auxBarVisible;
 	}
 
-	protected override _topRightSectionChildren(sessionsNode: ISerializedNode, editorNode: ISerializedNode, _auxiliaryBarNode: ISerializedNode): ISerializedNode[] {
+	protected override _topRightSectionChildren(sessionsNode: ISerializedNode, editorNode: ISerializedNode, _auxiliaryBarNode: ISerializedNode, customViewGridNode: ISerializedNode): ISerializedNode[] {
 		// The auxiliary bar is inside the editor part and omitted from the grid.
-		return [sessionsNode, editorNode];
+		return [sessionsNode, editorNode, customViewGridNode];
 	}
 
 	protected override _layoutSidePane(): void {
+		this._layoutDockedAuxBar();
+	}
+
+	protected override _applyEditorAreaVisibility(): void {
+		// The auxiliary bar is docked inside the editor node rather than being a
+		// grid view of its own, so the node covers both.
+		this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
 		this._layoutDockedAuxBar();
 	}
 
@@ -284,7 +299,7 @@ export class SinglePaneWorkbench extends Workbench {
 		const shouldRestoreSavedWidth = !hidden && !shouldRestoreDockedEditorSize && canRestoreSavedWidth;
 		const shouldApplyEvenSplit = !hidden && !shouldRestoreDockedEditorSize && !shouldRestoreSavedWidth;
 
-		this.workbenchGrid.setViewVisible(this.editorPartView, this.partVisibility.editor || this.partVisibility.auxiliaryBar);
+		this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
 
 		if (hidden) {
 			// Only "Hide Editor" (detail still visible) keeps the editor grid node
@@ -365,7 +380,7 @@ export class SinglePaneWorkbench extends Workbench {
 		if (this.workbenchGrid) {
 			this.workbenchGrid.setViewVisible(
 				this.editorPartView,
-				this.partVisibility.editor || this.partVisibility.auxiliaryBar
+				this._editorNodeShouldBeVisible()
 			);
 			if (!hidden && !this.partVisibility.editor) {
 				this._syncingEditorVisibility = true;

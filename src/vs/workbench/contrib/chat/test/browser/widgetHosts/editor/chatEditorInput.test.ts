@@ -5,25 +5,34 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { isResourceEditorInput } from '../../../../../../common/editor.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { clearChatEditor } from '../../../../browser/actions/chatClear.js';
 import { ChatEditorInput } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../../../../common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../../../common/constants.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constants.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
-import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
-import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
+import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatEditorInput', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('explicit local session type starts local session for generic editor URI', async () => {
 		const sessionResource = LocalChatSessionUri.forSession('explicit-local');
@@ -57,7 +66,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ enabled: false } as IAgentHostEnablementService,
+			{ _serviceBrand: undefined, enabled: constObservable(false) },
 		);
 
 		try {
@@ -112,7 +121,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ enabled: false } as IAgentHostEnablementService,
+			{ _serviceBrand: undefined, enabled: constObservable(false) },
 		);
 
 		try {
@@ -129,6 +138,61 @@ suite('ChatEditorInput', () => {
 			});
 		} finally {
 			input.dispose();
+		}
+	});
+
+	test('new chat replaces a hidden current Copilot CLI harness', async () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.CopilotCliHideExtensionHostEditor]: true,
+		});
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([{
+			type: SessionType.CopilotCLI,
+			name: 'Copilot CLI',
+			displayName: 'Copilot CLI',
+			description: 'Copilot CLI',
+		}]);
+		const storageService = store.add(new TestStorageService());
+		const workspaceContextService = new TestContextService();
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true) } satisfies IAgentHostEnablementService;
+
+		instantiationService.stub(IChatService, {});
+		instantiationService.stub(IDialogService, {});
+		instantiationService.set(IConfigurationService, configurationService);
+		instantiationService.set(IChatSessionsService, chatSessionsService);
+		instantiationService.set(IStorageService, storageService);
+		instantiationService.set(ILogService, new NullLogService());
+		instantiationService.set(IWorkspaceContextService, workspaceContextService);
+		instantiationService.set(IAgentHostEnablementService, agentHostEnablementService);
+
+		const input = store.add(instantiationService.createInstance(
+			ChatEditorInput,
+			URI.from({ scheme: SessionType.CopilotCLI, path: '/session' }),
+			{},
+		));
+		let replacementResource: URI | undefined;
+		instantiationService.stub(IEditorService, {
+			findEditors: () => [{ editor: input, groupId: 1 }],
+			replaceEditors: async replacements => {
+				const replacement = replacements[0].replacement;
+				replacementResource = isResourceEditorInput(replacement) ? replacement.resource : undefined;
+			},
+		});
+
+		try {
+			await instantiationService.invokeFunction(clearChatEditor, input);
+
+			assert.deepStrictEqual({
+				currentSessionType: input.sessionResource ? getChatSessionType(input.sessionResource) : undefined,
+				replacementSessionType: replacementResource ? getChatSessionType(replacementResource) : undefined,
+			}, {
+				currentSessionType: SessionType.CopilotCLI,
+				replacementSessionType: localChatSessionType,
+			});
+		} finally {
+			store.dispose();
 		}
 	});
 });
