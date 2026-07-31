@@ -1571,13 +1571,18 @@ export class ProtocolServerHandler extends Disposable {
 				return;
 			}
 			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
-			const session = isAhpChatChannel(sub.uri)
-				? parseRequiredSessionUriFromChatUri(sub.uri)
-				: this._stateManager.getSessionState(sub.uri) ? sub.uri : undefined;
-			if (session && !this._hasSubscriptionForSession(record, session)) {
-				const state = this._stateManager.getSessionState(session);
+			if (isAhpChatChannel(sub.uri)) {
+				const session = parseRequiredSessionUriFromChatUri(sub.uri);
+				if (!this._hasSubscriptionForSession(record, session)) {
+					const state = this._stateManager.getSessionState(session);
+					for (const chat of state?.chats ?? []) {
+						this._releaseActiveClientForSession(session, client.clientId, chat.resource);
+					}
+				}
+			} else {
+				const state = this._stateManager.getSessionState(sub.uri);
 				for (const chat of state?.chats ?? []) {
-					this._releaseActiveClientForSession(session, client.clientId, chat.resource);
+					this._releaseActiveClientForSession(sub.uri, client.clientId, chat.resource);
 				}
 			}
 		} else if (sub.kind === ChannelKind.ResourceWatch) {
