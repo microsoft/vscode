@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
+import { builtinModules } from 'node:module';
 import {
 	buildRuntimeTarget,
 	clearRuntimeSourceMarker,
@@ -19,7 +20,7 @@ import {
 	runtimeSourceRef,
 	writeRuntimeSourceMarker,
 } from '../copilotRuntimeSource.ts';
-import { copilotPlatforms } from '../copilot.ts';
+import { copilotPlatforms } from '../copilotPlatforms.ts';
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
@@ -202,5 +203,37 @@ suite('copilot runtime artifact pipeline wiring', () => {
 		// without updating this would silently stop it running.
 		const schedules = [...productBuild.matchAll(/^\s*displayName:\s*(.+?)\s*$/gm)].map(match => match[1]);
 		assert.ok(schedules.includes(cron), `no schedule in product-build.yml is named "${cron}"`);
+	});
+
+	/**
+	 * The runtime build jobs never run `npm ci` — installing VS Code's
+	 * dependencies to cross-compile Rust would be pure cost, and the packages the
+	 * job produces are what those dependencies would be installed to package. So
+	 * the entry point has to run on a bare checkout, and a single import reaching
+	 * a node_modules package fails all eight jobs a minute in.
+	 */
+	test('the build entry point runs without node_modules', () => {
+		const entry = path.join(import.meta.dirname, '../../azure-pipelines/common/build-copilot-runtime-target.ts');
+		const seen = new Set<string>();
+		const offenders: string[] = [];
+
+		const visit = (file: string): void => {
+			if (seen.has(file)) {
+				return;
+			}
+			seen.add(file);
+			const source = fs.readFileSync(file, 'utf8');
+			for (const [, specifier] of source.matchAll(/(?:^|\n)\s*(?:import|export)\b[^'"\n]*?from\s*['"]([^'"]+)['"]/g)) {
+				if (specifier.startsWith('.')) {
+					visit(path.resolve(path.dirname(file), specifier));
+				} else if (!builtinModules.includes(specifier.replace(/^node:/, ''))) {
+					offenders.push(`${path.relative(process.cwd(), file)} imports '${specifier}'`);
+				}
+			}
+		};
+		visit(entry);
+
+		assert.deepStrictEqual(offenders, [], 'only Node builtins and relative imports are reachable from the entry point');
+		assert.ok(seen.size > 2, 'the import graph should have been walked');
 	});
 });

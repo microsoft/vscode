@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { copilotPlatforms } from '../../lib/copilot.ts';
+import { copilotPlatforms } from '../../lib/copilotPlatforms.ts';
 import { buildRuntimeTarget, isRuntimeSourceActive, runtimeSourceRef, smokeRunPackage } from '../../lib/copilotRuntimeSource.ts';
 
 /**
