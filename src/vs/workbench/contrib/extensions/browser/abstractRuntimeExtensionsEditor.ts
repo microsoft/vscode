@@ -5,6 +5,7 @@
 
 import { $, Dimension, append, clearNode, getTotalHeight } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -235,12 +236,20 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		return getHostFilterKey(runningLocation) === this._hostFilter;
 	}
 
-	private _applyFilters(): void {
+	private _applyFilters(announce = false): void {
 		const query = this._searchValue.trim().toLowerCase();
+		const total = this._allElements?.length ?? 0;
 		this._elements = (this._allElements ?? []).filter(element =>
 			this._matchesSearch(element, query) && this._matchesHostFilter(element)
 		);
 		this._list?.splice(0, this._list.length, this._elements);
+
+		if (announce) {
+			const filtered = this._elements.length;
+			aria.status(filtered === total
+				? nls.localize('runtimeExtensions.filterResultAll', "{0} running extensions", filtered)
+				: nls.localize('runtimeExtensions.filterResult', "Showing {0} of {1} running extensions", filtered, total));
+		}
 	}
 
 	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
@@ -349,7 +358,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		}));
 		this._register(this._searchInput.onDidChange(value => {
 			this._searchValue = value;
-			this._applyFilters();
+			this._applyFilters(true);
 		}));
 
 		const hostFilterContainer = append(this._header, $('.runtime-extensions-host-filter-container'));
@@ -368,7 +377,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				return;
 			}
 			this._hostFilter = key;
-			this._applyFilters();
+			this._applyFilters(true);
 		}));
 		this._updateHostFilterOptions();
 

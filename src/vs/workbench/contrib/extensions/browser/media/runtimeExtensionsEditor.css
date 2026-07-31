@@ -20,7 +20,7 @@
 	top: 0;
 	z-index: 1;
 	background-color: var(--vscode-editorStickyScroll-background, var(--vscode-sideBarSectionHeader-background, var(--vscode-editor-background)));
-	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
 	box-shadow: var(--vscode-editorStickyScroll-shadow, var(--vscode-scrollbar-shadow)) 0 3px 2px -2px;
 }
 
@@ -38,7 +38,6 @@
 }
 
 .runtime-extensions-editor > .runtime-extensions-header > .runtime-extensions-search-container .monaco-inputbox .input {
-	height: 28px;
 	line-height: 18px;
 	padding: 4px 8px;
 	box-sizing: border-box;
