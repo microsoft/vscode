@@ -60,12 +60,6 @@ jobs:
             sbomEnabled: false
             isProduction: false
     steps:
-      # The crash/log pipelineArtifact outputs above run unconditionally
-      # (succeededOrFailed()), so ensure the paths exist even though this
-      # compile-only job never runs tests that would create them.
-      - script: mkdir -p .build/crashes .build/logs
-        displayName: Ensure artifact directories exist
-
       # Build VS Code from source. No VSCODE_RUN_*_TESTS flags are passed, so the
       # compile template builds the client/server but skips compiling the test
       # suites and skips the unit/integration/smoke test template entirely — the
@@ -76,6 +70,16 @@ jobs:
           VSCODE_CIBUILD: true
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
+
+      # The crash/log pipelineArtifact outputs above run unconditionally
+      # (succeededOrFailed()), so ensure the paths exist even if compile fails
+      # or a later step fails first. This must run after the checkout inside
+      # the compile template above, since checkout wipes any untracked files
+      # created earlier in the sources directory, and needs condition: always()
+      # so it still runs after an earlier step in this job has failed.
+      - script: mkdir -p .build/crashes .build/logs
+        displayName: Ensure artifact directories exist
+        condition: always()
 
       # Compiled here (rather than in the Integration/Smoke jobs) so the output
       # is captured by the workspace archive below and doesn't need recompiling
