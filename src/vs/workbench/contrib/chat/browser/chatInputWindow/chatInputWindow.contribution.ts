@@ -61,16 +61,6 @@ registerAction2(class extends Action2 {
 			category: Categories.View,
 			f1: false,
 			icon: Codicon.close,
-			menu: {
-				// Render inside the input box's execute toolbar (next to submit)
-				// rather than the side toolbar, which sits outside the rounded box
-				// over the transparent window area. Gated to the floating window so
-				// it never appears in other chat inputs.
-				id: MenuId.ChatExecute,
-				group: 'navigation',
-				order: 100,
-				when: ChatContextKeys.inChatInputWindow
-			}
 		});
 	}
 	run(accessor: ServicesAccessor): void {

@@ -5,8 +5,11 @@
 
 import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -18,7 +21,7 @@ import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/
 import { IRectangle } from '../../../../../platform/window/common/window.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { inputBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
+import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { localize } from '../../../../../nls.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -29,16 +32,8 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT } from '../../common/chatInputWindow.js';
 
-/** Approx. rendered height of one quick-pick row, used to size the window to fit the routing picker. */
-const CHAT_INPUT_WINDOW_PICKER_ROW_HEIGHT = 22;
-/** Max picker rows to grow the window for; taller lists scroll instead. */
-const CHAT_INPUT_WINDOW_PICKER_MAX_ROWS = 8;
-/** Extra height for the picker's filter input and padding on top of the rows. */
-const CHAT_INPUT_WINDOW_PICKER_CHROME = 60;
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
-const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 48;
-/** Symmetric transparent padding around the input box; also the draggable ring. */
-const CHAT_INPUT_WINDOW_SURFACE_PADDING = 8;
+const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
@@ -58,14 +53,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _ownershipChannel: BroadcastChannel;
 	private _modelRef: IChatModelReference | undefined;
-	/** Parent element hosting the input widget; the routing badge is inserted just before it. */
-	private _widgetParent: HTMLElement | undefined;
+	/** The single input row; routing results are inserted immediately after it. */
+	private _row: HTMLElement | undefined;
 	/** Shared routing + advisory-badge behaviour; recreated per widget, torn down on close. */
 	private _routingController: ChatSessionRoutingController | undefined;
 	/** In-flight `openWindow()` operation, so concurrent toggles stay idempotent. */
 	private _openOperation: Promise<void> | undefined;
-	/** Window height (outer) captured before growing to fit the routing picker; restored on close. */
-	private _preExpandHeight: number | undefined;
 	private _actionWidgetRestoreHeight: number | undefined;
 	/** The window that invoked the input window; used to center it on that window. */
 	private _invokingWindow: CodeWindow = mainWindow;
@@ -149,39 +142,47 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			: localize('chatInputWindow.title', "Chat Input");
 
 		auxiliaryWindow.container.style.overflow = 'hidden';
-		auxiliaryWindow.container.style.backgroundColor = 'transparent';
-		auxiliaryWindow.container.style.border = 'none';
+		auxiliaryWindow.container.classList.add('chat-input-window');
+		auxiliaryWindow.window.document.body.classList.add('chat-input-window-body');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
 
 		this._windowDisposables.clear();
 
-		// Keep the window body itself fully transparent; the only visible chrome
-		// is the chat input box, which brings its own background, border and
-		// rounded corners. Re-assert transparency on theme changes.
 		const applyThemeColors = () => {
+			const theme = this.themeService.getColorTheme();
+			const surface = theme.getColor(inputBackground)?.toString() ?? '#3c3c3c';
+			const border = theme.getColor(inputBorder)?.toString() ?? 'transparent';
 			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
+			auxiliaryWindow.container.style.backgroundColor = surface;
+			auxiliaryWindow.container.style.border = `1px solid ${border}`;
+			auxiliaryWindow.container.style.boxSizing = 'border-box';
 		};
 
-		// The content surface is an invisible host: it stays transparent and adds
-		// a small symmetric padding ring around the input. Dragging is provided
-		// the same way the command center is in the title bar: a dedicated,
-		// full-size `.chat-input-window-drag-region` layer sits behind the input
-		// (see chatInputWindow.css) and marks itself `-webkit-app-region: drag`,
-		// while the interactive controls are painted on top and marked no-drag.
-		const contentSurface = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-content'));
+		auxiliaryWindow.container.style.display = 'flex';
+		auxiliaryWindow.container.style.flexDirection = 'column';
+
+		const row = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-row'));
+		this._row = row;
+		const lead = dom.append(row, dom.$('.chat-input-window-lead', {
+			'aria-hidden': 'true',
+			title: localize('chatInputWindow.drag', "Drag to move"),
+		}));
+		lead.style.setProperty('-webkit-app-region', 'drag');
+		const dragGlyph = dom.append(lead, dom.$('span.chat-input-window-drag-glyph'));
+		dom.append(dragGlyph, dom.$('span'));
+		dom.append(dragGlyph, dom.$('span'));
+		dom.append(dragGlyph, dom.$('span'));
+
+		const contentSurface = dom.append(row, dom.$('.chat-input-window-content'));
 		contentSurface.style.boxSizing = 'border-box';
-		contentSurface.style.width = '100%';
+		contentSurface.style.flex = '1 1 auto';
+		contentSurface.style.minWidth = '0';
 		contentSurface.style.height = `${CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT}px`;
-		contentSurface.style.flex = '0 0 auto';
 		contentSurface.style.overflow = 'visible';
 		contentSurface.style.backgroundColor = 'transparent';
 		contentSurface.style.border = 'none';
-		contentSurface.style.padding = `${CHAT_INPUT_WINDOW_SURFACE_PADDING}px`;
-		contentSurface.style.cursor = 'grab';
 		contentSurface.style.display = 'flex';
 		contentSurface.style.flexDirection = 'column';
-		// Full-size drag layer behind the input; the widget content sits on top.
-		dom.append(contentSurface, dom.$('.chat-input-window-drag-region'));
 		applyThemeColors();
 		this._windowDisposables.add(this.themeService.onDidColorThemeChange(() => applyThemeColors()));
 
@@ -190,6 +191,21 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
 		this._renderChatWidget(auxiliaryWindow, contentSurface);
+
+		const trail = dom.append(row, dom.$('.chat-input-window-trail'));
+		const close = dom.append(trail, dom.$('a.chat-input-window-close', {
+			role: 'button',
+			tabindex: '0',
+			'aria-label': localize('chatInputWindow.close.label', "Close"),
+		}));
+		close.appendChild(renderIcon(Codicon.close));
+		this._windowDisposables.add(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.closeWindow()));
+		this._windowDisposables.add(dom.addStandardDisposableListener(close, dom.EventType.KEY_DOWN, event => {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				event.preventDefault();
+				this.closeWindow();
+			}
+		}));
 
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
@@ -244,7 +260,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		parent.style.flex = '1 1 auto';
 		parent.style.minHeight = '0';
 		parent.style.width = '100%';
-		this._widgetParent = parent;
 
 		const scopedContextKeyService = this._windowDisposables.add(this.contextKeyService.createScoped(parent));
 		// Mark this surface so its dedicated accessibility help (routing + how to
@@ -292,44 +307,36 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._modelRef = modelRef;
 		widget.setModel(modelRef.object);
 
+		let fitWindowToInput = () => { };
+
 		// Route submissions through the shared controller, inserting its advisory
-		// badge just above the input, and excluding this window's scratch session
-		// from the routing candidates so it can never route to itself.
+		// panel below the input and excluding this window's scratch session from
+		// the routing candidates so it can never route to itself.
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
 			placeBadge: (badge) => {
-				const container = this._widgetParent?.parentElement;
-				if (container && this._widgetParent) {
-					container.insertBefore(badge, this._widgetParent);
-				}
-			},
-			// The frameless window is only tall enough for the input, so the
-			// disambiguation picker (rendered into this window's container) would
-			// be clipped. Grow to fit the rows while it's open, restore on close.
-			onPickerVisibility: (visible, itemCount) => {
-				const win = this._window?.window;
-				if (!win) {
+				const container = this._window?.container;
+				const row = this._row;
+				if (!container || !row) {
 					return;
 				}
-				try {
-					if (visible) {
-						auxiliaryWindow.container.style.height = '100%';
-						if (this._preExpandHeight === undefined) {
-							this._preExpandHeight = win.outerHeight;
-						}
-						const rows = Math.min(Math.max(itemCount, 1), CHAT_INPUT_WINDOW_PICKER_MAX_ROWS);
-						const desired = CHAT_INPUT_WINDOW_DEFAULT_HEIGHT + rows * CHAT_INPUT_WINDOW_PICKER_ROW_HEIGHT + CHAT_INPUT_WINDOW_PICKER_CHROME;
-						const screenBottom = win.screen.availHeight;
-						const maxHeight = Math.max(screenBottom - win.screenY, this._preExpandHeight);
-						win.resizeTo(win.outerWidth, Math.min(desired, maxHeight));
-						win.dispatchEvent(new win.Event('resize'));
-					} else if (this._preExpandHeight !== undefined) {
-						win.resizeTo(win.outerWidth, this._preExpandHeight);
-						win.dispatchEvent(new win.Event('resize'));
-						this._preExpandHeight = undefined;
+				row.after(badge);
+				fitWindowToInput();
+				const resizeObserver = new auxiliaryWindow.window.ResizeObserver(() => fitWindowToInput());
+				resizeObserver.observe(badge);
+				const observer = new auxiliaryWindow.window.MutationObserver(() => {
+					if (!badge.isConnected) {
+						observer.disconnect();
+						resizeObserver.disconnect();
+						fitWindowToInput();
 					}
-				} catch { /* resize may not be supported */ }
+				});
+				observer.observe(container, { childList: true });
+				this._windowDisposables.add(toDisposable(() => {
+					observer.disconnect();
+					resizeObserver.disconnect();
+				}));
 			},
 		};
 		this._routingController = this._windowDisposables.add(this.instantiationService.createInstance(ChatSessionRoutingController, host, 'chatInputWindow'));
@@ -337,16 +344,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const layout = () => widget.layout(parent.offsetHeight, parent.offsetWidth);
 		layout();
 
-		// Fit the frameless window to the input box plus a symmetric padding ring
-		// on every side, so the box is centered and its rounded corners aren't
-		// clipped. Skip while a picker (model / routing disambiguation) has grown
-		// the window taller so we don't fight its manual resize. Only touch the OS
-		// window when the size actually changed: `resizeTo`/`moveTo` steal focus
-		// from the input (blanking the caret), so an idempotent no-op keeps the
-		// caret visible while the input height is stable.
+		// Fit the frameless window to the input row and any routing panel below
+		// it. Skip while the model picker has grown the window so we do not fight
+		// its manual resize. Only touch the OS
+		// window when the size actually changed.
 		let lastContentHeight: number | undefined;
-		const fitWindowToInput = () => {
-			if (this._preExpandHeight !== undefined || this._actionWidgetRestoreHeight !== undefined) {
+		let didInitialPosition = false;
+		fitWindowToInput = () => {
+			if (this._actionWidgetRestoreHeight !== undefined) {
 				return;
 			}
 			const win = this._window?.window;
@@ -354,20 +359,27 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				return;
 			}
 			const inputHeight = widget.input.inputContainerElement?.getBoundingClientRect().height;
-			const contentHeight = inputHeight === undefined
+			const rowHeight = inputHeight === undefined
 				? CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT
-				: Math.ceil(inputHeight + 2 * CHAT_INPUT_WINDOW_SURFACE_PADDING);
+				: Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(inputHeight));
+			contentSurface.style.height = `${rowHeight}px`;
+			const extraHeight = Array.from(auxiliaryWindow.container.children)
+				.filter(child => child !== this._row)
+				.reduce((height, child) => height + (child as HTMLElement).offsetHeight, 0);
+			const contentHeight = rowHeight + extraHeight + 2;
 			if (contentHeight === lastContentHeight) {
 				return;
 			}
 			lastContentHeight = contentHeight;
-			contentSurface.style.height = `${contentHeight}px`;
-			const windowChromeHeight = win.outerHeight - win.innerHeight;
-			win.resizeTo(win.outerWidth, contentHeight + windowChromeHeight);
-			const invokingWindow = this._invokingWindow;
-			const centeredX = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - win.outerWidth) / 2);
-			const centeredY = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - contentHeight) / 2);
-			win.moveTo(centeredX, centeredY);
+			let x = win.screenX;
+			let y = win.screenY;
+			if (!didInitialPosition) {
+				didInitialPosition = true;
+				const invokingWindow = this._invokingWindow;
+				x = Math.round(invokingWindow.screenX + (invokingWindow.outerWidth - win.outerWidth) / 2);
+				y = Math.round(invokingWindow.screenY + (invokingWindow.outerHeight - contentHeight) / 2);
+			}
+			void auxiliaryWindow.setBounds({ x, y, width: win.outerWidth, height: contentHeight });
 		};
 
 		// Keep the window fitted as the input grows/shrinks (e.g. multi-line
@@ -410,13 +422,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			this._actionWidgetRestoreHeight = win.outerHeight;
 			const desiredHeight = Math.max(win.outerHeight, CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT);
 			const windowChromeHeight = win.outerHeight - win.innerHeight;
-			win.resizeTo(win.outerWidth, desiredHeight);
+			await auxiliaryWindow.setBounds({ x: win.screenX, y: win.screenY, width: win.outerWidth, height: desiredHeight });
 			await this._waitForWindowHeight(auxiliaryWindow, desiredHeight - windowChromeHeight);
 			win.focus();
 		} else if (this._actionWidgetRestoreHeight !== undefined) {
 			const restoreHeight = this._actionWidgetRestoreHeight;
 			this._actionWidgetRestoreHeight = undefined;
-			win.resizeTo(win.outerWidth, restoreHeight);
+			await auxiliaryWindow.setBounds({ x: win.screenX, y: win.screenY, width: win.outerWidth, height: restoreHeight });
 			win.dispatchEvent(new win.Event('resize'));
 		}
 	}
@@ -432,8 +444,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _disposeWidget(): void {
 		this._routingController = undefined;
-		this._widgetParent = undefined;
-		this._preExpandHeight = undefined;
+		this._row = undefined;
 		this._actionWidgetRestoreHeight = undefined;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;

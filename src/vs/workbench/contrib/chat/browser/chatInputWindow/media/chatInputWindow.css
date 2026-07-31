@@ -3,38 +3,149 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * Dragging the frameless chat-input window mirrors how the command center is
- * made draggable in the title bar: a dedicated, full-size drag region sits
- * behind the content, and the genuinely interactive controls are painted on
- * top (higher stacking) and marked no-drag. This gives a large, reliable drag
- * surface (the input box chrome) without stealing pointer events from the
- * editor or toolbars.
- */
+.chat-input-window {
+	--omni-rail: 20px;
+	--omni-icon-column: 16px;
+	--omni-row-gap: 8px;
 
-.chat-input-window-content {
-	position: relative;
+	border-radius: var(--vscode-cornerRadius-xLarge);
+	overflow: hidden;
 }
 
-/* The full-size drag layer, behind everything else. */
-.chat-input-window-content > .chat-input-window-drag-region {
-	position: absolute;
-	inset: 0;
-	z-index: 0;
-	-webkit-app-region: drag;
+.chat-input-window-body {
+	background: transparent !important;
+	overflow: hidden;
 }
 
-/* Keep the widget above the drag layer so its controls stay interactive. */
-.chat-input-window-content > .interactive-session {
-	position: relative;
-	z-index: 1;
+.chat-input-window .chat-input-window-row {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	min-height: 44px;
+	padding: 0 8px;
 }
 
-/* Carve the interactive controls out of the drag region. */
-.chat-input-window-content .chat-editor-container,
-.chat-input-window-content .chat-input-toolbars,
-.chat-input-window-content .chat-secondary-toolbar,
-.chat-input-window-content .chat-attachments-container,
-.chat-input-window-content .monaco-toolbar {
+.chat-input-window .chat-input-window-lead {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 24px;
+	align-self: stretch;
+	color: var(--vscode-icon-foreground);
+	opacity: .45;
+	cursor: grab;
+}
+
+.chat-input-window .chat-input-window-lead:active {
+	cursor: grabbing;
+}
+
+.chat-input-window .chat-input-window-drag-glyph {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	width: 12px;
+}
+
+.chat-input-window .chat-input-window-drag-glyph > span {
+	display: block;
+	height: 1px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: currentColor;
+}
+
+.chat-input-window .chat-input-window-trail {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	padding-left: 8px;
+}
+
+.chat-input-window .chat-input-window-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-icon-foreground);
+	opacity: .7;
+	cursor: pointer;
 	-webkit-app-region: no-drag;
+}
+
+.chat-input-window .chat-input-window-close:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-window .chat-input-window-close:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	opacity: 1;
+}
+
+.chat-input-window .chat-input-window-close .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-input-window .chat-side-toolbar {
+	display: none;
+}
+
+.chat-input-window .chat-input-toolbars .chat-input-picker-item,
+.chat-input-window .chat-input-toolbars .action-item > .codicon-add {
+	display: none;
+}
+
+.chat-input-window .chat-input-container:not(.working) {
+	border-color: transparent !important;
+	background: transparent !important;
+}
+
+.chat-input-window .chat-input-window-content,
+.chat-input-window .chat-input-window-content > .interactive-session,
+.chat-input-window .interactive-input-part,
+.chat-input-window .interactive-input-and-edit-session,
+.chat-input-window .interactive-input-and-side-toolbar,
+.chat-input-window .chat-input-container,
+.chat-input-window .chat-editor-container {
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.chat-input-window .interactive-input-part,
+.chat-input-window .interactive-input-and-edit-session,
+.chat-input-window .interactive-input-and-side-toolbar,
+.chat-input-window .chat-input-container {
+	width: 100%;
+}
+
+.chat-input-window .chat-editor-container {
+	flex: 1 1 auto;
+}
+
+.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
+	background: none !important;
+	color: var(--vscode-icon-foreground) !important;
+	opacity: .4;
+	transition: opacity 120ms ease, transform 120ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label {
+	background: none !important;
+	color: var(--vscode-foreground) !important;
+	opacity: 1;
+	font-weight: 700;
+	transform: scale(1.08);
+}
+
+.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label:hover {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.chat-input-window .chat-routing-badge {
+	background-color: transparent;
+	border-top: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, .25));
 }
