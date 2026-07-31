@@ -179,6 +179,31 @@ export function isRuntimeSourceActive(): boolean {
 }
 
 /**
+ * Retries an authenticated read from GitHub.
+ *
+ * A freshly minted GitHub App installation token is not always usable
+ * immediately — GitHub answers with `Repository not found` rather than a 401,
+ * so it is indistinguishable from a permissions problem and cannot be detected
+ * any more precisely than "it failed". Every target mints its own token and
+ * clones independently, so a blip that would once have hit one job now gets
+ * eight chances to fail the stage, and a failed stage skips all of packaging.
+ */
+export function withGitHubRetries<T>(what: string, attempt: () => T, delaysMs: readonly number[] = [2_000, 8_000, 20_000]): T {
+	for (let i = 0; ; i++) {
+		try {
+			return attempt();
+		} catch (err) {
+			if (i >= delaysMs.length) {
+				throw err;
+			}
+			console.log(`[copilot-runtime-source] ${what} failed (${redactSecrets(err instanceof Error ? err.message : String(err)).split('\n')[0]}); retrying in ${delaysMs[i] / 1000}s.`);
+			// Synchronous: the callers are sync and run inside a gulp packaging step.
+			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delaysMs[i]);
+		}
+	}
+}
+
+/**
  * Resolves the {@link PINNED_SOURCE} sentinel to the commit the runtime version
  * currently pinned in `root` was released from, via its `cli-<version>` tag.
  */
@@ -186,16 +211,17 @@ export function resolvePinnedRuntimeCommit(root: string, token: string | undefin
 	const version = pinnedRuntimeVersion(root);
 	const tag = runtimeSourceTag(version);
 	const url = `https://github.com/${RUNTIME_REPO}.git`;
-	let output: string;
-	try {
-		output = execFileSync('git', [...gitAuthArgs(token), 'ls-remote', '--tags', url, tag, `${tag}^{}`], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'pipe'],
-			env: gitEnv(),
-		});
-	} catch (err) {
-		throw redactedError(err);
-	}
+	const output = withGitHubRetries(`ls-remote ${RUNTIME_REPO} ${tag}`, () => {
+		try {
+			return execFileSync('git', [...gitAuthArgs(token), 'ls-remote', '--tags', url, tag, `${tag}^{}`], {
+				encoding: 'utf8',
+				stdio: ['ignore', 'pipe', 'pipe'],
+				env: gitEnv(),
+			});
+		} catch (err) {
+			throw redactedError(err);
+		}
+	});
 	const ref = parseLsRemoteTagSha(output, tag);
 	console.log(`[copilot-runtime-source] '${PINNED_SOURCE}' -> ${RUNTIME_NPM_NAME}@${version} (${tag}) -> ${RUNTIME_REPO}@${ref}`);
 	return ref;
@@ -227,12 +253,14 @@ function ensureCheckout(marker: RuntimeMarker): string {
 	try {
 		run('git', ['init', '-q'], srcDir);
 		run('git', ['remote', 'add', 'origin', url], srcDir);
-		try {
-			run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', marker.ref], srcDir, gitEnv());
-		} catch {
-			console.log(`[copilot-runtime-source] Shallow fetch of ${marker.repo}@${marker.ref} failed; retrying with a full fetch.`);
-			run('git', [...authArgs, 'fetch', 'origin'], srcDir, gitEnv());
-		}
+		withGitHubRetries(`fetch ${marker.repo}@${marker.ref}`, () => {
+			try {
+				run('git', [...authArgs, 'fetch', '--depth', '1', 'origin', marker.ref], srcDir, gitEnv());
+			} catch {
+				console.log(`[copilot-runtime-source] Shallow fetch of ${marker.repo}@${marker.ref} failed; retrying with a full fetch.`);
+				run('git', [...authArgs, 'fetch', 'origin'], srcDir, gitEnv());
+			}
+		});
 		run('git', ['checkout', '-q', marker.ref], srcDir);
 	} finally {
 		// Nothing after the clone needs it, and the rest of the job has no business

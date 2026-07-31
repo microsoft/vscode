@@ -18,6 +18,7 @@ import {
 	runtimeArtifactDir,
 	runtimeArtifactName,
 	runtimeSourceRef,
+	withGitHubRetries,
 	writeRuntimeSourceMarker,
 } from '../copilotRuntimeSource.ts';
 import { copilotPlatforms } from '../copilotPlatforms.ts';
@@ -141,6 +142,40 @@ suite('copilot runtime artifact', () => {
 
 	test('the host target names a package the runtime publishes', () => {
 		assert.strictEqual(hostTarget(), `${process.platform}-${process.arch}`);
+	});
+
+	test('a transient GitHub failure is retried, and its credentials stay redacted', () => {
+		let attempts = 0;
+		const log: string[] = [];
+		const original = console.log;
+		console.log = (message: string) => void log.push(message);
+		try {
+			const result = withGitHubRetries('ls-remote', () => {
+				if (++attempts < 3) {
+					throw new Error('fatal: could not read Username for https://x-access-token:ghs_secret@github.com');
+				}
+				return 'ok';
+			}, [0, 0, 0]);
+			assert.strictEqual(result, 'ok');
+		} finally {
+			console.log = original;
+		}
+
+		assert.strictEqual(attempts, 3);
+		assert.strictEqual(log.length, 2, 'each failed attempt should be reported');
+		assert.ok(!log.join('\n').includes('ghs_secret'), 'retry logging must not leak the token');
+	});
+
+	test('a persistent GitHub failure still fails the build', () => {
+		const original = console.log;
+		console.log = () => { };
+		try {
+			assert.throws(() => withGitHubRetries('ls-remote', () => {
+				throw new Error('Repository not found.');
+			}, [0, 0]), /Repository not found/);
+		} finally {
+			console.log = original;
+		}
 	});
 });
 
