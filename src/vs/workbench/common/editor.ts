@@ -1309,6 +1309,7 @@ interface IEditorPartConfiguration {
 	enablePreviewFromQuickOpen?: boolean;
 	enablePreviewFromCodeNavigation?: boolean;
 	closeOnFileDelete?: boolean;
+	closeOtherEditorsOnAltClick?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
 	closeEmptyGroups?: boolean;
