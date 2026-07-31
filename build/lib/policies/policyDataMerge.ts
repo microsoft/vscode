@@ -76,7 +76,8 @@ function mergePolicies(inputs: readonly NamedPolicyData[]): PolicyDto[] {
 			return referencedSettings.length > 0
 				? { ...policy, referencedSettings }
 				: withoutReferences(policy);
-		});
+		})
+		.sort((a, b) => a.key.localeCompare(b.key));
 }
 
 export function mergePolicyData(inputs: readonly NamedPolicyData[]): ExportedPolicyDataDto {

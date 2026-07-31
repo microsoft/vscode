@@ -58,9 +58,9 @@ suite('Policy data merge', () => {
 		assert.deepStrictEqual(result, {
 			categories: [extensionsCategory, interactiveSessionCategory],
 			policies: [
+				policy('chat.agents', 'AgentsPolicy'),
 				policy('chat.shared', 'SharedPolicy', ['a.setting', 'shared.setting', 'z.setting']),
 				policy('chat.workbench', 'WorkbenchPolicy'),
-				policy('chat.agents', 'AgentsPolicy'),
 			],
 		});
 	});
