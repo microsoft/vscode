@@ -145,15 +145,7 @@ class LiveTranscriptInserter {
 		const endColumn = lines.length === 1 ? this._anchor.column + lines[0].length : lines[lines.length - 1].length + 1;
 		this._end = new Position(endLine, endColumn);
 
-		// Park the caret at the end of the dictated region. The caret is hidden
-		// for the duration of the session (see the dictation-hide-cursor class),
-		// so its position is not visible while transcript text streams in. Keeping
-		// it at the end means an accidental keystroke (e.g. the user bumps the
-		// keyboard while speaking) is appended after the dictated text rather than
-		// inserted at its start, where it would move the insertion point to the
-		// beginning and corrupt the transcript. The caret is passed as
-		// executeEdits' endCursorState so the editor never briefly places it
-		// elsewhere first.
+		// Keep the hidden caret at the end so accidental typing appends after dictated text.
 		const caret = this._end;
 		this._isApplyingEdit = true;
 		try {
