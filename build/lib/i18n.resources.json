@@ -693,6 +693,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/customViewTest",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/fileTreeView",
 			"project": "vscode-sessions"
 		},

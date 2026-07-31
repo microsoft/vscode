@@ -2365,8 +2365,8 @@ suite('CopilotAgent', () => {
 			environmentServiceRegistration: 'native',
 			sessionDataService,
 		});
-		const previousXdgStateHome = process.env['XDG_STATE_HOME'];
-		delete process.env['XDG_STATE_HOME'];
+		const previousCopilotHome = process.env['COPILOT_HOME'];
+		delete process.env['COPILOT_HOME'];
 		try {
 			const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
 			const agentSession = disposables.add(createdSession.session);
@@ -2383,10 +2383,10 @@ suite('CopilotAgent', () => {
 
 			assert.strictEqual(result.kind, 'approve-once');
 		} finally {
-			if (previousXdgStateHome === undefined) {
-				delete process.env['XDG_STATE_HOME'];
+			if (previousCopilotHome === undefined) {
+				delete process.env['COPILOT_HOME'];
 			} else {
-				process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				process.env['COPILOT_HOME'] = previousCopilotHome;
 			}
 			await disposeAgent(agent);
 		}

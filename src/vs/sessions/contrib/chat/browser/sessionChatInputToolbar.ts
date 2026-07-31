@@ -8,15 +8,13 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { localize } from '../../../../nls.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
@@ -135,10 +133,8 @@ export class SessionChatInputToolbar extends Disposable {
 	});
 
 	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ILogService private readonly _logService: ILogService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -154,7 +150,7 @@ export class SessionChatInputToolbar extends Disposable {
 			changesEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
 			previewEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
 			openChanges: () => this._debugData.get() ? undefined : this._openChanges(),
-			openPreviewFile: file => this._debugData.get() ? undefined : openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
+			openFile: file => this._debugData.get() ? undefined : openChatTurnFile(file, this._openerService, this._configurationService),
 		};
 
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));

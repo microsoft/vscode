@@ -46,6 +46,11 @@
 	-webkit-user-select: text;
 }
 
+.interactive-session.chat-pet-enabled .interactive-item-container.chat-most-recent-response::after {
+	content: "";
+	flex: 0 0 48px;
+}
+
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
 	display: flex;
 	align-items: center;
@@ -3108,15 +3113,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* The pill header already spaces its children with `gap`, so the label's own
 	margin-right (needed in the standalone checkpoint summary) is redundant here
-	and leaves unwanted trailing space. */
+	and leaves unwanted trailing space. The counts label also keeps its intrinsic
+	width so the preview action is the part that shrinks when space runs out. */
 .interactive-session .chat-turn-pills-part .checkpoint-file-changes-summary-header .chat-file-changes-label {
 	margin-right: 0;
+	flex: none;
 }
 
 .interactive-session .chat-turn-pills-part .chat-turn-preview {
 	display: flex;
 	align-items: center;
-	flex: none;
+	flex: 0 1 auto;
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	overflow: hidden;
@@ -3142,12 +3149,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+/* The file name is only ellipsized when the header actually runs out of room, so
+	the action shrinks with the available width instead of at a fixed cap. */
 .interactive-session .chat-turn-pills-part .chat-turn-preview-action {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
-	max-width: 200px;
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size20);
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small);

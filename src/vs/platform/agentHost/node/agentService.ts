@@ -9,7 +9,7 @@ import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
+import { LRUCache, ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
@@ -23,7 +23,7 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
-import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
+import { type ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -43,7 +43,7 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
@@ -53,7 +53,7 @@ import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './sh
 import { WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
+import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
@@ -86,6 +86,7 @@ import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscard
 import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
 import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
+import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -235,6 +236,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Exposes the GitHub endpoint service so agent providers share GitHub (Enterprise) resource resolution. */
 	get gitHubEndpointService(): IAgentHostGitHubEndpointService { return this._gitHubEndpointService; }
 
+	/** Exposes the checkpoint service so agent providers can capture session baselines. */
+	get checkpointService(): IAgentHostCheckpointService { return this._checkpointService; }
+
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
@@ -286,6 +290,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _configurationService: AgentConfigurationService;
+	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
+	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
 	 * Host-owned worktree isolation controller. Set post-construction via
 	 * {@link setWorktreeIsolation} because it depends on the branch-name
@@ -295,6 +301,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * agents stay unaware of the folder-vs-worktree distinction.
 	 */
 	private _worktree: WorktreeIsolation | undefined;
+	/** Successful list-time repository-root resolutions; eviction only causes safe re-resolution. */
+	private readonly _normalizedWorktreeRepositoryRoots = new LRUCache<string, URI>(100);
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
@@ -382,7 +390,6 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _productService: IProductService,
 		private readonly _gitService: IAgentHostGitService,
-		private readonly _checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 		private readonly _rootConfigResource?: URI,
 		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 		_fileMonitorService?: IAgentHostFileMonitorService,
@@ -449,10 +456,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService));
 		services.set(IAgentHostGitStateService, this._gitStateService);
 
-		// The checkpoint service is constructed in the outer agent-host
-		// DI scope and passed via {@link _checkpointService}; register it
-		// in the inner service collection so the changeset service /
-		// side effects can resolve it via DI.
+		this._checkpointService = this._register(instantiationService.createInstance(AgentHostCheckpointService));
 		services.set(IAgentHostCheckpointService, this._checkpointService);
 
 		// The subscription service manages the lifecycle of changeset subscriptions. The service
@@ -534,6 +538,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 				// Check for a GitHub pull request associated with the session's branch.
 				void this._gitStateService.attachSessionGitHubPullRequest(session.toString());
+			},
+			onUserMessage: (session, text) => {
+				// Record the GitHub issues the message references on the session.
+				void this._gitStateService.attachSessionGitHubIssues(session.toString(), text);
 			},
 		}));
 
@@ -825,6 +833,41 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
+	/**
+	 * Repairs repository roots written by older builds that treated a parent linked checkout as the repository.
+	 * Listing performs this migration because archived sessions may never resume through WorktreeIsolation's metadata reader.
+	 */
+	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string): Promise<string> {
+		const storedRepositoryRootRaw = repositoryRootRaw;
+		const persistedRoot = URI.parse(repositoryRootRaw);
+		const sessionStr = session.session.toString();
+		let primaryRoot = this._normalizedWorktreeRepositoryRoots.get(sessionStr);
+		if (!primaryRoot) {
+			const workingDirectory = session.workingDirectories?.[0];
+			const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
+			try {
+				primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
+					?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
+				if (primaryRoot) {
+					this._normalizedWorktreeRepositoryRoots.set(sessionStr, primaryRoot);
+				}
+			} catch (error) {
+				this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
+			}
+		}
+		if (primaryRoot) {
+			repositoryRootRaw = primaryRoot.toString();
+		}
+		if (repositoryRootRaw !== storedRepositoryRootRaw) {
+			try {
+				await database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, repositoryRootRaw);
+			} catch (error) {
+				this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
+			}
+		}
+		return repositoryRootRaw;
+	}
+
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
 		const results = await Promise.all(
@@ -893,12 +936,11 @@ export class AgentService extends Disposable implements IAgentService {
 						updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
 					}
 
-					// Worktree-isolated sessions run out of `<repo>.worktrees/<name>` but
-					// must group under the repository in the sessions UI. Merge the repo
-					// project persisted alongside the worktree metadata so a list refresh
-					// doesn't revert the workspace name to the worktree directory. No-op
-					// for folder sessions (key absent).
-					const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
+					let repositoryRootRaw = m[WORKTREE_META_REPOSITORY_ROOT];
+					if (repositoryRootRaw) {
+						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw);
+					}
+					const worktreeProject = worktreeProjectFromRepositoryRoot(repositoryRootRaw);
 					if (worktreeProject) {
 						updated = { ...updated, project: worktreeProject };
 					}
@@ -1946,12 +1988,27 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
+		// Resolve the working directories up front and pass them explicitly:
+		// the checkpoint and review services need them to locate the
+		// repositories holding this session's refs, and reading them from
+		// session state would silently break the moment `deleteSession` below
+		// is reordered ahead of the data deletion.
+		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
 		const provider = this._findProviderForSession(session);
 		if (provider) {
 			await this._disposeSession(provider, session);
 			this._sessionToProvider.delete(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
 		}
+		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
+		// performed by the provider above. No-op when the directory does not exist.
+		//
+		// Runs before the worktree is removed: subscribers of the will-delete
+		// event drop this session's git refs, and for a worktree-isolated
+		// session the working directory *is* the worktree, so once it is gone
+		// the repository can no longer be resolved and the refs would leak
+		// into the main repository (`refs/agents/*` is shared, not per-worktree).
+		await this._sessionDataService.deleteSessionData(session, workingDirectories);
 		// Remove any worktree this process created for the session (host-owned;
 		// agents stay unaware).
 		await this._worktree?.removeCreatedWorktree(AgentSession.id(session));
@@ -1963,9 +2020,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
-		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
-		// performed by the provider above. No-op when the directory does not exist.
-		await this._sessionDataService.deleteSessionData(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
