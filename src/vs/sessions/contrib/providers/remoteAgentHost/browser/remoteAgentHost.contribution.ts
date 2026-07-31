@@ -479,12 +479,16 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private async _connectSSHOnDemand(connection: IRemoteAgentHostSSHConnection, name: string, address: string): Promise<void> {
 		const sshConfigHost = connection.sshConfigHost;
 		if (!sshConfigHost) {
+			// `_connectSSHOnDemand` is only ever invoked from the on-demand
+			// "Connect" action, so this is always user-initiated — set
+			// explicitly for clarity even though it matches the default.
 			await this._sshService.connect({
 				host: connection.hostName,
 				port: connection.port,
 				username: connection.user ?? connection.hostName,
 				authMethod: SSHAuthMethod.Agent,
 				name,
+				userInitiated: true,
 			});
 			return;
 		}
@@ -514,7 +518,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			pending: this._pendingSSHReconnects,
 			states: this._sshReconnectStates,
 			getOrCreateState: key => this._getOrCreateSSHReconnectState(key),
-			doConnect: () => this._sshService.reconnect(sshConfigHost, name).then(() => undefined),
+			// Thread userInitiated through to the actual reconnect() call, not
+			// just the local bookkeeping above: a silent/background attempt
+			// (the default here — options.userInitiated is only set `true`
+			// by the on-demand connect path) must never open the
+			// endpoint-selection picker and must never silently attach to an
+			// `editor`-owned endpoint, per the SSH service's selection policy.
+			doConnect: () => this._sshService.reconnect(sshConfigHost, name, !!options.userInitiated).then(() => undefined),
 			schedule: state => this._scheduleSSHReconnect(sshConfigHost, name, address, state as SSHReconnectState),
 		});
 	}
