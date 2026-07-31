@@ -804,7 +804,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
 		try {
-			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, this.inputEditor.onDidChangeModelContent));
+			this._createSpeechToTextButton(toolbar);
 		} catch (error) {
 			this.logService.error('Failed to create new-session dictation control:', error);
 		}
