@@ -24,7 +24,7 @@ import { IAuthenticationService } from '../../../../services/authentication/comm
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
-import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
+import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
@@ -391,6 +391,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _connectWatchdog = this._register(new MutableDisposable());
 	private static readonly _CONNECT_TIMEOUT_MS = 10000;
 	private _connectAttemptGeneration = 0;
+	private _sessionInitializationGeneration = 0;
 	private readonly _autoApprovedSessions = new Set<string>();
 	private _transcriptFadeTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttMaxDurationTimer: ReturnType<typeof setTimeout> | undefined;
@@ -1169,6 +1170,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Connection state → start mic + send start session
 		this._voiceEventDisposables.add(this.voiceClientService.onDidChangeConnectionState(async connected => {
 			if (connected) {
+				const sessionInitializationGeneration = ++this._sessionInitializationGeneration;
+				// Every socket open, including reconnects, gets a full timeout window
+				// covering voice instructions, mic warm-up, and the session command.
+				this._armConnectWatchdog();
 				const pbCtx = this.ttsPlaybackService.ensureContext(window);
 				pbCtx.resume();
 
@@ -1196,11 +1201,43 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const voiceInstructions = await this.promptsService.getVoiceInstructions(CancellationToken.None);
 				if (
 					connectAttemptGeneration !== this._connectAttemptGeneration ||
+					sessionInitializationGeneration !== this._sessionInitializationGeneration ||
 					!this.voiceClientService.isConnected ||
 					(!this._isConnecting.get() && !this._isReconnecting.get())
 				) {
 					return;
 				}
+				if (isResuming) {
+					this.micCaptureService.stopCapture();
+				}
+				this.micCaptureService.prepare(window);
+				if (this._isHandsFreeEnabled()) {
+					try {
+						await this.micCaptureService.startCapture(window);
+					} catch (err) {
+						if (
+							connectAttemptGeneration !== this._connectAttemptGeneration ||
+							sessionInitializationGeneration !== this._sessionInitializationGeneration ||
+							!this.voiceClientService.isConnected ||
+							(!this._isConnecting.get() && !this._isReconnecting.get())
+						) {
+							return;
+						}
+						this.logService.warn('[voice] failed to warm microphone capture for hands-free mode; resetting voice mode', err);
+						const permissionDenied = isMicrophonePermissionDeniedError(err);
+						this._resetFailedConnection(!permissionDenied);
+						return;
+					}
+					if (
+						connectAttemptGeneration !== this._connectAttemptGeneration ||
+						sessionInitializationGeneration !== this._sessionInitializationGeneration ||
+						!this.voiceClientService.isConnected ||
+						(!this._isConnecting.get() && !this._isReconnecting.get())
+					) {
+						return;
+					}
+				}
+
 				if (isResuming) {
 					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId(), voiceInstructions);
 				} else {
@@ -1208,17 +1245,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._pendingPriorTimeline = [];
 					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline, undefined, voiceInstructions);
 				}
-
-				// On a reconnect cycle, refresh the mic stream: the old MediaStream
-				// may have gone stale while the WS was down, so we stop+start to
-				// guarantee a clean capture before the user PTTs again.
-				if (isResuming) {
-					this.micCaptureService.stopCapture();
-				}
-				this.micCaptureService.prepare(window);
-				// Mic is acquired lazily on the first pttDown, not eagerly on
-				// connect. This avoids switching bluetooth headsets into speech
-				// mode and prevents the backend from hearing ambient audio.
 
 				transaction(tx => {
 					this._isConnecting.set(false, tx);
@@ -1565,7 +1591,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
 
-				// Wait for the backend session ack before opening the hands-free mic.
+				// Wait for the backend session ack before opening the hands-free PTT turn.
 				this._enterListenOnSessionInit = this._shouldEnterListenOnSessionInit(isResuming);
 				this.logService.trace(`[voice] connected: isResuming=${isResuming} handsFree=${this._isHandsFreeEnabled()} armListen=${this._enterListenOnSessionInit}`);
 				if (this._enterListenOnSessionInit) {
@@ -1577,24 +1603,27 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						}
 					}, 750));
 				}
-			} else if (this._fatalDisconnect) {
-				// Terminal close already handled by _handleFatalDisconnect: stay in
-				// the clean, restartable state and do NOT enter the reconnect path
-				// (which would strand the UI on "Reconnecting..." with no reconnect).
-			} else if (this._isConnected.get()) {
-				this._onConnectionLost();
-			} else if (this._isReconnecting.get()) {
-				this._isReconnecting.set(false, undefined);
-				this._voiceState.set('idle', undefined);
-				this._statusText.set('Tap to start', undefined);
-			} else if (this._isConnecting.get()) {
-				// Connection failed during initial handshake (e.g. fatal WS close).
-				// Clear isConnecting so callers awaiting the state settle properly.
-				this._isConnecting.set(false, undefined);
-				this._voiceState.set('idle', undefined);
-				this._statusText.set('Tap to start', undefined);
 			} else {
-				this._voiceState.set('idle', undefined);
+				this._sessionInitializationGeneration++;
+				if (this._fatalDisconnect) {
+					// Terminal close already handled by _handleFatalDisconnect: stay in
+					// the clean, restartable state and do NOT enter the reconnect path
+					// (which would strand the UI on "Reconnecting..." with no reconnect).
+				} else if (!this.voiceClientService.willReconnect) {
+					this.disconnect();
+				} else if (this._isConnected.get()) {
+					this._onConnectionLost();
+				} else {
+					// A transient socket drop invalidates the in-flight warm-up. Keep
+					// the controller armed for the service's already-scheduled retry.
+					this.micCaptureService.stopCapture();
+					transaction(tx => {
+						this._isConnecting.set(false, tx);
+						this._isReconnecting.set(true, tx);
+					});
+					this._voiceState.set('idle', undefined);
+					this._statusText.set('Reconnecting...', undefined);
+				}
 			}
 		}));
 
@@ -1649,9 +1678,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
-		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
+		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(event => {
 			this._clearAutoListenTimer();
 			this._interruptAssistantPlayback();
+			const turnId = event.turnId || this._pttCurrentTurnId;
+			if (turnId && this._transcriptionTurnState?.turnId !== turnId) {
+				this._beginTranscriptionTurn(turnId);
+			}
 			this._startUserTurn();
 		}));
 
@@ -1962,16 +1995,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _armConnectWatchdog(): void {
 		this._connectWatchdog.value = disposableTimeout(() => {
-			if (!this._isConnecting.get() || this._isConnected.get()) {
+			if ((!this._isConnecting.get() && !this._isReconnecting.get()) || this._isConnected.get()) {
 				return;
 			}
 			this.logService.warn('[voice] connect handshake timed out; resetting voice mode');
-			this.disconnect();
+			this._resetFailedConnection();
+		}, VoiceSessionController._CONNECT_TIMEOUT_MS);
+	}
+
+	private _resetFailedConnection(notifyUser = true): void {
+		this.disconnect();
+		if (notifyUser) {
 			this.notificationService.notify({
 				severity: Severity.Warning,
 				message: localize('voice.connectFailed', "Voice mode could not connect. Please try again."),
 			});
-		}, VoiceSessionController._CONNECT_TIMEOUT_MS);
+		}
 	}
 
 	/**
@@ -2863,9 +2902,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * stays open and becomes the next listening turn once playback ends
 	 * (`onPlaybackStopped` sees `_pttHeld` and stays in 'listening').
 	 *
-	 * Reuses the warm mic left by the previous turn's `abortPtt`, so no
-	 * `getUserMedia` re-acquisition occurs. Idempotent: a no-op while a turn is
-	 * already held.
+	 * Hands-free session initialization keeps capture warm before the backend can
+	 * send playback. Idempotent: a no-op while a turn is already held.
 	 */
 	private _startBargeInListen(): void {
 		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenHeld || this._autoListenSuppressed || !this._window) {
