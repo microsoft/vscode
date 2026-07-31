@@ -241,6 +241,107 @@ describe('CopilotChatEndpoint - Reasoning Properties', () => {
 	});
 });
 
+describe('CopilotChatEndpoint - enterprise custom model token parameter (#328418)', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (modelId: string, family: string, displayName: string, customModel = true, thinking = true) => {
+		const baseMetadata = createNonAnthropicModelMetadata(family);
+		const modelMetadata: IChatModelInformation = {
+			...baseMetadata,
+			id: modelId,
+			name: displayName,
+			supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+			custom_model: customModel ? {
+				key_name: modelId,
+				owner_name: 'enterprise'
+			} : undefined,
+			capabilities: {
+				...baseMetadata.capabilities,
+				supports: {
+					...baseMetadata.capabilities.supports,
+					thinking
+				},
+				limits: {
+					max_prompt_tokens: 256000,
+					max_output_tokens: 256000,
+					max_context_window_tokens: 256000
+				}
+			}
+		};
+
+		return new CopilotChatEndpoint(
+			modelMetadata,
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			mockServices.authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+	};
+
+	it.each([
+		{ modelId: 'mbe_agent_gpt5_1_oai', family: 'gpt-5.1', displayName: 'mbe-gpt5.1-oai' },
+		{ modelId: 'mbe_agent_gpt5_4_oai', family: 'gpt-5.4', displayName: 'mbe-gpt5.4-oai' },
+		{ modelId: 'mbe_agent_gpt5_6_terra_oai', family: 'gpt-5.6-terra', displayName: 'mbe-gpt5.6-terra-oai' }
+	])('sends max_completion_tokens to $displayName', ({ modelId, family, displayName }) => {
+		const endpoint = createEndpoint(modelId, family, displayName);
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 256000 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: undefined,
+			max_completion_tokens: 256000
+		});
+	});
+
+	it.each([
+		{ label: 'built-in GPT-5 thinking model', endpoint: () => createEndpoint('gpt-5.4', 'gpt-5.4', 'GPT-5.4', false) },
+		{ label: 'enterprise GPT-5 non-thinking model', endpoint: () => createEndpoint('custom-gpt-5.4', 'gpt-5.4', 'Custom GPT-5.4', true, false) },
+		{ label: 'enterprise non-GPT thinking model', endpoint: () => createEndpoint('custom-claude', 'claude-sonnet-4', 'Custom Claude') }
+	])('preserves max_tokens for $label', ({ endpoint: createEndpoint }) => {
+		const endpoint = createEndpoint();
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 4096 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: 4096,
+			max_completion_tokens: undefined
+		});
+	});
+});
+
 describe('ChatEndpoint - Image Count Validation', () => {
 	let mockServices: ReturnType<typeof createMockServices>;
 

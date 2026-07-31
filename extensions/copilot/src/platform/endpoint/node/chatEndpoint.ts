@@ -29,7 +29,7 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isGpt5PlusFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
@@ -322,7 +322,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		return this.modelMetadata.warning_messages?.at(0)?.message;
 	}
 
-	public get apiType(): string {
+	public get apiType(): 'responses' | 'messages' | 'chatCompletions' {
 		return this.useResponsesApi ? 'responses' :
 			this.useMessagesApi ? 'messages' : 'chatCompletions';
 	}
@@ -337,6 +337,17 @@ export class ChatEndpoint implements IChatEndpoint {
 		// If the model doesn't support streaming, don't ask for a streamed request
 		if (body && !this._supportsStreaming) {
 			body.stream = false;
+		}
+
+		if (
+			body?.max_tokens !== undefined
+			&& this.customModel
+			&& this.modelMetadata.capabilities.supports.thinking
+			&& isGpt5PlusFamily(this)
+			&& this.apiType === 'chatCompletions'
+		) {
+			body.max_completion_tokens = body.max_tokens;
+			delete body.max_tokens;
 		}
 
 		// If it's o1 we must modify the body significantly as the request is very different
