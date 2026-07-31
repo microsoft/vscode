@@ -140,7 +140,9 @@ function renderMermaidElement(
 				writeOut(mermaidContainer, renderResult.svg, false);
 				renderResult.bindFunctions?.(mermaidContainer);
 			} catch (error) {
-				if (error instanceof Error && error.name !== 'AbortError') {
+				// Mermaid often rejects with a plain `{ str, message, ... }` object, not an Error.
+				// Still surface those failures; only AbortError should stay silent.
+				if (!(error instanceof Error && error.name === 'AbortError')) {
 					markVsCodeContextAsError(mermaidContainer);
 					writeOut(mermaidContainer, createMermaidErrorElement(error).outerHTML, true);
 				}
