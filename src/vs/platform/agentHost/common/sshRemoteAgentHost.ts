@@ -7,19 +7,9 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { IRelayMessage } from './relayTransport.js';
 
 export type { IRelayMessage } from './relayTransport.js';
-
-/**
- * Lifecycle ownership of the remote agent host process backing a
- * connection: `managed` means this desktop spawned it (and is relying on
- * its `--idle-timeout` to self-clean-up when unused), `external` means it
- * was already running (another editor window, or a previously spawned
- * standalone) and this desktop merely attached to it.
- */
-export type SSHAgentHostLifecycle = 'managed' | 'external';
 
 export const ISSHRemoteAgentHostService = createDecorator<ISSHRemoteAgentHostService>('sshRemoteAgentHostService');
 
@@ -60,22 +50,6 @@ export interface ISSHAgentHostConfig {
 	readonly remoteAgentHostCommand?: string;
 	/** When true, enables OpenSSH agent forwarding (auth-agent@openssh.com) for this connection. Requires {@link authMethod} to be Agent. */
 	readonly agentForward?: boolean;
-	/**
-	 * Whether this connect attempt was directly requested by the user (e.g.
-	 * "Connect" from the workspace picker) as opposed to a silent background
-	 * reconnect (e.g. on startup, or a scheduled auto-reconnect retry).
-	 * Defaults to `true` when omitted, preserving today's picker-eligible
-	 * behavior for every existing caller that doesn't set this explicitly.
-	 *
-	 * When explicitly `false`, endpoint selection never shows the
-	 * main↔renderer picker and never silently attaches to an `editor`-owned
-	 * endpoint even if one is the only live endpoint — it deterministically
-	 * reuses a live `standalone` endpoint when one exists, or spawns a new
-	 * dedicated one otherwise. This keeps unattended reconnects from
-	 * blocking on renderer UI or stealing a session out from under another
-	 * open editor window.
-	 */
-	readonly userInitiated?: boolean;
 }
 
 /**
@@ -94,18 +68,6 @@ export interface ISSHAgentHostConnection extends IDisposable {
 	readonly name: string;
 	/** Fires when this SSH connection is closed or lost. */
 	readonly onDidClose: Event<void>;
-	/**
-	 * Kind of remote agent host process backing this connection, when known
-	 * (registry-discovered connections only; unset for the legacy
-	 * `remoteAgentHostCommand` override path).
-	 */
-	readonly serverType?: AgentHostServerType;
-	/** Registry `instanceId` of the remote agent host backing this connection, when known. */
-	readonly instanceId?: string;
-	/** Whether this is the primary connection selected for this remote (see {@link ISSHConnectResult.primary}). */
-	readonly primary?: boolean;
-	/** Whether this desktop spawned (and therefore is relying on idle-timeout to clean up) the backing process, or merely attached to an already-running one. */
-	readonly lifecycle?: SSHAgentHostLifecycle;
 }
 
 /**
@@ -171,13 +133,8 @@ export interface ISSHRemoteAgentHostService {
 	/**
 	 * Re-establish an SSH tunnel on startup for a previously connected host.
 	 * Returns the new local forwarded address and registers it.
-	 *
-	 * @param userInitiated See {@link ISSHAgentHostConfig.userInitiated}.
-	 * Defaults to `true` (picker-eligible) when omitted; background/auto
-	 * reconnect callers must pass `false` explicitly to guarantee no picker
-	 * ever opens and no `editor` endpoint is ever silently chosen.
 	 */
-	reconnect(sshConfigHost: string, name: string, userInitiated?: boolean): Promise<ISSHAgentHostConnection>;
+	reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection>;
 }
 /**
  * Serializable result from a successful SSH connect operation.
@@ -193,30 +150,6 @@ export interface ISSHConnectResult {
 	readonly config: ISSHAgentHostConfigSanitized;
 	/** SSH config host alias for reconnection on restart. */
 	readonly sshConfigHost?: string;
-	/**
-	 * Kind of remote agent host process backing this connection
-	 * (`editor` or `standalone`), when discovered through the shared
-	 * endpoint registry. Unset for the legacy `remoteAgentHostCommand`
-	 * override path, which bypasses registry discovery entirely.
-	 */
-	readonly serverType?: AgentHostServerType;
-	/** Registry `instanceId` of the remote agent host backing this connection, when known. */
-	readonly instanceId?: string;
-	/**
-	 * Whether this connection is the primary one for this remote: the one
-	 * chosen (explicitly, or by deterministic reuse/spawn) to back the
-	 * editor's own remote session. Every successful `connect()`/`reconnect()`
-	 * result today is primary; this field exists so future consumers can
-	 * distinguish it without relying on absence-of-alternative.
-	 */
-	readonly primary?: boolean;
-	/**
-	 * Whether this desktop spawned the backing remote agent host process
-	 * (`managed`, relies on `--idle-timeout` for cleanup) or merely attached
-	 * to an already-running one (`external`, e.g. another editor window or a
-	 * previously spawned standalone — never killed on disconnect).
-	 */
-	readonly lifecycle?: SSHAgentHostLifecycle;
 }
 
 /**
@@ -266,50 +199,6 @@ export interface ISSHKeyboardInteractiveRequest {
 }
 
 /**
- * One live remote agent host endpoint the user could connect to, as
- * surfaced by `code agent endpoints` on the remote machine. Deliberately
- * excludes the raw {@link AgentHostEndpointAddress} details that aren't
- * useful for disambiguation (e.g. a socket path) but keeps enough
- * (server type, PID, quality, and a display form of the address) for the
- * renderer to build a fully localized, accessible label without needing
- * any pre-formatted string from the main process.
- */
-export interface ISSHEndpointCandidate {
-	readonly type: AgentHostServerType;
-	readonly pid: number;
-	readonly instanceId: string;
-	readonly quality?: string;
-	readonly endpoint: AgentHostEndpointAddress;
-}
-
-/**
- * Request from the main process for the renderer to choose which live
- * remote agent host endpoint (or "start a new one") to connect to. Fired
- * when the shared endpoint registry on the remote host contains at least
- * one `editor`-owned entry, since in that case silent reuse could steal a
- * session out from under another open editor window. The renderer is
- * expected to respond with {@link ISSHRemoteAgentHostMainService.respondEndpointSelection}.
- */
-export interface ISSHEndpointSelectionRequest {
-	readonly requestId: string;
-	readonly connectionKey: string;
-	/** Display-friendly host (e.g. SSH config alias or `user@host`). */
-	readonly displayHost: string;
-	/** Every live endpoint on the remote, both `editor`- and `standalone`-owned. */
-	readonly candidates: readonly ISSHEndpointCandidate[];
-}
-
-/**
- * The renderer's answer to an {@link ISSHEndpointSelectionRequest}: either
- * attach to one of the offered live candidates (identified by its identity
- * triple, since PIDs alone are not stable across reuse), or spawn a new
- * dedicated standalone agent host.
- */
-export type ISSHEndpointSelection =
-	| { readonly kind: 'candidate'; readonly type: AgentHostServerType; readonly pid: number; readonly instanceId: string }
-	| { readonly kind: 'spawn' };
-
-/**
  * Main-process service that performs the actual SSH work.
  * The renderer calls this over IPC and handles registration
  * with {@link IRemoteAgentHostService} locally.
@@ -357,28 +246,6 @@ export interface ISSHRemoteAgentHostMainService {
 	respondKeyboardInteractive(requestId: string, responses: readonly string[] | undefined): Promise<void>;
 
 	/**
-	 * Fires when connect() discovers at least one live `editor`-owned
-	 * endpoint on the remote and needs the renderer to choose which
-	 * live endpoint (or "spawn new") to connect to. The renderer must
-	 * answer via {@link respondEndpointSelection} with the same `requestId`.
-	 */
-	readonly onDidRequestEndpointSelection: Event<ISSHEndpointSelectionRequest>;
-
-	/**
-	 * Fires when a previously requested endpoint selection is no longer
-	 * needed (e.g. the owning connect attempt failed or was aborted). The
-	 * renderer should dismiss any picker UI it opened for `requestId`.
-	 */
-	readonly onDidCancelEndpointSelection: Event<string /* requestId */>;
-
-	/**
-	 * Provide the user's answer to a previously fired endpoint-selection
-	 * request. Pass `undefined` when the user cancels the picker; this
-	 * aborts the owning connect attempt with a cancellation error.
-	 */
-	respondEndpointSelection(requestId: string, selection: ISSHEndpointSelection | undefined): Promise<void>;
-
-	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
 	 */
@@ -413,9 +280,6 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Re-establish an SSH tunnel for a previously connected host.
 	 * Resolves the SSH config alias, connects, and returns fresh
 	 * connection info with a new local forwarded port.
-	 *
-	 * @param userInitiated See {@link ISSHAgentHostConfig.userInitiated}.
-	 * Defaults to `true` (picker-eligible) when omitted.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean): Promise<ISSHConnectResult>;
 }

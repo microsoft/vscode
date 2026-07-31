@@ -3,46 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::sync::LazyLock;
+use std::fs;
 
 use ahp::{Client, Transport, TransportError, TransportMessage};
 use ahp_types::commands::{AuthenticateParams, AuthenticateResult};
 use ahp_types::errors::ahp_error_codes;
 use ahp_types::state::ProtectedResourceMetadata;
-use ahp_types::{PROTOCOL_VERSION, ROOT_RESOURCE_URI};
+use ahp_types::{ROOT_RESOURCE_URI, PROTOCOL_VERSION};
 use futures::{SinkExt, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::Mutex as AsyncMutex;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, WebSocketStream};
 
-use crate::async_pipe::get_socket_rw_stream;
 use crate::auth::{Auth, AuthProvider};
 use crate::constants::AGENT_HOST_PORT;
 use crate::log;
-use crate::tunnels::agent_host_registry::{AgentHostEndpointAddress, AgentHostEndpointMetadata};
 use crate::tunnels::dev_tunnels::DevTunnels;
-use crate::util::errors::{wrap, AnyError};
+use crate::util::errors::{wrap, AnyError, CodeError};
+use crate::util::machine::process_exists;
 
 use super::CommandContext;
+use crate::tunnels::agent_host_metadata::AgentHostMetadata;
 
-/// Connects to an agent host at an explicit `--address` or `--tunnel`
-/// target, initializes the AHP session, and returns the ready-to-use
-/// client. If `address` is given it is used directly; otherwise
-/// `tunnel_name` is looked up via the dev tunnels API.
-///
-/// This is deliberately explicit-target-only: automatic discovery of a
-/// local standalone/editor instance lives in
-/// [`super::agent_discovery`] instead (see
-/// [`super::agent_discovery::discover_live_endpoints`] and
-/// [`super::agent_discovery::connect_to_session_host`]). Every call site
-/// already branches to one of those before falling through here, so
-/// passing neither `address` nor `tunnel_name` is a caller bug, not a
-/// "no target given" case to recover from silently.
+/// Connects to an agent host, initializes the AHP session, and returns
+/// the ready-to-use client. If an explicit `address` is given it is used
+/// directly; if `tunnel_name` is given, the tunnel is looked up via the
+/// dev tunnels API; otherwise the lockfile written by `code agent host`
+/// is read to discover the local instance.
 ///
 /// The returned client has been initialized but **not** authenticated.
 /// Use [`request_with_auth`] to issue commands that may require auth.
-pub async fn connect_explicit(
+pub async fn connect(
 	ctx: &CommandContext,
 	address: Option<&str>,
 	tunnel_name: Option<&str>,
@@ -50,57 +41,18 @@ pub async fn connect_explicit(
 	let client = match (address, tunnel_name) {
 		(Some(addr), _) => connect_ws(addr).await?,
 		(None, Some(name)) => connect_via_tunnel(ctx, name).await?,
-		(None, None) => unreachable!(
-			"connect_explicit requires --address or --tunnel; callers must route \
-			 the no-target case through agent_discovery instead"
-		),
-	};
-
-	initialize_client(&client).await?;
-	Ok(client)
-}
-
-/// Connects to a specific registry-discovered endpoint (used by
-/// multi-host auto-discovery in `ps`/`logs`/`stop`/`kill`). Dispatches to
-/// a `tcp` WebSocket connection or a `socket`/named-pipe raw-stream
-/// WebSocket handshake depending on the endpoint's address kind, and
-/// always includes the endpoint's connection token as the `tkn` query
-/// parameter, matching the wire convention documented in
-/// `LOCAL_ENDPOINT.md`.
-///
-/// Like [`connect_explicit`], the returned client is initialized but not yet
-/// authenticated; use [`request_with_auth`] for calls that may need it.
-pub async fn connect_to_endpoint(endpoint: &AgentHostEndpointMetadata) -> Result<Client, AnyError> {
-	let client = match &endpoint.endpoint {
-		AgentHostEndpointAddress::Tcp { host, port } => {
-			let dial_host = crate::commands::agent_host::dial_host(Some(host));
-			let mut url = format!("ws://{dial_host}:{port}/");
-			if !endpoint.connection_token.is_empty() {
-				url.push_str(&format!("?tkn={}", endpoint.connection_token));
-			}
-			connect_ws(&url).await?
-		}
-		AgentHostEndpointAddress::Socket { path } => {
-			connect_ws_over_socket(path, &endpoint.connection_token).await?
+		(None, None) => {
+			let addr = resolve_address_from_lockfile(ctx)?;
+			connect_ws(&addr).await?
 		}
 	};
 
-	initialize_client(&client).await?;
-	Ok(client)
-}
-
-/// Shared final step of establishing an AHP session: performs the
-/// protocol `initialize` handshake common to every connection kind.
-async fn initialize_client(client: &Client) -> Result<(), AnyError> {
 	client
-		.initialize(
-			"code-cli".into(),
-			vec![PROTOCOL_VERSION.to_string()],
-			vec![],
-		)
+		.initialize("code-cli".into(), vec![PROTOCOL_VERSION.to_string()], vec![])
 		.await
 		.map_err(|e| wrap(e, "AHP initialize failed"))?;
-	Ok(())
+
+	Ok(client)
 }
 
 /// Opens a WebSocket connection and creates an AHP client.
@@ -116,37 +68,6 @@ async fn connect_ws(address: &str) -> Result<Client, AnyError> {
 		.map_err(|e| wrap(e, "Failed to establish AHP session").into())
 }
 
-/// Opens a raw-stream WebSocket connection over a Unix domain socket
-/// (Unix) or named pipe (Windows) using the existing [`async_pipe`]
-/// abstraction, mirroring the tunnel raw-stream handshake in
-/// [`connect_via_tunnel`]. This is how the CLI reaches `editor`-owned
-/// registry endpoints, which are never TCP.
-async fn connect_ws_over_socket(path: &str, connection_token: &str) -> Result<Client, AnyError> {
-	let pipe = get_socket_rw_stream(std::path::Path::new(path))
-		.await
-		.map_err(|e| {
-			wrap(
-				e,
-				format!("Failed to connect to agent host socket at {path}"),
-			)
-		})?;
-
-	let mut url = "ws://localhost/".to_string();
-	if !connection_token.is_empty() {
-		url.push_str(&format!("?tkn={connection_token}"));
-	}
-
-	let (ws_stream, _) = tokio_tungstenite::client_async(url, pipe)
-		.await
-		.map_err(|e| wrap(e, format!("WebSocket handshake over socket {path} failed")))?;
-
-	let transport = WsTransport::new(ws_stream, ());
-
-	Client::connect(transport, ahp::ClientConfig::default())
-		.await
-		.map_err(|e| wrap(e, "Failed to establish AHP session over socket").into())
-}
-
 /// A [`Transport`] backed by a `tokio-tungstenite` WebSocket stream.
 ///
 /// `_guard` keeps an auxiliary resource alive for the lifetime of the
@@ -160,10 +81,7 @@ struct WsTransport<S, G = ()> {
 
 impl<S, G> WsTransport<S, G> {
 	fn new(inner: WebSocketStream<S>, guard: G) -> Self {
-		Self {
-			inner,
-			_guard: guard,
-		}
+		Self { inner, _guard: guard }
 	}
 }
 
@@ -235,34 +153,6 @@ async fn connect_via_tunnel(ctx: &CommandContext, name: &str) -> Result<Client, 
 		.map_err(|e| wrap(e, "Failed to establish AHP session over tunnel").into())
 }
 
-/// Serializes the auth-retry branch of [`request_with_auth`] across
-/// concurrently-queried hosts (see multi-host `ps`/`logs`/`stop`
-/// discovery). Without this, two hosts hitting `AUTH_REQUIRED` at the
-/// same time could each kick off a competing device-flow login. Callers
-/// past the first still pay the lock wait, but
-/// [`authenticate_from_error`] checks for a cached credential before
-/// starting a new login, so only the first caller actually performs one;
-/// the rest observe the cache and proceed immediately.
-static AUTH_SERIALIZE: LazyLock<AsyncMutex<()>> = LazyLock::new(|| AsyncMutex::new(()));
-
-/// Runs `authenticate` while holding [`AUTH_SERIALIZE`], releasing the
-/// guard as soon as `authenticate` completes — *before* returning to the
-/// caller. This is split out from [`request_with_auth`] specifically so
-/// the guard is never accidentally held across the retried RPC that
-/// follows: that RPC can be slow (or the host can be hung/unreachable),
-/// and holding the lock across it would stall unrelated hosts' own
-/// authentication attempts for no reason. Also split out so this
-/// locking behavior can be exercised directly in tests without needing
-/// a live AHP client.
-async fn serialize_auth<T, F, Fut>(authenticate: F) -> T
-where
-	F: FnOnce() -> Fut,
-	Fut: std::future::Future<Output = T>,
-{
-	let _guard = AUTH_SERIALIZE.lock().await;
-	authenticate().await
-}
-
 /// Issues a JSON-RPC request, automatically handling `-32007` auth errors
 /// by running the device-flow login and retrying once.
 pub async fn request_with_auth<P, R>(
@@ -282,10 +172,7 @@ where
 				ctx.log,
 				"Server requires authentication, starting login flow..."
 			);
-			serialize_auth(|| authenticate_from_error(ctx, client, e)).await?;
-			// Deliberately outside `serialize_auth`'s guard: this retry
-			// can be slow or hang if the host is unreachable, and must
-			// not block other hosts' concurrent authentication.
+			authenticate_from_error(ctx, client, e).await?;
 			client
 				.request::<P, R>(method, params)
 				.await
@@ -379,75 +266,31 @@ async fn authenticate_from_error(
 	Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream};
+fn resolve_address_from_lockfile(ctx: &CommandContext) -> Result<String, AnyError> {
+	let lockfile_path = ctx.paths.agent_host_lockfile();
 
-	/// Exercises the real Unix-socket/named-pipe raw-stream WebSocket
-	/// handshake used to reach `editor`-owned (and socket-based
-	/// standalone) registry endpoints, using the same cross-platform
-	/// [`async_pipe`] listener/accept pattern already established for
-	/// this abstraction elsewhere in the crate (see
-	/// `tunnels::agent_host` tests), rather than mocking the transport.
-	#[tokio::test]
-	async fn connect_ws_over_socket_completes_handshake_over_a_real_socket() {
-		let path = get_socket_name();
-		let mut listener = listen_socket_rw_stream(&path).await.unwrap();
+	let data = fs::read_to_string(&lockfile_path).map_err(|e| {
+		wrap(
+			e,
+			"No running agent host found. Start one with `code agent host` or specify --address",
+		)
+	})?;
 
-		let server = tokio::spawn(async move {
-			let pipe = listener.accept().await.unwrap();
-			// Accepting the WS handshake server-side is enough to prove
-			// the client's raw-stream `client_async` handshake (with the
-			// `?tkn=` connection token in the URL) completes correctly
-			// against a real listener; `Client::connect` itself never
-			// blocks on server behavior past that.
-			let _ws = tokio_tungstenite::accept_async(pipe).await.unwrap();
-		});
+	let metadata: AgentHostMetadata = serde_json::from_str(&data).map_err(|e| {
+		wrap(
+			e,
+			format!("Corrupt agent host lockfile at {}", lockfile_path.display()),
+		)
+	})?;
 
-		let client = connect_ws_over_socket(path.to_str().unwrap(), "test-token").await;
-		assert!(client.is_ok(), "expected Ok, got {:?}", client.err());
-
-		server.await.unwrap();
-
-		#[cfg(unix)]
-		let _ = std::fs::remove_file(&path);
+	if !process_exists(metadata.pid) {
+		let _ = fs::remove_file(&lockfile_path);
+		return Err(CodeError::NoRunningAgentHost.into());
 	}
 
-	/// Regression test for the `AUTH_SERIALIZE` scoping fix: the guard
-	/// must be released as soon as `authenticate` finishes, *not* held
-	/// across whatever the caller does afterwards (in production, the
-	/// retried RPC). Otherwise a slow/hung host's post-auth retry could
-	/// stall an unrelated host's own authentication attempt. We can't
-	/// easily stand up two real AHP `Client`s here, so this exercises
-	/// `serialize_auth` directly: task A's simulated "retry" (a long
-	/// sleep performed *after* `serialize_auth` returns) must not block
-	/// task B's concurrent `serialize_auth` call.
-	#[tokio::test]
-	async fn serialize_auth_releases_guard_before_caller_retries() {
-		let host_a = tokio::spawn(async {
-			serialize_auth(|| async {}).await;
-			// Simulates a slow/hung host's retried RPC, which happens
-			// *after* the guard should already have been released.
-			tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-		});
-
-		// Give host A a head start so it acquires the guard first.
-		tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-
-		// If the guard were (incorrectly) held across host A's simulated
-		// retry, this would time out; with the fix it resolves almost
-		// immediately since the guard was already released.
-		let host_b = tokio::time::timeout(std::time::Duration::from_millis(150), async {
-			serialize_auth(|| async {}).await;
-		})
-		.await;
-
-		assert!(
-			host_b.is_ok(),
-			"host B's authenticate must not wait for host A's retry"
-		);
-
-		host_a.await.unwrap();
+	let mut url = format!("ws://127.0.0.1:{}/", metadata.port);
+	if let Some(token) = &metadata.connection_token {
+		url.push_str(&format!("?tkn={token}"));
 	}
+	Ok(url)
 }

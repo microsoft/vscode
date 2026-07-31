@@ -5,22 +5,19 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Codicon } from '../../../base/common/codicons.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { INotificationService } from '../../notification/common/notification.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { IQuickInputService, type IQuickPickItem } from '../../quickinput/common/quickInput.js';
+import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
-import type { AgentHostServerType } from '../common/agentHostEndpointRegistry.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
@@ -31,9 +28,6 @@ import {
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
 	type ISSHConnectResult,
-	type ISSHEndpointCandidate,
-	type ISSHEndpointSelection,
-	type ISSHEndpointSelectionRequest,
 	type ISSHKeyboardInteractiveRequest,
 	type ISSHRemoteAgentHostMainService,
 	type ISSHResolvedConfig,
@@ -84,17 +78,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	private readonly _connections = new Map<string, SSHAgentHostConnectionHandle>();
 
-	/**
-	 * The server type ('editor' or 'standalone') of the last successfully
-	 * established connection for a given (stable) connection address.
-	 * Deliberately NOT cleared when a connection closes (see
-	 * `onDidCloseConnection` below) — it needs to survive disconnect cleanup
-	 * so a later automatic reconnect can detect an editor→standalone
-	 * failover and surface a one-time notification. Only ever updated after
-	 * a connection has fully and successfully registered.
-	 */
-	private readonly _lastConnectedServerTypeByAddress = new Map<string, AgentHostServerType>();
-
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -102,7 +85,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISSHRelayClientFactory private readonly _relayClientFactory: ISSHRelayClientFactory,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -147,13 +129,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this._register(this._mainService.onDidRequestKeyboardInteractive(request => {
 			this._handleKeyboardInteractiveRequest(request);
 		}));
-
-		// Bridge endpoint-selection requests (multiple live remote agent
-		// hosts found on the remote) to a quick pick so the user decides
-		// which one becomes the primary connection.
-		this._register(this._mainService.onDidRequestEndpointSelection(request => {
-			this._handleEndpointSelectionRequest(request);
-		}));
 	}
 
 	get connections(): readonly ISSHAgentHostConnection[] {
@@ -169,7 +144,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
 		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
-		return this._setupConnection(result, config.userInitiated ?? true);
+		return this._setupConnection(result);
 	}
 
 	async disconnect(host: string): Promise<void> {
@@ -192,16 +167,16 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		return this._mainService.resolveSSHConfig(host);
 	}
 
-	async reconnect(sshConfigHost: string, name: string, userInitiated?: boolean): Promise<ISSHAgentHostConnection> {
+	async reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
 		const commandOverride = this._getRemoteAgentHostCommand();
 		const agentForward = this._isSSHAgentForwardingEnabled();
-		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
-		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward, userInitiated);
-		return this._setupConnection(result, userInitiated ?? true);
+		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost}`);
+		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward);
+		return this._setupConnection(result);
 	}
 
 	/**
@@ -209,7 +184,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 * with IRemoteAgentHostService. Any failure after the shared-process tunnel
 	 * was established tears it back down so we don't leak it.
 	 */
-	private async _setupConnection(result: ISSHConnectResult, userInitiated: boolean): Promise<ISSHAgentHostConnection> {
+	private async _setupConnection(result: ISSHConnectResult): Promise<ISSHAgentHostConnection> {
 		const existing = this._connections.get(result.connectionId);
 		if (existing) {
 			// Reuse the existing handle only if the managed entry is still
@@ -259,10 +234,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			result.config,
 			result.address,
 			result.name,
-			result.serverType,
-			result.instanceId,
-			result.primary,
-			result.lifecycle,
 			() => this._mainService.disconnect(result.connectionId),
 		);
 
@@ -299,40 +270,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			throw connectError;
 		}
 
-		// Only track/notify for a fully successful setup — an incompatible
-		// handshake (connectError above) still registers a managed entry
-		// but isn't a usable connection, so it must not count as "reconnect
-		// succeeded" for failover-detection purposes.
-		this._recordEndpointSelection(result, userInitiated);
-
 		return handle;
-	}
-
-	/**
-	 * Update the last-known server type for {@link result.address}, and — if
-	 * this was an automatic/background reconnect (`userInitiated === false`)
-	 * that moved this stable remote address from a previously connected
-	 * `editor`-owned endpoint to a newly selected `standalone` endpoint —
-	 * surface a single informational notification. Never fires for the
-	 * initial connect to a remote (no prior recorded server type), a
-	 * user-initiated reconnect, or a same-kind transition
-	 * (editor→editor/standalone→standalone).
-	 */
-	private _recordEndpointSelection(result: ISSHConnectResult, userInitiated: boolean): void {
-		if (!result.serverType) {
-			return;
-		}
-		const previousServerType = this._lastConnectedServerTypeByAddress.get(result.address);
-		const isUnattendedFailoverFromEditor = userInitiated === false
-			&& previousServerType === 'editor'
-			&& result.serverType === 'standalone';
-		this._lastConnectedServerTypeByAddress.set(result.address, result.serverType);
-		if (isUnattendedFailoverFromEditor) {
-			this._notificationService.info(localize(
-				'sshEditorAgentHostReplacedByStandalone',
-				"The editor agent host exited. Reconnected to a dedicated agent host. In-progress work may have been interrupted."
-			));
-		}
 	}
 
 	/**
@@ -460,78 +398,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			cts.dispose();
 		}
 	}
-
-	/**
-	 * Show a quick pick listing every live remote agent host endpoint
-	 * discovered on the remote, plus an option to spawn a new dedicated
-	 * one, and forward the choice (or cancellation) back to the main
-	 * service. Uses the standard {@link IQuickInputService} picker so
-	 * keyboard navigation, screen-reader labels, and focus restoration on
-	 * cancel all follow the normal accessible quick-input behavior.
-	 */
-	private async _handleEndpointSelectionRequest(request: ISSHEndpointSelectionRequest): Promise<void> {
-		this._logService.info(`[SSHRemoteAgentHost] Endpoint selection requested for ${request.displayHost} (${request.candidates.length} candidate(s))`);
-
-		const cts = new CancellationTokenSource();
-		const cancelListener = this._mainService.onDidCancelEndpointSelection(requestId => {
-			if (requestId === request.requestId) {
-				cts.cancel();
-			}
-		});
-
-		try {
-			const items: (IQuickPickItem & { selection: ISSHEndpointSelection })[] = request.candidates.map(candidate => ({
-				label: this._endpointCandidateLabel(candidate),
-				description: this._endpointCandidateDescription(candidate),
-				detail: this._endpointCandidateDetail(candidate),
-				selection: { kind: 'candidate', type: candidate.type, pid: candidate.pid, instanceId: candidate.instanceId },
-			}));
-			items.push({
-				label: `$(${Codicon.add.id}) ${localize('sshEndpointSpawnNew', "Start New Dedicated Agent Host")}`,
-				description: localize('sshEndpointSpawnNewDescription', "Spawn a fresh remote agent host reserved for this connection"),
-				selection: { kind: 'spawn' },
-			});
-
-			const picked = await this._quickInputService.pick(items, {
-				title: localize('sshEndpointSelectionTitle', "Select a Remote Agent Host on {0}", request.displayHost),
-				placeHolder: localize('sshEndpointSelectionPlaceholder', "Choose a running agent host to connect to, or start a new one"),
-				ignoreFocusLost: true,
-			}, cts.token);
-
-			if (cts.token.isCancellationRequested || !picked) {
-				await this._mainService.respondEndpointSelection(request.requestId, undefined);
-				return;
-			}
-			await this._mainService.respondEndpointSelection(request.requestId, picked.selection);
-		} catch (err) {
-			this._logService.error('[SSHRemoteAgentHost] Failed handling endpoint selection prompt', err);
-			try {
-				await this._mainService.respondEndpointSelection(request.requestId, undefined);
-			} catch { /* swallow */ }
-		} finally {
-			cancelListener.dispose();
-			cts.dispose();
-		}
-	}
-
-	private _endpointCandidateLabel(candidate: ISSHEndpointCandidate): string {
-		return candidate.type === 'editor'
-			? `$(${Codicon.window.id}) ${localize('sshEndpointCandidateEditor', "Editor Instance")}`
-			: `$(${Codicon.vm.id}) ${localize('sshEndpointCandidateStandalone', "Standalone Agent Host")}`;
-	}
-
-	private _endpointCandidateDescription(candidate: ISSHEndpointCandidate): string {
-		return localize('sshEndpointCandidatePid', "PID {0}", candidate.pid);
-	}
-
-	private _endpointCandidateDetail(candidate: ISSHEndpointCandidate): string {
-		const address = candidate.endpoint.type === 'tcp'
-			? localize('sshEndpointCandidateAddressTcp', "{0}:{1}", candidate.endpoint.host, candidate.endpoint.port)
-			: localize('sshEndpointCandidateAddressSocket', "socket {0}", candidate.endpoint.path);
-		return candidate.quality
-			? localize('sshEndpointCandidateDetailWithQuality', "{0} · {1}", candidate.quality, address)
-			: address;
-	}
 }
 
 /**
@@ -548,10 +414,6 @@ class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostCo
 		readonly config: ISSHAgentHostConnection['config'],
 		readonly localAddress: string,
 		readonly name: string,
-		readonly serverType: ISSHAgentHostConnection['serverType'],
-		readonly instanceId: ISSHAgentHostConnection['instanceId'],
-		readonly primary: ISSHAgentHostConnection['primary'],
-		readonly lifecycle: ISSHAgentHostConnection['lifecycle'],
 		disconnectFn: () => Promise<void>,
 	) {
 		super();

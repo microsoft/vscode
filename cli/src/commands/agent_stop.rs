@@ -11,27 +11,13 @@ use crate::log;
 use crate::util::errors::{wrap, AnyError};
 
 use super::agent;
-use super::agent_discovery;
 use super::args::AgentStopArgs;
 use super::CommandContext;
 
 /// Cancels the active turn of every in-progress chat in a session on a running
 /// agent host.
 pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32, AnyError> {
-	let client = match (
-		args.discovery.address.as_deref(),
-		args.discovery.tunnel.as_deref(),
-	) {
-		(None, None) => {
-			agent_discovery::connect_to_session_host(
-				&ctx,
-				&args.session,
-				args.discovery.user_data_dir.as_deref(),
-			)
-			.await?
-		}
-		(address, tunnel) => agent::connect_explicit(&ctx, address, tunnel).await?,
-	};
+	let client = agent::connect(&ctx, args.address.as_deref(), args.tunnel.as_deref()).await?;
 
 	// Subscribe to the session to get its catalog of chats.
 	let result: SubscribeResult = agent::request_with_auth(

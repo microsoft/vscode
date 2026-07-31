@@ -17,16 +17,13 @@ use crate::constants::{self, AGENT_HOST_PORT};
 use crate::log;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
-	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
-	AgentHostReuseDecision, AgentHostSidecar, LoopbackAuth,
+	classify_agent_host_lockfile, AgentHostConfig, AgentHostLockfileDecision, AgentHostManager,
+	AgentHostSidecar, LoopbackAuth,
 };
-use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
+use crate::tunnels::agent_host_metadata::remove_agent_host_metadata;
 use crate::tunnels::code_server::CodeServerArgs;
 use crate::tunnels::dev_tunnels::DevTunnels;
-use crate::tunnels::idle_timeout::{self, TokioIdleSleeper};
-use crate::tunnels::ready_active_agent_host;
 use crate::tunnels::shutdown_signal::ShutdownRequest;
-use crate::tunnels::user_data_path::resolve_user_data_path;
 use crate::update_service::Platform;
 use crate::util::command::{kill_tree, DetachFromParent};
 use crate::util::errors::{wrap, AnyError, CodeError};
@@ -39,14 +36,13 @@ use super::tunnels::fulfill_existing_tunnel_args;
 use super::CommandContext;
 
 /// Internal env var that flips `code agent host` into supervisor mode:
-/// the body that actually binds the TCP listener, publishes the
-/// supervisor's registry entry, owns the proxy sidecar, and manages the AH
-/// backend's lifecycle. The foreground `code agent host` invocation
-/// re-execs itself detached with this variable set so the supervisor
-/// outlives the user's terminal.
+/// the body that actually binds the TCP listener, writes the lockfile,
+/// owns the proxy sidecar, and manages the AH backend's lifecycle. The
+/// foreground `code agent host` invocation re-execs itself detached with
+/// this variable set so the supervisor outlives the user's terminal.
 const SUPERVISOR_ENV: &str = "VSCODE_AGENT_HOST_SUPERVISOR";
 /// Single-line sentinel the supervisor prints once the listener is bound,
-/// its registry entry is published, and the banner has been flushed. The
+/// the lockfile is written, and the banner has been flushed. The
 /// foreground process watches for this on the supervisor's stdout, then
 /// either exits (`--detach`) or starts forwarding output.
 const SUPERVISOR_READY_LINE: &str = "__VSCODE_AGENT_HOST_READY__";
@@ -56,17 +52,16 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// Runs the `code agent host` command. Acts in one of two modes:
 ///
-/// * **Foreground** (the default): consults the shared local agent-host
-///   endpoint registry and either prints info about the live supervisor
-///   (`Reuse`), or daemonizes a new supervisor child (`SpawnFresh`) and
-///   either exits (`--detach`) or follows the supervisor's stdout until
-///   Ctrl-C.
+/// * **Foreground** (the default): classifies the canonical lockfile and
+///   either prints info about the live supervisor (`Reuse`), or daemonizes
+///   a new supervisor child (`SpawnFresh`) and either exits (`--detach`)
+///   or follows the supervisor's stdout until Ctrl-C.
 ///
 /// * **Supervisor** (when [`SUPERVISOR_ENV`] is set): binds the public TCP
-///   listener, publishes a registry entry recording this process's PID +
-///   port, runs the proxy accept loop, and manages the underlying VS Code
-///   server as a regular child process so the supervisor can kill+respawn
-///   it on update.
+///   listener, writes the lockfile recording this process's PID + port,
+///   runs the proxy accept loop, and manages the underlying VS Code server
+///   as a regular child process so the supervisor can kill+respawn it on
+///   update.
 pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
 	if std::env::var_os(SUPERVISOR_ENV).is_some() {
 		return run_supervisor(ctx, args).await;
@@ -74,143 +69,68 @@ pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	run_foreground(ctx, args).await
 }
 
-/// Pure decision of what `run_foreground` should do next, derived only
-/// from `args` and an already-computed [`AgentHostReuseDecision`] — no
-/// I/O, process killing, or spawning happens here. Kept separate from
-/// `run_foreground` so the flag-priority rules (in particular, that
-/// `--new-instance` always wins and never triggers the `--replace` kill
-/// path) can be unit tested deterministically without spawning any real
-/// process or touching a real registry.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ForegroundAction {
-	/// Start a brand new supervisor unconditionally: either nothing
-	/// reusable is registered, or `--new-instance` was passed. Never
-	/// touches any existing registry entry.
-	SpawnFresh,
-	/// `--replace` was passed and a reusable supervisor exists: kill it
-	/// and remove its exact registry entry first, then start a new one.
-	ReplaceThenSpawnFresh { pid: u32, instance_id: String },
-	/// The requested configuration conflicts with the reusable
-	/// supervisor's; print `message` and exit with status 2.
-	ConflictError(String),
-	/// Reuse the existing supervisor; print an informational banner and
-	/// exit with status 0 without spawning anything.
-	ReuseBanner {
-		pid: u32,
-		host: Option<String>,
-		port: u16,
-		token: Option<String>,
-		tunnel_name: Option<String>,
-	},
-}
-
-fn decide_foreground_action(
-	args: &AgentHostArgs,
-	decision: AgentHostReuseDecision,
-) -> ForegroundAction {
-	// `--new-instance` always wins: it bypasses reuse (and therefore
-	// `--replace`'s kill path too) so an existing standalone/editor
-	// entry is guaranteed to survive untouched, and a brand new
-	// supervisor is always started.
-	if args.new_instance {
-		return ForegroundAction::SpawnFresh;
-	}
-
-	let AgentHostReuseDecision::Reuse {
-		pid,
-		host,
-		port,
-		token,
-		tunnel_name,
-		instance_id,
-	} = decision
-	else {
-		return ForegroundAction::SpawnFresh;
-	};
-
-	// User asked to replace explicitly: kill + spawn fresh, regardless
-	// of whether the running config matches.
-	if args.replace {
-		return ForegroundAction::ReplaceThenSpawnFresh { pid, instance_id };
-	}
-
-	// No `--replace`: check whether the requested network config
-	// matches the running supervisor. If it differs, error out with a
-	// clear message instead of silently sharing a differently-bound
-	// supervisor.
-	if let Some(conflict) = detect_config_conflict(
-		args,
-		host.as_deref(),
-		port,
-		token.as_deref(),
-		tunnel_name.as_deref(),
-	) {
-		return ForegroundAction::ConflictError(format!(
-			"Agent host already running on {host_str}:{port} (PID {pid}), but {conflict}.\n\
-			 Use `code agent kill` to stop it, or pass `--replace` to take over.",
-			host_str = host.as_deref().unwrap_or("127.0.0.1"),
-		));
-	}
-
-	ForegroundAction::ReuseBanner {
-		pid,
-		host,
-		port,
-		token,
-		tunnel_name,
-	}
-}
-
 /// Foreground entry point: decides whether to reuse an existing supervisor
 /// or daemonize a fresh one, then prints / streams supervisor output until
 /// the user hits Ctrl-C.
 async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
 	let started = Instant::now();
-	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
+	let lockfile_path = ctx.paths.agent_host_lockfile();
 
-	// Skip consulting the registry entirely when `--new-instance` is set:
-	// its outcome can't change the decision (see `decide_foreground_action`)
-	// and we don't want an unrelated registry read to slow down or race
-	// with the fresh spawn below.
-	let decision = if args.new_instance {
-		AgentHostReuseDecision::SpawnFresh
-	} else {
-		classify_agent_host(&ctx.log, &user_data_path)
-	};
+	let decision = classify_agent_host_lockfile(&ctx.log, &lockfile_path);
 
-	match decide_foreground_action(&args, decision) {
-		ForegroundAction::SpawnFresh => daemonize_supervisor(&args).await,
-		ForegroundAction::ReplaceThenSpawnFresh { pid, instance_id } => {
+	if let AgentHostLockfileDecision::Reuse {
+		pid,
+		host,
+		port,
+		token,
+		tunnel_name,
+	} = &decision
+	{
+		// User asked to replace explicitly: kill + spawn fresh, regardless
+		// of whether the running config matches.
+		if args.replace {
 			info!(
 				ctx.log,
-				"--replace set; stopping agent host (PID {}) before starting new one", pid
-			);
-			replace_existing(&ctx.log, &user_data_path, pid, instance_id).await?;
-			daemonize_supervisor(&args).await
-		}
-		ForegroundAction::ConflictError(message) => {
-			ctx.log.result(message);
-			Ok(2)
-		}
-		ForegroundAction::ReuseBanner {
-			pid,
-			host,
-			port,
-			token,
-			tunnel_name,
-		} => {
-			print_reuse_banner(
-				&ctx.log,
-				started,
+				"--replace set; stopping agent host (PID {}, port {}) before starting new one",
 				pid,
-				host.as_deref(),
-				port,
-				token.as_deref(),
-				tunnel_name.as_deref(),
+				port
 			);
-			Ok(0)
+			replace_existing(&ctx.log, &lockfile_path, *pid).await?;
+			return daemonize_supervisor(&args).await;
 		}
+
+		// No `--replace`: check whether the requested network config
+		// matches the running supervisor. If it differs, error out with a
+		// clear message instead of silently sharing a differently-bound
+		// supervisor.
+		if let Some(conflict) = detect_config_conflict(
+			&args,
+			host.as_deref(),
+			*port,
+			token.as_deref(),
+			tunnel_name.as_deref(),
+		) {
+			ctx.log.result(format!(
+				"Agent host already running on {host_str}:{port} (PID {pid}), but {conflict}.\n\
+				 Use `code agent kill` to stop it, or pass `--replace` to take over.",
+				host_str = host.as_deref().unwrap_or("127.0.0.1"),
+			));
+			return Ok(2);
+		}
+
+		print_reuse_banner(
+			&ctx.log,
+			started,
+			*pid,
+			host.as_deref(),
+			*port,
+			token.as_deref(),
+			tunnel_name.as_deref(),
+		);
+		return Ok(0);
 	}
+
+	daemonize_supervisor(&args).await
 }
 
 /// Body of the detached supervisor process. Starts an
@@ -220,8 +140,6 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 /// until killed.
 async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
 	let started = Instant::now();
-	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
-	let instance_id = uuid::Uuid::new_v4().to_string();
 
 	// Attach a file log sink before anything else, so download progress,
 	// AH child crashes, update-loop errors, and post-handoff diagnostics
@@ -332,18 +250,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		None => LoopbackAuth::Disabled,
 	};
 
-	// `--idle-timeout` is opt-in: only build the activity-tracking channel
-	// when requested, so a manually started local host (the default) never
-	// pays for/depends on this bookkeeping and never self-terminates.
-	let idle_timeout_duration = args.idle_timeout.map(Duration::from_secs);
-	let (activity, activity_rx) = match idle_timeout_duration {
-		Some(_) => {
-			let (tracker, rx) = idle_timeout::new_activity_channel();
-			(Some(tracker), Some(rx))
-		}
-		None => (None, None),
-	};
-
 	let sidecar = AgentHostSidecar::bind_tcp(
 		ctx.log.clone(),
 		manager.clone(),
@@ -351,60 +257,19 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		args.host.clone(),
 		loopback_auth,
 		tunnel_name.clone(),
-		user_data_path.clone(),
-		instance_id.clone(),
-		activity,
+		ctx.paths.agent_host_lockfile(),
 	)
 	.await?;
 	let bound_port = sidecar.bound_addr().port();
 
 	let mut tunnel_handle: Option<crate::tunnels::dev_tunnels::ActiveTunnel> = None;
 	if let Some((tunnel, mut tunnel_port)) = pending_tunnel {
-		// Route each tunneled connection through the same protocol-v6
-		// selection-gateway request router `code tunnel`'s control_server
-		// uses (`serve_agent_host_tunnel_connection`), instead of the
-		// legacy direct proxy (`AgentHostSidecar::serve_tunnel_connection`)
-		// this used to call unconditionally. That legacy method never
-		// looked at the request path, so a renderer's `/agent-host/select`
-		// WebSocket upgrade -- sent because this tunnel is tagged
-		// `protocolv6`, see `add_port_direct` above -- fell straight
-		// through to the AH backend instead of the selection gateway, and
-		// no inventory was ever sent (the reported timeout).
-		//
-		// The root/default (legacy v5) route must still resolve to *this*
-		// running sidecar -- never `ensure_supervisor_running`, which
-		// could spawn or reuse an unrelated supervisor -- so we build an
-		// already-resolved `SharedActiveAgentHost` from the sidecar's own
-		// published identity. Because that identity points back at our
-		// own loopback listener (`AgentHostSidecar::serve`, below), a
-		// legacy client proxied this way is accepted through the very
-		// same accept loop that already holds an `--idle-timeout`
-		// activity guard for its connection's whole lifetime, so a
-		// connected legacy tunnel client keeps counting as activity and
-		// cannot make the supervisor time itself out from under it.
-		let active_agent_host = ready_active_agent_host(sidecar.active_agent_host());
-		let launcher_paths = ctx.paths.clone();
-		let gateway_user_data_path = user_data_path.clone();
-		let tunnel_log = ctx.log.clone();
-		info!(
-			ctx.log,
-			"Routing dev-tunnel-hosted agent-host port through the protocol-v6 selection gateway"
-		);
+		let sidecar_for_tunnel = sidecar.clone();
 		tokio::spawn(async move {
 			while let Some(socket) = tunnel_port.recv().await {
-				let log = tunnel_log.clone();
-				let active_agent_host = active_agent_host.clone();
-				let launcher_paths = launcher_paths.clone();
-				let user_data_path = gateway_user_data_path.clone();
+				let sidecar = sidecar_for_tunnel.clone();
 				tokio::spawn(async move {
-					serve_agent_host_tunnel_connection(
-						log,
-						socket.into_rw(),
-						active_agent_host,
-						launcher_paths,
-						user_data_path,
-					)
-					.await;
+					sidecar.serve_tunnel_connection(socket.into_rw()).await;
 				});
 			}
 		});
@@ -446,25 +311,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	}
 
 	let shutdown_rx = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
-	match (idle_timeout_duration, activity_rx) {
-		(Some(duration), Some(rx)) => {
-			tokio::select! {
-				result = sidecar.serve(shutdown_rx) => {
-					result?;
-				}
-				_ = idle_timeout::wait_for_idle_timeout(duration, rx, &TokioIdleSleeper) => {
-					info!(
-						ctx.log,
-						"Agent host supervisor idle for {}s with no connected clients; shutting down",
-						duration.as_secs()
-					);
-				}
-			}
-		}
-		_ => {
-			sidecar.serve(shutdown_rx).await?;
-		}
-	}
+	sidecar.serve(shutdown_rx).await?;
 	sidecar.shutdown().await;
 
 	if let Some(mut tunnel) = tunnel_handle.take() {
@@ -512,10 +359,10 @@ fn print_reuse_banner(
 	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, tunnel_name) {
 		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
 	}
-	// Surface the host the supervisor was actually bound to (falling back
-	// to loopback if unknown). This lets the network hint correctly say
-	// "use --host to expose" only when the supervisor really is
-	// loopback-only.
+	// Surface the host the supervisor was actually bound to (older
+	// lockfiles omit it; fall back to loopback). This lets the network
+	// hint correctly say "use --host to expose" only when the supervisor
+	// really is loopback-only.
 	let banner_listen_ip = host
 		.and_then(|h| h.parse::<std::net::IpAddr>().ok())
 		.unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
@@ -530,44 +377,43 @@ fn print_reuse_banner(
 }
 
 /// Compare the user's requested supervisor configuration with what's
-/// recorded for the running supervisor's registry entry. Returns a short
-/// human description of the first conflict found (e.g. `"--host 0.0.0.0
-/// conflicts with the running supervisor (bound to 127.0.0.1)"`), or
-/// `None` when the requested config is compatible with sharing the
-/// existing supervisor.
+/// recorded in the lockfile. Returns a short human description of the
+/// first conflict found (e.g. `"--host 0.0.0.0 conflicts with the
+/// running supervisor (bound to 127.0.0.1)"`), or `None` when the
+/// requested config is compatible with sharing the existing supervisor.
 ///
-/// `running_host` may be `None` when the registry entry doesn't record a
-/// host; in that case we conservatively skip the host comparison (the
-/// supervisor is most likely loopback, which is the default).
+/// `lockfile_host` may be `None` when the lockfile was written by an
+/// older CLI; in that case we conservatively skip the host comparison
+/// (the supervisor is most likely loopback, which is the default).
 fn detect_config_conflict(
 	args: &AgentHostArgs,
-	running_host: Option<&str>,
-	running_port: u16,
-	running_token: Option<&str>,
-	running_tunnel: Option<&str>,
+	lockfile_host: Option<&str>,
+	lockfile_port: u16,
+	lockfile_token: Option<&str>,
+	lockfile_tunnel: Option<&str>,
 ) -> Option<String> {
-	if let (Some(requested), Some(running)) = (args.host.as_deref(), running_host) {
+	if let (Some(requested), Some(running)) = (args.host.as_deref(), lockfile_host) {
 		if requested != running {
 			return Some(format!(
 				"--host {requested} conflicts with the running supervisor (bound to {running})"
 			));
 		}
 	}
-	if args.port != 0 && args.port != running_port {
+	if args.port != 0 && args.port != lockfile_port {
 		return Some(format!(
 			"--port {requested} conflicts with the running supervisor (bound to {running})",
 			requested = args.port,
-			running = running_port,
+			running = lockfile_port,
 		));
 	}
-	if args.without_connection_token && running_token.is_some() {
+	if args.without_connection_token && lockfile_token.is_some() {
 		return Some(
 			"--without-connection-token conflicts with the running supervisor (uses a token)"
 				.to_string(),
 		);
 	}
 	if let Some(requested) = args.connection_token.as_deref() {
-		match running_token {
+		match lockfile_token {
 			None => {
 				return Some(
 					"--connection-token conflicts with the running supervisor (no token configured)"
@@ -582,7 +428,7 @@ fn detect_config_conflict(
 			Some(_) => {}
 		}
 	}
-	if args.tunnel && running_tunnel.is_none() {
+	if args.tunnel && lockfile_tunnel.is_none() {
 		return Some(
 			"--tunnel conflicts with the running supervisor (not exposed via a tunnel)".to_string(),
 		);
@@ -590,16 +436,9 @@ fn detect_config_conflict(
 	None
 }
 
-/// Kill the existing supervisor process tree and remove its exact
-/// `(standalone, pid, instanceId)` entry from the shared local agent-host
-/// endpoint registry, so the subsequent supervisor start publishes a
-/// clean one.
-async fn replace_existing(
-	log: &log::Logger,
-	user_data_path: &Path,
-	pid: u32,
-	instance_id: String,
-) -> Result<(), AnyError> {
+/// Kill the existing supervisor process tree and drop the lockfile so the
+/// subsequent supervisor start writes a clean record.
+async fn replace_existing(log: &log::Logger, lockfile: &Path, pid: u32) -> Result<(), AnyError> {
 	if let Err(e) = kill_tree(pid).await {
 		warning!(
 			log,
@@ -608,12 +447,7 @@ async fn replace_existing(
 			e
 		);
 	}
-	let identity = AgentHostEndpointIdentity {
-		server_type: AgentHostServerType::Standalone,
-		pid,
-		instance_id,
-	};
-	agent_host_registry::remove_agent_host_endpoint(log, user_data_path, &identity);
+	let _ = remove_agent_host_metadata(lockfile);
 	Ok(())
 }
 
@@ -688,14 +522,14 @@ pub async fn ensure_supervisor_running(
 	launcher_paths: &LauncherPaths,
 	log: &log::Logger,
 ) -> Result<ActiveAgentHost, AnyError> {
-	let user_data_path = resolve_user_data_path(None);
-	if let AgentHostReuseDecision::Reuse {
+	let lockfile_path = launcher_paths.agent_host_lockfile();
+	if let AgentHostLockfileDecision::Reuse {
 		pid,
 		host,
 		port,
 		token,
 		..
-	} = classify_agent_host(log, &user_data_path)
+	} = classify_agent_host_lockfile(log, &lockfile_path)
 	{
 		return Ok(ActiveAgentHost {
 			pid,
@@ -710,90 +544,10 @@ pub async fn ensure_supervisor_running(
 		"No agent host supervisor running; starting one in the background"
 	);
 
-	spawn_supervisor_and_wait_ready(launcher_paths, log, &[]).await?;
-
-	match classify_agent_host(log, &user_data_path) {
-		AgentHostReuseDecision::Reuse {
-			pid,
-			host,
-			port,
-			token,
-			..
-		} => Ok(ActiveAgentHost {
-			pid,
-			host,
-			port,
-			token,
-		}),
-		AgentHostReuseDecision::SpawnFresh => {
-			Err(CodeError::CouldNotListenOnInterface(std::io::Error::other(
-				"agent host supervisor signalled ready but its registry entry is missing",
-			))
-			.into())
-		}
-	}
-}
-
-/// Spawns a brand-new standalone agent host supervisor dedicated to one
-/// protocol-v6 tunnel gateway `newDedicated` selection, equivalent to
-/// running `code agent host --new-instance --idle-timeout
-/// <idle_timeout_secs>` directly. Unlike [`ensure_supervisor_running`],
-/// this never reuses or replaces an existing registry entry: it spawns
-/// unconditionally (mirroring `--new-instance`'s contract, see
-/// `decide_foreground_action`) and identifies the exact new entry by
-/// matching the spawned child's PID against the fresh set of live
-/// `standalone` entries, so any pre-existing `editor`/`standalone`
-/// entries are never touched.
-pub async fn spawn_dedicated_supervisor(
-	launcher_paths: &LauncherPaths,
-	log: &log::Logger,
-	user_data_path: &Path,
-	idle_timeout_secs: u64,
-) -> Result<agent_host_registry::AgentHostEndpointMetadata, AnyError> {
-	info!(
-		log,
-		"Starting a new dedicated agent host supervisor for tunnel gateway selection"
-	);
-
-	let idle_timeout_arg = idle_timeout_secs.to_string();
-	let user_data_dir_arg = user_data_path.to_string_lossy().to_string();
-	let extra_args = [
-		"--new-instance".to_string(),
-		"--idle-timeout".to_string(),
-		idle_timeout_arg,
-		"--user-data-dir".to_string(),
-		user_data_dir_arg,
-	];
-	let child_pid = spawn_supervisor_and_wait_ready(launcher_paths, log, &extra_args).await?;
-
-	agent_host_registry::list_live_standalone_endpoints(log, user_data_path)
-		.into_iter()
-		.find(|e| e.pid == child_pid)
-		.ok_or_else(|| {
-			CodeError::CouldNotListenOnInterface(std::io::Error::other(
-				"dedicated agent host supervisor signalled ready but its registry entry is missing",
-			))
-			.into()
-		})
-}
-
-/// Spawns `code agent host` as a detached supervisor with the given
-/// extra CLI arguments and blocks until it prints [`SUPERVISOR_READY_LINE`]
-/// on stdout, forwarding its stderr lines to our log in the meantime.
-/// Returns the spawned child's PID. Shared by [`ensure_supervisor_running`]
-/// (no extra args; reuse-or-spawn-fresh) and [`spawn_dedicated_supervisor`]
-/// (`--new-instance --idle-timeout ... --user-data-dir ...`; always
-/// fresh).
-async fn spawn_supervisor_and_wait_ready(
-	launcher_paths: &LauncherPaths,
-	log: &log::Logger,
-	extra_args: &[String],
-) -> Result<u32, AnyError> {
 	let exe = std::env::current_exe().map_err(|e| wrap(e, "could not resolve current_exe"))?;
 	let mut cmd = tokio::process::Command::new(&exe);
 	cmd.arg("--cli-data-dir").arg(launcher_paths.root());
 	cmd.arg("agent").arg("host");
-	cmd.args(extra_args);
 	cmd.env(SUPERVISOR_ENV, "1");
 	cmd.stdin(std::process::Stdio::null());
 	cmd.stdout(std::process::Stdio::piped());
@@ -804,12 +558,6 @@ async fn spawn_supervisor_and_wait_ready(
 	let mut child = cmd
 		.spawn()
 		.map_err(|e| wrap(e, "could not spawn agent host supervisor"))?;
-	let child_pid = child.id().ok_or_else(|| {
-		wrap(
-			std::io::Error::other("spawned agent host supervisor process has no pid"),
-			"could not resolve spawned supervisor pid",
-		)
-	})?;
 	let mut stdout = BufReader::new(child.stdout.take().unwrap()).lines();
 	let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
 
@@ -821,7 +569,7 @@ async fn spawn_supervisor_and_wait_ready(
 			r = stdout.next_line() => match r {
 				Ok(Some(line)) => {
 					if line == SUPERVISOR_READY_LINE {
-						return Ok(child_pid);
+						break;
 					}
 				}
 				Ok(None) | Err(_) => {
@@ -845,18 +593,36 @@ async fn spawn_supervisor_and_wait_ready(
 			}
 		}
 	}
+
+	match classify_agent_host_lockfile(log, &lockfile_path) {
+		AgentHostLockfileDecision::Reuse {
+			pid,
+			host,
+			port,
+			token,
+			..
+		} => Ok(ActiveAgentHost {
+			pid,
+			host,
+			port,
+			token,
+		}),
+		AgentHostLockfileDecision::SpawnFresh => Err(CodeError::CouldNotListenOnInterface(
+			std::io::Error::other("agent host supervisor signalled ready but lockfile is missing"),
+		)
+		.into()),
+	}
 }
 
-/// Endpoint of a running agent host supervisor, as recorded in the shared
-/// local agent-host endpoint registry and consumed by tunnel + bridge
-/// callers.
+/// Endpoint of a running agent host supervisor, as recorded in the
+/// lockfile and consumed by tunnel + bridge callers.
 pub struct ActiveAgentHost {
 	pub pid: u32,
 	/// Host the supervisor was bound to (e.g. `"0.0.0.0"`, `"::1"`,
-	/// `"localhost"`, a specific IP). `None` when the registry entry
-	/// doesn't record a host. Consumers should pair this with
-	/// [`dial_host`] to pick the right loopback target when the
-	/// supervisor was bound to a wildcard.
+	/// `"localhost"`, a specific IP). `None` for lockfiles written by
+	/// older CLIs. Consumers should pair this with [`dial_host`] to
+	/// pick the right loopback target when the supervisor was bound to
+	/// a wildcard.
 	pub host: Option<String>,
 	pub port: u16,
 	pub token: Option<String>,
@@ -866,8 +632,8 @@ impl ActiveAgentHost {
 	/// Loopback address callers should dial to reach this supervisor.
 	/// Maps IPv4/IPv6 wildcards (`0.0.0.0` / `::`) to the corresponding
 	/// loopback; passes specific hosts (e.g. `::1`, `localhost`,
-	/// `10.0.0.5`) through unchanged. A missing host falls back to IPv4
-	/// loopback to preserve the prior behaviour.
+	/// `10.0.0.5`) through unchanged. Missing host (older lockfile)
+	/// falls back to IPv4 loopback to preserve the prior behaviour.
 	pub fn dial_host(&self) -> &str {
 		dial_host(self.host.as_deref())
 	}
@@ -1008,242 +774,5 @@ mod tests {
 		let token = mint_connection_token(&path, Some("override".to_string())).unwrap();
 		assert_eq!(token, "override");
 		assert_eq!(fs::read_to_string(&path).unwrap(), "override");
-	}
-
-	fn reusable_decision() -> AgentHostReuseDecision {
-		AgentHostReuseDecision::Reuse {
-			pid: 4242,
-			host: Some("127.0.0.1".to_string()),
-			port: 9000,
-			token: Some("tok".to_string()),
-			tunnel_name: None,
-			instance_id: "instance-existing".to_string(),
-		}
-	}
-
-	#[test]
-	fn decide_foreground_action_spawn_fresh_when_nothing_registered() {
-		let args = AgentHostArgs::default();
-		let action = decide_foreground_action(&args, AgentHostReuseDecision::SpawnFresh);
-		assert_eq!(action, ForegroundAction::SpawnFresh);
-	}
-
-	#[test]
-	fn decide_foreground_action_reuses_when_compatible() {
-		let args = AgentHostArgs::default();
-		let action = decide_foreground_action(&args, reusable_decision());
-		assert_eq!(
-			action,
-			ForegroundAction::ReuseBanner {
-				pid: 4242,
-				host: Some("127.0.0.1".to_string()),
-				port: 9000,
-				token: Some("tok".to_string()),
-				tunnel_name: None,
-			}
-		);
-	}
-
-	#[test]
-	fn decide_foreground_action_replace_kills_existing_when_set() {
-		let args = AgentHostArgs {
-			replace: true,
-			..Default::default()
-		};
-		let action = decide_foreground_action(&args, reusable_decision());
-		assert_eq!(
-			action,
-			ForegroundAction::ReplaceThenSpawnFresh {
-				pid: 4242,
-				instance_id: "instance-existing".to_string(),
-			}
-		);
-	}
-
-	#[test]
-	fn decide_foreground_action_conflict_error_when_config_differs() {
-		let args = AgentHostArgs {
-			port: 1234,
-			..Default::default()
-		};
-		let action = decide_foreground_action(&args, reusable_decision());
-		match action {
-			ForegroundAction::ConflictError(message) => {
-				assert!(message.contains("--port 1234"));
-			}
-			other => panic!("expected ConflictError, got {other:?}"),
-		}
-	}
-
-	/// The core `--new-instance` contract: it must win over every other
-	/// branch, in particular `--replace`'s kill path, so that passing
-	/// both flags together can never remove an existing entry.
-	#[test]
-	fn decide_foreground_action_new_instance_bypasses_reuse_even_when_live_standalone_registered() {
-		let args = AgentHostArgs {
-			new_instance: true,
-			..Default::default()
-		};
-		let action = decide_foreground_action(&args, reusable_decision());
-		assert_eq!(action, ForegroundAction::SpawnFresh);
-	}
-
-	#[test]
-	fn decide_foreground_action_new_instance_takes_priority_over_replace() {
-		let args = AgentHostArgs {
-			new_instance: true,
-			replace: true,
-			..Default::default()
-		};
-		let action = decide_foreground_action(&args, reusable_decision());
-		// Must be `SpawnFresh`, never `ReplaceThenSpawnFresh`: `--new-instance`
-		// must not trigger the kill-and-remove path even when `--replace`
-		// is also passed.
-		assert_eq!(action, ForegroundAction::SpawnFresh);
-	}
-
-	#[test]
-	fn decide_foreground_action_new_instance_bypasses_config_conflict_check() {
-		// A `--port` that would otherwise conflict with the running
-		// supervisor must not block `--new-instance`: creating a second,
-		// independently configured instance is the whole point.
-		let args = AgentHostArgs {
-			new_instance: true,
-			port: 1234,
-			..Default::default()
-		};
-		let action = decide_foreground_action(&args, reusable_decision());
-		assert_eq!(action, ForegroundAction::SpawnFresh);
-	}
-
-	/// End-to-end-ish proof, against a real temp registry, that
-	/// `--new-instance` leaves pre-existing `editor` and `standalone`
-	/// entries completely untouched, while a normal (non-`--new-instance`)
-	/// request against the same registry would have chosen to reuse the
-	/// existing standalone entry instead of starting anything new.
-	#[test]
-	fn new_instance_preserves_existing_editor_and_standalone_registry_entries() {
-		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
-		let log = log::Logger::test();
-
-		let editor = agent_host_registry::AgentHostEndpointMetadata {
-			schema_version: agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
-			server_type: AgentHostServerType::Editor,
-			pid: std::process::id(),
-			instance_id: "editor-instance".to_string(),
-			protocol_version: agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			connection_token: "editor-tok".to_string(),
-			endpoint: agent_host_registry::AgentHostEndpointAddress::Socket {
-				path: "/tmp/editor.sock".to_string(),
-			},
-			quality: None,
-			tunnel_name: None,
-		};
-		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &editor).unwrap();
-
-		let standalone = agent_host_registry::AgentHostEndpointMetadata::new_standalone(
-			std::process::id(),
-			"standalone-existing".to_string(),
-			"127.0.0.1".to_string(),
-			5555,
-			"standalone-tok".to_string(),
-			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			None,
-			None,
-		);
-		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &standalone)
-			.unwrap();
-
-		// Sanity check: without `--new-instance`, this registry state
-		// would have caused a plain `code agent host` to reuse the
-		// existing standalone entry rather than spawn anything.
-		let plain_decision = classify_agent_host(&log, &user_data_path);
-		assert_eq!(
-			plain_decision,
-			AgentHostReuseDecision::Reuse {
-				pid: std::process::id(),
-				host: Some("127.0.0.1".to_string()),
-				port: 5555,
-				token: Some("standalone-tok".to_string()),
-				tunnel_name: None,
-				instance_id: "standalone-existing".to_string(),
-			}
-		);
-		assert_eq!(
-			decide_foreground_action(&AgentHostArgs::default(), plain_decision),
-			ForegroundAction::ReuseBanner {
-				pid: std::process::id(),
-				host: Some("127.0.0.1".to_string()),
-				port: 5555,
-				token: Some("standalone-tok".to_string()),
-				tunnel_name: None,
-			}
-		);
-
-		// With `--new-instance`, `run_foreground` skips consulting the
-		// registry entirely (mirrored here) and the decision must always
-		// be `SpawnFresh`, never touching the registry.
-		let new_instance_args = AgentHostArgs {
-			new_instance: true,
-			..Default::default()
-		};
-		let action =
-			decide_foreground_action(&new_instance_args, AgentHostReuseDecision::SpawnFresh);
-		assert_eq!(action, ForegroundAction::SpawnFresh);
-
-		// The pre-existing editor and standalone entries must still be
-		// present, byte-for-byte, after deciding to spawn a new instance.
-		let entries_after = agent_host_registry::read_registry(&log, &user_data_path).unwrap();
-		assert_eq!(entries_after.len(), 2);
-		assert!(entries_after.contains(&editor));
-		assert!(entries_after.contains(&standalone));
-
-		// Once the new supervisor actually starts, it publishes its own
-		// additional standalone entry (fresh PID/instanceId/port) rather
-		// than replacing the old one; all three live entries then coexist.
-		let new_supervisor = agent_host_registry::AgentHostEndpointMetadata::new_standalone(
-			std::process::id(),
-			"standalone-new-instance".to_string(),
-			"127.0.0.1".to_string(),
-			6666,
-			"new-instance-tok".to_string(),
-			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
-			None,
-			None,
-		);
-		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &new_supervisor)
-			.unwrap();
-
-		let live = agent_host_registry::list_live_endpoints(&log, &user_data_path);
-		assert_eq!(live.len(), 3);
-		assert!(live.iter().any(|e| e.instance_id == "editor-instance"));
-		assert!(live.iter().any(|e| e.instance_id == "standalone-existing"));
-		assert!(live
-			.iter()
-			.any(|e| e.instance_id == "standalone-new-instance"));
-	}
-
-	#[test]
-	fn agent_host_args_new_instance_composes_with_idle_timeout() {
-		use clap::Parser;
-
-		#[derive(clap::Parser)]
-		struct Wrapper {
-			#[clap(flatten)]
-			args: AgentHostArgs,
-		}
-
-		let parsed = Wrapper::parse_from([
-			"code",
-			"--new-instance",
-			"--idle-timeout",
-			"300",
-			"--port",
-			"5000",
-		]);
-		assert!(parsed.args.new_instance);
-		assert_eq!(parsed.args.idle_timeout, Some(300));
-		assert_eq!(parsed.args.port, 5000);
 	}
 }

@@ -234,7 +234,7 @@ pub struct ServeWebArgs {
 	pub commit_id: Option<String>,
 }
 
-#[derive(Args, Debug, Clone, Default)]
+#[derive(Args, Debug, Clone)]
 pub struct AgentHostArgs {
 	/// Host the agent host should bind on. Defaults to 'localhost'. Pass
 	/// `0.0.0.0` to expose the agent host on all interfaces (paired with
@@ -243,7 +243,7 @@ pub struct AgentHostArgs {
 	pub host: Option<String>,
 	/// Port the agent host should bind on. If 0 (the default) the OS
 	/// picks a free ephemeral port; the chosen port is recorded in the
-	/// shared agent-host endpoint registry.
+	/// agent host lockfile.
 	#[clap(long, default_value_t = 0)]
 	pub port: u16,
 	/// A secret that must be included with all requests.
@@ -259,15 +259,6 @@ pub struct AgentHostArgs {
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
 
-	/// Overrides the resolved user data directory used to home the shared
-	/// local agent-host endpoint registry
-	/// (`<user-data-dir>/agent-host/local-endpoint/metadata.json`), the same
-	/// file editor windows publish to. Defaults to the platform user data
-	/// directory (honoring `VSCODE_PORTABLE` / `VSCODE_APPDATA` when set),
-	/// matching the editor's own resolution rules.
-	#[clap(long)]
-	pub user_data_dir: Option<String>,
-
 	/// Stop any agent host already running on this machine and start a
 	/// fresh one. Without this flag, the command reuses an existing live
 	/// supervisor when its configuration is compatible, and errors out
@@ -275,17 +266,6 @@ pub struct AgentHostArgs {
 	/// differ from what's already running.
 	#[clap(long)]
 	pub replace: bool,
-
-	/// Always start a brand new standalone supervisor, even if one is
-	/// already registered and would normally be reused. Unlike
-	/// `--replace`, this never kills or removes any existing registry
-	/// entry (editor or standalone) — the new supervisor simply
-	/// publishes its own additional entry alongside whatever is already
-	/// there. Useful for remote scenarios (e.g. "Start New Dedicated
-	/// Agent Host") that must guarantee a fresh, independent instance
-	/// regardless of what else is running.
-	#[clap(long)]
-	pub new_instance: bool,
 
 	/// Expose the agent host over a dev tunnel.
 	#[clap(long)]
@@ -296,15 +276,6 @@ pub struct AgentHostArgs {
 	/// Randomly name the machine for the tunnel.
 	#[clap(long)]
 	pub random_name: bool,
-
-	/// Automatically terminate this supervisor once no client has been
-	/// connected for this many seconds. The idle timer starts once the
-	/// supervisor is ready, is cancelled/paused for as long as at least
-	/// one client is connected, and restarts from the full duration each
-	/// time the last client disconnects. Unset (the default) means
-	/// unlimited: a manually started local host never self-terminates.
-	#[clap(long)]
-	pub idle_timeout: Option<u64>,
 
 	/// Optional details to connect to an existing tunnel.
 	#[clap(flatten, next_help_heading = Some("ADVANCED TUNNEL OPTIONS"))]
@@ -333,63 +304,14 @@ pub enum AgentSubcommand {
 	Stop(AgentStopArgs),
 
 	/// Forcefully kill the running agent host process tree.
-	Kill(AgentKillArgs),
+	Kill,
 
 	/// Stream live session events.
 	Logs(AgentLogsArgs),
-
-	/// Print every live agent host endpoint as a single JSON document.
-	/// Machine-readable: intended for consumption over an already
-	/// authenticated transport (e.g. SSH), since the output includes each
-	/// endpoint's connection token.
-	Endpoints(AgentEndpointsArgs),
-
-	/// Relay stdin/stdout to a single live agent host endpoint's raw
-	/// socket/pipe or TCP connection, with no WebSocket interpretation and
-	/// no banner output. Intended to be used as an SSH `ProxyCommand`-style
-	/// bridge to reach `editor`-owned (socket/pipe) endpoints remotely.
-	#[clap(hide = true)]
-	Relay(AgentRelayArgs),
 }
 
 #[derive(Args, Debug, Clone)]
-pub struct AgentEndpointsArgs {
-	/// Overrides the resolved user data directory used to locate the
-	/// shared agent host registry. Defaults to the platform user data
-	/// directory, matching every other `code agent` subcommand.
-	#[clap(long)]
-	pub user_data_dir: Option<String>,
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct AgentRelayArgs {
-	/// The `instanceId` of the live registry endpoint to relay to, as
-	/// shown by `code agent endpoints` / `code agent ps`.
-	pub instance_id: String,
-
-	/// Overrides the resolved user data directory used to locate the
-	/// shared agent host registry.
-	#[clap(long)]
-	pub user_data_dir: Option<String>,
-}
-
-/// Discovery/connection target shared by every agent-host command that
-/// can either auto-discover a local instance or target one explicitly:
-/// `code agent ps|stop|logs`. `--user-data-dir` scopes automatic
-/// discovery to a specific registry (see
-/// [`crate::commands::agent_discovery::discover_live_endpoints`]);
-/// `--address`/`--tunnel` bypass discovery entirely and connect to
-/// exactly one explicit target (see
-/// [`crate::commands::agent::connect_explicit`]). Passing neither
-/// `--address` nor `--tunnel` means "discover automatically", not
-/// "connect nowhere" — every consumer of this struct must branch on that
-/// itself.
-#[derive(Args, Debug, Clone)]
-pub struct AgentDiscoveryArgs {
-	/// Directory containing the shared agent host registry used for automatic discovery.
-	#[clap(long)]
-	pub user_data_dir: Option<String>,
-
+pub struct AgentPsArgs {
 	/// WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret).
 	/// If omitted, the CLI discovers a locally running agent host automatically.
 	#[clap(long)]
@@ -398,13 +320,6 @@ pub struct AgentDiscoveryArgs {
 	/// Connect via a named dev tunnel instead of the local address.
 	#[clap(long)]
 	pub tunnel: Option<String>,
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct AgentPsArgs {
-	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
-	#[clap(flatten)]
-	pub discovery: AgentDiscoveryArgs,
 
 	/// Output results as JSON instead of a human-readable table.
 	#[clap(long)]
@@ -420,9 +335,14 @@ pub struct AgentStopArgs {
 	/// Session URI to cancel the active turn of (e.g. copilot:/<uuid>).
 	pub session: String,
 
-	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
-	#[clap(flatten)]
-	pub discovery: AgentDiscoveryArgs,
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -430,22 +350,14 @@ pub struct AgentLogsArgs {
 	/// Session URI to stream events for (e.g. copilot:/<uuid>).
 	pub session: String,
 
-	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
-	#[clap(flatten)]
-	pub discovery: AgentDiscoveryArgs,
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct AgentKillArgs {
-	/// Directory containing the shared agent host registry used for automatic discovery.
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
 	#[clap(long)]
-	pub user_data_dir: Option<String>,
+	pub address: Option<String>,
 
-	/// Instance ID of the standalone agent host to kill, as shown when
-	/// multiple are running. Required to select non-interactively when
-	/// more than one live standalone agent host is registered.
+	/// Connect via a named dev tunnel instead of the local address.
 	#[clap(long)]
-	pub instance_id: Option<String>,
+	pub tunnel: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

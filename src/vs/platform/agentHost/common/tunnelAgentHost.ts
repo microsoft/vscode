@@ -29,17 +29,6 @@ export const TUNNEL_LAUNCHER_LABEL = 'vscode-server-launcher';
 /** Address prefix for tunnel-backed connections (e.g. `tunnel:myTunnelId`). */
 export const TUNNEL_ADDRESS_PREFIX = 'tunnel:';
 
-/** Path of the protocol-v6 registry-based endpoint-selection WebSocket route on the forwarded agent-host tunnel port. */
-export const TUNNEL_GATEWAY_SELECT_PATH = '/agent-host/select';
-
-/**
- * Tunnel launcher protocol version (see `PROTOCOL_VERSION` in the CLI's
- * `cli/src/constants.rs`) starting from which the forwarded agent-host port
- * also serves {@link TUNNEL_GATEWAY_SELECT_PATH}. Tunnels below this
- * version only support the legacy direct-reuse root route.
- */
-export const TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION = 6;
-
 /** Prefix for protocol version tags. */
 export const PROTOCOL_VERSION_TAG_PREFIX = 'protocolv';
 
@@ -101,167 +90,6 @@ export interface ITunnelInfo {
 	readonly hostConnectionCount: number;
 }
 
-/** Kind of process that owns a gateway-reported endpoint. Mirrors `AgentHostServerType` in the CLI's agent-host registry (`cli/src/tunnels/agent_host_registry.rs`). */
-export type TunnelGatewayServerType = 'editor' | 'standalone';
-
-/** How a selected endpoint's lifetime relates to this connection. Mirrors `GatewayLifecycle` in the CLI gateway (`cli/src/tunnels/agent_host.rs`). */
-export type TunnelGatewayLifecycle = 'external' | 'managed';
-
-/**
- * One live registry endpoint as reported by the tunnel gateway's inventory
- * message. Deliberately never includes a connection token: the gateway
- * injects the target's own token itself once a selection completes, and it
- * is never exposed to the renderer.
- */
-export interface ITunnelGatewayEndpoint {
-	readonly type: TunnelGatewayServerType;
-	readonly pid: number;
-	readonly instanceId: string;
-	readonly quality?: string;
-	readonly tunnelName?: string;
-	readonly endpointKind: 'tcp' | 'socket';
-	readonly endpointLabel: string;
-}
-
-/**
- * One-time inventory message sent by the tunnel gateway immediately after
- * the protocol-v6 selection WebSocket route ({@link TUNNEL_GATEWAY_SELECT_PATH}) upgrades.
- */
-export interface ITunnelGatewayInventory {
-	readonly userDataPath: string;
-	readonly endpoints: readonly ITunnelGatewayEndpoint[];
-}
-
-/**
- * The client's one-time selection message, matching `GatewaySelectionRequest`
- * on the CLI side (`cli/src/tunnels/agent_host.rs`) exactly: either an
- * existing live endpoint's `instanceId`, or a request to spawn a new
- * dedicated standalone instance.
- */
-export type ITunnelGatewaySelection =
-	| { readonly instanceId: string }
-	| { readonly newDedicated: true };
-
-/** Metadata about the endpoint the gateway selected, mirrored into {@link ITunnelConnectResult}. */
-export interface ITunnelGatewaySelectedInfo {
-	/**
-	 * `'unknown'` only ever appears for a protocol-v5 tunnel's legacy
-	 * {@link ITunnelAgentHostMainService.connect}, which has no gateway
-	 * inventory to draw a real answer from.
-	 */
-	readonly serverType: TunnelGatewayServerType | 'unknown';
-	readonly instanceId: string;
-	readonly role: 'primary';
-	readonly lifecycle: TunnelGatewayLifecycle;
-}
-
-/**
- * A protocol-v6 gateway selection session prepared by
- * {@link ITunnelAgentHostMainService.prepareSelection}. The pending gateway
- * WebSocket and relay client are held server-side, keyed by
- * {@link selectionId}, until {@link ITunnelAgentHostMainService.completeSelection}
- * or {@link ITunnelAgentHostMainService.cancelSelection} is called.
- */
-export interface ITunnelGatewaySelectionSession {
-	readonly selectionId: string;
-	readonly inventory: ITunnelGatewayInventory;
-}
-
-/**
- * Thrown by {@link parseTunnelGatewayInventory} and
- * {@link parseTunnelGatewaySelectionResponse} when a gateway wire message
- * does not have the expected structure, so callers can log a clear
- * "malformed gateway message" error rather than a generic parse failure.
- */
-export class TunnelGatewayProtocolError extends Error { }
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function parseTunnelGatewayEndpoint(value: unknown, index: number): ITunnelGatewayEndpoint {
-	if (!isPlainObject(value)) {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} is not an object`);
-	}
-	const { type, pid, instanceId, quality, tunnelName, endpointKind, endpointLabel } = value;
-	if (type !== 'editor' && type !== 'standalone') {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} has an invalid "type"`);
-	}
-	if (typeof pid !== 'number') {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} has an invalid "pid"`);
-	}
-	if (typeof instanceId !== 'string' || !instanceId) {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} has an invalid "instanceId"`);
-	}
-	if (quality !== undefined && typeof quality !== 'string') {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} has an invalid "quality"`);
-	}
-	if (tunnelName !== undefined && typeof tunnelName !== 'string') {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} has an invalid "tunnelName"`);
-	}
-	if (endpointKind !== 'tcp' && endpointKind !== 'socket') {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} has an invalid "endpointKind"`);
-	}
-	if (typeof endpointLabel !== 'string' || !endpointLabel) {
-		throw new TunnelGatewayProtocolError(`Gateway inventory endpoint at index ${index} has an invalid "endpointLabel"`);
-	}
-	return { type, pid, instanceId, quality, tunnelName, endpointKind, endpointLabel };
-}
-
-/**
- * Parse and structurally validate a gateway inventory message. Throws
- * {@link TunnelGatewayProtocolError} (or a JSON `SyntaxError`) rather than
- * returning a partially-valid inventory, so callers never silently proceed
- * with a corrupt endpoint list.
- */
-export function parseTunnelGatewayInventory(json: string): ITunnelGatewayInventory {
-	const parsed: unknown = JSON.parse(json);
-	if (!isPlainObject(parsed)) {
-		throw new TunnelGatewayProtocolError('Gateway inventory message is not an object');
-	}
-	const { userDataPath, endpoints } = parsed;
-	if (typeof userDataPath !== 'string' || !userDataPath) {
-		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "userDataPath"');
-	}
-	if (!Array.isArray(endpoints)) {
-		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "endpoints"');
-	}
-	return { userDataPath, endpoints: endpoints.map((e, i) => parseTunnelGatewayEndpoint(e, i)) };
-}
-
-/**
- * Parse and validate the gateway's one-time selection acknowledgement,
- * matching `GatewaySelectionResponse` on the CLI side exactly.
- */
-export function parseTunnelGatewaySelectionResponse(json: string): { ok: true; selected: ITunnelGatewaySelectedInfo } | { ok: false; error: string } {
-	const parsed: unknown = JSON.parse(json);
-	if (!isPlainObject(parsed) || typeof parsed.ok !== 'boolean') {
-		throw new TunnelGatewayProtocolError('Gateway selection acknowledgement is not a valid response');
-	}
-	if (!parsed.ok) {
-		const error = typeof parsed.error === 'string' ? parsed.error : 'Gateway selection failed';
-		return { ok: false, error };
-	}
-	const selected = parsed.selected;
-	if (!isPlainObject(selected)
-		|| (selected.type !== 'editor' && selected.type !== 'standalone')
-		|| typeof selected.instanceId !== 'string' || !selected.instanceId
-		|| selected.role !== 'primary'
-		|| (selected.lifecycle !== 'external' && selected.lifecycle !== 'managed')
-	) {
-		throw new TunnelGatewayProtocolError('Gateway selection acknowledgement has an invalid "selected" payload');
-	}
-	return {
-		ok: true,
-		selected: {
-			serverType: selected.type,
-			instanceId: selected.instanceId,
-			role: 'primary',
-			lifecycle: selected.lifecycle,
-		},
-	};
-}
-
 /**
  * Serializable result from a successful tunnel connect operation.
  * Returned over IPC from the shared process.
@@ -275,14 +103,6 @@ export interface ITunnelConnectResult {
 	readonly name: string;
 	/** Connection token derived from the tunnel ID. */
 	readonly connectionToken: string;
-	/**
-	 * Metadata about the agent host endpoint that was actually selected.
-	 * Protocol-v5 tunnels have no selection gateway, so legacy
-	 * {@link ITunnelAgentHostMainService.connect} reports `serverType:
-	 * 'unknown'` and `lifecycle: 'external'`, since that route always
-	 * reuses a single deterministic target without a picker.
-	 */
-	readonly selected: ITunnelGatewaySelectedInfo;
 }
 
 /**
@@ -335,41 +155,6 @@ export interface ITunnelAgentHostMainService {
 	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult>;
 
 	/**
-	 * Prepare a protocol-v6 registry-based endpoint selection: connects the
-	 * dev tunnel relay and opens the gateway's selection WebSocket route
-	 * ({@link TUNNEL_GATEWAY_SELECT_PATH}), returning its one-time inventory
-	 * of live agent host endpoints. The gateway WebSocket and relay client
-	 * are held pending (keyed by the returned `selectionId`) until
-	 * {@link completeSelection} or {@link cancelSelection} is called.
-	 *
-	 * Returns `undefined` when the tunnel's advertised protocol version is
-	 * below {@link TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION}: callers must fall
-	 * back to the legacy {@link connect} in that case, which preserves the
-	 * v5 direct-reuse behavior with no picker.
-	 *
-	 * @param token The user's access token (GitHub or Microsoft).
-	 * @param authProvider The auth provider that issued the token.
-	 * @param tunnelId The tunnel ID to connect to.
-	 * @param clusterId The cluster region of the tunnel.
-	 */
-	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined>;
-
-	/**
-	 * Complete a selection previously started with {@link prepareSelection}:
-	 * sends the selection message over the pending gateway WebSocket, awaits
-	 * its ready acknowledgement, and registers the resulting relay
-	 * connection the same way {@link connect} does.
-	 */
-	completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult>;
-
-	/**
-	 * Cancel and dispose a pending selection without completing it (e.g.
-	 * the user dismissed the picker). Safe to call even if `selectionId` is
-	 * unknown or was already completed/cancelled.
-	 */
-	cancelSelection(selectionId: string): Promise<void>;
-
-	/**
 	 * Send a message to a remote agent host through the tunnel relay.
 	 */
 	relaySend(connectionId: string, message: string): Promise<void>;
@@ -405,13 +190,8 @@ export interface ITunnelAgentHostService {
 	 *
 	 * @param tunnel The tunnel to connect to.
 	 * @param authProvider Optional auth provider to use. If omitted, uses cached/last known.
-	 * @param options.userInitiated Whether this connection was explicitly
-	 * requested by the user (default `true`). When `false` (background/auto
-	 * connect), a protocol-v6 gateway selection must never prompt via
-	 * {@link IQuickInputService} and must never choose an `editor` endpoint —
-	 * it deterministically reuses a standalone or spawns `newDedicated`.
 	 */
-	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
+	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void>;
 
 	/**
 	 * Disconnect from a tunnel agent host.
