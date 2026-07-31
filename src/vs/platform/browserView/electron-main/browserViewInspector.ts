@@ -5,12 +5,13 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IElementData, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
+import { IBrowserElementSelectionOptions, IElementData, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
 
 interface IActiveSelection extends IDisposable {
+	readonly options?: IBrowserElementSelectionOptions;
 }
 
 export interface IElementHandle extends IDisposable {
@@ -240,8 +241,9 @@ export class BrowserViewInspector extends Disposable {
 		});
 
 		// If element selection is currently active, start it on the new frame
-		if (this._activeSelection.value) {
-			inspector.startInspection().catch(() => { });
+		const activeSelection = this._activeSelection.value;
+		if (activeSelection) {
+			inspector.startInspection(activeSelection.options ?? {}).catch(() => { });
 		}
 
 		inspector.setTheme(this._theme);
@@ -258,7 +260,7 @@ export class BrowserViewInspector extends Disposable {
 	/**
 	 * Toggle element selection mode across all frames.
 	 */
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
+	async toggleElementSelection(enabled?: boolean, options: IBrowserElementSelectionOptions = {}): Promise<void> {
 		const newEnabled = enabled ?? !this._elementSelectionActive;
 		if (newEnabled === this._elementSelectionActive) {
 			return;
@@ -273,10 +275,11 @@ export class BrowserViewInspector extends Disposable {
 		// cancels the other so both pickers never overlay the page at once.
 		this._activeAreaSelection.clear();
 
-		const start = () => Promise.all([...this._registry.inspectors].map(i => i.startInspection()));
+		const start = () => Promise.all([...this._registry.inspectors].map(i => i.startInspection(options)));
 		const stop = () => Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
 
 		const selection: IActiveSelection = {
+			options,
 			dispose: () => {
 				if (this._activeSelection.value === selection) {
 					this._elementSelectionActive = false;

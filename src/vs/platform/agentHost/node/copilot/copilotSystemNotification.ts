@@ -55,6 +55,13 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 				messageText: localize('agentHost.copilot.systemNotification.instructionDiscovered', "Instruction discovered: {0}", kind.description ?? kind.sourcePath),
 				startsTurn: false,
 			};
+		case 'unclassified':
+			// External-host notifications that do not match a runtime-owned kind.
+			// Use the cleaned content and wake the agent when idle.
+			return {
+				messageText: content,
+				startsTurn: true,
+			};
 		default:
 			softAssertNever(kind);
 			return undefined;

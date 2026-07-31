@@ -29,8 +29,8 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, ToolCallContributorKind, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	runAhpSnapshotTest, type IAgentHostE2EProviderConfig,
@@ -45,6 +45,7 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	shellToolName: 'bash',
 	subagentToolNames: ['task'],
 	exitPlanModeToolName: 'exit_plan_mode',
+	streamingFileCreateToolName: 'create',
 	// The shared suite runs by default in deterministic replay mode (tokenless,
 	// against committed fixtures). Recording new fixtures is opt-in via
 	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).
@@ -57,7 +58,10 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
+	supportsFileTools: true,
 };
+
+const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -103,6 +107,27 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs);
+
+		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
+			.find(action => action.toolName === 'get_magic_word');
+		const ready = start && client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallReadyAction)
+			.find(action => action.toolCallId === start.toolCallId);
+		const deltas = start && client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallDeltaAction)
+			.filter(action => action.toolCallId === start.toolCallId);
+
+		// The AHP snapshot projects contributor metadata only on Start, so Ready ownership needs an explicit assertion.
+		assert.deepStrictEqual({
+			startContributor: start?.contributor,
+			readyContributor: ready?.contributor,
+			deltaCount: deltas?.length,
+		}, {
+			startContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
+			readyContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
+			deltaCount: 0,
+		});
 	});
 
 	test('client tool disconnect before permission still completes the turn', async function () {
@@ -161,6 +186,88 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			return envelope.serverSeq > failedCompletionSeq && action.toolCallId === toolCallId;
 		});
 		assert.deepStrictEqual(staleReady, []);
+	});
+
+	(RECORD_ONLY ? test : test.skip)('accepted steering followed by abort does not block the replacement turn', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-steering-abort-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-steering-abort';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId,
+					displayName: 'Test Client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns a magic word. Call this tool when explicitly asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+		const initialTurnId = 'turn-steering-abort-initial';
+		dispatchTurn(client, sessionUri, initialTurnId, 'Explain the history of source control in detail.', 2);
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'),
+			90_000);
+
+		const steeringId = 'steering-before-abort';
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 3,
+			action: {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: steeringId,
+				message: {
+					text: 'Call get_magic_word exactly once, then report its result.',
+					origin: { kind: MessageKind.User },
+				},
+			},
+		});
+		await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/pendingMessageRemoved')) {
+				return false;
+			}
+			return (getActionEnvelope(n).action as { id?: string }).id === steeringId;
+		}, 60_000);
+
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 4,
+			action: {
+				type: ActionType.ChatTurnCancelled,
+				turnId: initialTurnId,
+				duration: 0,
+			},
+		});
+		const replacementTurnId = 'turn-steering-abort-replacement';
+		dispatchTurn(client, sessionUri, replacementTurnId, 'Reply with exactly "replacement-ok". Do not use tools.', 5);
+
+		await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnComplete')) {
+				return false;
+			}
+			return (getActionEnvelope(n).action as { turnId?: string }).turnId === replacementTurnId;
+		}, 90_000);
+
+		const state = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual({
+			activeTurn: state.activeTurn,
+			inputNeeded: state.inputNeeded,
+			replacementState: state.turns.find(turn => turn.id === replacementTurnId)?.state,
+		}, {
+			activeTurn: undefined,
+			inputNeeded: undefined,
+			replacementState: 'complete',
+		});
 	});
 
 	suiteTeardown(async function () {

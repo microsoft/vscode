@@ -20,7 +20,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
@@ -31,9 +31,10 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISess
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -121,6 +122,16 @@ class TestProgressService extends mock<IProgressService>() {
 	}
 }
 
+class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagementService>() {
+	trusted = true;
+	readonly requestedUris: URI[] = [];
+
+	override async getUriTrustInfo(uri: URI) {
+		this.requestedUris.push(uri);
+		return { uri, trusted: this.trusted };
+	}
+}
+
 class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 	override readonly onDidChangeProviders = Event.None;
 
@@ -176,7 +187,12 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async createSideChat(_sessionId: string, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 }
 
-function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService } {
+function createSessionsManagementService(
+	session: ISession,
+	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
+	provider: ISessionsProvider = new TestSessionsProvider(session),
+	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = new TestChatService();
@@ -192,6 +208,7 @@ function createSessionsManagementService(session: ISession, disposables: ReturnT
 	instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
 		override moveHistory(): void { }
 	});
+	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const view = createView(instantiationService, service, disposables);
@@ -217,6 +234,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
+	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService())));
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -917,6 +935,63 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('createAndSendNewChatRequest refuses an untrusted required workspace before creating a session', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const folderUri = URI.parse('test:///folder');
+		let resolveCount = 0;
+		let createCount = 0;
+		let sendCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(uri: URI): ISessionWorkspace {
+				resolveCount++;
+				return {
+					uri,
+					label: 'Test',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: true,
+					isVirtualWorkspace: false,
+				};
+			}
+			override createNewSession(): ISession {
+				createCount++;
+				return session;
+			}
+			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+				sendCount++;
+				return session;
+			}
+		}(session);
+		const workspaceTrustManagementService = new TestWorkspaceTrustManagementService();
+		workspaceTrustManagementService.trusted = false;
+		const { service } = createSessionsManagementService(session, disposables, provider, workspaceTrustManagementService);
+
+		await assert.rejects(
+			service.createAndSendNewChatRequest(folderUri, { query: 'hi' }),
+			WorkspaceNotTrustedError,
+		);
+		workspaceTrustManagementService.trusted = true;
+		await service.createAndSendNewChatRequest(folderUri, { query: 'hi' });
+
+		assert.deepStrictEqual({
+			requestedUris: workspaceTrustManagementService.requestedUris.map(uri => uri.toString()),
+			resolveCount,
+			createCount,
+			sendCount,
+		}, {
+			requestedUris: [folderUri.toString(), folderUri.toString()],
+			resolveCount: 2,
+			createCount: 1,
+			sendCount: 1,
+		});
+	});
+
 	test('target availability requires the requested provider and session type to be advertised', () => {
 		const session = stubSession({ sessionId: 's1', providerId: 'test' });
 		const availableFolder = URI.parse('test:///available');
@@ -1189,6 +1264,7 @@ suite('SessionsManagementService', () => {
 			override setPermissionLevel(_sessionId: string, _level: string): void { calls.push(`setPermissionLevel:${_level}`); }
 			override async setIsolationMode(_sessionId: string, _mode: string): Promise<void> { calls.push(`setIsolationMode:${_mode}`); }
 			override async setBranch(_sessionId: string, _branch: string): Promise<void> { calls.push(`setBranch:${_branch}`); }
+			override async setWorktreeBranchTrack(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeBranchTrack:${_enabled}`); }
 			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return session; }
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
@@ -1198,6 +1274,7 @@ suite('SessionsManagementService', () => {
 			modeId: 'agent',
 			permissionLevel: 'allowedTools',
 			isolationMode: 'worktree',
+			worktreeBranchTrack: false,
 			branch: 'main',
 		};
 		const result = await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, createOptions);
@@ -1208,6 +1285,7 @@ suite('SessionsManagementService', () => {
 			'setMode:agent',
 			'setPermissionLevel:allowedTools',
 			'setIsolationMode:worktree',
+			'setWorktreeBranchTrack:false',
 			'setBranch:main',
 		]);
 	});
@@ -1374,6 +1452,8 @@ suite('SessionsManagementService', () => {
 			mainChat: constObservable(chat),
 		});
 		const isolationDone = new DeferredPromise<void>();
+		const branchTrackStarted = new DeferredPromise<void>();
+		const branchTrackDone = new DeferredPromise<void>();
 		const branchStarted = new DeferredPromise<void>();
 		const branchDone = new DeferredPromise<void>();
 		const calls: string[] = [];
@@ -1383,6 +1463,12 @@ suite('SessionsManagementService', () => {
 				calls.push('isolation:start');
 				await isolationDone.p;
 				calls.push('isolation:end');
+			}
+			override async setWorktreeBranchTrack(): Promise<void> {
+				calls.push('branchTrack:start');
+				await branchTrackStarted.complete();
+				await branchTrackDone.p;
+				calls.push('branchTrack:end');
 			}
 			override async setBranch(): Promise<void> {
 				calls.push('branch:start');
@@ -1399,18 +1485,23 @@ suite('SessionsManagementService', () => {
 
 		const request = service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
 			isolationMode: 'worktree',
+			worktreeBranchTrack: false,
 			branch: 'main',
 		});
 		await Promise.resolve();
 		assert.deepStrictEqual(calls, ['isolation:start']);
 
 		await isolationDone.complete();
+		await branchTrackStarted.p;
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start']);
+
+		await branchTrackDone.complete();
 		await branchStarted.p;
-		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start']);
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start', 'branchTrack:end', 'branch:start']);
 
 		await branchDone.complete();
 		await request;
-		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start', 'branch:end', 'send']);
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start', 'branchTrack:end', 'branch:start', 'branch:end', 'send']);
 	});
 
 	test('createAndSendNewChatRequest cancels pending repository configuration and disposes the draft', async () => {

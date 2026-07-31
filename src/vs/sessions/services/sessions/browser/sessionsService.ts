@@ -25,6 +25,7 @@ import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService } from './sessionsPartService.js';
+import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 
@@ -233,6 +234,9 @@ export interface ISessionsService {
 	/** Make the given (already visible) session the active session. */
 	setActive(session: IActiveSession | undefined): void;
 
+	/** Submit the live input in the active new-session composer. */
+	submitNewSessionInput(): Promise<boolean>;
+
 	/**
 	 * Restore the sessions that were visible in the grid from persisted state.
 	 * Restores their order, sticky (pinned) state and the active session,
@@ -305,6 +309,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
@@ -583,6 +588,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * Cancel any in-flight open-session/restore and return a fresh cancellation token.
 	 */
 	private _startOpenSession(): CancellationToken {
+		// Opening a session is the gesture that dismisses a custom view; the
+		// workbench then restores the sessions grid and its side panel state.
+		this.customViewService.hideCustomView();
+
 		this._openSessionCts.value?.cancel();
 		const cts = new CancellationTokenSource();
 		this._openSessionCts.value = cts;
@@ -802,6 +811,25 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	setActive(session: IActiveSession | undefined): void {
 		this._activate(session);
+	}
+
+	async submitNewSessionInput(): Promise<boolean> {
+		let activeSession = this.activeSession.get();
+		if (activeSession?.isCreated.get()) {
+			return false;
+		}
+
+		// The composer is not necessarily mounted in the grid (e.g. every slot
+		// holds a created session), so open it before submitting into it.
+		if (!this.sessionsPartService.getSessionView(activeSession?.sessionId)) {
+			await this.openNewSession();
+			activeSession = this.activeSession.get();
+			if (activeSession?.isCreated.get()) {
+				return false;
+			}
+		}
+
+		return this.sessionsPartService.getSessionView(activeSession?.sessionId)?.submitInput() ?? false;
 	}
 
 	toggleSessionStickiness(session: ISession): void {

@@ -19,6 +19,10 @@ const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const MAX_RECENT_WORKSPACES = 10;
 const MAX_VSCODE_RECENT_WORKSPACES = 10;
 
+function hasWorktreesPathSegment(uri: URI): boolean {
+	return uri.path.split('/').some(segment => segment.toLowerCase().endsWith('.worktrees'));
+}
+
 /** A recently used folder, resolved to its workspace. `checked` marks the currently selected folder in the new-session workspace picker. */
 export interface IRecentWorkspace {
 	readonly workspace: ISessionWorkspace;
@@ -168,6 +172,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			.filter(isRecentFolder)
 			.map(f => f.folderUri)
 			.filter(uri => !basename(uri).startsWith('copilot-'))
+			.filter(uri => !hasWorktreesPathSegment(uri))
 			.slice(0, MAX_VSCODE_RECENT_WORKSPACES);
 		this._onDidChangeRecentWorkspaces.fire();
 	}

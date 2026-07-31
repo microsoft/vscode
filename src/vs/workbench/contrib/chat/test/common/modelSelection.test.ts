@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
-import { IModelSelectionMemory, IModelSelectionModelsContext, IModelSelectionSessionContext, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierFromCatalog, transitionModelSelection } from '../../common/modelSelection.js';
+import { IModelSelectionMemory, IModelSelectionModelsContext, IModelSelectionSessionContext, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierFromCatalog, resolveModelIdentifierFromLanguageModels, transitionModelSelection } from '../../common/modelSelection.js';
 
 function model(identifier: string, metadataId = identifier, family = identifier, version = '1.0'): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -133,6 +133,33 @@ suite('ModelSelection', () => {
 			emptyLocal: { kind: 'pending', identifier: localDesired },
 			emptyRemote: { kind: 'pending', identifier: remoteDesired },
 			loadedWithout: { kind: 'unavailable', identifier: localDesired },
+		});
+	});
+
+	test('treats an agent-host pool of only bridged BYOK models as still loading (pending)', () => {
+		// The agent host mirrors the workbench's BYOK models into its pool as soon as the bridge is
+		// up, but its own catalog only arrives once it has connected and authenticated. That first
+		// wave must not make the vendor look live, or a restored session's model resolves as
+		// `unavailable` and the restore falls back to an arbitrary bridged model.
+		const sessionType = 'agent-host-copilotcli';
+		const hostModel = (identifier: string, byokModelIdentifier?: string): ILanguageModelChatMetadataAndIdentifier => {
+			const base = model(identifier);
+			return { ...base, metadata: { ...base.metadata, vendor: sessionType, byokModelIdentifier } };
+		};
+		const desired = hostModel('agent-host-copilotcli:gpt-5.6-sol');
+		const bridged = hostModel('agent-host-copilotcli:openrouter/ai21/jamba-large-1.7', 'openrouter/OpenRouter/ai21/jamba-large-1.7');
+		const languageModelsService = { hasResolvedVendor: () => true };
+		const resolve = (allModels: ILanguageModelChatMetadataAndIdentifier[]) =>
+			resolveModelIdentifierFromLanguageModels(allModels, desired.identifier, languageModelsService, allModels);
+
+		assert.deepStrictEqual({
+			bridgedOnly: resolve([bridged]),
+			ownModelsPublished: resolve([bridged, desired]),
+			ownModelsPublishedWithout: resolve([bridged, hostModel('agent-host-copilotcli:auto')]),
+		}, {
+			bridgedOnly: { kind: 'pending', identifier: desired.identifier },
+			ownModelsPublished: { kind: 'available', model: desired },
+			ownModelsPublishedWithout: { kind: 'unavailable', identifier: desired.identifier },
 		});
 	});
 

@@ -74,12 +74,12 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	) {
 		super();
 
-		const enabled = agentHostEnablementService.enabled;
+		const enabled = agentHostEnablementService.enabled.get();
 		const connection = this._remoteAgentService.getConnection();
 		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!enabled) {
-			this._logService.info(`${LOG_PREFIX} Disabled via "chat.agentHost.enabled" or web runtime. Not connecting.`);
+			this._logService.info(`${LOG_PREFIX} Disabled via configuration, policy, or runtime availability. Not connecting.`);
 			this.setAuthenticationPending(false);
 			return;
 		}
@@ -136,6 +136,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+	}
+
+	startAgentHost(): void {
+		this._connect().catch(err => this._logService.warn(`${LOG_PREFIX} Connect failed`, err));
 	}
 
 	async restartAgentHost(): Promise<void> {

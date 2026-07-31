@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Raw } from '@vscode/prompt-tsx';
+import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
@@ -529,6 +529,56 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				apikey: 'supabase-style-key',
 				authorization: undefined,
 				dashedApiKey: undefined,
+			});
+		});
+
+		it('issue #327794: normalizes switched-model tool call IDs for Kimi custom Chat Completions endpoints', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.id = 'kimi-k2.7-code';
+			metadata.capabilities.family = 'kimi-k2.7-code';
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const originalToolCallId = 'chatcmpl-tool-948068bb6570be33';
+
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [
+					{
+						role: Raw.ChatRole.Assistant,
+						content: [],
+						toolCalls: [{
+							id: originalToolCallId,
+							type: 'function',
+							function: { name: 'read_file', arguments: '{}' }
+						}]
+					},
+					{
+						role: Raw.ChatRole.Tool,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' }],
+						toolCallId: originalToolCallId
+					}
+				],
+				requestId: 'test-req-kimi-model-switch',
+				postOptions: { temperature: 0, top_p: 1 },
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect(body).toMatchObject({
+				messages: [
+					{
+						role: OpenAI.ChatRole.Assistant,
+						tool_calls: [{ id: 'functions.read_file:0' }]
+					},
+					{
+						role: OpenAI.ChatRole.Tool,
+						tool_call_id: 'functions.read_file:0'
+					}
+				],
+				temperature: 0,
+				top_p: 1
 			});
 		});
 
