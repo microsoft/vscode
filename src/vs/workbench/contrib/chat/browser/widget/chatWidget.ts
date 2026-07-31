@@ -91,8 +91,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
-import { IChatPetService } from '../chatPetService.js';
+import { ChatPetWidget } from './chatPetWidget.js';
 
 const $ = dom.$;
 
@@ -457,7 +456,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatGoalSummaryService private readonly chatGoalSummaryService: IChatGoalSummaryService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
-		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -806,16 +804,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
-			const targetWindow = dom.getWindow(this.container);
-			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
-			this._register(this.chatWidgetService.onDidChangeFocusedWidget(focusedWidget => {
-				if (focusedWidget && dom.getWindow(focusedWidget.domNode) === targetWindow) {
-					isLatestFocusedWidgetInWindow.set(focusedWidget === this, undefined);
-				}
-			}));
-			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
-			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petVisible.read(reader))));
-			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petVisible, this.inputEditor.onDidChangeModelContent));
+			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, this.inputEditor.onDidChangeModelContent));
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
