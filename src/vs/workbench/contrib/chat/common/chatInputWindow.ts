@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleInputWindow';
@@ -34,6 +35,12 @@ export interface IChatInputWindowService {
 	 * Fires when the window opens or closes.
 	 */
 	readonly onDidChangeOpen: Event<boolean>;
+
+	/** Fires when omni resolves a single voice routing target. */
+	readonly onDidResolveRoute: Event<{ resource: URI | undefined; kind?: 'existing_session' | 'new_session' }>;
+
+	/** Routes voice input through omni when its auxiliary window owns focus. */
+	acceptVoiceInput(text: string): Promise<boolean>;
 
 	/**
 	 * Opens the floating chat input window. No-op if already open.

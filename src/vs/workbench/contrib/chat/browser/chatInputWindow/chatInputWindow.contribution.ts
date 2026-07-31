@@ -5,7 +5,9 @@
 
 import * as nls from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
@@ -21,6 +23,20 @@ const inputWindowEnabled = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals(`config.${OmniChatEnabledSettingId}`, true)
 );
+
+CommandsRegistry.registerCommand('_chat.omni.acceptVoiceInput', (accessor, text: string) => {
+	return accessor.get(IChatInputWindowService).acceptVoiceInput(text);
+});
+
+let voiceRoutingBridge: IDisposable | undefined;
+function ensureVoiceRoutingBridge(accessor: ServicesAccessor, service: IChatInputWindowService): void {
+	if (!voiceRoutingBridge) {
+		const commandService = accessor.get(ICommandService);
+		voiceRoutingBridge = service.onDidResolveRoute(({ resource, kind }) => {
+			commandService.executeCommand('_chat.voice.setOmniTarget', resource?.toString(), kind).catch(() => { });
+		});
+	}
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -49,6 +65,7 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const chatInputWindowService = accessor.get(IChatInputWindowService);
+		ensureVoiceRoutingBridge(accessor, chatInputWindowService);
 		await chatInputWindowService.toggleWindow();
 	}
 });

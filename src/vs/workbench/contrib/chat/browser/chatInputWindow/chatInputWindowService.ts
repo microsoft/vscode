@@ -16,7 +16,6 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
@@ -49,6 +48,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private readonly _onDidChangeOpen = this._register(new Emitter<boolean>());
 	readonly onDidChangeOpen: Event<boolean> = this._onDidChangeOpen.event;
+	private readonly _onDidResolveRoute = this._register(new Emitter<{ resource: URI | undefined; kind?: 'existing_session' | 'new_session' }>());
+	readonly onDidResolveRoute = this._onDidResolveRoute.event;
 
 	private readonly _auxiliaryWindowRef = this._register(new MutableDisposable());
 	private _window: IAuxiliaryWindow | undefined;
@@ -80,11 +81,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
-
-		this._register(CommandsRegistry.registerCommand('_chat.omni.acceptVoiceInput', (_accessor, text: string) => this.acceptVoiceInput(text)));
 
 		const ownershipChannel = new BroadcastChannel('chat-input-window-ownership');
 		ownershipChannel.onmessage = (e) => {
@@ -328,7 +326,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
 			onDidResolveRoute: (resource, kind) => {
-				this.commandService.executeCommand('_chat.voice.setOmniTarget', resource?.toString(), kind).catch(() => { });
+				this._onDidResolveRoute.fire({ resource, kind });
 			},
 			placeBadge: (badge) => {
 				const container = this._window?.container;
