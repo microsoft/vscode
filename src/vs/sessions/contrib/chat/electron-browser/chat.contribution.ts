@@ -175,7 +175,6 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	private async selectFolder(folderUri: URI): Promise<void> {
 		// Wait for the welcome/setup flow to complete before selecting the folder
 		await this.sessionsSetUpService.whenWelcomeDone();
-		this.logService.info(`[AgentsHandoff] selecting folder: ${folderUri.toString()}`);
 
 		await this.sessionsService.openNewSession();
 
@@ -187,34 +186,47 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 		const listener = this._register(new MutableDisposable());
 		let opening = false;
-		const openWhenAvailable = (): Promise<void> | undefined => {
-			const available = this.sessionsManagementService.isNewSessionTargetAvailable(folderUri);
-			this.logService.info(`[AgentsHandoff] folder target check: available=${available}, opening=${opening}`);
-			if (opening || !available) {
-				return undefined;
+		let checkPending = false;
+		const openWhenAvailable = async (): Promise<void> => {
+			if (opening) {
+				checkPending = true;
+				return;
 			}
+			if (!this.sessionsManagementService.isNewSessionTargetAvailable(folderUri)) {
+				return;
+			}
+
 			opening = true;
-			listener.clear();
-			return this.openFolderDraft(folderUri);
+			try {
+				if (await this.openFolderDraft(folderUri)) {
+					listener.clear();
+				}
+			} finally {
+				opening = false;
+				if (checkPending) {
+					checkPending = false;
+					void openWhenAvailable().catch(error => this.logService.error('[AgentsHandoff] failed to open folder draft', error));
+				}
+			}
 		};
 		listener.value = this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			void openWhenAvailable()?.catch(error => this.logService.error('[AgentsHandoff] failed to open folder draft', error));
+			void openWhenAvailable().catch(error => this.logService.error('[AgentsHandoff] failed to open folder draft', error));
 		});
 		await openWhenAvailable();
 	}
 
-	private async openFolderDraft(folderUri: URI): Promise<void> {
+	private async openFolderDraft(folderUri: URI): Promise<boolean> {
 		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession && activeSession.status.get() !== SessionStatus.Untitled) {
-			return;
+			return true;
 		}
 		const result = await this.sessionsService.openNewSession({ folderUri });
-		this.logService.info(`[AgentsHandoff] folder draft result: session=${result.session?.sessionId ?? '(none)'}, trustDeclined=${result.trustDeclined}`);
 		if (result.trustDeclined) {
 			this.sessionsRecentWorkspacesService.removeRecentWorkspace(folderUri);
 		} else if (result.session) {
 			this.sessionsRecentWorkspacesService.addRecentWorkspace(folderUri, result.session.providerId, true);
 		}
+		return result.trustDeclined || result.session !== undefined;
 	}
 }
 
