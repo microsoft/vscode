@@ -1021,6 +1021,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.stickyCount;
 	}
 
+	/** The container that bounds the editor pane, excluding any docked content inset. */
+	get editorPaneContainer(): HTMLElement {
+		return this.editorContainer;
+	}
+
 	get activeEditorPane(): IVisibleEditorPane | undefined {
 		return this.editorPane ? this.editorPane.activeEditorPane ?? undefined : undefined;
 	}
