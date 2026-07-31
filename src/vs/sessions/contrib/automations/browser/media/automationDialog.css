@@ -3,25 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * The base `Dialog` component sets `tabIndex = -1` on `.monaco-dialog-box` so it
- * can act as a focus trap: clicks on the modal backdrop yank focus back onto
- * the dialog root, and the `focusout` handler forces focus back when it leaves.
- * Both paths land focus on the dialog root, which the workbench-global
- * `[tabindex="-1"]:focus` rule in `workbench/browser/media/style.css` would
- * otherwise ring with `focusBorder` — producing a visible flash on every
- * backdrop click.
- *
- * We suppress that outline only for our extra class and only for the container
- * itself. Prefixing with `.monaco-workbench` bumps specificity above the
- * global rule so this override wins regardless of stylesheet insertion order.
- * Focus rings on interactive children (inputs, buttons) inside the dialog are
- * unaffected.
- *
- * This file is imported from `automationDialogService.ts` so the override is
- * guaranteed to be loaded whenever the dialog can be shown, without depending
- * on any AI-Customization surface having been visited first.
- */
+/* The dialog root receives focus when the backdrop is clicked. */
 .monaco-workbench .monaco-dialog-box.automation-dialog:focus {
 	outline: none;
 }

@@ -577,12 +577,6 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-/* Shortcut sections act like buttons — never show the list focus outline */
-.monaco-list-row.focused:has(.session-section-shortcut),
-.monaco-list-row.selected:has(.session-section-shortcut) {
-	outline: none !important;
-}
-
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
 .monaco-list-row.focused .session-section .session-section-chevron.collapsible {
 	display: flex;
@@ -612,8 +606,7 @@
 		color: var(--vscode-strongForeground);
 	}
 
-	/* Shortcut sections (Automations) should not change label/icon color on focus/selected — only hover.
-	   Exception: when active (editor open), keep the bright color to match the active background. */
+	/* Shortcut sections only change label and icon color on hover, unless active. */
 	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-label,
 	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-icon {
 		color: var(--vscode-descriptionForeground);

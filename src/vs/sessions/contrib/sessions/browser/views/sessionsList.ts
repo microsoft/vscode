@@ -987,6 +987,26 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
 	private readonly readAutomationRunIds: Set<string>;
 	private readonly readStateVersion = observableValue<number>('automationReadState', 0);
+	readonly automationStatus = derived(this, reader => {
+		const runs = this.automationService.runs.read(reader);
+		this.readStateVersion.read(reader);
+		const hasUnreadRun = (status: 'completed' | 'failed') => runs.some(run =>
+			run.status === status
+			&& !!run.sessionResource
+			&& !!this.sessionsManagementService.getSession(URI.parse(run.sessionResource))
+			&& !this.readAutomationRunIds.has(run.id)
+		);
+		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
+			return SessionStatus.InProgress;
+		}
+		if (hasUnreadRun('failed')) {
+			return SessionStatus.Error;
+		}
+		if (hasUnreadRun('completed')) {
+			return SessionStatus.Completed;
+		}
+		return undefined;
+	});
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -1062,20 +1082,14 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 				this.readStateVersion.set(this.readStateVersion.get() + 1, undefined);
 			}));
 			template.elementDisposables.add(autorun(reader => {
-				const runs = this.automationService.runs.read(reader);
-				this.readStateVersion.read(reader);
-				const hasActiveRun = runs.some(run => run.status === 'pending' || run.status === 'running');
-				const hasUnreadCompletedRun = runs.some(run =>
-					(run.status === 'completed' || run.status === 'failed')
-					&& !!run.sessionResource
-					&& !!this.sessionsManagementService.getSession(URI.parse(run.sessionResource))
-					&& !this.readAutomationRunIds.has(run.id)
-				);
-
-				if (hasActiveRun) {
+				const automationStatus = this.automationStatus.read(reader);
+				if (automationStatus === SessionStatus.InProgress) {
 					template.statusIndicator.style.display = '';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
-				} else if (hasUnreadCompletedRun) {
+				} else if (automationStatus === SessionStatus.Error) {
+					template.statusIndicator.style.display = '';
+					statusIcon.setStatus(SessionStatus.Error, false, false);
+				} else if (automationStatus === SessionStatus.Completed) {
 					template.statusIndicator.style.display = '';
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
@@ -1391,6 +1405,8 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 //#region Accessibility
 
 class SessionsAccessibilityProvider {
+	constructor(private readonly automationStatus?: IObservable<SessionStatus | undefined>) { }
+
 	getWidgetAriaLabel(): string {
 		return localize('sessionsList', "Sessions");
 	}
@@ -1401,7 +1417,20 @@ class SessionsAccessibilityProvider {
 		}
 		if (isSessionSection(element)) {
 			if (element.id === AUTOMATIONS_SECTION_ID) {
-				return element.label;
+				return this.automationStatus
+					? derived(this, reader => {
+						switch (this.automationStatus?.read(reader)) {
+							case SessionStatus.InProgress:
+								return localize('automationsActiveAria', "{0}, run in progress", element.label);
+							case SessionStatus.Error:
+								return localize('automationsUnreadFailedAria', "{0}, unread failed run", element.label);
+							case SessionStatus.Completed:
+								return localize('automationsUnreadCompletedAria', "{0}, unread completed run", element.label);
+							default:
+								return element.label;
+						}
+					})
+					: element.label;
 			}
 			return `${element.label}, ${element.sessions.length}`;
 		}
@@ -2041,7 +2070,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				placeholderRenderer,
 			],
 			{
-				accessibilityProvider: new SessionsAccessibilityProvider(),
+				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
 					isSessionPinned: session => this.isSessionPinned(session),
@@ -2184,7 +2213,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the `IsPhoneLayoutContext` reactive signal already maintained by
 		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
+		const automationKeys = new Set<string>([ChatAutomationsEnabledContext.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(automationKeys)) {
+				this.update();
+			}
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
