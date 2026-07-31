@@ -62,6 +62,13 @@ export interface BYOKModelCapabilities {
 	contextWindow?: number;
 	toolCalling: boolean;
 	vision: boolean;
+	/**
+	 * Whether the model accepts native PDF document content parts. When unset,
+	 * falls back to the family-based `modelSupportsPDFDocuments` heuristic, so
+	 * a compatible custom endpoint no longer needs to masquerade as an
+	 * allowlisted model family just to unlock PDF attachments.
+	 */
+	pdfInput?: boolean;
 	thinking?: boolean;
 	adaptiveThinking?: boolean;
 	streaming?: boolean;
@@ -154,6 +161,7 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				streaming: knownModelInfo?.streaming ?? true,
 				tool_calls: !!knownModelInfo?.toolCalling,
 				vision: !!knownModelInfo?.vision,
+				pdf_documents: knownModelInfo?.pdfInput,
 				thinking: !!knownModelInfo?.thinking,
 				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
 				reasoning_effort: knownModelInfo?.supportsReasoningEffort

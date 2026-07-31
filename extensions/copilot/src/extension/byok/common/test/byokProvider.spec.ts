@@ -134,6 +134,26 @@ describe('resolveModelInfo', () => {
 
 		expect(info.capabilities.limits?.max_context_window_tokens).toBe(128000);
 	});
+
+	it('propagates an explicit pdfInput declaration into capabilities.supports.pdf_documents', () => {
+		const supportsPdf = resolveModelInfo('m1', 'TestProvider', undefined, {
+			...baseCapabilities,
+			pdfInput: true,
+		});
+		const rejectsPdf = resolveModelInfo('m1', 'TestProvider', undefined, {
+			...baseCapabilities,
+			pdfInput: false,
+		});
+
+		expect(supportsPdf.capabilities.supports.pdf_documents).toBe(true);
+		expect(rejectsPdf.capabilities.supports.pdf_documents).toBe(false);
+	});
+
+	it('leaves pdf_documents undefined when the model does not declare PDF support, so the family heuristic decides', () => {
+		const info = resolveModelInfo('m1', 'TestProvider', undefined, baseCapabilities);
+
+		expect(info.capabilities.supports.pdf_documents).toBeUndefined();
+	});
 });
 
 describe('resolveModelTokenLimits', () => {

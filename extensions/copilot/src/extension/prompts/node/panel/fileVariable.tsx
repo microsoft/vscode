@@ -9,7 +9,6 @@ import { UserMessage } from '@vscode/prompt-tsx/dist/base/promptElements';
 import { AbstractDocumentWithLanguageId } from '../../../../platform/editing/common/abstractText';
 import { NotebookDocumentSnapshot } from '../../../../platform/editing/common/notebookDocumentSnapshot';
 import { TextDocumentSnapshot } from '../../../../platform/editing/common/textDocumentSnapshot';
-import { modelSupportsPDFDocuments } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
 import { IAlternativeNotebookContentService } from '../../../../platform/notebook/common/alternativeContent';
@@ -119,7 +118,7 @@ export class FileVariable extends PromptElement<FileVariableProps, unknown> {
 		}
 
 		if (/\.pdf$/i.test(uri.path)) {
-			if (!this.promptEndpoint.supportsVision || !modelSupportsPDFDocuments(this.promptEndpoint)) {
+			if (!this.promptEndpoint.supportsVision || !this.promptEndpoint.supportsPDFDocuments) {
 				if (this.props.omitReferences) {
 					return;
 				}
