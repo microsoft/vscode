@@ -80,6 +80,22 @@ Cookies/login/storage → **sessions**. "Which pages can this client see" → **
 
 When a page must load as if from a remote machine (forwarded `localhost` in a remote workspace, container, or Codespace), a **tunnel proxy is applied to the page's session**; credentials come from the extension host, and navigation can defer until the proxy is live. "Open localhost" isn't always local — remote URLs are rewritten to their forwarded form, and the proxy lives on the **session**, not an individual call.
 
+## Testing strategy
+
+**Keep every test layer lean and scenario-focused.** Tests should protect major functionality whose failure would damage a core browser scenario. Do not encode incidental implementation details, duplicate the same behavior across layers, or add narrow assertions for behavior that could regress without materially breaking the feature.
+
+Choose the lowest-cost layer that can meaningfully prove the behavior:
+
+- **Unit tests** should cover important isolated logic such as state transitions, protocol translation, persistence rules, security gates, and failure handling. Prefer a small set of representative cases over exhaustive tests of trivial branches or private implementation structure.
+- **Widget tests** should cover meaningful renderer UI behavior that can be exercised without a native page: major interaction states, commands, context-key-driven visibility, and rendering that is central to the user scenario. Avoid pixel-level or DOM-structure assertions unless that structure is itself the contract.
+- **Extension API tests** under `extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts` are the preferred integration layer for browser APIs, CDP behavior, browser tools, extension-host wiring, and other cross-process contracts exposed to extensions. They run more of the real stack than unit tests without paying the cost and brittleness of driving the entire workbench UI.
+- **Other E2E integration tests** should verify important process boundaries or runtime integrations that need real services but not the complete workbench journey.
+- **Smoke tests** should be reserved for a new, major feature whose core user path only becomes meaningful when exercised through the actual Electron workbench, renderer/main/shared-process wiring, and native `WebContentsView`.
+
+For smoke coverage, test only the happy-path spine needed to catch a broad full-runtime regression. Use one scenario, or at most a very small number, per major user journey. Do not move detailed variants, edge cases, visual details, or every command into smoke tests; keep those in unit, widget, or extension API tests. Before adding a new smoke test, check whether an existing core-path scenario can be extended without becoming broad or brittle.
+
+When deciding whether to add any test, ask: **if this behavior stopped working, would a major browser scenario be meaningfully broken?** If not, the assertion is probably too detailed. When deciding whether that test must be a smoke test, ask: **would a lower layer miss the failure because the risk exists specifically in the full runtime path?** If not, shift it left.
+
 ## Practical guidance
 
 - **Desktop-only.** Nothing runs in web; add to `electron-*` / `node` and let the `browser/` stubs throw "not available in web".
