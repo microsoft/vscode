@@ -101,6 +101,9 @@ export async function runDictationShortcut(
 	// collapses the behavior to a plain toggle.
 	const holdMode = keybindingService.enableKeybindingHoldMode(commandId);
 	await startDictationFn(speechService, editor, window, logService);
+	if (speechService.state === ChatSpeechToTextState.Recording) {
+		context.onboardingService?.refreshMicrophones(speechService.analyserNode);
+	}
 	if (!holdMode) {
 		return;
 	}

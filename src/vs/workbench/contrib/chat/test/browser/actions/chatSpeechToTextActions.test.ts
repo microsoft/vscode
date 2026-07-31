@@ -33,9 +33,11 @@ suite('Chat Speech to Text Actions', () => {
 
 	test('starts dictation while first-run onboarding is shown', async () => {
 		const calls: string[] = [];
+		let state = ChatSpeechToTextState.Idle;
 		const speechService = new class extends mock<IChatSpeechToTextService>() {
-			override readonly state = ChatSpeechToTextState.Idle;
+			override get state(): ChatSpeechToTextState { return state; }
 			override readonly isPreparingModel = false;
+			override readonly analyserNode = new class extends mock<AnalyserNode>() { };
 		};
 		const keybindingService = new class extends mock<IKeybindingService>() {
 			override enableKeybindingHoldMode(): Promise<void> | undefined {
@@ -46,6 +48,9 @@ suite('Chat Speech to Text Actions', () => {
 			override showIfNeeded(): boolean {
 				calls.push('showIfNeeded');
 				return true;
+			}
+			override refreshMicrophones(analyserNode?: AnalyserNode): void {
+				calls.push(`refreshMicrophones:${analyserNode === speechService.analyserNode}`);
 			}
 		};
 		const editor = new class extends mock<ICodeEditor>() {
@@ -58,9 +63,12 @@ suite('Chat Speech to Text Actions', () => {
 			{ speechService, keybindingService, logService: new NullLogService(), onboardingService },
 			'test.dictation',
 			editor,
-			async () => { calls.push('startDictation'); },
+			async () => {
+				calls.push('startDictation');
+				state = ChatSpeechToTextState.Recording;
+			},
 		);
 
-		assert.deepStrictEqual(calls, ['showIfNeeded', 'startDictation']);
+		assert.deepStrictEqual(calls, ['showIfNeeded', 'startDictation', 'refreshMicrophones:true']);
 	});
 });
