@@ -261,7 +261,7 @@
 		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(135deg);
 	}
 
-	50% {
+		50% {
 		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(225deg);
 	}
 
