@@ -57,7 +57,7 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
 const AGENT_HOST_ENABLED_SETTING_ID = 'chat.agentHost.enabled';
 const AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID = 'chat.agentHost.defaultSessionsProvider';
-const DEFAULT_TO_COPILOT_HARNESS_SETTING_ID = 'chat.defaultToCopilotHarness';
+const COPILOT_CLI_HIDE_EXTENSION_HOST_EDITOR_SETTING_ID = 'chat.editor.copilotCli.hideExtensionHost';
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
@@ -191,7 +191,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
 				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
 			}
-			if (e.affectsConfiguration(AGENT_HOST_ENABLED_SETTING_ID) || e.affectsConfiguration(this.defaultSessionsProviderSettingId)) {
+			if (e.affectsConfiguration(AGENT_HOST_ENABLED_SETTING_ID) || e.affectsConfiguration(this.sessionFileMonitoringDisabledSettingId)) {
 				this.updateSessionFileMonitoring();
 			}
 		}));
@@ -244,13 +244,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return true;
 		}
 
-		return this.configurationService.getNonExtensionConfig<boolean>(this.defaultSessionsProviderSettingId) !== true;
+		return this.configurationService.getNonExtensionConfig<boolean>(this.sessionFileMonitoringDisabledSettingId) !== true;
 	}
 
-	private get defaultSessionsProviderSettingId(): string {
+	private get sessionFileMonitoringDisabledSettingId(): string {
 		return this._agentSessionsWorkspace.isAgentSessionsWorkspace
 			? AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID
-			: DEFAULT_TO_COPILOT_HARNESS_SETTING_ID;
+			: COPILOT_CLI_HIDE_EXTENSION_HOST_EDITOR_SETTING_ID;
 	}
 
 	private updateSessionFileMonitoring(): void {

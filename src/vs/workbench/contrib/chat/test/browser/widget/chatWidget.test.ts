@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { getImmediateSilentSlashCommandPart } from '../../../browser/widget/chatWidget.js';
+import { getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight } from '../../../browser/widget/chatWidget.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 
@@ -66,6 +66,21 @@ suite('ChatWidget', () => {
 			undefined,
 			undefined,
 			undefined,
+		]);
+	});
+
+	test('input height changes update the budget without re-laying out the input', () => {
+		const calls: unknown[] = [];
+		const target = {
+			setInputPartMaxHeightOverride: (height: number | undefined) => calls.push(['setInputPartMaxHeightOverride', height]),
+			layoutForInputHeight: (height: number, width: number) => calls.push(['layoutForInputHeight', height, width]),
+		};
+
+		layoutChatWidgetForInputHeight(target, 600, 420, 720);
+
+		assert.deepStrictEqual(calls, [
+			['setInputPartMaxHeightOverride', 600],
+			['layoutForInputHeight', 420, 720],
 		]);
 	});
 });

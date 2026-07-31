@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import type { ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostRepoInfoTelemetry, measureRepoInfoDiffsJSON, resolveRepoInfoRemote } from '../../node/agentHostRepoInfoTelemetry.js';
@@ -87,13 +88,14 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			reportRepoInfo: async (_context, report) => { reports.push(report); },
 		}, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
-		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
+		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.EditorWindow, root, undefined, () => true);
 		await collector.reportEnd(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
 
 		assert.deepStrictEqual({
 			patches,
 			reports: reports.map(report => ({
 				telemetryMessageId: report.telemetryMessageId,
+				clientType: report.clientType,
 				location: report.location,
 				result: report.result,
 				remoteUrl: report.remoteUrl,
@@ -109,6 +111,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			patches: ['tree-begin', 'tree-end'],
 			reports: [{
 				telemetryMessageId: 'turn-1',
+				clientType: AgentHostClientType.EditorWindow,
 				location: 'begin',
 				result: 'success',
 				remoteUrl: 'https://github.com/microsoft/vscode.git',
@@ -126,6 +129,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 				changedFileCount: 1,
 			}, {
 				telemetryMessageId: 'turn-1',
+				clientType: AgentHostClientType.EditorWindow,
 				location: 'end',
 				result: 'success',
 				remoteUrl: 'https://github.com/microsoft/vscode.git',
@@ -153,7 +157,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		};
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async () => { } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
-		await collector.reportBegin({ ...restrictedContext, restrictedTelemetryEnabled: false, isInternal: false }, 'agent-session://copilot/s1', 'turn-1', URI.file('/repo'), undefined, () => true);
+		await collector.reportBegin({ ...restrictedContext, restrictedTelemetryEnabled: false, isInternal: false }, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.Unknown, URI.file('/repo'), undefined, () => true);
 
 		assert.strictEqual(gitCalls, 0);
 	});
@@ -178,7 +182,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		const reports: IAgentHostRepoInfoReport[] = [];
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
-		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
+		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.AgentsWindow, root, undefined, () => true);
 		await collector.reportEnd(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
 
 		assert.deepStrictEqual({ snapshots, results: reports.map(report => report.result) }, { snapshots: 1, results: ['tooManyChanges'] });
@@ -206,7 +210,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		for (const [index, copilotIgnoreEnabled] of [true, undefined].entries()) {
-			await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled }, 'agent-session://copilot/s1', `turn-${index}`, root, undefined, () => true);
+			await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled }, 'agent-session://copilot/s1', `turn-${index}`, AgentHostClientType.Unknown, root, undefined, () => true);
 		}
 
 		assert.deepStrictEqual({
@@ -254,7 +258,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		};
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
-		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
+		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.EditorWindow, root, undefined, () => true);
 
 		assert.deepStrictEqual(reports.map(report => ({ result: report.result, diffsJSON: report.diffsJSON, fileRelativePaths: report.fileRelativePaths })), [{
 			result: 'filesChanged',
@@ -283,7 +287,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		};
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
-		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
+		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', AgentHostClientType.EditorWindow, root, undefined, () => true);
 
 		const diffs = JSON.parse(reports[0].diffsJSON ?? '[]');
 		assert.deepStrictEqual({

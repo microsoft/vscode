@@ -47,30 +47,52 @@ suite('agentHostClientByokLmChannel', () => {
 		return createAgentHostClientByokLmConnection(channel);
 	}
 
-	test('round-trips a chat request to the handler and back', async () => {
+	test('round-trips a Responses request to the handler and back', async () => {
 		let seen: IByokLmChatRequest | undefined;
 		const connection = bridge(handlerOf(async (request) => {
 			seen = request;
-			return { content: 'pong', toolCalls: [{ id: 'c1', name: 'noop', argumentsJson: '{}' }] };
+			return {
+				responseId: 'resp_1',
+				output: [
+					{ type: 'reasoning', id: 'rs_1', summary: ['thinking'], encryptedContent: 'opaque' },
+					{ type: 'message', content: [{ type: 'text', text: 'pong' }] },
+					{ type: 'function_call', callId: 'c1', name: 'noop', argumentsJson: '{}' },
+				],
+			};
 		}));
 
-		const request: IByokLmChatRequest = { vendor: 'acme', modelId: 'm', messages: [{ role: 'user', content: 'ping' }] };
+		const request: IByokLmChatRequest = {
+			vendor: 'acme',
+			modelId: 'm',
+			previousResponseId: 'resp_0',
+			input: [
+				{ type: 'reasoning', id: 'rs_0', summary: ['previous'], encryptedContent: 'previous-opaque' },
+				{ type: 'message', role: 'user', content: [{ type: 'text', text: 'ping' }] },
+			],
+		};
 		const result = await connection.chat(request);
 
 		assert.deepStrictEqual(seen, request);
-		assert.deepStrictEqual(result, { content: 'pong', toolCalls: [{ id: 'c1', name: 'noop', argumentsJson: '{}' }] });
+		assert.deepStrictEqual(result, {
+			responseId: 'resp_1',
+			output: [
+				{ type: 'reasoning', id: 'rs_1', summary: ['thinking'], encryptedContent: 'opaque' },
+				{ type: 'message', content: [{ type: 'text', text: 'pong' }] },
+				{ type: 'function_call', callId: 'c1', name: 'noop', argumentsJson: '{}' },
+			],
+		});
 	});
 
 	test('forwards a bridge error result unchanged', async () => {
-		const connection = bridge(handlerOf(async () => ({ content: '', error: 'no model' })));
-		const result = await connection.chat({ vendor: 'v', modelId: 'm', messages: [] });
+		const connection = bridge(handlerOf(async () => ({ output: [], error: 'no model' })));
+		const result = await connection.chat({ vendor: 'v', modelId: 'm', input: [] });
 		assert.strictEqual(result.error, 'no model');
 	});
 
 	test('pushes the current model snapshot on subscribe and re-pushes on change', async () => {
 		const onDidChange = store.add(new Emitter<void>());
 		let models: IByokLmModelInfo[] = [{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 128000 }];
-		const connection = bridge(handlerOf(async () => ({ content: '' }), async () => models, onDidChange.event));
+		const connection = bridge(handlerOf(async () => ({ output: [] }), async () => models, onDidChange.event));
 
 		const pushed: IByokLmModelInfo[][] = [];
 		const sub = connection.onDidChangeModels(snapshot => pushed.push(snapshot));
@@ -91,7 +113,7 @@ suite('agentHostClientByokLmChannel', () => {
 	test('coalesces a burst of changes so the final snapshot reflects the latest models', async () => {
 		const onDidChange = store.add(new Emitter<void>());
 		let models: IByokLmModelInfo[] = [{ vendor: 'acme', id: 'v1' }];
-		const connection = bridge(handlerOf(async () => ({ content: '' }), async () => models, onDidChange.event));
+		const connection = bridge(handlerOf(async () => ({ output: [] }), async () => models, onDidChange.event));
 
 		const pushed: IByokLmModelInfo[][] = [];
 		const sub = connection.onDidChangeModels(snapshot => pushed.push(snapshot));
@@ -111,12 +133,12 @@ suite('agentHostClientByokLmChannel', () => {
 	});
 
 	test('rejects unknown channel commands', async () => {
-		const server = new AgentHostClientByokLmChannel(handlerOf(async () => ({ content: '' })), new NullLogService());
+		const server = new AgentHostClientByokLmChannel(handlerOf(async () => ({ output: [] })), new NullLogService());
 		await assert.rejects(() => server.call(null, 'frobnicate'), /Unknown command/);
 	});
 
 	test('exposes only the models event', () => {
-		const server = new AgentHostClientByokLmChannel(handlerOf(async () => ({ content: '' })), new NullLogService());
+		const server = new AgentHostClientByokLmChannel(handlerOf(async () => ({ output: [] })), new NullLogService());
 		assert.throws(() => server.listen(null, 'anything'), /No event/);
 	});
 });

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -67,9 +68,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
 
-		if (this._agentHostEnablementService.enabled) {
-			this._forwarder.start();
-		}
+		this._register(autorun(reader => {
+			if (this._agentHostEnablementService.enabled.read(reader)) {
+				this._forwarder.start();
+			}
+		}));
 	}
 
 	private _pushOnSettingChange(store: DisposableStore, push: () => void, settingId: string): void {
