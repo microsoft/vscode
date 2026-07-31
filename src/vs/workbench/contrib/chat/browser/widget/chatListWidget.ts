@@ -307,7 +307,7 @@ export class ChatListWidget extends Disposable {
 	private _lastItem: ChatTreeItem | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
-	private _suppressAutoScroll: boolean = false;
+	private _autoScrollHolds: number = 0;
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
@@ -909,15 +909,23 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Suppress auto-scroll behavior temporarily. While suppressed,
-	 * _withPersistedAutoScroll will not scroll to bottom after operations.
+	 * Suppresses auto-scrolling to the bottom until the returned disposable is
+	 * disposed. Holds compose, so unrelated features (request editing, an open
+	 * text selection) can suppress concurrently without clobbering each other;
+	 * auto-scroll resumes only once the last hold is released.
 	 */
-	set suppressAutoScroll(value: boolean) {
-		this._suppressAutoScroll = value;
+	acquireAutoScrollHold(): IDisposable {
+		this._autoScrollHolds++;
+		return toDisposable(() => { this._autoScrollHolds--; });
+	}
+
+	/** Whether any {@link acquireAutoScrollHold} hold is currently active. */
+	get isAutoScrollHeld(): boolean {
+		return this._autoScrollHolds > 0;
 	}
 
 	private _withPersistedAutoScroll(fn: () => void): void {
-		if (this._suppressAutoScroll) {
+		if (this.isAutoScrollHeld) {
 			fn();
 			return;
 		}

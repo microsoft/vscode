@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { clamp } from '../../../../base/common/numbers.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -98,6 +99,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private _resolved: IResolvedResponseSelection | undefined;
 	/** Range currently painted via the CSS custom highlight, if any. */
 	private _paintedRange: Range | undefined;
+	/** Pins the transcript while a selection or the question input is active. */
+	private readonly _autoScrollHold = this._register(new MutableDisposable());
 	private _chat: IChat | undefined;
 	/** Bumped on a genuine chat navigation/force-dismiss so a stale submission's completion/error handler can no-op. */
 	private _generation = 0;
@@ -151,8 +154,12 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 		const window = dom.getWindow(this._widget.domNode);
 		this._register(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
-		// Scrolling the transcript invalidates the widget's pinned position; hide rather than drift.
-		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._dismiss(), true));
+		// The transcript is a virtualized list that scrolls by transform, so it
+		// never fires a DOM scroll event; follow its own scroll event instead.
+		// The capture-phase DOM listener additionally covers nested scrollers
+		// (a scrollable code block within a response).
+		this._register(this._widget.onDidScroll(() => this._reposition()));
+		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._reposition(), true));
 		this._register(toDisposable(() => this._paintHighlight(undefined)));
 	}
 
@@ -170,6 +177,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 	}
 
 	private _onSelectionChange(): void {
+		// Reflect the new selection state first: every branch below (including
+		// the early returns) needs the hold to match what is currently selected.
+		this._updateAutoScrollHold();
 		// The browser collapses the document selection the moment the "Ask
 		// Question" textarea receives focus (textareas don't participate in
 		// the Selection API). Ignore selectionchange entirely while focus is
@@ -193,7 +203,32 @@ export class ResponseSelectionSideChatController extends Disposable {
 			return;
 		}
 		this._resolved = resolved;
-		this._showFor(resolved);
+		this._showFor();
+	}
+
+	/**
+	 * Pins the transcript while the user is working with a selection: a growing
+	 * response that scrolls itself to the bottom would otherwise drag the text
+	 * out from under the selection (and the affordance anchored to it). Covers
+	 * any selection in the transcript, not just ones that resolve to a single
+	 * response, since auto-scrolling mid-drag is disruptive either way.
+	 */
+	private _updateAutoScrollHold(): void {
+		const shouldHold = !!this._resolved || this._hasTranscriptSelection();
+		if (shouldHold) {
+			this._autoScrollHold.value ??= this._widget.holdAutoScroll();
+		} else {
+			this._autoScrollHold.clear();
+		}
+	}
+
+	private _hasTranscriptSelection(): boolean {
+		const selection = dom.getWindow(this._widget.domNode).getSelection();
+		if (!selection || selection.isCollapsed || !selection.rangeCount || !selection.toString().trim()) {
+			return false;
+		}
+		const range = selection.getRangeAt(0);
+		return this._widget.domNode.contains(range.commonAncestorContainer);
 	}
 
 	/**
@@ -227,47 +262,78 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._paintedRange = range;
 	}
 
-	private _showFor(resolved: IResolvedResponseSelection): void {
-		const selectionRect = getVisibleBoundingRect(resolved.range);
-		if (!selectionRect) {
-			return;
-		}
-		const containerRect = this._widget.domNode.getBoundingClientRect();
-
+	private _showFor(): void {
 		this._input.show();
 		this._input.autoSize();
 		this._input.updateActionEnabled();
 		this._syncHighlight();
+		this._reposition();
+	}
 
+	/**
+	 * Re-anchors the input to the (live) selection range. Called on every
+	 * transcript scroll so the overlay tracks the text it belongs to instead of
+	 * staying pinned where the selection used to be.
+	 */
+	private _reposition(): void {
+		const resolved = this._resolved;
+		if (!resolved) {
+			return;
+		}
+		const selectionRect = getVisibleBoundingRect(resolved.range);
+		if (!selectionRect) {
+			return;
+		}
+		this._input.show();
+
+		// The overlay is a child of the widget, so its coordinates are relative
+		// to that, but it is confined to the scrollable transcript: once the
+		// selection scrolls past an edge the overlay parks at that edge instead
+		// of drifting over the chat input or off the window.
+		const originRect = this._widget.domNode.getBoundingClientRect();
+		const bounds = this._transcriptBounds();
 		const gap = 4;
 		const inputWidth = this._input.domNode.offsetWidth;
 		const inputHeight = this._input.domNode.offsetHeight;
-		const viewport = dom.getWindow(this._widget.domNode);
 
-		const maxLeft = Math.max(0, containerRect.width - inputWidth);
-		const left = Math.max(0, Math.min(selectionRect.left - containerRect.left, maxLeft));
+		const minLeft = bounds.left - originRect.left;
+		const maxLeft = Math.max(minLeft, minLeft + bounds.width - inputWidth);
+		const left = clamp(selectionRect.left - originRect.left, minLeft, maxLeft);
 
-		// Clamp to whichever is smaller: the widget's own box, or the visible
-		// viewport below the widget's top edge, so the popup never renders
-		// past either bound.
-		const maxTop = Math.max(0, Math.min(containerRect.height, viewport.innerHeight - containerRect.top) - inputHeight);
-		let top = selectionRect.bottom - containerRect.top + gap;
+		const minTop = bounds.top - originRect.top;
+		const maxTop = Math.max(minTop, minTop + bounds.height - inputHeight);
+		let top = selectionRect.bottom - originRect.top + gap;
 		if (top > maxTop) {
 			// Not enough room below the selection: prefer placing it above instead.
-			const aboveTop = selectionRect.top - containerRect.top - inputHeight - gap;
-			top = aboveTop >= 0 ? aboveTop : maxTop;
+			const aboveTop = selectionRect.top - originRect.top - inputHeight - gap;
+			top = aboveTop >= minTop ? aboveTop : maxTop;
 		}
-		top = Math.max(0, Math.min(top, maxTop));
+		top = clamp(top, minTop, maxTop);
 
 		this._input.domNode.style.top = `${top}px`;
 		this._input.domNode.style.left = `${left}px`;
 	}
 
 	/**
+	 * Box the overlay is confined to, in viewport coordinates: the scrollable
+	 * transcript, further clipped to the window so it can never render out of
+	 * sight on a small window.
+	 */
+	private _transcriptBounds(): { top: number; left: number; width: number; height: number } {
+		const rect = this._widget.transcriptDomNode.getBoundingClientRect();
+		const viewport = dom.getWindow(this._widget.domNode);
+		const top = Math.max(rect.top, 0);
+		const left = Math.max(rect.left, 0);
+		const bottom = Math.min(rect.top + rect.height, viewport.innerHeight);
+		const right = Math.min(rect.left + rect.width, viewport.innerWidth);
+		return { top, left, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+	}
+
+	/**
 	 * Dismisses the input. While a submission is pending (`_input.isBusy`),
 	 * only a genuine view change (`force`, from {@link setChat}) may dismiss
-	 * it — outside interactions like Escape, scrolling, or selection
-	 * invalidation must not race the in-flight create/open/send.
+	 * it — outside interactions like Escape or selection invalidation must not
+	 * race the in-flight create/open/send.
 	 */
 	private _dismiss(force = false): void {
 		if (!force && this._input.isBusy) {
@@ -280,6 +346,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		const hadFocus = dom.isAncestorOfActiveElement(this._input.domNode);
 		this._resolved = undefined;
 		this._paintHighlight(undefined);
+		this._updateAutoScrollHold();
 		this._input.setBusy(false);
 		this._input.hide();
 		this._input.clearInput();

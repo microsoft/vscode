@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -39,6 +40,7 @@ suite('ResponseSelectionSideChatController', () => {
 	function setup(options?: {
 		createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
 		sendRequest?: ISessionsManagementService['sendRequest'];
+		getElementFromNode?: IChatWidget['getElementFromNode'];
 	}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -60,14 +62,30 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', setVote: () => undefined });
 		const focusResponseItemCalls: boolean[] = [];
+		const onDidScroll = store.add(new Emitter<void>());
+		let autoScrollHolds = 0;
+		const transcriptDomNode = doc.createElement('div');
+		widgetDomNode.appendChild(transcriptDomNode);
 		const widget = upcastPartial<IChatWidget>({
 			domNode: widgetDomNode,
-			getElementFromNode: () => response,
+			transcriptDomNode,
+			getElementFromNode: options?.getElementFromNode ?? (() => response),
 			focusResponseItem: (lastFocused?: boolean) => { focusResponseItemCalls.push(!!lastFocused); },
+			onDidScroll: onDidScroll.event,
+			holdAutoScroll: () => {
+				autoScrollHolds++;
+				return toDisposable(() => { autoScrollHolds--; });
+			},
 		});
 
-		let containerRect: Partial<DOMRect> = { top: 0, left: 0, width: 600, height: 600 };
+		// The widget spans the whole chat view, including the input part below
+		// the transcript; the overlay is positioned relative to it.
+		const containerRect: Partial<DOMRect> = { top: 0, left: 0, width: 600, height: 600 };
 		widgetDomNode.getBoundingClientRect = () => containerRect as DOMRect;
+		// The scrollable transcript sits above the chat input, so it is shorter
+		// than the widget; the overlay is confined to it.
+		let transcriptRect: Partial<DOMRect> = { top: 0, left: 0, width: 600, height: 600 };
+		transcriptDomNode.getBoundingClientRect = () => transcriptRect as DOMRect;
 
 		const targetWindow = dom.getWindow(widgetDomNode);
 		const originalGetSelection = targetWindow.getSelection.bind(targetWindow);
@@ -93,7 +111,13 @@ suite('ResponseSelectionSideChatController', () => {
 			}
 			doc.dispatchEvent(new Event('selectionchange'));
 		};
-		const setContainerRect = (rect: Partial<DOMRect>) => { containerRect = rect; };
+		const setTranscriptRect = (rect: Partial<DOMRect>) => { transcriptRect = rect; };
+		const scroll = (selectionTop?: number) => {
+			if (selectionTop !== undefined) {
+				markdown.style.top = `${selectionTop}px`;
+			}
+			onDidScroll.fire();
+		};
 		const highlightedRanges = () => targetWindow.CSS.highlights?.get('chat-response-selection')?.size ?? 0;
 
 		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
@@ -129,7 +153,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
 		controller.setChat(chat);
 
-		return { controller, setSelection, setContainerRect, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges };
+		return { controller, setSelection, setTranscriptRect, scroll, autoScrollHolds: () => autoScrollHolds, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges, inputHeight: () => inputDomNode(controller).offsetHeight };
 	}
 
 	function inputDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
@@ -250,16 +274,124 @@ suite('ResponseSelectionSideChatController', () => {
 		assert.deepStrictEqual(focusResponseItemCalls, []);
 	});
 
-	test('clamps the overlay vertically within the container bounds when the selection is near the bottom', () => {
-		const { controller, setSelection, setContainerRect } = setup();
-		// A container far shorter than any realistic widget height forces the
+	test('clamps the overlay vertically when the transcript is shorter than the overlay', () => {
+		const { controller, setSelection, setTranscriptRect } = setup();
+		// A transcript far shorter than any realistic overlay height forces the
 		// vertical clamp to floor the overlay at the top.
-		setContainerRect({ top: 0, left: 0, width: 600, height: 20 });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 20 });
 		setSelection('hello world', 10);
 
 		const style = inputDomNode(controller).style;
 		assert.notStrictEqual(style.display, 'none');
 		assert.strictEqual(parseFloat(style.top), 0);
+	});
+
+	test('follows the selection as the transcript scrolls instead of staying pinned', () => {
+		const { controller, setSelection, scroll } = setup();
+		setSelection('hello world', 100);
+		const style = inputDomNode(controller).style;
+		const initialTop = parseFloat(style.top);
+
+		// The transcript scrolls the anchor up by 40px; the overlay must move with it.
+		scroll(60);
+
+		assert.strictEqual(parseFloat(style.top), initialTop - 40);
+	});
+
+	test('confines the overlay to the transcript even when the widget extends past it', () => {
+		// The reported bug: the overlay was clamped to the whole chat widget, so
+		// it could float all the way down over the input at the bottom of the
+		// window instead of stopping at the end of the scrollable message area.
+		const { controller, setSelection, scroll, setTranscriptRect, inputHeight } = setup();
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 300 });
+		setSelection('hello world', 50);
+
+		scroll(5000);
+
+		const top = parseFloat(inputDomNode(controller).style.top);
+		assert.ok(top <= 300 - inputHeight(), `top ${top} must stay within the 300px transcript, not the 600px widget`);
+	});
+
+	test('parks at the top of the transcript when the selection scrolls above it', () => {
+		const { controller, setSelection, scroll, setTranscriptRect, inputHeight } = setup();
+		// The transcript starts 100px below the widget's top edge (banners, etc).
+		setTranscriptRect({ top: 100, left: 0, width: 600, height: 300 });
+		setSelection('hello world', 200);
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+
+		// Scroll the selection far above the transcript's top edge.
+		scroll(-800);
+
+		const style = inputDomNode(controller).style;
+		assert.notStrictEqual(style.display, 'none', 'the overlay stays visible at the edge');
+		assert.strictEqual(parseFloat(style.top), 100, 'parks at the transcript top, not the widget top');
+		assert.ok(inputHeight() > 0);
+	});
+
+	test('parks at the bottom of the transcript instead of drifting over the chat input', () => {
+		const { controller, setSelection, scroll, setTranscriptRect, inputHeight } = setup();
+		// The widget is 600 tall but the transcript only occupies the top 300;
+		// the remaining 300 is the chat input, which the overlay must not enter.
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 300 });
+		setSelection('hello world', 50);
+
+		// Scroll the selection far below the transcript's bottom edge.
+		scroll(900);
+
+		const top = parseFloat(inputDomNode(controller).style.top);
+		assert.strictEqual(top, 300 - inputHeight(), 'parks flush with the transcript bottom');
+	});
+
+	test('clamps horizontally to the transcript bounds', () => {
+		const { controller, setSelection, setTranscriptRect } = setup();
+		setTranscriptRect({ top: 0, left: 40, width: 120, height: 300 });
+		setSelection('hello world');
+
+		const left = parseFloat(inputDomNode(controller).style.left);
+		assert.ok(left >= 40, `left ${left} must not start before the transcript's left edge`);
+		assert.ok(left <= 160, `left ${left} must not start past the transcript's right edge`);
+	});
+
+	test('holds transcript auto-scroll while a selection is active and releases it on dismiss', () => {
+		const { setSelection, autoScrollHolds } = setup();
+		assert.strictEqual(autoScrollHolds(), 0);
+
+		setSelection('hello world');
+		assert.strictEqual(autoScrollHolds(), 1, 'a selection must pin the transcript');
+
+		setSelection('');
+		assert.strictEqual(autoScrollHolds(), 0, 'clearing the selection releases the transcript');
+	});
+
+	test('holds auto-scroll for a transcript selection that does not resolve to a single response', () => {
+		// Selections spanning responses (or non-markdown content) never open the
+		// affordance, but auto-scrolling out from under an in-progress drag is
+		// just as disruptive, so the transcript is still pinned.
+		const { controller, setSelection, autoScrollHolds } = setup({ getElementFromNode: () => undefined });
+		setSelection('hello world');
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'no affordance for an unresolvable selection');
+		assert.strictEqual(autoScrollHolds(), 1);
+	});
+
+	test('keeps holding auto-scroll while the input has focus and the native selection is collapsed', () => {
+		const { controller, setSelection, autoScrollHolds } = setup();
+		setSelection('hello world');
+		inputTextArea(controller).focus();
+		// Focusing the textarea collapses the native selection as a browser side
+		// effect; the captured selection is still live, so the hold must persist.
+		setSelection('');
+
+		assert.strictEqual(autoScrollHolds(), 1);
+	});
+
+	test('releases the auto-scroll hold when disposed', () => {
+		const { controller, setSelection, autoScrollHolds } = setup();
+		setSelection('hello world');
+		assert.strictEqual(autoScrollHolds(), 1);
+
+		controller.dispose();
+		assert.strictEqual(autoScrollHolds(), 0);
 	});
 
 	test('paints the captured selection with a custom highlight once the native selection is gone', () => {

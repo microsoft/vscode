@@ -316,6 +316,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private recentlyRestoredCheckpoint: boolean = false;
 
+	/** Suppresses auto-scroll for the duration of an inline request edit. */
+	private readonly _editingAutoScrollHold = this._register(new MutableDisposable());
+
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
@@ -773,10 +776,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.scrollTop = value;
 	}
 
+	holdAutoScroll(): IDisposable {
+		return this.listWidget.acquireAutoScrollHold();
+	}
+
+	get transcriptDomNode(): HTMLElement {
+		return this.listWidget.domNode;
+	}
+
 	get scrollHeight(): number {
 		return this.listWidget.scrollHeight;
 	}
-
 	get viewportHeight(): number {
 		return this.listWidget.renderHeight;
 	}
@@ -1940,7 +1950,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			this.listWidget.suppressAutoScroll = true;
+			this._editingAutoScrollHold.value = this.listWidget.acquireAutoScrollHold();
 			this.onDidChangeItems();
 			this.input.inputEditor.focus();
 
@@ -1977,7 +1987,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	finishedEditing(completedEdit?: boolean): void {
 		// reset states
-		this.listWidget.suppressAutoScroll = false;
+		this._editingAutoScrollHold.clear();
 		const editedRequest = this.listWidget.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 		if (this.recentlyRestoredCheckpoint) {
 			this.recentlyRestoredCheckpoint = false;
@@ -3268,7 +3278,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
 
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
+		if (lastElementVisible && !this.listWidget.isAutoScrollHeld && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
 			this.listWidget.scrollToEnd();
 		}
 		this.listContainer.style.height = `${contentHeight}px`;

@@ -222,6 +222,39 @@ suite('resolveResponseSelection', () => {
 		assert.strictEqual(resolveResponseSelection(widget), undefined);
 	});
 
+	test('ignores unrendered text when finding the selection endpoints', () => {
+		// The transcript contains `<style>` elements and display:none metadata
+		// that a triple-click's range spans but the user cannot see or select.
+		// Treating them as endpoints puts the endpoint outside the response's
+		// markdown and rejects an otherwise valid selection.
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const paragraph = doc.createElement('p');
+		const textNode = doc.createTextNode('hello world');
+		paragraph.appendChild(textNode);
+		markdown.appendChild(paragraph);
+		const style = doc.createElement('style');
+		style.appendChild(doc.createTextNode('.monaco-list { color: red; }'));
+		const hiddenMeta = doc.createElement('div');
+		hiddenMeta.style.display = 'none';
+		hiddenMeta.appendChild(doc.createTextNode('+55 -0'));
+		const footer = doc.createElement('div');
+		widgetDomNode.appendChild(markdown);
+		widgetDomNode.appendChild(style);
+		widgetDomNode.appendChild(hiddenMeta);
+		widgetDomNode.appendChild(footer);
+
+		const response = makeResponse('turn-1');
+		stubSelection(store, textNode, footer, 'hello world\n', 0);
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		assert.strictEqual(resolveResponseSelection(widget)?.text, 'hello world');
+	});
+
 	test('rejects a selection outside the markdown scope', () => {
 		const { store, doc, widgetDomNode } = setup();
 		const other = doc.createElement('div');
