@@ -50,6 +50,7 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	private nextRequestIndex = 0;
 	private readonly onDidRequestEmitter: Emitter<void>;
 	queryItems: IGalleryMcpServer[] = [];
+	queryBarrier: DeferredPromise<void> | undefined;
 	get requestCount(): number { return this.requests.length; }
 
 	constructor(store: Pick<DisposableStore, 'add'>) {
@@ -69,6 +70,7 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	}
 
 	override async query() {
+		await this.queryBarrier?.p;
 		return {
 			firstPage: { items: this.queryItems, hasMore: false },
 			getNextPage: async () => ({ items: [], hasMore: false })
@@ -123,6 +125,8 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	override readonly onDidUpdateMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
 	installed: IWorkbenchLocalMcpServer[] = [];
 	installFromGalleryResult: IWorkbenchLocalMcpServer | undefined;
+	installFromGalleryBarrier: DeferredPromise<void> | undefined;
+	private readonly installedResults: Promise<IWorkbenchLocalMcpServer[]>[] = [];
 
 	constructor(store: Pick<DisposableStore, 'add'>) {
 		super();
@@ -135,7 +139,7 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	}
 
 	override async getInstalled(): Promise<IWorkbenchLocalMcpServer[]> {
-		return this.installed;
+		return this.installedResults.shift() ?? this.installed;
 	}
 
 	override canInstall(): true {
@@ -151,8 +155,9 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 		if (!local) {
 			throw new Error('No gallery install result configured');
 		}
+		await this.installFromGalleryBarrier?.p;
 		this.installed.push(local);
-		this.fireInstall([{ name: server.name, local, mcpResource: local.mcpResource }]);
+		this.fireInstall([{ name: server.name, local, source: server, mcpResource: local.mcpResource }]);
 		return local;
 	}
 
@@ -172,6 +177,10 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 
 	fireProfileChange(): void {
 		this.onDidChangeProfileEmitter.fire();
+	}
+
+	queueInstalledResult(result: Promise<IWorkbenchLocalMcpServer[]>): void {
+		this.installedResults.push(result);
 	}
 }
 
@@ -361,6 +370,81 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		});
 	});
 
+	test('ignores an older profile query that completes after a newer profile query', async () => {
+		const initial = createLocal('initial-profile');
+		const older = createLocal('older-profile');
+		const newer = createLocal('newer-profile');
+		const { service, galleryService, managementService } = await createFixture([initial]);
+		await complete(await galleryService.nextRequest(), new Map([
+			[initial.name, found(createGallery(initial.name))],
+		]));
+		const olderResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+		const newerResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+		managementService.queueInstalledResult(olderResult.p);
+		managementService.queueInstalledResult(newerResult.p);
+		let resetCount = 0;
+		store.add(service.onReset(() => resetCount++));
+		const resetPromise = Event.toPromise(service.onReset);
+
+		managementService.fireProfileChange();
+		managementService.fireProfileChange();
+		await newerResult.complete([newer]);
+		await resetPromise;
+		const request = await galleryService.nextRequest();
+		await complete(request, new Map([
+			[newer.name, found(createGallery(newer.name))],
+		]));
+		await olderResult.complete([older]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requested: request.infos.map(info => info.name),
+			local: service.local.map(server => server.name),
+			enabled: service.getEnabledLocalMcpServers().map(server => server.name),
+			resetCount,
+		}, {
+			requested: [newer.name],
+			local: [newer.name],
+			enabled: [newer.name],
+			resetCount: 1,
+		});
+	});
+
+	test('re-verifies the current profile when a public local query supersedes its profile query', async () => {
+		const initial = createLocal('initial-profile');
+		const current = createLocal('current-profile');
+		const { service, galleryService, managementService } = await createFixture([initial]);
+		await complete(await galleryService.nextRequest(), new Map([
+			[initial.name, found(createGallery(initial.name))],
+		]));
+		const profileResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+		const publicResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+		managementService.queueInstalledResult(profileResult.p);
+		managementService.queueInstalledResult(publicResult.p);
+		const resetPromise = Event.toPromise(service.onReset);
+
+		managementService.fireProfileChange();
+		const publicQuery = service.queryLocal();
+		await publicResult.complete([current]);
+		await publicQuery;
+		await profileResult.complete([initial]);
+		await resetPromise;
+		const request = await galleryService.nextRequest();
+		await complete(request, new Map([
+			[current.name, found(createGallery(current.name))],
+		]));
+
+		assert.deepStrictEqual({
+			requested: request.infos.map(info => info.name),
+			local: service.local.map(server => server.name),
+			enabled: service.getEnabledLocalMcpServers().map(server => server.name),
+		}, {
+			requested: [current.name],
+			local: [current.name],
+			enabled: [current.name],
+		});
+	});
+
 	test('ignores stale lookup results after a local configuration update', async () => {
 		const local = createLocal('server');
 		const { service, galleryService, managementService } = await createFixture([local]);
@@ -396,6 +480,8 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 			[local.name, found(createGallery(local.name))],
 		]));
 		const trustedUpdate = createGallery(local.name);
+		galleryService.queryItems = [trustedUpdate];
+		await service.queryGallery();
 
 		managementService.fireUpdate([{ name: local.name, local, source: trustedUpdate, mcpResource: local.mcpResource }]);
 		const trustedUpdateApplied = service.local[0].gallery === trustedUpdate;
@@ -419,8 +505,8 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		}, {
 			trustedUpdateApplied: true,
 			mismatchedUpdateApplied: false,
-			enabledAfterMismatch: [],
-			enabledAfterFailure: [],
+			enabledAfterMismatch: [local.name],
+			enabledAfterFailure: [local.name],
 		});
 	});
 
@@ -469,10 +555,69 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		});
 	});
 
+	test('rejects gallery metadata from an install that completes after a registry change', async () => {
+		const { service, galleryService, manifestService, managementService } = await createFixture([]);
+		const gallery = createGallery('stale-gallery-install');
+		const local = createLocal(gallery.name);
+		const installBarrier = new DeferredPromise<void>();
+		galleryService.queryItems = [gallery];
+		managementService.installFromGalleryResult = local;
+		managementService.installFromGalleryBarrier = installBarrier;
+		const pager = await service.queryGallery();
+
+		const installPromise = service.install(pager.firstPage.items[0]);
+		await timeout(0);
+		manifestService.fireChange();
+		await installBarrier.complete();
+		const installed = await installPromise;
+		const request = await galleryService.nextRequest();
+		await complete(request, new Map([
+			[local.name, failed()],
+		]));
+
+		assert.deepStrictEqual({
+			staleGalleryApplied: installed.gallery === gallery,
+			enabled: service.getEnabledLocalMcpServers().map(server => server.name),
+		}, {
+			staleGalleryApplied: false,
+			enabled: [],
+		});
+	});
+
+	test('rejects gallery metadata returned by a query that completes after a registry change', async () => {
+		const { service, galleryService, manifestService, managementService } = await createFixture([]);
+		const gallery = createGallery('stale-gallery-query');
+		const local = createLocal(gallery.name);
+		const queryBarrier = new DeferredPromise<void>();
+		galleryService.queryItems = [gallery];
+		galleryService.queryBarrier = queryBarrier;
+
+		const queryPromise = service.queryGallery();
+		await timeout(0);
+		manifestService.fireChange();
+		await queryBarrier.complete();
+		const pager = await queryPromise;
+		managementService.fireInstall([{ name: local.name, local, source: pager.firstPage.items[0].gallery, mcpResource: local.mcpResource }]);
+		const request = await galleryService.nextRequest();
+		await complete(request, new Map([
+			[local.name, failed()],
+		]));
+
+		assert.deepStrictEqual({
+			staleGalleryApplied: service.local[0].gallery === gallery,
+			enabled: service.getEnabledLocalMcpServers().map(server => server.name),
+		}, {
+			staleGalleryApplied: false,
+			enabled: [],
+		});
+	});
+
 	test('trusts gallery metadata propagated by an external gallery install', async () => {
 		const { service, galleryService, managementService } = await createFixture([]);
 		const gallery = createGallery('external-gallery-install');
 		const local = createLocal(gallery.name);
+		galleryService.queryItems = [gallery];
+		await service.queryGallery();
 
 		managementService.fireInstall([{ name: local.name, local, source: gallery, mcpResource: local.mcpResource }]);
 		const enabledBeforeRevalidation = service.getEnabledLocalMcpServers().map(server => server.name);
@@ -488,6 +633,32 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 			galleryPreserved: true,
 			enabledBeforeRevalidation: [local.name],
 			enabledAfterFailure: [local.name],
+		});
+	});
+
+	test('rejects gallery metadata from an update that completes after a registry change', async () => {
+		const local = createLocal('stale-gallery-update');
+		const { service, galleryService, manifestService, managementService } = await createFixture([local]);
+		await complete(await galleryService.nextRequest(), new Map([
+			[local.name, found(createGallery(local.name))],
+		]));
+		const staleGallery = createGallery(local.name);
+		galleryService.queryItems = [staleGallery];
+		await service.queryGallery();
+
+		manifestService.fireChange();
+		managementService.fireUpdate([{ name: local.name, local, source: staleGallery, mcpResource: local.mcpResource }]);
+		const request = await galleryService.nextRequest();
+		await complete(request, new Map([
+			[local.name, failed()],
+		]));
+
+		assert.deepStrictEqual({
+			staleGalleryApplied: service.local[0].gallery === staleGallery,
+			enabled: service.getEnabledLocalMcpServers().map(server => server.name),
+		}, {
+			staleGalleryApplied: false,
+			enabled: [],
 		});
 	});
 

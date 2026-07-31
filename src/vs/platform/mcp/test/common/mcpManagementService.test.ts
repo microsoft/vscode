@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService } from '../../common/mcpManagementService.js';
+import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService, McpUserResourceManagementService } from '../../common/mcpManagementService.js';
 import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
 import { IMcpSandboxConfiguration, McpServerType, McpServerVariableType, IMcpServerConfiguration, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -20,6 +21,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
 
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
 
@@ -1125,6 +1127,8 @@ suite('McpResourceManagementService', () => {
 	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
 	let disposables: DisposableStore;
 	let fileService: FileService;
+	let uriIdentityService: UriIdentityService;
+	let scannerService: McpResourceScannerService;
 	let service: TestMcpResourceManagementService;
 
 	function createGallery(): IGalleryMcpServer {
@@ -1144,8 +1148,8 @@ suite('McpResourceManagementService', () => {
 		disposables = new DisposableStore();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
-		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
 		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
 
 		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
@@ -1214,24 +1218,33 @@ suite('McpResourceManagementService', () => {
 		assert.strictEqual(result[0].source, gallery);
 	});
 
-	test('propagates the gallery source when updating an installed server', async () => {
-		await service.getInstalled();
-		const gallery = createGallery();
-		const updatePromise = Event.toPromise(service.onDidUpdateMcpServers);
-		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
-			sandbox: {
-				network: { allowedDomains: ['updated.example.com'] }
-			},
+	test('updateMetadata propagates the gallery source when updating an installed server', async () => {
+		const galleryResource = URI.from({ scheme: Schemas.inMemory, path: '/gallery-mcp.json' });
+		await fileService.writeFile(galleryResource, VSBuffer.fromString(JSON.stringify({
 			servers: {
 				test: {
 					type: 'stdio',
 					command: 'node',
-					sandboxEnabled: true
+					gallery: true,
+					version: '1.0.0'
 				}
 			}
 		}, null, '\t')));
+		const gallery = createGallery();
+		const galleryService = disposables.add(new McpUserResourceManagementService(
+			galleryResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+		const [local] = await galleryService.getInstalled();
+		const updatePromise = Event.toPromise(galleryService.onDidUpdateMcpServers);
 
-		await service.reload(gallery);
+		await galleryService.updateMetadata(local, gallery);
 		const result = await updatePromise;
 
 		assert.strictEqual(result[0].source, gallery);

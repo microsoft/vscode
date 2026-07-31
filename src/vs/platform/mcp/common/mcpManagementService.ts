@@ -536,7 +536,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
 		await this.updateMetadataFromGallery(gallery);
-		await this.updateLocal();
+		await this.updateLocal(gallery);
 		const updatedLocal = (await this.getInstalled()).find(s => s.name === local.name);
 		if (!updatedLocal) {
 			throw new Error(`Failed to find MCP server: ${local.name}`);
