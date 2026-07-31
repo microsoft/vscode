@@ -165,11 +165,11 @@
 	transform: translateY(var(--vscode-spacing-size400));
 }
 
-.chat-pet-button[data-state='searching'] {
+.chat-pet-button[data-state='searching']:not(.exiting) {
 	animation: chat-pet-search-up 160ms steps(4, end) forwards;
 }
 
-.chat-pet-button[data-state='searchingDown'] {
+.chat-pet-button[data-state='searchingDown']:not(.exiting) {
 	animation: chat-pet-search-down 160ms steps(4, end) forwards;
 }
 
