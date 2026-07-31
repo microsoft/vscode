@@ -38,18 +38,16 @@ const FADE_OUT_MS = 650;
 /** Saturation (%) bounds for an active (listening / speaking) glow. */
 const ACTIVE_SAT_MIN = 70;
 const ACTIVE_SAT_MAX = 96;
-/** Saturation (%) bounds for the thinking swirl — quieter than the active states. */
-const SWIRL_SAT_MIN = 45;
-const SWIRL_SAT_MAX = 78;
 
 /**
- * The connected-idle rim. A pure gray reads as a muddy ring on a white input, so
- * the idle breath keeps a whisper of the listening hue at high lightness — it
- * should read as a soft light, not as gray.
+ * The calm rim, shared by connected-idle and thinking: both mean "voice is live,
+ * nobody is talking", so they read as one state rather than two. Kept near-white
+ * — a pure gray reads as a muddy ring, so it holds a whisper of the listening hue
+ * at high lightness so it reads as a soft light.
  */
-const IDLE_RIM = {
+const CALM_RIM = {
 	dark: { saturation: 16, lightness: 78, strength: 0.4 },
-	light: { saturation: 22, lightness: 84, strength: 0.44 },
+	light: { saturation: 16, lightness: 92, strength: 0.5 },
 } as const;
 
 /**
@@ -78,21 +76,16 @@ const RIM_LAYER_OPACITY = {
 } as const;
 
 /** Seconds for one full breath cycle, per rim mood. */
-const RIM_DURATION = { active: 2.3, idle: 4.8 } as const;
+const RIM_DURATION = { active: 2.3, calm: 4.8 } as const;
 
 export type GlowThemeKind = 'light' | 'dark';
 
-/** The visual treatment a state maps to. */
-type LayerKind = 'rim' | 'swirl';
-
-/** What to render for a state; `undefined` means no glow. */
-interface ILayerDesc {
-	readonly kind: LayerKind;
-	/** Warm (agent speaking) instead of cool (user speaking). */
-	readonly warm: boolean;
-	/** The dimmer, slower connected-idle breath. */
-	readonly idle: boolean;
-}
+/**
+ * The three looks the rim takes. `cool` and `warm` are the talking states;
+ * `calm` is the shared near-white breath for connected-idle and thinking.
+ * Published as a class so high-contrast themes can style each one.
+ */
+type RimMood = 'cool' | 'warm' | 'calm';
 
 /** A live layer mounted on one of the buffered slots. */
 interface IMountedLayer extends IDisposable {
@@ -206,6 +199,7 @@ function nowSeconds(el: HTMLElement): number {
  */
 function mountRimLayers(host: HTMLElement, options: {
 	readonly theme: GlowThemeKind;
+	readonly mood: RimMood;
 	readonly hue: number;
 	readonly saturation: number;
 	readonly lightness: number;
@@ -221,8 +215,9 @@ function mountRimLayers(host: HTMLElement, options: {
 	const store = new DisposableStore();
 	const doc = host.ownerDocument;
 
-	host.classList.add('voice-glow-rim');
-	store.add(toDisposable(() => host.classList.remove('voice-glow-rim')));
+	const moodClass = `voice-glow-rim-${options.mood}`;
+	host.classList.add('voice-glow-rim', moodClass);
+	store.add(toDisposable(() => host.classList.remove('voice-glow-rim', moodClass)));
 
 	for (const cls of ['voice-glow-rim-corners', 'voice-glow-rim-bloom']) {
 		const el = doc.createElement('div');
@@ -279,36 +274,6 @@ function mountRimLayers(host: HTMLElement, options: {
 }
 
 /**
- * Mount the "thinking" swirl on `host`: a faint light sweeping between the
- * listening and speaking hues, rotating inside the border.
- */
-function mountSwirlLayer(host: HTMLElement, options: {
-	readonly listeningHue: number;
-	readonly midHue: number;
-	readonly speakingHue: number;
-	readonly saturation: number;
-}): IMountedLayer {
-	const store = new DisposableStore();
-	host.classList.add('voice-glow-swirl');
-	store.add(toDisposable(() => {
-		host.classList.remove('voice-glow-swirl');
-		for (const prop of ['--vg-hue-listen', '--vg-hue-mid', '--vg-hue-speak', '--vg-sat']) {
-			host.style.removeProperty(prop);
-		}
-	}));
-
-	host.style.setProperty('--vg-hue-listen', String(Math.round(options.listeningHue)));
-	host.style.setProperty('--vg-hue-mid', String(Math.round(options.midHue)));
-	host.style.setProperty('--vg-hue-speak', String(Math.round(options.speakingHue)));
-	host.style.setProperty('--vg-sat', `${options.saturation}%`);
-
-	// Thinking has no audio to react to, and reacting would undercut the point:
-	// it should read as a steady, patient state. The CSS animation carries it.
-	const noop = (): void => { };
-	return { host, drive: noop, driveStatic: noop, dispose: () => store.dispose() };
-}
-
-/**
  * Create a voice glow controller bound to `target` (the input box). `themeKind`
  * lets the caller supply the active light/dark theme, and `colors` the resolved
  * theme accents; both are re-read on {@link IVoiceGlowController.refreshTheme}.
@@ -326,6 +291,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _front: IMountedLayer | undefined;
 	private _currentState: VoiceGlowState | 'none' = 'none';
+	private _currentMood: RimMood | undefined;
 	private _clearTimer: ReturnType<typeof setTimeout> | undefined;
 	private _colors: IVoiceGlowColors;
 	private _disposed = false;
@@ -388,27 +354,33 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		if (this._disposed) {
 			return;
 		}
-		const desc = resolveLayer(state);
-		if (!desc) {
+		const mood = resolveMood(state);
+		if (!mood) {
 			this.clear();
 			return;
 		}
 
-		if (state !== this._currentState) {
-			this._currentState = state;
+		// Keyed on the mood, not the state: thinking and connected-idle share the
+		// calm rim, so moving between them must not re-mount or cross-fade.
+		if (mood !== this._currentMood) {
+			this._currentMood = mood;
 			this._syncRadius();
 			if (this._clearTimer !== undefined) {
 				clearTimeout(this._clearTimer);
 				this._clearTimer = undefined;
 			}
-			// Publish state classes on the target so surface CSS that tints the mic
-			// glyph keeps working, plus the accent it should tint with.
+			this._showLayer(mood, reducedMotion);
+		}
+
+		// State classes still track the real state, so surface CSS that tints the
+		// mic glyph can tell thinking from idle even though the rim can't.
+		if (state !== this._currentState) {
+			this._currentState = state;
 			this._target.classList.add('voice-active');
 			this._target.classList.toggle('voice-listening', state === 'listening');
 			this._target.classList.toggle('voice-processing', state === 'processing');
 			this._target.classList.toggle('voice-speaking', state === 'speaking');
 			this._target.style.setProperty('--voice-accent', voiceGlowStateColor(state, this._colors).toString());
-			this._showLayer(desc, reducedMotion);
 		}
 
 		if (this._front && !reducedMotion) {
@@ -421,6 +393,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			return;
 		}
 		this._currentState = 'none';
+		this._currentMood = undefined;
 		this._target.classList.remove('voice-active', 'voice-listening', 'voice-processing', 'voice-speaking');
 		this._target.style.removeProperty('--voice-accent');
 		const previous = this._front;
@@ -447,18 +420,19 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		if (this._front && state !== 'none') {
 			// Re-mount the current layer so it picks up the new accent / theme.
 			this._currentState = 'none';
+			this._currentMood = undefined;
 			this.render(state, 0.3, false);
 		}
 	}
 
-	private _showLayer(desc: ILayerDesc, reducedMotion: boolean): void {
+	private _showLayer(mood: RimMood, reducedMotion: boolean): void {
 		const host = this._slots.find(slot => slot !== this._front?.host) ?? this._slots[0];
 
 		// Dispose any prior mount on this slot FIRST: mounts own the slot's classes
 		// and custom properties, so disposing after mounting the new layer would
 		// strip the fresh ones.
 		this._mounts.get(host)!.clear();
-		const mounted = this._mount(host, desc);
+		const mounted = this._mount(host, mood);
 		this._mounts.get(host)!.value = mounted;
 		if (reducedMotion) {
 			mounted.driveStatic(0.4);
@@ -481,49 +455,44 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		host.style.opacity = '0';
 	}
 
-	private _mount(host: HTMLElement, desc: ILayerDesc): IMountedLayer {
+	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
 		const theme = this._themeKind();
-
-		if (desc.kind === 'swirl') {
-			const { listening, processing, speaking } = this._colors;
-			// Saturation comes from the blended accent, held under the active
-			// states' floor so thinking stays the quieter of the three.
-			const saturation = Math.round(Math.min(SWIRL_SAT_MAX, Math.max(SWIRL_SAT_MIN, processing.hsla.s * 100)));
-			return mountSwirlLayer(host, {
-				listeningHue: listening.hsla.h,
-				midHue: processing.hsla.h,
-				speakingHue: speaking.hsla.h,
-				saturation,
-			});
-		}
-
-		const accent = desc.warm ? this._colors.speaking : this._colors.listening;
+		const calm = mood === 'calm';
+		const accent = mood === 'warm' ? this._colors.speaking : this._colors.listening;
 		const { h, s } = accent.hsla;
-		const idle = IDLE_RIM[theme];
-		const mood = desc.warm ? 'warm' : 'cool';
+		const calmRim = CALM_RIM[theme];
+		// The calm rim borrows the listening hue but not its lift; the talking
+		// states get the mood shift that separates them from each other.
+		const activeMood = mood === 'warm' ? 'warm' : 'cool';
 		return mountRimLayers(host, {
 			theme,
-			hue: desc.idle ? h : h + ACTIVE_RIM_HUE_SHIFT[mood],
-			saturation: desc.idle ? idle.saturation : Math.round(Math.min(ACTIVE_SAT_MAX, Math.max(ACTIVE_SAT_MIN, s * 100))),
-			lightness: desc.idle ? idle.lightness : ACTIVE_RIM_LIGHTNESS[theme][mood],
-			strength: desc.idle ? idle.strength : ACTIVE_RIM_STRENGTH,
-			duration: desc.idle ? RIM_DURATION.idle : RIM_DURATION.active,
-			audioGain: desc.idle ? 0.35 : 0.7,
-			// Idle has no audio to peak on; the active states lean on this to make
-			// the loudest moments visibly denser.
-			peakGain: desc.idle ? 0 : 0.85,
-			speedGain: desc.idle ? 0 : 0.9,
+			mood,
+			hue: calm ? h : h + ACTIVE_RIM_HUE_SHIFT[activeMood],
+			saturation: calm ? calmRim.saturation : Math.round(Math.min(ACTIVE_SAT_MAX, Math.max(ACTIVE_SAT_MIN, s * 100))),
+			lightness: calm ? calmRim.lightness : ACTIVE_RIM_LIGHTNESS[theme][activeMood],
+			strength: calm ? calmRim.strength : ACTIVE_RIM_STRENGTH,
+			duration: calm ? RIM_DURATION.calm : RIM_DURATION.active,
+			audioGain: calm ? 0.35 : 0.7,
+			// The calm rim has no audio to peak on; the talking states lean on this
+			// to make the loudest moments visibly denser.
+			peakGain: calm ? 0 : 0.85,
+			speedGain: calm ? 0 : 0.9,
 		});
 	}
 }
 
-/** Map a voice state to the layer that renders it, or `undefined` for no glow. */
-function resolveLayer(state: VoiceGlowState): ILayerDesc | undefined {
+/**
+ * Map a voice state to the rim mood that renders it, or `undefined` for no glow.
+ * Thinking and connected-idle share the calm rim: both mean voice is live and
+ * nobody is talking, so they read as one state and don't cross-fade between
+ * themselves.
+ */
+function resolveMood(state: VoiceGlowState): RimMood | undefined {
 	switch (state) {
-		case 'listening': return { kind: 'rim', warm: false, idle: false };
-		case 'speaking': return { kind: 'rim', warm: true, idle: false };
-		case 'processing': return { kind: 'swirl', warm: false, idle: false };
-		case 'idle': return { kind: 'rim', warm: false, idle: true };
+		case 'listening': return 'cool';
+		case 'speaking': return 'warm';
+		case 'processing':
+		case 'idle': return 'calm';
 		default: return undefined;
 	}
 }

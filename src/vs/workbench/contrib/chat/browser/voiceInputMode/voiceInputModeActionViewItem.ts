@@ -359,7 +359,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		const colors = resolveVoiceGlowColors(this.themeService.getColorTheme());
 		container.style.setProperty('--voice-color-listening', colors.listening.toString());
 		container.style.setProperty('--voice-color-speaking', colors.speaking.toString());
-		container.style.setProperty('--voice-color-processing', colors.processing.toString());
 	}
 
 	override render(container: HTMLElement): void {

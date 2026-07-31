@@ -15,7 +15,7 @@
 
 import { Color, HSLA } from '../../../../../base/common/color.js';
 import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
-import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceProcessingGlow, chatVoiceSpeakingGlow } from '../../common/widget/chatColors.js';
+import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../common/widget/chatColors.js';
 
 export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -72,17 +72,16 @@ export function breathingIntensity(timeMs: number): number {
 
 // --- Theme-derived colors ------------------------------------------------
 
-/** Resolved base color for each glowing voice state. */
+/** Resolved base color for each voice state that carries an accent. */
 export interface IVoiceGlowColors {
 	readonly listening: Color;
-	readonly processing: Color;
 	readonly speaking: Color;
 }
 
 /**
- * Hue rotation (degrees) applied to the base accent for each state, so the three
- * states read as a related-but-distinct triad from whatever accent the theme
- * uses. Exported so they can be tuned in one place.
+ * Hue rotation (degrees) applied to the base accent for speaking, so the two
+ * talking states read as a related-but-distinct pair from whatever accent the
+ * theme uses. Exported so it can be tuned in one place.
  */
 export const VOICE_GLOW_SPEAKING_HUE_SHIFT = 80;
 
@@ -99,62 +98,36 @@ function shiftHue(base: Color, degrees: number, saturationMul: number = 1, light
 }
 
 /**
- * The hue midway between two colors, taking the shorter way around the wheel, so
- * blending (say) a blue and a violet never detours through green.
- */
-function blendHues(a: Color, b: Color): number {
-	const { h: ha } = a.hsla;
-	const { h: hb } = b.hsla;
-	const delta = ((hb - ha + 540) % 360) - 180;
-	return (ha + delta / 2 + 360) % 360;
-}
-
-/**
- * The "thinking" accent: the midpoint of the listening and speaking hues, so the
- * state between the two reads as a mix of both rather than as its own color.
- */
-function blendProcessing(listening: Color, speaking: Color): Color {
-	const l = listening.hsla;
-	const s = speaking.hsla;
-	return new Color(new HSLA(blendHues(listening, speaking), clamp01((l.s + s.s) / 2), clamp01((l.l + s.l) / 2), 1));
-}
-
-/**
  * Fallback colors matching the historical hardcoded glow (blue listening /
  * purple speaking), used when no theme is available (unit tests) or before
  * colors are resolved.
  */
-export const DEFAULT_VOICE_GLOW_COLORS: IVoiceGlowColors = (() => {
-	const listening = VOICE_GLOW_FALLBACK;
-	const speaking = shiftHue(VOICE_GLOW_FALLBACK, VOICE_GLOW_SPEAKING_HUE_SHIFT);
-	return { listening, processing: blendProcessing(listening, speaking), speaking };
-})();
+export const DEFAULT_VOICE_GLOW_COLORS: IVoiceGlowColors = {
+	listening: VOICE_GLOW_FALLBACK,
+	speaking: shiftHue(VOICE_GLOW_FALLBACK, VOICE_GLOW_SPEAKING_HUE_SHIFT),
+};
 
 /**
  * Resolve the per-state glow colors from the active theme. Listening derives from
- * `chat.voiceGlowBaseColor` (default `focusBorder`), speaking is hue-shifted from
- * it, and processing sits midway between the two — unless the theme explicitly
- * sets that state's token, so the glow always harmonizes with the theme while
- * staying overridable.
+ * `chat.voiceGlowBaseColor` (default `focusBorder`) and speaking is hue-shifted
+ * from it, unless the theme explicitly sets that state's token — so the glow
+ * always harmonizes with the theme while staying overridable.
  */
 export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IVoiceGlowColors {
 	const base = theme.getColor(chatVoiceGlowBaseColor) ?? VOICE_GLOW_FALLBACK;
-	const listening = theme.getColor(chatVoiceListeningGlow) ?? base;
-	const speaking = theme.getColor(chatVoiceSpeakingGlow) ?? shiftHue(base, VOICE_GLOW_SPEAKING_HUE_SHIFT);
 	return {
-		listening,
-		processing: theme.getColor(chatVoiceProcessingGlow) ?? blendProcessing(listening, speaking),
-		speaking,
+		listening: theme.getColor(chatVoiceListeningGlow) ?? base,
+		speaking: theme.getColor(chatVoiceSpeakingGlow) ?? shiftHue(base, VOICE_GLOW_SPEAKING_HUE_SHIFT),
 	};
 }
 
-/** The accent for the current state (idle/error fall back to listening). */
+/**
+ * The accent for the current state. Thinking and connected-idle render the same
+ * calm, near-white light, which carries a whisper of the listening hue — so they
+ * take the listening accent rather than one of their own.
+ */
 export function voiceGlowStateColor(voiceState: VoiceGlowState, colors: IVoiceGlowColors): Color {
-	switch (voiceState) {
-		case 'speaking': return colors.speaking;
-		case 'processing': return colors.processing;
-		default: return colors.listening;
-	}
+	return voiceState === 'speaking' ? colors.speaking : colors.listening;
 }
 
 /**

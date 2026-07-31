@@ -949,7 +949,6 @@
 		"--vscode-window-inactiveBorder",
 		"--vscode-chat-voiceGlowBaseColor",
 		"--vscode-chat-voiceListeningGlow",
-		"--vscode-chat-voiceProcessingGlow",
 		"--vscode-chat-voiceSpeakingGlow"
 	],
 	"others": [
@@ -1116,7 +1115,6 @@
 		"--collapse-from-width",
 		"--slide-from-x",
 		"--slide-from-y",
-		"--vg-angle",
 		"--vg-radius",
 		"--vg-w1",
 		"--vg-h1",
@@ -1146,16 +1144,9 @@
 		"--vg-inner-opacity",
 		"--vg-bloom-opacity",
 		"--vg-corner-alpha",
-		"--vg-level",
-		"--vg-spin",
 		"--voice-accent",
 		"--voice-color-listening",
-		"--voice-color-speaking",
-		"--voice-color-processing",
-		"--vg-hue-listen",
-		"--vg-hue-mid",
-		"--vg-hue-speak",
-		"--vg-swirl-alpha"
+		"--voice-color-speaking"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

@@ -6,32 +6,24 @@
 /*
  * Voice Mode ambient glow.
  *
- * Two treatments, both mounted as absolutely-positioned overlay "slots" on the
- * chat input box (see `voiceGlowController.ts`):
+ * One treatment — `.voice-glow-rim`, an interior rim built from a perimeter of
+ * soft blobs, masked into a hairline ring plus a wider inner wash and a blurred
+ * bloom — mounted as an absolutely-positioned overlay "slot" on the chat input
+ * box (see `voiceGlowController.ts`). It takes three moods:
  *
- * - `.voice-glow-rim`    — an audio-reactive interior rim: a perimeter of soft
- *                          colored blobs, masked to a hairline ring plus a wider
- *                          inner wash and a blurred bloom. Cool while listening,
- *                          warm while speaking, near-white while idle.
- * - `.voice-glow-border` — a light that travels around the input edge (a masked
- *                          conic gradient) plus an inner glow. Used for the calm
- *                          "thinking" state.
+ * - `.voice-glow-rim-cool` — listening, audio-reactive,
+ * - `.voice-glow-rim-warm` — the agent speaking, audio-reactive,
+ * - `.voice-glow-rim-calm` — thinking and connected-idle, a slow near-white
+ *                            breath. Both mean "voice is live, nobody is
+ *                            talking", so they share one look.
  *
  * Everything animated is a CSS custom property driven from JS, so the layers are
  * painted from one shared animation frame rather than a dozen CSS animations.
+ *
+ * High-contrast themes opt out of the whole soft-light language at the bottom of
+ * this file: gradients and blur can't carry a guaranteed contrast ratio, so the
+ * talking states become solid lines and the calm state renders nothing.
  */
-
-@property --vg-angle {
-	syntax: '<angle>';
-	inherits: false;
-	initial-value: 0deg;
-}
-
-@keyframes voice-glow-swirl-spin {
-	to {
-		--vg-angle: 360deg;
-	}
-}
 
 .voice-glow-slot {
 	position: absolute;
@@ -196,65 +188,49 @@
 		radial-gradient(ellipse 60px 60px at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
 }
 
-/* --- Swirl (thinking) ------------------------------------------------------ */
+/* --- High contrast --------------------------------------------------------- */
 
 /*
- * The state between listening and speaking, so it reads as a slow transition
- * between the two: a faint light sweeping listening -> speaking -> listening.
- *
- * It rotates strictly INSIDE the border. The in-flight "working" comet already
- * travels along the border ring itself, and two lights racing the same track
- * read as a glitch — keeping this one inset lets the pair compose instead.
+ * Soft light is the wrong language here: a blurred, semi-transparent gradient
+ * can't guarantee a contrast ratio, and the whole effect reads as smudge at high
+ * contrast. So the talking states collapse to a solid line — blue for the user,
+ * purple for the agent — and the calm state (thinking / connected-idle) renders
+ * nothing at all, since "voice is live but quiet" isn't worth spending contrast
+ * on. Motion goes too: the line is either there or it isn't.
  */
-.voice-glow-swirl {
-	--vg-hue-listen: 212;
-	--vg-hue-mid: 252;
-	--vg-hue-speak: 292;
-	--vg-sat: 72%;
-	--vg-light: 66%;
-	/* Deliberately faint: this is a background state, and it has to sit under
-		the comet without competing with it. */
-	--vg-swirl-alpha: 0.22;
-	--vg-spin: 14s;
-	--vg-inner-fade: 26px;
-	overflow: hidden;
+.hc-black .voice-glow-rim::before,
+.hc-black .voice-glow-rim::after,
+.hc-black .voice-glow-rim > *,
+.hc-light .voice-glow-rim::before,
+.hc-light .voice-glow-rim::after,
+.hc-light .voice-glow-rim > * {
+	display: none;
 }
 
-.vs .voice-glow-swirl,
-.hc-light .voice-glow-swirl {
-	--vg-light: 52%;
-	--vg-swirl-alpha: 0.26;
+.hc-black .voice-glow-rim-calm,
+.hc-light .voice-glow-rim-calm {
+	display: none;
 }
 
-.voice-glow-swirl::before {
-	content: '';
-	position: absolute;
-	/* Inside the border, so the comet keeps the ring to itself. */
-	inset: var(--vscode-strokeThickness, 1px);
-	border-radius: inherit;
-	background: conic-gradient(from var(--vg-angle, 0deg),
-			hsl(var(--vg-hue-listen) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 0deg,
-			hsl(var(--vg-hue-mid) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 90deg,
-			hsl(var(--vg-hue-speak) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 180deg,
-			hsl(var(--vg-hue-mid) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 270deg,
-			hsl(var(--vg-hue-listen) var(--vg-sat) var(--vg-light) / var(--vg-swirl-alpha)) 360deg);
-	/* Hug the perimeter and fade out towards the middle, so the sweep never
-		washes over the text being composed. */
-	-webkit-mask-image:
-		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
-		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
-	-webkit-mask-composite: source-over;
-	mask-image:
-		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
-		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
-	mask-composite: add;
-	filter: blur(6px);
-	pointer-events: none;
-	animation: voice-glow-swirl-spin var(--vg-spin) linear infinite;
+.hc-black .voice-glow-rim-cool,
+.hc-black .voice-glow-rim-warm,
+.hc-light .voice-glow-rim-cool,
+.hc-light .voice-glow-rim-warm {
+	border: var(--vscode-strokeThickness) solid;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.voice-glow-swirl::before {
-		animation: none;
-	}
+.hc-black .voice-glow-rim-cool {
+	border-color: var(--vscode-charts-blue, #3794ff);
+}
+
+.hc-black .voice-glow-rim-warm {
+	border-color: var(--vscode-charts-purple, #b180d7);
+}
+
+.hc-light .voice-glow-rim-cool {
+	border-color: var(--vscode-charts-blue, #0f4a85);
+}
+
+.hc-light .voice-glow-rim-warm {
+	border-color: var(--vscode-charts-purple, #5c2d91);
 }

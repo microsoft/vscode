@@ -121,11 +121,6 @@ export const chatVoiceListeningGlow = registerColor(
 	{ dark: null, light: null, hcDark: null, hcLight: null },
 	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while listening. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
 
-export const chatVoiceProcessingGlow = registerColor(
-	'chat.voiceProcessingGlow',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
-	localize('chat.voiceProcessingGlow', 'Accent color of the Voice Mode glow while the agent is thinking. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
-
 export const chatVoiceSpeakingGlow = registerColor(
 	'chat.voiceSpeakingGlow',
 	{ dark: null, light: null, hcDark: null, hcLight: null },

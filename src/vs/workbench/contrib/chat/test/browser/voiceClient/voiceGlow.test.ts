@@ -12,7 +12,7 @@ import { isGlowingVoiceState, isIdleGlowVoiceState, resolveVoiceGlowColors, VOIC
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('every state maps to exactly one glow treatment', () => {
+	test('thinking and connected-idle share the calm rim', () => {
 		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
 		assert.deepStrictEqual(
 			states.map(state => ({ state, active: isGlowingVoiceState(state), idle: isIdleGlowVoiceState(state) })),
@@ -26,20 +26,17 @@ suite('VoiceGlow', () => {
 		);
 	});
 
-	test('derives the per-state accents from the theme base color', () => {
+	test('derives the speaking accent from the theme base color', () => {
 		const base = Color.fromHex('#58A6FF');
 		const colors = resolveVoiceGlowColors({ getColor: id => id === chatVoiceGlowBaseColor ? base : undefined });
 		assert.deepStrictEqual(
 			{
 				listening: colors.listening.toString(),
 				speakingHue: Math.round(colors.speaking.hsla.h),
-				processingHue: Math.round(colors.processing.hsla.h),
 			},
 			{
 				listening: base.toString(),
 				speakingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT + 360) % 360),
-				// Thinking sits midway between the two, so it reads as a transition.
-				processingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT / 2 + 360) % 360),
 			}
 		);
 	});
