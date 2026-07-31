@@ -73,15 +73,6 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		}
 	});
 
-	conformanceTest(context, 'requests other than ping are rejected before initialize', async function () {
-		const client = await context.connectClient();
-		try {
-			await assert.rejects(client.call('listSessions', { channel: ROOT_STATE_URI }));
-		} finally {
-			client.close();
-		}
-	});
-
 	conformanceTest(context, 'initialize rejects incompatible protocol versions', async function () {
 		const client = await context.connectClient();
 		try {

@@ -141,11 +141,20 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		initialOperations: readonly IObservedOperation[],
 	): Promise<void> {
 		const operations = new Map(initialOperations.map(operation => [operation.id, operation]));
+		const pendingStatuses = new Map<string, string>();
 		const isReady = () => {
 			const operation = operations.get(operationId);
 			return operation?.status === 'idle'
 				&& operation.scopes.includes('resource')
 				&& !operation.scopes.includes('changeset');
+		};
+		const replaceOperations = (replacement: readonly IObservedOperation[]): void => {
+			operations.clear();
+			for (const operation of replacement) {
+				const pendingStatus = pendingStatuses.get(operation.id);
+				operations.set(operation.id, pendingStatus === undefined ? operation : { ...operation, status: pendingStatus });
+				pendingStatuses.delete(operation.id);
+			}
 		};
 		const reduce = (n: Parameters<typeof isActionNotification>[0]): void => {
 			const isContentChanged = isActionNotification(n, 'changeset/contentChanged');
@@ -155,23 +164,19 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				return;
 			}
 			if (isOperationsChanged) {
-				operations.clear();
-				for (const operation of (getActionEnvelope(n).action as IOperationsChangedAction).operations ?? []) {
-					operations.set(operation.id, operation);
-				}
+				replaceOperations((getActionEnvelope(n).action as IOperationsChangedAction).operations ?? []);
 			} else if (isContentChanged) {
 				const replacement = (getActionEnvelope(n).action as IContentChangedAction).operations;
 				if (replacement) {
-					operations.clear();
-					for (const operation of replacement) {
-						operations.set(operation.id, operation);
-					}
+					replaceOperations(replacement);
 				}
 			} else {
 				const changed = getActionEnvelope(n).action as IOperationStatusChangedAction;
 				const operation = operations.get(changed.operationId);
 				if (operation) {
 					operations.set(changed.operationId, { ...operation, status: changed.status });
+				} else {
+					pendingStatuses.set(changed.operationId, changed.status);
 				}
 			}
 		};
