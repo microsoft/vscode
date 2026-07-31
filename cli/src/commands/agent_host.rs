@@ -17,13 +17,14 @@ use crate::constants::{self, AGENT_HOST_PORT};
 use crate::log;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
-	classify_agent_host, AgentHostConfig, AgentHostManager, AgentHostReuseDecision,
-	AgentHostSidecar, LoopbackAuth,
+	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
+	AgentHostReuseDecision, AgentHostSidecar, LoopbackAuth,
 };
 use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
 use crate::tunnels::code_server::CodeServerArgs;
 use crate::tunnels::dev_tunnels::DevTunnels;
 use crate::tunnels::idle_timeout::{self, TokioIdleSleeper};
+use crate::tunnels::ready_active_agent_host;
 use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::tunnels::user_data_path::resolve_user_data_path;
 use crate::update_service::Platform;
@@ -359,12 +360,51 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 
 	let mut tunnel_handle: Option<crate::tunnels::dev_tunnels::ActiveTunnel> = None;
 	if let Some((tunnel, mut tunnel_port)) = pending_tunnel {
-		let sidecar_for_tunnel = sidecar.clone();
+		// Route each tunneled connection through the same protocol-v6
+		// selection-gateway request router `code tunnel`'s control_server
+		// uses (`serve_agent_host_tunnel_connection`), instead of the
+		// legacy direct proxy (`AgentHostSidecar::serve_tunnel_connection`)
+		// this used to call unconditionally. That legacy method never
+		// looked at the request path, so a renderer's `/agent-host/select`
+		// WebSocket upgrade -- sent because this tunnel is tagged
+		// `protocolv6`, see `add_port_direct` above -- fell straight
+		// through to the AH backend instead of the selection gateway, and
+		// no inventory was ever sent (the reported timeout).
+		//
+		// The root/default (legacy v5) route must still resolve to *this*
+		// running sidecar -- never `ensure_supervisor_running`, which
+		// could spawn or reuse an unrelated supervisor -- so we build an
+		// already-resolved `SharedActiveAgentHost` from the sidecar's own
+		// published identity. Because that identity points back at our
+		// own loopback listener (`AgentHostSidecar::serve`, below), a
+		// legacy client proxied this way is accepted through the very
+		// same accept loop that already holds an `--idle-timeout`
+		// activity guard for its connection's whole lifetime, so a
+		// connected legacy tunnel client keeps counting as activity and
+		// cannot make the supervisor time itself out from under it.
+		let active_agent_host = ready_active_agent_host(sidecar.active_agent_host());
+		let launcher_paths = ctx.paths.clone();
+		let gateway_user_data_path = user_data_path.clone();
+		let tunnel_log = ctx.log.clone();
+		info!(
+			ctx.log,
+			"Routing dev-tunnel-hosted agent-host port through the protocol-v6 selection gateway"
+		);
 		tokio::spawn(async move {
 			while let Some(socket) = tunnel_port.recv().await {
-				let sidecar = sidecar_for_tunnel.clone();
+				let log = tunnel_log.clone();
+				let active_agent_host = active_agent_host.clone();
+				let launcher_paths = launcher_paths.clone();
+				let user_data_path = gateway_user_data_path.clone();
 				tokio::spawn(async move {
-					sidecar.serve_tunnel_connection(socket.into_rw()).await;
+					serve_agent_host_tunnel_connection(
+						log,
+						socket.into_rw(),
+						active_agent_host,
+						launcher_paths,
+						user_data_path,
+					)
+					.await;
 				});
 			}
 		});

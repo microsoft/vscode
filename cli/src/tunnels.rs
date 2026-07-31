@@ -42,7 +42,8 @@ pub mod user_data_path;
 mod wsl_detect;
 
 pub use control_server::{
-	serve, serve_stream, AuthRequired, Next, ServeStreamParams, SharedActiveAgentHost,
+	ready_active_agent_host, serve, serve_stream, AuthRequired, Next, ServeStreamParams,
+	SharedActiveAgentHost,
 };
 pub use nosleep::SleepInhibitor;
 pub use service::{

@@ -79,6 +79,21 @@ type CodeServerCell = Arc<Mutex<Option<SocketCodeServer>>>;
 pub type SharedActiveAgentHost =
 	Shared<BoxFuture<'static, Result<Arc<ActiveAgentHost>, Arc<AnyError>>>>;
 
+/// Wraps an already-known [`ActiveAgentHost`] into a [`SharedActiveAgentHost`]
+/// that resolves immediately, for callers that already *are* (or already
+/// know) the running supervisor and must not drive
+/// `ensure_supervisor_running`'s registry lookup/spawn path -- e.g. `code
+/// agent host --tunnel` routing its own tunneled `/agent-host` port back to
+/// itself (see [`super::agent_host::AgentHostSidecar::active_agent_host`]).
+/// Unlike the lazy future built in [`serve`] (which only resolves once a
+/// consumer actually awaits it), this is eagerly ready, since the caller
+/// already has every field it needs.
+pub fn ready_active_agent_host(active: ActiveAgentHost) -> SharedActiveAgentHost {
+	futures::future::ready(Ok(Arc::new(active)))
+		.boxed()
+		.shared()
+}
+
 struct HandlerContext {
 	/// Log handle for the server
 	log: log::Logger,
@@ -222,6 +237,13 @@ pub async fn serve(
 		.boxed()
 		.shared()
 	};
+	// `code tunnel` has no `--user-data-dir` of its own -- the registry the
+	// selection gateway consults always lives under the platform default
+	// user data path here. Resolved once and passed explicitly into
+	// `serve_agent_host_tunnel_connection` below so the router never has
+	// to guess which directory to look at (see that function's doc
+	// comment).
+	let agent_host_user_data_path = super::user_data_path::resolve_user_data_path(None);
 
 	let code_server_args = code_server_args.clone();
 
@@ -274,12 +296,14 @@ pub async fn serve(
 				let log = log.clone();
 				let active_agent_host = active_agent_host.clone();
 				let launcher_paths = launcher_paths.clone();
+				let user_data_path = agent_host_user_data_path.clone();
 				tokio::spawn(async move {
 					serve_agent_host_tunnel_connection(
 						log,
 						socket.into_rw(),
 						active_agent_host,
 						launcher_paths,
+						user_data_path,
 					)
 					.await;
 				});

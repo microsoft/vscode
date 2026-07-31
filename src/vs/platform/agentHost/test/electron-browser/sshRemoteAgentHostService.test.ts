@@ -14,6 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { INotificationService, type INotificationHandle } from '../../../notification/common/notification.js';
+import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService, type IQuickPickItem } from '../../../quickinput/common/quickInput.js';
@@ -116,6 +118,7 @@ class MockSSHMainService {
 			connectionToken: 'test-token',
 			config: { host: config.host, username: config.username, authMethod: config.authMethod, name: config.name, sshConfigHost: config.sshConfigHost },
 			sshConfigHost: config.sshConfigHost,
+			serverType: this.connectResult?.serverType,
 		};
 	}
 
@@ -128,6 +131,7 @@ class MockSSHMainService {
 			connectionToken: 'test-token',
 			config: { host: sshConfigHost, username: 'u', authMethod: 0 as never, name, sshConfigHost },
 			sshConfigHost,
+			serverType: this.connectResult?.serverType,
 		};
 	}
 
@@ -260,12 +264,22 @@ class TestConfigurationService {
 	setRemoteAgentHostsEnabled(enabled: boolean): void { this._remoteAgentHostsEnabled = enabled; }
 }
 
+/** Captures every message passed to `info()` so tests can assert on the SSH failover notification. */
+class CapturingNotificationService extends TestNotificationService {
+	readonly infoMessages: string[] = [];
+	override info(message: string): INotificationHandle {
+		this.infoMessages.push(message);
+		return super.info(message);
+	}
+}
+
 suite('SSHRemoteAgentHostService (renderer)', () => {
 
 	const disposables = new DisposableStore();
 	let mainService: MockSSHMainService;
 	let remoteAgentHostService: MockRemoteAgentHostService;
 	let configurationService: TestConfigurationService;
+	let notificationService: CapturingNotificationService;
 	let createdClients: MockProtocolClient[];
 	let waitForClient: (index: number) => Promise<MockProtocolClient>;
 	let service: SSHRemoteAgentHostService;
@@ -289,6 +303,8 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		instantiationService.stub(IQuickInputService, quickInputServiceStub as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
+		notificationService = new CapturingNotificationService();
+		instantiationService.stub(INotificationService, notificationService as Partial<INotificationService>);
 
 		const clientWaiters: DeferredPromise<MockProtocolClient>[] = [];
 		waitForClient = (index: number): Promise<MockProtocolClient> => {
@@ -481,6 +497,148 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		// sure we're not at risk of issuing a second one against a stale id.
 		assert.ok(mainService.disconnectCalls.length <= 1, 'no duplicate disconnect against a stale connectionId');
 	});
+
+	// --- SSH failover notification: editor-owned → standalone on an unattended reconnect ---
+
+	const NOTIFICATION_MESSAGE = 'The editor agent host exited. Reconnected to a dedicated agent host. In-progress work may have been interrupted.';
+
+	/** Fires the main-process close event to simulate natural connection cleanup between connect/reconnect calls. */
+	function fireMainProcessClose(connectionId: string): void {
+		(mainService as unknown as { _onDidCloseConnection: Emitter<string> })._onDidCloseConnection.fire(connectionId);
+	}
+
+	test('initial connect never notifies, even when it lands on a standalone endpoint', async () => {
+		mainService.connectResult = { serverType: 'standalone' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+
+		assert.deepStrictEqual(notificationService.infoMessages, []);
+	});
+
+	test('an automatic/background reconnect that fails over from an editor-owned endpoint to a standalone endpoint shows exactly one notification', async () => {
+		// Initial connect selects an editor-owned endpoint.
+		mainService.connectResult = { serverType: 'editor' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+		assert.deepStrictEqual(notificationService.infoMessages, [], 'no notification on initial connect');
+
+		// The SSH tunnel drops and the renderer-side handle is cleaned up.
+		// This disconnect cleanup must NOT erase the last-known server type.
+		fireMainProcessClose('conn-1');
+		assert.strictEqual(service.connections.length, 0);
+
+		// A silent/background reconnect (userInitiated: false) lands on a
+		// standalone endpoint instead of the editor-owned one.
+		mainService.connectResult = { connectionId: 'conn-2', serverType: 'standalone' };
+		const r = service.reconnect('remote.example', 'My Remote', false);
+		await awaitClientThenResolve(1);
+		await r;
+
+		assert.deepStrictEqual(notificationService.infoMessages, [NOTIFICATION_MESSAGE]);
+	});
+
+	test('a user-initiated reconnect from an editor-owned endpoint to a standalone endpoint does not notify', async () => {
+		mainService.connectResult = { serverType: 'editor' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+
+		fireMainProcessClose('conn-1');
+
+		mainService.connectResult = { connectionId: 'conn-2', serverType: 'standalone' };
+		const r = service.reconnect('remote.example', 'My Remote', /* userInitiated */ true);
+		await awaitClientThenResolve(1);
+		await r;
+
+		assert.deepStrictEqual(notificationService.infoMessages, []);
+	});
+
+	test('reconnect without an explicit userInitiated argument defaults to user-initiated and does not notify', async () => {
+		mainService.connectResult = { serverType: 'editor' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+
+		fireMainProcessClose('conn-1');
+
+		mainService.connectResult = { connectionId: 'conn-2', serverType: 'standalone' };
+		const r = service.reconnect('remote.example', 'My Remote');
+		await awaitClientThenResolve(1);
+		await r;
+
+		assert.deepStrictEqual(notificationService.infoMessages, []);
+	});
+
+	test('an automatic reconnect that stays on an editor-owned endpoint does not notify', async () => {
+		mainService.connectResult = { serverType: 'editor' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+
+		fireMainProcessClose('conn-1');
+
+		mainService.connectResult = { connectionId: 'conn-2', serverType: 'editor' };
+		const r = service.reconnect('remote.example', 'My Remote', false);
+		await awaitClientThenResolve(1);
+		await r;
+
+		assert.deepStrictEqual(notificationService.infoMessages, []);
+	});
+
+	test('an automatic reconnect that stays on a standalone endpoint does not notify', async () => {
+		mainService.connectResult = { serverType: 'standalone' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+
+		fireMainProcessClose('conn-1');
+
+		mainService.connectResult = { connectionId: 'conn-2', serverType: 'standalone' };
+		const r = service.reconnect('remote.example', 'My Remote', false);
+		await awaitClientThenResolve(1);
+		await r;
+
+		assert.deepStrictEqual(notificationService.infoMessages, []);
+	});
+
+	test('a failed (incompatible) automatic reconnect does not notify even though it targets a standalone endpoint', async () => {
+		mainService.connectResult = { serverType: 'editor' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+
+		fireMainProcessClose('conn-1');
+
+		mainService.connectResult = { connectionId: 'conn-2', serverType: 'standalone' };
+		const r = service.reconnect('remote.example', 'My Remote', false);
+		const client = await waitForClient(1);
+		await client.connectDeferred.error(new ProtocolError(
+			AHP_UNSUPPORTED_PROTOCOL_VERSION,
+			'Unsupported protocol version',
+			{ supportedVersions: ['^0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+		));
+		await assert.rejects(r, /Unsupported protocol version/);
+
+		assert.deepStrictEqual(notificationService.infoMessages, []);
+	});
+
+	test('a duplicate setup that reuses an already-connected handle does not notify', async () => {
+		mainService.connectResult = { connectionId: 'conn-1', serverType: 'editor' };
+		const c1 = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await c1;
+
+		// Second connect resolves to the same connectionId while the entry
+		// is still connected — SSHRemoteAgentHostService short-circuits to
+		// the existing handle and never re-runs endpoint-selection tracking.
+		const c2 = service.connect(sampleConfig);
+		await c2;
+
+		assert.strictEqual(createdClients.length, 1, 'no second protocol client is created for the duplicate setup');
+		assert.deepStrictEqual(notificationService.infoMessages, []);
+	});
 });
 
 suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
@@ -504,6 +662,7 @@ suite('SSHRemoteAgentHostService endpoint selection picker (renderer)', () => {
 		instantiationService.stub(IQuickInputService, quickInputServiceStub as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
+		instantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
 		instantiationService.stub(ISSHRelayClientFactory, {
 			createClient: () => disposables.add(new MockProtocolClient()) as unknown as RemoteAgentHostProtocolClient,
 		});

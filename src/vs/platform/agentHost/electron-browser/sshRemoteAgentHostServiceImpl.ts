@@ -12,6 +12,7 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { INotificationService } from '../../notification/common/notification.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
@@ -19,6 +20,7 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { IQuickInputService, type IQuickPickItem } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
+import type { AgentHostServerType } from '../common/agentHostEndpointRegistry.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
@@ -82,6 +84,17 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	private readonly _connections = new Map<string, SSHAgentHostConnectionHandle>();
 
+	/**
+	 * The server type ('editor' or 'standalone') of the last successfully
+	 * established connection for a given (stable) connection address.
+	 * Deliberately NOT cleared when a connection closes (see
+	 * `onDidCloseConnection` below) — it needs to survive disconnect cleanup
+	 * so a later automatic reconnect can detect an editor→standalone
+	 * failover and surface a one-time notification. Only ever updated after
+	 * a connection has fully and successfully registered.
+	 */
+	private readonly _lastConnectedServerTypeByAddress = new Map<string, AgentHostServerType>();
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -89,6 +102,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISSHRelayClientFactory private readonly _relayClientFactory: ISSHRelayClientFactory,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -155,7 +169,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
 		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
-		return this._setupConnection(result);
+		return this._setupConnection(result, config.userInitiated ?? true);
 	}
 
 	async disconnect(host: string): Promise<void> {
@@ -187,7 +201,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		const agentForward = this._isSSHAgentForwardingEnabled();
 		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
 		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward, userInitiated);
-		return this._setupConnection(result);
+		return this._setupConnection(result, userInitiated ?? true);
 	}
 
 	/**
@@ -195,7 +209,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 * with IRemoteAgentHostService. Any failure after the shared-process tunnel
 	 * was established tears it back down so we don't leak it.
 	 */
-	private async _setupConnection(result: ISSHConnectResult): Promise<ISSHAgentHostConnection> {
+	private async _setupConnection(result: ISSHConnectResult, userInitiated: boolean): Promise<ISSHAgentHostConnection> {
 		const existing = this._connections.get(result.connectionId);
 		if (existing) {
 			// Reuse the existing handle only if the managed entry is still
@@ -285,7 +299,40 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			throw connectError;
 		}
 
+		// Only track/notify for a fully successful setup — an incompatible
+		// handshake (connectError above) still registers a managed entry
+		// but isn't a usable connection, so it must not count as "reconnect
+		// succeeded" for failover-detection purposes.
+		this._recordEndpointSelection(result, userInitiated);
+
 		return handle;
+	}
+
+	/**
+	 * Update the last-known server type for {@link result.address}, and — if
+	 * this was an automatic/background reconnect (`userInitiated === false`)
+	 * that moved this stable remote address from a previously connected
+	 * `editor`-owned endpoint to a newly selected `standalone` endpoint —
+	 * surface a single informational notification. Never fires for the
+	 * initial connect to a remote (no prior recorded server type), a
+	 * user-initiated reconnect, or a same-kind transition
+	 * (editor→editor/standalone→standalone).
+	 */
+	private _recordEndpointSelection(result: ISSHConnectResult, userInitiated: boolean): void {
+		if (!result.serverType) {
+			return;
+		}
+		const previousServerType = this._lastConnectedServerTypeByAddress.get(result.address);
+		const isUnattendedFailoverFromEditor = userInitiated === false
+			&& previousServerType === 'editor'
+			&& result.serverType === 'standalone';
+		this._lastConnectedServerTypeByAddress.set(result.address, result.serverType);
+		if (isUnattendedFailoverFromEditor) {
+			this._notificationService.info(localize(
+				'sshEditorAgentHostReplacedByStandalone',
+				"The editor agent host exited. Reconnected to a dedicated agent host. In-progress work may have been interrupted."
+			));
+		}
 	}
 
 	/**

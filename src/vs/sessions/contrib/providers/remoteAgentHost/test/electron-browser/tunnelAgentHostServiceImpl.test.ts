@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ITunnelGatewayInventory } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { autoGatewaySelection, buildGatewayPickItems, pickGatewaySelection } from '../../electron-browser/tunnelAgentHostServiceImpl.js';
+import { autoGatewaySelection, buildGatewayPickItems, pickGatewaySelection, shouldNotifyTunnelFailover, shouldTrackTunnelConnection, TunnelFailoverTracker } from '../../electron-browser/tunnelAgentHostServiceImpl.js';
 
 function inventory(endpoints: ITunnelGatewayInventory['endpoints']): ITunnelGatewayInventory {
 	return { userDataPath: '/data', endpoints };
@@ -141,6 +141,119 @@ suite('tunnelAgentHostServiceImpl - gateway picker', () => {
 			const selection = await pickGatewaySelection(quickInputService, inventory([editorEndpoint, standaloneEndpoint]), { userInitiated: true });
 			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
 			assert.strictEqual(pickCalled, true, 'user-initiated connects must still offer the picker');
+		});
+	});
+
+	suite('shouldNotifyTunnelFailover', () => {
+		test('notifies on a background reconnect that moved from an editor endpoint to a standalone one', () => {
+			assert.strictEqual(shouldNotifyTunnelFailover('editor', 'standalone', false), true);
+		});
+
+		test('does not notify on the initial connect (no previously retained endpoint)', () => {
+			assert.strictEqual(shouldNotifyTunnelFailover(undefined, 'standalone', false), false);
+		});
+
+		test('does not notify on a user-initiated reconnect, even editor -> standalone', () => {
+			assert.strictEqual(shouldNotifyTunnelFailover('editor', 'standalone', true), false);
+		});
+
+		test('does not notify editor -> editor', () => {
+			assert.strictEqual(shouldNotifyTunnelFailover('editor', 'editor', false), false);
+		});
+
+		test('does not notify standalone -> standalone', () => {
+			assert.strictEqual(shouldNotifyTunnelFailover('standalone', 'standalone', false), false);
+		});
+
+		test('does not notify standalone -> editor', () => {
+			assert.strictEqual(shouldNotifyTunnelFailover('standalone', 'editor', false), false);
+		});
+
+		test('does not notify when the previous or new server type is "unknown" (legacy protocol-v5 tunnels)', () => {
+			assert.strictEqual(shouldNotifyTunnelFailover('unknown', 'standalone', false), false);
+			assert.strictEqual(shouldNotifyTunnelFailover('editor', 'unknown', false), false);
+		});
+	});
+
+	suite('TunnelFailoverTracker', () => {
+		test('does not notify on the first (initial) registration for an address', () => {
+			const tracker = new TunnelFailoverTracker();
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'editor', true), false);
+		});
+
+		test('notifies exactly once when a background reconnect moves editor -> standalone for the same address', () => {
+			const tracker = new TunnelFailoverTracker();
+			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true); // initial user-initiated connect
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), true, 'first auto-reconnect after editor exit must notify');
+		});
+
+		test('does not notify again on a subsequent standalone -> standalone reconnect (no duplicates)', () => {
+			const tracker = new TunnelFailoverTracker();
+			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true);
+			tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false); // notifies once
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), false, 'must not notify again for the same steady state');
+		});
+
+		test('retains metadata across relay closure: a later reconnect still compares against the last successful registration', () => {
+			const tracker = new TunnelFailoverTracker();
+			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true);
+			// Simulate the relay closing and several failed reconnect attempts
+			// never reaching a successful registration — the tracker is not
+			// touched by those, so the retained "editor" state must survive.
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), true);
+		});
+
+		test('tracks addresses independently', () => {
+			const tracker = new TunnelFailoverTracker();
+			tracker.recordAndShouldNotify('tunnel:one', 'editor', true);
+			tracker.recordAndShouldNotify('tunnel:two', 'standalone', true);
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:one', 'standalone', false), true, 'tunnel:one had an editor endpoint, so this is a failover');
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:two', 'standalone', false), false, 'tunnel:two never had an editor endpoint');
+		});
+
+		test('a user-initiated reconnect updates the retained state without notifying, affecting later comparisons', () => {
+			const tracker = new TunnelFailoverTracker();
+			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true);
+			// User explicitly reconnects and picks standalone themselves.
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', true), false, 'user-initiated changes never notify');
+			// A later background reconnect keeps landing on standalone: no
+			// notification, since there is no editor -> standalone transition.
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), false);
+		});
+	});
+
+	suite('shouldTrackTunnelConnection', () => {
+		test('tracks (and may notify) when the connect attempt has no error', () => {
+			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
+		});
+
+		test('does not track when the attempt ended in a connectError (e.g. incompatible handshake)', () => {
+			assert.strictEqual(shouldTrackTunnelConnection(new Error('Unsupported protocol version')), false);
+		});
+	});
+
+	suite('ordering: connectError must gate the tracker/notification step', () => {
+		test('an editor -> standalone automatic reconnect that ends in connectError must not update the tracker or notify', () => {
+			// Models `connect()`'s post-addManagedConnection guard exactly:
+			// `shouldTrackTunnelConnection(connectError)` must be checked (and
+			// found false) BEFORE `TunnelFailoverTracker.recordAndShouldNotify`
+			// is ever called, even though addManagedConnection already
+			// succeeded and registered the endpoint for a possible upgrade.
+			const tracker = new TunnelFailoverTracker();
+			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true); // initial user-initiated connect
+
+			const connectError: unknown = new Error('Unsupported protocol version');
+			let notified: boolean | undefined;
+			if (shouldTrackTunnelConnection(connectError)) {
+				notified = tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false);
+			}
+			assert.strictEqual(notified, undefined, 'the tracker must never be invoked for a failed (incompatible) reconnect');
+
+			// A later, fully successful editor -> standalone reconnect must
+			// still notify: the failed attempt above must not have poisoned
+			// (or prematurely advanced) the retained state.
+			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
+			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), true, 'the retained state must still be "editor" since the failed attempt was never tracked');
 		});
 	});
 });

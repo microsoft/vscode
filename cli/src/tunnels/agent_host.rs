@@ -50,7 +50,6 @@ use super::agent_host_registry::{
 use super::idle_timeout;
 use super::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use super::shutdown_signal::ShutdownSignal;
-use super::user_data_path::resolve_user_data_path;
 
 /// How often to check for server updates.
 pub const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
@@ -1033,6 +1032,11 @@ pub struct AgentHostSidecar {
 	listener: TcpListener,
 	bound_addr: SocketAddr,
 	public_token: Option<String>,
+	/// The host label published to the registry for this sidecar (see
+	/// [`Self::bind_tcp`]'s `host_label` parameter). Kept so
+	/// [`Self::active_agent_host`] can hand back exactly the identity
+	/// this sidecar published, without re-deriving it from `bound_addr`.
+	host_label: String,
 	user_data_path: PathBuf,
 	instance_id: String,
 	pid: u32,
@@ -1100,7 +1104,7 @@ impl AgentHostSidecar {
 		let entry = AgentHostEndpointMetadata::new_standalone(
 			pid,
 			instance_id.clone(),
-			host,
+			host.clone(),
 			bound_addr.port(),
 			public_token.clone().unwrap_or_default(),
 			AGENT_HOST_PROTOCOL_VERSION.to_string(),
@@ -1143,12 +1147,33 @@ impl AgentHostSidecar {
 			listener,
 			bound_addr,
 			public_token,
+			host_label: host,
 			user_data_path,
 			instance_id,
 			pid,
 			registry_cleaned_up: AtomicBool::new(false),
 			activity,
 		}))
+	}
+
+	/// This sidecar's identity in the same shape as
+	/// [`super::control_server::SharedActiveAgentHost`]'s resolved value,
+	/// exactly matching what [`Self::bind_tcp`] published to the shared
+	/// endpoint registry (pid, host, port, token). Lets a caller that
+	/// already *is* the running supervisor (e.g. `code agent host
+	/// --tunnel` routing its own tunneled `/agent-host` port) build a
+	/// ready [`super::control_server::SharedActiveAgentHost`] -- see
+	/// [`super::control_server::ready_active_agent_host`] -- without going
+	/// through `ensure_supervisor_running`'s registry lookup/spawn path,
+	/// which exists for callers that do *not* already know whether a
+	/// supervisor is running.
+	pub fn active_agent_host(&self) -> crate::commands::agent_host::ActiveAgentHost {
+		crate::commands::agent_host::ActiveAgentHost {
+			pid: self.pid,
+			host: Some(self.host_label.clone()),
+			port: self.bound_addr.port(),
+			token: self.public_token.clone(),
+		}
 	}
 
 	/// Returns the wrapped manager, e.g. so callers can pre-fetch the latest
@@ -1428,11 +1453,30 @@ pub fn classify_agent_host(
 /// selection path never drives `active_agent_host` from here either --
 /// only an actual legacy request does, so a tunnel that nobody connects
 /// to never spawns a standalone supervisor by itself.
+///
+/// This is the single request router shared by every caller that hosts
+/// the forwarded agent-host tunnel port, regardless of who owns
+/// `active_agent_host`: `code tunnel`'s `control_server` passes a lazily
+/// `ensure_supervisor_running`-backed future (it may not know of a live
+/// supervisor yet), while `code agent host --tunnel` passes an
+/// already-resolved [`super::control_server::ready_active_agent_host`]
+/// pointing at its own running sidecar (see
+/// [`AgentHostSidecar::active_agent_host`]) -- it already *is* the
+/// supervisor, so it must never call `ensure_supervisor_running` (which
+/// could spawn or reuse an unrelated one) from this path.
+///
+/// `user_data_path` is passed in explicitly (rather than re-resolved
+/// internally) so it reflects whatever `--user-data-dir` (if any) the
+/// caller's own supervisor is actually using -- this must match the
+/// directory [`AgentHostSidecar::bind_tcp`] published its registry entry
+/// under, or the selection gateway's inventory would look at the wrong
+/// registry file.
 pub async fn serve_agent_host_tunnel_connection<RW>(
 	log: log::Logger,
 	rw: RW,
 	active_agent_host: super::control_server::SharedActiveAgentHost,
 	launcher_paths: LauncherPaths,
+	user_data_path: PathBuf,
 ) where
 	RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
@@ -1441,9 +1485,16 @@ pub async fn serve_agent_host_tunnel_connection<RW>(
 		let log = svc_log.clone();
 		let active_agent_host = active_agent_host.clone();
 		let launcher_paths = launcher_paths.clone();
+		let user_data_path = user_data_path.clone();
 		async move {
+			let path = req.uri().path().to_string();
 			if is_gateway_select_request(&req) {
-				return handle_gateway_select_request(log, launcher_paths, req).await;
+				debug!(
+					log,
+					"Agent-host tunnel: dispatching {} to protocol-v6 selection gateway", path
+				);
+				return handle_gateway_select_request(log, launcher_paths, user_data_path, req)
+					.await;
 			}
 
 			let active = match active_agent_host.await {
@@ -1460,6 +1511,14 @@ pub async fn serve_agent_host_tunnel_connection<RW>(
 						.unwrap());
 				}
 			};
+			debug!(
+				log,
+				"Agent-host tunnel: routing {} to legacy direct proxy (pid={}, {}:{})",
+				path,
+				active.pid,
+				active.dial_host(),
+				active.port
+			);
 			handle_reuse_request(
 				log,
 				active.dial_host().to_string(),
@@ -1706,10 +1765,14 @@ struct GatewaySelectionResponse {
 /// HTTP/1 request. Unlike the legacy route, the gateway is itself the
 /// WebSocket endpoint here (there is no upstream to proxy to until a
 /// selection is made), so it answers the upgrade directly and hands the
-/// upgraded connection to [`run_gateway_session`].
+/// upgraded connection to [`run_gateway_session`]. `user_data_path` is
+/// the caller-resolved directory to consult for the live-endpoint
+/// registry -- see [`serve_agent_host_tunnel_connection`]'s doc comment
+/// for why this must not be re-resolved internally.
 async fn handle_gateway_select_request(
 	log: log::Logger,
 	launcher_paths: LauncherPaths,
+	user_data_path: PathBuf,
 	mut req: Request<Incoming>,
 ) -> Result<Response<HyperBody>, Infallible> {
 	let key = match req.headers().get(::http::header::SEC_WEBSOCKET_KEY) {
@@ -1739,7 +1802,6 @@ async fn handle_gateway_select_request(
 			Ok(upgraded) => {
 				let io = TokioIo::new(upgraded);
 				let ws = WebSocketStream::from_raw_socket(io, Role::Server, None).await;
-				let user_data_path = resolve_user_data_path(None);
 				run_gateway_session(svc_log, launcher_paths, user_data_path, ws).await;
 			}
 			Err(e) => {
@@ -2807,5 +2869,188 @@ mod tests {
 			other => panic!("expected error ack, got {other:?}"),
 		};
 		assert!(ack.contains(r#""ok":false"#), "got: {ack}");
+	}
+
+	// ---- Direct-hosted tunnel router (`serve_agent_host_tunnel_connection`) --
+	//
+	// These exercise the exact request router `code agent host --tunnel`'s
+	// `run_supervisor` now dispatches its dev-tunnel-hosted `AGENT_HOST_PORT`
+	// connections through -- previously it called
+	// `AgentHostSidecar::serve_tunnel_connection` unconditionally, which
+	// never looked at the request path, so a renderer's `/agent-host/select`
+	// upgrade (sent because the tunnel is tagged with the current
+	// `PROTOCOL_VERSION_TAG`, see `constants::PROTOCOL_VERSION`'s doc
+	// comment) fell straight through to the AH backend and no inventory was
+	// ever sent.
+
+	/// Accepts exactly one raw TCP connection, reads until the request's
+	/// header terminator, and replies with a fixed HTTP/1.1 body -- a
+	/// minimal stand-in for "the current sidecar's own local accept loop"
+	/// so tests can assert the direct-hosted-tunnel router's root/default
+	/// route reaches *this* fake endpoint specifically, without needing a
+	/// real `AgentHostManager`-backed server.
+	async fn spawn_fake_http_endpoint(body: &'static str) -> u16 {
+		use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		tokio::spawn(async move {
+			let (mut stream, _) = listener.accept().await.unwrap();
+			let mut buf = [0u8; 1024];
+			let mut seen = Vec::new();
+			loop {
+				let n = stream.read(&mut buf).await.unwrap();
+				if n == 0 {
+					break;
+				}
+				seen.extend_from_slice(&buf[..n]);
+				if seen.windows(4).any(|w| w == b"\r\n\r\n") {
+					break;
+				}
+			}
+			let response = format!(
+				"HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+				body.len(),
+				body
+			);
+			stream.write_all(response.as_bytes()).await.unwrap();
+		});
+		port
+	}
+
+	/// The root/default route of the direct-hosted-tunnel router must
+	/// resolve to exactly the `ActiveAgentHost` the caller already handed
+	/// it -- mirroring how `run_supervisor` builds one from its own
+	/// running sidecar's published identity (see
+	/// `AgentHostSidecar::active_agent_host`) -- rather than falling back
+	/// to some other discovery/spawn path. The registry here is left
+	/// completely empty (no `standalone`/`editor` entries at all): if the
+	/// router ever ignored the passed-in `active_agent_host` and instead
+	/// consulted the registry (e.g. via `ensure_supervisor_running`), it
+	/// would either 503 or try to spawn a brand-new supervisor process
+	/// instead of reaching the fake endpoint below, so reaching it proves
+	/// neither happened.
+	#[tokio::test]
+	async fn direct_tunnel_root_route_reaches_current_sidecar_without_spawning_supervisor() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+
+		let fake_port = spawn_fake_http_endpoint("current-sidecar-ok").await;
+		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
+			crate::commands::agent_host::ActiveAgentHost {
+				pid: std::process::id(),
+				host: Some("127.0.0.1".to_string()),
+				port: fake_port,
+				token: None,
+			},
+		);
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+			)
+			.await;
+		});
+
+		let io = TokioIo::new(client_io);
+		let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
+		tokio::spawn(async move {
+			let _ = conn.await;
+		});
+		let req = Request::builder()
+			.method("GET")
+			.uri("/")
+			.body(http_body_util::Empty::<bytes::Bytes>::new())
+			.unwrap();
+		let res = sender.send_request(req).await.expect("send request");
+		assert_eq!(res.status(), 200);
+		let body = res.into_body().collect().await.unwrap().to_bytes();
+		assert_eq!(&body[..], b"current-sidecar-ok" as &[u8]);
+	}
+
+	/// End-to-end regression test for the reported tunnel inventory
+	/// timeout: drives an actual HTTP/1 WebSocket upgrade request for
+	/// `AGENT_HOST_GATEWAY_SELECT_PATH` through
+	/// `serve_agent_host_tunnel_connection` -- the same router
+	/// `run_supervisor` now uses for `code agent host --tunnel`'s
+	/// dev-tunnel-hosted `AGENT_HOST_PORT` -- and observes the inventory
+	/// message the gateway sends immediately after upgrading. The
+	/// root/default route is deliberately pointed at an unreachable
+	/// address (port `1`, universally reserved/refused) so the test also
+	/// proves the select path never touches the legacy direct-proxy route
+	/// at all: if it did, this would hang or error instead of yielding an
+	/// inventory immediately.
+	///
+	/// This also ties the tunnel's protocol tag to the served route: the
+	/// tunnel `code agent host --tunnel` creates is tagged with the
+	/// current `PROTOCOL_VERSION_TAG` (`constants::PROTOCOL_VERSION`,
+	/// currently `6`), which is exactly the version that introduced this
+	/// selection route (see that constant's doc comment) -- so a tunnel
+	/// tagged this way must always be served by a router that understands
+	/// `AGENT_HOST_GATEWAY_SELECT_PATH`.
+	#[tokio::test]
+	async fn direct_tunnel_select_route_dispatches_gateway_and_returns_inventory() {
+		assert!(
+			crate::constants::PROTOCOL_VERSION >= 6,
+			"the gateway selection route requires protocol v6+"
+		);
+
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+
+		let target_port = spawn_fake_target_endpoint().await;
+		let entry = make_tcp_endpoint("instance-direct-tunnel", target_port, "");
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&entry,
+		)
+		.unwrap();
+
+		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
+			crate::commands::agent_host::ActiveAgentHost {
+				pid: 0,
+				host: Some("127.0.0.1".to_string()),
+				// Port 1 is a reserved, universally-refused TCP port: any
+				// attempt to dial it (i.e. the legacy root route) fails
+				// immediately rather than silently succeeding.
+				port: 1,
+				token: None,
+			},
+		);
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+			)
+			.await;
+		});
+
+		let (mut client_ws, _resp) = tokio_tungstenite::client_async(
+			format!("ws://localhost{AGENT_HOST_GATEWAY_SELECT_PATH}"),
+			client_io,
+		)
+		.await
+		.expect("gateway select upgrade should succeed");
+
+		let inventory = match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => serde_json::from_str::<serde_json::Value>(&t).unwrap(),
+			other => panic!("expected inventory message, got {other:?}"),
+		};
+		let endpoints = inventory["endpoints"].as_array().unwrap();
+		assert_eq!(endpoints.len(), 1);
+		assert_eq!(endpoints[0]["instanceId"], "instance-direct-tunnel");
 	}
 }
