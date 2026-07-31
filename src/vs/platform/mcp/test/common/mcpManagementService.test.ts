@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService } from '../../common/mcpManagementService.js';
-import { IAllowedMcpServersService, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
+import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
 import { IMcpSandboxConfiguration, McpServerType, McpServerVariableType, IMcpServerConfiguration, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Event } from '../../../../base/common/event.js';
@@ -64,8 +64,8 @@ class TestMcpResourceManagementService extends AbstractMcpResourceManagementServ
 		);
 	}
 
-	public reload(): Promise<void> {
-		return this.updateLocal();
+	public reload(source?: IGalleryMcpServer): Promise<void> {
+		return this.updateLocal(source);
 	}
 
 	override canInstall(_server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
@@ -1127,6 +1127,19 @@ suite('McpResourceManagementService', () => {
 	let fileService: FileService;
 	let service: TestMcpResourceManagementService;
 
+	function createGallery(): IGalleryMcpServer {
+		return {
+			name: 'test',
+			displayName: 'Test',
+			description: '',
+			version: '1.0.0',
+			isLatest: true,
+			status: GalleryMcpServerStatus.Active,
+			configuration: {},
+			publisher: 'test',
+		};
+	}
+
 	setup(async () => {
 		disposables = new DisposableStore();
 		fileService = disposables.add(new FileService(new NullLogService()));
@@ -1190,6 +1203,39 @@ suite('McpResourceManagementService', () => {
 		assert.strictEqual(updateCount, 1);
 		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
 	});
+
+	test('propagates the gallery source when loading an installed server', async () => {
+		const gallery = createGallery();
+		const installPromise = Event.toPromise(service.onDidInstallMcpServers);
+
+		await service.reload(gallery);
+		const result = await installPromise;
+
+		assert.strictEqual(result[0].source, gallery);
+	});
+
+	test('propagates the gallery source when updating an installed server', async () => {
+		await service.getInstalled();
+		const gallery = createGallery();
+		const updatePromise = Event.toPromise(service.onDidUpdateMcpServers);
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: {
+				network: { allowedDomains: ['updated.example.com'] }
+			},
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+
+		await service.reload(gallery);
+		const result = await updatePromise;
+
+		assert.strictEqual(result[0].source, gallery);
+	});
 });
 
 suite('McpResourceManagementService - install policy enforcement', () => {
@@ -1235,4 +1281,3 @@ suite('McpResourceManagementService - install policy enforcement', () => {
 		assert.ok((await service.getInstalled()).some(s => s.name === server.name));
 	});
 });
-

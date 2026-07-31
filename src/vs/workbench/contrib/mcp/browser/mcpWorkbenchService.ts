@@ -36,7 +36,7 @@ import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkben
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
-import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext, McpServerRegistryStatus } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
 import { ContributionEnablementState } from '../../chat/common/enablement.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
@@ -44,15 +44,13 @@ import { IIterativePager, IIterativePage } from '../../../../base/common/paging.
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { autorun, runOnChange } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
-import { Queue } from '../../../../base/common/async.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
 }
 
 class McpWorkbenchServer implements IWorkbenchMcpServer {
-
-	registryStatus: McpServerRegistryStatus = McpServerRegistryStatus.Unknown;
 
 	constructor(
 		private installStateProvider: IMcpServerStateProvider<McpServerInstallState>,
@@ -169,6 +167,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private _local: McpWorkbenchServer[] = [];
 	private registrySyncGeneration = 0;
+	private readonly registrySyncDelayer = this._register(new ThrottledDelayer<void>(0));
 	get local(): readonly McpWorkbenchServer[] { return [...this._local]; }
 
 	private readonly _onChange = this._register(new Emitter<IWorkbenchMcpServer | undefined>());
@@ -207,12 +206,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			if (this._store.isDisposed) {
 				return;
 			}
-			const queue = this._register(new Queue());
 			this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
 				this.invalidateRegistryVerification();
-				queue.queue(() => this.syncInstalledMcpServers());
+				this.scheduleRegistrySync();
 			}));
-			queue.queue(() => this.syncInstalledMcpServers());
+			this.scheduleRegistrySync();
 		});
 		urlService.registerHandler(this);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -242,14 +240,13 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this.invalidateRegistryVerification();
 		await this.queryLocal();
 		this._onReset.fire();
-		this.syncInstalledMcpServers();
+		this.scheduleRegistrySync();
 	}
 
 	private invalidateRegistryVerification(): void {
 		this.registrySyncGeneration++;
 		for (const server of this._local) {
 			server.gallery = undefined;
-			server.registryStatus = McpServerRegistryStatus.Unknown;
 		}
 		this._onChange.fire(undefined);
 	}
@@ -277,17 +274,17 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private onDidInstallMcpServers(e: readonly IWorkbenchMcpServerInstallResult[]) {
 		let needsRegistrySync = false;
-		for (const { local, name } of e) {
+		for (const { local, name, source } of e) {
 			let server = this.installing.find(server => server.local && local ? this.areSameMcpServers(server.local, local) : server.name === name);
 			this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
 			if (local) {
+				const trustedGallery = source ?? server?.gallery;
 				if (server) {
 					server.local = local;
 				} else {
 					server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), local, undefined, undefined);
 				}
-				server.gallery = undefined;
-				server.registryStatus = McpServerRegistryStatus.Unknown;
+				server.gallery = trustedGallery?.name === local.name ? trustedGallery : undefined;
 				needsRegistrySync = true;
 				this._local = this._local.filter(server => !this.areSameMcpServers(server.local, local));
 				this.addServer(server);
@@ -295,7 +292,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			this._onChange.fire(server);
 		}
 		if (needsRegistrySync) {
-			this.syncInstalledMcpServers();
+			this.scheduleRegistrySync();
 		}
 	}
 
@@ -314,13 +311,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), result.local, undefined, undefined);
 				this.addServer(server);
 			}
-			server.gallery = undefined;
-			server.registryStatus = McpServerRegistryStatus.Unknown;
+			server.gallery = result.source?.name === result.local.name ? result.source : undefined;
 			needsRegistrySync = true;
 			this._onChange.fire(server);
 		}
 		if (needsRegistrySync) {
-			this.syncInstalledMcpServers();
+			this.scheduleRegistrySync();
 		}
 	}
 
@@ -333,14 +329,26 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return undefined;
 	}
 
-	private async syncInstalledMcpServers(): Promise<void> {
+	private scheduleRegistrySync(): void {
+		const generation = ++this.registrySyncGeneration;
+		void this.registrySyncDelayer.trigger(() => this.syncInstalledMcpServers(generation))
+			.catch(error => this.logService.error(error));
+	}
+
+	private async syncInstalledMcpServers(generation: number): Promise<void> {
 		if (!this.mcpGalleryService.isEnabled()) {
 			return;
 		}
 
-		const generation = ++this.registrySyncGeneration;
 		const servers = this.local.flatMap(server => server.local ? [{ server, local: server.local }] : []);
-		const infos = servers.map(({ local }) => ({ name: local.name, id: local.galleryId }));
+		const infosByName = new Map<string, { name: string; id?: string }>();
+		for (const { local } of servers) {
+			const existing = infosByName.get(local.name);
+			if (!existing || (!existing.id && local.galleryId)) {
+				infosByName.set(local.name, { name: local.name, id: local.galleryId });
+			}
+		}
+		const infos = [...infosByName.values()];
 
 		if (!infos.length) {
 			return;
@@ -372,18 +380,16 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			}
 
 			if (result.status === McpGalleryResolveStatus.NotFound) {
-				if (mcpServer.gallery || mcpServer.registryStatus !== McpServerRegistryStatus.NotFound) {
+				if (mcpServer.gallery) {
 					mcpServer.gallery = undefined;
-					mcpServer.registryStatus = McpServerRegistryStatus.NotFound;
 					this._onChange.fire(mcpServer);
 				}
 				continue;
 			}
 
 			const gallery = result.server;
-			const changed = mcpServer.gallery !== gallery || mcpServer.registryStatus !== McpServerRegistryStatus.Matched;
+			const changed = mcpServer.gallery !== gallery;
 			mcpServer.gallery = gallery;
-			mcpServer.registryStatus = McpServerRegistryStatus.Matched;
 			if (changed) {
 				this._onChange.fire(mcpServer);
 			}
@@ -856,7 +862,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		if (accessValue === McpAccessValue.Registry) {
-			if (!this.isAllowedByRegistry(mcpServer)) {
+			if (!mcpServer.gallery) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
@@ -866,10 +872,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				};
 			}
 
-			// The registry can restrict which remote URLs are permitted for a server.
-			// This can only be enforced when the gallery metadata is available.
+			// Registry membership is name-based for local configurations; remote URLs must match exactly.
 			const remoteUrl = mcpServer.local.config.type === McpServerType.REMOTE && mcpServer.local.config.url;
-			if (remoteUrl && mcpServer.gallery && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
+			if (remoteUrl && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
@@ -881,23 +886,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		return undefined;
-	}
-
-	/**
-	 * Whether a server satisfies the "Registry only" access policy. Enforcement is
-	 * based exclusively on membership verified against the active registry. Unknown
-	 * status remains blocked because install metadata is user-editable and is not
-	 * trusted proof of registry membership.
-	 */
-	private isAllowedByRegistry(mcpServer: McpWorkbenchServer): boolean {
-		switch (mcpServer.registryStatus) {
-			case McpServerRegistryStatus.Matched:
-				return true;
-			case McpServerRegistryStatus.NotFound:
-			case McpServerRegistryStatus.Unknown:
-			default:
-				return false;
-		}
 	}
 
 }

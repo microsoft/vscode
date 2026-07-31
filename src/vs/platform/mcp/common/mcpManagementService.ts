@@ -393,7 +393,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		}));
 	}
 
-	protected async updateLocal(): Promise<void> {
+	protected async updateLocal(source?: IGalleryMcpServer): Promise<void> {
 		try {
 			const current = await this.populateLocalServers();
 
@@ -424,11 +424,11 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			}
 
 			if (updated.length) {
-				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, source: source?.name === server.name ? source : undefined, mcpResource: this.mcpResource })));
 			}
 
 			if (added.length) {
-				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, source: source?.name === server.name ? source : undefined, mcpResource: this.mcpResource })));
 			}
 
 		} catch (error) {
