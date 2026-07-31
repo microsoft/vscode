@@ -8,6 +8,7 @@ import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -3582,6 +3583,24 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Hello']);
 		}));
+
+		test('cancelling session hydration rejects without creating an empty session', async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/cancelled-hydration' });
+			const backendSession = AgentSession.uri('copilot', 'cancelled-hydration');
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			agentHostService.makePendingErrorSub(backendSession.toString());
+
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const loadPromise = sessionHandler.provideChatSessionContent(sessionResource, cancellation.token);
+			cancellation.cancel();
+
+			await assert.rejects(loadPromise, isCancellationError);
+
+			agentHostService.firePendingSubError(backendSession.toString(), new Error('Delayed subscription failed'));
+			const retriedSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => retriedSession.dispose()));
+			assert.deepStrictEqual(retriedSession.history, []);
+		});
 
 		test('rejects generic contributed-chat untitled resource', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

@@ -6,7 +6,7 @@
 import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -1160,6 +1160,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						}
 					}
 				} catch (err) {
+					if (isCancellationError(err)) {
+						throw err;
+					}
 					this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 					// Surface a hard load failure as a visible chat error instead of
 					// a silently empty session. Only when nothing else rendered, so a
@@ -5224,23 +5227,30 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Resolves once a subscription has received its first snapshot (its
 	 * `value` is no longer `undefined`) — i.e. it has hydrated with state or
-	 * an error. Resolves immediately if already hydrated or if cancellation
-	 * is requested.
+	 * an error. Rejects with a cancellation error if cancellation is requested.
 	 */
 	private _whenSubscriptionHydrated<T>(sub: IAgentSubscription<T>, token: CancellationToken): Promise<void> {
-		if (sub.value !== undefined || token.isCancellationRequested) {
+		if (sub.value !== undefined) {
 			return Promise.resolve();
 		}
-		return new Promise<void>(resolve => {
+		if (token.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
+		}
+		return new Promise<void>((resolve, reject) => {
 			const store = new DisposableStore();
 			const settle = () => { store.dispose(); resolve(); };
+			const cancel = () => { store.dispose(); reject(new CancellationError()); };
 			store.add(sub.onDidChange(() => { if (sub.value !== undefined) { settle(); } }));
 			const onDidError = sub.onDidError;
 			if (onDidError) {
 				store.add(onDidError(settle));
 			}
-			store.add(token.onCancellationRequested(settle));
-			if (sub.value !== undefined) { settle(); }
+			store.add(token.onCancellationRequested(cancel));
+			if (sub.value !== undefined) {
+				settle();
+			} else if (token.isCancellationRequested) {
+				cancel();
+			}
 		});
 	}
 
