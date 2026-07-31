@@ -202,9 +202,6 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const button = container.appendChild(document.createElement('button'));
 		button.classList.add('chat-turn-preview-action');
 		button.type = 'button';
-		// The resource label owns the hover for this action so that the whole button
-		// has a single (custom) hover instead of one for the label and a native
-		// `title` for the button.
 		const label = this._register(resourceLabels.create(button, { hoverTargetOverride: button }));
 
 		const clickDisposable = dom.addDisposableListener(button, 'click', (e) => {
