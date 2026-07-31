@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, suite, test } from 'node:test';
 import { isPinnedSourceRequested, overrideBuildTags, parseLsRemoteTagSha, pinnedRuntimeVersion, PINNED_SOURCE, resolveCopilotOverrides, runtimeSourceTag, sourceBuildVersion } from '../../azure-pipelines/common/copilotOverride.ts';
-import { readNativeArch, redactedError, redactSecrets, stripSourceMaps, gitAuthArgs } from '../copilotRuntimeSource.ts';
+import { linuxSysrootEnv, readNativeArch, redactedError, redactSecrets, stripSourceMaps, gitAuthArgs } from '../copilotRuntimeSource.ts';
 import { execFileSync } from 'child_process';
 
 const SHA = 'a'.repeat(40);
@@ -161,6 +161,27 @@ suite('copilotOverride.pinnedSource', () => {
 		assert.throws(() => parseLsRemoteTagSha('', 'cli-9.9.9'), /has no tag cli-9\.9\.9/);
 		assert.throws(() => parseLsRemoteTagSha(`${SHA}\trefs/tags/cli-1.0.74\n`, 'cli-1.0.73'), /has no tag cli-1\.0\.73/);
 		assert.throws(() => parseLsRemoteTagSha('abc123\trefs/tags/cli-1.0.73\n', 'cli-1.0.73'), /has no tag cli-1\.0\.73/);
+	});
+});
+
+suite('copilotRuntimeSource.linuxSysrootEnv', () => {
+	// A typo in any of these names fails open: cargo silently ignores the unknown
+	// variable, links against the agent's glibc, and the shipped package's libc6
+	// floor rises without anything failing until deb packaging.
+	test('targets the sysroot for x64', () => {
+		assert.deepStrictEqual(linuxSysrootEnv('x64', '/sr/x64', '/tc/bin'), {
+			CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: '/tc/bin/x86_64-linux-gnu-gcc',
+			CFLAGS_x86_64_unknown_linux_gnu: '--sysroot=/sr/x64',
+			CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: '-C link-arg=--sysroot=/sr/x64',
+		});
+	});
+
+	test('targets the sysroot for arm64', () => {
+		assert.deepStrictEqual(linuxSysrootEnv('arm64', '/sr/arm', '/tc/bin'), {
+			CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: '/tc/bin/aarch64-linux-gnu-gcc',
+			CFLAGS_aarch64_unknown_linux_gnu: '--sysroot=/sr/arm',
+			CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS: '-C link-arg=--sysroot=/sr/arm',
+		});
 	});
 });
 

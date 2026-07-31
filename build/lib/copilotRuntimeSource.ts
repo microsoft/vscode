@@ -311,7 +311,11 @@ function ensureTargetBuilt(marker: RuntimeMarker, copilotPackagePlatformArch: st
 		// build host's detected libc.
 		runtimeArgs.push(`--libc=${target.libc}`);
 	}
-	run(PNPM, ['run', 'build:runtime', ...runtimeArgs], srcDir, toolEnv({ ...process.env, CARGO_TARGET_DIR: path.resolve(CARGO_TARGET_DIR) }));
+	run(PNPM, ['run', 'build:runtime', ...runtimeArgs], srcDir, toolEnv({
+		...process.env,
+		...installLinuxSysroot(srcDir, target),
+		CARGO_TARGET_DIR: path.resolve(CARGO_TARGET_DIR),
+	}));
 	// 2. Bundle the JS and copy native addons into dist-cli (CI=1 → minify).
 	run(PNPM, ['exec', 'tsx', 'esbuild.ts'], srcDir, toolEnv({ ...process.env, CI: '1' }));
 	// 3. Assemble the single-platform package (installs target native deps, trims).
@@ -355,6 +359,55 @@ export function stripSourceMaps(distCli: string): number {
 	walk(distCli);
 	console.log(`[copilot-runtime-source] Stripped ${removed} source map(s) from ${distCli}`);
 	return removed;
+}
+
+/**
+ * Cargo/cc environment that links a Linux glibc target against `sysroot`.
+ *
+ * Mirrors the runtime's own release build. The sysroot's GCC must be the linker:
+ * the system GCC's CRT files reference newer glibc symbols that `--sysroot`
+ * alone cannot override.
+ */
+export function linuxSysrootEnv(arch: string, sysroot: string, binDir: string): NodeJS.ProcessEnv {
+	const triple = arch === 'arm64' ? 'aarch64-unknown-linux-gnu' : 'x86_64-unknown-linux-gnu';
+	const gccPrefix = arch === 'arm64' ? 'aarch64-linux-gnu' : 'x86_64-linux-gnu';
+	const upper = triple.replace(/-/g, '_').toUpperCase();
+	return {
+		[`CARGO_TARGET_${upper}_LINKER`]: path.join(binDir, `${gccPrefix}-gcc`),
+		[`CFLAGS_${triple.replace(/-/g, '_')}`]: `--sysroot=${sysroot}`,
+		[`CARGO_TARGET_${upper}_RUSTFLAGS`]: `-C link-arg=--sysroot=${sysroot}`,
+	};
+}
+
+/**
+ * Installs the glibc 2.28 sysroot the runtime's release build uses and returns
+ * the environment that targets it. Without this the addon links against the
+ * build agent's much newer glibc, raising the shipped package's `libc6` floor
+ * and dropping support for distros the published package still covers.
+ *
+ * Only glibc Linux targets need it; musl routes through cargo-zigbuild instead.
+ */
+function installLinuxSysroot(srcDir: string, target: BuildTarget): NodeJS.ProcessEnv {
+	if (target.nodePlatform !== 'linux' || target.libc !== 'gnu') {
+		return {};
+	}
+
+	const installer = path.join('script', 'linux', 'install-sysroot.cjs');
+	if (!fs.existsSync(path.join(srcDir, installer))) {
+		throw new Error(`[copilot-runtime-source] ${installer} is missing from the runtime checkout; a glibc Linux build would link against this agent's libc and raise the shipped libc6 floor.`);
+	}
+
+	console.log(`[copilot-runtime-source] $ node ${installer} ${target.arch}  (cwd: ${srcDir})`);
+	const output = execFileSync('node', [installer, target.arch], { cwd: srcDir, encoding: 'utf8', env: process.env });
+	const sysroot = /^SYSROOT_PATH=(.+)$/m.exec(output)?.[1]?.trim();
+	if (!sysroot) {
+		throw new Error(`[copilot-runtime-source] ${installer} printed no SYSROOT_PATH for ${target.arch}.`);
+	}
+
+	// Sysroot is <base>/<triple>/<triple>/sysroot, so ../../bin holds the toolchain.
+	const binDir = path.join(path.dirname(path.dirname(sysroot)), 'bin');
+	console.log(`[copilot-runtime-source] Linking ${target.arch} against sysroot ${sysroot}`);
+	return linuxSysrootEnv(target.arch, sysroot, binDir);
 }
 
 /**
