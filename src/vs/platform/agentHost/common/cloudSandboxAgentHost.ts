@@ -244,6 +244,37 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
 	}
 }
 
+/**
+ * A Mission Control request that came back with a non-success status. Carries the {@link statusCode}
+ * so callers can tell a failure that may clear on its own from one that never will.
+ */
+export class CloudSandboxRequestError extends Error {
+	constructor(readonly statusCode: number | undefined, message: string) {
+		super(message);
+		this.name = 'CloudSandboxRequestError';
+	}
+}
+
+/**
+ * Whether re-issuing a request that failed with {@link error} could plausibly succeed later.
+ *
+ * Transport failures carry no status and are assumed transient, as are 5xx, 408 and 429. Every other
+ * 4xx describes a request Mission Control will reject identically however often it is repeated — a
+ * deleted environment, a revoked token — so repeating it only adds load. Callers that retry on a
+ * timer MUST consult this, or a single dead session becomes an unbounded stream of failed requests.
+ *
+ * Note that {@link CloudSandboxAuthenticationRequiredError} counts as retryable: it is raised before
+ * any request goes out, and covers the GitHub auth provider not having registered yet as well as a
+ * genuinely signed-out user. Callers still need their own ceiling on how long they keep trying.
+ */
+export function isRetryableCloudSandboxError(error: unknown): boolean {
+	if (!(error instanceof CloudSandboxRequestError) || error.statusCode === undefined) {
+		return true;
+	}
+	const status = error.statusCode;
+	return status === 408 || status === 429 || status < 400 || status >= 500;
+}
+
 export const ICloudSandboxAgentHostService = createDecorator<ICloudSandboxAgentHostService>('cloudSandboxAgentHostService');
 
 /** Options for establishing a live AHP relay to a cloud sandbox environment. */
