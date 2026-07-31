@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { isHTMLElement } from '../../../../../../../base/browser/dom.js';
-import { Action } from '../../../../../../../base/common/actions.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Action, IAction } from '../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -14,7 +15,7 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestMenuService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -37,12 +38,33 @@ import { ToolDataSource } from '../../../../common/tools/languageModelToolsServi
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../common/constants.js';
+
+class TestOpenChatActionViewItem extends ActionViewItem {
+	constructor(sourceAction: IAction, options: IActionViewItemOptions) {
+		super(undefined, new Action(sourceAction.id, sourceAction.label, sourceAction.class, true, context => sourceAction.run(context)), options);
+		if (this.action instanceof Action) {
+			this._register(this.action);
+		}
+	}
+}
 
 class TestActionViewItemService implements IActionViewItemService {
 	declare _serviceBrand: undefined;
 	private readonly _onDidChange = new Emitter<MenuId>();
 	readonly onDidChange = this._onDidChange.event;
+	private _providerAvailable = true;
+
+	get hasChangeListeners(): boolean {
+		return this._onDidChange.hasListeners();
+	}
+
+	setProviderAvailable(available: boolean): void {
+		this._providerAvailable = available;
+	}
 
 	fireDidChange(menuId: MenuId): void {
 		this._onDidChange.fire(menuId);
@@ -52,8 +74,33 @@ class TestActionViewItemService implements IActionViewItemService {
 		return { dispose: () => { } };
 	}
 
-	lookUp(_menu: MenuId, _commandId: string | MenuId): IActionViewItemFactory | undefined {
-		return undefined;
+	lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+		if (!this._providerAvailable || menu !== MenuId.ChatSubagentContent || commandId !== CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID) {
+			return undefined;
+		}
+		return (action, options) => new TestOpenChatActionViewItem(action, options);
+	}
+}
+
+class TestSubagentMenuService extends TestMenuService {
+	createMenuCalls = 0;
+	getMenuActionsCalls = 0;
+
+	constructor(private readonly openChatAction: MenuItemAction) {
+		super();
+	}
+
+	override createMenu(id: MenuId, contextKeyService: IContextKeyService) {
+		this.createMenuCalls++;
+		return super.createMenu(id, contextKeyService);
+	}
+
+	override getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): ReturnType<IMenuService['getMenuActions']> {
+		this.getMenuActionsCalls++;
+		if (id === MenuId.ChatSubagentContent) {
+			return [['navigation', [this.openChatAction]]];
+		}
+		return super.getMenuActions(id, contextKeyService, options);
 	}
 }
 
@@ -71,6 +118,7 @@ suite('ChatSubagentContentPart', () => {
 	let mockEditorPool: EditorPool;
 	let announcedToolProgressKeys: Set<string>;
 	let actionViewItemService: TestActionViewItemService;
+	let menuService: TestSubagentMenuService;
 
 	function createMockRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -275,6 +323,16 @@ suite('ChatSubagentContentPart', () => {
 		}());
 		actionViewItemService = new TestActionViewItemService();
 		instantiationService.stub(IActionViewItemService, actionViewItemService);
+		menuService = new TestSubagentMenuService(new MenuItemAction(
+			{ id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' },
+			undefined,
+			{ shouldForwardArgs: true },
+			undefined,
+			undefined,
+			instantiationService.get(IContextKeyService),
+			instantiationService.get(ICommandService),
+		));
+		instantiationService.stub(IMenuService, menuService);
 
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
@@ -380,6 +438,28 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('should use a menu snapshot without persistent menu or action-view listeners', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+
+			assert.deepStrictEqual({
+				hasToolbar: !!(part as unknown as { _openChatToolbar?: object })._openChatToolbar,
+				createMenuCalls: menuService.createMenuCalls,
+				getMenuActionsCalls: menuService.getMenuActionsCalls,
+				hasActionViewListeners: actionViewItemService.hasChangeListeners,
+			}, {
+				hasToolbar: true,
+				createMenuCalls: 0,
+				getMenuActionsCalls: 1,
+				hasActionViewListeners: false,
+			});
+		});
+
 		test('should hide the complete collapsible surface when the open-chat action is available', () => {
 			const part = createPart(createMockToolInvocation({
 				toolSpecificData: {
@@ -406,6 +486,7 @@ suite('ChatSubagentContentPart', () => {
 		});
 
 		test('should hydrate open-chat-only mode when the action view registers after rendering', () => {
+			actionViewItemService.setProviderAvailable(false);
 			const part = createPart(createMockToolInvocation({
 				toolSpecificData: {
 					kind: 'subagent',
@@ -413,22 +494,22 @@ suite('ChatSubagentContentPart', () => {
 					chatResource: 'ahp-chat://subagent/test/tool-call',
 				}
 			}), createMockRenderContext(false));
-			setOpenChatOnlyMode(part, false);
+			const listeningBeforeRegistration = actionViewItemService.hasChangeListeners;
 
-			const toolbar = (part as unknown as { _openChatToolbar?: { getItemsLength(): number; getItemAction(index: number): Action | undefined } })._openChatToolbar;
-			assert.ok(toolbar);
-			const hydratedAction = store.add(new Action('openSubagent', 'Open Subagent', '', true));
-			toolbar.getItemsLength = () => 1;
-			toolbar.getItemAction = () => hydratedAction;
+			actionViewItemService.setProviderAvailable(true);
 			actionViewItemService.fireDidChange(MenuId.ChatSubagentContent);
 
 			const collapseButton = getCollapseButton(part);
 			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
 			assert.deepStrictEqual({
+				listeningBeforeRegistration,
+				listeningAfterRegistration: actionViewItemService.hasChangeListeners,
 				openChatOnlyClass: part.domNode.classList.contains('chat-subagent-open-chat-only'),
 				collapseButtonDisplay: collapseButton?.style.display,
 				animationDisplay: animationContainer?.style.display,
 			}, {
+				listeningBeforeRegistration: true,
+				listeningAfterRegistration: false,
 				openChatOnlyClass: true,
 				collapseButtonDisplay: 'none',
 				animationDisplay: 'none',

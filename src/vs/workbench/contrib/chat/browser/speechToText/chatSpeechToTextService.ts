@@ -10,6 +10,8 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
@@ -21,7 +23,7 @@ import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
+import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL, ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceClientService, IVoiceSessionContext, IVoiceTranscription, IVoiceTurnConfig } from '../../common/voiceClient/voiceClientService.js';
@@ -32,8 +34,17 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
+import { resolveDictationLanguage } from './dictationLanguage.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
+
+/**
+ * Command that imports a locally supplied Foundry Local dictation model package
+ * into the model cache. Registered in the desktop layer
+ * (`installDictationModelAction.ts`); referenced here so a failed download in a
+ * registry-blocked environment can offer the offline install as a next step.
+ */
+export const INSTALL_DICTATION_MODEL_COMMAND_ID = 'workbench.action.chat.installDictationModel';
 
 function joinIncrementalDictationText(prefix: string, suffix: string): string {
 	if (!prefix || !suffix) {
@@ -157,7 +168,7 @@ const PCM_CAPTURE_CHUNK_SIZE = 4096;
 const ENABLED_SETTING = 'dictation.enabled';
 /**
  * Selects the dictation model. On-device model ids (e.g.
- * `nemotron-speech-streaming-en-0.6b`) run through {@link ILocalTranscriptionService};
+ * `nemotron-3.5-asr-streaming-0.6b`) run through {@link ILocalTranscriptionService};
  * the sentinel {@link DICTATION_MAI_MODEL_ID} routes to the cloud voice service instead.
  */
 export const DICTATION_MODEL_SETTING = 'dictation.model';
@@ -567,6 +578,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@ILogService private readonly _logService: ILogService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -816,7 +828,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._activeBackend === 'mai') {
 			return this._startMaiSession(window);
 		}
-		return this._startLocalSession();
+		return this._startLocalSession(window);
 	}
 
 	/**
@@ -1122,7 +1134,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * Begin an on-device transcription session in the utility process and pipe
 	 * its interim/final results onto the shared cumulative-transcript surface.
 	 */
-	private async _startLocalSession(): Promise<void> {
+	private async _startLocalSession(window: Window & typeof globalThis): Promise<void> {
 		const local = this._localTranscription;
 		this._localSessionDisposables.add(local.onDidTranscribe(result => {
 			// The local service returns the full cumulative transcript each time.
@@ -1130,7 +1142,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}));
 		const cacheDir = joinPath(this._environmentService.cacheHome, 'chatDictationModels').fsPath;
 		const model = this._getModelId();
-		await local.start({ cacheDir, model });
+		const language = resolveDictationLanguage(
+			this._configurationService.getValue('agents.voice.language'),
+			window.navigator.language,
+		);
+		await local.start({ cacheDir, model, language });
 
 		// The model loads in the utility process in the background (start()
 		// returns immediately). On first use it may download hundreds of MB, so
@@ -1211,7 +1227,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		} else if (status.state === LocalTranscriptionModelState.Error) {
 			this._logModelPrepareTelemetry(status);
 			this._setPreparingModel(false);
-			this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
+			this._failModelSession(status);
 		}
 	}
 
@@ -1287,11 +1303,37 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	/**
+	 * Handle a terminal model-preparation error. A download failure caused by a
+	 * blocked/unreachable model registry (common on locked-down corporate
+	 * networks) is recoverable by importing the model from a locally supplied
+	 * package, so in that case the error surfaces an action that launches the
+	 * offline install flow. Other failures show a plain error.
+	 */
+	private _failModelSession(status: ILocalTranscriptionModelStatus): void {
+		const canImport = this._localTranscription.isSupported
+			&& (status.errorCode === 'network' || status.errorCode === 'notFound');
+		if (!canImport) {
+			this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
+			return;
+		}
+		// Name the specific model so users know exactly which package to obtain
+		// on a machine that can reach the download, then sideload via the command.
+		const message = localize('chatStt.modelErrorOffline', "Could not download the {0} speech-to-text model, which can happen on networks that block the model registry. You can install it from a downloaded package instead.", DEFAULT_LOCAL_TRANSCRIPTION_MODEL);
+		const importAction = toAction({
+			id: INSTALL_DICTATION_MODEL_COMMAND_ID,
+			label: localize('chatStt.installFromPackage', "Install from Local Package..."),
+			run: () => this._commandService.executeCommand(INSTALL_DICTATION_MODEL_COMMAND_ID),
+		});
+		this._failSession('model', message, importAction);
+	}
+
+	/**
 	 * Abort the active recording because of an unrecoverable error (e.g. the
 	 * model failed to download/load), surfacing a notification instead of
-	 * silently returning an empty transcript.
+	 * silently returning an empty transcript. An optional recovery action is
+	 * attached to the notification when the failure is actionable.
 	 */
-	private _failSession(errorCode: string, message: string): void {
+	private _failSession(errorCode: string, message: string, action?: IAction): void {
 		if (this._state === ChatSpeechToTextState.Idle) {
 			return;
 		}
@@ -1300,7 +1342,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
-		this._notificationService.error(message);
+		if (action) {
+			this._notificationService.notify({ severity: Severity.Error, message, actions: { primary: [action] } });
+		} else {
+			this._notificationService.error(message);
+		}
 	}
 
 	/**

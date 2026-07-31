@@ -51,6 +51,11 @@ export interface ISubmenuItem {
 		 * on the action that was last run.
 		 */
 		togglePrimaryAction: true;
+		/**
+		 * Restricts which submenu commands can become the primary action.
+		 * Running an eligible command outside the submenu also updates the primary action.
+		 */
+		primaryActionIds?: readonly string[];
 	};
 }
 
