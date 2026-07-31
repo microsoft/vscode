@@ -523,14 +523,14 @@ export interface IDictationOnboardingBannerOptions {
 	/** The element the card attaches itself to. */
 	readonly container: HTMLElement;
 	readonly onDismiss: () => void;
-	/** Whether the card should acquire a microphone preview. */
+	/** Whether this manually opened card should acquire a microphone preview. */
 	readonly previewMicrophone: boolean;
 	readonly source: 'automatic' | 'manual';
 }
 
 /**
- * The dictation card explains the feature while previewing and selecting the
- * microphone.
+ * The first-run dictation card explains the feature while recording starts.
+ * When reopened manually, it also previews and selects the microphone.
  *
  * The card runs alongside the first dictation, so it explains the feature
  * without delaying the action the user invoked.
@@ -880,7 +880,7 @@ export class DictationOnboardingService extends Disposable implements IDictation
 	}
 
 	showIfNeeded(): boolean {
-		return this.onboarding.showIfNeeded(context => this.createBanner(context.container, context.dismiss, 'automatic', true));
+		return this.onboarding.showIfNeeded(context => this.createBanner(context.container, context.dismiss, 'automatic', false));
 	}
 
 	show(): boolean {

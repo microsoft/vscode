@@ -113,24 +113,20 @@ suite('Dictation onboarding', () => {
 		const shown = host.container.classList.contains('has-dictation-onboarding');
 
 		const closeIcon = host.container.querySelector('.dictation-onboarding-close .codicon')?.className;
-		const hasMicrophoneControls = host.container.querySelector('.dictation-onboarding-device') !== null;
-		const hasWaveform = host.container.querySelector('.dictation-onboarding-waveform') !== null;
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
 		const shownAgain = service.showIfNeeded();
 
 		assert.deepStrictEqual(
 			{
 				shownFirstTime, shown, closeIcon,
-				hasMicrophoneControls,
-				hasWaveform,
+				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
 				visibleAfterClose: host.container.classList.contains('has-dictation-onboarding'),
 				shownAgain,
 				telemetryEvents,
 			},
 			{
 				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close',
-				hasMicrophoneControls: true,
-				hasWaveform: true,
+				hasMicrophoneControls: false,
 				visibleAfterClose: false,
 				shownAgain: false,
 				telemetryEvents: [
