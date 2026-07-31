@@ -43,6 +43,24 @@ export const COPILOT_ALLOWED_MCP_SERVERS_KEY = 'allowedMcpServers';
 /** Managed-settings key for the per-server MCP denylist (carried as a JSON-encoded array of matcher entries; deny always takes precedence over allow). */
 export const COPILOT_DENIED_MCP_SERVERS_KEY = 'deniedMcpServers';
 
+/** Managed-settings key that blocks standalone user/workspace customizations. */
+export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY = 'strictPluginOnlyCustomization';
+
+/** Managed-settings key that makes the enterprise MCP allowlist authoritative. */
+export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY = 'allowManagedMcpServersOnly';
+
+/** Managed-settings key that allows hooks only from managed sources. */
+export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
+export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG = 'chat.customizations.strictPluginOnlyCustomization';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY}. */
+export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG = 'chat.mcp.allowManagedServersOnly';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY}. */
+export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG = 'chat.hooks.allowManagedOnly';
+
 /**
  * Managed-settings key for the default chat model (carried as a plain string: `auto`, a model
  * family name, or a full model id). Nested under `permissions` in the managed-settings schema

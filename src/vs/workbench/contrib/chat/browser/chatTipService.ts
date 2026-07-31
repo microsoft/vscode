@@ -13,7 +13,7 @@ import { getSelectedModelIdentifier } from '../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -767,7 +767,23 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);
 			return false;
 		}
+		if (!this._areTipCommandsRegistered(tip)) {
+			return false;
+		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
+		return true;
+	}
+
+	private _areTipCommandsRegistered(tip: ITipDefinition): boolean {
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
+		const rawMessage = tip.buildMessage(ctx);
+		const commandIds = extractCommandIds(rawMessage.value);
+		for (const commandId of commandIds) {
+			if (!CommandsRegistry.getCommand(commandId)) {
+				this._logService.debug('#ChatTips: tip excluded because command is not registered', tip.id, commandId);
+				return false;
+			}
+		}
 		return true;
 	}
 

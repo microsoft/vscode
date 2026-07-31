@@ -237,6 +237,26 @@ suite('ChatService', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('propagates Agents Voice Mode input to the participant request', async () => {
+		const captured = new DeferredPromise<boolean | undefined>();
+		testDisposables.add(chatAgentService.registerAgent('voiceAgent', getAgentData('voiceAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('voiceAgent', {
+			async invoke(request) {
+				captured.complete(request.isVoiceModeInput);
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+
+		await service.sendRequest(model.sessionResource, 'voice request', {
+			agentId: 'voiceAgent',
+			isVoiceModeInput: true,
+		});
+
+		assert.strictEqual(await captured.p, true);
+	});
+
 	test('slash commands can share ids across non-overlapping session types', async () => {
 		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
 		const executions: string[] = [];

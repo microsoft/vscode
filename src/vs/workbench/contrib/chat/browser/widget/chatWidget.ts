@@ -59,7 +59,7 @@ import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatM
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
@@ -150,6 +150,25 @@ export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatReq
 		&& part.slashCommand.executeImmediately === true
 		&& part.slashCommand.silent === true
 	);
+}
+
+/**
+ * Settles the outcome of a `IChatService.sendRequest` call.
+ *
+ * A request that could not be handed over to the chat service is never accepted. Anything else is
+ * accepted right away — a queued request is accepted the moment it enters the queue, which is
+ * potentially long before it runs — so {@link onRequestAccepted} fires before the queued request
+ * settles. Resolves with the request once it has actually been sent, or `undefined` if it never was.
+ */
+export async function acceptAndAwaitSentRequest(result: ChatSendResult, onRequestAccepted?: () => void): Promise<ChatSendResultSent | undefined> {
+	if (ChatSendResult.isRejected(result)) {
+		return undefined;
+	}
+
+	onRequestAccepted?.();
+
+	const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
+	return ChatSendResult.isSent(sent) ? sent : undefined;
 }
 
 type ChatHandoffClickEvent = {
@@ -296,6 +315,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 
 	private recentlyRestoredCheckpoint: boolean = false;
+
+	/** Suppresses auto-scroll for the duration of an inline request edit. */
+	private readonly _editingAutoScrollHold = this._register(new MutableDisposable<IDisposable>());
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
@@ -754,10 +776,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.scrollTop = value;
 	}
 
+	holdAutoScroll(): IDisposable {
+		return this.listWidget.acquireAutoScrollHold();
+	}
+
+	get transcriptDomNode(): HTMLElement {
+		return this.listWidget.domNode;
+	}
+
 	get scrollHeight(): number {
 		return this.listWidget.scrollHeight;
 	}
-
 	get viewportHeight(): number {
 		return this.listWidget.renderHeight;
 	}
@@ -1921,7 +1950,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			this.listWidget.suppressAutoScroll = true;
+			this._editingAutoScrollHold.value = this.listWidget.acquireAutoScrollHold();
 			this.onDidChangeItems();
 			this.input.inputEditor.focus();
 
@@ -1958,7 +1987,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	finishedEditing(completedEdit?: boolean): void {
 		// reset states
-		this.listWidget.suppressAutoScroll = false;
+		this._editingAutoScrollHold.clear();
 		const editedRequest = this.listWidget.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 		if (this.recentlyRestoredCheckpoint) {
 			this.recentlyRestoredCheckpoint = false;
@@ -2344,7 +2373,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.onDidChangeItems();
-			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
+			if (events?.some(e => e?.kind === 'addRequest') && this.visible && !this.listWidget.isAutoScrollHeld) {
 				this.listWidget.scrollToEnd();
 			}
 		})));
@@ -2901,6 +2930,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
+			isVoiceModeInput: options?.isVoiceModeInput,
 			...this.getModeRequestOptions(),
 			modeInfo,
 			agentIdSilent: this._lockedAgent?.id,
@@ -2933,8 +2963,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._maybeStartGoalSummary(requestInputs.input);
 		}
 
-		const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
-		if (!ChatSendResult.isSent(sent)) {
+		const sent = await acceptAndAwaitSentRequest(result, options.onRequestAccepted);
+		if (!sent) {
 			return;
 		}
 
@@ -3248,7 +3278,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
 
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
+		if (lastElementVisible && !this.listWidget.isAutoScrollHeld && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
 			this.listWidget.scrollToEnd();
 		}
 		this.listContainer.style.height = `${contentHeight}px`;

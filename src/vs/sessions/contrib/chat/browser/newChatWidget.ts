@@ -287,7 +287,7 @@ export class NewChatWidget extends Disposable {
 		));
 		const petAction = this._register(new Action(
 			'sessions.chatPet.toggle',
-			localize('petAction', "Pet"),
+			localize('petAction', "Pet (/vscode-pet)"),
 			undefined,
 			true,
 			() => this.chatPetService.toggle()

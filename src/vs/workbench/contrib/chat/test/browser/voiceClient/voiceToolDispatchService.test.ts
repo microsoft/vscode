@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { IChatQuestionAnswers, IChatService } from '../../../common/chatService/chatService.js';
+import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
 
 suite('VoiceToolDispatchService - respondToSession', () => {
@@ -118,6 +121,75 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 
 		assert.deepStrictEqual(result, { ok: false, reason: 'unsupported' });
 		assert.strictEqual(part.isUsed, undefined);
+	});
+
+	test('an approval spoken at the ask-questions tool is refused rather than applied', async () => {
+		const confirmations: ToolConfirmKind[] = [];
+		const part = new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly toolId = AskQuestionsToolId;
+			override readonly state = observableValue<IChatToolInvocation.State>('state', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { questions: [{ question: 'Which region?', options: [{ label: 'West US' }] }] },
+				confirmationMessages: {
+					title: 'Answer questions?',
+					message: 'The questionnaire is open.',
+				},
+				confirm: reason => confirmations.push(reason.type),
+			});
+		}();
+
+		const result = await serviceFor(part).respondToSession(approvalCall(part, 'approve'));
+
+		assert.deepStrictEqual({ result, confirmations }, {
+			result: { ok: false, reason: 'unsupported' },
+			confirmations: [],
+		});
+	});
+
+	test('tool and plan confirmations remain voice-approvable', async () => {
+		const confirmations: ToolConfirmKind[] = [];
+		const tool = new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly toolId = 'testTool';
+			override readonly state = observableValue<IChatToolInvocation.State>('state', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: {},
+				confirmationMessages: {
+					title: 'Run the build?',
+					message: 'Runs the visible build task.',
+				},
+				confirm: reason => confirmations.push(reason.type),
+			});
+		}();
+		const plan = new ChatPlanReviewData('Review plan', 'Plan body', [
+			{ id: 'implement', label: 'Implement Plan', default: true },
+		], true);
+
+		const toolResult = await serviceFor(tool).respondToSession(approvalCall(tool, 'approve'));
+		const planResult = await serviceFor(plan).respondToSession(approvalCall(plan, 'approve'));
+
+		assert.deepStrictEqual({
+			toolResult,
+			confirmations,
+			planResult,
+			planData: plan.data,
+			planCompletion: await plan.completion.p,
+		}, {
+			toolResult: { ok: true },
+			confirmations: [ToolConfirmKind.UserAction],
+			planResult: { ok: true },
+			planData: {
+				action: 'Implement Plan',
+				actionId: 'implement',
+				rejected: false,
+			},
+			planCompletion: {
+				action: 'Implement Plan',
+				actionId: 'implement',
+				rejected: false,
+			},
+		});
 	});
 
 	test('a skip is refused when the form forbids it', async () => {

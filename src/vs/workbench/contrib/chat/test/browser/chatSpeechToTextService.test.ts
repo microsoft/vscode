@@ -5,11 +5,38 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 
 suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves the dictation language from Voice Mode configuration and browser locale', () => {
+		assert.deepStrictEqual({
+			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
+			automatic: resolveDictationLanguage('auto', 'uk-UA'),
+			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR'),
+			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL'),
+			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU'),
+			explicitSpanish: resolveDictationLanguage('es', 'en-US'),
+			explicitAdaptationReady: resolveDictationLanguage('lt', 'en-US'),
+			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO'),
+			invalidExplicit: resolveDictationLanguage('not a locale', 'de-DE'),
+			missing: resolveDictationLanguage(undefined, undefined),
+		}, {
+			explicit: 'fr-FR',
+			automatic: 'uk-UA',
+			regionalAutomatic: 'pt-BR',
+			additionalSupportedAutomatic: 'he-IL',
+			unsupportedRegion: 'en-US',
+			explicitSpanish: 'es-US',
+			explicitAdaptationReady: 'lt-LT',
+			regionalPortugueseFallback: 'pt-PT',
+			invalidExplicit: 'auto',
+			missing: 'auto',
+		});
+	});
 
 	test('shows each cleaned prefix with the remaining raw transcript', () => {
 		assert.deepStrictEqual(
@@ -105,6 +132,19 @@ suite('ChatSpeechToTextService', () => {
 			finalMentionsList: true,
 			finalMentionsNumbered: true,
 			incrementalOmitsList: true,
+		});
+	});
+
+	test('cleanup prompt prefers numerals for both final and incremental', () => {
+		const finalPrompt = createDictationCleanupSystemPrompt('final', false);
+		const incrementalPrompt = createDictationCleanupSystemPrompt('incremental', false);
+
+		assert.deepStrictEqual({
+			finalPrefersNumerals: finalPrompt.includes('Prefer numerals'),
+			incrementalPrefersNumerals: incrementalPrompt.includes('Prefer numerals'),
+		}, {
+			finalPrefersNumerals: true,
+			incrementalPrefersNumerals: true,
 		});
 	});
 

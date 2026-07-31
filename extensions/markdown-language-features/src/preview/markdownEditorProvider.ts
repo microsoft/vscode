@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { MdLinkOpener } from '../util/openDocumentLink';
 import { getMarkdownLocalResourceRoots } from '../util/resources';
+import { ChangedLineRange, MarkdownPreviewLineDiffProvider } from './lineDiff';
 
 /**
  * Experimental hybrid (WYSIWYG) Markdown editor backed by the
@@ -43,6 +44,18 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		webviewPanel: vscode.WebviewPanel,
 		token: vscode.CancellationToken,
 	): Promise<void> {
+		await this.#resolveEditor(document, webviewPanel, token);
+	}
+
+	public async resolveCustomTextEditorInlineDiff(
+		documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
+		webviewPanel: vscode.WebviewPanel,
+		token: vscode.CancellationToken,
+	): Promise<void> {
+		await this.#resolveEditor(documents.modified, webviewPanel, token, documents.original);
+	}
+
+	async #resolveEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken, originalDocument?: vscode.TextDocument): Promise<void> {
 		if (!vscode.workspace.isTrusted) {
 			const cancel = { title: vscode.l10n.t("Cancel"), isCloseAffordance: true };
 			const openAnyway = { title: vscode.l10n.t("Open Anyway") };
@@ -61,9 +74,12 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}
 		}
 
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const webview = webviewPanel.webview;
 		this.#configureWebview(document.uri, webview);
-		this.#wireSingle(document, webviewPanel);
+		this.#wireSingle(document, webviewPanel, originalDocument);
 	}
 
 	#configureWebview(documentUri: vscode.Uri, webview: vscode.Webview): void {
@@ -76,7 +92,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		webview.html = this.#getHtml(documentUri, webview);
 	}
 
-	#wireSingle(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): void {
+	#wireSingle(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, originalDocument?: vscode.TextDocument): void {
 		const webview = webviewPanel.webview;
 		let isUpdatingFromWebview = false;
 		let editQueue = Promise.resolve();
@@ -143,7 +159,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 
 		const highlight = this.#wireHighlight(webview);
-		const quickDiff = this.#wireQuickDiff(document, webview);
+		const quickDiff = originalDocument
+			? this.#wireDocumentDiff(originalDocument, document, webview)
+			: this.#wireQuickDiff(document, webview);
 		const comments = this.#wireComments(document, webview);
 		const onDidGrantWorkspaceTrust = vscode.workspace.onDidGrantWorkspaceTrust(() => {
 			this.#configureWebview(document.uri, webview);
@@ -196,6 +214,32 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 
 		return vscode.Disposable.from(diffProvider, onChange, onMessage, onDocumentChange);
+	}
+
+	#wireDocumentDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
+		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(originalDocument, modifiedDocument);
+		const postMarkers = async () => {
+			const originalVersion = originalDocument.version;
+			const modifiedVersion = modifiedDocument.version;
+			const changes = await lineDiffProvider.getChangedLineRanges();
+			if (originalVersion !== originalDocument.version || modifiedVersion !== modifiedDocument.version) {
+				return;
+			}
+			webview.postMessage({ type: 'gutterMarkers', markers: lineRangesToGutterMarkers(modifiedDocument, changes) });
+		};
+
+		const onMessage = webview.onDidReceiveMessage(message => {
+			if (message.type === 'ready') {
+				void postMarkers();
+			}
+		});
+		const onDocumentChange = vscode.workspace.onDidChangeTextDocument(event => {
+			if (event.document.uri.toString() === originalDocument.uri.toString() || event.document.uri.toString() === modifiedDocument.uri.toString()) {
+				void postMarkers();
+			}
+		});
+
+		return vscode.Disposable.from(onMessage, onDocumentChange);
 	}
 
 	/**
@@ -350,4 +394,21 @@ function toGutterMarkers(document: vscode.TextDocument, changes: readonly vscode
 		});
 	}
 	return markers;
+}
+
+export function lineRangesToGutterMarkers(document: vscode.TextDocument, changes: readonly ChangedLineRange[]): GutterMarkerMessage[] {
+	return changes.map(change => {
+		if (change.modifiedRange.isEmpty) {
+			const offset = document.offsetAt(change.modifiedRange.start);
+			return { start: offset, endExclusive: offset, type: 'deleted' };
+		}
+
+		const start = document.offsetAt(change.modifiedRange.start);
+		const endExclusive = document.offsetAt(document.lineAt(change.modifiedRange.end.line - 1).range.end);
+		return {
+			start,
+			endExclusive,
+			type: change.originalRange.isEmpty ? 'added' : 'modified',
+		};
+	});
 }
