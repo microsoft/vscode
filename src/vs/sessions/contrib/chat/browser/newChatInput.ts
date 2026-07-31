@@ -814,7 +814,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Keep the session picker usable when optional voice initialization fails.
 		// The controller also handles voice target routing + input glow, which the
 		// segmented pill relies on, so it is created regardless of the pill; its
-		
+		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
+		try {
 			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
 				toolbarContainer: voiceContainer,
 				inputContainer: container,
