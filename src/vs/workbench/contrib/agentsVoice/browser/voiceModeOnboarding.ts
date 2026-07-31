@@ -204,10 +204,29 @@ const WAVE_TEMPO = (2 * Math.PI) / IDLE_CYCLE_SECONDS / Math.abs(RESTING_SIGNATU
 const IDLE_GAIN = 0.55;
 /** A restrained lift while a sample plays; the voice chips already carry the stronger activity cue. */
 const SPEAKING_GAIN = 0.18;
-/** How quickly the band chases the audio. Low and slow reads as smooth. */
+/**
+ * How quickly the band chases the audio, per {@link REFERENCE_FRAME_SECONDS}.
+ * Low and slow reads as smooth.
+ */
 const LEVEL_EASING = 0.08;
-/** How quickly the trace morphs from one voice's signature to another. */
+/**
+ * How quickly the trace morphs from one voice's signature to another, per
+ * {@link REFERENCE_FRAME_SECONDS}.
+ */
 const SIGNATURE_EASING = 0.06;
+/**
+ * The frame duration the eased constants above are tuned against (60fps). Easing
+ * is normalised to the real elapsed time each frame so the morph runs at the same
+ * pace whether frames arrive on time or stutter - which they do right after the
+ * card opens, while the first sample is still decoding.
+ */
+const REFERENCE_FRAME_SECONDS = 1 / 60;
+/**
+ * Longest elapsed time integrated in a single frame. Clamping means a hitch or a
+ * backgrounded tab slows the trace for a frame instead of lurching it forward by
+ * the whole gap.
+ */
+const MAX_FRAME_SECONDS = 1 / 30;
 /**
  * Bar metrics, taken from Voice Mode's own waveform in `voiceInputMode.css`,
  * which states the rule directly: *bars are strokes, not shapes* - they carry
@@ -220,11 +239,31 @@ const BAR_GAP = 2;
 /** Shortest a bar ever gets: a dot, so a resting bar keeps its round cap. */
 const BAR_MIN = 1;
 
-/** A signature being eased towards another, one component at a time. */
-type MutableWave = { frequency: number; amplitude: number; speed: number; phase: number };
+/**
+ * A signature being eased towards another, one component at a time.
+ *
+ * `oscillation` is the accumulated animation phase for the component: it advances
+ * by `speed * WAVE_TEMPO * dt` every frame (see {@link advanceOscillation}) rather
+ * than being recomputed from an absolute clock. Integrating it this way is what
+ * keeps a voice change smooth - easing `speed` only changes how fast the phase
+ * accrues from here on, so it never jerks the phase already on screen. Multiplying
+ * a changing `speed` by an absolute, unbounded timestamp did exactly that, and the
+ * jump grew with how long the card had been open.
+ */
+type MutableWave = { frequency: number; amplitude: number; speed: number; phase: number; oscillation: number };
 
 function cloneSignature(signature: readonly IWave[]): MutableWave[] {
-	return signature.map(wave => ({ ...wave }));
+	return signature.map(wave => ({ ...wave, oscillation: 0 }));
+}
+
+/**
+ * Convert a per-{@link REFERENCE_FRAME_SECONDS} easing constant into the fraction
+ * to ease by across `dt` seconds, so the morph settles at the same real-time rate
+ * regardless of frame rate. Reduces to the raw constant when `dt` is exactly one
+ * reference frame.
+ */
+function easingFactor(perFrameEasing: number, dt: number): number {
+	return 1 - Math.pow(1 - perFrameEasing, dt / REFERENCE_FRAME_SECONDS);
 }
 
 /**
@@ -233,17 +272,33 @@ function cloneSignature(signature: readonly IWave[]): MutableWave[] {
  * new voice instead of cutting to it.
  *
  * `phase` eases with the rest: it is a static offset per component (the motion
- * comes from `time * speed`), so leaving it behind would strand every voice on
- * whichever phases the trace happened to start with. Every declared phase sits
- * within a radian or two of its neighbours, well inside half a turn, so easing
- * straight to the target is also the shortest way round the circle.
+ * comes from the accumulated `oscillation`), so leaving it behind would strand
+ * every voice on whichever phases the trace happened to start with. Every declared
+ * phase sits within a radian or two of its neighbours, well inside half a turn, so
+ * easing straight to the target is also the shortest way round the circle.
+ *
+ * `oscillation` is deliberately left untouched: it is where the component is in its
+ * cycle, not part of the target texture, so it keeps flowing across the morph.
  */
-function easeSignature(current: MutableWave[], target: readonly IWave[]): void {
+function easeSignature(current: MutableWave[], target: readonly IWave[], factor: number): void {
 	for (let i = 0; i < current.length && i < target.length; i++) {
-		current[i].frequency += (target[i].frequency - current[i].frequency) * SIGNATURE_EASING;
-		current[i].amplitude += (target[i].amplitude - current[i].amplitude) * SIGNATURE_EASING;
-		current[i].speed += (target[i].speed - current[i].speed) * SIGNATURE_EASING;
-		current[i].phase += (target[i].phase - current[i].phase) * SIGNATURE_EASING;
+		current[i].frequency += (target[i].frequency - current[i].frequency) * factor;
+		current[i].amplitude += (target[i].amplitude - current[i].amplitude) * factor;
+		current[i].speed += (target[i].speed - current[i].speed) * factor;
+		current[i].phase += (target[i].phase - current[i].phase) * factor;
+	}
+}
+
+/**
+ * Advance each component's accumulated animation phase by the current speed over
+ * `dt` seconds, wrapping to keep it bounded over long sessions. Because this only
+ * ever adds to `oscillation`, changing `speed` mid-morph bends the motion smoothly
+ * instead of teleporting it.
+ */
+function advanceOscillation(waves: readonly MutableWave[], dt: number): void {
+	const tau = 2 * Math.PI;
+	for (const wave of waves) {
+		wave.oscillation = (wave.oscillation + wave.speed * WAVE_TEMPO * dt) % tau;
 	}
 }
 
@@ -255,7 +310,7 @@ function easeSignature(current: MutableWave[], target: readonly IWave[]): void {
 function drawBars(
 	context: CanvasRenderingContext2D,
 	width: number, height: number,
-	waves: readonly MutableWave[], time: number, gain: number,
+	waves: readonly MutableWave[], gain: number,
 ): void {
 	const pitch = BAR_WIDTH + BAR_GAP;
 	const count = Math.max(1, Math.floor(width / pitch));
@@ -267,7 +322,7 @@ function drawBars(
 
 	for (let index = 0; index < count; index++) {
 		const position = count > 1 ? index / (count - 1) : 0;
-		const amount = bandFraction(position, time, waves) * gain;
+		const amount = bandFraction(position, waves) * gain;
 		const half = Math.max(BAR_MIN / 2, Math.min(maxHalf, amount * maxHalf));
 		context.beginPath();
 		context.roundRect(inset + index * pitch, centerY - half, BAR_WIDTH, half * 2, BAR_WIDTH / 2);
@@ -284,11 +339,11 @@ function drawBars(
  * crossing - that is what makes an ASCII waveform look like it is snapping up
  * and down rather than flowing.
  */
-function bandFraction(position: number, time: number, waves: readonly MutableWave[]): number {
+function bandFraction(position: number, waves: readonly MutableWave[]): number {
 	let amplitude = 0;
 	let total = 0;
 	for (const wave of waves) {
-		const phase = position * wave.frequency * Math.PI * 2 + time * wave.speed * WAVE_TEMPO + wave.phase;
+		const phase = position * wave.frequency * Math.PI * 2 + wave.oscillation + wave.phase;
 		amplitude += (0.5 + 0.5 * Math.sin(phase)) * wave.amplitude;
 		total += wave.amplitude;
 	}
@@ -323,6 +378,8 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	private height = 0;
 	private running = false;
 	private level = 0;
+	/** Timestamp of the previous frame, for the elapsed-time each draw eases over. */
+	private lastTimestamp: number | undefined;
 	private readonly waves: MutableWave[];
 	/**
 	 * The stroke colour, taken from the canvas's own computed `color` so CSS
@@ -419,19 +476,27 @@ class VoiceModeOnboardingAnimator extends Disposable {
 			return;
 		}
 
-		const time = timestamp * 0.001;
+		// Elapsed time since the previous frame, clamped so a hitch slows the
+		// trace rather than lurching it. Both the easing and the phase advance are
+		// scaled by this, so the motion is the same real-time speed whether frames
+		// arrive at 60fps or stutter while the first sample decodes.
+		const dt = this.lastTimestamp === undefined
+			? 0
+			: Math.min(MAX_FRAME_SECONDS, Math.max(0, (timestamp - this.lastTimestamp) * 0.001));
+		this.lastTimestamp = timestamp;
 
 		// Idle, the waveform breathes gently; while a voice plays it swells with
 		// that voice. Both the level and the shape are eased so the ribbon glides
 		// rather than snapping between frames.
-		this.level += (this.source.getLevel() - this.level) * LEVEL_EASING;
-		easeSignature(this.waves, this.source.getSignature());
+		this.level += (this.source.getLevel() - this.level) * easingFactor(LEVEL_EASING, dt);
+		easeSignature(this.waves, this.source.getSignature(), easingFactor(SIGNATURE_EASING, dt));
+		advanceOscillation(this.waves, dt);
 		const gain = IDLE_GAIN + this.level * SPEAKING_GAIN;
 
 		this.context.clearRect(0, 0, this.width, this.height);
 		this.context.fillStyle = this.stroke;
 
-		drawBars(this.context, this.width, this.height, this.waves, time, gain);
+		drawBars(this.context, this.width, this.height, this.waves, gain);
 	}
 
 }
