@@ -207,7 +207,7 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	// 5. Copilot SDK process logs under ~/.copilot/logs do not include the
+	// 5. Copilot SDK process logs under <COPILOT_HOME>/logs do not include the
 	// session id in the filename, but relevant entries include it in the content.
 	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
 	if (rawSessionId) {
