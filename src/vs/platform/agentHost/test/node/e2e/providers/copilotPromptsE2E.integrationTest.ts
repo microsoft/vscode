@@ -35,7 +35,7 @@
  */
 
 import assert from 'assert';
-import { writeFileSync } from 'fs';
+import { existsSync, writeFileSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -49,8 +49,14 @@ import {
 import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
-const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1'
-	|| process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
+/**
+ * Only the replay-scoped flag accepts a baseline. `AgentHostUpdateSnapshotsEnvVar`
+ * also puts the harness in live-record mode, and a prompt captured while recording
+ * reflects the live model catalog and experiment assignment rather than this repo.
+ */
+const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
+const RECORDING = process.env[AgentHostUpdateSnapshotsEnvVar] === '1'
+	|| process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 
 /**
  * Model families whose assembled prompt is pinned, mirroring the `testFamilies`
@@ -191,9 +197,14 @@ async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, mod
 		}, 60_000);
 		seenNotifications.add(n as object);
 
-		const envelope = n as { params?: { action?: { type?: string; turnId?: string; toolCallId?: string } } };
+		const envelope = n as { params?: { action?: { type?: string; turnId?: string; toolCallId?: string; message?: unknown } } };
 		const type = envelope?.params?.action?.type;
-		if (type === ActionType.ChatTurnComplete || type === ActionType.ChatError) {
+		if (type === ActionType.ChatError) {
+			// The request may still have reached the proxy, so failing here is what
+			// keeps a broken turn from being snapshotted as a good prompt.
+			throw new Error(`turn for model '${model}' failed: ${JSON.stringify(envelope.params?.action?.message ?? envelope.params?.action)}`);
+		}
+		if (type === ActionType.ChatTurnComplete) {
 			break;
 		}
 		if (type === ActionType.ChatToolCallReady) {
@@ -220,9 +231,18 @@ async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, mod
  * same explicit env var the AHP snapshots use.
  */
 async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Promise<void> {
+	if (RECORDING) {
+		return; // a recording run's prompt comes from the live catalog, not this repo
+	}
+	const snapshotPath = snapshotPathForTest(test, 'prompt', 'md');
 	if (UPDATE_SNAPSHOTS) {
-		writeFileSync(snapshotPathForTest(test, 'prompt', 'md'), content);
+		writeFileSync(snapshotPath, content);
 		return;
+	}
+	// `assertSnapshot` creates a missing baseline and passes, which would let a
+	// newly added model go green against a file nobody wrote or reviewed.
+	if (!existsSync(snapshotPath)) {
+		throw new Error(`no committed prompt baseline at ${snapshotPath}. Generate it with ${AgentHostUpdateAhpSnapshotsEnvVar}=1 and commit the result.`);
 	}
 	await assertSnapshot(content, { name: 'prompt', extension: 'md' });
 }
