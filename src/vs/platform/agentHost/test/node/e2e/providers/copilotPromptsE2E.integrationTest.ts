@@ -410,6 +410,12 @@ function extractText(content: unknown): string {
  *    baseline here, turning a docs edit into a large unrelated diff. The
  *    surviving `<custom_instruction>` wrappers still assert that instructions
  *    are injected, how many, and where they sit in the prompt.
+ *  - **Model catalog.** The CLI inlines the whole `/models` list into the
+ *    `Task` tool's schema, as a count and a per-model listing. Left verbatim,
+ *    adding ONE entry to `capiStubs.ts` rewrites every baseline here — including
+ *    models nobody snapshots — so a new model release would land as a 13-file
+ *    diff. The labels survive, so a change to the shape of those lines, or the
+ *    catalog disappearing from the prompt entirely, still fails.
  */
 function normalizeVolatile(text: string): string {
 	return text
@@ -418,5 +424,7 @@ function normalizeVolatile(text: string): string {
 		.replace(/<current_datetime>[^<]*<\/current_datetime>/g, '<current_datetime>${datetime}</current_datetime>')
 		.replace(/^\* Operating System: .*$/gm, '* Operating System: ${os}')
 		.replace(/^\* Available tools: .*$/gm, '* Available tools: ${available_tools}')
-		.replace(/<custom_instruction>[\s\S]*?<\/custom_instruction>/g, '<custom_instruction>${repository_instructions}</custom_instruction>');
+		.replace(/<custom_instruction>[\s\S]*?<\/custom_instruction>/g, '<custom_instruction>${repository_instructions}</custom_instruction>')
+		.replace(/\(\d+ models available\)/g, '(${model_count} models available)')
+		.replace(/(Available models:)(?:\\n {2}- '[^']*' \([^)]*\)[^\\"]*)+/g, '$1${model_catalog}');
 }
