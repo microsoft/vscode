@@ -8,13 +8,16 @@ on:
   pull_request:
     branches:
       - main
-      - 'release/*'
+      - 'released/*'
 
 permissions:
   contents: read
-  statuses: write
+            write
+  statuses: read
+            write
   pull-requests: write
-  id-token: write
+  id-token: read
+            write
 
 concurrency:
   group: component-fixtures-${{ github.event.pull_request.number || github.sha }}

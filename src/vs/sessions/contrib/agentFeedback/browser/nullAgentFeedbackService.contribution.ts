@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -55,7 +55,6 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	hasLoadedFeedback(_sessionResource: URI): boolean { return true; }
 	getSessionForFile(_resourceUri: URI): undefined { return undefined; }
 	getFeedbackSessionResource(_resourceUri: URI): URI | undefined { return undefined; }
-	registerFeedbackResourceScope(_resourceUri: URI, _sessionResource: URI): IDisposable { return Disposable.None; }
 	getMostRecentSessionForResource(_resourceUri: URI): URI | undefined { return undefined; }
 	async revealFeedback(_sessionResource: URI, _feedbackId: string): Promise<void> { }
 	async revealSessionComment(): Promise<void> { }

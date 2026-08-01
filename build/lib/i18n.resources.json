@@ -83,10 +83,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/agentEditorComments",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/assignment",
 			"project": "vscode-workbench"
 		},

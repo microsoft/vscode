@@ -442,15 +442,6 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							tools: loadedTools,
 						} satisfies ResponsesToolSearchOutputInput as unknown as OpenAI.Responses.ResponseInputItem);
 					} else {
-						if (supportsCacheBreakpoints) {
-							input.push({
-								type: 'function_call_output',
-								call_id: message.toolCallId,
-								output: rawContentToResponsesContentList(message.content, true),
-							});
-							break;
-						}
-
 						const asText = message.content
 							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
 							.map(c => c.text)
@@ -466,9 +457,9 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							.filter((c): c is RawDocumentContentPart => c.type === Raw.ChatCompletionContentPartKind.Document)
 							.map(rawDocumentToResponsesInputFile)
 							.filter(isDefined);
+						applyPromptCacheBreakpointsToToolMedia(message.content, asImages, asFiles, supportsCacheBreakpoints);
 
-						// Preserve the legacy string output and synthetic media messages unless explicit
-						// prompt cache breakpoints are both enabled and supported by the model.
+						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
 							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
@@ -558,9 +549,7 @@ function rawDocumentToResponsesInputFile(part: RawDocumentContentPart): OpenAI.R
 	};
 }
 
-type ResponsesConvertibleContent = OpenAI.Responses.ResponseInputText | OpenAI.Responses.ResponseInputImage | OpenAI.Responses.ResponseInputFile;
-
-function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): ResponsesConvertibleContent | undefined {
+function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseInputContent | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			return { type: 'input_text', text: part.text };
@@ -569,7 +558,7 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Resp
 		case Raw.ChatCompletionContentPartKind.Document:
 			return rawDocumentToResponsesInputFile(part);
 		case Raw.ChatCompletionContentPartKind.Opaque: {
-			const maybeCast = part.value as ResponsesConvertibleContent;
+			const maybeCast = part.value as OpenAI.Responses.ResponseInputContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
 				return maybeCast;
 			}
@@ -590,13 +579,13 @@ interface ResponsesPromptCacheBreakpoint {
 	readonly mode: 'explicit';
 }
 
-type ResponsesCacheableContent = ResponsesConvertibleContent & {
+type ResponsesCacheableContent = OpenAI.Responses.ResponseInputContent & {
 	prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint;
 };
 
 const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
 
-function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionContentPart[], supportsCacheBreakpoints: boolean): ResponsesConvertibleContent[] {
+function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionContentPart[], supportsCacheBreakpoints: boolean): OpenAI.Responses.ResponseInputContent[] {
 	const content: ResponsesCacheableContent[] = [];
 	let target: ResponsesCacheableContent | undefined;
 	for (const part of parts) {
@@ -618,6 +607,37 @@ function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionCont
 	return content;
 }
 
+function applyPromptCacheBreakpointsToToolMedia(
+	parts: readonly Raw.ChatCompletionContentPart[],
+	images: OpenAI.Responses.ResponseInputImage[],
+	files: OpenAI.Responses.ResponseInputFile[],
+	supportsCacheBreakpoints: boolean,
+): void {
+	if (!supportsCacheBreakpoints) {
+		return;
+	}
+
+	let imageIndex = 0;
+	let fileIndex = 0;
+	let target: ResponsesCacheableContent | undefined;
+	for (const part of parts) {
+		switch (part.type) {
+			case Raw.ChatCompletionContentPartKind.Image:
+				target = images[imageIndex++];
+				break;
+			case Raw.ChatCompletionContentPartKind.Document:
+				target = part.documentData.mediaType === 'application/pdf' ? files[fileIndex++] : undefined;
+				break;
+			case Raw.ChatCompletionContentPartKind.CacheBreakpoint:
+				if (target) {
+					target.prompt_cache_breakpoint = promptCacheBreakpoint;
+				}
+				break;
+			default:
+				target = undefined;
+		}
+	}
+}
 /**
  * The Responses API rejects the entire request with
  * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`

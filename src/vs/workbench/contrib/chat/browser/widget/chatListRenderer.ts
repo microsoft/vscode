@@ -151,7 +151,7 @@ export interface IChatListItemTemplate {
 	renderedPartsMounted?: boolean;
 	renderedContent?: ReadonlyArray<IChatRendererContent>;
 	completedResponseDisclosure?: HTMLDetailsElement;
-	completedResponseCollapseEndIndex?: number;
+	completedResponseStartIndex?: number;
 	completedResponseDisclosureOpen?: boolean;
 	wasResponseComplete?: boolean;
 	readonly completedResponseDisclosureDisposables: DisposableStore;
@@ -192,16 +192,19 @@ function escapeMarkdownLinkLabel(label: string): string {
 export function buildPlanReviewProgressContent(review: IChatPlanReview, message: string): MarkdownString {
 	const renderedAsUsed = !!review.isUsed;
 	const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
-	const overall = data?.feedbackOverall?.trim();
+	// Prefer the structured fields from `ChatPlanReviewPart`; fall
+	// back to the combined `feedback` string for older results.
+	let overall = data?.feedbackOverall?.trim();
 	const inlineMd = data?.feedbackInlineMarkdown?.trim();
-	const feedbackMarkdown = [overall, inlineMd].filter(value => !!value).join('\n\n')
-		|| data?.feedback?.trim();
+	if (!overall && !inlineMd && data?.feedback) {
+		overall = data.feedback.trim();
+	}
 
 	const content = new MarkdownString(undefined, { supportThemeIcons: true });
-	content.appendText(message);
-	if (feedbackMarkdown) {
-		content.appendMarkdown('\n\n');
-		content.appendMarkdown(feedbackMarkdown);
+	if (overall) {
+		content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
+	} else {
+		content.appendText(message);
 	}
 
 	if (renderedAsUsed) {
@@ -224,6 +227,11 @@ export function buildPlanReviewProgressContent(review: IChatPlanReview, message:
 				content.appendMarkdown(`[${escapeMarkdownLinkLabel(label)}](${planWidgetUri.toString(true)})`);
 			}
 		}
+	}
+
+	if (inlineMd) {
+		content.appendMarkdown('\n\n');
+		content.appendMarkdown(inlineMd);
 	}
 	return content;
 }
@@ -278,19 +286,6 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 		visibleItemCount++;
 	}
 	return visibleItemCount;
-}
-
-export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
-	return (part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || !toolInvocationHasMcpAppData(part);
-}
-
-export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number): number {
-	for (let index = 0; index < finalResponseStartIndex; index++) {
-		if (!shouldCollapseCompletedResponsePart(content[index])) {
-			return index;
-		}
-	}
-	return finalResponseStartIndex;
 }
 
 /** How a freshly measured row height should be reconciled against the tree's known height. */
@@ -1065,7 +1060,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.checkpointRestoreToolbar.context = undefined;
 		templateData.currentElement = undefined;
 		templateData.completedResponseDisclosureOpen = undefined;
-		templateData.completedResponseCollapseEndIndex = undefined;
+		templateData.completedResponseStartIndex = undefined;
 		templateData.wasResponseComplete = undefined;
 	}
 
@@ -2298,44 +2293,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const collapseEndIndex = getCompletedResponseCollapseEndIndex(content, finalResponseStartIndex);
-		if (collapseEndIndex === 0) {
+		const finalResponseNode = templateData.renderedParts?.[finalResponseStartIndex]?.domNode;
+		if (!finalResponseNode) {
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
 
-		const collapseEndNode = templateData.renderedParts?.[collapseEndIndex]?.domNode;
-		if (!collapseEndNode) {
+		let finalResponseRoot = finalResponseNode;
+		while (finalResponseRoot.parentElement && finalResponseRoot.parentElement !== templateData.value) {
+			finalResponseRoot = finalResponseRoot.parentElement;
+		}
+		if (finalResponseRoot.parentElement !== templateData.value) {
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
 
-		let existingDisclosure = templateData.completedResponseDisclosure;
-		if (existingDisclosure?.contains(collapseEndNode)) {
-			this.removeCompletedResponseDisclosure(templateData);
-			existingDisclosure = undefined;
-		}
-
-		let collapseEndRoot = collapseEndNode;
-		while (collapseEndRoot.parentElement && collapseEndRoot.parentElement !== templateData.value) {
-			collapseEndRoot = collapseEndRoot.parentElement;
-		}
-		if (collapseEndRoot.parentElement !== templateData.value) {
-			this.removeCompletedResponseDisclosure(templateData);
-			return;
-		}
-
+		const existingDisclosure = templateData.completedResponseDisclosure;
 		if (existingDisclosure
-			&& templateData.completedResponseCollapseEndIndex === collapseEndIndex
-			&& existingDisclosure.nextSibling === collapseEndRoot
-			&& templateData.renderedParts?.slice(0, collapseEndIndex).every(part => !part?.domNode || existingDisclosure.contains(part.domNode))
+			&& templateData.completedResponseStartIndex === finalResponseStartIndex
+			&& existingDisclosure.nextSibling === finalResponseRoot
+			&& templateData.renderedParts?.slice(0, finalResponseStartIndex).every(part => !part?.domNode || existingDisclosure.contains(part.domNode))
 		) {
 			return;
 		}
 
 		this.removeCompletedResponseDisclosure(templateData);
 		const valueChildren = Array.from(templateData.value.childNodes);
-		const nodesToCollapse = valueChildren.slice(0, valueChildren.indexOf(collapseEndRoot));
+		const nodesToCollapse = valueChildren.slice(0, valueChildren.indexOf(finalResponseRoot));
 		const stepCount = getVisibleCompletedResponseItemCount(nodesToCollapse);
 		if (stepCount < 2) {
 			return;
@@ -2367,10 +2351,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 		updateExpansionState();
 
-		templateData.value.insertBefore(details, collapseEndRoot);
+		templateData.value.insertBefore(details, finalResponseRoot);
 		details.append(...nodesToCollapse);
 		templateData.completedResponseDisclosure = details;
-		templateData.completedResponseCollapseEndIndex = collapseEndIndex;
+		templateData.completedResponseStartIndex = finalResponseStartIndex;
 		templateData.completedResponseDisclosureDisposables.add(dom.addDisposableListener(details, 'toggle', () => {
 			templateData.completedResponseDisclosureOpen = details.open;
 			updateExpansionState();
@@ -2399,7 +2383,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		details.remove();
 		templateData.completedResponseDisclosure = undefined;
-		templateData.completedResponseCollapseEndIndex = undefined;
+		templateData.completedResponseStartIndex = undefined;
 	}
 
 	/**

@@ -54,17 +54,15 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 
 ## Session Title Metadata
 
-When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever an authoritative Copilot or Claude session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
+When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever the authoritative Copilot session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
 
 | Attribute | Description |
 |---|---|
-| `gen_ai.conversation.id` | Provider conversation identifier (Copilot conversation ID or Claude SDK session ID; native Claude currently reports it as `session.id`). |
+| `gen_ai.conversation.id` | Copilot SDK conversation ID used to correlate the metadata with SDK spans. |
 | `vscode.agent_host.session.title` | Latest session title, bounded to 200 characters. |
 | `vscode.agent_host.session.uri` | Agent Host protocol URI for the session. |
 
 Title text is user-derived content, so these spans are emitted only when `chat.agentHost.otel.captureContent` is enabled. Host-produced title spans copy `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` so collectors group them with the SDK telemetry. They are persisted in DB mode and use the configured OTLP, file, or console forwarder. Synthetic OTLP forwarding currently uses OTLP/HTTP JSON; when `http/protobuf` or gRPC is configured, title spans remain available in DB mode but are not sent to that external endpoint.
-
-Emitting title metadata does not itself enable provider-native telemetry. In particular, `chat.agentHost.otel.*` does not currently turn on Claude's native OTel: an agent-host Claude turn emits no `claude_code.*` spans unless Claude's standalone OTel settings are configured separately.
 
 ## VS Code Settings
 

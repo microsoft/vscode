@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -22,7 +20,7 @@ import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { PluginInstallService } from '../../../browser/pluginInstallService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IMarketplaceInstalledPlugin, IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../../../common/plugins/pluginSource.js';
 
 suite('PluginInstallService', () => {
@@ -73,11 +71,6 @@ suite('PluginInstallService', () => {
 		marketplaceTrusted: boolean;
 		/** Whether the strict-marketplace enterprise policy is active */
 		strictMarketplacePolicyActive?: boolean;
-		installedPlugins: IMarketplaceInstalledPlugin[];
-		fetchedMarketplacePlugins: IMarketplacePlugin[];
-		fetchMarketplaceCalls: string[][];
-		autoUpdateByMarketplace: Map<string, boolean>;
-		clearUpdatesAvailableCalls: number;
 		/** Canonical IDs that were trusted via trustMarketplace() */
 		trustedMarketplaces: string[];
 		/** Plugins returned by readPluginsFromDirectory */
@@ -120,11 +113,6 @@ suite('PluginInstallService', () => {
 			updatePluginSourceCalls: [],
 			marketplaceTrusted: true,
 			strictMarketplacePolicyActive: false,
-			installedPlugins: [],
-			fetchedMarketplacePlugins: [],
-			fetchMarketplaceCalls: [],
-			autoUpdateByMarketplace: new Map(),
-			clearUpdatesAvailableCalls: 0,
 			trustedMarketplaces: [],
 			readPluginsResult: [],
 			singlePluginManifestResult: undefined,
@@ -157,9 +145,8 @@ suite('PluginInstallService', () => {
 
 		// INotificationService
 		instantiationService.stub(INotificationService, {
-			notify: (notification: { severity: number; message: string; actions?: { primary?: readonly { dispose(): void }[] } }) => {
+			notify: (notification: { severity: number; message: string }) => {
 				state.notifications.push({ severity: notification.severity, message: notification.message });
-				notification.actions?.primary?.forEach(action => action.dispose());
 				return undefined;
 			},
 		} as unknown as INotificationService);
@@ -298,18 +285,11 @@ suite('PluginInstallService', () => {
 
 		// IPluginMarketplaceService
 		instantiationService.stub(IPluginMarketplaceService, {
-			installedPlugins: observableValue('test.installedPlugins', state.installedPlugins),
 			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
 			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
-			isMarketplaceAutoUpdateEnabled: (ref: IMarketplaceReference) => state.autoUpdateByMarketplace.get(ref.canonicalId) ?? true,
-			fetchMarketplacePlugins: async (_token: CancellationToken, marketplaceIds?: ReadonlySet<string>) => {
-				state.fetchMarketplaceCalls.push([...marketplaceIds ?? []]);
-				return state.fetchedMarketplacePlugins.filter(plugin => !marketplaceIds || marketplaceIds.has(plugin.marketplaceReference.canonicalId));
-			},
-			clearUpdatesAvailable: () => state.clearUpdatesAvailableCalls++,
 			trustMarketplace: (ref: IMarketplaceReference) => {
 				state.trustedMarketplaces.push(ref.canonicalId);
 			},
@@ -767,28 +747,6 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(state.updatePluginSourceCalls.length, 1);
 		});
 
-		test('blocks direct updates when the strict marketplace policy disallows the source', async () => {
-			const { service, state } = createService({
-				strictMarketplacePolicyActive: true,
-				marketplaceTrusted: false,
-			});
-			const plugin = createPlugin({
-				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
-			});
-
-			const updated = await service.updatePlugin(plugin);
-
-			assert.deepStrictEqual({
-				updated,
-				updateCalls: state.updatePluginSourceCalls.length,
-				notifications: state.notifications.map(notification => notification.message),
-			}, {
-				updated: false,
-				updateCalls: 0,
-				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization\'s policy.'],
-			});
-		});
-
 		test('re-installs for npm plugin updates', async () => {
 			const { service, state } = createService({
 				ensurePluginSourceResult: URI.file('/cache/agentPlugins/npm/my-pkg'),
@@ -852,72 +810,6 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(updated, false);
 			assert.strictEqual(state.terminalCommands.length, 0);
 			assert.strictEqual(state.addedPlugins.length, 0);
-		});
-	});
-
-	suite('updateAllPlugins', () => {
-
-		function installedPlugin(name: string, marketplace: string): IMarketplaceInstalledPlugin {
-			const marketplaceReference = makeMarketplaceRef(marketplace);
-			const plugin = createPlugin({
-				name,
-				marketplace,
-				marketplaceReference,
-				source: `plugins/${name}`,
-				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: `plugins/${name}` },
-			});
-			return { pluginUri: URI.file(`/plugins/${name}`), plugin };
-		}
-
-		test('updates only the targeted marketplace', async () => {
-			const first = installedPlugin('first', 'microsoft/first');
-			const second = installedPlugin('second', 'microsoft/second');
-			const { service, state } = createService({ installedPlugins: [first, second] });
-
-			await service.updateAllPlugins({
-				silent: true,
-				automatic: true,
-				marketplaceIds: new Set([first.plugin.marketplaceReference.canonicalId]),
-			}, CancellationToken.None);
-
-			assert.deepStrictEqual({
-				pulled: state.pullRepositoryCalls.map(call => call.marketplace.canonicalId),
-				fetched: state.fetchMarketplaceCalls,
-			}, {
-				pulled: [first.plugin.marketplaceReference.canonicalId],
-				fetched: [[first.plugin.marketplaceReference.canonicalId]],
-			});
-		});
-
-		test('rechecks managed auto-update policy before an automatic update', async () => {
-			const installed = installedPlugin('blocked', 'microsoft/blocked');
-			const { service, state } = createService({
-				installedPlugins: [installed],
-				autoUpdateByMarketplace: new Map([[installed.plugin.marketplaceReference.canonicalId, false]]),
-			});
-
-			await service.updateAllPlugins({
-				silent: true,
-				automatic: true,
-				marketplaceIds: new Set([installed.plugin.marketplaceReference.canonicalId]),
-			}, CancellationToken.None);
-
-			assert.deepStrictEqual(state.pullRepositoryCalls, []);
-			assert.deepStrictEqual(state.fetchMarketplaceCalls, []);
-		});
-
-		test('blocks updates when the strict marketplace policy disallows the source', async () => {
-			const installed = installedPlugin('blocked', 'microsoft/blocked');
-			const { service, state } = createService({
-				installedPlugins: [installed],
-				strictMarketplacePolicyActive: true,
-				marketplaceTrusted: false,
-			});
-
-			const result = await service.updateAllPlugins({ silent: true }, CancellationToken.None);
-
-			assert.deepStrictEqual(result.failedNames, [installed.plugin.marketplaceReference.displayLabel]);
-			assert.deepStrictEqual(state.pullRepositoryCalls, []);
 		});
 	});
 

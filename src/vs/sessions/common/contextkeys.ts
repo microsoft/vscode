@@ -57,7 +57,6 @@ export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multip
 //#region < --- Custom View Grid --- >
 
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
-export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 
 //#endregion
 

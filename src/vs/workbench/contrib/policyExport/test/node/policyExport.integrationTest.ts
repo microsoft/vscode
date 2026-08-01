@@ -15,10 +15,6 @@ suite('PolicyExport Integration Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('exported policy data matches checked-in file', async function () {
-		if (process.env['TF_BUILD']) {
-			this.skip();
-		}
-
 		// The canonical export launches both product entrypoints.
 		this.timeout(120000);
 

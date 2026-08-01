@@ -18,7 +18,6 @@ import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
-import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
 export const navigateNextFeedbackActionId = 'agentFeedbackEditor.action.navigateNext';
@@ -62,12 +61,12 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 				codeReviewService.getPRReviewState(sessionResource).get(),
 			);
 			if (comments.length > 0) {
-				return this.runWithSession(accessor, sessionResource, candidate);
+				return this.runWithSession(accessor, sessionResource);
 			}
 		}
 	}
 
-	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI, resource: URI): Promise<boolean | void> | boolean | void;
+	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<boolean | void> | boolean | void;
 }
 
 class SubmitFeedbackAction extends AgentFeedbackEditorAction {
@@ -88,12 +87,8 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		});
 	}
 
-	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI, resource: URI): Promise<boolean> {
+	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<boolean> {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
-		const planReviewFeedbackService = accessor.get(IPlanReviewFeedbackService);
-		if (planReviewFeedbackService.isActivePlanReview(resource)) {
-			return planReviewFeedbackService.submitAllFeedback(resource);
-		}
 		return agentFeedbackService.submitFeedback(sessionResource);
 	}
 }

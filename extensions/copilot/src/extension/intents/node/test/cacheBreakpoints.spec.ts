@@ -22,29 +22,23 @@ describe('addCacheBreakpoints', () => {
 		const imageTool: Raw.ChatMessage = { role: Raw.ChatRole.Tool, toolCallId: 'image', content: [image()] };
 		const user: Raw.ChatMessage = { role: Raw.ChatRole.User, content: [document()] };
 
-		addCacheBreakpoints([system, user, imageTool, assistant, textTool], 'responses');
+		addCacheBreakpoints([system, assistant, user, textTool, imageTool], 'responses');
 
 		expect(hasBreakpoint(system)).toBe(true);
 		expect(hasBreakpoint(assistant)).toBe(false);
-		expect(hasBreakpoint(textTool)).toBe(true);
+		expect(hasBreakpoint(textTool)).toBe(false);
 		expect(hasBreakpoint(imageTool)).toBe(true);
 		expect(hasBreakpoint(user)).toBe(true);
 	});
 
 	it('removes prompt-rendered markers from unsupported Responses API messages', () => {
 		const assistant: Raw.ChatMessage = { role: Raw.ChatRole.Assistant, content: [text(), cacheBreakpoint()] };
-
-		addCacheBreakpoints([assistant], 'responses');
-
-		expect(hasBreakpoint(assistant)).toBe(false);
-	});
-
-	it('preserves prompt-rendered markers on Responses function call outputs', () => {
 		const textTool: Raw.ChatMessage = { role: Raw.ChatRole.Tool, toolCallId: 'text', content: [text(), cacheBreakpoint()] };
 
-		addCacheBreakpoints([textTool], 'responses');
+		addCacheBreakpoints([assistant, textTool], 'responses');
 
-		expect(hasBreakpoint(textTool)).toBe(true);
+		expect(hasBreakpoint(assistant)).toBe(false);
+		expect(hasBreakpoint(textTool)).toBe(false);
 	});
 
 	it.each(['text', 'image_url', 'input_audio', 'file', 'refusal'])('supports Chat Completions %s blocks', type => {

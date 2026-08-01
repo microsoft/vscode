@@ -110,10 +110,11 @@ const copilotOptionalNativePayloadDirs = [
 
 function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 	const files = [
-		// Computer Use ships under plugins/computer-use/** in current
-		// @github/copilot platform packages. Do not productize it.
-		'plugins/computer-use/**',
 		'prebuilds/*/computer.node',
+		'prebuilds/*/computer-use-mcp',
+		'prebuilds/*/computer-use-mcp.exe',
+		'prebuilds/*/Copilot Computer Use.app/**',
+		'prebuilds/*/CopilotComputerUse.exe',
 		'prebuilds/*/keytar.node',
 		// macOS voice media-pause helper (MediaRemote adapter). Optional and
 		// nested under prebuilds; keep it out of the product so universal

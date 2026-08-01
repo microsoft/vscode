@@ -459,26 +459,6 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 	});
 
-	test('explicit resource scope uses its supplied session and announces scope changes', () => {
-		setActiveSession(sessions.get(sessionS1.toString())!);
-		let scopeChanges = 0;
-		store.add(service.onDidChangeFeedbackScope(() => scopeChanges++));
-
-		const registration = service.registerFeedbackResourceScope(fileA, sessionS2);
-		const registeredScope = service.getFeedbackSessionResource(fileA);
-		registration.dispose();
-
-		assert.deepStrictEqual({
-			registeredScope: registeredScope?.toString(),
-			scopeAfterDispose: service.getFeedbackSessionResource(fileA)?.toString(),
-			scopeChanges,
-		}, {
-			registeredScope: sessionS2.toString(),
-			scopeAfterDispose: sessionS1.toString(),
-			scopeChanges: 2,
-		});
-	});
-
 	test('untracked file falls back to the active session', () => {
 		setActiveSession(sessions.get(sessionS1.toString())!);
 		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS1.toString());

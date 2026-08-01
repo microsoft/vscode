@@ -228,7 +228,7 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Automations]: {
-			description: localize('verbosity.automations', 'Provide information about how to use Automations management views, including keyboard navigation and how to inspect scheduled runs.'),
+			description: localize('verbosity.automations', 'Provide information about how to use the Automations section of the Agent Customizations editor, including keyboard navigation and how to inspect scheduled runs.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.BrowserElementCommenting]: {

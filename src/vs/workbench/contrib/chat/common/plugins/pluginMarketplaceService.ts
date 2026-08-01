@@ -149,8 +149,12 @@ export interface IPluginMarketplaceService {
 	readonly onDidChangeMarketplaces: Event<void>;
 	/** Installed marketplace plugins, backed by storage. */
 	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
-	/** Canonical IDs of marketplaces with updates detected by the periodic check. */
-	readonly marketplacesWithUpdates: IObservable<ReadonlySet<string>>;
+	/**
+	 * Observable that is `true` when at least one cloned marketplace
+	 * repository has upstream changes available. Checked periodically
+	 * (approximately once per day) when `extensions.autoUpdate` is enabled.
+	 */
+	readonly hasUpdatesAvailable: IObservable<boolean>;
 	/**
 	 * Observable snapshot of the last {@link fetchMarketplacePlugins} result.
 	 * Empty until the first fetch completes. Views should use this for
@@ -163,9 +167,9 @@ export interface IPluginMarketplaceService {
 	 * may be added over time; consumers should not assume a specific source.
 	 */
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
-	/** Clears all reported marketplaces, or only the provided canonical IDs. */
-	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void;
-	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]>;
+	/** Resets {@link hasUpdatesAvailable} to `false`. */
+	clearUpdatesAvailable(): void;
+	fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
@@ -177,8 +181,6 @@ export interface IPluginMarketplaceService {
 	 * configured. When active, blocked marketplaces cannot be trusted by the user.
 	 */
 	isStrictMarketplacePolicyActive(): boolean;
-	/** Returns the effective automatic-update policy for a marketplace. */
-	isMarketplaceAutoUpdateEnabled(ref: IMarketplaceReference): boolean;
 	/** Records that the user trusts the given marketplace, persisted permanently. */
 	trustMarketplace(ref: IMarketplaceReference): void;
 	/**
@@ -299,13 +301,13 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _pluginMetadata = new Map<string, IMarketplacePlugin>();
 	private readonly _trustedMarketplacesStore: ObservableMemento<readonly string[]>;
 	private readonly _lastFetchedPluginsStore: ObservableMemento<IStoredLastFetchedPlugins>;
-	private readonly _marketplacesWithUpdates = observableValue<ReadonlySet<string>>('marketplacesWithUpdates', new Set());
+	private readonly _hasUpdatesAvailable = observableValue<boolean>('hasUpdatesAvailable', false);
 	private _updateCheckTimer: ReturnType<typeof setTimeout> | undefined;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
 	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
-	readonly marketplacesWithUpdates: IObservable<ReadonlySet<string>> = this._marketplacesWithUpdates;
+	readonly hasUpdatesAvailable: IObservable<boolean> = this._hasUpdatesAvailable;
 	readonly lastFetchedPlugins: IObservable<readonly IMarketplacePlugin[]>;
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
 
@@ -389,16 +391,12 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		);
 
 		this._register(runWhenGlobalIdle(() => {
+			// Schedule periodic update checks when auto-update is enabled.
 			this._scheduleUpdateCheck();
 			this._register(Event.filter(
 				_configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration(AutoUpdateConfigurationKey)
-					|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
-					|| e.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
-			)(() => {
-				this.clearUpdatesAvailable();
-				this._scheduleUpdateCheck();
-			}));
+				e => e.affectsConfiguration(AutoUpdateConfigurationKey),
+			)(() => this._scheduleUpdateCheck()));
 		}));
 
 		// Hydrate plugin metadata for installed entries that are not yet in
@@ -422,16 +420,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		super.dispose();
 	}
 
-	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void {
-		if (!marketplaceIds) {
-			this._marketplacesWithUpdates.set(new Set(), undefined);
-			return;
-		}
-		const remaining = new Set([...this._marketplacesWithUpdates.get()].filter(id => !marketplaceIds.has(id)));
-		this._marketplacesWithUpdates.set(remaining, undefined);
+	clearUpdatesAvailable(): void {
+		this._hasUpdatesAvailable.set(false, undefined);
 	}
 
-	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]> {
+	async fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]> {
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 			return [];
 		}
@@ -463,12 +456,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 		}
 
-		const refsToFetch = allRefs.filter(ref =>
-			(!marketplaceIds || marketplaceIds.has(ref.canonicalId))
-			&& this._isMarketplaceAllowedByStrictPolicy(ref)
-		);
 		const results = await Promise.all(
-			refsToFetch.map(ref => {
+			allRefs.map(ref => {
 				if (ref.kind === MarketplaceReferenceKind.GitHubShorthand && ref.githubRepo) {
 					return this._fetchFromGitHubRepo(ref, ref.githubRepo, token);
 				}
@@ -476,10 +465,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			})
 		);
 		const plugins = results.flat();
-		const storedPlugins = marketplaceIds
-			? [...this.lastFetchedPlugins.get().filter(plugin => !marketplaceIds.has(plugin.marketplaceReference.canonicalId)), ...plugins]
-			: plugins;
-		this._lastFetchedPluginsStore.set({ plugins: storedPlugins, fetchedAt: Date.now() }, undefined);
+		this._lastFetchedPluginsStore.set({ plugins, fetchedAt: Date.now() }, undefined);
 		return plugins;
 	}
 
@@ -660,16 +646,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		return getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces)) !== undefined;
 	}
 
-	isMarketplaceAutoUpdateEnabled(ref: IMarketplaceReference): boolean {
-		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
-		const managedRef = parseMarketplaceReferences(extraValues).find(candidate => candidate.canonicalId === ref.canonicalId);
-		return managedRef?.autoUpdate ?? this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
-	}
-
-	private _isMarketplaceAllowedByStrictPolicy(ref: IMarketplaceReference): boolean {
-		return !this.isStrictMarketplacePolicyActive() || this.isMarketplaceTrusted(ref);
-	}
-
 	// --- Plugin metadata hydration -----------------------------------------------
 
 	/**
@@ -784,12 +760,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	// --- Periodic update check ------------------------------------------------
 
-	private _hasAutoUpdateEnabledMarketplace(): boolean {
-		if (this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off') {
-			return true;
-		}
-		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
-		return parseMarketplaceReferences(extraValues).some(ref => ref.autoUpdate === true);
+	private _isAutoUpdateEnabled(): boolean {
+		return this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
 	}
 
 	/**
@@ -802,7 +774,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			this._updateCheckTimer = undefined;
 		}
 
-		if (!this._hasAutoUpdateEnabledMarketplace()) {
+		if (!this._isAutoUpdateEnabled()) {
 			return;
 		}
 
@@ -827,13 +799,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 
 			const seenMarketplaces = new Set<string>();
-			const marketplacesWithUpdates = new Set<string>();
+			let hasUpdates = false;
 
 			for (const entry of installed) {
 				const ref = entry.plugin.marketplaceReference;
-				if (seenMarketplaces.has(ref.canonicalId)
-					|| !this.isMarketplaceAutoUpdateEnabled(ref)
-					|| !this._isMarketplaceAllowedByStrictPolicy(ref)) {
+				if (seenMarketplaces.has(ref.canonicalId)) {
 					continue;
 				}
 				seenMarketplaces.add(ref.canonicalId);
@@ -841,14 +811,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				try {
 					const behind = await this._pluginRepositoryService.fetchRepository(ref);
 					if (behind) {
-						marketplacesWithUpdates.add(ref.canonicalId);
+						hasUpdates = true;
+						break;
 					}
 				} catch (err) {
 					this._logService.debug(`[PluginMarketplaceService] Update check failed for ${ref.displayLabel}:`, err);
 				}
 			}
 
-			this._marketplacesWithUpdates.set(marketplacesWithUpdates, undefined);
+			this._hasUpdatesAvailable.set(hasUpdates, undefined);
 			this._storageService.store(
 				PLUGIN_UPDATE_LAST_CHECK_STORAGE_KEY,
 				Date.now(),
@@ -859,7 +830,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			this._logService.debug('[PluginMarketplaceService] Periodic update check failed:', err);
 		} finally {
 			// Reschedule for the next check
-			if (this._hasAutoUpdateEnabledMarketplace()) {
+			if (this._isAutoUpdateEnabled()) {
 				this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), PLUGIN_UPDATE_CHECK_INTERVAL_MS);
 			}
 		}
