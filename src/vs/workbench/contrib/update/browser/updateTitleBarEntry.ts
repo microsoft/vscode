@@ -125,13 +125,16 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 		if (additionalMenuPlacement) {
 			const { menuId, item } = additionalMenuPlacement;
+			// Do not apply the chat-in-progress hide here. That gate is for the editor titlebar
+			// (TitleBarAdjacentCenter above); Agents is the only secondary placement and routinely
+			// has chat/agent requests in flight, which would leave no Update CTA (#328473).
 			MenuRegistry.appendMenuItem(menuId, {
 				...item,
 				command: {
 					id: UPDATE_TITLE_BAR_ACTION_ID,
 					title: localize('updateIndicatorTitleBarAction', 'Update'),
 				},
-				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate(), item.when),
+				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, item.when),
 			});
 			this._register(actionViewItemService.register(
 				menuId,
