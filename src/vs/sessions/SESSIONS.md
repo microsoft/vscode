@@ -83,6 +83,8 @@ focus a slot:   part.onDidFocusSession → view.setActive → updates active vis
 
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
 
+The `sessions.showSessionsPicker` command globally prioritizes non-archived sessions that need input, followed by other unread sessions. Each priority group preserves the picker's existing recent-first order, and sessions in neither group remain in the existing "recently opened" and "other sessions" sections. Archived-session exclusion is owned by the picker grouping helper so archived sessions cannot enter any section regardless of status or read state. The picker initially selects the first session rather than the preceding New Session item or the active session.
+
 The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer also renders the shared chat-tip content above its input; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
@@ -207,7 +209,7 @@ Session types are surfaced ordered by each provider's `order` property (lower fi
 
 The session type picker persists the last selection as `{ providerId, sessionTypeId }` (the `providerId` disambiguates when two providers offer the same `sessionType.id`, e.g. `copilotcli`). Like any picker, it writes storage whenever the value changes — both on a manual dropdown pick and whenever the active session's type changes — so an auto-selected or defaulted type also survives reload (otherwise the stored preference would be empty and the restored draft would fall back to the first provider by `order`).
 
-On reload, providers register asynchronously and agent hosts connect lazily, so the preferred provider may not have surfaced its session types when the restored draft is created. Rather than blocking on a "ready" gate, `NewChatWidget` creates the draft immediately with the best available provider, then upgrades it in place once the preferred `(providerId, sessionTypeId)` pair becomes servable (driven by `onDidChangeSessionTypes`). The upgrade listener lives for the widget's lifetime — there is **no** timeout or `LifecyclePhase` give-up, since an agent host can connect arbitrarily late — and is cancelled if the user picks a different type or the draft is sent.
+On reload, providers register asynchronously and agent hosts connect lazily, so the preferred provider may not have surfaced its session types when the restored draft is created. Rather than blocking on a "ready" gate, `NewChatWidget` creates the draft immediately with the best available provider, then upgrades it in place once the preferred `(providerId, sessionTypeId)` pair becomes servable (driven by `onDidChangeSessionTypes`). The upgrade path subscribes before attempting draft creation and replays a provider change that arrives while creation is in flight, so readiness cannot land between the failed creation and listener registration. Starting a newer creation cancels the previous one, and `SessionsService` checks cancellation after workspace trust resolves but before it mutates the pending draft, so an older attempt cannot replace the latest selection. The listener has **no** timeout or `LifecyclePhase` give-up, since an agent host can connect arbitrarily late, and is cancelled if the user picks a different type or the draft is sent.
 
 Scheduled automations follow the same lazy-registration rule. Before claiming a run row, `AutomationRunner` checks whether its exact target is currently advertised; an unavailable target is deferred without advancing `nextRunAt`, and `AutomationScheduler` retries due automations when `onDidChangeSessionTypes` fires. The automation dialog binds its chat input to the selected `ISessionType.chatSessionType` model target rather than the logical session type id, keeping extension-backed and Agent Host model namespaces distinct; when editing a legacy automation, it resolves a matching logical-target model into the selected concrete target before restoring the pick. Once a draft exists, an explicitly selected model waits on `getModelsSnapshot` / `onDidChangeModels` until it is available or conclusively unavailable, then applies the provider-resolved model identifier; workspace-backed drafts also re-check folder-specific session types. No startup delay or readiness timeout is used.
 
@@ -361,6 +363,16 @@ keeps them. Editor **Submit Feedback** delegates to this same live composer path
 opening the composer first when it is not mounted in the grid, and opens the
 workspace picker without clearing input or comments when no concrete draft exists
 yet.
+
+The editor feedback toolbar's visual widget is shared with workbench plan review
+through `AgentEditorCommentsOverlayWidget`. Each host keeps its own menu actions
+and state adapter, while the toolbar layout, count presentation, action rendering,
+keyboard labels, and styling have one workbench-owned implementation.
+Plan review binds the plan resource to its owning session while that review is
+active. Only accepted comments created after the active review registration are
+included in plan submission, so pre-existing or already-submitted session feedback
+is not resent or cleared. Ownership snapshots include hidden feedback states so a
+pre-existing comment cannot become plan-owned merely by transitioning to accepted.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s

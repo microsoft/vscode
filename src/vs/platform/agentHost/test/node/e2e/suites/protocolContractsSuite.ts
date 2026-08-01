@@ -16,11 +16,12 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ReconnectResultType, type ReconnectResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ReconnectResultType, type InitializeResult, type ListSessionsResult, type ReconnectResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -62,6 +63,134 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		await context.client.call('ping', { channel: ROOT_STATE_URI });
 	});
 
+	conformanceTest(context, 'ping answers before the client initializes', async function () {
+		const client = await context.connectClient();
+		try {
+			const result = await client.call('ping', { channel: ROOT_STATE_URI });
+			assert.strictEqual(result, null);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize rejects incompatible protocol versions', async function () {
+		const client = await context.connectClient();
+		try {
+			await assert.rejects(client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: ['999.0.0'],
+				clientId: `incompatible-version-${config.provider}`,
+			}), { code: AhpErrorCodes.UnsupportedProtocolVersion });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize rejects an empty protocol version list', async function () {
+		const client = await context.connectClient();
+		try {
+			await assert.rejects(client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [],
+				clientId: `empty-versions-${config.provider}`,
+			}), { code: AhpErrorCodes.UnsupportedProtocolVersion });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize without subscriptions returns no snapshots', async function () {
+		const client = await context.connectClient();
+		try {
+			const initialized = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `no-initial-subscriptions-${config.provider}`,
+			});
+			assert.deepStrictEqual(initialized.snapshots, []);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'listSessions includes provider-backed session metadata', async function () {
+		const { sessionUri, workspace } = await createSession('list-session-metadata');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		dispatchTurn(context.client, sessionUri, 'turn-list-session-metadata', '/rename Listed Session', nextClientSeq());
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-list-session-metadata',
+		);
+
+		const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		const item = result.items.find(item => item.resource === sessionUri);
+
+		assert.deepStrictEqual({
+			provider: item?.provider,
+			hasTitle: typeof item?.title === 'string' && item.title.length > 0,
+			statusIsNumber: typeof item?.status === 'number',
+			workingDirectories: item?.workingDirectories,
+			hasCreatedAt: item !== undefined && Number.isFinite(Date.parse(item.createdAt)),
+			hasModifiedAt: item !== undefined && Number.isFinite(Date.parse(item.modifiedAt)),
+		}, {
+			provider: config.provider,
+			hasTitle: true,
+			statusIsNumber: true,
+			workingDirectories: [URI.file(workspace).toString()],
+			hasCreatedAt: true,
+			hasModifiedAt: true,
+		});
+	});
+
+	conformanceTest(context, 'listSessions reflects live title and status changes', async function () {
+		const { sessionUri } = await createSession('list-session-live-state');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		dispatchTurn(context.client, sessionUri, 'turn-list-session-live-state', '/rename Catalog Title', nextClientSeq());
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-list-session-live-state',
+		);
+		await dispatchAndWaitOnShared(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		await dispatchAndWaitOnShared(sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+		const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		const item = result.items.find(item => item.resource === sessionUri);
+
+		assert.deepStrictEqual({
+			title: item?.title,
+			isRead: !!(item?.status && item.status & SessionStatus.IsRead),
+			isArchived: !!(item?.status && item.status & SessionStatus.IsArchived),
+		}, {
+			title: 'Catalog Title',
+			isRead: true,
+			isArchived: true,
+		});
+	});
+
+	conformanceTest(context, 'disposing a session removes it from listSessions', async function () {
+		const { sessionUri } = await createSession('list-session-dispose');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		dispatchTurn(context.client, sessionUri, 'turn-list-session-dispose', '/rename Disposable Session', nextClientSeq());
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-list-session-dispose',
+		);
+		const before = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		assert.strictEqual(before.items.some(item => item.resource === sessionUri), true);
+
+		await context.client.call('disposeSession', { channel: sessionUri });
+		const trackedIndex = createdSessions.indexOf(sessionUri);
+		if (trackedIndex >= 0) {
+			createdSessions.splice(trackedIndex, 1);
+		}
+		const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+
+		assert.strictEqual(result.items.some(item => item.resource === sessionUri), false);
+	});
+
 	conformanceTest(context, 'fetchTurns reports the turns a chat already has', async function () {
 		const { sessionUri } = await createSession('fetch-turns');
 		const chatUri = buildDefaultChatUri(sessionUri);
@@ -91,6 +220,44 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		assert.strictEqual((getActionEnvelope(loaded).action as { type: string }).type, ActionType.ChatTurnsLoaded);
 	});
 
+	conformanceTest(context, 'fetchTurns rejects a cursor the host did not issue', async function () {
+		const { sessionUri } = await createSession('fetch-turns-cursor');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+
+		await assert.rejects(context.client.call('fetchTurns', {
+			channel: chatUri,
+			cursor: 'not-a-host-cursor',
+		}), { code: JsonRpcErrorCodes.InvalidParams });
+	});
+
+	conformanceTest(context, 'fetchTurns rejects an unknown chat channel', async function () {
+		const { sessionUri } = await createSession('fetch-turns-missing');
+		const missingChat = buildChatUri(sessionUri, 'missing');
+
+		await assert.rejects(context.client.call('fetchTurns', {
+			channel: missingChat,
+		}));
+	});
+
+	conformanceTest(context, 'initialize returns snapshots for initial subscriptions', async function () {
+		const { sessionUri } = await createSession('initial-subscriptions');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const client = await context.connectClient();
+		try {
+			const initialized = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `initial-subscriptions-${config.provider}`,
+				initialSubscriptions: [sessionUri, chatUri],
+			});
+
+			assert.deepStrictEqual(initialized.snapshots.map(snapshot => snapshot.resource).sort(), [sessionUri, chatUri].sort());
+		} finally {
+			client.close();
+		}
+	});
+
 	/**
 	 * Runs `body` against a second connection that has completed the handshake
 	 * under its own clientId, then drops that connection and hands back a fresh
@@ -115,13 +282,14 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'reconnect replays only the actions a dropped client missed', async function () {
 		const { sessionUri } = await createSession('reconnect');
 		const chatUri = buildDefaultChatUri(sessionUri);
+		const droppedClientId = `reconnect-dropped-${config.provider}`;
 
 		// The cutoff comes from the subscribe response rather than from watching
 		// this client receive its own dispatch: a subscription is not guaranteed
 		// to be installed before a dispatch sent immediately after it is handled,
 		// so waiting for that echo races. `fromSeq` is the same boundary and the
 		// response itself guarantees it.
-		const { carried: seenThrough, revived } = await afterConnectionDrop(`reconnect-${config.provider}`, async first => {
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
 			return subscribed.snapshot!.fromSeq;
 		});
@@ -133,7 +301,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 			const result = await revived.call<ReconnectResult>('reconnect', {
 				channel: ROOT_STATE_URI,
-				clientId: `reconnect-${config.provider}`,
+				clientId: droppedClientId,
 				lastSeenServerSeq: seenThrough,
 				subscriptions: [chatUri],
 			});
@@ -160,12 +328,13 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'reconnect reports a subscription it cannot resume as missing', async function () {
 		const { sessionUri } = await createSession('reconnect-missing');
 		const chatUri = buildDefaultChatUri(sessionUri);
+		const droppedClientId = `reconnect-missing-dropped-${config.provider}`;
 		// A channel that never existed stands in for one disposed while the client
 		// was away: either way the server cannot resume it, and the client has to
 		// be told rather than left waiting on a dead channel.
 		const goneUri = URI.from({ scheme: 'agenthost-terminal', authority: 'e2e', path: '/never-existed' }).toString();
 
-		const { carried: seenThrough, revived } = await afterConnectionDrop(`reconnect-missing-${config.provider}`, async first => {
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
 			return subscribed.snapshot!.fromSeq;
 		});
@@ -173,7 +342,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		try {
 			const result = await revived.call<ReconnectResult>('reconnect', {
 				channel: ROOT_STATE_URI,
-				clientId: `reconnect-missing-${config.provider}`,
+				clientId: droppedClientId,
 				lastSeenServerSeq: seenThrough,
 				subscriptions: [chatUri, goneUri],
 			});

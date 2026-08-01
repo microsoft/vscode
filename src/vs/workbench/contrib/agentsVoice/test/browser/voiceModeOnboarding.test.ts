@@ -188,6 +188,53 @@ suite('Voice Mode onboarding', () => {
 			});
 	});
 
+	test('previews the native voice per language and keeps the chooser only for English', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override readonly onDidChangeScreenReaderOptimized = Event.None;
+			override readonly onDidChangeReducedMotion = Event.None;
+			override isScreenReaderOptimized(): boolean { return false; }
+			override isMotionReduced(): boolean { return false; }
+		});
+
+		// A language Voice Mode speaks natively shows its one voice with no
+		// chooser; English and languages without a native voice keep the four.
+		const cases = [
+			{ language: 'de-DE', options: 1, chooser: false, sample: 'de_marc_neutral.mp3' },
+			{ language: 'es-MX', options: 1, chooser: false, sample: 'es-ES_maria_neutral.mp3' },
+			{ language: 'fr-CA', options: 1, chooser: false, sample: 'fr_david_neutral.mp3' },
+			{ language: 'it-IT', options: 1, chooser: false, sample: 'it_eva_neutral.mp3' },
+			{ language: 'ja-JP', options: 1, chooser: false, sample: 'ja_aruha_neutral.mp3' },
+			{ language: 'ko-KR', options: 1, chooser: false, sample: 'ko_jiyon_neutral.mp3' },
+			{ language: 'pt-PT', options: 1, chooser: false, sample: 'pt-BR_gil_neutral.mp3' },
+			{ language: 'zh-TW', options: 1, chooser: false, sample: 'zh_wuzhi_neutral.mp3' },
+			{ language: 'en-GB', options: 4, chooser: true, sample: 'maya_neutral.mp3' },
+			{ language: 'is', options: 4, chooser: true, sample: 'maya_neutral.mp3' },
+		];
+		const actual: { language: string; options: number; chooser: boolean; sample: string }[] = [];
+
+		for (const { language } of cases) {
+			const host = createHost(disposables);
+			const audio = document.createElement('audio');
+			audio.play = () => Promise.resolve();
+			disposables.add(instantiationService.createInstance(VoiceModeOnboardingBanner, {
+				container: host.container,
+				onDismiss: () => undefined,
+				source: 'manual',
+				audioFactory: () => audio,
+				voiceLanguage: language,
+			}));
+
+			const options = host.container.querySelectorAll('.voice-mode-onboarding-voice').length;
+			const chooser = !!host.container.querySelector('.voice-mode-onboarding-voices[role="radiogroup"]');
+			host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
+			const sample = audio.src.split(/[?#]/)[0].split('/').pop() ?? '';
+			actual.push({ language, options, chooser, sample });
+		}
+
+		assert.deepStrictEqual(actual, cases);
+	});
+
 	test('can be shown again manually', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];
 		const service = createService(disposables, [], [], telemetryEvents);
