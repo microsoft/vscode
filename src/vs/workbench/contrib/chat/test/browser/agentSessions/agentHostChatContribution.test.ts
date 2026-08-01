@@ -50,7 +50,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -651,7 +651,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -734,6 +734,9 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 		lookupLanguageModel: (modelId: string) => languageModels?.get(modelId),
+		getVendors: () => [],
+		getLanguageModelGroups: () => [],
+		...languageModelsServiceOverride,
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
@@ -927,8 +930,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -944,6 +947,49 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService };
+}
+
+function createByokLanguageModelTestData(groupName?: string): { languageModels: ReadonlyMap<string, ILanguageModelChatMetadata>; languageModelsServiceOverride: Partial<ILanguageModelsService> } {
+	const originalIdentifier = groupName
+		? `customendpoint/${groupName}/custom-model`
+		: 'openrouter/amazon/nova-micro-v1';
+	const providerVendor = groupName ? 'customendpoint' : 'openrouter';
+	const providerName = groupName ? 'Custom Endpoint' : 'OpenRouter';
+	const modelName = groupName ? 'Custom Model' : 'Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)';
+	const rawModelId = groupName ? 'customendpoint/custom-model' : 'openrouter/amazon/nova-micro-v1';
+	const originalMetadata = upcastPartial<ILanguageModelChatMetadata>({
+		name: modelName,
+		id: groupName ? 'custom-model' : 'amazon/nova-micro-v1',
+		vendor: providerVendor,
+		isBYOK: true,
+	});
+	const bridgedMetadata = upcastPartial<ILanguageModelChatMetadata>({
+		name: modelName,
+		id: rawModelId,
+		vendor: 'agent-host-copilot',
+		modelGroup: { id: providerVendor },
+		byokModelIdentifier: originalIdentifier,
+	});
+	return {
+		languageModels: new Map([
+			[originalIdentifier, originalMetadata],
+			[`agent-host-copilot:${rawModelId}`, bridgedMetadata],
+		]),
+		languageModelsServiceOverride: {
+			getVendors: () => [{
+				vendor: providerVendor,
+				displayName: providerName,
+				isDefault: false,
+				configuration: undefined,
+				managementCommand: undefined,
+				when: undefined,
+			}],
+			getLanguageModelGroups: vendor => vendor === providerVendor && groupName ? [{
+				group: { vendor, name: groupName },
+				modelIdentifiers: [originalIdentifier],
+			}] : [],
+		},
+	};
 }
 
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string }> = {}): IChatAgentRequest {
@@ -1981,6 +2027,43 @@ suite('AgentHostChatContribution', () => {
 
 		}));
 
+		test('flushes pending chat input draft when the session is disposed', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'draft-sync-dispose');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-sync-dispose' });
+			seedDraftSession(agentHostService, backendSession, 'Draft Sync Dispose');
+			const { inputModel } = createDraftInputModel({
+				attachments: [],
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: undefined,
+				inputText: '',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+			inputModel.setState({ inputText: 'typed before switching away' });
+			chatSession.dispose();
+			chatSession.dispose();
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(d => ({ channel: d.channel, action: d.action })), [{
+				channel: buildDefaultChatUri(backendSession.toString()),
+				action: {
+					type: ActionType.ChatDraftChanged,
+					draft: {
+						text: 'typed before switching away',
+						origin: { kind: MessageKind.User },
+					},
+				},
+			}]);
+		});
+
 		test('applies a remote draft to a clean live input', async () => {
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
@@ -2289,13 +2372,61 @@ suite('AgentHostChatContribution', () => {
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'Archived session',
-				isArchived: true,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
 			});
 
 			await listController.refresh(CancellationToken.None);
 
 			assert.strictEqual(listController.items.length, 1);
 			assert.strictEqual(listController.items[0].archived, true);
+		});
+
+		test('leaves isRead unset for a session the host reports no status for', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			// Neither Copilot's nor Claude's `listSessions` projects a status, so a
+			// cold session that has never been marked read or archived arrives
+			// without one. Reporting the synthesized `Idle` as unread here would
+			// contradict the agents window, which treats an absent status as read.
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'no-status'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Cold session',
+			});
+
+			await listController.refresh(CancellationToken.None);
+
+			assert.strictEqual(listController.items[0].isRead, undefined);
+		});
+
+		test('adopts host read state once a summary reports a status', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			const backendSession = AgentSession.uri('copilot', 'late-status');
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Cold session',
+			});
+			await listController.refresh(CancellationToken.None);
+			const beforeSummary = listController.items[0].isRead;
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: SessionStatus.Idle },
+			});
+
+			assert.deepStrictEqual({
+				beforeSummary,
+				afterSummary: listController.items[0].isRead,
+			}, {
+				beforeSummary: undefined,
+				afterSummary: false,
+			});
 		});
 
 		test('archive mutations dispatch through AHP and reconcile server summaries', async () => {
@@ -2367,6 +2498,78 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 		});
 
+		test('read mutations dispatch through AHP and reconcile server summaries', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'readable');
+			const baseStatus = SessionStatus.Idle | SessionStatus.IsRead;
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Readable session',
+				status: baseStatus,
+			});
+
+			const sessionListStore = createSessionListStore(disposables, instantiationService, agentHostService);
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
+			await listController.refresh(CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+
+			const readEvents: (boolean | undefined)[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				for (const item of delta.addedOrUpdated ?? []) {
+					readEvents.push(item.isRead);
+				}
+			}));
+
+			const resource = listController.items[0].resource;
+			const initialIsRead = listController.items[0].isRead;
+
+			// Repeated calls with the same value are no-ops.
+			listController.setChatSessionItemRead(resource, false);
+			listController.setChatSessionItemRead(resource, false);
+			const unreadStatus = sessionListStore.getSessions('copilot')[0].summary.status;
+
+			listController.setChatSessionItemRead(resource, true);
+			listController.setChatSessionItemRead(resource, true);
+
+			// The host marks the session unread again after background output.
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: SessionStatus.Idle },
+			});
+
+			assert.deepStrictEqual({
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+				initialIsRead,
+				unreadStatus,
+				reconciledIsRead: listController.items[0].isRead,
+				readEvents,
+			}, {
+				actions: [{
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsReadChanged, isRead: false },
+				}, {
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsReadChanged, isRead: true },
+				}],
+				initialIsRead: true,
+				unreadStatus: SessionStatus.Idle,
+				reconciledIsRead: false,
+				readEvents: [false, true, false],
+			});
+		});
+
+		test('read mutation ignores resources from another session type', () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			listController.setChatSessionItemRead(URI.from({ scheme: 'agent-host-other', path: '/session' }), true);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		});
+
 		test('archive mutation prevents an in-flight stale refresh from overwriting optimistic state', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const backendSession = AgentSession.uri('copilot', 'archive-refresh-race');
@@ -2391,7 +2594,7 @@ suite('AgentHostChatContribution', () => {
 					await released;
 					return [metadata];
 				}
-				return [{ ...metadata, isArchived: true }];
+				return [{ ...metadata, status: SessionStatus.Idle | SessionStatus.IsArchived }];
 			};
 
 			sessionListStore.resetCache();
@@ -2429,7 +2632,7 @@ suite('AgentHostChatContribution', () => {
 					await released;
 					return [metadata];
 				}
-				return [{ ...metadata, isArchived: true }];
+				return [{ ...metadata, status: SessionStatus.Idle | SessionStatus.IsArchived }];
 			};
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
@@ -3728,6 +3931,34 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
 		}));
 
+		test('live BYOK turn prefixes a groupless model with its provider', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const byok = createByokLanguageModelTestData();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, byok);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1) • 1.5 credits');
+		}));
+
+		test('live BYOK turn includes a configured group between provider and model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const byok = createByokLanguageModelTestData('My Endpoint');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, byok);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'customendpoint/custom-model', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'Custom Endpoint/My Endpoint/Custom Model • 1 credit');
+		}));
+
 		test('cancelled turn still returns model credit details from accumulated usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
@@ -3819,7 +4050,8 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('subagent credits surface on the subagent tool without re-aggregating into parent usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const byok = createByokLanguageModelTestData();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, byok);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
@@ -3867,7 +4099,7 @@ suite('AgentHostChatContribution', () => {
 			} as ChatAction);
 			fireChild({
 				type: 'chat/usage', session: childSessionUri, turnId: childTurnId,
-				usage: { inputTokens: 800, outputTokens: 200, model: 'gpt-5', _meta: { cost: 5.0 } },
+				usage: { inputTokens: 800, outputTokens: 200, model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 5.0 } },
 			} as ChatAction);
 
 			await timeout(50);
@@ -3889,11 +4121,14 @@ suite('AgentHostChatContribution', () => {
 				.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation')
 				.find(p => p.toolSpecificData?.kind === 'subagent');
 			assert.ok(subagentInvocation, 'should have a subagent tool invocation');
-			assert.strictEqual(
-				(subagentInvocation!.toolSpecificData as IChatSubagentToolInvocationData).credits,
-				5.0,
-				'subagent credits should be recorded on the subagent tool',
-			);
+			const subagentData = subagentInvocation!.toolSpecificData as IChatSubagentToolInvocationData;
+			assert.deepStrictEqual({
+				credits: subagentData.credits,
+				modelName: subagentData.modelName,
+			}, {
+				credits: 5.0,
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+			});
 		}));
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3909,6 +4144,71 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
+		}));
+
+		test('tool deltas update one streaming invocation and transition it in place', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-stream', toolName: 'view', displayName: 'View' } as ChatAction);
+			const invocation = collected.flat().find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+			fire({
+				type: 'chat/toolCallDelta',
+				session,
+				turnId,
+				toolCallId: 'tc-stream',
+				content: '{"path":"/workspace/file.ts"}',
+				invocationMessage: 'Viewing file',
+			} as ChatAction);
+
+			const streamingState = invocation.state.get();
+			assert.strictEqual(streamingState.type, IChatToolInvocation.StateKind.Streaming);
+			assert.strictEqual(collected.flat().filter(part => part.kind === 'toolInvocation').length, 1);
+			if (streamingState.type === IChatToolInvocation.StateKind.Streaming) {
+				assert.deepStrictEqual({
+					partialInput: streamingState.partialInput.get(),
+					streamingMessage: streamingState.streamingMessage.get(),
+				}, {
+					partialInput: { path: '/workspace/file.ts' },
+					streamingMessage: 'Viewing file',
+				});
+			}
+
+			fire({
+				type: 'chat/toolCallReady',
+				session,
+				turnId,
+				toolCallId: 'tc-stream',
+				invocationMessage: 'Viewing file',
+				toolInput: '{"path":"/workspace/file.ts"}',
+				confirmed: 'not-needed',
+			} as ChatAction);
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
+			assert.strictEqual(collected.flat().filter(part => part.kind === 'toolInvocation').length, 1);
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('turn completion cancels a server tool that is still streaming', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-stream-cancel', toolName: 'view', displayName: 'View' } as ChatAction);
+			fire({
+				type: 'chat/toolCallDelta',
+				session,
+				turnId,
+				toolCallId: 'tc-stream-cancel',
+				content: '{"path":"/workspace/file.ts',
+			} as ChatAction);
+			const invocation = collected.flat().find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Cancelled);
 		}));
 
 		test('tool_complete event transitions toolInvocation to completed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3952,21 +4252,6 @@ suite('AgentHostChatContribution', () => {
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.strictEqual(invocation.kind, 'toolInvocation');
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
-		}));
-
-		test('malformed toolArguments does not throw', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-
-			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash' } as ChatAction);
-			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-bad', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ChatAction);
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-
-			await turnPromise;
-
-			assert.strictEqual(collected.length, 1);
-			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
 		}));
 
 		test('outstanding tool invocations are completed on idle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -6342,7 +6627,8 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('restores subagent pills from the chat catalog when tool metadata was lost', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const byok = createByokLanguageModelTestData();
+			const { sessionHandler, agentHostService } = createContribution(disposables, byok);
 			const sessionUri = AgentSession.uri('copilot', 'subagent-history');
 			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
 			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-subagent');
@@ -6382,6 +6668,13 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.sessionStates.set(childChatUri, {
 				...createSessionState({ ...summary, resource: childChatUri, title: 'Review agentHost changes' }),
 				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'child-turn-1',
+					message: { text: 'review changes', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [],
+					usage: { model: 'openrouter/amazon/nova-micro-v1' },
+				}],
 			} as SessionState);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/subagent-history' });
@@ -6395,10 +6688,12 @@ suite('AgentHostChatContribution', () => {
 				kind: toolPart.toolSpecificData.kind,
 				description: toolPart.toolSpecificData.description,
 				chatResource: toolPart.toolSpecificData.chatResource,
+				modelName: toolPart.toolSpecificData.modelName,
 			} : undefined, {
 				kind: 'subagent',
 				description: 'Review agentHost changes',
 				chatResource: childChatUri,
+				modelName: 'OpenRouter/Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
 			});
 		});
 
@@ -8669,20 +8964,17 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => session.dispose()));
 
 			// Should have: completed turn (request + response) + active turn (request + empty response) = 4
-			assert.strictEqual(session.history.length, 4);
-			assert.strictEqual(session.history[0].type, 'request');
-			if (session.history[0].type === 'request') {
-				assert.strictEqual(session.history[0].prompt, 'First message');
-			}
-			assert.strictEqual(session.history[2].type, 'request');
-			if (session.history[2].type === 'request') {
-				assert.strictEqual(session.history[2].prompt, 'Second message');
-			}
-			// Active turn response should be an empty placeholder
-			assert.strictEqual(session.history[3].type, 'response');
-			if (session.history[3].type === 'response') {
-				assert.strictEqual(session.history[3].parts.length, 0);
-			}
+			assert.deepStrictEqual(
+				session.history.map(item => item.type === 'request'
+					? { type: item.type, id: item.id, prompt: item.prompt }
+					: { type: item.type, parts: item.parts.length }),
+				[
+					{ type: 'request', id: 'turn-completed', prompt: 'First message' },
+					{ type: 'response', parts: 1 },
+					{ type: 'request', id: 'turn-active', prompt: 'Second message' },
+					{ type: 'response', parts: 0 },
+				],
+			);
 		});
 
 		test('sets isCompleteObs to false and populates progressObs for active turn', async () => {
@@ -8831,6 +9123,54 @@ suite('AgentHostChatContribution', () => {
 			const toolInvocation = progress.find(p => p.kind === 'toolInvocation') as IChatToolInvocation | undefined;
 			assert.ok(toolInvocation, 'Should have a live tool invocation in progress');
 			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
+		});
+
+		test('adopts and updates an active streaming tool call after reconnect', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-streaming-tool');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+			sessionState.activeTurn!.responseParts.push({
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					toolCallId: 'tc-streaming',
+					toolName: 'view',
+					displayName: 'View',
+					status: ToolCallStatus.Streaming,
+					partialInput: '{"path":"/workspace/file.ts"}',
+					invocationMessage: 'Viewing file',
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-streaming-tool' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const progress = session.progressObs?.get() ?? [];
+			const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+			const streamingState = invocation.state.get();
+			assert.strictEqual(streamingState.type, IChatToolInvocation.StateKind.Streaming);
+			if (streamingState.type === IChatToolInvocation.StateKind.Streaming) {
+				assert.deepStrictEqual(streamingState.partialInput.get(), { path: '/workspace/file.ts' });
+			}
+
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: {
+					type: ActionType.ChatToolCallReady,
+					turnId: 'turn-active',
+					toolCallId: 'tc-streaming',
+					invocationMessage: 'Viewing file',
+					toolInput: '{"path":"/workspace/file.ts"}',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(0);
+
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
+			assert.strictEqual((session.progressObs?.get() ?? []).filter(part => part.kind === 'toolInvocation').length, 1);
 		});
 
 		test('handles active turn with pending tool confirmation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -9231,7 +9571,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Now simulate a server-initiated turn (e.g. from a consumed queued message)
 			const serverTurnId = 'server-turn-1';
-			const serverRequestEvents: { prompt: string }[] = [];
+			const serverRequestEvents: IChatSessionServerRequest[] = [];
 			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
 
 			agentHostService.fireAction({
@@ -9247,9 +9587,11 @@ suite('AgentHostChatContribution', () => {
 
 			await timeout(10);
 
-			// onDidStartServerRequest should have fired
-			assert.strictEqual(serverRequestEvents.length, 1);
-			assert.strictEqual(serverRequestEvents[0].prompt, 'queued message text');
+			// onDidStartServerRequest should have fired, carrying the provider turn id
+			assert.deepStrictEqual(
+				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt })),
+				[{ id: serverTurnId, prompt: 'queued message text' }],
+			);
 
 			// isCompleteObs should be false (turn in progress)
 			assert.strictEqual(chatSession.isCompleteObs!.get(), false);
@@ -9340,7 +9682,7 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
-			const serverRequestEvents: { prompt: string }[] = [];
+			const serverRequestEvents: IChatSessionServerRequest[] = [];
 			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
 
 			// Clear lifecycle actions so only turn dispatches are counted

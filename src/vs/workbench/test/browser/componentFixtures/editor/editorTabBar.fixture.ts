@@ -297,6 +297,7 @@ interface IRenderOptions {
 		readonly filePath?: 'on' | 'off' | 'last';
 		readonly icons?: boolean;
 	};
+	readonly breadcrumbsRightInset?: number;
 	readonly width?: number;
 	/** Whether this group is the active group. Inactive groups exercise the
 	 *  `alwaysShowEditorActions` filtering and unfocused tab styling. */
@@ -470,7 +471,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		titleControl.layout({
 			container: new Dimension(width, titleControl.getHeight().total),
 			available: new Dimension(width, 200),
-		});
+		}, options.breadcrumbsRightInset);
 	};
 	groupView.relayoutFn = layout;
 
@@ -505,6 +506,7 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		// breadcrumbs
 		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' }, editors: nestedActiveEditorSpecs() }) }),
 		BreadcrumbsIconsOff: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { icons: false } }) }),
+		BreadcrumbsWithRightInset: defineComponentFixture({ render: render(modernUI, { breadcrumbs: {}, breadcrumbsRightInset: 300 }) }),
 
 		// tabSizing
 		TabSizingShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: manyEditorSpecs() }) }),

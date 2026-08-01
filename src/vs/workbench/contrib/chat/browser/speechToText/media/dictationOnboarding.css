@@ -171,15 +171,7 @@
 	outline: none;
 }
 
-/* A lone microphone is stated rather than offered. */
-.dictation-onboarding-picker-label {
-	overflow: hidden;
-	min-width: 0;
-	font-size: var(--vscode-fontSize-label2);
-	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
+
 
 /* --- Waveform --- */
 
@@ -226,14 +218,6 @@
 	will-change: transform;
 }
 
-/*
- * The hand-off. The row settles rather than freezing mid-motion, which is what
- * makes the card leaving read as a step instead of a cut.
- */
-.dictation-onboarding-banner.handing-off .dictation-onboarding-bar {
-	transition: transform 350ms ease-out;
-}
-
 /* --- Hint --- */
 
 /*
@@ -260,9 +244,6 @@
 /* --- Confirm --- */
 
 /*
- * A check, not a cross: leaving this card starts dictating, so the control is
- * a confirmation rather than an abandonment.
- *
  * Pinned to the corner and out of the content flow, so it never competes with
  * the picker for room and never moves as the card re-flows. Always available: a
  * disabled dismiss would trap someone inside the card.

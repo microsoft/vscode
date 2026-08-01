@@ -27,6 +27,11 @@ import {
 	IVoiceBargeIn,
 	IVoiceNarrationAck,
 	IVoiceNarrationSignal,
+	IVoiceDispatchResult,
+	IVoiceCheckpointNarrationMetadata,
+	VoiceConfirmationType,
+	VoiceNarrationKind,
+	isVoiceCheckpointId,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -90,7 +95,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	// state-change event needs to fire before the timer expires.
 	private _pendingContext: IVoiceSessionContext | undefined;
 	private _lastSentById = new Map<string, Record<string, unknown>>(); // session id → last-sent field values
-	private _lastSentActive = '';
+	private readonly _invalidatedSessionIds = new Set<string>();
 
 	// --- Events ---
 	private readonly _onTranscription = this._register(new Emitter<IVoiceTranscription>());
@@ -138,6 +143,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	get isResuming(): boolean {
 		return this._isResuming;
+	}
+
+	get willReconnect(): boolean {
+		return this._reconnectTimer !== undefined;
 	}
 
 	get currentSessionId(): string | undefined {
@@ -350,8 +359,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				turn_id?: unknown;
 				revision?: unknown;
 				narration_id?: string;
+				request_id?: string;
+				checkpoint_id?: string;
+				sequence?: number;
+				narration_kind?: string;
+				playback_id?: string;
 				interrupted_turn_id?: string;
 				disposition?: string;
+				retryable?: boolean;
 			};
 			try {
 				msg = JSON.parse(evt.data as string);
@@ -376,7 +391,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'speech_started':
-					this._onSpeechStarted.fire({});
+					this._onSpeechStarted.fire({ turnId: asOptionalString(msg.turn_id) });
 					break;
 				case 'barge_in':
 					this._onBargeIn.fire({
@@ -384,14 +399,20 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						interruptedTurnId: msg.interrupted_turn_id ?? '',
 					});
 					break;
-				case 'narration_ack':
+				case 'narration_ack': {
+					const disposition = msg.disposition === 'busy'
+						|| msg.disposition === 'invalid'
+						|| msg.disposition === 'suppressed'
+						? msg.disposition
+						: 'accepted';
 					this._onNarrationAck.fire({
 						narrationId: msg.narration_id ?? '',
 						codingSessionId: msg.coding_session_id ?? '',
-						disposition: (msg.disposition as 'accepted' | 'busy' | 'invalid') ?? 'accepted',
+						disposition,
 						reason: msg.reason,
 					});
 					break;
+				}
 				case 'narration_unblocked':
 					this._onNarrationUnblocked.fire({
 						narrationId: msg.narration_id ?? '',
@@ -402,6 +423,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onNarrationInterrupted.fire({
 						narrationId: msg.narration_id ?? '',
 						codingSessionId: msg.coding_session_id ?? '',
+						...(typeof msg.retryable === 'boolean' ? { retryable: msg.retryable } : {}),
+						...(msg.reason ? { reason: msg.reason } : {}),
 					});
 					break;
 				case 'transcription': {
@@ -420,11 +443,19 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					});
 					break;
 				}
-				case 'audio_response':
+				case 'audio_response': {
 					// Old pre-streaming server (pre PR #44076) doesn't send
 					// `is_first_chunk` at all. Treat missing field as TRUE so
 					// suppression-clearing in _enqueueAudio still works; new
 					// streaming server always emits true/false explicitly.
+					const requestId = asOptionalString(msg.request_id);
+					const checkpointId = isVoiceCheckpointId(msg.checkpoint_id) ? msg.checkpoint_id : undefined;
+					const sequence = typeof msg.sequence === 'number' && Number.isSafeInteger(msg.sequence) && msg.sequence > 0 ? msg.sequence : undefined;
+					const narrationKind = msg.narration_kind === 'response' || msg.narration_kind === 'confirmation' || msg.narration_kind === 'checkpoint' ? msg.narration_kind as VoiceNarrationKind : undefined;
+					const playbackId = asOptionalString(msg.playback_id);
+					if (narrationKind === 'checkpoint') {
+						this._logService.info(`[voice] checkpoint audio request=${requestId ?? 'none'} stage=${checkpointId ?? 'none'} sequence=${sequence ?? 'none'} first=${msg.is_first_chunk === undefined ? true : Boolean(msg.is_first_chunk)} final=${Boolean(msg.is_final)}`);
+					}
 					this._onAudioResponse.fire({
 						audio: msg.audio ?? '',
 						isFirstChunk: msg.is_first_chunk === undefined ? true : Boolean(msg.is_first_chunk),
@@ -433,8 +464,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						transcript: msg.transcript,
 						turnId: asOptionalString(msg.turn_id),
 						responseId: msg.narration_id ?? asOptionalString(msg.turn_id),
+						...(requestId ? { requestId } : {}),
+						...(checkpointId ? { checkpointId } : {}),
+						...(sequence !== undefined ? { sequence } : {}),
+						...(narrationKind ? { narrationKind } : {}),
+						...(playbackId ? { playbackId } : {}),
 					});
 					break;
+				}
 				case 'tool_call':
 					this._onToolCall.fire({
 						callId: msg.call_id ?? '',
@@ -494,7 +531,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				}
 
 				this._reconnectAttempts++;
-				this._setConnected(false);
 				this._stopPing();
 				this._ws = undefined;
 
@@ -502,7 +538,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					? FAST_RETRY_DELAY_MS
 					: SLOW_RETRY_DELAY_MS;
 				this._logService.warn(`[voice] ws closed abnormally (code=${evt.code} reason=${evt.reason || 'none'} wasClean=${evt.wasClean}); reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
-				this._reconnectTimer = setTimeout(() => this._connectWebSocket(), delay);
+				this._reconnectTimer = setTimeout(() => {
+					this._reconnectTimer = undefined;
+					this._connectWebSocket();
+				}, delay);
+				this._setConnected(false);
 			}
 		};
 	}
@@ -532,7 +572,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._lastSessionId = undefined;
 		this._isResuming = false;
 		this._lastSentById.clear();
-		this._lastSentActive = '';
+		this._invalidatedSessionIds.clear();
 		this._setConnected(false);
 	}
 
@@ -628,14 +668,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	invalidateSessionCache(sessionId: string): void {
-		this._lastSentById.delete(sessionId);
+		this._invalidatedSessionIds.add(sessionId);
 	}
 
 	private _sendDelta(context: IVoiceSessionContext): void {
 		const currentIds = new Set(context.sessions.map(s => s.id));
 		const removes = [...this._lastSentById.keys()].filter(id => !currentIds.has(id));
-		const activeKey = context.active_session ? stableStringify(context.active_session) : '';
-		const activeChanged = activeKey !== this._lastSentActive;
 
 		// Compute per-session field-level patches (JSON Merge Patch style)
 		const upserts: Record<string, unknown>[] = [];
@@ -648,20 +686,35 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			} else {
 				const patch: Record<string, unknown> = { id: session.id };
 				let hasChanges = false;
-				// Fields that changed or were added
-				for (const key of Object.keys(current)) {
-					if (key === 'id') { continue; }
-					if (stableStringify(current[key]) !== stableStringify(prev[key])) {
-						patch[key] = current[key];
-						hasChanges = true;
+				if (this._invalidatedSessionIds.has(session.id)) {
+					for (const key of Object.keys(current)) {
+						if (key !== 'id') {
+							patch[key] = current[key] ?? null;
+							hasChanges = true;
+						}
 					}
-				}
-				// Fields that were removed (present in prev, absent in current) → null per RFC 7396
-				for (const key of Object.keys(prev)) {
-					if (key === 'id') { continue; }
-					if (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined) {
-						patch[key] = null;
-						hasChanges = true;
+					for (const key of Object.keys(prev)) {
+						if (key !== 'id' && (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined)) {
+							patch[key] = null;
+							hasChanges = true;
+						}
+					}
+				} else {
+					// Fields that changed or were added
+					for (const key of Object.keys(current)) {
+						if (key === 'id') { continue; }
+						if (stableStringify(current[key]) !== stableStringify(prev[key])) {
+							patch[key] = current[key];
+							hasChanges = true;
+						}
+					}
+					// Fields that were removed (present in prev, absent in current) → null per RFC 7396
+					for (const key of Object.keys(prev)) {
+						if (key === 'id') { continue; }
+						if (!Object.prototype.hasOwnProperty.call(current, key) || current[key] === undefined) {
+							patch[key] = null;
+							hasChanges = true;
+						}
 					}
 				}
 				// ``agent_state_detail`` (the confirmation prompt text) and
@@ -689,7 +742,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 		}
 
-		if (upserts.length === 0 && removes.length === 0 && !activeChanged) {
+		if (upserts.length === 0 && removes.length === 0) {
 			return;
 		}
 
@@ -700,22 +753,25 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				if (v !== undefined) { obj[k] = v; }
 			}
 			this._lastSentById.set(session.id, obj);
+			this._invalidatedSessionIds.delete(session.id);
 		}
-		for (const id of removes) { this._lastSentById.delete(id); }
-		this._lastSentActive = activeKey;
+		for (const id of removes) {
+			this._lastSentById.delete(id);
+			this._invalidatedSessionIds.delete(id);
+		}
 
 		this._ws!.send(JSON.stringify({
 			type: 'session_context',
 			mode: 'delta',
 			upserts,
 			removes,
-			...(activeChanged && context.active_session ? { active_session: context.active_session } : {}),
 		}));
-		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length} activeChanged=${activeChanged}`);
+		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length}`);
 	}
 
 	private _seedTracking(context: IVoiceSessionContext): void {
 		this._lastSentById.clear();
+		this._invalidatedSessionIds.clear();
 		for (const session of context.sessions) {
 			const obj: Record<string, unknown> = {};
 			for (const [k, v] of Object.entries(session as unknown as Record<string, unknown>)) {
@@ -723,16 +779,26 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			this._lastSentById.set(session.id, obj);
 		}
-		this._lastSentActive = context.active_session ? stableStringify(context.active_session) : '';
 	}
 
-	sendToolResult(callId: string, result: string): void {
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
+	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			this._ws.send(JSON.stringify({
+				type: 'narration_playback_complete',
+				coding_session_id: codingSessionId,
+				narration_id: narrationId,
+				playback_id: playbackId,
+			}));
+		}
+	}
+
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -740,8 +806,24 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
 			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
-			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: id }));
+			this._ws.send(JSON.stringify({
+				type: 'request_narration',
+				coding_session_id: codingSessionId,
+				kind,
+				text,
+				narration_id: id,
+				...(checkpoint ? {
+					request_id: checkpoint.requestId,
+					checkpoint_id: checkpoint.checkpointId,
+					sequence: checkpoint.sequence,
+				} : {}),
+				...(kind === 'confirmation' && confirmationType ? { confirmation_type: confirmationType } : {}),
+				...(pending ? { pending_id: pending.pendingId } : {}),
+			}));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
+			if (checkpoint) {
+				this._logService.info(`[voice] checkpoint sent request=${checkpoint.requestId} stage=${checkpoint.checkpointId} sequence=${checkpoint.sequence}`);
+			}
 			return id;
 		}
 		return undefined;

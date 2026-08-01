@@ -69,21 +69,6 @@
 	line-height: 1.4;
 }
 
-.voice-mode-onboarding-listening-notice {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--vscode-spacing-size40);
-	margin-top: var(--vscode-spacing-size40);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.4;
-	color: var(--vscode-descriptionForeground);
-}
-
-.voice-mode-onboarding-listening-notice .codicon {
-	flex-shrink: 0;
-	margin-top: 1px;
-}
-
 /* The settings link sits inside the sentence, so it takes its colour from the
  * link token and nothing else - no weight, no size, no box that would lift it
  * out of the prose it belongs to. */
@@ -133,6 +118,58 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* --- Microphone picker --- */
+
+.voice-mode-onboarding-microphone-picker {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	box-sizing: border-box;
+	min-width: 0;
+	height: var(--vscode-spacing-size280);
+	padding: 0 var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-dropdown-background, var(--vscode-input-background));
+	transition: border-color 100ms ease-out;
+}
+
+.voice-mode-onboarding-microphone-picker:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.voice-mode-onboarding-microphone-picker:focus-within {
+	border-color: var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.monaco-workbench .voice-mode-onboarding-microphone-icon.codicon[class*='codicon-'] {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: 1;
+	color: var(--vscode-descriptionForeground);
+}
+
+.voice-mode-onboarding-microphone-picker .monaco-select-box {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-label2);
+	text-overflow: ellipsis;
+}
+
+.voice-mode-onboarding-microphone-picker .monaco-select-box:focus {
+	outline: none;
+}
+
 /* --- Voices and confirmation --- */
 
 .voice-mode-onboarding-actions {
@@ -142,6 +179,13 @@
 }
 
 /* --- Voice options --- */
+
+.voice-mode-onboarding-voices-label {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	white-space: nowrap;
+}
 
 /*
  * The options are buttons and have to look like it. Bare text gave no sign it
@@ -187,9 +231,9 @@
 }
 
 .voice-mode-onboarding-voice.selected {
-	background-color: var(--vscode-agentsVoice-speakingBackground);
-	border-color: var(--vscode-agentsVoice-speakingForeground);
-	color: var(--vscode-agentsVoice-speakingForeground);
+	background-color: var(--vscode-list-activeSelectionBackground);
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-list-activeSelectionForeground);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 

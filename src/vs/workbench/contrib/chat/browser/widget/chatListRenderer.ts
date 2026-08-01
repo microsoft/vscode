@@ -122,7 +122,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { isAskQuestionsToolInvocation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
 const $ = dom.$;
@@ -171,6 +171,7 @@ export interface IChatListItemTemplate {
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
+	readonly requestTimestampContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly instantiationService: IInstantiationService;
 	readonly templateDisposables: IDisposable;
@@ -191,19 +192,16 @@ function escapeMarkdownLinkLabel(label: string): string {
 export function buildPlanReviewProgressContent(review: IChatPlanReview, message: string): MarkdownString {
 	const renderedAsUsed = !!review.isUsed;
 	const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
-	// Prefer the structured fields from `ChatPlanReviewPart`; fall
-	// back to the combined `feedback` string for older results.
-	let overall = data?.feedbackOverall?.trim();
+	const overall = data?.feedbackOverall?.trim();
 	const inlineMd = data?.feedbackInlineMarkdown?.trim();
-	if (!overall && !inlineMd && data?.feedback) {
-		overall = data.feedback.trim();
-	}
+	const feedbackMarkdown = [overall, inlineMd].filter(value => !!value).join('\n\n')
+		|| data?.feedback?.trim();
 
 	const content = new MarkdownString(undefined, { supportThemeIcons: true });
-	if (overall) {
-		content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
-	} else {
-		content.appendText(message);
+	content.appendText(message);
+	if (feedbackMarkdown) {
+		content.appendMarkdown('\n\n');
+		content.appendMarkdown(feedbackMarkdown);
 	}
 
 	if (renderedAsUsed) {
@@ -226,11 +224,6 @@ export function buildPlanReviewProgressContent(review: IChatPlanReview, message:
 				content.appendMarkdown(`[${escapeMarkdownLinkLabel(label)}](${planWidgetUri.toString(true)})`);
 			}
 		}
-	}
-
-	if (inlineMd) {
-		content.appendMarkdown('\n\n');
-		content.appendMarkdown(inlineMd);
 	}
 	return content;
 }
@@ -872,6 +865,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const detail = dom.append(detailContainer, $('span.detail'));
 		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
 		const value = dom.append(valueParent, $('.value'));
+		const requestTimestampContainer = dom.append(valueParent, $('.chat-request-timestamp-container'));
 		const elementDisposables = templateDisposables.add(new DisposableStore());
 		const completedResponseDisclosureDisposables = templateDisposables.add(new DisposableStore());
 
@@ -946,7 +940,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -1203,6 +1197,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this.hoverHidden(templateData.requestHover);
 		dom.clearNode(templateData.detail);
+		dom.clearNode(templateData.requestTimestampContainer);
 		if (isResponseVM(element)) {
 			this.renderDetail(element, templateData);
 		}
@@ -1553,6 +1548,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const workingParts = getWorkingProgressRelevantParts(partsToRender);
 		const lastPart = findLastMeaningfulPart(workingParts);
+		const endsWithCompletedQuestion = endsWithCompletedQuestionInteraction(workingParts);
 
 		// Don't show working if a streaming tool invocation is already present
 		if (workingParts.some(part => part.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(part))) {
@@ -1566,7 +1562,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-		if (lastThinking) {
+		if (lastThinking && !endsWithCompletedQuestion) {
 			return undefined;
 		}
 
@@ -1598,6 +1594,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'externalEdit' && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
+			endsWithCompletedQuestion ||
 			lastPart.kind === 'mcpServersStarting' ||
 			lastPart.kind === 'mcpAuthenticationRequired' ||
 			lastPart.kind === 'mcpServersStartingSlow' ||
@@ -1929,7 +1926,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (!element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
-			const timestamp = renderChatRequestTimestamp(templateData.value, element.requestTimestamp);
+			const timestamp = renderChatRequestTimestamp(templateData.requestTimestampContainer, element.requestTimestamp);
 			if (timestamp?.hoverText) {
 				templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), timestamp.element, timestamp.hoverText));
 			} else if (timestamp) {
@@ -2588,7 +2585,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// don't pin ask questions tool invocations
-		const isAskQuestionsTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.toolId === 'copilot_askQuestions' || part.toolId === 'vscode_askQuestions');
+		const isAskQuestionsTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && isAskQuestionsToolInvocation(part);
 		if (isAskQuestionsTool) {
 			return false;
 		}
@@ -3514,6 +3511,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const carouselKey = carousel.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 
 		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
+			if (carousel.isUsed) {
+				// Voice can answer the same form, so a queued click may land after it
+				// has been submitted. Applying it would replace the spoken answer and
+				// notify the extension twice.
+				return;
+			}
 			// Mark the carousel as used and store the answers
 			const answersRecord: IChatQuestionAnswers | undefined = answers ? Object.fromEntries(answers) : undefined;
 			carousel.data = answersRecord ?? {};
@@ -4189,6 +4192,19 @@ export function endsWithSubagentContent(parts: readonly IChatRendererContent[]):
 		return isParentSubagentTool(lastPart);
 	}
 	return false;
+}
+
+export function endsWithCompletedQuestionInteraction(parts: readonly IChatRendererContent[]): boolean {
+	const lastPart = findLastMeaningfulPart(parts);
+	if (!lastPart) {
+		return false;
+	}
+	if (lastPart.kind === 'questionCarousel') {
+		return !!lastPart.isUsed;
+	}
+	return (lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized')
+		&& isAskQuestionsToolInvocation(lastPart)
+		&& IChatToolInvocation.isComplete(lastPart);
 }
 
 export function isWaitingForMcpServers(parts: readonly IChatRendererContent[]): boolean {

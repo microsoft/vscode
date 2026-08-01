@@ -45,7 +45,7 @@ suite('WorktreeIsolation', () => {
 	let repoRoot: URI;
 	let worktreesRoot: URI;
 	let db: TestSessionDatabase;
-	let addWorktreeCalls: { worktree: URI; branchName: string; startPoint: string }[];
+	let addWorktreeCalls: { worktree: URI; branchName: string; startPoint: string; track: boolean }[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
 	let removeCalls: URI[];
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
@@ -71,8 +71,8 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
-			addWorktree: async (_root, worktree, branch, startPoint) => {
-				addWorktreeCalls.push({ worktree, branchName: branch, startPoint });
+			addWorktree: async (_root, worktree, branch, startPoint, track) => {
+				addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
 				mkdirSync(worktree.fsPath, { recursive: true });
 			},
 			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs) => {
@@ -152,17 +152,17 @@ suite('WorktreeIsolation', () => {
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
-			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly },
+			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty },
-			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty },
+			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty },
 		}, {
-			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true },
+			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true },
-			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true },
+			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined },
 		});
 	});
 
@@ -240,6 +240,115 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('resolveWorkingDirectory creates from the primary worktree while copying include files from the selected checkout', async () => {
+		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
+		const gitService = createGitService();
+		let addWorktreeRoot: URI | undefined;
+		gitService.getRepositoryRoot = async () => checkoutRoot;
+		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRoot];
+		gitService.addWorktree = async (repositoryRoot, worktree, branch, startPoint, track) => {
+			addWorktreeRoot = repositoryRoot;
+			addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
+			mkdirSync(worktree.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const includeFiles = ['.env'];
+
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: checkoutRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+				[SessionConfigKey.WorktreeIncludeFiles]: includeFiles,
+			},
+		});
+		const meta = await isolation.readWorktreeMetadata(sessionUri);
+		const project = isolation.createdWorktreeProject(sessionId);
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			addWorktreeRoot: addWorktreeRoot?.toString(),
+			includeFileRoot: copyIncludeCalls[0]?.repositoryRoot.toString(),
+			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
+			project: project && { uri: project.uri.toString(), displayName: project.displayName },
+		}, {
+			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
+			addWorktreeRoot: repoRoot.toString(),
+			includeFileRoot: checkoutRoot.toString(),
+			metaRepositoryRoot: repoRoot.toString(),
+			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
+		});
+	});
+
+	test('resolveWorkingDirectory falls back to the selected checkout when primary worktree resolution fails', async () => {
+		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => checkoutRoot;
+		gitService.getWorktreeRoots = async () => { throw new Error('worktree enumeration failed'); };
+		const isolation = createIsolation(disposables, { gitService });
+
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: checkoutRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		const meta = await isolation.readWorktreeMetadata(sessionUri);
+		const fallbackWorktreesRoot = getWorktreesRoot(checkoutRoot);
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
+		}, {
+			worktree: URI.joinPath(fallbackWorktreesRoot, getWorktreeName(branchName)).toString(),
+			metaRepositoryRoot: checkoutRoot.toString(),
+		});
+	});
+
+	test('resolveWorkingDirectory names each creation phase, rounding percentages down and debouncing updates', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async (_root, worktree, branch, startPoint, track, onProgress) => {
+			addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
+			mkdirSync(worktree.fsPath, { recursive: true });
+			onProgress?.({ filesDone: 7, filesTotal: 800 });
+			onProgress?.({ filesDone: 96, filesTotal: 800 });
+			onProgress?.({ filesDone: 100, filesTotal: 800 });
+			await timeout(50);
+			onProgress?.({ filesDone: 800, filesTotal: 800 });
+		};
+		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
+			onProgress?.({ filesDone: 1, filesTotal: 4 });
+			onProgress?.({ filesDone: 4, filesTotal: 4 });
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const activities: string[] = [];
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+			},
+			prompt: 'do a thing',
+			onProgress: activity => activities.push(activity),
+		});
+
+		assert.deepStrictEqual(activities, [
+			'Creating isolated worktree',
+			'Creating isolated worktree (naming branch)',
+			'Creating isolated worktree (checking out files)',
+			'Creating isolated worktree (checking out files, 12%)',
+			'Creating isolated worktree (checking out files, 100%)',
+			'Creating isolated worktree (copying additional files)',
+			'Creating isolated worktree (copying additional files, 100%)',
+		]);
+	});
+
 	test('resolveWorkingDirectory avoids an existing worktree directory', async () => {
 		const collisionSessionId = '12345678-aaaa-bbbb-cccc-123456789abc';
 		const collisionSessionUri = URI.parse(`agent-session://test/${collisionSessionId}`);
@@ -304,15 +413,19 @@ suite('WorktreeIsolation', () => {
 
 	test('resolveWorkingDirectory serializes concurrent creation in the same repository', async () => {
 		const gitService = createGitService();
+		const checkoutRootA = URI.joinPath(repoRoot, 'linked-checkout-a');
+		const checkoutRootB = URI.joinPath(repoRoot, 'linked-checkout-b');
 		const existingBranches = new Set<string>();
 		let activeAddWorktrees = 0;
 		let maxActiveAddWorktrees = 0;
+		gitService.getRepositoryRoot = async workingDirectory => workingDirectory;
+		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRootA, checkoutRootB];
 		gitService.branchExists = async (_repositoryRoot, candidate) => existingBranches.has(candidate);
-		gitService.addWorktree = async (_repositoryRoot, worktree, candidate, startPoint) => {
+		gitService.addWorktree = async (_repositoryRoot, worktree, candidate, startPoint, track) => {
 			activeAddWorktrees++;
 			maxActiveAddWorktrees = Math.max(maxActiveAddWorktrees, activeAddWorktrees);
 			await timeout(10);
-			addWorktreeCalls.push({ worktree, branchName: candidate, startPoint });
+			addWorktreeCalls.push({ worktree, branchName: candidate, startPoint, track });
 			existingBranches.add(candidate);
 			mkdirSync(worktree.fsPath, { recursive: true });
 			activeAddWorktrees--;
@@ -324,8 +437,8 @@ suite('WorktreeIsolation', () => {
 		const config = { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' };
 
 		const worktrees = await Promise.all([
-			isolation.resolveWorkingDirectory({ sessionUri: URI.parse('agent-session://test/12345678-aaaa-bbbb-cccc-123456789abc'), sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', workingDirectory: repoRoot, config, prompt: 'Add feature' }),
-			isolation.resolveWorkingDirectory({ sessionUri: URI.parse('agent-session://test/87654321-aaaa-bbbb-cccc-123456789abc'), sessionId: '87654321-aaaa-bbbb-cccc-123456789abc', workingDirectory: repoRoot, config, prompt: 'Add feature' }),
+			isolation.resolveWorkingDirectory({ sessionUri: URI.parse('agent-session://test/12345678-aaaa-bbbb-cccc-123456789abc'), sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', workingDirectory: checkoutRootA, config, prompt: 'Add feature' }),
+			isolation.resolveWorkingDirectory({ sessionUri: URI.parse('agent-session://test/87654321-aaaa-bbbb-cccc-123456789abc'), sessionId: '87654321-aaaa-bbbb-cccc-123456789abc', workingDirectory: checkoutRootB, config, prompt: 'Add feature' }),
 		]);
 
 		assert.deepStrictEqual({
@@ -528,6 +641,41 @@ suite('WorktreeIsolation', () => {
 			afterAsync: { uri: repoRoot.toString(), displayName: expectedDisplayName },
 			afterSync: { uri: repoRoot.toString(), displayName: expectedDisplayName },
 			unknownSession: undefined,
+		});
+	});
+
+	test('resolveWorktreeProject normalizes persisted linked-checkout metadata', async () => {
+		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
+		const existingWorktree = URI.joinPath(repoRoot, 'existing-worktree');
+		mkdirSync(existingWorktree.fsPath, { recursive: true });
+		await Promise.all([
+			db.setMetadata('copilot.worktree.branchName', 'feature/x'),
+			db.setMetadata('copilot.worktree.path', existingWorktree.toString()),
+			db.setMetadata('copilot.worktree.repositoryRoot', checkoutRoot.toString()),
+		]);
+		const gitService = createGitService();
+		let resolvedFrom: URI | undefined;
+		let resolutionCount = 0;
+		gitService.getWorktreeRoots = async workingDirectory => {
+			resolvedFrom = workingDirectory;
+			resolutionCount++;
+			return [repoRoot, checkoutRoot, existingWorktree];
+		};
+		const isolation = createIsolation(disposables, { gitService });
+
+		const project = await isolation.resolveWorktreeProject(sessionUri);
+		await isolation.resolveWorktreeProject(sessionUri);
+
+		assert.deepStrictEqual({
+			resolutionCount,
+			resolvedFrom: resolvedFrom?.toString(),
+			project: project && { uri: project.uri.toString(), displayName: project.displayName },
+			persistedRepositoryRoot: await db.getMetadata('copilot.worktree.repositoryRoot'),
+		}, {
+			resolutionCount: 1,
+			resolvedFrom: existingWorktree.toString(),
+			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
+			persistedRepositoryRoot: repoRoot.toString(),
 		});
 	});
 
