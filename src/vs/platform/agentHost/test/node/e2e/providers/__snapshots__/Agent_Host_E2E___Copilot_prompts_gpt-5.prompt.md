@@ -996,7 +996,7 @@ Usage notes:
 - **Default to sync mode** — only use background mode when you have concrete independent work to do in parallel.
 - **Background mode requires real parallel work** — after launching a background agent, you MUST immediately continue with your own tool calls (view, grep, glob, edit, bash) on independent tasks. Do NOT use background mode and then call read_agent to poll — polling defeats the purpose and is slower than sync. Example: launch an explore agent to find X while you independently read/edit files related to Y.
 
-- Use 'model' parameter to override the default model (15 models available)
+- Use 'model' parameter to override the default model (${model_count} models available)
 ```json
 {
   "type": "object",
@@ -1027,7 +1027,7 @@ Usage notes:
     },
     "model": {
       "type": "string",
-      "description": "Optional model override. Use this to run an agent with a different model than its default.\n\nAvailable models:\n  - 'claude-sonnet-4.6' (claude-sonnet-4.6) - context_tier: default | effort: low, medium, high, max\n  - 'claude-sonnet-4.5' (claude-sonnet-4.5) - context_tier: default | effort: not supported\n  - 'claude-haiku-4.5' (claude-haiku-4.5) - context_tier: default | effort: not supported\n  - 'claude-opus-4.6' (claude-opus-4.6) - context_tier: default | effort: low, medium, high, max\n  - 'claude-opus-4.5' (claude-opus-4.5) - context_tier: default | effort: not supported\n  - 'gpt-5.3-codex' (gpt-5.3-codex) - context_tier: default | effort: low, medium, high, xhigh\n  - 'gpt-5-mini' (gpt-5-mini) - context_tier: default | effort: low, medium, high\n  - 'gpt-5' (gpt-5) - context_tier: default | effort: low, medium, high\n  - 'gpt-5-codex' (gpt-5-codex) - context_tier: default | effort: low, medium, high\n  - 'gpt-5.1' (gpt-5.1) - context_tier: default | effort: low, medium, high\n  - 'gpt-5.1-codex' (gpt-5.1-codex) - context_tier: default | effort: low, medium, high\n  - 'gpt-5.1-codex-mini' (gpt-5.1-codex-mini) - context_tier: default | effort: low, medium, high\n  - 'gemini-2.0-flash' (gemini-2.0-flash) - context_tier: default | effort: not supported\n  - 'gpt-4o' (gpt-4o) - context_tier: default | effort: low, medium, high, xhigh\n  - 'gpt-4o-mini' (gpt-4o-mini) - context_tier: default | effort: low, medium, high, xhigh"
+      "description": "Optional model override. Use this to run an agent with a different model than its default.\n\nAvailable models:${model_catalog}"
     },
     "reasoning_effort": {
       "type": "string",
