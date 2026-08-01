@@ -29,7 +29,7 @@ export class LinesSliceCharSequence implements ISequence {
 		public readonly lines: string[],
 		private readonly range: Range,
 		public readonly considerWhitespaceChanges: boolean,
-		private readonly ignoreInteriorWhitespace: boolean = false,
+		ignoreInteriorWhitespace: boolean = false,
 	) {
 		if (ignoreInteriorWhitespace) {
 			this.rawColumnsByLineIdx = [];

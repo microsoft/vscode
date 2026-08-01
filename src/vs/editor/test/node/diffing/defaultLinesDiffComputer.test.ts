@@ -146,35 +146,55 @@ suite('LinesSliceCharSequence with ignoreInteriorWhitespace', () => {
 		assert.strictEqual(textOf(seq), 'if(x==1){');
 	});
 
-	test('pure indentation-only line is untouched when trim is considered (interior-only mode)', () => {
+	test('leading indentation is preserved as literal characters when there is no interior spacing to strip', () => {
+		const seq = new LinesSliceCharSequence(
+			['    x;'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		assert.strictEqual(textOf(seq), '    x;');
+	});
+
+	test('a single interior space between tokens is stripped, even on an otherwise simple line', () => {
 		const seq = new LinesSliceCharSequence(
 			['    return 1;'],
 			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
 			true,
 			true,
 		);
-		assert.strictEqual(textOf(seq), '    return 1;');
+		assert.strictEqual(textOf(seq), '    return1;');
 	});
 
 	test('translateOffset resolves back to real positions around collapsed interior whitespace', () => {
+		const raw = '  if ( x  ==  1 )   {';
 		const seq = new LinesSliceCharSequence(
-			['  if ( x  ==  1 )   {'],
+			[raw],
 			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
 			true,
 			true,
 		);
-		// "  if(x==1){"
-		//  0123456789...
-		// offset 0 -> 'i' of "if" at raw column 3 (1-based), after the 2-space indent
-		assert.strictEqual(seq.translateOffset(0).toString(), '(1,3)');
-		// offset 2 -> 'x' at raw column 7 (raw: "  if ( x  ==  1 )   {", 1-based index of 'x' is 8... verify via full range)
+		// Leading indentation is kept as literal (non-interior) characters, so offset 0 legitimately
+		// resolves to the first raw character, a space, at column 1.
+		assert.strictEqual(seq.translateOffset(0).toString(), '(1,1)');
+
+		const leadingLen = raw.length - raw.trimStart().length;
+		const trailingLen = raw.length - raw.trimEnd().length;
 		const positions = OffsetRange.ofLength(seq.length).map(o => seq.translateOffset(o).toString());
-		// Every resolved position must point at a non-space character (or line end) in the raw text.
-		const raw = '  if ( x  ==  1 )   {';
+		let lastCol = 0;
 		for (let i = 0; i < positions.length; i++) {
 			const m = /\((\d+),(\d+)\)/.exec(positions[i])!;
 			const col = parseInt(m[2], 10);
-			assert.ok(!/\s/.test(raw[col - 1]), `position ${positions[i]} for kept char index ${i} should not resolve to whitespace`);
+			// Positions must be strictly increasing: no two kept characters collapse onto the same column.
+			assert.ok(col > lastCol, `position ${positions[i]} for kept char index ${i} should advance past column ${lastCol}`);
+			lastCol = col;
+			const rawIdx = col - 1;
+			const isInterior = rawIdx >= leadingLen && rawIdx < raw.length - trailingLen;
+			if (isInterior) {
+				// Only non-interior (leading/trailing) whitespace may survive; any whitespace strictly
+				// between two kept characters must have been dropped from the sequence entirely.
+				assert.ok(!/\s/.test(raw[rawIdx]), `interior position ${positions[i]} for kept char index ${i} should not resolve to whitespace`);
+			}
 		}
 	});
 
