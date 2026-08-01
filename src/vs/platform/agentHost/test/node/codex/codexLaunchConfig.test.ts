@@ -28,6 +28,18 @@ suite('CodexLaunchConfig', () => {
 		]);
 	});
 
+	test('routes traces to loopback and logs/metrics directly to the external sink', () => {
+		const config = buildCodexLaunchConfig('openai', {}, undefined, [], {
+			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
+			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf' },
+			captureContent: false,
+		});
+		assert.ok(config.args.includes('otel.log_user_prompt=false'));
+		assert.ok(config.args.includes('otel.trace_exporter={ otlp-http = { endpoint = "http://127.0.0.1:4567/v1/traces", protocol = "json" } }'));
+		assert.ok(config.args.includes('otel.exporter={ otlp-http = { endpoint = "http://collector:4318/v1/logs", protocol = "binary" } }'));
+		assert.ok(config.args.includes('otel.metrics_exporter={ otlp-http = { endpoint = "http://collector:4318/v1/metrics", protocol = "binary" } }'));
+	});
+
 	test('identifies provider-compatible threads', () => {
 		assert.deepStrictEqual({
 			copilotProxy: isCodexThreadProviderCompatible('copilot', 'vscode-proxy'),
