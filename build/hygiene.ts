@@ -205,35 +205,39 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
-	let inputFileCount = 0;
+	const checkedFiles = new Set<string>();
+	const trackCheckedFile = () => es.through(function (file: VinylFile) {
+		checkedFiles.add(file.relative);
+		this.emit('data', file);
+	});
 
 	const result = input
 		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
-		.pipe(es.through(function (file: VinylFile) {
-			inputFileCount++;
-			this.emit('data', file);
-		}))
 		.pipe(productJsonFilter)
-		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : trackCheckedFile().pipe(productJson))
 		.pipe(productJsonFilter.restore)
 		.pipe(unicodeFilterStream)
+		.pipe(trackCheckedFile())
 		.pipe(unicode)
 		.pipe(unicodeFilterStream.restore)
 		.pipe(filter(Array.from(indentationFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(indentation)
 		.pipe(filter(Array.from(copyrightFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(copyrights);
 
 	const streams: NodeJS.ReadWriteStream[] = [
-		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(formatting)
+		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting)
 	];
 
 	if (runEslint) {
 		streams.push(
 			result
 				.pipe(filter(Array.from(eslintFilter)))
+				.pipe(trackCheckedFile())
 				.pipe(
 					eslint((results) => {
 						errorCount += results.warningCount;
@@ -244,7 +248,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	}
 
 	streams.push(
-		result.pipe(filter(Array.from(stylelintFilter))).pipe(gulpstylelint(((message: string, isError: boolean) => {
+		result.pipe(filter(Array.from(stylelintFilter))).pipe(trackCheckedFile()).pipe(gulpstylelint(((message: string, isError: boolean) => {
 			if (isError) {
 				console.error(message);
 				errorCount++;
@@ -266,8 +270,8 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			},
 			function () {
 				process.stdout.write('\n');
-				console.log(`Hygiene checked ${inputFileCount} file${inputFileCount === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
-				if (requestedPaths && inputFileCount === 0) {
+				console.log(`Hygiene checked ${checkedFiles.size} file${checkedFiles.size === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
+				if (requestedPaths && checkedFiles.size === 0) {
 					this.emit('error', `No hygiene-eligible files matched the requested paths: ${requestedPaths.join(', ')}`);
 				} else if (errorCount > 0) {
 					this.emit(
