@@ -3033,7 +3033,6 @@ suite('CopilotAgentSession', () => {
 					accessKind: 'read',
 					paths: ['/workspace/src/file.ts'],
 					toolCallId: 'tc-managed',
-					managedApprovalRequired: true,
 					autoApproval: { recommendation: 'approve', reason: 'Low risk' },
 				},
 			});
