@@ -181,7 +181,7 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 
 		const watch = await context.client.call<CreateResourceWatchResult>('createResourceWatch', {
 			channel: ROOT_STATE_URI, uri: rootUri, recursive: false,
-		}, !isWindows);
+		});
 		let subscribed = false;
 
 		try {
@@ -226,7 +226,7 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 				context.client.notify('unsubscribe', { channel: watch.channel });
 			}
 		}
-	});
+	}, !isWindows);
 
 	conformanceTest(context, 'resource watch subscription preserves its descriptor', async function () {
 		await initializeClient('resource-watch-descriptor');
