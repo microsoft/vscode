@@ -192,19 +192,16 @@ function escapeMarkdownLinkLabel(label: string): string {
 export function buildPlanReviewProgressContent(review: IChatPlanReview, message: string): MarkdownString {
 	const renderedAsUsed = !!review.isUsed;
 	const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
-	// Prefer the structured fields from `ChatPlanReviewPart`; fall
-	// back to the combined `feedback` string for older results.
-	let overall = data?.feedbackOverall?.trim();
+	const overall = data?.feedbackOverall?.trim();
 	const inlineMd = data?.feedbackInlineMarkdown?.trim();
-	if (!overall && !inlineMd && data?.feedback) {
-		overall = data.feedback.trim();
-	}
+	const feedbackMarkdown = [overall, inlineMd].filter(value => !!value).join('\n\n')
+		|| data?.feedback?.trim();
 
 	const content = new MarkdownString(undefined, { supportThemeIcons: true });
-	if (overall) {
-		content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
-	} else {
-		content.appendText(message);
+	content.appendText(message);
+	if (feedbackMarkdown) {
+		content.appendMarkdown('\n\n');
+		content.appendMarkdown(feedbackMarkdown);
 	}
 
 	if (renderedAsUsed) {
@@ -227,11 +224,6 @@ export function buildPlanReviewProgressContent(review: IChatPlanReview, message:
 				content.appendMarkdown(`[${escapeMarkdownLinkLabel(label)}](${planWidgetUri.toString(true)})`);
 			}
 		}
-	}
-
-	if (inlineMd) {
-		content.appendMarkdown('\n\n');
-		content.appendMarkdown(inlineMd);
 	}
 	return content;
 }
