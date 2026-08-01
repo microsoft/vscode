@@ -79,12 +79,12 @@ const RECORDING = process.env[AgentHostUpdateSnapshotsEnvVar] === '1'
  * and an entry in `capiStubs.ts`'s catalog, because a model missing from
  * `/models` is rejected before the CLI ever builds a request.
  *
- * `default` sends no selection at all. Under replay it resolves against the stub
- * catalog rather than the provider's real default, so treat its baseline as
- * "whatever the catalog's default is", and expect it to move when that changes.
+ * Every entry is selected explicitly. Sending no selection is deliberately not
+ * pinned: the CLI would then choose from `capiStubs.ts`'s stub catalog by its own
+ * ranking, so the baseline would record a property of this suite's fixture and
+ * would move whenever a higher-ranked model was added to or removed from it.
  */
 const SNAPSHOT_MODELS = [
-	'default',
 	'gpt-5',
 	'gpt-5-mini',
 	'gpt-5-codex',
@@ -180,7 +180,7 @@ async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, mod
 			message: {
 				text: 'Say exactly "ok"',
 				origin: { kind: MessageKind.User },
-				...(model !== 'default' && { model: { id: model } }),
+				model: { id: model },
 			},
 		},
 	});
@@ -224,23 +224,27 @@ async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, mod
 }
 
 /**
- * Writes the baseline during an update run and asserts it otherwise.
+ * Skips while recording, writes the baseline under the update flag, and compares
+ * against the committed one otherwise.
  *
- * Mirrors `assertRecordedAhpSnapshot`: `assertSnapshot` creates a missing
- * baseline but never overwrites one, so accepting a changed prompt needs the
- * same explicit env var the AHP snapshots use.
+ * A recording run is never allowed to produce a baseline: its prompt reflects the
+ * live model catalog and experiment assignment rather than anything this
+ * repository owns. Accepting a changed prompt therefore takes the same explicit
+ * env var the AHP snapshots use.
+ *
+ * A missing baseline is a hard error rather than something `assertSnapshot`
+ * quietly creates, which would otherwise let a newly added model go green against
+ * a file nobody wrote or reviewed.
  */
 async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Promise<void> {
 	if (RECORDING) {
-		return; // a recording run's prompt comes from the live catalog, not this repo
+		return;
 	}
 	const snapshotPath = snapshotPathForTest(test, 'prompt', 'md');
 	if (UPDATE_SNAPSHOTS) {
 		writeFileSync(snapshotPath, content);
 		return;
 	}
-	// `assertSnapshot` creates a missing baseline and passes, which would let a
-	// newly added model go green against a file nobody wrote or reviewed.
 	if (!existsSync(snapshotPath)) {
 		throw new Error(`no committed prompt baseline at ${snapshotPath}. Generate it with ${AgentHostUpdateAhpSnapshotsEnvVar}=1 and commit the result.`);
 	}
