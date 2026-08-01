@@ -125,9 +125,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 		if (additionalMenuPlacement) {
 			const { menuId, item } = additionalMenuPlacement;
-			// Do not apply the chat-in-progress hide here. That gate is for the editor titlebar
-			// (TitleBarAdjacentCenter above); Agents is the only secondary placement and routinely
-			// has chat/agent requests in flight, which would leave no Update CTA (#328473).
+			// Keep the chat-in-progress gate scoped to the editor title bar; secondary placements apply their own when-clause.
 			MenuRegistry.appendMenuItem(menuId, {
 				...item,
 				command: {
