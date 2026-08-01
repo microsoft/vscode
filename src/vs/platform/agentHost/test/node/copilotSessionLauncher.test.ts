@@ -445,15 +445,24 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	});
 
-	test('falls back to createSession for an unknown -32603 from resumeSession', async () => {
+	test('does not replace a session after an unknown -32603 from resumeSession', async () => {
 		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
 
-		const sessions = new DisposableStore();
 		try {
-			sessions.add(await launcher.launch(plan, testRuntime));
-			assert.strictEqual(getCreateSessionCalls(), 1);
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /something went wrong/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
 		} finally {
-			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('does not replace a session after a network failure', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: network fetch failed: request failed: error sending request for url (https://api.github.com/copilot_internal/user)');
+
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /network fetch failed/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
+		} finally {
 			await launcher.disposeByokProxyHandle();
 		}
 	});

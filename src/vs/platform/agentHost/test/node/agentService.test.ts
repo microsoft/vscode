@@ -4652,6 +4652,28 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
 		});
 
+		test('a session with an active peer-chat turn is NOT evicted when its last subscriber drops', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				copilotAgent.createChat = async () => { };
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
+				await service.createChat(sessionResource, peerChat);
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'peer-chat active turn must pin the session');
+				assert.strictEqual(copilotAgent.releaseSessionCalls.length, 0);
+			});
+		});
+
 		test('a restored idle session is evicted when its last subscriber drops', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				service.registerProvider(copilotAgent);
@@ -5001,6 +5023,8 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('empty-session GC', () => {
 
+		setup(() => copilotAgent.createSessionProvisional = true);
+
 		test('an empty unsubscribed session is disposed after the grace period', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				service.registerProvider(copilotAgent);
@@ -5042,6 +5066,137 @@ suite('AgentService (node dispatcher)', () => {
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'session with turns must not be GC-disposed');
+			});
+		});
+
+		test('a restored empty session is not GC-disposed', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.stateManager.removeSession(sessionResource.toString());
+				await service.restoreSession(sessionResource);
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'restored sessions must not be GC-disposed');
+			});
+		});
+
+		test('a first turn during the grace period prevents destructive GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.dispatchAction(
+					buildDefaultChatUri(sessionResource.toString()),
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'the first turn must prevent pending destructive GC');
+			});
+		});
+
+		test('missing state when the grace period expires does not trigger destructive GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				service.stateManager.removeSession(sessionResource.toString());
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'missing state must fail closed');
+			});
+		});
+
+		test('persisted session data prevents destructive GC when a provider reports provisional', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const localAgent = new MockAgent('copilot');
+				localAgent.createSessionProvisional = true;
+				disposables.add(toDisposable(() => localAgent.dispose()));
+				const localService = disposables.add(new AgentService(
+					new NullLogService(),
+					fileService,
+					createSessionDataService(),
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+				));
+				localService.registerProvider(localAgent);
+				const sessionResource = await localService.createSession({ provider: 'copilot' });
+				localService.addSubscriber(sessionResource, 'client-1');
+
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(localAgent.disposeSessionCalls.length, 0, 'persisted sessions must not be GC-disposed');
+			});
+		});
+
+		test('draft persistence while the persisted-data probe is pending prevents destructive GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const probeStarted = new DeferredPromise<void>();
+				const databaseProbe = new DeferredPromise<IReference<ISessionDatabase> | undefined>();
+				const persistedSessionDataService = createSessionDataService();
+				const sessionDataService: ISessionDataService = {
+					...persistedSessionDataService,
+					tryOpenDatabase: async () => {
+						probeStarted.complete();
+						return databaseProbe.p;
+					},
+				};
+				const localAgent = new MockAgent('copilot');
+				localAgent.createSessionProvisional = true;
+				disposables.add(toDisposable(() => localAgent.dispose()));
+				const localService = disposables.add(new AgentService(
+					new NullLogService(),
+					fileService,
+					sessionDataService,
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+				));
+				localService.registerProvider(localAgent);
+				const sessionResource = await localService.createSession({ provider: 'copilot' });
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				await probeStarted.p;
+				localService.dispatchAction(
+					buildDefaultChatUri(sessionResource.toString()),
+					{ type: ActionType.ChatDraftChanged, draft: { text: 'keep this draft', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+				databaseProbe.complete(undefined);
+				await Promise.resolve();
+				await Promise.resolve();
+
+				assert.strictEqual(localAgent.disposeSessionCalls.length, 0, 'sessions with persisted drafts must not be GC-disposed');
+			});
+		});
+
+		test('a chat subscription pins its provisional session', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const chatResource = URI.parse(buildDefaultChatUri(sessionResource.toString()));
+				service.addSubscriber(sessionResource, 'client-1');
+				service.addSubscriber(chatResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'chat subscriptions must pin their session');
+
+				service.unsubscribe(chatResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.deepStrictEqual(copilotAgent.disposeSessionCalls.map(uri => uri.toString()), [sessionResource.toString()]);
 			});
 		});
 

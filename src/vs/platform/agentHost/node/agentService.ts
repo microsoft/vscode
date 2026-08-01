@@ -70,6 +70,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { parseAnnotationsUri } from '../common/annotationsUri.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -324,6 +325,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
+	/** Fresh provider-declared provisional sessions that remain eligible for abandoned-draft GC. */
+	private readonly _provisionalSessionGcCandidates = new Map<string, symbol>();
 
 	/** Subagent chats armed for a bounded wait (once execution is confirmed); resolved by {@link _onChatSpawned}, awaited by {@link subscribe}. */
 	private readonly _pendingSubagentChats = new Map<string /* subagentChatUri */, DeferredPromise<void>>();
@@ -1126,6 +1129,11 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
+		if (created.provisional) {
+			this._provisionalSessionGcCandidates.set(session.toString(), Symbol());
+		} else {
+			this._provisionalSessionGcCandidates.delete(session.toString());
+		}
 
 		// Cancel any pending GC armed for this URI. A client may be
 		// re-issuing `createSession` for an existing URI mid-grace (e.g.
@@ -1755,6 +1763,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _onDidMaterializeSession(e: IAgentMaterializeSessionEvent): void {
 		const sessionKey = e.session.toString();
+		this._provisionalSessionGcCandidates.delete(sessionKey);
+		this._cancelPendingSessionGc(e.session);
 		// The session is now materialized — its SDK is resolved (any cold
 		// download already finished), so no further progress is expected for it.
 		this._clearDownloadProgressInterest(sessionKey);
@@ -1988,6 +1998,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
+		this._provisionalSessionGcCandidates.delete(session.toString());
+		this._cancelPendingSessionGc(session);
 		// Resolve the working directories up front and pass them explicitly:
 		// the checkpoint and review services need them to locate the
 		// repositories holding this session's refs, and reading them from
@@ -2170,6 +2182,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._resourceSubscribers.delete(resource);
 		this._changesetCoordinator.onLastSubscriber(resource);
 		this._stateManager.onChangesetLivenessChanged();
+		const sessionResource = this._getOwningSessionResource(resource);
 		// An empty session whose last subscriber dropped is a candidate for
 		// full GC (provider session, worktree, on-disk state). Sessions with
 		// at least one turn fall through to {@link _maybeEvictIdleSession},
@@ -2177,7 +2190,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// restored from disk later. Skipping eviction here for empty
 		// sessions ensures their state stays observable so a re-subscribe
 		// can re-arm GC.
-		if (this._maybeScheduleSessionGc(resource)) {
+		if (this._maybeScheduleSessionGc(sessionResource)) {
 			return;
 		}
 		// Defer the idle-session release behind a grace window rather than
@@ -2196,13 +2209,31 @@ export class AgentService extends Disposable implements IAgentService {
 		this._pendingSessionRelease.deleteAndDispose(resource);
 	}
 
+	private _getOwningSessionResource(resource: URI): URI {
+		const resourceString = resource.toString();
+		if (isAhpChatChannel(resourceString)) {
+			return URI.parse(parseRequiredSessionUriFromChatUri(resourceString));
+		}
+		const changeset = parseChangesetUri(resourceString);
+		if (changeset) {
+			return URI.parse(changeset.sessionUri);
+		}
+		const annotations = parseAnnotationsUri(resourceString);
+		return annotations ? URI.parse(annotations.sessionUri) : resource;
+	}
+
+	private _hasSessionSubscribers(resource: URI): boolean {
+		for (const subscribedResource of this._resourceSubscribers.keys()) {
+			if (isEqual(this._getOwningSessionResource(subscribedResource), resource)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
-	 * If `resource` names a session that no client is still subscribed to and
-	 * that has produced no turns (and has no active turn), schedule a delayed
-	 * {@link _runSessionGc} to fully tear it down — provider session, worktree,
-	 * persisted state and all. Sessions with at least one turn are left to the
-	 * existing {@link _maybeEvictIdleSession} path which only drops cached
-	 * state and lets the session be restored from disk later.
+	 * If `resource` names a newly-created empty session that no client is still
+	 * subscribed to, schedule a delayed {@link _runSessionGc} to fully tear it down.
 	 *
 	 * The delay ({@link SESSION_GC_GRACE_MS}) gives a disconnected client time
 	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
@@ -2218,12 +2249,11 @@ export class AgentService extends Disposable implements IAgentService {
 		if (parseSubagentSessionUri(resource)) {
 			return false;
 		}
-		const key = resource.toString();
-		const state = this._stateManager.getSessionState(key);
-		if (!state) {
+		if (this._hasSessionSubscribers(resource)) {
 			return false;
 		}
-		if (state.turns.length > 0 || state.activeTurn !== undefined) {
+		const key = resource.toString();
+		if (!this._getEmptySessionGcCandidate(resource)) {
 			return false;
 		}
 		this._pendingSessionGc.set(resource, disposableTimeout(() => {
@@ -2235,25 +2265,51 @@ export class AgentService extends Disposable implements IAgentService {
 		return true;
 	}
 
+	private _getEmptySessionGcCandidate(resource: URI): symbol | undefined {
+		const key = resource.toString();
+		const candidate = this._provisionalSessionGcCandidates.get(key);
+		if (!candidate) {
+			return undefined;
+		}
+		const state = this._stateManager.getSessionState(key);
+		if (!state || state.turns.length > 0 || state.activeTurn !== undefined) {
+			this._provisionalSessionGcCandidates.delete(key);
+			return undefined;
+		}
+		return candidate;
+	}
+
 	private _cancelPendingSessionGc(resource: URI): void {
 		this._pendingSessionGc.deleteAndDispose(resource);
 	}
 
+	private async _hasPersistedSessionData(resource: URI): Promise<boolean> {
+		const ref = await this._sessionDataService.tryOpenDatabase(resource);
+		ref?.dispose();
+		return ref !== undefined;
+	}
+
 	/**
 	 * Fires {@link SESSION_GC_GRACE_MS} after a session lost its last
-	 * subscriber while empty. Re-checks both invariants (still no subscribers,
-	 * still empty) before tearing the session down via {@link disposeSession}.
-	 * The cached state may already have been evicted by
-	 * {@link _maybeEvictIdleSession}; in that case we still proceed because
-	 * "evicted + no resubscribe" implies no client is observing the session.
+	 * subscriber while it was still empty. Re-checks every invariant before
+	 * tearing the session down via {@link disposeSession}.
 	 */
 	private async _runSessionGc(resource: URI): Promise<void> {
 		const key = resource.toString();
-		if (this._resourceSubscribers.has(resource)) {
+		if (this._hasSessionSubscribers(resource)) {
 			return;
 		}
-		const state = this._stateManager.getSessionState(key);
-		if (state && (state.turns.length > 0 || state.activeTurn !== undefined)) {
+		const candidate = this._getEmptySessionGcCandidate(resource);
+		if (!candidate) {
+			return;
+		}
+		if (await this._hasPersistedSessionData(resource)) {
+			if (this._provisionalSessionGcCandidates.get(key) === candidate) {
+				this._provisionalSessionGcCandidates.delete(key);
+			}
+			return;
+		}
+		if (this._hasSessionSubscribers(resource) || this._getEmptySessionGcCandidate(resource) !== candidate) {
 			return;
 		}
 		this._logService.info(`[AgentService] GC: disposing empty unsubscribed session ${key}`);
@@ -2278,23 +2334,26 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		// Walk up the subagent ancestry: the SDK session and its turn tree are
 		// owned by the root session, so eviction must target the root.
-		let evictionTarget = resource;
+		let evictionTarget = this._getOwningSessionResource(resource);
 		{
 			let parsed;
 			while ((parsed = parseSubagentSessionUri(evictionTarget))) {
 				evictionTarget = parsed.parentSession;
 			}
 		}
-		// Don't evict if the root or any of its subagent descendants still has subscribers.
-		if (this._resourceSubscribers.has(evictionTarget)) {
+		// Don't evict if the root, one of its chats, or any subagent descendant still has subscribers.
+		if (this._hasSessionSubscribers(evictionTarget)) {
 			return;
 		}
 		for (const subscribedUri of this._resourceSubscribers.keys()) {
-			if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
+			if (this._isSubagentDescendantOf(this._getOwningSessionResource(subscribedUri), evictionTarget)) {
 				return;
 			}
 		}
 		const evictionTargetKey = evictionTarget.toString();
+		if (this._provisionalSessionGcCandidates.has(evictionTargetKey)) {
+			return;
+		}
 		// A restore/resume racing this unsubscribe means a client is about to
 		// observe the session again; releasing now would tear down state that
 		// the in-flight rehydrate is populating.
@@ -2302,7 +2361,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const targetState = this._stateManager.getSessionState(evictionTargetKey);
-		if (!targetState || targetState.activeTurn !== undefined) {
+		if (!targetState || this._stateManager.hasActiveTurn(evictionTargetKey)) {
 			return;
 		}
 		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
@@ -2422,6 +2481,17 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType: AgentHostClientType): void {
 		const origin = { clientId, clientSeq };
+		if (
+			action.type === ActionType.ChatTurnStarted
+			|| action.type === ActionType.ChatDraftChanged
+			|| action.type === ActionType.SessionConfigChanged
+			|| action.type === ActionType.SessionIsReadChanged
+			|| action.type === ActionType.SessionIsArchivedChanged
+			|| action.type === ActionType.SessionTitleChanged
+		) {
+			this._provisionalSessionGcCandidates.delete(sessionChannel);
+			this._cancelPendingSessionGc(URI.parse(sessionChannel));
+		}
 		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
@@ -2609,6 +2679,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async restoreSession(session: URI): Promise<void> {
 		const sessionStr = session.toString();
+		this._provisionalSessionGcCandidates.delete(sessionStr);
+		this._cancelPendingSessionGc(session);
 
 		// Already in state manager - nothing to do.
 		if (this._stateManager.getSessionState(sessionStr)) {

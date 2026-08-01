@@ -123,6 +123,7 @@ export class MockAgent implements IAgent {
 
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
+	createSessionProvisional = false;
 
 	/**
 	 * When set, {@link sendMessage} rejects with this error after recording the
@@ -134,7 +135,12 @@ export class MockAgent implements IAgent {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
-		return { session, project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
+		return {
+			session,
+			project: mockProject(this.id),
+			resolvedWorkingDirectory: this.resolvedWorkingDirectory,
+			...(this.createSessionProvisional ? { provisional: true } : {}),
+		};
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
