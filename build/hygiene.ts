@@ -83,7 +83,10 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
-	console.log('Starting hygiene...');
+	const started = Date.now();
+	const requestedPaths = Array.isArray(some) ? some : undefined;
+	const scope = requestedPaths ? `${requestedPaths.length} requested path${requestedPaths.length === 1 ? '' : 's'}` : some ? 'provided file stream' : 'full repository';
+	console.log(`Starting hygiene (${scope})...`);
 	let errorCount = 0;
 
 	const productJson = es.through(function (file: VinylFile) {
@@ -202,11 +205,16 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
+	let inputFileCount = 0;
 
 	const result = input
 		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
+		.pipe(es.through(function (file: VinylFile) {
+			inputFileCount++;
+			this.emit('data', file);
+		}))
 		.pipe(productJsonFilter)
 		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
 		.pipe(productJsonFilter.restore)
@@ -258,7 +266,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			},
 			function () {
 				process.stdout.write('\n');
-				if (errorCount > 0) {
+				console.log(`Hygiene checked ${inputFileCount} file${inputFileCount === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
+				if (requestedPaths && inputFileCount === 0) {
+					this.emit('error', `No hygiene-eligible files matched the requested paths: ${requestedPaths.join(', ')}`);
+				} else if (errorCount > 0) {
 					this.emit(
 						'error',
 						'Hygiene failed with ' +
@@ -356,7 +367,7 @@ if (import.meta.main) {
 						}
 					}
 
-					console.log('Reading git index versions...');
+					console.log(`Reading ${some.length} git index version${some.length === 1 ? '' : 's'}...`);
 
 					createGitIndexVinyls(some)
 						.then(
@@ -373,6 +384,9 @@ if (import.meta.main) {
 							console.error(err);
 							process.exit(1);
 						});
+				} else {
+					console.error('No staged files found. Pass file paths to check unstaged files.');
+					process.exit(1);
 				}
 			}
 		);
