@@ -63,6 +63,30 @@ suite('ClaudeSessionMetadataStore', () => {
 		});
 	});
 
+	test('write then read round-trips the working-directory set', async () => {
+		const store = createStore(disposables);
+
+		await store.write(SESSION_URI, {
+			workingDirectories: [URI.file('/a'), URI.file('/b'), URI.file('/c')],
+		});
+
+		const overlay = await store.read(SESSION_URI);
+
+		assert.deepStrictEqual(
+			overlay.workingDirectories?.map(d => d.toString()),
+			[URI.file('/a').toString(), URI.file('/b').toString(), URI.file('/c').toString()],
+		);
+	});
+
+	test('read returns undefined workingDirectories when none were persisted', async () => {
+		const store = createStore(disposables);
+
+		await store.write(SESSION_URI, { permissionMode: 'plan' });
+		const overlay = await store.read(SESSION_URI);
+
+		assert.strictEqual(overlay.workingDirectories, undefined);
+	});
+
 	test('write skips undefined fields (only-write-on-defined)', async () => {
 		const db = new TestSessionDatabase();
 		const store = createStore(disposables, createSessionDataService(db));
@@ -130,7 +154,7 @@ suite('ClaudeSessionMetadataStore', () => {
 			startTime: projected.startTime,
 			modifiedTime: projected.modifiedTime,
 			summary: projected.summary,
-			workingDirectory: projected.workingDirectory?.toString(),
+			workingDirectory: projected.workingDirectories?.[0]?.toString(),
 		}, {
 			session: 'claude:/abc',
 			startTime: 1000,
@@ -148,7 +172,7 @@ suite('ClaudeSessionMetadataStore', () => {
 
 		assert.deepStrictEqual({
 			summary: projected.summary,
-			workingDirectory: projected.workingDirectory,
+			workingDirectory: projected.workingDirectories?.[0],
 		}, {
 			summary: 'fallback',
 			workingDirectory: undefined,

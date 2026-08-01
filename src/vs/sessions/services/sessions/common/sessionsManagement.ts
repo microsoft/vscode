@@ -11,6 +11,14 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
+/** Raised when unattended session creation targets a workspace that requires trust. */
+export class WorkspaceNotTrustedError extends Error {
+	constructor() {
+		super('Workspace not trusted');
+		this.name = 'WorkspaceNotTrustedError';
+	}
+}
+
 /**
  * Options for sending a request through the sessions management service.
  *
@@ -85,6 +93,12 @@ export interface ICreateNewSessionOptions {
 	 * Skipped if the provider does not implement the setter.
 	 */
 	readonly branch?: string;
+	/**
+	 * Optional branch tracking preference to apply via
+	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
+	 * programmatic session creation and is not surfaced in the new-session UI.
+	 */
+	readonly worktreeBranchTrack?: boolean;
 }
 
 /**
@@ -116,6 +130,10 @@ export interface ISendRequestSentEvent {
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	/**
+	 * The exact options object the send was started with, so callers can
+	 * correlate a fire-and-forget (background) send with its completion.
+	 */
 	readonly options: ISendRequestOptions;
 }
 
@@ -465,5 +483,32 @@ export interface ISessionsManagementService {
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
+
+/**
+ * The `providerId`/`sessionTypeId` to seed a new session with when carrying the
+ * harness over from an existing session, or an empty object when it should not
+ * be carried over. Designed to be spread into a {@link ICreateNewSessionOptions}
+ * literal alongside the caller's own `folderUri`.
+ *
+ * "New Session" gestures default to the harness the user is currently working
+ * in, but a harness can stop being advertised while one of its sessions is
+ * still open — e.g. the extension-host Copilot CLI once
+ * `chat.agents.copilotCli.hideExtensionHost` is on. Inheriting it then makes
+ * session creation fail (the provider no longer offers the type), which drops
+ * the folder and leaves the composer on an agent the harness picker doesn't
+ * list. Contributing nothing lets the folder's preferred harness serve the new
+ * session instead.
+ */
+export function inheritableSessionTarget(
+	sessionsManagementService: ISessionsManagementService,
+	session: Pick<ISession, 'providerId' | 'sessionType'> | undefined,
+	folderUri: URI | undefined,
+): Pick<ICreateNewSessionOptions, 'providerId' | 'sessionTypeId'> {
+	if (!session || !folderUri) {
+		return {};
+	}
+	const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
+	return sessionsManagementService.isNewSessionTargetAvailable(folderUri, target) ? target : {};
+}
 
 //#endregion

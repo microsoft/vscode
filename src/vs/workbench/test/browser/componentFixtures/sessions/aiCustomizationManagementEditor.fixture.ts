@@ -28,7 +28,8 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
@@ -64,6 +65,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
+import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
+import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../contrib/chat/common/automations/automationsEnabled.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -142,6 +147,7 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 		override getCustomAgents() { return []; }
 		override getCustomizations() { return []; }
 		override getWorkingDirectory() { return undefined; }
+		override getWorkingDirectories() { return []; }
 		override getMcpServers() { return mcpServers; }
 		override addMcpServer() { }
 		override async authenticateMcpServer() { return true; }
@@ -408,11 +414,14 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidAddFeedback = Event.None;
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
 		override readonly onDidSubmitFeedback = Event.None;
 		override getFeedback() { return []; }
+		override getSessionForFile() { return undefined; }
+		override getFeedbackSessionResource() { return undefined; }
 		override getMostRecentSessionForResource() { return undefined; }
 		override async revealFeedback(): Promise<void> { }
 		override getNextFeedback() { return undefined; }
@@ -575,6 +584,7 @@ interface IRenderEditorOptions {
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly showPromptMigrationPage?: boolean;
+	readonly automationsEnabled?: boolean;
 }
 
 function renderFixtureMarkdown(markdown: string): HTMLElement {
@@ -688,6 +698,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
 				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+				[CHAT_AUTOMATIONS_ENABLED_SETTING]: options.automationsEnabled === true,
 			}));
 			reg.define(IListService, ListService);
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
@@ -756,6 +767,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override getRegisteredChatSessionItemProviders() { return []; }
 				override hasCustomizationsProvider() { return false; }
 			}());
+			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([]);
+				override readonly runs = constObservable([]);
+				override runsFor() { return constObservable([]); }
+			}());
+			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
+			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() {
+				override async showAutomationDialog() { return undefined; }
+			}());
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
+			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
@@ -1438,6 +1460,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
 				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
+			],
+		}),
+	}),
+
+	AutomationsTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Automations,
+			automationsEnabled: true,
+			width: 1200,
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.Prompts,
+				AICustomizationManagementSection.Automations,
 				AICustomizationManagementSection.McpServers,
 				AICustomizationManagementSection.Plugins,
 			],

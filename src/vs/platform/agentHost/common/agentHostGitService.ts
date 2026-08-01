@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { LRUCache } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
@@ -91,6 +93,54 @@ export interface IPullOptions {
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
+/**
+ * Resolves linked checkouts to their primary worktree and caches successful mappings for every worktree reported by Git.
+ * Resolution is serialized so concurrent requests across linked checkouts share one probe, while empty results remain retryable.
+ */
+class PrimaryWorktreeRootResolver {
+	private readonly _roots = new LRUCache<string, URI>(100);
+	private readonly _sequencer = new Sequencer();
+
+	constructor(private readonly _gitService: IAgentHostGitService) { }
+
+	async resolve(checkoutRoot: URI): Promise<URI | undefined> {
+		const key = checkoutRoot.toString();
+		const cached = this._roots.get(key);
+		if (cached) {
+			return cached;
+		}
+		return this._sequencer.queue(async () => {
+			const cached = this._roots.get(key);
+			if (cached) {
+				return cached;
+			}
+			const roots = await this._gitService.getWorktreeRoots(checkoutRoot);
+			const primaryRoot = roots[0];
+			if (!primaryRoot) {
+				return undefined;
+			}
+			this._roots.set(key, primaryRoot);
+			for (const root of roots) {
+				this._roots.set(root.toString(), primaryRoot);
+			}
+			return primaryRoot;
+		});
+	}
+}
+
+/** Resolver lifetime follows the injected Git service; each resolver owns a bounded path cache. */
+const primaryWorktreeRootResolvers = new WeakMap<IAgentHostGitService, PrimaryWorktreeRootResolver>();
+
+/** Resolves the primary worktree root when Git reports a worktree listing. */
+export function tryResolvePrimaryWorktreeRoot(gitService: IAgentHostGitService, checkoutRoot: URI): Promise<URI | undefined> {
+	let resolver = primaryWorktreeRootResolvers.get(gitService);
+	if (!resolver) {
+		resolver = new PrimaryWorktreeRootResolver(gitService);
+		primaryWorktreeRootResolvers.set(gitService, resolver);
+	}
+	return resolver.resolve(checkoutRoot);
+}
+
 export interface IRefQuery {
 	readonly count?: number;
 	readonly pattern?: string | string[];
@@ -141,17 +191,38 @@ export interface IDefaultBranch {
 	readonly startPoint: string;
 }
 
+/** How far along a worktree file operation is, in files. */
+export interface IWorktreeFileProgress {
+	readonly filesDone: number;
+	readonly filesTotal: number;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
+	getCurrentBranchName?(workingDirectory: URI): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
+	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
-	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[]): Promise<void>;
+	/**
+	 * Creates a worktree for a new branch. `onProgress` receives every checkout
+	 * sample git reports, which can be several per second, so consumers are
+	 * expected to round and rate limit for their own presentation. It may also
+	 * never be called (fast checkouts and git versions that stay silent), so it
+	 * MUST be treated as best-effort.
+	 */
+	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track: boolean, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	/**
+	 * Copies the git-ignored files matching `globs` into the worktree.
+	 * `onProgress` counts the individual files covered, but only fires as whole
+	 * entries finish — a wholly-ignored directory such as `node_modules` is
+	 * copied as one recursive unit, so its files all land in a single step.
+	 */
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
@@ -340,22 +411,22 @@ export interface IAgentHostGitService {
 	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<IDiffPatchResult | undefined>;
 }
 
-function getCommonBranchPriority(branch: string): number {
-	if (branch === 'main') {
+function getBranchPriority(branch: string, currentBranch: string | undefined, defaultBranch: string | undefined): number {
+	if (branch === currentBranch) {
 		return 0;
 	}
-	if (branch === 'master') {
+	if (branch === defaultBranch) {
 		return 1;
 	}
 	return 2;
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly query?: string; readonly limit?: number }): string[] {
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
 	const normalizedQuery = options?.query?.toLowerCase();
 	const filtered = normalizedQuery
 		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
 		: [...branches];
 
-	filtered.sort((a, b) => getCommonBranchPriority(a) - getCommonBranchPriority(b));
+	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 	return options?.limit ? filtered.slice(0, options.limit) : filtered;
 }

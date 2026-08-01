@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -13,15 +14,19 @@ import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRender
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../common/constants.js';
+import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -107,6 +112,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	// Current tool message for collapsed title (persists even after tool completes)
 	private currentRunningToolMessage: string | undefined;
+	private currentRunningToolCallId: string | undefined;
+	private currentRunningToolIcon: ThemeIcon | undefined;
 
 	// Model name used by this subagent for hover tooltip
 	private modelName: string | undefined;
@@ -123,8 +130,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	 * header. The Agents window contributes an "Open Subagent" action (rendered
 	 * as a pill) into this menu; elsewhere the menu is empty and nothing shows.
 	 */
-	private _openChatToolbar: MenuWorkbenchToolBar | undefined;
+	private _openChatToolbar: WorkbenchToolBar | undefined;
 	private _openChatToolbarContainer: HTMLElement | undefined;
+	private readonly _openChatActionListeners = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _openChatActionViewRegistration = this._register(new MutableDisposable());
 
 	// Confirmation auto-expand tracking
 	private toolsWaitingForConfirmation: number = 0;
@@ -236,27 +245,88 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this._openChatToolbarContainer?.classList.add('hidden');
 			return;
 		}
-		if (!this._openChatToolbar) {
-			const container = $('.chat-subagent-open-chat-toolbar');
-			this._collapseButton.element.parentElement?.insertBefore(container, this._collapseButton.element);
-			this._openChatToolbarContainer = container;
-			this._openChatToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, container, MenuId.ChatSubagentContent, {
-				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				menuOptions: { shouldForwardArgs: true },
-				toolbarOptions: { primaryGroup: () => true },
-			}));
-			this._register(this._openChatToolbar.onDidChangeMenuItems(() => this._updateOpenChatOnlyMode()));
-			this._updateOpenChatOnlyMode();
+		if (!this._ensureOpenChatToolbar()) {
+			return;
 		}
 		this._updateOpenChatToolbarContext();
 		this._openChatToolbarContainer!.classList.remove('hidden');
+	}
+
+	private _ensureOpenChatToolbar(): boolean {
+		if (this._openChatToolbar) {
+			return true;
+		}
+		const menuAction = this._getOpenChatMenuAction();
+		if (!menuAction) {
+			return false;
+		}
+		const actionViewItemProvider = this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+		if (!actionViewItemProvider) {
+			if (!this._openChatActionViewRegistration.value) {
+				this._openChatActionViewRegistration.value = Event.once(Event.filter(
+					this.actionViewItemService.onDidChange,
+					menuId => menuId === MenuId.ChatSubagentContent
+				))(() => {
+					this._openChatActionViewRegistration.clear();
+					this._updateOpenChatLink();
+				});
+			}
+			return false;
+		}
+
+		this._openChatActionViewRegistration.clear();
+		const container = $('.chat-subagent-open-chat-toolbar');
+		this._collapseButton?.element.parentElement?.insertBefore(container, this._collapseButton.element);
+		this._openChatToolbarContainer = container;
+		this._openChatToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			actionViewItemProvider: (action, options) => actionViewItemProvider(
+				action,
+				options,
+				this.instantiationService,
+				dom.getWindow(container).vscodeWindowId
+			),
+		}));
+		this._openChatToolbar.setActions([menuAction]);
+		this._trackOpenChatActions();
+		return true;
+	}
+
+	private _getOpenChatMenuAction(): MenuItemAction | undefined {
+		for (const [, actions] of this.menuService.getMenuActions(MenuId.ChatSubagentContent, this.contextKeyService, { shouldForwardArgs: true })) {
+			const action = actions.find(action => action.id === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+			if (action instanceof MenuItemAction) {
+				return action;
+			}
+		}
+		return undefined;
+	}
+
+	private _trackOpenChatActions(): void {
+		const store = new DisposableStore();
+		const itemCount = this._openChatToolbar?.getItemsLength() ?? 0;
+		for (let index = 0; index < itemCount; index++) {
+			const action = this._openChatToolbar?.getItemAction(index);
+			if (action instanceof Action) {
+				store.add(action.onDidChange(() => this._updateOpenChatOnlyMode()));
+			}
+		}
+		this._openChatActionListeners.value = store;
+		this._updateOpenChatOnlyMode();
 	}
 
 	private _updateOpenChatOnlyMode(): void {
 		if (!this._collapseButton || !this._openChatToolbar) {
 			return;
 		}
-		const openChatOnly = this._openChatToolbar.getItemsLength() > 0;
+		const itemCount = this._openChatToolbar.getItemsLength();
+		let openChatOnly = false;
+		for (let index = 0; index < itemCount; index++) {
+			if (this._openChatToolbar.getItemAction(index)?.enabled) {
+				openChatOnly = true;
+				break;
+			}
+		}
 		this.domNode.classList.toggle('chat-subagent-open-chat-only', openChatOnly);
 		if (openChatOnly) {
 			dom.hide(this._collapseButton.element);
@@ -282,6 +352,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				confirmationActive: this._confirmationActive,
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
+				...(this.modelName ? { modelName: this.modelName } : {}),
+				...(this.isActive && this.currentRunningToolMessage ? { activeToolLabel: this.currentRunningToolMessage } : {}),
+				...(this.isActive && this.currentRunningToolIcon ? { activeToolIcon: this.currentRunningToolIcon } : {}),
 			};
 		}
 	}
@@ -300,6 +373,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
 		const { description, isDefaultDescription, agentName, prompt, modelName, credits } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
@@ -621,9 +697,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			if (data.duration === undefined && data.startedAt !== undefined) {
 				data.duration = Math.max(0, Date.now() - data.startedAt);
 			}
-			this._updateOpenChatToolbarContext();
 		}
 		this.isActive = false;
+		this._updateOpenChatToolbarContext();
 		this.domNode.classList.remove('chat-thinking-active');
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
@@ -654,6 +730,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this.wrapper && !this.hasToolsWaitingForConfirmation) {
 			this.showWorkingSpinner();
 		}
+		this._updateOpenChatToolbarContext();
 		this.updateTitle();
 	}
 
@@ -805,7 +882,20 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (modelName && modelName !== this.modelName) {
 			this.modelName = modelName;
 			this.updateHover();
+			this._updateOpenChatToolbarContext();
 		}
+	}
+
+	private getToolLabel(toolInvocation: IChatToolInvocation): string | undefined {
+		if (toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(toolInvocation.toolSpecificData)) {
+			const intention = toolInvocation.toolSpecificData.intention?.replace(/\s+/g, ' ').trim();
+			if (intention) {
+				return intention;
+			}
+		}
+		const message = toolInvocation.invocationMessage;
+		const messageText = typeof message === 'string' ? message : message.value;
+		return messageText.replace(/\s+/g, ' ').trim() || undefined;
 	}
 
 	/**
@@ -822,9 +912,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Set the title immediately when tool is added - like thinking part does
-		const message = toolInvocation.invocationMessage;
-		const messageText = typeof message === 'string' ? message : message.value;
-		this.currentRunningToolMessage = messageText;
+		this.currentRunningToolCallId = toolInvocation.toolCallId;
+		this.currentRunningToolMessage = this.getToolLabel(toolInvocation);
+		this.currentRunningToolIcon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
+		this._updateOpenChatToolbarContext();
 		this.updateTitle();
 		const addToolToCarousel = this._addToolToCarousel;
 		const shouldUseCarouselForTool = this._shouldUseCarouselForTool;
@@ -833,6 +924,14 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		let wasWaitingForCarouselConfirmation = false;
 		const toolStateAutorun = autorun(r => {
 			const state = toolInvocation.state.read(r);
+			if (this.currentRunningToolCallId === toolInvocation.toolCallId) {
+				const toolLabel = this.getToolLabel(toolInvocation);
+				if (toolLabel !== this.currentRunningToolMessage) {
+					this.currentRunningToolMessage = toolLabel;
+					this._updateOpenChatToolbarContext();
+					this.updateTitle();
+				}
+			}
 
 			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
 				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
@@ -993,6 +1092,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						if (toolInvocation.toolSpecificData.modelName) {
 							this.modelName = toolInvocation.toolSpecificData.modelName;
 							this.updateHover();
+							this._updateOpenChatToolbarContext();
 						}
 					}
 					// Credits (AIC) may arrive at or after completion as the
@@ -1016,6 +1116,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					if (modelName) {
 						this.modelName = modelName;
 						this.updateHover();
+						this._updateOpenChatToolbarContext();
 					}
 					this.refreshCreditsFromToolData(toolInvocation);
 					this.renderPromptSection();
@@ -1208,6 +1309,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				? localize('hook.subagent.warning', 'Warning for {0}', hookPart.toolDisplayName)
 				: localize('hook.subagent.warningGeneric', 'Hook warning'));
 		this.currentRunningToolMessage = hookMessage;
+		this.currentRunningToolCallId = undefined;
+		this.currentRunningToolIcon = hookPart.stopReason ? Codicon.error : Codicon.warning;
+		this._updateOpenChatToolbarContext();
 		this.updateTitle();
 
 		if (this.isExpanded() || this.hasExpandedOnce) {

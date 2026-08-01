@@ -9,7 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -124,6 +124,16 @@ interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
 	readonly workingDirectory: URI | undefined;
+	/**
+	 * The additional working directories beyond the primary process root
+	 * ({@link workingDirectory} = index 0). These are the peer roots of a
+	 * multi-root session's ordered set — the directories the agent should be
+	 * granted tool access to in addition to its process cwd. Empty (or absent)
+	 * for a single-root session. Passed through so the SDK can register them as
+	 * extra accessible roots once that surface is available; the process still
+	 * launches in {@link workingDirectory}.
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/**
@@ -165,7 +175,7 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
+export function isCopilotReasoningEffort(value: unknown): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
@@ -228,11 +238,11 @@ function isCustomAgentNotFoundError(err: unknown): boolean {
  * caller/operator is responsible for choosing a level the model supports.
  */
 export function getCopilotReasoningEffort(model: ModelSelection | undefined, effortOverride?: string): SessionConfig['reasoningEffort'] {
-	if (isReasoningEffort(effortOverride)) {
+	if (isCopilotReasoningEffort(effortOverride)) {
 		return effortOverride;
 	}
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
-	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+	return isCopilotReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
 /**
@@ -245,7 +255,7 @@ export function resolveCopilotReasoningEffort(model: ModelSelection | undefined,
 	// '' is the schema's unset marker, so an unset override reads as `undefined`.
 	const override = rawOverride ? rawOverride : undefined;
 	if (override !== undefined) {
-		if (isReasoningEffort(override)) {
+		if (isCopilotReasoningEffort(override)) {
 			logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
 		} else {
 			logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);
@@ -286,7 +296,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
  * no BYOK models, or when enumeration fails; `startProxy` is invoked only once
  * at least one model is present.
  *
- * Each vendor maps to one `type: 'openai'` / `wireApi: 'completions'` provider
+ * Each vendor maps to one `type: 'openai'` / `wireApi: 'responses'` provider
  * whose `baseUrl` points at the proxy and authenticates with the session-scoped
  * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
  * provider-qualified selection id `vendor/id`, matching what the renderer's
@@ -342,7 +352,7 @@ export async function resolveByokSessionConfig(
 	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',
-		wireApi: 'completions',
+		wireApi: 'responses',
 		baseUrl: handle.providerBaseUrl(vendor),
 		bearerToken: `${handle.nonce}.${sessionId}`,
 	}));
@@ -560,6 +570,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
+		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
@@ -599,7 +610,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			skillDirectories,
 			instructionDirectories,
 			systemMessage,
-			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: 1 } : { enabled: false },
+			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],

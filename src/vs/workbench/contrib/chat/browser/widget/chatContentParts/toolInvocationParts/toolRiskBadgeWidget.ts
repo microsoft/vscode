@@ -43,6 +43,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 
 		this.domNode = dom.$(`span.${RISK_BADGE_CLASS}`);
 		this._iconEl = dom.$('span.tool-risk-icon');
+		this._iconEl.setAttribute('aria-hidden', 'true');
 		this._textEl = dom.$('span.tool-risk-text');
 		this._detailsIconEl = dom.$('span.tool-risk-details-icon');
 		this._detailsIconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
@@ -70,7 +71,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 
 	setLoading(): void {
 		this._setVariant('loading');
-		this._setIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
+		this._setIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin'));
 		const text = localize('toolRisk.assessing', "Assessing risk\u2026");
 		this._textEl.textContent = text;
 		this._setHover(localize('toolRisk.assessingHover', "Generating a risk assessment for this tool call."));
@@ -85,15 +86,15 @@ export class ToolRiskBadgeWidget extends Disposable {
 		switch (assessment.risk) {
 			case ToolRiskLevel.Green:
 				this._setVariant('green');
-				this._setIcon(Codicon.pass);
+				this._setIcon(Codicon.passCompact);
 				break;
 			case ToolRiskLevel.Orange:
 				this._setVariant('orange');
-				this._setIcon(Codicon.warning);
+				this._setIcon(Codicon.warningCompact);
 				break;
 			case ToolRiskLevel.Red:
 				this._setVariant('red');
-				this._setText('!');
+				this._setIcon(Codicon.errorCompact);
 				break;
 		}
 		this.domNode.style.display = '';
@@ -127,11 +128,6 @@ export class ToolRiskBadgeWidget extends Disposable {
 	private _setIcon(icon: ThemeIcon): void {
 		this._iconEl.textContent = '';
 		this._iconEl.className = 'tool-risk-icon ' + ThemeIcon.asClassName(icon);
-	}
-
-	private _setText(text: string): void {
-		this._iconEl.className = 'tool-risk-icon';
-		this._iconEl.textContent = text;
 	}
 
 	private _setHover(content: string): void {

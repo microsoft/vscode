@@ -16,13 +16,14 @@ import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, 
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
+import { agentsWindowAgentHostClientInfo, type AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 
@@ -83,6 +84,7 @@ class CountingLogService extends NullLogService {
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	readonly handledActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
+	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly readErrors = new Map<string, Error>();
@@ -105,8 +107,9 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void {
 		this.handledActions.push(action);
+		this.handledClientTypes.push(clientType);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
 	}
@@ -121,7 +124,7 @@ class MockAgentService implements IAgentService {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
-			workingDirectories: config?.workingDirectory ? [config.workingDirectory.toString()] : undefined,
+			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
 		});
 		return session;
 	}
@@ -259,12 +262,13 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[]): MockProtocolTransport {
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: { readonly name: string }): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
+			clientInfo,
 			initialSubscriptions,
 		}));
 		return transport;
@@ -735,6 +739,55 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('listSessions carries the workspace-less marker on _meta', async () => {
+		// Regression: the client resolves a session's kind (quick chat vs.
+		// workspace) from `_meta.workspaceless`, and a listing is the first
+		// thing it sees after a window reload.
+		// Dropping `_meta` here made every restored quick chat look
+		// workspace-bound and leak the host's scratch cwd as a workspace folder.
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Quick Chat',
+			workingDirectories: [URI.file('/home/user/.copilot/chats/session-1')],
+			_meta: withSessionWorkspaceless(undefined, true),
+		});
+
+		const transport = connectClient('client-list-workspaceless');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => readSessionWorkspaceless(item._meta)), [true]);
+	});
+
+	test('listSessions omits _meta when the agent provides none', async () => {
+		// The wire item is built field by field and `satisfies SessionSummary`
+		// cannot catch a dropped optional, so pin the absent case too: a
+		// listing must not start manufacturing an empty `_meta` bag that later
+		// overwrites a richer one on the client.
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session Summary',
+		});
+
+		const transport = connectClient('client-list-no-meta');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => item._meta), [undefined]);
+	});
+
 	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
 		const transport = connectClient('client-create');
 		transport.sent.length = 0;
@@ -971,6 +1024,51 @@ suite('ProtocolServerHandler', () => {
 		if (result.type === 'replay') {
 			assert.strictEqual(result.actions.length, 2);
 		}
+	});
+
+	test('reconnect rejects a client the server no longer remembers', async () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		const responsePromise = waitForResponse(transport, 1);
+		transport.simulateMessage(request(1, 'reconnect', {
+			clientId: 'forgotten-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+
+		const response = await responsePromise;
+		assert.deepStrictEqual((response as { error: { code: number; message: string } }).error, {
+			code: AhpErrorCodes.NotFound,
+			message: 'Reconnect client not found: forgotten-client',
+		});
+		transport.simulateClose();
+	});
+
+	test('retains client info for action attribution across reconnect', async () => {
+		const transport1 = connectClient('client-attribution', undefined, agentsWindowAgentHostClientInfo);
+		transport1.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 1,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-attribution',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 2,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+
+		assert.deepStrictEqual(agentService.handledClientTypes, ['agents_window', 'agents_window']);
 	});
 
 	test('reconnect replays missed changeset actions to changeset subscribers', async () => {

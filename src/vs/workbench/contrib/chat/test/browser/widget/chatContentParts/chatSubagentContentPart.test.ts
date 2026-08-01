@@ -5,14 +5,17 @@
 
 import assert from 'assert';
 import { isHTMLElement } from '../../../../../../../base/browser/dom.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Action, IAction } from '../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestMenuService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -34,6 +37,72 @@ import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../common/constants.js';
+
+class TestOpenChatActionViewItem extends ActionViewItem {
+	constructor(sourceAction: IAction, options: IActionViewItemOptions) {
+		super(undefined, new Action(sourceAction.id, sourceAction.label, sourceAction.class, true, context => sourceAction.run(context)), options);
+		if (this.action instanceof Action) {
+			this._register(this.action);
+		}
+	}
+}
+
+class TestActionViewItemService implements IActionViewItemService {
+	declare _serviceBrand: undefined;
+	private readonly _onDidChange = new Emitter<MenuId>();
+	readonly onDidChange = this._onDidChange.event;
+	private _providerAvailable = true;
+
+	get hasChangeListeners(): boolean {
+		return this._onDidChange.hasListeners();
+	}
+
+	setProviderAvailable(available: boolean): void {
+		this._providerAvailable = available;
+	}
+
+	fireDidChange(menuId: MenuId): void {
+		this._onDidChange.fire(menuId);
+	}
+
+	register(_menu: MenuId, _commandId: string | MenuId, _provider: IActionViewItemFactory): { dispose(): void } {
+		return { dispose: () => { } };
+	}
+
+	lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+		if (!this._providerAvailable || menu !== MenuId.ChatSubagentContent || commandId !== CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID) {
+			return undefined;
+		}
+		return (action, options) => new TestOpenChatActionViewItem(action, options);
+	}
+}
+
+class TestSubagentMenuService extends TestMenuService {
+	createMenuCalls = 0;
+	getMenuActionsCalls = 0;
+
+	constructor(private readonly openChatAction: MenuItemAction) {
+		super();
+	}
+
+	override createMenu(id: MenuId, contextKeyService: IContextKeyService) {
+		this.createMenuCalls++;
+		return super.createMenu(id, contextKeyService);
+	}
+
+	override getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): ReturnType<IMenuService['getMenuActions']> {
+		this.getMenuActionsCalls++;
+		if (id === MenuId.ChatSubagentContent) {
+			return [['navigation', [this.openChatAction]]];
+		}
+		return super.getMenuActions(id, contextKeyService, options);
+	}
+}
 
 suite('ChatSubagentContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,6 +117,8 @@ suite('ChatSubagentContentPart', () => {
 	let mockListPool: CollapsibleListPool;
 	let mockEditorPool: EditorPool;
 	let announcedToolProgressKeys: Set<string>;
+	let actionViewItemService: TestActionViewItemService;
+	let menuService: TestSubagentMenuService;
 
 	function createMockRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -250,6 +321,18 @@ suite('ChatSubagentContentPart', () => {
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 			override isMotionReduced(): boolean { return false; }
 		}());
+		actionViewItemService = new TestActionViewItemService();
+		instantiationService.stub(IActionViewItemService, actionViewItemService);
+		menuService = new TestSubagentMenuService(new MenuItemAction(
+			{ id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' },
+			undefined,
+			{ shouldForwardArgs: true },
+			undefined,
+			undefined,
+			instantiationService.get(IContextKeyService),
+			instantiationService.get(ICommandService),
+		));
+		instantiationService.stub(IMenuService, menuService);
 
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
@@ -305,14 +388,16 @@ suite('ChatSubagentContentPart', () => {
 		return isHTMLElement(wrapper) ? wrapper : undefined;
 	}
 
-	function getOpenChatContext(part: ChatSubagentContentPart): { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number } | undefined {
-		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number } } } })._openChatToolbar?.actionBar?.context;
+	function getOpenChatContext(part: ChatSubagentContentPart): { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number; modelName?: string; activeToolLabel?: string; activeToolIcon?: ThemeIcon } | undefined {
+		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number; modelName?: string; activeToolLabel?: string; activeToolIcon?: ThemeIcon } } } })._openChatToolbar?.actionBar?.context;
 	}
 
 	function setOpenChatOnlyMode(part: ChatSubagentContentPart, enabled: boolean): void {
-		const toolbar = (part as unknown as { _openChatToolbar?: { getItemsLength(): number } })._openChatToolbar;
+		const toolbar = (part as unknown as { _openChatToolbar?: { getItemsLength(): number; getItemAction(index: number): Action | undefined } })._openChatToolbar;
 		assert.ok(toolbar);
-		toolbar.getItemsLength = () => enabled ? 1 : 0;
+		const action = store.add(new Action('openSubagent', 'Open Subagent', '', enabled));
+		toolbar.getItemsLength = () => 1;
+		toolbar.getItemAction = () => action;
 		(part as unknown as { _updateOpenChatOnlyMode(): void })._updateOpenChatOnlyMode();
 	}
 
@@ -353,6 +438,28 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('should use a menu snapshot without persistent menu or action-view listeners', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+
+			assert.deepStrictEqual({
+				hasToolbar: !!(part as unknown as { _openChatToolbar?: object })._openChatToolbar,
+				createMenuCalls: menuService.createMenuCalls,
+				getMenuActionsCalls: menuService.getMenuActionsCalls,
+				hasActionViewListeners: actionViewItemService.hasChangeListeners,
+			}, {
+				hasToolbar: true,
+				createMenuCalls: 0,
+				getMenuActionsCalls: 1,
+				hasActionViewListeners: false,
+			});
+		});
+
 		test('should hide the complete collapsible surface when the open-chat action is available', () => {
 			const part = createPart(createMockToolInvocation({
 				toolSpecificData: {
@@ -376,6 +483,132 @@ suite('ChatSubagentContentPart', () => {
 				collapseButtonDisplay: 'none',
 				animationDisplay: 'none',
 			});
+		});
+
+		test('should hydrate open-chat-only mode when the action view registers after rendering', () => {
+			actionViewItemService.setProviderAvailable(false);
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			const listeningBeforeRegistration = actionViewItemService.hasChangeListeners;
+
+			actionViewItemService.setProviderAvailable(true);
+			actionViewItemService.fireDidChange(MenuId.ChatSubagentContent);
+
+			const collapseButton = getCollapseButton(part);
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			assert.deepStrictEqual({
+				listeningBeforeRegistration,
+				listeningAfterRegistration: actionViewItemService.hasChangeListeners,
+				openChatOnlyClass: part.domNode.classList.contains('chat-subagent-open-chat-only'),
+				collapseButtonDisplay: collapseButton?.style.display,
+				animationDisplay: animationContainer?.style.display,
+			}, {
+				listeningBeforeRegistration: true,
+				listeningAfterRegistration: false,
+				openChatOnlyClass: true,
+				collapseButtonDisplay: 'none',
+				animationDisplay: 'none',
+			});
+		});
+
+		test('should preserve the collapsible surface when the open-chat action is unavailable', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			setOpenChatOnlyMode(part, false);
+
+			const collapseButton = getCollapseButton(part);
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			assert.ok(collapseButton);
+			assert.ok(animationContainer);
+			assert.deepStrictEqual({
+				openChatOnlyClass: part.domNode.classList.contains('chat-subagent-open-chat-only'),
+				collapseButtonDisplay: collapseButton.style.display,
+				animationDisplay: animationContainer.style.display,
+			}, {
+				openChatOnlyClass: false,
+				collapseButtonDisplay: '',
+				animationDisplay: '',
+			});
+		});
+
+		test('should publish the model and newest child tool intent to the open-chat pill', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+					modelName: 'Claude Sonnet 4',
+				}
+			}), createMockRenderContext(false));
+
+			part.trackToolState(createMockToolInvocation({
+				toolCallId: 'child-tool-1',
+				toolId: 'search',
+				invocationMessage: '  Search\n  the codebase  ',
+			}));
+			const first = getOpenChatContext(part);
+			part.trackToolState(createMockToolInvocation({
+				toolCallId: 'child-tool-2',
+				toolId: 'read_file',
+				invocationMessage: 'Read package.json',
+			}));
+			const second = getOpenChatContext(part);
+			part.markAsInactive();
+
+			assert.deepStrictEqual({
+				firstModel: first?.modelName,
+				firstTool: first?.activeToolLabel,
+				firstToolIcon: first?.activeToolIcon?.id,
+				secondTool: second?.activeToolLabel,
+				secondToolIcon: second?.activeToolIcon?.id,
+				completedTool: getOpenChatContext(part)?.activeToolLabel,
+				completedToolIcon: getOpenChatContext(part)?.activeToolIcon,
+			}, {
+				firstModel: 'Claude Sonnet 4',
+				firstTool: 'Search the codebase',
+				firstToolIcon: 'search',
+				secondTool: 'Read package.json',
+				secondToolIcon: 'book',
+				completedTool: undefined,
+				completedToolIcon: undefined,
+			});
+		});
+
+		test('should prefer terminal intention over the raw command invocation message', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+
+			const terminalTool = createMockToolInvocation({
+				toolCallId: 'terminal-tool',
+				invocationMessage: 'Running `grep -rn activeToolLabel src/vs/sessions`',
+			});
+			(terminalTool as { toolSpecificData: IChatToolInvocation['toolSpecificData'] }).toolSpecificData = {
+				kind: 'terminal',
+				commandLine: {
+					original: 'grep -rn activeToolLabel src/vs/sessions',
+					toolEdited: undefined,
+					userEdited: undefined,
+				},
+				intention: 'Find active tool rendering',
+				language: 'bash',
+			};
+			part.trackToolState(terminalTool);
+
+			assert.strictEqual(getOpenChatContext(part)?.activeToolLabel, 'Find active tool rendering');
 		});
 
 		test('should keep collapsed animated content out of keyboard navigation', () => {
