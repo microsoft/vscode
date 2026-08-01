@@ -770,8 +770,9 @@ export class BidirectionalMap<K, V> {
 	}
 
 	set(key: K, value: V): void {
-		if (this._m1.has(key)) {
-			this._m2.delete(this._m1.get(key)!);
+		const previousValue = this._m1.get(key);
+		if (previousValue !== undefined) {
+			this._m2.delete(previousValue);
 		}
 		this._m1.set(key, value);
 		this._m2.set(value, key);
