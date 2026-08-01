@@ -132,18 +132,6 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('PATH=/evil:$PATH ls'), 'denied');
 		});
 
-		test('fails closed on Bash shell state mutations', () => {
-			assert.deepStrictEqual([
-				approver.shouldAutoApprove('FOO=bar && git status'),
-				approver.shouldAutoApprove('export FOO=bar && git status'),
-				approver.shouldAutoApprove('declare -x FOO=bar && git status'),
-				approver.shouldAutoApprove('typeset FOO=bar && git status'),
-				approver.shouldAutoApprove('readonly FOO=bar && git status'),
-				approver.shouldAutoApprove('local FOO=bar && git status'),
-				approver.shouldAutoApprove('FOO=bar git status'),
-			], ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch', 'denied']);
-		});
-
 		// PowerShell
 		test('approves allowed PowerShell commands', () => {
 			assert.strictEqual(approver.shouldAutoApprove('Get-ChildItem'), 'approved');

@@ -71,15 +71,9 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		const trimmedCommandLine = options.commandLine.trimStart();
 
 		let subCommands: string[] | undefined;
-		let hasUnanalyzableSyntax = false;
 		try {
-			const parseResult = await this._treeSitterCommandParser.extractAutoApprovalSubCommands(options.treeSitterLanguage, trimmedCommandLine);
-			subCommands = parseResult.subCommands;
-			hasUnanalyzableSyntax = parseResult.hasUnanalyzableSyntax;
+			subCommands = await this._treeSitterCommandParser.extractSubCommands(options.treeSitterLanguage, trimmedCommandLine);
 			this._log(`Parsed sub-commands via ${options.treeSitterLanguage} grammar`, subCommands);
-			if (hasUnanalyzableSyntax) {
-				this._log('Command line contains syntax that cannot be safely auto-approved');
-			}
 		} catch (e) {
 			console.error(e);
 			this._log(`Failed to parse sub-commands via ${options.treeSitterLanguage} grammar`);
@@ -147,12 +141,6 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			}
 		}
 
-		// Shell-state mutations omitted from normal command extraction must never
-		// auto-approve, even when every extracted sub-command matches an allow rule.
-		if (hasUnanalyzableSyntax) {
-			isAutoApproved = false;
-		}
-
 		// Log detailed auto approval reasoning
 		for (const reason of autoApproveReasons) {
 			this._log(`- ${reason}`);
@@ -207,15 +195,14 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			}
 		}
 
-		// Unanalyzable shell-state syntax cannot be expressed as a safe persistent rule.
-		if (!isAutoApproved && isAutoApproveEnabled && !hasUnanalyzableSyntax) {
+		if (!isAutoApproved && isAutoApproveEnabled) {
 			customActions = generateAutoApproveActions(trimmedCommandLine, subCommands, { subCommandResults, commandLineResult });
 		}
 
 		return {
 			isAutoApproved,
-			// Denied rules stay configurable; unanalyzable syntax cannot be auto-approved safely.
-			isAutoApproveAllowed: !hasUnanalyzableSyntax,
+			// This is not based on isDenied because we want the user to be able to configure it
+			isAutoApproveAllowed: true,
 			disclaimers,
 			autoApproveInfo,
 			customActions,
