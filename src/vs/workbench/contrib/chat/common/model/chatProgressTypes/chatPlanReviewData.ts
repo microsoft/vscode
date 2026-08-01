@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { UriComponents } from '../../../../../../base/common/uri.js';
 import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
@@ -16,6 +17,8 @@ import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 export class ChatPlanReviewData implements IChatPlanReview {
 	public readonly kind = 'planReview' as const;
 	public readonly completion = new DeferredPromise<IChatPlanReviewResult | undefined>();
+	private readonly _onDidDismiss = new Emitter<void>();
+	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
 
 	public draftFeedback: string | undefined;
 	public draftCollapsed: boolean | undefined;
@@ -41,6 +44,7 @@ export class ChatPlanReviewData implements IChatPlanReview {
 		this.draftFeedback = undefined;
 		this.draftCollapsed = undefined;
 		void this.completion.complete(undefined);
+		this._onDidDismiss.fire();
 	}
 
 	toJSON(): IChatPlanReview {
