@@ -34,7 +34,7 @@ import {
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
-import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 
 // #region Record/replay
 
@@ -398,12 +398,13 @@ export async function runAhpSnapshotTest(
 	test: Mocha.Runnable,
 	trackingList: string[],
 	tempDirs: string[],
+	options?: IAhpSnapshotOptions,
 ): Promise<void> {
 	const scenario = AhpSnapshotScenario.load(test);
 	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
 	tempDirs.push(workingDirectory);
 	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
-	await scenario.run(c, sessionUri);
+	await scenario.run(c, sessionUri, options);
 }
 
 export { dispatchTurn, dispatchTurnWithAttachments };

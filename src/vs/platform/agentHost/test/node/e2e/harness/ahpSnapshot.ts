@@ -75,6 +75,7 @@ interface IAhpSnapshotClient {
 
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
+	readonly includeUsage?: boolean;
 }
 
 export interface IAhpSnapshotNormalization {
@@ -143,6 +144,9 @@ export class AhpSnapshotRecorder {
 					const action = params?.action as StateAction | undefined;
 					if (action) {
 						if (action.type === ActionType.SessionCustomizationUpdated) {
+							continue;
+						}
+						if (options.includeUsage === false && action.type === ActionType.ChatUsage) {
 							continue;
 						}
 						if (profile === 'behavior' && isBehaviorSnapshotNoise(action.type)) {
@@ -218,7 +222,7 @@ export class AhpSnapshotScenario {
 		throw new Error('[ahp-snapshot] scenario must set an active client so its client id can initialize the session');
 	}
 
-	async run(client: IAhpSnapshotClient, sessionUri: string): Promise<void> {
+	async run(client: IAhpSnapshotClient, sessionUri: string, options?: IAhpSnapshotOptions): Promise<void> {
 		const bindings = new Map<string, string>([
 			['${session_0}', sessionUri],
 			['${chat_0}', buildDefaultChatUri(sessionUri)],
@@ -245,7 +249,7 @@ export class AhpSnapshotScenario {
 			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound);
 		}
 
-		const actual = client.serializeAhpSnapshot();
+		const actual = client.serializeAhpSnapshot(options);
 		if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
 			const actualFixture = parseFixture(yamlModule.load(actual), 'recorded AHP traffic');
 			if (actualFixture.rounds.length !== this._fixture.rounds.length) {

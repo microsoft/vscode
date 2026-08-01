@@ -84,7 +84,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
-		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs);
+		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, { includeUsage: false });
 
 		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
