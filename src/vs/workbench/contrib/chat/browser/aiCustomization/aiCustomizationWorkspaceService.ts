@@ -55,6 +55,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.HarnessSettings,
 	];
 
 	readonly isSessionsWindow = false;

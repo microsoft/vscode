@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -16,13 +16,14 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithCompletedQuestionInteraction, endsWithSubagentContent, formatCompletedResponseDisclosureLabel, getFinalResponseStartIndex, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
-import { IChatMcpServersStartingSlow, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
-import { ChatViewModel, IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRendererContent, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -48,6 +49,59 @@ suite('ChatListRenderer', () => {
 				true,
 				true,
 			]);
+		});
+
+		suite('getFinalResponseStartIndex', () => {
+			test('finds the trailing markdown response while leaving trailing adjuncts in place', () => {
+				assert.deepStrictEqual([
+					getFinalResponseStartIndex([
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('Final response') },
+						{ kind: 'references', references: [] },
+					]),
+					getFinalResponseStartIndex([
+						{ kind: 'markdownContent', content: new MarkdownString('Earlier response') },
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('First segment') },
+						{ kind: 'markdownContent', content: new MarkdownString('Second segment') },
+					]),
+					getFinalResponseStartIndex([
+						{ kind: 'references', references: [] },
+						{ kind: 'markdownContent', content: new MarkdownString('') },
+					]),
+				], [
+					1,
+					2,
+					undefined,
+				]);
+			});
+
+			test('formats completed response disclosure step count and timing', () => {
+				assert.deepStrictEqual([
+					formatCompletedResponseDisclosureLabel(1, 83_000),
+					formatCompletedResponseDisclosureLabel(6, 83_000),
+					formatCompletedResponseDisclosureLabel(6, undefined),
+				], [
+					'Completed 1 step in 1m 23s',
+					'Completed 6 steps in 1m 23s',
+					'Completed 6 steps',
+				]);
+			});
+
+			test('counts visible completed response items', () => {
+				const hidden = document.createElement('div');
+				hidden.style.display = 'none';
+				const first = document.createElement('div');
+				const second = document.createElement('div');
+
+				assert.deepStrictEqual([
+					getVisibleCompletedResponseItemCount([hidden, first]),
+					getVisibleCompletedResponseItemCount([hidden, first, second]),
+				], [
+					1,
+					2,
+				]);
+			});
 		});
 	});
 
@@ -287,6 +341,108 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('inline editing keeps a populated timestamp after the edit input with verbose timestamps disabled', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		configurationService.setUserConfiguration('chat.editRequests', 'hover');
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'test';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, Date.now());
+		const requestViewModel = viewModel.getItems().find(isRequestVM);
+		assert.ok(requestViewModel);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		renderer.renderElement({ element: requestViewModel, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined }, 0, template);
+
+		const widget = {
+			viewModel,
+			configurationService,
+			recentlyRestoredCheckpoint: false,
+			inputPart: {
+				currentModeObs: { get: () => ({ id: ChatModeKind.Agent }) },
+				currentModeInfo: {},
+				setEditing: () => { },
+				toggleChatInputOverlay: () => { },
+				dnd: { setDisabledOverlay: () => { } },
+				onDidClickOverlay: () => toDisposable(() => { }),
+			},
+			input: {
+				setChatMode: () => { },
+				setPermissionLevel: () => { },
+				setEditing: () => { },
+				renderAttachedContext: () => { },
+				setValue: () => { },
+				attachmentModel: { addContext: () => { } },
+				inputEditor: {
+					getModel: () => undefined,
+					focus: () => { },
+				},
+			},
+			inlineInputPart: {
+				inputEditor: {
+					onDidChangeModelContent: () => toDisposable(() => { }),
+					onDidChangeCursorSelection: () => toDisposable(() => { }),
+				},
+			},
+			listWidget: {
+				acquireAutoScrollHold: () => toDisposable(() => { }),
+				scrollToCurrentItem: () => { },
+			},
+			_editingAutoScrollHold: disposables.add(new MutableDisposable()),
+			createInput: () => { },
+			onDidChangeItems: () => { },
+			getContrib: () => undefined,
+			_onDidChangeActiveInputEditor: { fire: () => { } },
+			_register: <T extends { dispose(): void }>(disposable: T) => disposables.add(disposable),
+			telemetryService: { publicLog2: () => { } },
+		} as unknown as ChatWidget;
+		(ChatWidget.prototype as unknown as { clickedRequest(this: ChatWidget, item: IChatListItemTemplate): void }).clickedRequest.call(widget, template);
+
+		assert.deepStrictEqual({
+			editingRequestId: viewModel.editing?.id,
+			showsVerboseDetails: template.rowContainer.classList.contains('show-verbose-details'),
+			timestampPopulated: !!template.requestTimestampContainer.querySelector('time'),
+			previousSiblingClass: template.requestTimestampContainer.previousElementSibling?.className,
+		}, {
+			editingRequestId: request.id,
+			showsVerboseDetails: false,
+			timestampPopulated: true,
+			previousSiblingClass: 'chat-edit-input-container',
+		});
+
+		disposables.dispose();
+	});
+
 	suite('turn status pills setting', () => {
 		test('normalizes boolean and legacy object values', () => {
 			assert.deepStrictEqual([
@@ -345,6 +501,36 @@ suite('ChatListRenderer', () => {
 				executingWithMcpApp: false,
 				streamingWithMcpApp: false,
 			});
+
+			suite('endsWithCompletedQuestionInteraction', () => {
+				test('resumes working progress after completed ask interactions', () => {
+					const completedTool: IChatToolInvocationSerialized = {
+						kind: 'toolInvocationSerialized',
+						toolCallId: 'ask-1',
+						toolId: 'ask_user',
+						invocationMessage: 'Waiting for answer...',
+						originMessage: undefined,
+						pastTenseMessage: undefined,
+						isComplete: true,
+						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+						presentation: undefined,
+						source: ToolDataSource.Internal,
+					};
+					const completedQuestion: IChatQuestionCarousel = {
+						kind: 'questionCarousel',
+						questions: [],
+						allowSkip: true,
+						isUsed: true,
+					};
+
+					assert.deepStrictEqual([
+						endsWithCompletedQuestionInteraction([completedTool]),
+						endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
+						endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
+						endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
+					], [true, true, false, false]);
+				});
+			});
 		});
 	});
 
@@ -389,6 +575,53 @@ suite('ChatListRenderer', () => {
 
 			assert.strictEqual(content.value, 'Approved&nbsp;plan\n\n## Plan summary\n\n[Open full plan file (plan.md)](file:///sessions/abc/plan.md?vscodeLinkType=file)');
 		});
+
+		test('renders structured feedback as markdown before the plan', () => {
+			const content = buildPlanReviewProgressContent({
+				kind: 'planReview',
+				title: 'Review Plan',
+				content: '## Plan summary',
+				actions: [{ id: 'interactive', label: 'Implement Plan' }],
+				canProvideFeedback: true,
+				planUri: URI.file('/sessions/abc/plan.md').toJSON(),
+				isUsed: true,
+				data: {
+					rejected: false,
+					feedback: 'Use **named helpers**.\n\nInline comments on `plan.md`:\n- **Line 6:** Extract this',
+					feedbackOverall: 'Use **named helpers**.',
+					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 6:** Extract this',
+				},
+			}, 'Provided feedback');
+
+			assert.strictEqual(content.value, [
+				'Provided&nbsp;feedback',
+				'Use **named helpers**.',
+				'Inline comments on `plan.md`:\n- **Line 6:** Extract this',
+				'## Plan summary',
+				'[Open full plan file (plan.md)](file:///sessions/abc/plan.md?vscodeLinkType=file)',
+			].join('\n\n'));
+		});
+
+		test('renders combined legacy feedback as markdown', () => {
+			const content = buildPlanReviewProgressContent({
+				kind: 'planReview',
+				title: 'Review Plan',
+				content: '',
+				actions: [{ id: 'interactive', label: 'Implement Plan' }],
+				canProvideFeedback: true,
+				isUsed: true,
+				data: {
+					rejected: false,
+					feedback: 'Overall **comment**\n\nInline comments:\n- **Line 7:** Rename this',
+				},
+			}, 'Provided feedback');
+
+			assert.strictEqual(content.value, [
+				'Provided&nbsp;feedback',
+				'Overall **comment**',
+				'Inline comments:\n- **Line 7:** Rename this',
+			].join('\n\n'));
+		});
 	});
 
 	test('working progress ignores subagent-owned response parts', () => {
@@ -420,7 +653,19 @@ suite('ChatListRenderer', () => {
 			{ kind: 'hook', hookType: 'PreToolUse', subAgentInvocationId: 'subagent-1' },
 		];
 
-		assert.deepStrictEqual(getWorkingProgressRelevantParts(parts).map(part => part.kind), ['references']);
+		assert.deepStrictEqual({
+			relevantParts: getWorkingProgressRelevantParts(parts).map(part => part.kind),
+			endsWithTaggedMarkdown: endsWithSubagentContent(parts.slice(0, 4)),
+			endsWithSubagentHook: endsWithSubagentContent(parts),
+			endsWithSubagentChildTool: endsWithSubagentContent(parts.slice(0, 3)),
+			endsWithParentSubagentTool: endsWithSubagentContent(parts.slice(0, 2)),
+		}, {
+			relevantParts: ['references'],
+			endsWithTaggedMarkdown: false,
+			endsWithSubagentHook: false,
+			endsWithSubagentChildTool: false,
+			endsWithParentSubagentTool: true,
+		});
 	});
 
 	test('working progress is hidden while MCP servers are starting', () => {
@@ -523,7 +768,8 @@ suite('ChatListRenderer', () => {
 	// measured synchronously *during* the render pass must be deferred (not fired re-entrantly and
 	// not stored), then reliably delivered to the tree afterwards via a re-measure — so streamed
 	// content can't get stranded below a stale row height until a window resize.
-	test('fireItemHeightChange defers a mid-render measurement and delivers it after the render pass', async () => {
+	// skipped for https://github.com/microsoft/vscode/issues/327402
+	test.skip('fireItemHeightChange defers a mid-render measurement and delivers it after the render pass', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();

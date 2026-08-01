@@ -21,6 +21,11 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
  * in other layers) can import it without pulling in the node-only concrete
  * implementation and its transitive native dependencies (`node:sqlite`).
  */
+export const AgentHostSessionTitleSpanName = 'vscode.agent_host.session.title_changed';
+
+export const AgentHostSessionTitleAttribute = 'vscode.agent_host.session.title';
+export const AgentHostSessionUriAttribute = 'vscode.agent_host.session.uri';
+
 export interface IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 
@@ -35,6 +40,15 @@ export interface IAgentHostOTelService {
 	 * Path of the SQLite span store, or `undefined` when DB mode is off.
 	 */
 	getSpansDbPath(): URI | undefined;
+
+	/**
+	 * Emits a standalone metadata span carrying the latest title for an
+	 * agent-host session, correlated to the provider's telemetry by its
+	 * conversation id (e.g. the Copilot SDK conversation id or the Claude SDK
+	 * session id). No span is emitted when telemetry or content capture is
+	 * disabled.
+	 */
+	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void;
 
 	/**
 	 * Drain any in-flight outbound forwarding. Safe to call concurrently with

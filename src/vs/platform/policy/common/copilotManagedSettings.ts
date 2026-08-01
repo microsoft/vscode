@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
-import { IExtraKnownMarketplaceEntry, extraKnownMarketplacesToConfigDict } from '../../../base/common/managedSettings.js';
+import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceEntry, extraKnownMarketplacesToConfigDict } from '../../../base/common/managedSettings.js';
 import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { isEmptyObject, isObject, isString } from '../../../base/common/types.js';
@@ -13,6 +13,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { PolicyDefinition } from './policy.js';
 
 export type { ManagedSettingsData } from '../../../base/common/policy.js';
+
+export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
@@ -40,6 +42,24 @@ export const COPILOT_ALLOWED_MCP_SERVERS_KEY = 'allowedMcpServers';
 
 /** Managed-settings key for the per-server MCP denylist (carried as a JSON-encoded array of matcher entries; deny always takes precedence over allow). */
 export const COPILOT_DENIED_MCP_SERVERS_KEY = 'deniedMcpServers';
+
+/** Managed-settings key that blocks standalone user/workspace customizations. */
+export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY = 'strictPluginOnlyCustomization';
+
+/** Managed-settings key that makes the enterprise MCP allowlist authoritative. */
+export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY = 'allowManagedMcpServersOnly';
+
+/** Managed-settings key that allows hooks only from managed sources. */
+export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
+export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG = 'chat.customizations.strictPluginOnlyCustomization';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY}. */
+export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG = 'chat.mcp.allowManagedServersOnly';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY}. */
+export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG = 'chat.hooks.allowManagedOnly';
 
 /**
  * Managed-settings key for the default chat model (carried as a plain string: `auto`, a model
@@ -417,11 +437,11 @@ function encodeArray(value: unknown): unknown[] | undefined {
 }
 
 /**
- * Encode the schema's `{ [id]: { source } }` marketplace map into the canonical
- * `{ [name]: url-or-shorthand }` dict; drops malformed entries (with an optional warning) and omits
+ * Encode the schema's `{ [id]: { source, autoUpdate? } }` marketplace map into the canonical
+ * policy dict; drops malformed entries (with an optional warning) and omits
  * the key when there are none.
  */
-function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void): Record<string, string> | undefined {
+function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void): ExtraKnownMarketplacesConfigDict | undefined {
 	return extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn));
 }
 
@@ -510,8 +530,8 @@ function withNestedManagedKeyDeleted(obj: Record<string, unknown>, dottedKey: st
  * - Structured settings (declared in {@link STRUCTURED_MANAGED_SETTINGS}) are carried as canonical
  *   JSON strings under a single key each — the same shape an admin authors via native MDM.
  *   `PolicyConfiguration` parses the JSON back into the object-typed setting on read.
- *   `extraKnownMarketplaces` is normalized from the schema's `{ [id]: { source } }` map to the
- *   `{ [name]: url-or-shorthand }` dict.
+ *   `extraKnownMarketplaces` is normalized from the schema's `{ [id]: { source, autoUpdate? } }`
+ *   map to the policy-backed marketplace dict.
  *
  * Malformed marketplace entries are dropped (with an optional warning via {@link onWarn}) rather
  * than throwing, so a bad enterprise settings file degrades gracefully instead of blocking startup.
@@ -539,7 +559,7 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 }
 
 /**
- * Normalize the schema's `{ [id]: { source } }` marketplace map into an
+ * Normalize the schema's `{ [id]: { source, autoUpdate? } }` marketplace map into an
  * {@link IExtraKnownMarketplaceEntry} array, preserving the marketplace `name`,
  * source discriminator, and any `ref`. Malformed or off-spec entries are dropped
  * (with an optional warning via {@link onWarn}).
@@ -555,12 +575,17 @@ function normalizeExtraKnownMarketplaces(value: unknown, onWarn?: (msg: string) 
 			onWarn?.(`Skipping malformed extraKnownMarketplaces entry "${name}": expected { source: { source, repo|url } }`);
 			continue;
 		}
-		const src = (entry as Record<string, unknown>).source as { source?: string; repo?: string; url?: string; ref?: string };
+		const rawEntry = entry as Record<string, unknown>;
+		const src = rawEntry.source as { source?: string; repo?: string; url?: string; ref?: string };
+		const autoUpdate = typeof rawEntry.autoUpdate === 'boolean' ? rawEntry.autoUpdate : undefined;
+		if (rawEntry.autoUpdate !== undefined && autoUpdate === undefined) {
+			onWarn?.(`Ignoring invalid autoUpdate for extraKnownMarketplaces entry "${name}": expected boolean`);
+		}
 		let normalized: IExtraKnownMarketplaceEntry | undefined;
 		if (src.source === 'github' && isString(src.repo)) {
-			normalized = { name, source: { source: 'github', repo: src.repo, ...(src.ref ? { ref: src.ref } : {}) } };
+			normalized = { name, ...(autoUpdate === undefined ? {} : { autoUpdate }), source: { source: 'github', repo: src.repo, ...(src.ref ? { ref: src.ref } : {}) } };
 		} else if (src.source === 'git' && isString(src.url)) {
-			normalized = { name, source: { source: 'git', url: src.url, ...(src.ref ? { ref: src.ref } : {}) } };
+			normalized = { name, ...(autoUpdate === undefined ? {} : { autoUpdate }), source: { source: 'git', url: src.url, ...(src.ref ? { ref: src.ref } : {}) } };
 		} else if (src.source === 'github' || src.source === 'git') {
 			onWarn?.(`Skipping extraKnownMarketplaces entry "${name}": source "${src.source}" requires ${src.source === 'github' ? '"repo"' : '"url"'}`);
 		} else {
@@ -578,12 +603,16 @@ export const IFileManagedSettingsService = createDecorator<IFileManagedSettingsS
 
 export interface IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData;
 	readonly managedSettings: ManagedSettingsData;
+	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData = {};
 	readonly managedSettings: ManagedSettingsData = {};
+	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
 }

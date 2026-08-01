@@ -6,12 +6,18 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IAhpTerminalCommandSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
+import { generateAutoApproveActions } from '../../chatAgentTools/browser/runInTerminalHelpers.js';
+import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../chatAgentTools/browser/treeSitterCommandParser.js';
+import { CommandLineAutoApprover } from '../../chatAgentTools/browser/tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
 import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
@@ -36,11 +42,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _terminalInstancesByExecutionId = new Map<string, ITerminalInstance>();
 	private readonly _terminalInstanceListenersByExecutionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _ahpCommandSources = new Map<string, { source: IAhpTerminalCommandSource; promisedTerminal: Promise<ITerminalInstance> }>();
+	private readonly _outputSources = new Map<string, IChatTerminalOutputSource>();
 
 	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
 	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
 	private readonly _onDidRegisterTerminalInstanceForToolSession = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+	private readonly _onDidRegisterOutputSource = this._register(new Emitter<string>());
+	readonly onDidRegisterOutputSource: Event<string> = this._onDidRegisterOutputSource.event;
 
 	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
 	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
@@ -68,12 +77,21 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	 */
 	private readonly _sessionAutoApproveRules = new ResourceMap<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>();
 
+	/**
+	 * Lazily created analysis helpers backing {@link getAutoApproveActions}. These are only
+	 * needed for confirmations that arrive without pre-computed actions (eg. agent host
+	 * sessions), so avoid paying for tree-sitter until first use.
+	 */
+	private _autoApproveCommandParser: TreeSitterCommandParser | undefined;
+	private _autoApproveEvaluator: CommandLineAutoApprover | undefined;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -232,6 +250,20 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
 		return this._chatSessionResourceByTerminalInstance.get(instance);
+	}
+
+	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable {
+		this._outputSources.set(terminalToolSessionId, source);
+		this._onDidRegisterOutputSource.fire(terminalToolSessionId);
+		return toDisposable(() => {
+			if (this._outputSources.get(terminalToolSessionId) === source) {
+				this._outputSources.delete(terminalToolSessionId);
+			}
+		});
+	}
+
+	getOutputSource(terminalToolSessionId: string | undefined): IChatTerminalOutputSource | undefined {
+		return terminalToolSessionId ? this._outputSources.get(terminalToolSessionId) : undefined;
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
@@ -397,6 +429,40 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
 		return this._sessionAutoApproveRules.get(chatSessionResource) ?? {};
+	}
+
+	async getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell'): Promise<ToolConfirmationAction[] | undefined> {
+		const trimmedCommandLine = commandLine.trimStart();
+		if (trimmedCommandLine.length === 0) {
+			return undefined;
+		}
+		this._autoApproveCommandParser ??= this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
+		const treeSitterLanguage = language === 'powershell' ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
+		let subCommands: string[];
+		try {
+			const parseResult = await this._autoApproveCommandParser.extractAutoApprovalSubCommands(treeSitterLanguage, trimmedCommandLine);
+			if (parseResult.hasUnanalyzableSyntax) {
+				return undefined;
+			}
+			subCommands = parseResult.subCommands;
+		} catch (e) {
+			this._logService.warn('Failed to parse sub-commands when generating auto approve actions', e);
+			return undefined;
+		}
+		if (subCommands.length === 0) {
+			return undefined;
+		}
+		const shell = language === 'powershell' ? 'pwsh' : 'bash';
+		const evaluator = this._autoApproveEvaluator ??= this._register(this._instantiationService.createInstance(CommandLineAutoApprover));
+		// Evaluate against persisted configuration rules only — deliberately no
+		// chat session resource, so workbench session rules (which the agent
+		// host does not consume) neither suppress suggestions nor get offered
+		// (`skipSessionScoped`). Session rules are not forwarded to the agent
+		// host yet, so anything session-scoped would appear to work while
+		// later commands still prompt.
+		const subCommandResults = await Promise.all(subCommands.map(e => evaluator.isCommandAutoApproved(e, shell, OS, undefined)));
+		const commandLineResult = evaluator.isCommandLineAutoApproved(trimmedCommandLine);
+		return generateAutoApproveActions(trimmedCommandLine, subCommands, { subCommandResults, commandLineResult }, { skipSessionScoped: true });
 	}
 
 	continueInBackground(terminalToolSessionId: string): void {

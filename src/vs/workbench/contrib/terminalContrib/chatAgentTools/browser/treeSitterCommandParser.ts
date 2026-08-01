@@ -19,6 +19,11 @@ export const enum TreeSitterCommandParserLanguage {
 	PowerShell = 'powershell',
 }
 
+export interface IAutoApprovalCommandParseResult {
+	readonly subCommands: string[];
+	readonly hasUnanalyzableSyntax: boolean;
+}
+
 /**
  * Matches a PowerShell command token of the form `-flag=` or `--flag=` at the
  * start of input or following whitespace. Used to work around a tree-sitter
@@ -30,6 +35,8 @@ export const enum TreeSitterCommandParserLanguage {
  * TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
  */
 const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
+
+const envOptionsWithValue = new Set(['-u', '--unset', '-C', '--chdir', '-a', '--argv0']);
 
 // TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
 function maskPwshFlagEquals(commandLine: string): string {
@@ -62,6 +69,29 @@ export class TreeSitterCommandParser extends Disposable {
 		}
 		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
 		return captures.map(e => e.node.text);
+	}
+
+	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
+		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
+		const query = languageId === TreeSitterCommandParserLanguage.PowerShell
+			? '(command) @command (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
+			: '(command) @command (variable_assignment) @unanalyzable (declaration_command) @unanalyzable';
+		const captures = await this._queryTree(languageId, masked, query);
+		const subCommands: string[] = [];
+		let hasUnanalyzableSyntax = false;
+		for (const capture of captures) {
+			if (capture.name === 'command') {
+				subCommands.push(masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex));
+			} else if (capture.name === 'unanalyzable') {
+				// Prefix env assignments (`FOO=bar git status`) are children of the
+				// command node and are handled by the existing transient-env deny
+				// path; only standalone shell-state mutations fail closed here.
+				if (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command') {
+					hasUnanalyzableSyntax = true;
+				}
+			}
+		}
+		return { subCommands, hasUnanalyzableSyntax };
 	}
 
 	async extractPwshDoubleAmpersandChainOperators(commandLine: string): Promise<QueryCapture[]> {
@@ -174,15 +204,46 @@ export class TreeSitterCommandParser extends Disposable {
 			commandIndex++;
 		}
 
-		const keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
+		let keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
 		if (!keyword) {
 			return undefined;
+		}
+		if (keyword === 'env') {
+			const wrappedCommandIndex = this._getEnvWrappedCommandIndex(tokens, commandIndex + 1);
+			if (wrappedCommandIndex !== undefined) {
+				commandIndex = wrappedCommandIndex;
+				keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
+				if (!keyword) {
+					return undefined;
+				}
+			}
 		}
 
 		return {
 			keyword,
 			args: tokens.slice(commandIndex + 1),
 		};
+	}
+
+	private _getEnvWrappedCommandIndex(tokens: readonly string[], startIndex: number): number | undefined {
+		for (let i = startIndex; i < tokens.length; i++) {
+			const token = tokens[i];
+			if (this._isVariableAssignment(token)) {
+				continue;
+			}
+			if (token === '--') {
+				return i + 1 < tokens.length ? i + 1 : undefined;
+			}
+			if (token === '-' || token.startsWith('-')) {
+				const option = token.includes('=') ? token.substring(0, token.indexOf('=')) : token;
+				if (!token.includes('=') && envOptionsWithValue.has(option)) {
+					i++;
+				}
+				continue;
+			}
+			return i;
+		}
+		return undefined;
 	}
 
 	/**

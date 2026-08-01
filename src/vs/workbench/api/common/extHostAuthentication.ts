@@ -10,7 +10,7 @@ import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape 
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -204,7 +204,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$getSessions(providerId: string, scopes: ReadonlyArray<string> | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+	$getSessions(providerId: string, scopes: ReadonlyArray<string> | undefined, options: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		return this._providerOperations.queue(providerId, async () => {
 			const providerData = this._authenticationProviders.get(providerId);
 			if (providerData) {
@@ -489,6 +489,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		protected _clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
+		private readonly _fetch: typeof fetch = fetch,
 	) {
 		const stringifiedServer = authorizationServer.toString(true);
 		// Auth Provider Id is a combination of the authorization server and the resource, if provided.
@@ -533,7 +534,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		return this._clientSecret;
 	}
 
-	async getSessions(scopes: readonly string[] | undefined, _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
+	async getSessions(scopes: readonly string[] | undefined, options: IAuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 		this._logger.info(`Getting sessions for scopes: ${scopes?.join(' ') ?? 'all'}`);
 		if (!scopes) {
 			return this._tokenStore.sessions;
@@ -564,7 +565,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 							continue;
 						}
 						try {
-							const newToken = await this.exchangeRefreshTokenForToken(token.refresh_token);
+							const newToken = await this.exchangeRefreshTokenForToken(token.refresh_token, options.silent !== true);
 							// TODO@TylerLeonhardt: When the core scope handling doesn't care about order, this check should be
 							// updated to not care about order
 							if (newToken.scope !== scopeStr) {
@@ -796,7 +797,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._logger.trace(`Token request body: ${tokenRequest.toString()}`);
 		let response: Response;
 		try {
-			response = await fetch(this._serverMetadata.token_endpoint, {
+			response = await this._fetch(this._serverMetadata.token_endpoint, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
@@ -826,7 +827,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		throw new Error(`Invalid authorization token response: ${JSON.stringify(result)}`);
 	}
 
-	protected async exchangeRefreshTokenForToken(refreshToken: string): Promise<IAuthorizationToken> {
+	protected async exchangeRefreshTokenForToken(refreshToken: string, allowClientRegistration: boolean): Promise<IAuthorizationToken> {
 		if (!this._serverMetadata.token_endpoint) {
 			throw new Error('Token endpoint not available in server metadata');
 		}
@@ -846,7 +847,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			tokenRequest.append('client_secret', this._clientSecret);
 		}
 
-		const response = await fetch(this._serverMetadata.token_endpoint, {
+		const response = await this._fetch(this._serverMetadata.token_endpoint, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/x-www-form-urlencoded',
@@ -862,6 +863,10 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				created_at: Date.now(),
 			};
 		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
+			if (!allowClientRegistration) {
+				this._logger.warn(`Client ID (${this._clientId}) was invalid while silently refreshing the token.`);
+				throw new Error(`Client ID was invalid while silently refreshing the token.`);
+			}
 			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
 			await this._generateNewClientId();
 			throw new Error(`Client ID was invalid, generated a new one. Please try again.`);

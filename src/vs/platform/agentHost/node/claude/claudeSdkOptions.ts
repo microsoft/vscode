@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -28,6 +29,14 @@ import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsMo
 export interface IBuildOptionsInput {
 	readonly sessionId: string;
 	readonly workingDirectory: URI;
+	/**
+	 * Additional directories (index 1..N of the session's ordered set) the agent
+	 * is granted tool access to beyond the primary {@link workingDirectory}
+	 * (index 0 → `Options.cwd`). Projected onto `Options.additionalDirectories`
+	 * as absolute paths. Omitted from the returned options entirely when empty so
+	 * a single-root session keeps the SDK default (no additional directories).
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly model: ModelSelection | undefined;
 	readonly abortController: AbortController;
 	readonly permissionMode: ClaudePermissionMode;
@@ -110,11 +119,20 @@ export async function buildOptions(
 			: {}),
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 		USE_BUILTIN_RIPGREP: '0',
+		// Attribute the CLI's tool subprocesses (`gh`, …) to VS Code.
+		// `settings.env` is what the CLI layers onto the commands it runs, so it
+		// needs the marker in addition to the spawn env below. Note the CLI
+		// re-stamps `AI_AGENT` as `claude-code_<version>_agent` for its own Bash
+		// tool, so commands from that tool are not attributed to VS Code.
+		[AiAgentEnvVar]: AiAgentEnvValue,
 		PATH: `${dirname(resolvedRgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 	};
 
 	return {
 		cwd: input.workingDirectory.fsPath,
+		...(input.additionalDirectories && input.additionalDirectories.length > 0
+			? { additionalDirectories: input.additionalDirectories.map(d => d.fsPath) }
+			: {}),
 		executable: process.execPath as 'node',
 		env: subprocessEnv,
 		abortController: input.abortController,
@@ -215,8 +233,9 @@ export function buildModelEnumerationOptions(): Options {
  *
  * In both modes the agent host's own `NODE_OPTIONS`, `ELECTRON_*`, and
  * `VSCODE_*` variables are stripped (they break the Electron-node subprocess),
- * and `ELECTRON_RUN_AS_NODE=1` is set. Mirror of CopilotAgent's strip pattern
- * at copilotAgent.ts:434-450.
+ * `ELECTRON_RUN_AS_NODE=1` is set, and `AI_AGENT` is pinned so the sparse
+ * proxied env still announces the originating VS Code surface. Mirror of the
+ * strip pattern in `CopilotAgent._ensureClient()`.
  *
  * Exported for unit testing as a pure function over `process.env`.
  */
@@ -232,8 +251,13 @@ export function buildSubprocessEnv(proxied: boolean = true): Record<string, stri
 			ANTHROPIC_API_KEY: undefined,
 			HOME: process.env['HOME'],
 			USERPROFILE: process.env['USERPROFILE'],
+			// Load rules from additional directories https://code.claude.com/docs/en/memory#load-from-additional-directories
+			CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
 		}
 		: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
+	// Replace semantics mean the sparse (proxied) env would otherwise drop the
+	// agent host's own marker, so set it in both modes. See `AiAgentEnvVar`.
+	env[AiAgentEnvVar] = AiAgentEnvValue;
 	for (const key of Object.keys(process.env)) {
 		if (key === 'ELECTRON_RUN_AS_NODE') { continue; }
 		if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {

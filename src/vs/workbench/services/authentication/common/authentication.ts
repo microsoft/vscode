@@ -129,6 +129,10 @@ export interface IAuthenticationConstraint {
  */
 export interface IAuthenticationGetSessionsOptions {
 	/**
+	 * Whether the provider must avoid user interaction while resolving existing sessions.
+	 */
+	silent?: boolean;
+	/**
 	 * The account that is being asked about. If this is passed in, the provider should
 	 * attempt to return the sessions that are only related to this account.
 	 */
@@ -418,6 +422,10 @@ export interface IAuthenticationExtensionsService {
  * Options passed to the authentication provider when asking for sessions.
  */
 export interface IAuthenticationProviderSessionOptions {
+	/**
+	 * Whether the provider must avoid user interaction while resolving existing sessions.
+	 */
+	silent?: boolean;
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
 	 * attempt to return the sessions that are only related to this account.

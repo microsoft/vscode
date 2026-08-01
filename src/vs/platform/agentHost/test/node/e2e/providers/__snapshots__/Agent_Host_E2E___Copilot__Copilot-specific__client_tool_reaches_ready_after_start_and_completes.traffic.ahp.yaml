@@ -165,7 +165,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: The magic word is **XYLOPHONE**.
+            content: 'The magic word is: **XYLOPHONE**'
       - channel: ${chat_0}
         action:
           type: chat/usage

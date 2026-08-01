@@ -81,6 +81,8 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'chat.mcp.discovery.enabled': false,
 		'chat.mcp.enabled': false,
 		'chat.disableAIFeatures': false,
+		// This suite exercises the extension-host session providers directly.
+		'chat.agentHost.enabled': false,
 		'github.copilot.chat.backgroundAgent.enabled': true,
 		'github.copilot.chat.claudeAgent.enabled': true,
 		'github.copilot.chat.claudeAgent.useSdkExtension': false,
@@ -153,7 +155,7 @@ export function setup(logger: Logger) {
 		});
 
 		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
 			logger.log(`[Chat Sessions] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
 			return {
 				...opts,

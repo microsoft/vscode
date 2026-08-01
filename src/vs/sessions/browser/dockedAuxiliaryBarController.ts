@@ -20,11 +20,7 @@ export interface IDockedAuxiliaryBarHost {
 	isAuxiliaryBarVisible(): boolean;
 	/** Hide the docked auxiliary bar via the workbench part-visibility API. */
 	hideAuxiliaryBar(): void;
-	/**
-	 * Reserves an inset (px) on the right of the editor content while the editor
-	 * tab bar keeps the full width, so the docked panel can sit beside it. `0`
-	 * restores full-width content.
-	 */
+	/** Reserves space on the right of the breadcrumbs and editor pane while tabs remain full-width. */
 	setEditorContentRightInset(px: number): void;
 	/** Extra top offset (px) below the tab bar, e.g. reserved by the full-width header. */
 	getHeaderHeight(): number;

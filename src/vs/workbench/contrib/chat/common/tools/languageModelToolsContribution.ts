@@ -306,6 +306,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						{
 							icon: Codicon.extensions,
 							description: extension.description.displayName ?? extension.description.name,
+							hiddenInToolsPicker: true,
 						}
 					);
 					const store = new DisposableStore();

@@ -12,6 +12,14 @@ export const ILocalTranscriptionService = createDecorator<ILocalTranscriptionSer
 /** IPC channel name used to reach the transcription service in the utility process. */
 export const localTranscriptionChannelName = 'localTranscription';
 
+/** Default on-device model used for dictation. */
+export const DEFAULT_LOCAL_TRANSCRIPTION_MODEL = 'nemotron-3.5-asr-streaming-0.6b';
+
+export interface ILocalTranscriptionModelImportResult {
+	readonly model: string;
+	readonly version: number;
+}
+
 /** Lifecycle of the downloaded transcription model. */
 export const enum LocalTranscriptionModelState {
 	/** Model has not been requested yet. */
@@ -64,12 +72,11 @@ export interface ILocalTranscriptionResult {
 /**
  * On-device speech-to-text using a downloaded model. Transcription runs through
  * Microsoft's Foundry Local streaming ASR engine (onnxruntime + onnxruntime-genai
- * native runtime), which handles decoding, VAD and endpointing internally; the
- * default model is NVIDIA's `nemotron-speech-streaming-en-0.6b` streaming RNN-T
- * (the model the GitHub Copilot app ships for dictation). The model is chosen by
- * the `chat.speechToText.model` setting. Runs in a utility process. A single
- * transcription session is active at a time (dictation is a singleton in the
- * renderer).
+ * native runtime), which handles decoding, VAD and endpointing internally. The
+ * default model is NVIDIA's multilingual Nemotron 3.5 streaming RNN-T. The model
+ * is chosen by the `dictation.model` setting. Runs in a utility process. A
+ * single transcription session is active at a time (dictation is a singleton
+ * in the renderer).
  *
  * The renderer streams PCM16 mono 16 kHz audio via `pushAudio`; the service
  * emits interim transcripts on `onDidTranscribe` and a final one after `stop`.
@@ -93,6 +100,12 @@ export interface ILocalTranscriptionService {
 
 	/** Current model status (e.g. to gate the dictation UI). */
 	getModelStatus(): Promise<ILocalTranscriptionModelStatus>;
+
+	/**
+	 * Imports the default on-device model from an official Foundry Local expansion
+	 * pack or a prepared model directory into `cacheDir`.
+	 */
+	importModel(options: { readonly sourcePath: string; readonly cacheDir: string }): Promise<ILocalTranscriptionModelImportResult>;
 
 	/**
 	 * Ensure the model is downloaded/loaded (idempotent) and begin a new

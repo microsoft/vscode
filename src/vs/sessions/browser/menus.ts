@@ -33,6 +33,12 @@ export const Menus = {
 	GoMenu: new MenuId('SessionsGoMenu'),
 	AgentFeedbackEditorContent: new MenuId('AgentFeedbackEditorContent'),
 
+	/** Header actions of the test custom view. */
+	CustomViewTest: new MenuId('SessionsCustomViewTest'),
+
+	/** Header actions of the Automations custom view. */
+	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
