@@ -8,15 +8,8 @@
  * name (used as `displayLabel`) and the original `source` discriminator.
  */
 export type IExtraKnownMarketplaceEntry =
-	| { readonly name: string; readonly autoUpdate?: boolean; readonly source: { readonly source: 'github'; readonly repo: string; readonly ref?: string } }
-	| { readonly name: string; readonly autoUpdate?: boolean; readonly source: { readonly source: 'git'; readonly url: string; readonly ref?: string } };
-
-export interface IExtraKnownMarketplaceConfigValue {
-	readonly source: string;
-	readonly autoUpdate: boolean;
-}
-
-export type ExtraKnownMarketplacesConfigDict = Record<string, string>;
+	| { readonly name: string; readonly source: { readonly source: 'github'; readonly repo: string; readonly ref?: string } }
+	| { readonly name: string; readonly source: { readonly source: 'git'; readonly url: string; readonly ref?: string } };
 
 /**
  * A single entry in the enterprise-managed `strictKnownMarketplaces` allowlist
@@ -39,12 +32,9 @@ export interface IStrictMarketplaceSource {
 
 /**
  * Converts an {@link IExtraKnownMarketplaceEntry} array into the
- * policy dict stored on the `chat.plugins.extraMarketplaces`
+ * `{ [name]: url-or-shorthand }` dict stored on the `chat.plugins.extraMarketplaces`
  * setting (and carried as the canonical JSON value of the `extraKnownMarketplaces`
  * managed setting across both the server endpoint and native MDM delivery).
- *
- * Entries without `autoUpdate` retain the legacy source string. Entries with an
- * explicit override use a JSON-encoded {@link IExtraKnownMarketplaceConfigValue}.
  *
  * Plain-string entries (allowed by the policy schema but unnamed) are stored with
  * the value used as both key and value so they survive the round-trip intact.
@@ -53,11 +43,11 @@ export interface IStrictMarketplaceSource {
  * so `__proto__` / `constructor` / `prototype` keys are skipped to avoid prototype pollution
  * (mirroring the guard in the managed-settings normalizer's string-map encoder).
  */
-export function extraKnownMarketplacesToConfigDict(entries: readonly (string | IExtraKnownMarketplaceEntry)[] | undefined): ExtraKnownMarketplacesConfigDict | undefined {
+export function extraKnownMarketplacesToConfigDict(entries: readonly (string | IExtraKnownMarketplaceEntry)[] | undefined): Record<string, string> | undefined {
 	if (!entries?.length) {
 		return undefined;
 	}
-	const obj: ExtraKnownMarketplacesConfigDict = {};
+	const obj: Record<string, string> = {};
 	for (const entry of entries) {
 		if (typeof entry === 'string') {
 			if (isUnsafeMarketplaceKey(entry)) {
@@ -70,8 +60,7 @@ export function extraKnownMarketplacesToConfigDict(entries: readonly (string | I
 			}
 			const s = entry.source;
 			const base = s.source === 'github' ? s.repo : s.url;
-			const source = s.ref ? `${base}#${s.ref}` : base;
-			obj[entry.name] = entry.autoUpdate === undefined ? source : JSON.stringify({ source, autoUpdate: entry.autoUpdate } satisfies IExtraKnownMarketplaceConfigValue);
+			obj[entry.name] = s.ref ? `${base}#${s.ref}` : base;
 		}
 	}
 	return obj;

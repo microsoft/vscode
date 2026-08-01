@@ -79,7 +79,7 @@ the VS Code bag is **flattened** to dot-paths — e.g. the schema's nested
 |------------------------|----------------|----------------------------------------|
 | `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
 | `enabledPlugins` | `{ "PLUGIN@MARKETPLACE": boolean }` | deny-wins (false beats true; enterprise denials immutable) |
-| `extraKnownMarketplaces` | `{ name: { source, autoUpdate? } }`, source `github` \| `git` \| `directory` | most-restrictive-wins (higher layer is the complete allowlist); explicit `autoUpdate` overrides the client's global plugin auto-update setting for that marketplace |
+| `extraKnownMarketplaces` | `{ name: { source } }`, source `github` \| `git` \| `directory` | most-restrictive-wins (higher layer is the complete allowlist) |
 | `strictKnownMarketplaces` | array of source descriptors | most-restrictive-wins (empty array = lockdown) |
 
 > **Current schema ↔ runtime divergence** (treat `managed-settings-schema.json` as the

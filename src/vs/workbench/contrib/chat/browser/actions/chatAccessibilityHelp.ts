@@ -118,7 +118,6 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.focusQuestionCarousel', 'When a chat question appears, toggle focus between the question and the chat input{0}.', '<keybinding:workbench.action.chat.focusQuestionCarousel>'));
 		content.push(localize('chat.previousQuestionCarouselQuestion', 'When a chat question is focused, move to the previous question{0}.', '<keybinding:workbench.action.chat.previousQuestion>'));
 		content.push(localize('chat.nextQuestionCarouselQuestion', 'When a chat question is focused, move to the next question{0}.', '<keybinding:workbench.action.chat.nextQuestion>'));
-		content.push(localize('chat.planReviewEditor', 'When a plan is ready for review, open it from the chat response to edit the plan and add line comments. Use the editor toolbar to navigate, clear, or submit feedback. Choose an implementation action from the plan review in Chat.'));
 		content.push(localize('chat.focusTip', 'When a tip appears, toggle focus between the tip and the chat input{0}.', '<keybinding:workbench.action.chat.focusTip>'));
 		if (isSessionsWindow) {
 			content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));

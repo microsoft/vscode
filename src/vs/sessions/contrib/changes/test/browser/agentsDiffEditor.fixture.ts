@@ -27,7 +27,6 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ResourceLabel } from '../../../../../workbench/browser/labels.js';
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
-import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
@@ -150,7 +149,6 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 
 class FixtureOverlayEditorGroup extends mock<IEditorGroup>() implements IAgentFeedbackOverlayEditorGroup {
 
-	override readonly id = 1;
 	override readonly onDidActiveEditorChange = Event.None;
 	override readonly onDidModelChange = Event.None;
 	override readonly activeEditor: TestEditorInput;
@@ -165,10 +163,6 @@ class FixtureOverlayEditorGroup extends mock<IEditorGroup>() implements IAgentFe
 		this.activeEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override readonly input = input;
 		}();
-	}
-
-	override getIndexOfEditor(editor: EditorInput): number {
-		return editor === this.activeEditor ? 0 : -1;
 	}
 
 	override async closeEditor(): Promise<boolean> {

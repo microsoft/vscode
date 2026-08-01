@@ -65,27 +65,13 @@ suite('normalizeManagedSettings', () => {
 	test('normalizes extraKnownMarketplaces from schema format to config dict', () => {
 		const result = normalizeManagedSettings({
 			[COPILOT_EXTRA_MARKETPLACES_KEY]: {
-				'a': { source: { source: 'github', repo: 'github/agent-skills' }, autoUpdate: true },
-				'b': { source: { source: 'git', url: 'https://example.com/repo.git', ref: 'v1' }, autoUpdate: false },
-				'c': { source: { source: 'github', repo: 'github/copilot-plugins' } },
+				'a': { source: { source: 'github', repo: 'github/agent-skills' } },
+				'b': { source: { source: 'git', url: 'https://example.com/repo.git', ref: 'v1' } },
 			}
 		});
 		assert.deepStrictEqual(result, {
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"{\\"source\\":\\"github/agent-skills\\",\\"autoUpdate\\":true}","b":"{\\"source\\":\\"https://example.com/repo.git#v1\\",\\"autoUpdate\\":false}","c":"github/copilot-plugins"}',
+			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"github/agent-skills","b":"https://example.com/repo.git#v1"}',
 		});
-	});
-
-	test('ignores non-boolean marketplace autoUpdate with warning', () => {
-		const warnings: string[] = [];
-		const result = normalizeManagedSettings({
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: {
-				'a': { source: { source: 'github', repo: 'github/agent-skills' }, autoUpdate: 'yes' },
-			}
-		}, msg => warnings.push(msg));
-		assert.deepStrictEqual(result, {
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"github/agent-skills"}',
-		});
-		assert.deepStrictEqual(warnings, ['Ignoring invalid autoUpdate for extraKnownMarketplaces entry "a": expected boolean']);
 	});
 
 	test('drops malformed marketplace entries with warning', () => {

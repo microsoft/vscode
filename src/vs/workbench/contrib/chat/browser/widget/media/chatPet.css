@@ -83,7 +83,7 @@
 	}
 }
 
-.monaco-workbench .chat-pet-overlay > .chat-pet-button:focus {
+.monaco-workbench .chat-pet-host > .chat-pet-button:focus {
 	outline: none;
 }
 

@@ -51,7 +51,6 @@ import {
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	isJsonRpcResponse,
-	ProtocolError,
 	type AhpNotification,
 	type JsonRpcNotification,
 	type JsonRpcRequest,
@@ -170,7 +169,7 @@ export class TestProtocolClient {
 				this._pendingCalls.delete(msg.id);
 				const errResp = msg as JsonRpcErrorResponse;
 				if (errResp.error) {
-					pending.reject(new ProtocolError(errResp.error.code, errResp.error.message, errResp.error.data));
+					pending.reject(new Error(errResp.error.message));
 				} else {
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}

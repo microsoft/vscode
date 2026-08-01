@@ -83,7 +83,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ILanguageModelToolsService, IToolInvocation, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -5399,8 +5399,6 @@ export function toolResultToProtocol(result: IToolResult, toolName: string): {
 	for (const part of result.content) {
 		if (part.kind === 'text') {
 			content.push({ type: ToolResultContentType.Text, text: part.value });
-		} else if (part.kind === 'promptTsx') {
-			content.push({ type: ToolResultContentType.Text, text: stringifyPromptTsxPart(part) });
 		} else if (part.kind === 'data') {
 			content.push({
 				type: ToolResultContentType.EmbeddedResource,
