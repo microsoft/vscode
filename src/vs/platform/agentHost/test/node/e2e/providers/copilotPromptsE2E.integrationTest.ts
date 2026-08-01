@@ -44,9 +44,10 @@ const RECORDING = process.env[AgentHostUpdateSnapshotsEnvVar] === '1'
 
 /**
  * Mirrors the `testFamilies` list in the extension's `agentPrompt.spec.tsx` so
- * both prompt surfaces are compared over the same set. Baselines within a
- * dialect are near-identical by construction; they are kept per family so a
- * future divergence names the family that introduced it.
+ * both prompt surfaces are compared over the same set. Several families share a
+ * baseline — the five claude entries are byte-identical — but the axis is not the
+ * dialect: the seven responses families split four ways. They are kept per family
+ * so a future divergence names the family that introduced it.
  *
  * Adding one takes an entry here, an entry in `capiStubs.ts` (a model missing
  * from `/models` is rejected before the CLI builds a request), a fixture in
@@ -91,20 +92,36 @@ suite('Agent Host E2E — Copilot prompts', function () {
 	});
 
 	teardown(async function () {
-		this.timeout(60_000);
+		this.timeout(90_000);
 		if (!lease) {
 			throw new Error('Lease not initialized');
 		}
-		await lease.release(createdSessions);
-		for (const dir of tempDirs) {
-			try { await rm(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+		// A failed test can leave a mid-turn session that wedges the shared host,
+		// cascading into the next model; restart it rather than reusing it.
+		const failed = this.currentTest?.state === 'failed';
+		if (failed) {
+			lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
 		}
-		tempDirs.length = 0;
+		try {
+			await lease.release(createdSessions, failed);
+		} finally {
+			for (const dir of tempDirs) {
+				try { await rm(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+			}
+			tempDirs.length = 0;
+		}
 	});
 
 	suiteTeardown(async function () {
 		this.timeout(30_000);
-		await lease?.dispose();
+		try {
+			await lease?.dispose();
+		} finally {
+			for (const dir of tempDirs) {
+				try { await rm(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+			}
+			tempDirs.length = 0;
+		}
 	});
 
 	for (const model of SNAPSHOT_MODELS) {
