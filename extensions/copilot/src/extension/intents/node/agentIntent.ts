@@ -251,11 +251,11 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
 		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 
-		// Only look up endpoints when a subagent that depends on model availability
-		// could actually be enabled, since the lookup is otherwise unnecessary.
+		// The search/explore subagents are the only ones whose availability depends
+		// on the model list, so skip the lookup entirely when they are off.
 		const allEndpoints = searchSubagentEnabled
 			? await endpointProvider.getAllChatEndpoints().catch(err => {
-				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling availability-gated subagents: ${err}`);
+				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling the search/explore subagents: ${err}`);
 				return [] as IChatEndpoint[];
 			})
 			: [];

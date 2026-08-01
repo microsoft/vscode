@@ -27,10 +27,18 @@ import { getAgentTools } from '../agentIntent';
 class StubEndpointProvider implements IEndpointProvider {
 	declare readonly _serviceBrand: undefined;
 	endpoints: IChatEndpoint[] = [];
+	failGetAllChatEndpoints = false;
+	getAllChatEndpointsCallCount = 0;
 	readonly onDidModelsRefresh = Event.None;
 	async getChatEndpoint(): Promise<IChatEndpoint> { return this.endpoints[0]; }
 	async getEmbeddingsEndpoint(): Promise<never> { throw new Error('not implemented'); }
-	async getAllChatEndpoints(): Promise<IChatEndpoint[]> { return this.endpoints; }
+	async getAllChatEndpoints(): Promise<IChatEndpoint[]> {
+		this.getAllChatEndpointsCallCount++;
+		if (this.failGetAllChatEndpoints) {
+			throw new Error('CAPI unreachable');
+		}
+		return this.endpoints;
+	}
 	async getAllCompletionModels(): Promise<never[]> { return []; }
 }
 
@@ -71,6 +79,8 @@ describe('getAgentTools search subagent gating', () => {
 
 	beforeEach(() => {
 		endpointProvider.endpoints = [userEndpoint];
+		endpointProvider.failGetAllChatEndpoints = false;
+		endpointProvider.getAllChatEndpointsCallCount = 0;
 		configService.setConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, true);
 		configService.setConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, false);
 		configService.setConfig(ConfigKey.ExploreAgentEnabled, true);
@@ -104,16 +114,24 @@ describe('getAgentTools search subagent gating', () => {
 		expect(hasTool(tools, ToolName.SearchSubagent)).toBe(false);
 	});
 
-	test('exposes ExecutionSubagent when enabled without a Gemini endpoint', async () => {
+	test('exposes ExecutionSubagent when enabled without a Gemini endpoint, and skips the endpoint lookup', async () => {
 		configService.setConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, false);
 		configService.setConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, true);
 		const request = new TestChatRequest('run tests for foo');
 		const tools = await instantiationService.invokeFunction(getAgentTools, request, userEndpoint);
 		expect(hasTool(tools, ToolName.ExecutionSubagent)).toBe(true);
+		expect(endpointProvider.getAllChatEndpointsCallCount).toBe(0);
+	});
+
+	test('hides ExecutionSubagent when the experiment is off', async () => {
+		configService.setConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, false);
+		const request = new TestChatRequest('run tests for foo');
+		const tools = await instantiationService.invokeFunction(getAgentTools, request, userEndpoint);
+		expect(hasTool(tools, ToolName.ExecutionSubagent)).toBe(false);
 	});
 
 	test('hides both subagents when CAPI fetch fails', async () => {
-		endpointProvider.getAllChatEndpoints = async () => { throw new Error('CAPI unreachable'); };
+		endpointProvider.failGetAllChatEndpoints = true;
 		const request = new TestChatRequest('find usages of foo');
 		const tools = await instantiationService.invokeFunction(getAgentTools, request, userEndpoint);
 		expect(hasTool(tools, ToolName.SearchSubagent)).toBe(false);
