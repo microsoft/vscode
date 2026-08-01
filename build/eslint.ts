@@ -19,6 +19,10 @@ export function shouldErrorOnUnmatchedPattern(args: readonly string[]): boolean 
 }
 
 async function eslint(args: readonly string[]): Promise<void> {
+	const started = Date.now();
+	console.log(args.length > 0
+		? `ESLint: checking ${args.length} requested target${args.length === 1 ? '' : 's'}.`
+		: 'ESLint: checking the full repository.');
 	const linter = new ESLint({
 		cache: true,
 		cacheLocation: '.eslintcache',
@@ -33,6 +37,7 @@ async function eslint(args: readonly string[]): Promise<void> {
 	if (message) {
 		console.log(message);
 	}
+	console.log(`ESLint: checked ${results.length} file${results.length === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
 
 	let warningCount = 0;
 	let errorCount = 0;
