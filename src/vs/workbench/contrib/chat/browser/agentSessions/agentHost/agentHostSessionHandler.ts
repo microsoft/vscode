@@ -3179,15 +3179,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const clearedMeta = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
 					? metaWithoutToolSearchCandidates(tc)
 					: undefined;
+				const result: IToolResult = {
+					content: [],
+					toolResultError: `Invalid tool input for "${toolName}": expected JSON object parameters`,
+					toolResultMessage: `Failed to execute ${toolName}`,
+				};
+				void invocation.didExecuteTool(result);
 				this._dispatchAction(opts.backendSession, {
 					type: ActionType.ChatToolCallComplete,
 					turnId: opts.turnId,
 					toolCallId,
-					result: {
-						success: false,
-						pastTenseMessage: `Failed to execute ${toolName}`,
-						error: { message: `Invalid tool input for "${toolName}": expected JSON object parameters` },
-					},
+					result: toolResultToProtocol(result, toolName),
 					...(clearedMeta !== undefined ? { _meta: clearedMeta } : {}),
 				}, opts.chatURI);
 				return;

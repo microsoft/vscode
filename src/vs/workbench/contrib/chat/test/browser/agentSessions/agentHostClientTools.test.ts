@@ -905,6 +905,52 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		test('settles a client tool invocation when referenced input is invalid', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatUri = URI.parse(buildDefaultChatUri(backendSession));
+			connection.resourceReadData = 'not json';
+
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: 'session-db:/tool-input', contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+
+			const completion = connection.dispatchedActions.find(entry => isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
+				&& entry.action.toolCallId === 'tool-call-1');
+			assert.deepStrictEqual({
+				invocationState: toolsService.begunToolCalls[0]?.state.get().type,
+				completionError: completion?.action.type === ActionType.ChatToolCallComplete ? completion.action.result.error?.message : undefined,
+			}, {
+				invocationState: IChatToolInvocation.StateKind.Completed,
+				completionError: 'Invalid tool input for "runTask": expected JSON object parameters',
+			});
+		});
+
 		test('reads referenced client tool input after confirmation', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
