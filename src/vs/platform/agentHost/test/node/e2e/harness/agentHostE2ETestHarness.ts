@@ -19,6 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
+	getInlineToolInput,
 	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
@@ -646,7 +647,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 				}
 				const matchingRule = options.allow.find(rule =>
 					rule.toolName === toolName
-					&& (rule.matchInput?.(action.toolInput) ?? true));
+					&& (rule.matchInput?.(getInlineToolInput(action.toolInput)) ?? true));
 
 				if (!matchingRule) {
 					errors.push(`unexpected tool call: toolName=${toolName ?? '<unknown>'} input=${JSON.stringify(action.toolInput)}`);

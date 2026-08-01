@@ -8,7 +8,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agentService.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -808,11 +808,6 @@ function assistantTextOf(parts: readonly ResponsePart[]): string {
 	return parts.filter((p): p is Extract<ResponsePart, { kind: ResponsePartKind.Markdown }> => p.kind === ResponsePartKind.Markdown).map(p => p.content).join('').trim();
 }
 
-/** Reads a tool call's JSON input string, which is absent while still streaming. */
-function readToolInput(tc: ToolCallState): string | undefined {
-	return tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput;
-}
-
 interface ISerializedContextTurn {
 	readonly turn: number;
 	readonly state: string;
@@ -873,7 +868,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		if (detail !== 'summary' && toolCalls.length > 0) {
 			serializedToolCalls = toolCalls.map(tc => {
 				if (caps.toolInput > 0) {
-					const input = trunc(readToolInput(tc) ?? '', caps.toolInput);
+					const input = trunc(tc.status === ToolCallStatus.Streaming ? '' : getInlineToolInput(tc.toolInput) ?? '', caps.toolInput);
 					return input !== undefined ? { name: tc.toolName, input } : { name: tc.toolName };
 				}
 				return tc.toolName;

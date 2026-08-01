@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getInlineToolInput } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import type { ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { createRealSession, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
@@ -109,7 +110,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const fileContent = readFileSync(join(workspace, 'streaming.txt'), 'utf8');
 		const normalizedFileContent = fileContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 		const lineCount = fileContent.split(/\r\n|\r|\n/).length;
-		const readyInputs = ready.map(action => action.toolInput).filter(input => input !== undefined);
+		const readyInputs = ready.map(action => getInlineToolInput(action.toolInput)).filter(input => input !== undefined);
 
 		assert.deepStrictEqual({
 			fileContent: normalizedFileContent.trimEnd(),

@@ -1242,7 +1242,7 @@ export interface McpOAuthClient {
  * Reusable MCP authentication challenge — the RFC 9728 discovery info a
  * client needs to obtain a token and push it via the `authenticate` command.
  * Deliberately carries **no token**: this describes what is being asked for,
- * never the ****** itself.
+ * never the bearer token itself.
  *
  * Shared by two independent state machines that describe the same OAuth
  * challenge from different vantage points:
@@ -1276,7 +1276,7 @@ export interface McpAuthRequirement {
 	resource: ProtectedResourceMetadata;
 	/**
 	 * Scopes required for the current challenge, parsed from the
-	 * `WWW-Authenticate: ******"…"` header (or `scopes_supported`
+	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
 	 * fallback). Authoritative for the next authorization request — clients
 	 * MUST NOT assume any subset/superset relationship to
 	 * `resource.scopes_supported`.

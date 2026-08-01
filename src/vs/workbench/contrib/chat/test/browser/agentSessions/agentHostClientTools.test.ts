@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -23,6 +23,7 @@ import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, ty
 import { buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -417,6 +418,18 @@ suite('AgentHostClientTools', () => {
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
+			public readonly resourceReadUris: URI[] = [];
+			public resourceReadData = '{"task":"build"}';
+			public readonly resourceReadResponses = new Map<string, Promise<{ data: string; encoding: ContentEncoding }>>();
+
+			override async resourceRead(uri: URI) {
+				this.resourceReadUris.push(uri);
+				const response = this.resourceReadResponses.get(uri.toString());
+				if (response) {
+					return response;
+				}
+				return { data: this.resourceReadData, encoding: ContentEncoding.Utf8 };
+			}
 
 			override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 				this.dispatchedActions.push({ channel, action });
@@ -795,6 +808,228 @@ suite('AgentHostClientTools', () => {
 			assert.ok(connection.dispatchedActions.some(entry => isChatAction(entry.action)
 				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
+		});
+
+		test('resolves referenced input before invoking an owned client tool', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatUri = URI.parse(buildDefaultChatUri(backendSession));
+			const toolInputUri = URI.parse('session-db:/tool-input');
+
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: toolInputUri.toString(), contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				resourceReadUris: connection.resourceReadUris.map(uri => uri.toString()),
+				invokedToolCalls: toolsService.invokedToolCalls.map(call => ({
+					callId: call.callId,
+					parameters: call.parameters,
+				})),
+			}, {
+				resourceReadUris: [toolInputUri.toString()],
+				invokedToolCalls: [{ callId: 'tool-call-1', parameters: { task: 'build' } }],
+			});
+		});
+
+		test('reads referenced client tool input after confirmation', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatUri = URI.parse(buildDefaultChatUri(backendSession));
+			const toolInputUri = URI.parse('session-db:/tool-input');
+
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: toolInputUri.toString(), contentType: 'application/json' },
+				confirmationTitle: 'Run Task',
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			connection.resourceReadData = '{"task":"updated"}';
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: toolInputUri.toString(), contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.UserAction,
+			} as ChatAction);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				resourceReadUris: connection.resourceReadUris.map(uri => uri.toString()),
+				parameters: toolsService.invokedToolCalls[0]?.parameters,
+			}, {
+				resourceReadUris: [toolInputUri.toString()],
+				parameters: { task: 'updated' },
+			});
+		});
+
+		test('restarts referenced input resolution when the reference changes', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatUri = URI.parse(buildDefaultChatUri(backendSession));
+			const firstInputUri = URI.parse('session-db:/tool-input-1');
+			const secondInputUri = URI.parse('session-db:/tool-input-2');
+			const firstRead = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
+			connection.resourceReadResponses.set(firstInputUri.toString(), firstRead.p);
+			connection.resourceReadResponses.set(secondInputUri.toString(), Promise.resolve({ data: '{"task":"latest"}', encoding: ContentEncoding.Utf8 }));
+
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: firstInputUri.toString(), contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: secondInputUri.toString(), contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				resourceReadUris: connection.resourceReadUris.map(uri => uri.toString()),
+				parameters: toolsService.invokedToolCalls[0]?.parameters,
+			}, {
+				resourceReadUris: [firstInputUri.toString(), secondInputUri.toString()],
+				parameters: { task: 'latest' },
+			});
+		});
+
+		test('rereads referenced input after a running tool returns to confirmation', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatUri = URI.parse(buildDefaultChatUri(backendSession));
+			const toolInputUri = URI.parse('session-db:/tool-input');
+			const firstRead = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
+			connection.resourceReadResponses.set(toolInputUri.toString(), firstRead.p);
+
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: toolInputUri.toString(), contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: toolInputUri.toString(), contentType: 'application/json' },
+				confirmationTitle: 'Run Task',
+			} as ChatAction);
+			connection.resourceReadResponses.set(toolInputUri.toString(), Promise.resolve({ data: '{"task":"latest"}', encoding: ContentEncoding.Utf8 }));
+			firstRead.complete({ data: '{"task":"stale"}', encoding: ContentEncoding.Utf8 });
+			await timeout(0);
+			assert.strictEqual(toolsService.invokedToolCalls.length, 0);
+
+			connection.applySessionAction(chatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: { uri: toolInputUri.toString(), contentType: 'application/json' },
+				confirmed: ToolCallConfirmationReason.UserAction,
+			} as ChatAction);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				resourceReadUris: connection.resourceReadUris.map(uri => uri.toString()),
+				parameters: toolsService.invokedToolCalls[0]?.parameters,
+			}, {
+				resourceReadUris: [toolInputUri.toString(), toolInputUri.toString()],
+				parameters: { task: 'latest' },
+			});
 		});
 
 		test('tool-search completion drops candidates while preserving unknown metadata', async () => {
