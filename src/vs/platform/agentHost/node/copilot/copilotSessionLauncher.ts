@@ -204,12 +204,13 @@ function getErrorMessage(err: unknown): string {
 	return String(err);
 }
 
-/**
- * Returns whether the SDK explicitly reported that the persisted session has no events.
- */
-function isEmptySessionResumeError(err: unknown): boolean {
-	return getCopilotSdkErrorCode(err) === -32603
-		&& /'session\.getMessages' returned no events for session\b/i.test(getErrorMessage(err));
+function shouldCreateSessionAfterResumeError(err: unknown): boolean {
+	if (getCopilotSdkErrorCode(err) !== -32603) {
+		return false;
+	}
+	const message = getErrorMessage(err);
+	return /'session\.getMessages' returned no events for session\b/i.test(message)
+		|| /\bSession not found: [^\s]+$/i.test(message);
 }
 
 function isCustomAgentNotFoundError(err: unknown): boolean {
@@ -409,7 +410,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// The SDK fails to resume sessions that have no messages.
 			// Fall back to creating a new session with the same ID,
 			// seeding model & working directory from stored metadata.
-			if (!isEmptySessionResumeError(resumeError)) {
+			if (!shouldCreateSessionAfterResumeError(resumeError)) {
 				throw resumeError;
 			}
 
