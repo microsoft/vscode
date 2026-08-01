@@ -262,7 +262,6 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 	let nlsConfig: INLSConfiguration | undefined = undefined;
 
 	let messagesFile: string | undefined;
-	const isOutBuild = process.env['VSCODE_DEV'] === 'out-build';
 	if (process.env['VSCODE_NLS_CONFIG']) {
 		try {
 			nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
@@ -277,12 +276,9 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 			console.error(`Error reading VSCODE_NLS_CONFIG from environment: ${e}`);
 		}
 	}
-	if (isOutBuild) {
-		messagesFile = join(import.meta.dirname, 'nls.messages.json');
-	}
 
 	if (
-		(process.env['VSCODE_DEV'] && !isOutBuild) ||	// no NLS support in source dev mode
+		process.env['VSCODE_DEV'] ||	// no NLS support in dev mode
 		!messagesFile					// no NLS messages file
 	) {
 		return undefined;

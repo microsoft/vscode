@@ -37,12 +37,7 @@ for %%A in (%*) do (
 )
 
 :: Launch Code
-set APP_PATH=.
-if not exist "out\main.js" if exist "out-build\main.js" (
-	set APP_PATH=out-build\main.js
-	set VSCODE_DEV=out-build
-)
-%CODE% %APP_PATH% %DISABLE_TEST_EXTENSION% %*
+%CODE% . %DISABLE_TEST_EXTENSION% %*
 goto end
 
 :builtin

@@ -49,12 +49,7 @@ function code() {
 	fi
 
 	# Launch Code
-	APP_PATH="."
-	if [[ ! -f "out/main.js" && -f "out-build/main.js" ]]; then
-		APP_PATH="out-build/main.js"
-		export VSCODE_DEV=out-build
-	fi
-	exec "$CODE" "$APP_PATH" $DISABLE_TEST_EXTENSION "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
 }
 
 function code-wsl()
