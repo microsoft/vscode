@@ -1419,7 +1419,8 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// Terminal
-		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables);
+		// Disable event buffering: the renderer consumes the high-volume pty data events over the direct pty host connection, not this channel, so buffering them here retains terminal output forever (https://github.com/microsoft/vscode/issues/307156)
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables, { disableEventBuffering: true });
 		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
