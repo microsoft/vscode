@@ -86,12 +86,15 @@ export function codexTelemetryOverrides(config: IAgentHostNativeOTelConfig | und
 	];
 }
 
-function codexExporter(config: { endpoint: string; protocol: 'http/json' | 'http/protobuf' | 'grpc' }): string {
+function codexExporter(config: { endpoint: string; protocol: 'http/json' | 'http/protobuf' | 'grpc'; headers?: Readonly<Record<string, string>> }): string {
+	const headers = config.headers && Object.keys(config.headers).length > 0
+		? `, headers = { ${Object.entries(config.headers).map(([key, value]) => `${JSON.stringify(key)} = ${JSON.stringify(value)}`).join(', ')} }`
+		: '';
 	if (config.protocol === 'grpc') {
-		return `{ otlp-grpc = { endpoint = ${JSON.stringify(config.endpoint)} } }`;
+		return `{ otlp-grpc = { endpoint = ${JSON.stringify(config.endpoint)}${headers} } }`;
 	}
 	const protocol = config.protocol === 'http/json' ? 'json' : 'binary';
-	return `{ otlp-http = { endpoint = ${JSON.stringify(config.endpoint)}, protocol = ${JSON.stringify(protocol)} } }`;
+	return `{ otlp-http = { endpoint = ${JSON.stringify(config.endpoint)}, protocol = ${JSON.stringify(protocol)}${headers} } }`;
 }
 
 function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics'): string {

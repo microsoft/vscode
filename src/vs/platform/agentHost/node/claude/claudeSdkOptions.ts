@@ -269,6 +269,9 @@ export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | und
 		env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL = config.external.protocol;
 		env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = resolveSignalEndpoint(config.external.endpoint, 'metrics');
 		env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL = config.external.protocol;
+		if (config.external.headers && Object.keys(config.external.headers).length > 0) {
+			env.OTEL_EXPORTER_OTLP_HEADERS = Object.entries(config.external.headers).map(([key, value]) => `${key}=${value}`).join(',');
+		}
 	}
 	if (traceContext) {
 		env.TRACEPARENT = traceContext.traceparent;

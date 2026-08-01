@@ -195,7 +195,11 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const protocol = this._config.otlpProtocol === 'grpc'
 			? 'grpc'
 			: this._config.otlpProtocol === 'http/protobuf' ? 'http/protobuf' : 'http/json';
-		const external = this._config.otlpEndpoint ? { endpoint: this._config.otlpEndpoint, protocol } as const : undefined;
+		const external = this._config.otlpEndpoint ? {
+			endpoint: this._config.otlpEndpoint,
+			protocol,
+			...(this._config.headers ? { headers: this._config.headers } : {}),
+		} as const : undefined;
 		if (!this._config.dbSpanExporter) {
 			return { traces: external, external, captureContent: this._config.captureContent === true };
 		}
